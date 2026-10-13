@@ -1,0 +1,59 @@
+# Lädt die Dateien eines veröffentlichten Releases auf den eigenen
+# Update-Server (Lizenzserver, Route /upload/updates). `latest.json` zeigt
+# danach auf diesen Server statt auf GitHub, damit Kunden-Apps Updates auch
+# aus einem privaten Repository bekommen.
+#
+# Benötigt: Repository-Variable BAUPROJEKT_LIZENZSERVER und Secret
+# BAUPROJEKT_UPLOAD_TOKEN (gleicher Wert wie auf dem Server).
+name: Updates veröffentlichen
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release-Tag, z. B. v0.2.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  hochladen:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      SERVER: ${{ vars.BAUPROJEKT_LIZENZSERVER }}
+      UPLOAD_TOKEN: ${{ secrets.BAUPROJEKT_UPLOAD_TOKEN }}
+    steps:
+      - name: Einstellungen vorhanden?
+        run: |
+          if [ -z "$SERVER" ]; then echo "::error::Repository-Variable BAUPROJEKT_LIZENZSERVER fehlt"; exit 1; fi
+          if [ -z "$UPLOAD_TOKEN" ]; then echo "::error::Secret BAUPROJEKT_UPLOAD_TOKEN fehlt"; exit 1; fi
+
+      - name: Release-Dateien laden
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir release
+
+      - name: latest.json auf den eigenen Server umschreiben
+        run: |
+          VERSION=$(jq -r .version release/latest.json)
+          jq --arg basis "${SERVER%/}/updates/$VERSION/" \
+            '.platforms |= map_values(.url = $basis + (.url | split("/") | last))' \
+            release/latest.json > latest.json
+          cat latest.json
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Hochladen (Installer zuerst, latest.json zuletzt)
+        run: |
+          hochladen() {
+            curl --fail-with-body -sS -T "$1" -H "Authorization: Bearer $UPLOAD_TOKEN" "${SERVER%/}/upload/updates/$2"
+            echo "hochgeladen: $2"
+          }
+          for f in release/*; do
+            name=$(basename "$f")
+            [ "$name" = latest.json ] && continue
+            hochladen "$f" "$VERSION/$name"
+          done
+          hochladen latest.json latest.json

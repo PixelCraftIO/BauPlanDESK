@@ -8,7 +8,7 @@ use core_lib::CoreServices;
 use core_lib::benutzer::Benutzer;
 use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
-use core_lib::license::{DatenbankLizenz, Lizenzpruefer};
+use core_lib::license::{AboAnbindung, DatenbankLizenz, Lizenzpruefer};
 use core_lib::storage::Storage;
 use core_lib::xbau::Codelisten;
 use storage::StorageConfig;
@@ -16,6 +16,7 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
 use crate::config::AppConfig;
+use crate::lizenzdienst::{self, HttpLizenzdienst};
 
 pub struct AppState {
     pub core: CoreServices,
@@ -85,7 +86,26 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     if !pruefer.hat_schluessel() {
         tracing::warn!("Kein Lizenzschlüssel eingebaut: nur die Testversion ist möglich.");
     }
-    let lizenz = DatenbankLizenz::new(repos.lizenz.clone(), pruefer).mit_arbeitsplatzpflicht();
+    let hat_ticket_schluessel = pruefer.hat_ticket_schluessel();
+    let mut lizenz = DatenbankLizenz::new(repos.lizenz.clone(), pruefer).mit_arbeitsplatzpflicht();
+    let arbeitsplatz = whoami::fallible::hostname().unwrap_or_else(|_| whoami::devicename());
+    // Abo-Lizenzen: nur mit eingebautem Ticket-Schlüssel und Lizenzserver.
+    match (hat_ticket_schluessel, lizenzdienst::server_url()) {
+        (true, Some(url)) => match lizenzdienst::machine_id() {
+            Ok(machine_id) => {
+                tracing::info!(%url, "Lizenzserver");
+                lizenz = lizenz.mit_abo(AboAnbindung {
+                    dienst: Arc::new(HttpLizenzdienst::new(url)?),
+                    machine_id,
+                    rechnername: arbeitsplatz.clone(),
+                    app_version: app.package_info().version.to_string(),
+                    ticket_datei: data_dir.join("lizenz.ticket"),
+                });
+            }
+            Err(e) => tracing::error!(fehler = %e, "Abo-Lizenzen nicht möglich"),
+        },
+        _ => tracing::info!("Kein Lizenzserver eingebaut: nur Lizenzdateien möglich."),
+    }
     let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
         .mit_formularen(init_formulare(app, &data_dir)?)
         .mit_codelisten(init_codelisten(app, &data_dir)?);
@@ -95,7 +115,6 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         .anmelden(&whoami::username(), &whoami::realname())
         .await?;
     tracing::info!(benutzer = %benutzer.anmeldename, rolle = ?benutzer.rolle, "angemeldet");
-    let arbeitsplatz = whoami::fallible::hostname().unwrap_or_else(|_| whoami::devicename());
     let lizenz = core
         .license
         .arbeitsplatz_belegen(&arbeitsplatz, &benutzer.anzeigename)

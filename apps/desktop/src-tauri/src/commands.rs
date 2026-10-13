@@ -400,6 +400,33 @@ pub async fn lizenz_einspielen(
     arbeitsplatz_belegen(state).await
 }
 
+/// Abo-Lizenzschlüssel eingeben (Administrator): aktiviert diesen Rechner
+/// sofort, die übrigen beim nächsten Kontakt zum Lizenzserver.
+#[tauri::command]
+pub async fn lizenz_aktivieren(
+    state: State<'_, AppState>,
+    schluessel: String,
+) -> CmdResult<Lizenzstatus> {
+    let ich = state.benutzer();
+    state.core.abo_aktivieren(&schluessel, &ich).await?;
+    arbeitsplatz_belegen(state).await
+}
+
+/// Bestätigung jetzt beim Lizenzserver erneuern.
+#[tauri::command]
+pub async fn lizenz_bestaetigen(state: State<'_, AppState>) -> CmdResult<Lizenzstatus> {
+    state.core.abo_bestaetigen().await?;
+    arbeitsplatz_belegen(state).await
+}
+
+/// Diesen Rechner beim Lizenzserver abmelden (Administrator), damit ein
+/// anderer seinen Platz bekommt.
+#[tauri::command]
+pub async fn lizenz_abmelden(state: State<'_, AppState>) -> CmdResult<Lizenzstatus> {
+    let ich = state.benutzer();
+    Ok(state.core.abo_abmelden(&ich).await?)
+}
+
 /// Arbeitsplatz (erneut) belegen, z. B. wenn ein Kollege die App beendet hat.
 #[tauri::command]
 pub async fn arbeitsplatz_belegen(state: State<'_, AppState>) -> CmdResult<Lizenzstatus> {

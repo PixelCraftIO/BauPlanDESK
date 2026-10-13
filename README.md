@@ -41,6 +41,7 @@ crates/db-postgres         PostgreSQL-Repositories + Migrationen
 crates/storage             Storage-Backends (lokal/NAS, S3-kompatibel)
 crates/client-cache        Hash-validierter Datei-Cache für die Desktop-App
 crates/server              axum-Server (NAS/Büro/Cloud)
+crates/lizenz-server       Lizenzserver des Herstellers (Abo-Tickets, Stripe, Updates)
 apps/desktop               Svelte-Frontend
 apps/desktop/src-tauri     Tauri-App (Fenster, Updater, Bootstrap, Commands)
 lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
@@ -208,6 +209,42 @@ Lizenzen für die Entwicklung erzeugen lassen:
 cargo run -p core-lib --features testdaten --example testlizenz -- test.bplizenz 3
 ```
 
+### Abo-Lizenzen über den Lizenzserver
+
+Statt einer Datei kann der Administrator einen Lizenzschlüssel eingeben
+(*Hilfe → Lizenz …*, `BPIO-XXXXX-…`). Er liegt danach in der gemeinsamen
+Datenbank, und jeder Rechner holt sich beim [Lizenzserver](crates/lizenz-server)
+selbst ein **Ticket**:
+
+- **Offline prüfbar:** Das Ticket ist mit dem Ticket-Schlüssel des Servers
+  signiert (Ed25519) und enthält Lizenzdaten und Ablaufzeitpunkt. Die App
+  prüft es lokal gegen den eingebauten öffentlichen Schlüssel
+  (`BAUPROJEKT_TICKET_SCHLUESSEL`), ohne Internet.
+- **Rollierend:** Ein Ticket gilt 30 Tage. Die App erneuert es im
+  Hintergrund einmal am Tag, sobald der Server erreichbar ist. Ist ein
+  Rechner länger offline, bleibt alles lesbar und exportierbar, nur
+  Änderungen sind gesperrt. Lehnt der Server ab (Abo beendet, gesperrt),
+  verfällt das Ticket sofort.
+- **An den Rechner gebunden:** Das Ticket enthält die Machine-ID (SHA-256 der
+  Rechnerkennung des Betriebssystems: Windows `MachineGuid`, macOS
+  Hardware-UUID, Linux `/etc/machine-id`). Auf einen anderen Rechner kopiert,
+  gilt es nicht. Der Server zählt die Rechner je Lizenz; wer sich länger als
+  die Ticketdauer nicht meldet, gibt seinen Platz automatisch frei.
+  *Diesen Rechner abmelden* gibt ihn sofort frei (Rechnerwechsel).
+- **Stripe:** Der Server bekommt Zahlungen und Abo-Änderungen per Webhook
+  und schaltet die Lizenz aktiv oder inaktiv. Plätze = Menge im Abo.
+
+Der Ticket-Schlüssel ist ein eigenes Schlüsselpaar (`lizenz-werkzeug
+schluessel ticket.key`). Der Server kann damit nur kurzlebige,
+rechnergebundene Tickets ausstellen, keine Lizenzdateien. Betrieb und
+Konfiguration: [`crates/lizenz-server`](crates/lizenz-server/src/main.rs),
+Container: [`Dockerfile`](crates/lizenz-server/Dockerfile).
+
+Der Lizenzserver liefert unter `/updates/` auch `latest.json` und die
+Installer für den Auto-Updater aus. Der Workflow
+[`updates.yml`](.github/workflows/updates.yml) lädt sie nach dem
+Veröffentlichen eines Releases hoch.
+
 ## XBau-Export
 
 Aus einem Projekt entsteht die Nachricht *Beantragung einer Baugenehmigung*
@@ -254,11 +291,14 @@ exportieren …* (Strg+Umschalt+E).
 * **Auto-Update:** `tauri-plugin-updater`. Die App prüft beim Start im
   Hintergrund und installiert erst nach Bestätigung. Vor dem ersten Release:
   1. Schlüsselpaar erzeugen: `npm run tauri signer generate -- -w ~/.tauri/bauprojektio.key`
-  2. Öffentlichen Schlüssel in `tauri.conf.json` → `plugins.updater.pubkey` eintragen.
-  3. Update-Endpunkt in `plugins.updater.endpoints` eintragen (z. B. das
-     `latest.json` des GitHub-Releases oder ein eigener Update-Server).
+  2. Inhalt der `.pub`-Datei als Repository-Variable `BAUPROJEKT_UPDATER_PUBKEY`
+     hinterlegen (ersetzt `plugins.updater.pubkey` aus `tauri.conf.json`).
+  3. Repository-Variable `BAUPROJEKT_LIZENZSERVER` setzen; die App fragt
+     `<Lizenzserver>/updates/latest.json` ab.
   4. Privaten Schlüssel als Secret `TAURI_SIGNING_PRIVATE_KEY` hinterlegen; der
-     Workflow [`release.yml`](.github/workflows/release.yml) baut und signiert.
+     Workflow [`release.yml`](.github/workflows/release.yml) baut und signiert,
+     [`updates.yml`](.github/workflows/updates.yml) lädt nach dem
+     Veröffentlichen auf den Server hoch.
 * **Icons:** Platzhalter in `apps/desktop/src-tauri/icons/`; mit
   `npm run tauri icon <logo.png>` durch das finale Logo ersetzen.
 

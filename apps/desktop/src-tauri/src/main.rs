@@ -4,6 +4,7 @@
 mod bootstrap;
 mod commands;
 mod config;
+mod lizenzdienst;
 mod menu;
 mod updater;
 
@@ -65,6 +66,9 @@ fn main() {
             commands::benutzer_aendern,
             commands::lizenz_status,
             commands::lizenz_einspielen,
+            commands::lizenz_aktivieren,
+            commands::lizenz_bestaetigen,
+            commands::lizenz_abmelden,
             commands::arbeitsplatz_belegen,
             commands::dokument_exportieren,
             commands::bauantrag,

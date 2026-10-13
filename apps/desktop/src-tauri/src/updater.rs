@@ -4,8 +4,10 @@
 //! das Frontend das Event `update-verfuegbar` und kann den Nutzer fragen.
 //! Installiert wird erst auf ausdrücklichen Wunsch (`update_installieren`),
 //! damit niemand mitten in einem Bauantrag neu gestartet wird. Pakete sind
-//! mit dem privaten Updater-Schlüssel signiert; der öffentliche Schlüssel
-//! steht in `tauri.conf.json`.
+//! mit dem privaten Updater-Schlüssel signiert. Öffentlicher Schlüssel und
+//! Adresse kommen beim Release-Build aus `BAUPROJEKT_UPDATER_PUBKEY` und
+//! `BAUPROJEKT_LIZENZSERVER` (`<server>/updates/latest.json`); ohne sie gelten
+//! die Werte aus `tauri.conf.json`.
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -30,13 +32,23 @@ fn update_err(e: impl std::fmt::Display) -> CmdError {
     }
 }
 
+fn updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, CmdError> {
+    let mut builder = app.updater_builder();
+    if let Some(pubkey) = option_env!("BAUPROJEKT_UPDATER_PUBKEY").filter(|k| !k.trim().is_empty())
+    {
+        builder = builder.pubkey(pubkey.trim());
+    }
+    if let Some(server) = crate::lizenzdienst::server_url() {
+        let url = format!("{server}/updates/latest.json")
+            .parse()
+            .map_err(update_err)?;
+        builder = builder.endpoints(vec![url]).map_err(update_err)?;
+    }
+    builder.build().map_err(update_err)
+}
+
 async fn check(app: &AppHandle) -> Result<Option<UpdateInfo>, CmdError> {
-    let update = app
-        .updater()
-        .map_err(update_err)?
-        .check()
-        .await
-        .map_err(update_err)?;
+    let update = updater(app)?.check().await.map_err(update_err)?;
     let info = update.as_ref().map(|u| UpdateInfo {
         version: u.version.clone(),
         notizen: u.body.clone(),
