@@ -56,6 +56,12 @@
   }
 
   /** Die Liste enthält alle Versionen; je Dokument zählt die neueste. */
+  // Die Anlagen-Codeliste ist zweistufig: volle Hunderter sind Oberbegriffe,
+  // die übrigen Codes werden darunter eingerückt.
+  function einrueckung(code: string): string {
+    return /^\d+$/.test(code) && !code.endsWith("00") ? "   " : "";
+  }
+
   function neuesteVersionen(alle: DocumentVersion[]): DocumentVersion[] {
     const neueste = new Map<string, DocumentVersion>();
     for (const v of alle) {
@@ -276,9 +282,9 @@
                 <td>
                   {#if a}
                     {#if anlagenarten}
-                      <select bind:value={a.anlageart} aria-label="Art der Anlage">
+                      <select class="anlageart" bind:value={a.anlageart} aria-label="Art der Anlage">
                         <option value="">– bitte wählen –</option>
-                        {#each anlagenarten.eintraege as e}<option value={e.code}>{e.code} {e.beschreibung}</option>{/each}
+                        {#each anlagenarten.eintraege as e}<option value={e.code} title={e.beschreibung}>{einrueckung(e.code)}{e.code} {e.beschreibung}</option>{/each}
                       </select>
                     {:else}
                       <input bind:value={a.anlageart} size="6" placeholder="Code" aria-label="Art der Anlage (Code)" />

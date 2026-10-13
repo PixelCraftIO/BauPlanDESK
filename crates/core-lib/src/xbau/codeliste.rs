@@ -273,6 +273,23 @@ mod tests {
 </gc:CodeList>"#;
 
     #[test]
+    fn mitgelieferte_codelisten_sind_vollstaendig() {
+        let ordner = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../codelisten");
+        let mut c = Codelisten::eingebaut();
+        assert!(c.laden(&ordner).unwrap().is_empty());
+        assert!(c.fehlende().is_empty(), "{:?}", c.fehlende());
+        let anlagen = c.liste(ANLAGEN).unwrap();
+        assert_eq!(anlagen.version, "4.0");
+        assert!(anlagen.enthaelt("2001"));
+        let mimes = c.liste(MIMETYPES).unwrap();
+        assert_eq!(mimes.version, "1");
+        for datei in ["plan.pdf", "modell.ifc", "modell.ifczip", "kommentare.bcf"] {
+            let m = crate::xbau::mime_typ(datei).unwrap();
+            assert!(mimes.enthaelt(m), "{m}");
+        }
+    }
+
+    #[test]
     fn genericode_mit_leeren_spaltenelementen() {
         let xml = r#"<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"><Identification><ShortName>anlagen</ShortName><Version>3</Version><CanonicalUri>urn:x</CanonicalUri></Identification><ColumnSet><Column Id="schluessel"/><Column Id="wert"/><Key Id="k"><ColumnRef Ref="schluessel"/></Key></ColumnSet><SimpleCodeList><Row><Value ColumnRef="wert"><SimpleValue>Lageplan</SimpleValue></Value><Value ColumnRef="schluessel"><SimpleValue>0200</SimpleValue></Value></Row></SimpleCodeList></gc:CodeList>"#;
         let liste = Codeliste::genericode(xml).unwrap();

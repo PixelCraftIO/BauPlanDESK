@@ -298,7 +298,9 @@ pub fn land_schluessel(land: Bundesland) -> &'static str {
     }
 }
 
-/// MIME-Typ einer Datei nach ihrer Endung.
+/// MIME-Typ einer Datei nach ihrer Endung. PDF, IFC und BCF stehen so in der
+/// Codeliste XBau MIME-Types; die übrigen Typen nennt die Fehlermeldung, wenn
+/// die Codeliste sie nicht enthält.
 pub fn mime_typ(dateiname: &str) -> Option<&'static str> {
     let endung = dateiname.rsplit_once('.')?.1.to_ascii_lowercase();
     Some(match endung.as_str() {
@@ -309,7 +311,10 @@ pub fn mime_typ(dateiname: &str) -> Option<&'static str> {
         "xml" => "application/xml",
         "gml" => "application/gml+xml",
         "dxf" => "image/vnd.dxf",
-        "ifc" => "application/x-step",
+        "ifc" => "application/x-extension-ifc",
+        "ifcxml" => "application/x-extension-ifcxml",
+        "ifczip" => "application/x-extension-ifczip",
+        "bcf" => "application/x-extension-bcf",
         "zip" => "application/zip",
         _ => return None,
     })

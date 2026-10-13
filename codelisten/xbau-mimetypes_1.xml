@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
+  <Identification><ShortName>xbau-mimetypes</ShortName><LongName>XBau MIME-Types</LongName><Version>1</Version><CanonicalUri>urn:xoev-de:xbau:codeliste:xbau-mimetypes</CanonicalUri><CanonicalVersionUri>urn:xoev-de:xbau:codeliste:xbau-mimetypes_1</CanonicalVersionUri></Identification>
+  <ColumnSet>
+    <Column Id="mimetype" Use="required"><ShortName>MimeType</ShortName><Data Type="string"/></Column>
+    <Column Id="dokumentenart" Use="required"><ShortName>Dokumentenart</ShortName><Data Type="string"/></Column>
+    <Column Id="extension" Use="required"><ShortName>Extension</ShortName><Data Type="string"/></Column>
+    <Key Id="schluessel"><ShortName>schluessel</ShortName><ColumnRef Ref="mimetype"/></Key>
+  </ColumnSet>
+  <SimpleCodeList>
+    <Row><Value ColumnRef="mimetype"><SimpleValue>application/pdf</SimpleValue></Value><Value ColumnRef="dokumentenart"><SimpleValue>Adobe Portable Document Format</SimpleValue></Value><Value ColumnRef="extension"><SimpleValue>.pdf</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="mimetype"><SimpleValue>application/x-extension-ifc</SimpleValue></Value><Value ColumnRef="dokumentenart"><SimpleValue>Industry Foundation Classes</SimpleValue></Value><Value ColumnRef="extension"><SimpleValue>.ifc</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="mimetype"><SimpleValue>application/x-extension-ifcxml</SimpleValue></Value><Value ColumnRef="dokumentenart"><SimpleValue>Industry Foundation Classes XML</SimpleValue></Value><Value ColumnRef="extension"><SimpleValue>.ifcxml</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="mimetype"><SimpleValue>application/x-extension-ifczip</SimpleValue></Value><Value ColumnRef="dokumentenart"><SimpleValue>Industry Foundation Classes ZIP</SimpleValue></Value><Value ColumnRef="extension"><SimpleValue>.ifczip</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="mimetype"><SimpleValue>application/x-extension-bcf</SimpleValue></Value><Value ColumnRef="dokumentenart"><SimpleValue>Building Collaboration Format</SimpleValue></Value><Value ColumnRef="extension"><SimpleValue>.bcf</SimpleValue></Value></Row>
+  </SimpleCodeList>
+</gc:CodeList>
