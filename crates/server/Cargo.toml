@@ -30,3 +30,4 @@ chrono.workspace = true
 ed25519-dalek.workspace = true
 core-lib = { workspace = true, features = ["testdaten"] }
 tempfile.workspace = true
+zip.workspace = true

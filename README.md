@@ -208,6 +208,32 @@ Lizenzen für die Entwicklung erzeugen lassen:
 cargo run -p core-lib --features testdaten --example testlizenz -- test.bplizenz 3
 ```
 
+## XBau-Export
+
+Aus einem Projekt entsteht die Nachricht *Beantragung einer Baugenehmigung*
+(`baugenehmigung.antrag.0200`) nach **XBau-Hochbau 2.7** (Kernmodul 1.4.0),
+zusammen mit den ausgewählten Bauvorlagen als ZIP-Paket. Bedienung: Ansicht
+*Bauantrag* (Strg+Umschalt+B), Export über *Datei → Bauantrag als XBau
+exportieren …* (Strg+Umschalt+E).
+
+- **Büroangaben** (*Bearbeiten → Büroangaben …*, nur Projektleitung): Name,
+  Anschrift und Absenderkennung des Büros. Das Büro ist Absender (`autor`)
+  und Entwurfsverfasser jeder Nachricht.
+- **Bauantrag je Projekt:** Bauaufsichtsbehörde mit DVDV-Kennung (`leser`),
+  Bauherren (sie sind die Antragsteller), Gebührenpflichtiger, Art der
+  Maßnahme, Grundstück mit Flurstücken und die Anlagen aus den Dokumenten.
+  Was für den Export fehlt, zeigt die Ansicht vorher an.
+- **Codelisten:** Typ-3/4-Codelisten werden nicht mitgeliefert, weil sie sich
+  ändern. Die Genericode-Dateien vom [XRepository](https://www.xrepository.de)
+  gehören in den Ordner [`codelisten/`](codelisten) (wird mit der App
+  ausgeliefert) oder in `<App-Daten>/codelisten`; der Server liest
+  `BAUPROJEKT_CODELISTEN_DIR`. Nötig sind *Anlagen*
+  (`urn:xoev-de:xbau:codeliste:anlagen`) und *MIME-Types*
+  (`urn:xoev-de:xbau:codeliste:xbau-mimetypes`).
+- **Schemas:** [`crates/core-lib/xbau/2.7`](crates/core-lib/xbau/2.7). Die
+  Tests prüfen jede erzeugte Nachricht mit `xmllint` dagegen (in CI Pflicht).
+- Code: [`crates/core-lib/src/xbau`](crates/core-lib/src/xbau).
+
 ## Desktop-App
 
 * **Betriebsart** über `<App-Konfiguration>/config.json`; ohne Datei startet die

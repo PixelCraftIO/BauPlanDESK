@@ -21,6 +21,9 @@ use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboE
 use crate::license::{LicenseProvider, Lizenzstatus};
 use crate::repository::Repositories;
 use crate::storage::{Storage, StorageKey};
+use crate::xbau::{
+    self, Anlagendatei, Bauantrag, Buero, Codelisten, GespeicherterBauantrag, Nachrichtendaten,
+};
 
 /// Alle Abhängigkeiten der Geschäftslogik, von der Laufzeitumgebung injiziert:
 ///
@@ -36,6 +39,31 @@ pub struct CoreServices {
     pub lbo: Arc<LboEngine>,
     pub license: Arc<dyn LicenseProvider>,
     pub formulare: Arc<Formularkatalog>,
+    pub codelisten: Arc<Codelisten>,
+}
+
+/// Einstellungsschlüssel der Büroangaben.
+const BUERO: &str = "xbau.buero";
+
+/// Ergebnis des XBau-Exports.
+#[derive(Debug, Clone, PartialEq)]
+pub struct XbauExport {
+    /// Vorgeschlagener Dateiname.
+    pub dateiname: String,
+    pub zip: Vec<u8>,
+}
+
+/// Entfernt Zeichen, die in Dateinamen unter Windows nicht erlaubt sind.
+fn dateiname_sicher(name: &str) -> String {
+    let s: String = name
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect();
+    s.trim().trim_end_matches('.').to_string()
 }
 
 /// Ein CAD-Plan aus dem DMS.
@@ -76,12 +104,19 @@ impl CoreServices {
             lbo,
             license,
             formulare: Arc::new(Formularkatalog::default()),
+            codelisten: Arc::new(Codelisten::eingebaut()),
         }
     }
 
     /// Formularvorlagen injizieren (siehe [`crate::formular::vorlage`]).
     pub fn mit_formularen(mut self, katalog: Formularkatalog) -> Self {
         self.formulare = Arc::new(katalog);
+        self
+    }
+
+    /// XBau-Codelisten injizieren (siehe [`crate::xbau::codeliste`]).
+    pub fn mit_codelisten(mut self, codelisten: Codelisten) -> Self {
+        self.codelisten = Arc::new(codelisten);
         self
     }
 
@@ -367,6 +402,197 @@ impl CoreServices {
                 details,
             })
             .await
+    }
+
+    // --- XBau -----------------------------------------------------------
+
+    /// Angaben zum Bauantrag; noch nie gespeichert = Vorgabewerte mit
+    /// Version 0.
+    pub async fn bauantrag(&self, project: ProjectId) -> CoreResult<GespeicherterBauantrag> {
+        self.repos.projects.get(project).await?;
+        let (antrag, version, von, am) = match self.repos.bauantraege.bauantrag(project).await? {
+            Some(d) => (
+                serde_json::from_str(&d.daten).map_err(|e| {
+                    CoreError::Database(format!("gespeicherter Bauantrag ist ungültig: {e}"))
+                })?,
+                d.version,
+                Some(d.geaendert_von),
+                Some(d.geaendert_am),
+            ),
+            None => (Bauantrag::default(), 0, None, None),
+        };
+        let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?);
+        fehlende_angaben.extend(self.codelisten.fehlende());
+        fehlende_angaben.extend(self.anlagen_pruefen(&antrag).await?);
+        Ok(GespeicherterBauantrag {
+            antrag,
+            version,
+            geaendert_von: von,
+            geaendert_am: am,
+            fehlende_angaben,
+        })
+    }
+
+    /// Anlagen, die beim Export abgelehnt würden: Dokument gelöscht,
+    /// Dateityp oder Anlagenart nicht in der jeweiligen Codeliste.
+    async fn anlagen_pruefen(&self, antrag: &Bauantrag) -> CoreResult<Vec<String>> {
+        let mimes = self.codelisten.liste(crate::xbau::codeliste::MIMETYPES);
+        let arten = self.codelisten.liste(crate::xbau::codeliste::ANLAGEN);
+        let mut fehlt = Vec::new();
+        for a in &antrag.anlagen {
+            let datei = match self.repos.documents.latest(a.dokument).await {
+                Ok(v) => v.file_name,
+                Err(CoreError::NotFound(_)) => {
+                    fehlt.push("Anlage: Das Dokument wurde gelöscht".into());
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
+            if let Some(Err(CoreError::InvalidInput(m))) =
+                mimes.map(|l| crate::xbau::mime_pruefen(&datei, l))
+            {
+                fehlt.push(m);
+            }
+            if let Some(l) = arten
+                && !a.anlageart.trim().is_empty()
+                && !l.enthaelt(&a.anlageart)
+            {
+                fehlt.push(format!(
+                    "{datei}: Art der Anlage {} steht nicht in der Codeliste",
+                    a.anlageart
+                ));
+            }
+        }
+        Ok(fehlt)
+    }
+
+    pub async fn bauantrag_speichern(
+        &self,
+        project: ProjectId,
+        antrag: Bauantrag,
+        expected_version: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<GespeicherterBauantrag> {
+        self.pruefe(wer, Recht::ProjektBearbeiten).await?;
+        self.repos.projects.get(project).await?;
+        for a in &antrag.anlagen {
+            let v = self.repos.documents.latest(a.dokument).await?;
+            if v.project_id != project {
+                return Err(CoreError::InvalidInput(format!(
+                    "{} gehört zu einem anderen Projekt",
+                    v.file_name
+                )));
+            }
+        }
+        let daten =
+            serde_json::to_string(&antrag).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+        self.repos
+            .bauantraege
+            .bauantrag_speichern(project, &daten, expected_version, &wer.anzeigename)
+            .await?;
+        self.protokollieren(
+            wer,
+            Aktion::BauantragGeaendert,
+            Some(project),
+            None,
+            "Angaben zum Bauantrag".into(),
+        )
+        .await?;
+        self.bauantrag(project).await
+    }
+
+    /// Angaben zum eigenen Büro (Absender und Entwurfsverfasser).
+    pub async fn buero(&self) -> CoreResult<Buero> {
+        match self.repos.lizenz.einstellung(BUERO).await? {
+            Some(t) => serde_json::from_str(&t)
+                .map_err(|e| CoreError::Database(format!("Büroangaben sind ungültig: {e}"))),
+            None => Ok(Buero::default()),
+        }
+    }
+
+    pub async fn buero_speichern(&self, buero: Buero, wer: &Benutzer) -> CoreResult<Buero> {
+        self.pruefe(wer, Recht::BueroangabenAendern).await?;
+        let t =
+            serde_json::to_string(&buero).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+        self.repos.lizenz.einstellung_setzen(BUERO, &t).await?;
+        Ok(buero)
+    }
+
+    /// Erzeugt das XBau-Paket (ZIP mit Antragsnachricht und Anlagen) aus dem
+    /// gespeicherten Bauantrag. Exportieren ist Lesen: Es geht mit jeder
+    /// Rolle und auch, wenn die Lizenz nur noch Lesen erlaubt.
+    pub async fn xbau_exportieren(
+        &self,
+        project: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<XbauExport> {
+        let projekt = self.repos.projects.get(project).await?;
+        let antrag = self.bauantrag(project).await?.antrag;
+        let buero = self.buero().await?;
+        let mut versionen = Vec::new();
+        for a in &antrag.anlagen {
+            let (v, inhalt) = self.load_document(a.dokument).await?;
+            if v.project_id != project {
+                return Err(CoreError::InvalidInput(format!(
+                    "{} gehört zu einem anderen Projekt",
+                    v.file_name
+                )));
+            }
+            versionen.push((a, v, inhalt));
+        }
+        let namen =
+            xbau::paket::eindeutige_namen(versionen.iter().map(|(_, v, _)| v.file_name.as_str()));
+        let anlagen: Vec<Anlagendatei> = versionen
+            .iter()
+            .zip(&namen)
+            .map(|((a, v, _), name)| Anlagendatei {
+                dokumentid: a.dokument.0,
+                bezeichnung: match a.bezeichnung.trim() {
+                    "" => v.file_name.clone(),
+                    b => b.to_string(),
+                },
+                versionsnummer: v.version,
+                datum: v.created_at.date_naive(),
+                anlageart: a.anlageart.trim().to_string(),
+                dateiname: name.clone(),
+            })
+            .collect();
+        let jetzt = Utc::now();
+        let xml = xbau::baugenehmigung_antrag(&Nachrichtendaten {
+            projekt: &projekt,
+            antrag: &antrag,
+            buero: &buero,
+            anlagen: &anlagen,
+            codelisten: &self.codelisten,
+            nachricht_id: uuid::Uuid::new_v4(),
+            zeitpunkt: jetzt,
+        })?;
+        let dateien: Vec<(String, &[u8])> = namen
+            .iter()
+            .zip(&versionen)
+            .map(|(n, (_, _, inhalt))| (n.clone(), inhalt.as_ref()))
+            .collect();
+        let zip = xbau::paket::packen(&xml, &dateien)?;
+        self.protokollieren(
+            wer,
+            Aktion::XbauExportiert,
+            Some(project),
+            None,
+            format!(
+                "Bauantrag nach XBau {} mit {} Anlagen",
+                xbau::XBAU_VERSION,
+                anlagen.len()
+            ),
+        )
+        .await?;
+        Ok(XbauExport {
+            dateiname: format!(
+                "Bauantrag {} {}.zip",
+                dateiname_sicher(&projekt.name),
+                jetzt.with_timezone(&chrono::Local).format("%Y-%m-%d")
+            ),
+            zip,
+        })
     }
 
     // --- DMS ------------------------------------------------------------

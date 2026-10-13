@@ -23,6 +23,7 @@ pub mod service;
 pub mod storage;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testsuite;
+pub mod xbau;
 
 pub use error::{CoreError, CoreResult};
 pub use service::CoreServices;

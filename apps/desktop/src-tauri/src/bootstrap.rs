@@ -10,6 +10,7 @@ use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
 use core_lib::license::{DatenbankLizenz, Lizenzpruefer};
 use core_lib::storage::Storage;
+use core_lib::xbau::Codelisten;
 use storage::StorageConfig;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
@@ -86,7 +87,8 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     }
     let lizenz = DatenbankLizenz::new(repos.lizenz.clone(), pruefer).mit_arbeitsplatzpflicht();
     let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
-        .mit_formularen(init_formulare(app, &data_dir)?);
+        .mit_formularen(init_formulare(app, &data_dir)?)
+        .mit_codelisten(init_codelisten(app, &data_dir)?);
     // Anmeldung über das Betriebssystem. Im Netzwerkmodus teilen sich alle
     // Arbeitsplätze die Benutzertabelle; die erste Anmeldung wird Administrator.
     let benutzer = core
@@ -127,6 +129,25 @@ fn init_formulare(app: &AppHandle, data_dir: &Path) -> Result<Formularkatalog, B
         "Formularvorlagen geladen"
     );
     Ok(katalog)
+}
+
+/// XBau-Codelisten: eingebaute, mitgelieferte, dann Updates aus dem
+/// Datenverzeichnis (gleiche Kennung ersetzt).
+fn init_codelisten(app: &AppHandle, data_dir: &Path) -> Result<Codelisten, BoxError> {
+    let mut codelisten = Codelisten::eingebaut();
+    let bundled = app.path().resolve("codelisten", BaseDirectory::Resource)?;
+    let updates = data_dir.join("codelisten");
+    std::fs::create_dir_all(&updates)?;
+    for dir in [bundled, updates] {
+        for e in codelisten.laden(&dir)? {
+            tracing::error!(error = %e, "Codeliste übersprungen");
+        }
+    }
+    tracing::info!(
+        listen = ?codelisten.alle().map(|l| format!("{} {}", l.uri, l.version)).collect::<Vec<_>>(),
+        "XBau-Codelisten geladen"
+    );
+    Ok(codelisten)
 }
 
 /// LBO-Engine initialisieren: erst die mit dem Installer ausgelieferten

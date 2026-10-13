@@ -17,6 +17,7 @@ use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
+use core_lib::xbau::{Bauantrag, Buero, Codeliste, GespeicherterBauantrag};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -408,4 +409,72 @@ pub async fn arbeitsplatz_belegen(state: State<'_, AppState>) -> CmdResult<Lizen
         .license
         .arbeitsplatz_belegen(&state.arbeitsplatz, &name)
         .await?)
+}
+
+// --- XBau ----------------------------------------------------------------
+
+#[tauri::command]
+pub async fn bauantrag(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<GespeicherterBauantrag> {
+    Ok(state.core.bauantrag(projekt_id).await?)
+}
+
+#[tauri::command]
+pub async fn bauantrag_speichern(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    antrag: Bauantrag,
+    version: i64,
+) -> CmdResult<GespeicherterBauantrag> {
+    Ok(state
+        .core
+        .bauantrag_speichern(projekt_id, antrag, version, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn buero(state: State<'_, AppState>) -> CmdResult<Buero> {
+    Ok(state.core.buero().await?)
+}
+
+#[tauri::command]
+pub async fn buero_speichern(state: State<'_, AppState>, buero: Buero) -> CmdResult<Buero> {
+    Ok(state.core.buero_speichern(buero, &state.benutzer()).await?)
+}
+
+#[tauri::command]
+pub fn xbau_codelisten(state: State<'_, AppState>) -> Vec<Codeliste> {
+    state.core.codelisten.alle().cloned().collect()
+}
+
+/// Ergebnis des XBau-Exports für die Meldung im Frontend.
+#[derive(Serialize)]
+pub struct XbauErgebnis {
+    dateiname: String,
+    groesse_bytes: usize,
+}
+
+/// Erzeugt das XBau-Paket und schreibt es nach `ziel`.
+#[tauri::command]
+pub async fn xbau_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ziel: PathBuf,
+) -> CmdResult<XbauErgebnis> {
+    let export = state
+        .core
+        .xbau_exportieren(projekt_id, &state.benutzer())
+        .await?;
+    tokio::fs::write(&ziel, &export.zip)
+        .await
+        .map_err(|e| CmdError {
+            art: "datei",
+            meldung: format!("{}: {e}", ziel.display()),
+        })?;
+    Ok(XbauErgebnis {
+        dateiname: export.dateiname,
+        groesse_bytes: export.zip.len(),
+    })
 }

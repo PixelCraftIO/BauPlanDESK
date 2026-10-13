@@ -70,7 +70,83 @@ export const AKTIONEN: Record<string, string> = {
   benutzer_angelegt: "Benutzer angelegt",
   benutzer_geaendert: "Benutzer geändert",
   lizenz_eingespielt: "Lizenz eingespielt",
+  bauantrag_geaendert: "Bauantrag geändert",
+  xbau_exportiert: "XBau-Bauantrag exportiert",
 };
+
+// --- XBau ------------------------------------------------------------------
+
+export interface Anschrift {
+  strasse: string;
+  hausnummer: string;
+  postleitzahl: string;
+  ort: string;
+}
+
+export const leereAnschrift = (): Anschrift => ({ strasse: "", hausnummer: "", postleitzahl: "", ort: "" });
+
+export type Beteiligter =
+  | { art: "person"; id: string; vorname: string; familienname: string; anschrift: Anschrift }
+  | { art: "organisation"; id: string; name: string; anschrift: Anschrift };
+
+export interface Flurstueck {
+  gemarkung: string;
+  flur: string;
+  zaehler: string;
+  nenner: string;
+}
+
+export interface Anlagenwahl {
+  dokument: string;
+  anlageart: string;
+  bezeichnung: string;
+}
+
+export interface Bauantrag {
+  vorgang: string;
+  bauaufsicht: { name: string; kennung: string };
+  bezeichnung: string;
+  bauherren: Beteiligter[];
+  gebuehrenpflichtiger: Beteiligter | null;
+  massnahmen: string[];
+  anzahl_gebaeude: number;
+  grundstueck: { anschrift: Anschrift; flurstuecke: Flurstueck[] };
+  anlagen: Anlagenwahl[];
+}
+
+export interface GespeicherterBauantrag {
+  antrag: Bauantrag;
+  version: number;
+  geaendert_von: string | null;
+  geaendert_am: string | null;
+  fehlende_angaben: string[];
+}
+
+export interface Buero {
+  name: string;
+  anschrift: Anschrift;
+  kennung: string;
+}
+
+export interface Codeliste {
+  uri: string;
+  version: string;
+  name: string;
+  eintraege: { code: string; beschreibung: string }[];
+}
+
+export const CODELISTE_ANLAGEN = "urn:xoev-de:xbau:codeliste:anlagen";
+
+/** Art der Maßnahme (XBau-interne Codeliste, siehe core-lib xbau::MASSNAHMEN). */
+export const MASSNAHMEN: { code: string; name: string }[] = [
+  { code: "10", name: "Baumaßnahme" },
+  { code: "11", name: "Errichtung" },
+  { code: "12", name: "Änderung" },
+  { code: "13", name: "Nutzungsänderung (ohne bauliche Änderung)" },
+  { code: "14", name: "Nutzungsänderung (mit baulicher Änderung)" },
+  { code: "20", name: "Abgrabung" },
+  { code: "30", name: "Beseitigung" },
+];
 
 export type Edition = "einzelplatz" | "buero" | "cloud";
 export const EDITIONEN: Record<Edition, string> = { einzelplatz: "Einzelplatz", buero: "Büro", cloud: "Cloud" };
@@ -290,6 +366,14 @@ export const api = {
   lizenz: () => invoke<Lizenzstatus>("lizenz_status"),
   lizenzEinspielen: (pfad: string) => invoke<Lizenzstatus>("lizenz_einspielen", { pfad }),
   arbeitsplatzBelegen: () => invoke<Lizenzstatus>("arbeitsplatz_belegen"),
+  bauantrag: (projektId: string) => invoke<GespeicherterBauantrag>("bauantrag", { projektId }),
+  bauantragSpeichern: (projektId: string, antrag: Bauantrag, version: number) =>
+    invoke<GespeicherterBauantrag>("bauantrag_speichern", { projektId, antrag, version }),
+  buero: () => invoke<Buero>("buero"),
+  bueroSpeichern: (buero: Buero) => invoke<Buero>("buero_speichern", { buero }),
+  xbauCodelisten: () => invoke<Codeliste[]>("xbau_codelisten"),
+  xbauExportieren: (projektId: string, ziel: string) =>
+    invoke<{ dateiname: string; groesse_bytes: number }>("xbau_exportieren", { projektId, ziel }),
   formularAnalysieren: (dokumentId: string) =>
     invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
   formularAusfuellen: (dokumentId: string, werte: Record<string, Feldwert>) =>
