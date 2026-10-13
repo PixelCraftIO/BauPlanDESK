@@ -72,6 +72,10 @@ export const AKTIONEN: Record<string, string> = {
   lizenz_eingespielt: "Lizenz eingespielt",
   bauantrag_geaendert: "Bauantrag geändert",
   xbau_exportiert: "XBau-Bauantrag exportiert",
+  kunde_angelegt: "Kunde angelegt",
+  kunde_geaendert: "Kunde geändert",
+  kunde_geloescht: "Kunde gelöscht",
+  bauherren_geaendert: "Bauherren geändert",
 };
 
 // --- XBau ------------------------------------------------------------------
@@ -106,7 +110,6 @@ export interface Bauantrag {
   vorgang: string;
   bauaufsicht: { name: string; kennung: string };
   bezeichnung: string;
-  bauherren: Beteiligter[];
   gebuehrenpflichtiger: Beteiligter | null;
   massnahmen: string[];
   anzahl_gebaeude: number;
@@ -120,6 +123,94 @@ export interface GespeicherterBauantrag {
   geaendert_von: string | null;
   geaendert_am: string | null;
   fehlende_angaben: string[];
+}
+
+// --- Kunden ------------------------------------------------------------------
+
+export type Kundentyp = "person" | "organisation";
+
+export type Kundenkategorie =
+  | "privat" | "bautraeger" | "baufirma" | "investor" | "planungsbuero"
+  | "wohnungsunternehmen" | "oeffentliche_hand" | "sonstige";
+
+export const KUNDENKATEGORIEN: { code: Kundenkategorie; name: string }[] = [
+  { code: "privat", name: "Privatperson" },
+  { code: "bautraeger", name: "Bauträger" },
+  { code: "baufirma", name: "Baufirma" },
+  { code: "investor", name: "Investor" },
+  { code: "planungsbuero", name: "Planungsbüro" },
+  { code: "wohnungsunternehmen", name: "Wohnungsunternehmen" },
+  { code: "oeffentliche_hand", name: "Öffentliche Hand" },
+  { code: "sonstige", name: "Sonstige" },
+];
+
+export const kategorieName = (k: Kundenkategorie) => KUNDENKATEGORIEN.find((x) => x.code === k)?.name ?? k;
+
+export interface Kundendaten {
+  typ: Kundentyp;
+  kategorie: Kundenkategorie;
+  kundennummer: string;
+  vorname: string;
+  familienname: string;
+  firma: string;
+  ansprechpartner: string;
+  anschrift: Anschrift;
+  telefon: string;
+  email: string;
+  notizen: string;
+}
+
+export interface Kunde extends Kundendaten {
+  id: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const leereKundendaten = (): Kundendaten => ({
+  typ: "person",
+  kategorie: "privat",
+  kundennummer: "",
+  vorname: "",
+  familienname: "",
+  firma: "",
+  ansprechpartner: "",
+  anschrift: leereAnschrift(),
+  telefon: "",
+  email: "",
+  notizen: "",
+});
+
+/** Nur die bearbeitbaren Angaben eines Kunden. */
+export function kundendaten(k: Kundendaten): Kundendaten {
+  const { typ, kategorie, kundennummer, vorname, familienname, firma, ansprechpartner, anschrift, telefon, email, notizen } = k;
+  return { typ, kategorie, kundennummer, vorname, familienname, firma, ansprechpartner, anschrift: { ...anschrift }, telefon, email, notizen };
+}
+
+export function kundenname(k: Kundendaten): string {
+  return k.typ === "person" ? [k.vorname, k.familienname].filter((s) => s.trim()).join(" ") : k.firma;
+}
+
+/** Eine Zeile Anschrift, z. B. „Lindenweg 4, 80331 München“. */
+export function anschriftZeile(a: Anschrift): string {
+  const strasse = `${a.strasse} ${a.hausnummer}`.trim();
+  const ort = `${a.postleitzahl} ${a.ort}`.trim();
+  return [strasse, ort].filter(Boolean).join(", ");
+}
+
+/** Suche über Name, Kundennummer, Ansprechpartner, Ort, E-Mail und Telefon. */
+export function kundePasst(k: Kunde, suche: string): boolean {
+  const s = suche.trim().toLocaleLowerCase("de");
+  if (!s) return true;
+  return [kundenname(k), k.kundennummer, k.ansprechpartner, k.anschrift.ort, k.anschrift.postleitzahl, k.email, k.telefon]
+    .some((f) => f.toLocaleLowerCase("de").includes(s));
+}
+
+/** Kunde als Beteiligter im Bauantrag (z. B. als Gebührenpflichtiger). */
+export function alsBeteiligter(k: Kunde): Beteiligter {
+  return k.typ === "person"
+    ? { art: "person", id: k.id, vorname: k.vorname, familienname: k.familienname, anschrift: { ...k.anschrift } }
+    : { art: "organisation", id: k.id, name: k.firma, anschrift: { ...k.anschrift } };
 }
 
 export interface Buero {
@@ -379,6 +470,15 @@ export const api = {
   lizenzAktivieren: (schluessel: string) => invoke<Lizenzstatus>("lizenz_aktivieren", { schluessel }),
   lizenzBestaetigen: () => invoke<Lizenzstatus>("lizenz_bestaetigen"),
   lizenzAbmelden: () => invoke<Lizenzstatus>("lizenz_abmelden"),
+  kunden: () => invoke<Kunde[]>("kunden_auflisten"),
+  kundeAnlegen: (daten: Kundendaten) => invoke<Kunde>("kunde_anlegen", { daten }),
+  kundeAendern: (kundeId: string, daten: Kundendaten, version: number) =>
+    invoke<Kunde>("kunde_aendern", { kundeId, daten, version }),
+  kundeLoeschen: (kundeId: string, version: number) => invoke<void>("kunde_loeschen", { kundeId, version }),
+  kundeProjekte: (kundeId: string) => invoke<Project[]>("kunde_projekte", { kundeId }),
+  bauherren: (projektId: string) => invoke<Kunde[]>("bauherren", { projektId }),
+  bauherrenSetzen: (projektId: string, kunden: string[], version: number) =>
+    invoke<Project>("bauherren_setzen", { projektId, kunden, version }),
   bauantrag: (projektId: string) => invoke<GespeicherterBauantrag>("bauantrag", { projektId }),
   bauantragSpeichern: (projektId: string, antrag: Bauantrag, version: number) =>
     invoke<GespeicherterBauantrag>("bauantrag_speichern", { projektId, antrag, version }),

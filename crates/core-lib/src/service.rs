@@ -17,12 +17,14 @@ use crate::domain::{
 };
 use crate::error::{CoreError, CoreResult};
 use crate::formular::{self, Feldwert, Formularfeld, Formularkatalog, Projektkontext};
+use crate::kunden::{self, Kunde, KundeId, Kundendaten};
 use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboEngine};
 use crate::license::{LicenseProvider, Lizenzstatus};
 use crate::repository::Repositories;
 use crate::storage::{Storage, StorageKey};
 use crate::xbau::{
-    self, Anlagendatei, Bauantrag, Buero, Codelisten, GespeicherterBauantrag, Nachrichtendaten,
+    self, Anlagendatei, Bauantrag, Beteiligter, Buero, Codelisten, GespeicherterBauantrag,
+    Nachrichtendaten,
 };
 
 /// Alle Abhängigkeiten der Geschäftslogik, von der Laufzeitumgebung injiziert:
@@ -441,6 +443,247 @@ impl CoreServices {
             .await
     }
 
+    // --- Kunden ---------------------------------------------------------
+
+    /// Alle Kunden, nach Namen sortiert.
+    pub async fn kunden_auflisten(&self) -> CoreResult<Vec<Kunde>> {
+        let mut k = self.repos.kunden.kunden().await?;
+        kunden::sortieren(&mut k);
+        Ok(k)
+    }
+
+    pub async fn kunde(&self, id: KundeId) -> CoreResult<Kunde> {
+        self.repos.kunden.kunde(id).await
+    }
+
+    pub async fn kunde_anlegen(&self, daten: Kundendaten, wer: &Benutzer) -> CoreResult<Kunde> {
+        self.pruefe(wer, Recht::KundenBearbeiten).await?;
+        let daten = daten.bereinigt();
+        daten.pruefen()?;
+        let k = self.repos.kunden.kunde_anlegen(daten).await?;
+        self.protokollieren(wer, Aktion::KundeAngelegt, None, None, kunde_details(&k))
+            .await?;
+        Ok(k)
+    }
+
+    pub async fn kunde_aendern(
+        &self,
+        id: KundeId,
+        daten: Kundendaten,
+        expected_version: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<Kunde> {
+        self.pruefe(wer, Recht::KundenBearbeiten).await?;
+        let daten = daten.bereinigt();
+        daten.pruefen()?;
+        let k = self
+            .repos
+            .kunden
+            .kunde_aendern(id, daten, expected_version)
+            .await?;
+        // Im Protokoll jedes Projekts vermerken, dessen Bauherr sich ändert.
+        let projekte = self.repos.kunden.projekte_des_kunden(id).await?;
+        if projekte.is_empty() {
+            self.protokollieren(wer, Aktion::KundeGeaendert, None, None, kunde_details(&k))
+                .await?;
+        }
+        for p in projekte {
+            self.protokollieren(
+                wer,
+                Aktion::KundeGeaendert,
+                Some(p.id),
+                None,
+                format!("Bauherr {}", kunde_details(&k)),
+            )
+            .await?;
+        }
+        Ok(k)
+    }
+
+    /// Löscht einen Kunden, der keinem Projekt mehr zugeordnet ist.
+    pub async fn kunde_loeschen(
+        &self,
+        id: KundeId,
+        expected_version: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<()> {
+        self.pruefe(wer, Recht::KundenLoeschen).await?;
+        let k = self.repos.kunden.kunde(id).await?;
+        let projekte = self.repos.kunden.projekte_des_kunden(id).await?;
+        if !projekte.is_empty() {
+            let namen: Vec<_> = projekte.iter().map(|p| format!("„{}“", p.name)).collect();
+            return Err(CoreError::InvalidInput(format!(
+                "{} ist Bauherr in {} und kann erst gelöscht werden, wenn er dort nicht mehr eingetragen ist.",
+                k.anzeigename(),
+                namen.join(", ")
+            )));
+        }
+        self.repos
+            .kunden
+            .kunde_loeschen(id, expected_version)
+            .await?;
+        self.protokollieren(wer, Aktion::KundeGeloescht, None, None, k.anzeigename())
+            .await
+    }
+
+    /// Projekte, in denen der Kunde Bauherr ist.
+    pub async fn kunde_projekte(&self, id: KundeId) -> CoreResult<Vec<Project>> {
+        self.repos.kunden.projekte_des_kunden(id).await
+    }
+
+    /// Bauherren eines Projekts in der gespeicherten Reihenfolge.
+    pub async fn bauherren(&self, project: ProjectId) -> CoreResult<Vec<Kunde>> {
+        self.repos.kunden.bauherren(project).await
+    }
+
+    /// Ordnet dem Projekt die Kunden als Bauherren zu. `expected_version`
+    /// ist die Projektversion (Optimistic Locking); sie steigt um 1.
+    pub async fn bauherren_setzen(
+        &self,
+        project: ProjectId,
+        kunden: Vec<KundeId>,
+        expected_version: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<Project> {
+        self.pruefe(wer, Recht::ProjektBearbeiten).await?;
+        let mut ids: Vec<KundeId> = Vec::with_capacity(kunden.len());
+        let mut namen = Vec::with_capacity(kunden.len());
+        for id in kunden {
+            if !ids.contains(&id) {
+                namen.push(self.repos.kunden.kunde(id).await?.anzeigename());
+                ids.push(id);
+            }
+        }
+        let p = self
+            .repos
+            .kunden
+            .bauherren_setzen(project, &ids, expected_version)
+            .await?;
+        self.protokollieren(
+            wer,
+            Aktion::BauherrenGeaendert,
+            Some(project),
+            None,
+            if namen.is_empty() {
+                "keine Bauherren".into()
+            } else {
+                namen.join(", ")
+            },
+        )
+        .await?;
+        Ok(p)
+    }
+
+    /// Bauherren für Bauantrag und Export. Hat ein alter Bauantrag noch
+    /// eigene Bauherren und das Projekt keine, gelten bis zur Übernahme
+    /// ([`Self::bauherren_uebernehmen`]) die alten.
+    async fn bauherren_fuer_antrag(
+        &self,
+        project: ProjectId,
+        antrag: &Bauantrag,
+    ) -> CoreResult<Vec<Beteiligter>> {
+        let kunden = self.repos.kunden.bauherren(project).await?;
+        Ok(if kunden.is_empty() {
+            antrag.bauherren.clone()
+        } else {
+            kunden.iter().map(Kunde::als_beteiligter).collect()
+        })
+    }
+
+    /// Übernimmt die Bauherren, die in Bauanträgen älterer Versionen direkt
+    /// erfasst wurden, in die Kundendatenbank und ordnet sie den Projekten
+    /// zu. Gleiche Personen bzw. Firmen werden nur einmal angelegt. Läuft
+    /// beim Start (`wer` steht im Protokoll) und ist beliebig oft
+    /// wiederholbar. Liefert die Zahl der Projekte, deren Bauherren
+    /// übernommen wurden.
+    pub async fn bauherren_uebernehmen(&self, wer: &Benutzer) -> CoreResult<usize> {
+        let mut anzahl = 0;
+        for p in self.repos.projects.list().await? {
+            if self.bauherren_uebernehmen_fuer(p.id, wer).await?.is_some() {
+                anzahl += 1;
+            }
+        }
+        Ok(anzahl)
+    }
+
+    /// Übernahme für ein Projekt. Liefert die Version des Bauantrags vor und
+    /// nach der Übernahme, `None` wenn nichts zu übernehmen war.
+    async fn bauherren_uebernehmen_fuer(
+        &self,
+        project: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<Option<(i64, i64)>> {
+        let Some(d) = self.repos.bauantraege.bauantrag(project).await? else {
+            return Ok(None);
+        };
+        let mut antrag: Bauantrag = match serde_json::from_str(&d.daten) {
+            Ok(a) => a,
+            Err(e) => {
+                tracing::warn!(%project, error = %e, "Bauantrag nicht lesbar, Bauherren nicht übernommen");
+                return Ok(None);
+            }
+        };
+        if antrag.bauherren.is_empty() {
+            return Ok(None);
+        }
+        let mut kunden = self.repos.kunden.kunden().await?;
+        let mut ids: Vec<KundeId> = self
+            .repos
+            .kunden
+            .bauherren(project)
+            .await?
+            .iter()
+            .map(|k| k.id)
+            .collect();
+        for b in &antrag.bauherren {
+            let daten = Kundendaten::aus_beteiligter(b);
+            if daten.ist_leer() {
+                continue;
+            }
+            let id = match kunden.iter().find(|k| k.daten.gleiche_identitaet(&daten)) {
+                Some(k) => k.id,
+                None => {
+                    let k = self.repos.kunden.kunde_anlegen(daten).await?;
+                    self.protokollieren(
+                        wer,
+                        Aktion::KundeAngelegt,
+                        Some(project),
+                        None,
+                        format!("{} (aus dem Bauantrag übernommen)", kunde_details(&k)),
+                    )
+                    .await?;
+                    let id = k.id;
+                    kunden.push(k);
+                    id
+                }
+            };
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        let p = self.repos.projects.get(project).await?;
+        self.repos
+            .kunden
+            .bauherren_setzen(project, &ids, p.version)
+            .await?;
+        antrag.bauherren.clear();
+        let daten =
+            serde_json::to_string(&antrag).map_err(|e| CoreError::Database(e.to_string()))?;
+        let neu = match self
+            .repos
+            .bauantraege
+            .bauantrag_speichern(project, &daten, d.version, &wer.anzeigename)
+            .await
+        {
+            Ok(v) => v,
+            // Inzwischen anders gespeichert: Neue Fassungen enthalten keine
+            // Bauherren mehr, es bleibt nichts zu tun.
+            Err(CoreError::VersionConflict { actual, .. }) => actual,
+            Err(e) => return Err(e),
+        };
+        Ok(Some((d.version, neu)))
+    }
+
     // --- XBau -----------------------------------------------------------
 
     /// Angaben zum Bauantrag; noch nie gespeichert = Vorgabewerte mit
@@ -458,7 +701,8 @@ impl CoreServices {
             ),
             None => (Bauantrag::default(), 0, None, None),
         };
-        let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?);
+        let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
+        let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
         fehlende_angaben.extend(self.codelisten.fehlende());
         fehlende_angaben.extend(self.anlagen_pruefen(&antrag).await?);
         Ok(GespeicherterBauantrag {
@@ -512,6 +756,12 @@ impl CoreServices {
     ) -> CoreResult<GespeicherterBauantrag> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         self.repos.projects.get(project).await?;
+        // Alte Bauherren erst in die Kundendatenbank holen, sonst gingen sie
+        // mit dem Speichern verloren.
+        let expected_version = match self.bauherren_uebernehmen_fuer(project, wer).await? {
+            Some((alt, neu)) if alt == expected_version => neu,
+            _ => expected_version,
+        };
         for a in &antrag.anlagen {
             let v = self.repos.documents.latest(a.dokument).await?;
             if v.project_id != project {
@@ -565,6 +815,7 @@ impl CoreServices {
     ) -> CoreResult<XbauExport> {
         let projekt = self.repos.projects.get(project).await?;
         let antrag = self.bauantrag(project).await?.antrag;
+        let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
         let buero = self.buero().await?;
         let mut versionen = Vec::new();
         for a in &antrag.anlagen {
@@ -598,6 +849,7 @@ impl CoreServices {
         let xml = xbau::baugenehmigung_antrag(&Nachrichtendaten {
             projekt: &projekt,
             antrag: &antrag,
+            bauherren: &bauherren,
             buero: &buero,
             anlagen: &anlagen,
             codelisten: &self.codelisten,
@@ -893,8 +1145,12 @@ impl CoreServices {
             )));
         }
         let vorlage = self.formulare.erkenne(&felder);
-        let vorschlag =
-            formular::vorlage::vorschlag(&felder, vorlage, &Projektkontext::aus_projekt(&projekt));
+        let mut kontext = Projektkontext::aus_projekt(&projekt);
+        let bauherren = self.repos.kunden.bauherren(projekt.id).await?;
+        if let Some(b) = bauherren.first() {
+            kontext.bauherr(b);
+        }
+        let vorschlag = formular::vorlage::vorschlag(&felder, vorlage, &kontext);
         Ok(FormularAnalyse {
             vorlage: vorlage.map(|v| VorlageInfo {
                 id: v.id.clone(),
@@ -996,6 +1252,14 @@ fn projekt_details(p: &Project) -> String {
             ", Grundstück {} m²",
             f.to_string().replace('.', ",")
         ));
+    }
+    d
+}
+
+fn kunde_details(k: &Kunde) -> String {
+    let mut d = k.anzeigename();
+    if !k.daten.kundennummer.is_empty() {
+        d.push_str(&format!(" (Kundennummer {})", k.daten.kundennummer));
     }
     d
 }

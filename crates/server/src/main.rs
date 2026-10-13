@@ -97,6 +97,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // technisches Konto „system“ (siehe README, Abschnitt DMS).
     let akteur = core.systembenutzer().await?;
 
+    // Bauherren aus Bauanträgen älterer Versionen in die Kundendatenbank.
+    match core.bauherren_uebernehmen(&akteur).await {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(projekte = n, "Bauherren in die Kundendatenbank übernommen"),
+        // Speichern des Bauantrags übernimmt je Projekt erneut.
+        Err(e) => tracing::error!(fehler = %e, "Bauherren nicht übernommen"),
+    }
+
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "BauProjektIO-Server gestartet");
     axum::serve(listener, api::router(core, akteur))

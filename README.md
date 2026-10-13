@@ -257,7 +257,8 @@ exportieren …* (Strg+Umschalt+E).
   Anschrift und Absenderkennung des Büros. Das Büro ist Absender (`autor`)
   und Entwurfsverfasser jeder Nachricht.
 - **Bauantrag je Projekt:** Bauaufsichtsbehörde mit DVDV-Kennung (`leser`),
-  Bauherren (sie sind die Antragsteller), Gebührenpflichtiger, Art der
+  die Bauherren des Projekts aus der Kundendatenbank (sie sind die
+  Antragsteller), Gebührenpflichtiger, Art der
   Maßnahme, Grundstück mit Flurstücken und die Anlagen aus den Dokumenten.
   Was für den Export fehlt, zeigt die Ansicht vorher an.
 - **Codelisten:** Typ-3/4-Codelisten werden nicht mitgeliefert, weil sie sich
@@ -270,6 +271,29 @@ exportieren …* (Strg+Umschalt+E).
 - **Schemas:** [`crates/core-lib/xbau/2.7`](crates/core-lib/xbau/2.7). Die
   Tests prüfen jede erzeugte Nachricht mit `xmllint` dagegen (in CI Pflicht).
 - Code: [`crates/core-lib/src/xbau`](crates/core-lib/src/xbau).
+
+## Kundendatenbank
+
+Bauherren, Bauträger, Investoren, Baufirmen usw. werden einmal unter
+*Bearbeiten → Kunden …* (Strg+Umschalt+K) erfasst: Person oder Firma,
+Kategorie, Kundennummer, Ansprechpartner, Anschrift, Telefon, E-Mail und
+Notizen. Ein Projekt bekommt einen oder mehrere Kunden als Bauherren
+(*Übersicht → Bauherren …*, beim Anlegen eines Projekts oder in der Ansicht
+*Bauantrag*). Bauantrag, XBau-Export und PDF-Formulare (`bauherr.*`, siehe
+[`formulare/`](formulare)) lesen die Angaben von dort; eine neue Anschrift
+gilt also sofort in allen Projekten.
+
+- Anlegen und Ändern: ab Rolle *Bearbeitung*; Löschen: *Projektleitung*, und
+  nur, solange der Kunde keinem Projekt zugeordnet ist.
+- Die Zuordnung erhöht die Projektversion (Optimistic Locking wie bei den
+  übrigen Projektdaten). Kundendaten haben eine eigene Version.
+- Bauherren, die ältere Versionen direkt im Bauantrag gespeichert haben,
+  werden beim Start einmalig als Kunden übernommen und den Projekten
+  zugeordnet; gleiche Personen bzw. Firmen unter gleicher Anschrift nur
+  einmal.
+- Server: `GET/POST /api/kunden`, `GET/PUT/DELETE /api/kunden/{id}`,
+  `GET /api/kunden/{id}/projekte`, `GET/PUT /api/projekte/{id}/bauherren`.
+- Code: [`crates/core-lib/src/kunden.rs`](crates/core-lib/src/kunden.rs).
 
 ## Desktop-App
 

@@ -15,6 +15,7 @@ use crate::domain::{
     ProjectId, ProjectUpdate, Protokolleintrag,
 };
 use crate::error::CoreResult;
+use crate::kunden::{Kunde, KundeId, Kundendaten};
 use crate::license::Arbeitsplatzbelegung;
 
 #[async_trait]
@@ -164,6 +165,49 @@ pub trait BauantragRepository: Send + Sync {
     ) -> CoreResult<i64>;
 }
 
+/// Kundendatenbank und Zuordnung der Kunden als Bauherren zu Projekten.
+/// Die Methoden heißen bewusst nicht `get`/`list`, weil eine Implementierung
+/// meist alle Repository-Traits zugleich umsetzt.
+#[async_trait]
+pub trait KundenRepository: Send + Sync {
+    async fn kunde_anlegen(&self, daten: Kundendaten) -> CoreResult<Kunde>;
+
+    async fn kunde(&self, id: KundeId) -> CoreResult<Kunde>;
+
+    async fn kunden(&self) -> CoreResult<Vec<Kunde>>;
+
+    /// Optimistic Locking wie bei [`ProjectRepository::update`].
+    async fn kunde_aendern(
+        &self,
+        id: KundeId,
+        daten: Kundendaten,
+        expected_version: i64,
+    ) -> CoreResult<Kunde>;
+
+    /// Löscht den Kunden. Ist er noch einem Projekt zugeordnet,
+    /// [`crate::CoreError::InvalidInput`]; die Prüfung muss atomar mit dem
+    /// Löschen sein (Fremdschlüssel).
+    async fn kunde_loeschen(&self, id: KundeId, expected_version: i64) -> CoreResult<()>;
+
+    /// Bauherren eines Projekts in der gespeicherten Reihenfolge.
+    async fn bauherren(&self, project: ProjectId) -> CoreResult<Vec<Kunde>>;
+
+    /// Ersetzt die Bauherren eines Projekts (Reihenfolge = Reihenfolge der
+    /// Liste, ohne Dubletten) und erhöht in derselben Transaktion die
+    /// Projektversion. `expected_version` ist die Projektversion; passt sie
+    /// nicht, [`crate::CoreError::VersionConflict`].
+    async fn bauherren_setzen(
+        &self,
+        project: ProjectId,
+        kunden: &[KundeId],
+        expected_version: i64,
+    ) -> CoreResult<Project>;
+
+    /// Projekte, denen der Kunde als Bauherr zugeordnet ist, zuletzt
+    /// geänderte zuerst.
+    async fn projekte_des_kunden(&self, id: KundeId) -> CoreResult<Vec<Project>>;
+}
+
 /// Bündelt alle Repositories einer Datenbank-Implementierung, damit die
 /// Laufzeitumgebung genau ein Objekt injizieren muss.
 #[derive(Clone)]
@@ -174,4 +218,5 @@ pub struct Repositories {
     pub protokoll: Arc<dyn ProtokollRepository>,
     pub lizenz: Arc<dyn LizenzRepository>,
     pub bauantraege: Arc<dyn BauantragRepository>,
+    pub kunden: Arc<dyn KundenRepository>,
 }

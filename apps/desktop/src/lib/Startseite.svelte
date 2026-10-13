@@ -6,12 +6,14 @@
     darfAnlegen = true,
     onneu,
     onoeffnen,
+    onkunden,
     onzuletzt,
   }: {
     zuletzt: ZuletztEintrag[];
     darfAnlegen?: boolean;
     onneu: () => void;
     onoeffnen: () => void;
+    onkunden: () => void;
     onzuletzt: (id: string) => void;
   } = $props();
 </script>
@@ -23,6 +25,7 @@
     <div class="knoepfe links">
       <button onclick={onneu} disabled={!darfAnlegen} title={darfAnlegen ? "" : "Projekte anlegen darf die Projektleitung."}>Neues Projekt …</button>
       <button class="sekundaer" onclick={onoeffnen}>Projekt öffnen …</button>
+      <button class="sekundaer" onclick={onkunden}>Kunden …</button>
     </div>
   </section>
   <section>

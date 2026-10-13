@@ -1,20 +1,24 @@
 <script lang="ts">
-  import { LAENDER, type Projektwerte as Werte } from "./api";
+  import { LAENDER, kundenname, type Kunde, type Projektwerte as Werte } from "./api";
 
   let {
     start,
+    kunden = null,
     absenden,
     knopf,
     onabbrechen,
   }: {
     start: Werte;
-    absenden: (w: Werte) => Promise<void>;
+    /** Kunden zur Auswahl des Bauherrn (nur beim Anlegen). */
+    kunden?: Kunde[] | null;
+    absenden: (w: Werte, bauherr: string | null) => Promise<void>;
     knopf: string;
     onabbrechen: () => void;
   } = $props();
 
   // svelte-ignore state_referenced_locally
   let werte = $state<Werte>({ ...start });
+  let bauherr = $state<string | null>(null);
   let laeuft = $state(false);
 
   async function submit(event: SubmitEvent) {
@@ -25,7 +29,7 @@
         ...werte,
         name: werte.name.trim(),
         grundstuecksflaeche_m2: werte.grundstuecksflaeche_m2 || null,
-      });
+      }, bauherr);
     } finally {
       laeuft = false;
     }
@@ -48,6 +52,15 @@
     Grundstücksfläche (m²)
     <input type="number" min="0.01" step="0.01" bind:value={werte.grundstuecksflaeche_m2} />
   </label>
+  {#if kunden}
+    <label>
+      Bauherr
+      <select bind:value={bauherr}>
+        <option value={null}>– später zuordnen –</option>
+        {#each kunden as k (k.id)}<option value={k.id}>{kundenname(k)}{k.kundennummer ? ` (${k.kundennummer})` : ""}</option>{/each}
+      </select>
+    </label>
+  {/if}
   <div class="knoepfe">
     <button type="button" class="sekundaer" onclick={onabbrechen}>Abbrechen</button>
     <button type="submit" disabled={laeuft}>{knopf}</button>

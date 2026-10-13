@@ -115,6 +115,14 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         .anmelden(&whoami::username(), &whoami::realname())
         .await?;
     tracing::info!(benutzer = %benutzer.anmeldename, rolle = ?benutzer.rolle, "angemeldet");
+    // Bauherren aus Bauanträgen älterer Versionen in die Kundendatenbank.
+    match core.bauherren_uebernehmen(&benutzer).await {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(projekte = n, "Bauherren in die Kundendatenbank übernommen"),
+        // Kein Grund, die App nicht zu starten: Speichern des Bauantrags
+        // übernimmt je Projekt erneut.
+        Err(e) => tracing::error!(fehler = %e, "Bauherren nicht übernommen"),
+    }
     let lizenz = core
         .license
         .arbeitsplatz_belegen(&arbeitsplatz, &benutzer.anzeigename)

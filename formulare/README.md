@@ -10,6 +10,12 @@ Projektdaten befüllt wird (siehe `crates/core-lib/src/formular/vorlage.rs`).
 Verfügbare Schlüssel: `projekt.name`, `projekt.bundesland`,
 `projekt.bundesland_name`, `grundstueck.flaeche_m2`, `datum.heute`.
 
+Aus dem ersten Bauherrn des Projekts (Kundendatenbank): `bauherr.name`,
+`bauherr.vorname`, `bauherr.familienname`, `bauherr.firma`,
+`bauherr.strasse`, `bauherr.hausnummer`, `bauherr.strasse_hausnummer`,
+`bauherr.plz`, `bauherr.ort`, `bauherr.plz_ort`, `bauherr.telefon`,
+`bauherr.email`.
+
 Die Feldnamen der amtlichen Formulare liest die App selbst aus
 (Dokumente → „Formular ausfüllen …“ zeigt alle Felder). Die enthaltene
 Vorlage ist ein **Beispiel**; für jedes Landesformular wird eine eigene

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::pdf::{Feldart, Feldwert, Formularfeld};
 use crate::domain::{Bundesland, Project};
 use crate::error::{CoreError, CoreResult};
+use crate::kunden::{Kunde, Kundentyp};
 
 /// Flache Sicht auf alle Daten, die in Formulare einfließen können, z. B.
 /// `projekt.name` oder `grundstueck.flaeche_m2`. Werte sind bereits für
@@ -27,6 +28,40 @@ impl Projektkontext {
         }
         k.setze("datum.heute", Local::now().format("%d.%m.%Y").to_string());
         k
+    }
+
+    /// Angaben des (ersten) Bauherrn aus der Kundendatenbank:
+    /// `bauherr.name`, `bauherr.vorname`, `bauherr.familienname`,
+    /// `bauherr.firma`, `bauherr.strasse`, `bauherr.hausnummer`,
+    /// `bauherr.strasse_hausnummer`, `bauherr.plz`, `bauherr.ort`,
+    /// `bauherr.plz_ort`, `bauherr.telefon`, `bauherr.email`.
+    pub fn bauherr(&mut self, k: &Kunde) {
+        let d = &k.daten;
+        let a = &d.anschrift;
+        self.setze("bauherr.name", k.anzeigename());
+        match d.typ {
+            Kundentyp::Person => {
+                self.setze("bauherr.vorname", &d.vorname);
+                self.setze("bauherr.familienname", &d.familienname);
+            }
+            Kundentyp::Organisation => self.setze("bauherr.firma", &d.firma),
+        }
+        self.setze("bauherr.strasse", &a.strasse);
+        self.setze("bauherr.hausnummer", &a.hausnummer);
+        self.setze(
+            "bauherr.strasse_hausnummer",
+            format!("{} {}", a.strasse, a.hausnummer).trim(),
+        );
+        self.setze("bauherr.plz", &a.postleitzahl);
+        self.setze("bauherr.ort", &a.ort);
+        self.setze(
+            "bauherr.plz_ort",
+            format!("{} {}", a.postleitzahl, a.ort).trim(),
+        );
+        self.setze("bauherr.telefon", &d.telefon);
+        self.setze("bauherr.email", &d.email);
+        // Leere Angaben nicht vorschlagen.
+        self.0.retain(|_, v| !v.is_empty());
     }
 
     pub fn setze(&mut self, schluessel: &str, wert: impl Into<String>) {
@@ -251,5 +286,29 @@ mod tests {
         let fehler = katalog.laden(&dir).unwrap();
         assert!(fehler.is_empty(), "{fehler:?}");
         assert!(!katalog.vorlagen().is_empty());
+    }
+
+    #[test]
+    fn bauherr_im_kontext() {
+        use crate::kunden::{Kunde, KundeId, Kundendaten};
+        let mut k = Projektkontext::aus_projekt(&projekt());
+        let mut daten = Kundendaten {
+            vorname: "Erika".into(),
+            familienname: "Mustermann".into(),
+            ..Kundendaten::default()
+        };
+        daten.anschrift.postleitzahl = "80331".into();
+        daten.anschrift.ort = "München".into();
+        k.bauherr(&Kunde {
+            id: KundeId::new(),
+            daten,
+            version: 1,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        });
+        assert_eq!(k.wert("bauherr.name"), Some("Erika Mustermann"));
+        assert_eq!(k.wert("bauherr.plz_ort"), Some("80331 München"));
+        assert_eq!(k.wert("bauherr.strasse_hausnummer"), None, "leer");
+        assert_eq!(k.wert("projekt.name"), Some("EFH Muster"));
     }
 }

@@ -10,12 +10,14 @@ use core_lib::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
+use core_lib::kunden::{Kunde, KundeId, Kundendaten};
 use core_lib::license::Arbeitsplatzbelegung;
 use core_lib::repository::{
     BauantragDatensatz, BauantragRepository, BenutzerRepository, DocumentRepository,
-    LizenzRepository, ProjectRepository, ProtokollRepository, Repositories,
+    KundenRepository, LizenzRepository, ProjectRepository, ProtokollRepository, Repositories,
 };
 use core_lib::storage::ContentHash;
+use core_lib::xbau::Anschrift;
 use core_lib::{CoreError, CoreResult};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
@@ -48,7 +50,8 @@ impl PostgresDatabase {
             benutzer: this.clone(),
             protokoll: this.clone(),
             lizenz: this.clone(),
-            bauantraege: this,
+            bauantraege: this.clone(),
+            kunden: this,
         }
     }
 
@@ -704,6 +707,242 @@ impl BauantragRepository for PostgresDatabase {
                 expected: expected_version,
                 actual: self.bauantrag(project).await?.map_or(0, |b| b.version),
             }),
+        }
+    }
+}
+
+fn kunde_from_row(row: &PgRow) -> CoreResult<Kunde> {
+    let typ: String = row.try_get("typ").map_err(db_err)?;
+    let kategorie: String = row.try_get("kategorie").map_err(db_err)?;
+    let text = |spalte: &str| row.try_get::<String, _>(spalte).map_err(db_err);
+    Ok(Kunde {
+        id: KundeId(row.try_get("id").map_err(db_err)?),
+        daten: Kundendaten {
+            typ: typ.parse()?,
+            kategorie: kategorie.parse()?,
+            kundennummer: text("kundennummer")?,
+            vorname: text("vorname")?,
+            familienname: text("familienname")?,
+            firma: text("firma")?,
+            ansprechpartner: text("ansprechpartner")?,
+            anschrift: Anschrift {
+                strasse: text("strasse")?,
+                hausnummer: text("hausnummer")?,
+                postleitzahl: text("postleitzahl")?,
+                ort: text("ort")?,
+            },
+            telefon: text("telefon")?,
+            email: text("email")?,
+            notizen: text("notizen")?,
+        },
+        version: row.try_get("version").map_err(db_err)?,
+        created_at: row.try_get("created_at").map_err(db_err)?,
+        updated_at: row.try_get("updated_at").map_err(db_err)?,
+    })
+}
+
+fn ist_fremdschluessel(e: &sqlx::Error) -> bool {
+    matches!(e, sqlx::Error::Database(d) if d.is_foreign_key_violation())
+}
+
+#[async_trait]
+impl KundenRepository for PostgresDatabase {
+    async fn kunde_anlegen(&self, d: Kundendaten) -> CoreResult<Kunde> {
+        let jetzt = Utc::now().trunc_subsecs(6);
+        let row = sqlx::query(
+            "INSERT INTO kunden (id, typ, kategorie, kundennummer, vorname, familienname, firma,
+                                 ansprechpartner, strasse, hausnummer, postleitzahl, ort,
+                                 telefon, email, notizen, version, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 1, $16, $17)
+          RETURNING *",
+        )
+        .bind(KundeId::new().0)
+        .bind(d.typ.code())
+        .bind(d.kategorie.code())
+        .bind(&d.kundennummer)
+        .bind(&d.vorname)
+        .bind(&d.familienname)
+        .bind(&d.firma)
+        .bind(&d.ansprechpartner)
+        .bind(&d.anschrift.strasse)
+        .bind(&d.anschrift.hausnummer)
+        .bind(&d.anschrift.postleitzahl)
+        .bind(&d.anschrift.ort)
+        .bind(&d.telefon)
+        .bind(&d.email)
+        .bind(&d.notizen)
+        .bind(jetzt)
+        .bind(jetzt)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db_err)?;
+        kunde_from_row(&row)
+    }
+
+    async fn kunde(&self, id: KundeId) -> CoreResult<Kunde> {
+        let row = sqlx::query("SELECT * FROM kunden WHERE id = $1")
+            .bind(id.0)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .ok_or_else(|| CoreError::NotFound(format!("Kunde {id}")))?;
+        kunde_from_row(&row)
+    }
+
+    async fn kunden(&self) -> CoreResult<Vec<Kunde>> {
+        sqlx::query("SELECT * FROM kunden")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(kunde_from_row)
+            .collect()
+    }
+
+    async fn kunde_aendern(
+        &self,
+        id: KundeId,
+        d: Kundendaten,
+        expected_version: i64,
+    ) -> CoreResult<Kunde> {
+        let row = sqlx::query(
+            "UPDATE kunden
+                SET typ = $1, kategorie = $2, kundennummer = $3, vorname = $4, familienname = $5,
+                    firma = $6, ansprechpartner = $7, strasse = $8, hausnummer = $9,
+                    postleitzahl = $10, ort = $11, telefon = $12, email = $13, notizen = $14,
+                    version = version + 1, updated_at = $15
+              WHERE id = $16 AND version = $17
+          RETURNING *",
+        )
+        .bind(d.typ.code())
+        .bind(d.kategorie.code())
+        .bind(&d.kundennummer)
+        .bind(&d.vorname)
+        .bind(&d.familienname)
+        .bind(&d.firma)
+        .bind(&d.ansprechpartner)
+        .bind(&d.anschrift.strasse)
+        .bind(&d.anschrift.hausnummer)
+        .bind(&d.anschrift.postleitzahl)
+        .bind(&d.anschrift.ort)
+        .bind(&d.telefon)
+        .bind(&d.email)
+        .bind(&d.notizen)
+        .bind(Utc::now().trunc_subsecs(6))
+        .bind(id.0)
+        .bind(expected_version)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?;
+        match row {
+            Some(row) => kunde_from_row(&row),
+            None => Err(self.kunde_konflikt(id, expected_version).await),
+        }
+    }
+
+    async fn kunde_loeschen(&self, id: KundeId, expected_version: i64) -> CoreResult<()> {
+        let result = sqlx::query("DELETE FROM kunden WHERE id = $1 AND version = $2")
+            .bind(id.0)
+            .bind(expected_version)
+            .execute(&self.pool)
+            .await;
+        match result {
+            Ok(r) if r.rows_affected() == 1 => Ok(()),
+            Ok(_) => Err(self.kunde_konflikt(id, expected_version).await),
+            Err(e) if ist_fremdschluessel(&e) => Err(CoreError::InvalidInput(
+                "Der Kunde ist noch einem Projekt als Bauherr zugeordnet".into(),
+            )),
+            Err(e) => Err(db_err(e)),
+        }
+    }
+
+    async fn bauherren(&self, project: ProjectId) -> CoreResult<Vec<Kunde>> {
+        sqlx::query(
+            "SELECT k.* FROM projekt_bauherren b JOIN kunden k ON k.id = b.kunde_id
+              WHERE b.project_id = $1 ORDER BY b.position",
+        )
+        .bind(project.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(kunde_from_row)
+        .collect()
+    }
+
+    async fn bauherren_setzen(
+        &self,
+        project: ProjectId,
+        kunden: &[KundeId],
+        expected_version: i64,
+    ) -> CoreResult<Project> {
+        // Das UPDATE nimmt die Schreibsperre; die Projektversion schützt die
+        // Zuordnung wie die übrigen Projektdaten.
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        let row = sqlx::query(
+            "UPDATE projects SET version = version + 1, updated_at = $1
+              WHERE id = $2 AND version = $3
+          RETURNING *",
+        )
+        .bind(Utc::now().trunc_subsecs(6))
+        .bind(project.0)
+        .bind(expected_version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db_err)?;
+        let Some(row) = row else {
+            tx.rollback().await.map_err(db_err)?;
+            return Err(self.conflict_or_missing(project, expected_version).await);
+        };
+        sqlx::query("DELETE FROM projekt_bauherren WHERE project_id = $1")
+            .bind(project.0)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        for (position, kunde) in kunden.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO projekt_bauherren (project_id, kunde_id, position) VALUES ($1, $2, $3)",
+            )
+            .bind(project.0)
+            .bind(kunde.0)
+            .bind(position as i32)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                if ist_fremdschluessel(&e) {
+                    CoreError::NotFound(format!("Kunde {kunde}"))
+                } else {
+                    db_err(e)
+                }
+            })?;
+        }
+        tx.commit().await.map_err(db_err)?;
+        project_from_row(&row)
+    }
+
+    async fn projekte_des_kunden(&self, id: KundeId) -> CoreResult<Vec<Project>> {
+        sqlx::query(
+            "SELECT p.* FROM projects p JOIN projekt_bauherren b ON b.project_id = p.id
+              WHERE b.kunde_id = $1 ORDER BY p.updated_at DESC",
+        )
+        .bind(id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(project_from_row)
+        .collect()
+    }
+}
+
+impl PostgresDatabase {
+    async fn kunde_konflikt(&self, id: KundeId, expected: i64) -> CoreError {
+        match KundenRepository::kunde(self, id).await {
+            Ok(k) => CoreError::VersionConflict {
+                expected,
+                actual: k.version,
+            },
+            Err(e) => e,
         }
     }
 }

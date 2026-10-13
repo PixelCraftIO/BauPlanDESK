@@ -221,10 +221,14 @@ pub enum Aktion {
     LizenzEingespielt,
     BauantragGeaendert,
     XbauExportiert,
+    KundeAngelegt,
+    KundeGeaendert,
+    KundeGeloescht,
+    BauherrenGeaendert,
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 12] = [
+    const ALLE: [Aktion; 16] = [
         Self::ProjektAngelegt,
         Self::ProjektGeaendert,
         Self::DokumentAbgelegt,
@@ -237,6 +241,10 @@ impl Aktion {
         Self::LizenzEingespielt,
         Self::BauantragGeaendert,
         Self::XbauExportiert,
+        Self::KundeAngelegt,
+        Self::KundeGeaendert,
+        Self::KundeGeloescht,
+        Self::BauherrenGeaendert,
     ];
 
     pub fn code(self) -> &'static str {
@@ -253,6 +261,10 @@ impl Aktion {
             Self::LizenzEingespielt => "lizenz_eingespielt",
             Self::BauantragGeaendert => "bauantrag_geaendert",
             Self::XbauExportiert => "xbau_exportiert",
+            Self::KundeAngelegt => "kunde_angelegt",
+            Self::KundeGeaendert => "kunde_geaendert",
+            Self::KundeGeloescht => "kunde_geloescht",
+            Self::BauherrenGeaendert => "bauherren_geaendert",
         }
     }
 }

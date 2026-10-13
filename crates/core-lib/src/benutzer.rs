@@ -101,17 +101,21 @@ pub enum Recht {
     BenutzerVerwalten,
     LizenzVerwalten,
     BueroangabenAendern,
+    KundenBearbeiten,
+    KundenLoeschen,
 }
 
 impl Recht {
     pub fn mindestrolle(self) -> Rolle {
         match self {
-            Self::ProjektBearbeiten | Self::DokumentAblegen | Self::DokumentSperren => {
-                Rolle::Bearbeitung
-            }
-            Self::ProjektAnlegen | Self::FremdeSperreAufheben | Self::BueroangabenAendern => {
-                Rolle::Projektleitung
-            }
+            Self::ProjektBearbeiten
+            | Self::DokumentAblegen
+            | Self::DokumentSperren
+            | Self::KundenBearbeiten => Rolle::Bearbeitung,
+            Self::ProjektAnlegen
+            | Self::FremdeSperreAufheben
+            | Self::BueroangabenAendern
+            | Self::KundenLoeschen => Rolle::Projektleitung,
             Self::BenutzerVerwalten | Self::LizenzVerwalten => Rolle::Administrator,
         }
     }
@@ -126,6 +130,8 @@ impl Recht {
             Self::BenutzerVerwalten => "Benutzer verwalten",
             Self::LizenzVerwalten => "Lizenzen einspielen",
             Self::BueroangabenAendern => "Büroangaben ändern",
+            Self::KundenBearbeiten => "Kunden anlegen und ändern",
+            Self::KundenLoeschen => "Kunden löschen",
         }
     }
 }
