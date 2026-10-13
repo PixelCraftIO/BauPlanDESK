@@ -17,10 +17,11 @@
   import Dokumente from "./lib/Dokumente.svelte";
   import MassDerNutzung from "./lib/MassDerNutzung.svelte";
   import ProjektFormular from "./lib/ProjektFormular.svelte";
+  import Plaene from "./lib/Plaene.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import Startseite from "./lib/Startseite.svelte";
 
-  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente";
+  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene";
   type DialogArt = "neu" | "oeffnen" | "projektdaten" | null;
 
   let info = $state<AppInfo | null>(null);
@@ -33,6 +34,7 @@
   let update = $state<UpdateInfo | null>(null);
   let installiere = $state(false);
   let importAusloeser = $state(0);
+  let planDokument = $state<string | null>(null);
 
   const melde = (e: unknown) => (fehler = fehlertext(e));
 
@@ -41,6 +43,7 @@
     try {
       projekt = await api.projektOeffnen(id);
       ansicht = "uebersicht";
+      planDokument = null;
     } catch (e) {
       melde(e);
     }
@@ -82,6 +85,14 @@
     }
   }
 
+  /** Gemessene Fläche aus dem Plan-Viewer als Grundstücksfläche speichern. */
+  async function grundstuecksflaecheUebernehmen(m2: number) {
+    if (!projekt) return;
+    await speichern({ name: projekt.name, bundesland: projekt.bundesland, grundstuecksflaeche_m2: m2 });
+    if (projekt.grundstuecksflaeche_m2 === m2)
+      hinweis = `Grundstücksfläche ${m2.toLocaleString("de-DE")} m² übernommen. Sie steht jetzt unter „Maß der Nutzung“ bereit.`;
+  }
+
   async function updatePruefen() {
     try {
       update = await api.updatePruefen();
@@ -113,6 +124,7 @@
       case "datei.importieren": ansicht = "dokumente"; importAusloeser++; break;
       case "bearbeiten.projektdaten": dialog = "projektdaten"; break;
       case "ansicht.dokumente": ansicht = "dokumente"; break;
+      case "ansicht.plaene": ansicht = "plaene"; break;
       case "berechnung.mass": ansicht = "mass"; break;
       case "berechnung.abstand": ansicht = "abstand"; break;
       case "hilfe.updates": updatePruefen(); break;
@@ -142,6 +154,7 @@
     { id: "mass", text: "Maß der Nutzung" },
     { id: "abstand", text: "Abstandsflächen" },
     { id: "dokumente", text: "Dokumente" },
+    { id: "plaene", text: "Pläne" },
   ];
 </script>
 
@@ -201,7 +214,7 @@
     {:else if ansicht === "mass"}
       <section>
         <h2>Maß der baulichen Nutzung</h2>
-        {#key projekt.id}
+        {#key `${projekt.id}:${projekt.grundstuecksflaeche_m2}`}
           <MassDerNutzung grundstuecksflaeche={projekt.grundstuecksflaeche_m2} onfehler={melde} />
         {/key}
       </section>
@@ -212,11 +225,21 @@
           <Abstandsflaeche startLand={projekt.bundesland} regelpakete={info?.regelpakete ?? []} onfehler={melde} />
         {/key}
       </section>
+    {:else if ansicht === "plaene"}
+      <section>
+        <h2>Pläne</h2>
+        <Plaene projektId={projekt.id} bind:dokumentId={planDokument} onflaeche={grundstuecksflaecheUebernehmen} onfehler={melde} />
+      </section>
     {/if}
     <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
     <section hidden={ansicht !== "dokumente"}>
       <h2>Dokumente</h2>
-      <Dokumente projektId={projekt.id} {importAusloeser} onfehler={melde} />
+      <Dokumente
+        projektId={projekt.id}
+        {importAusloeser}
+        onplan={(id) => { planDokument = id; ansicht = "plaene"; }}
+        onfehler={melde}
+      />
     </section>
   </main>
 {:else}

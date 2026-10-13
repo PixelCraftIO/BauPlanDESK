@@ -6,13 +6,14 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 use core_lib::CoreError;
+use core_lib::cad::{Laengeneinheit, Messung, Punkt};
 use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use core_lib::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
 };
 use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
-use core_lib::service::FormularAnalyse;
+use core_lib::service::{CadPlan, FormularAnalyse};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -251,6 +252,22 @@ pub fn mass_der_nutzung(
     Ok(state
         .core
         .mass_der_nutzung(&eingabe, gebiet, festsetzungen)?)
+}
+
+/// Lädt einen DXF-Plan aus dem DMS für den Plan-Viewer.
+#[tauri::command]
+pub async fn cad_plan(state: State<'_, AppState>, dokument_id: DocumentId) -> CmdResult<CadPlan> {
+    Ok(state.core.cad_plan(dokument_id).await?)
+}
+
+#[tauri::command]
+pub fn aufmass(
+    state: State<'_, AppState>,
+    punkte: Vec<Punkt>,
+    geschlossen: bool,
+    einheit: Laengeneinheit,
+) -> CmdResult<Messung> {
+    Ok(state.core.messen(&punkte, geschlossen, einheit)?)
 }
 
 /// Platzhalter bis zur Benutzerverwaltung (Rollenmanagement).

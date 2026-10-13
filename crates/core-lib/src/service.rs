@@ -8,6 +8,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use serde::Serialize;
 
+use crate::cad::{self, Laengeneinheit, Messung, Plan, Punkt};
 use crate::calc::{self, Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use crate::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
@@ -33,6 +34,13 @@ pub struct CoreServices {
     pub lbo: Arc<LboEngine>,
     pub license: Arc<dyn LicenseProvider>,
     pub formulare: Arc<Formularkatalog>,
+}
+
+/// Ein CAD-Plan aus dem DMS.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct CadPlan {
+    pub dokument: DocumentVersion,
+    pub plan: Plan,
 }
 
 /// Ergebnis der Analyse eines PDF-Formulars aus dem DMS.
@@ -198,6 +206,23 @@ impl CoreServices {
         .await
     }
 
+    /// Lädt die aktuelle Version eines DXF-Plans aus dem DMS.
+    pub async fn cad_plan(&self, id: DocumentId) -> CoreResult<CadPlan> {
+        let (dokument, daten) = self.load_document(id).await?;
+        let endung = dokument
+            .file_name
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        if endung == "dwg" {
+            return Err(CoreError::InvalidInput(
+                "DWG-Dateien können nicht direkt geöffnet werden. Bitte den Plan im CAD-Programm als DXF exportieren.".into(),
+            ));
+        }
+        let plan = cad::dxf::lesen(&daten)?;
+        Ok(CadPlan { dokument, plan })
+    }
+
     pub async fn document_history(&self, id: DocumentId) -> CoreResult<Vec<DocumentVersion>> {
         self.repos.documents.history(id).await
     }
@@ -211,6 +236,15 @@ impl CoreServices {
         festsetzungen: Option<Orientierungswerte>,
     ) -> CoreResult<Pruefergebnis> {
         calc::pruefe(eingabe, gebiet, festsetzungen)
+    }
+
+    pub fn messen(
+        &self,
+        punkte: &[Punkt],
+        geschlossen: bool,
+        einheit: Laengeneinheit,
+    ) -> CoreResult<Messung> {
+        cad::messen(punkte, geschlossen, einheit)
     }
 
     pub fn abstandsflaeche(

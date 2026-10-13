@@ -27,6 +27,7 @@ pub mod id {
     pub const MASS_DER_NUTZUNG: &str = "berechnung.mass";
     pub const ABSTANDSFLAECHEN: &str = "berechnung.abstand";
     pub const DOKUMENTE: &str = "ansicht.dokumente";
+    pub const PLAENE: &str = "ansicht.plaene";
     pub const UPDATES: &str = "hilfe.updates";
     pub const BEENDEN: &str = "datei.beenden";
     pub const RUECKGAENGIG: &str = "bearbeiten.rueckgaengig";
@@ -255,8 +256,10 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
 
     // --- Ansicht ---
     let dokumente = item(id::DOKUMENTE, "Dokumente", Some("CmdOrCtrl+D"), false)?;
+    let plaene = item(id::PLAENE, "Pläne", Some("CmdOrCtrl+Shift+P"), false)?;
     let ansicht = SubmenuBuilder::new(app, "&Ansicht")
         .item(&dokumente)
+        .item(&plaene)
         .separator()
         .item(&item(
             id::ZOOM_PLUS,
@@ -350,6 +353,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             importieren,
             projektdaten,
             dokumente,
+            plaene,
             mass,
             abstand,
         ],

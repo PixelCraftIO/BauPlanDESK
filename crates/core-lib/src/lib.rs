@@ -10,6 +10,7 @@
 //! * Dateien nur über den Trait [`storage::Storage`],
 //! * landesrechtliche Regeln nur über Skripte der [`lbo`]-Engine.
 
+pub mod cad;
 pub mod calc;
 pub mod domain;
 pub mod error;

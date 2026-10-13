@@ -7,13 +7,14 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use core_lib::cad::{Laengeneinheit, Messung, Punkt};
 use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use core_lib::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
 };
 use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
-use core_lib::service::FormularAnalyse;
+use core_lib::service::{CadPlan, FormularAnalyse};
 use core_lib::{CoreError, CoreServices};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -59,9 +60,11 @@ pub fn router(core: CoreServices) -> Router {
             "/api/dokumente/{id}/formular",
             get(formular_analysieren).post(formular_ausfuellen),
         )
+        .route("/api/dokumente/{id}/plan", get(cad_plan))
         .route("/api/lbo/regelpakete", get(rule_packs))
         .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
+        .route("/api/berechnung/aufmass", post(aufmass))
         .with_state(core)
 }
 
@@ -109,6 +112,28 @@ async fn formular_ausfuellen(
         .formular_ausfuellen(DocumentId(id), &werte, "server")
         .await?;
     Ok((StatusCode::CREATED, Json(version)))
+}
+
+async fn cad_plan(State(core): State<CoreServices>, Path(id): Path<Uuid>) -> ApiResult<CadPlan> {
+    Ok(Json(core.cad_plan(DocumentId(id)).await?))
+}
+
+#[derive(Deserialize)]
+struct AufmassRequest {
+    punkte: Vec<Punkt>,
+    geschlossen: bool,
+    einheit: Laengeneinheit,
+}
+
+async fn aufmass(
+    State(core): State<CoreServices>,
+    Json(req): Json<AufmassRequest>,
+) -> ApiResult<Messung> {
+    Ok(Json(core.messen(
+        &req.punkte,
+        req.geschlossen,
+        req.einheit,
+    )?))
 }
 
 async fn rule_packs(State(core): State<CoreServices>) -> ApiResult<Vec<RulePackInfo>> {

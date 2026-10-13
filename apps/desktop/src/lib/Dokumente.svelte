@@ -1,14 +1,20 @@
 <script lang="ts">
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { api, fehlertext, type DocumentVersion } from "./api";
+  import { api, fehlertext, istPlan, type DocumentVersion } from "./api";
   import Dialog from "./Dialog.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
 
   let {
     projektId,
     importAusloeser,
+    onplan,
     onfehler,
-  }: { projektId: string; importAusloeser: number; onfehler: (m: string) => void } = $props();
+  }: {
+    projektId: string;
+    importAusloeser: number;
+    onplan: (dokumentId: string) => void;
+    onfehler: (m: string) => void;
+  } = $props();
 
   let versionen = $state<DocumentVersion[]>([]);
   let laeuft = $state(false);
@@ -119,6 +125,7 @@
         <td>{groesse(doc.size_bytes)}</td>
         <td>{new Date(doc.created_at).toLocaleString("de-DE")} · {doc.created_by}</td>
         <td class="aktionen">
+          {#if istPlan(doc.file_name)}<button class="link" onclick={() => onplan(doc.document_id)}>Plan ansehen</button>{/if}
           {#if istPdf(doc)}<button class="link" onclick={() => (formular = doc)}>Formular ausfüllen …</button>{/if}
           <button class="link" onclick={() => exportieren(doc)}>Exportieren …</button>
           <button class="link" onclick={() => importieren(doc.document_id)}>Neue Version …</button>

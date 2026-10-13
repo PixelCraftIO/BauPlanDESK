@@ -107,6 +107,54 @@ export interface FormularAnalyse {
   vorschlag: Record<string, Feldwert>;
 }
 
+export type Laengeneinheit =
+  | "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
+
+/** Punkt in Zeichnungseinheiten als [x, y]. */
+export type Punkt = [number, number];
+
+export interface Plan {
+  einheit: Laengeneinheit | null;
+  ebenen: { name: string; farbe: string | null; sichtbar: boolean }[];
+  linien: { ebene: number; farbe: string | null; punkte: Punkt[]; geschlossen: boolean }[];
+  texte: {
+    ebene: number;
+    farbe: string | null;
+    position: Punkt;
+    hoehe: number;
+    zeilenabstand: number;
+    drehung: number;
+    ausrichtung: "links" | "mitte" | "rechts";
+    inhalt: string;
+  }[];
+  grenzen: { min: Punkt; max: Punkt } | null;
+  hinweise: string[];
+}
+
+export interface CadPlan {
+  dokument: DocumentVersion;
+  plan: Plan;
+}
+
+export interface Messung {
+  laenge_m: number;
+  flaeche_m2: number | null;
+  selbstschneidend: boolean;
+}
+
+export const EINHEITEN: { code: Laengeneinheit; name: string }[] = [
+  { code: "meter", name: "Meter" },
+  { code: "zentimeter", name: "Zentimeter" },
+  { code: "millimeter", name: "Millimeter" },
+  { code: "dezimeter", name: "Dezimeter" },
+  { code: "kilometer", name: "Kilometer" },
+  { code: "zoll", name: "Zoll" },
+  { code: "fuss", name: "Fuß" },
+];
+
+/** Dateien, die der Plan-Viewer öffnen kann. */
+export const istPlan = (dateiname: string) => /\.dxf$/i.test(dateiname);
+
 export interface CmdError {
   art: string;
   meldung: string;
@@ -135,6 +183,9 @@ export const api = {
     invoke<DocumentVersion>("formular_ausfuellen", { dokumentId, werte }),
   dokumentExportieren: (dokumentId: string, ziel: string) =>
     invoke<void>("dokument_exportieren", { dokumentId, ziel }),
+  cadPlan: (dokumentId: string) => invoke<CadPlan>("cad_plan", { dokumentId }),
+  aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>
+    invoke<Messung>("aufmass", { punkte, geschlossen, einheit }),
   massDerNutzung: (eingabe: MassDerNutzung, gebiet: Baugebiet) =>
     invoke<Pruefergebnis>("mass_der_nutzung", { eingabe, gebiet, festsetzungen: null }),
   abstandsflaeche: (land: Bundesland, eingabe: { wandhoehe_m: number; gebiet: Baugebiet }) =>
