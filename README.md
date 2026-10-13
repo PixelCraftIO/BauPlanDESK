@@ -168,6 +168,46 @@ für die Benutzerverwaltung). Beide Datenbank-Backends prüft dieselbe
 Testsuite (`core_lib::testsuite`); für PostgreSQL mit
 `BAUPROJEKT_TEST_POSTGRES=postgres://… cargo test -p db-postgres`.
 
+## Lizenzverwaltung
+
+Lizenzen sind signierte Dateien (`.bplizenz`, Ed25519). Die App enthält nur
+den öffentlichen Schlüssel des Herstellers und kann Lizenzen prüfen, aber
+nicht erzeugen. Ein Administrator spielt die Datei unter *Hilfe → Lizenz …*
+ein. Sie liegt danach in der Datenbank und gilt für alle Arbeitsplätze, die
+diese Datenbank nutzen.
+
+- **Testversion:** Ohne Lizenz läuft BauProjektIO 30 Tage mit bis zu 3
+  Arbeitsplätzen.
+- **Arbeitsplätze:** Jeder Rechner belegt beim Start einen Platz und meldet
+  sich alle 5 Minuten. Beim Beenden wird der Platz frei, nach einem Absturz
+  spätestens nach 15 Minuten. Sind alle Plätze belegt, ist dieser Rechner nur
+  lesend nutzbar, bis einer frei wird.
+- **Ablauf:** Ist die Testversion oder eine befristete Lizenz abgelaufen,
+  bleiben alle Projekte und Dokumente lesbar und exportierbar. Nur Änderungen
+  sind gesperrt. Benutzer verwalten und Lizenz einspielen geht immer.
+- Geprüft wird in `core-lib` (`CoreServices::pruefe`), also in Desktop und
+  Server gleich. Der Server zählt selbst keine Arbeitsplätze.
+
+**Lizenzen ausstellen** (nur beim Hersteller, nie beim Kunden):
+
+```sh
+cargo run -p lizenz-werkzeug -- schluessel hersteller.key   # einmalig, sicher aufbewahren!
+cargo run -p lizenz-werkzeug -- ausstellen hersteller.key kunde.bplizenz \
+    --lizenznehmer "Architekturbüro Muster" --edition buero --arbeitsplaetze 5 \
+    --wartung-bis 2027-12-31          # optional: --gueltig-bis für Mietlizenzen
+cargo run -p lizenz-werkzeug -- pruefen kunde.bplizenz <öffentlicher Schlüssel>
+```
+
+Der öffentliche Schlüssel kommt beim Release-Build über die
+Umgebungsvariable `BAUPROJEKT_LIZENZ_SCHLUESSEL` in die App (in GitHub als
+Repository-Variable gleichen Namens; mehrere Schlüssel durch Komma getrennt).
+Debug-Builds vertrauen zusätzlich einem festen Testschlüssel, mit dem sich
+Lizenzen für die Entwicklung erzeugen lassen:
+
+```sh
+cargo run -p core-lib --features testdaten --example testlizenz -- test.bplizenz 3
+```
+
 ## Desktop-App
 
 * **Betriebsart** über `<App-Konfiguration>/config.json`; ohne Datei startet die

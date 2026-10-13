@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 
 use crate::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer};
 use crate::domain::{
@@ -14,6 +15,7 @@ use crate::domain::{
     ProjectId, ProjectUpdate, Protokolleintrag,
 };
 use crate::error::CoreResult;
+use crate::license::Arbeitsplatzbelegung;
 
 #[async_trait]
 pub trait ProjectRepository: Send + Sync {
@@ -104,6 +106,38 @@ pub trait ProtokollRepository: Send + Sync {
     ) -> CoreResult<Vec<Protokolleintrag>>;
 }
 
+/// Einstellungen der Installation (u. a. die Lizenzdatei) und belegte
+/// Arbeitsplätze, gemeinsam für alle Arbeitsplätze an einer Datenbank.
+#[async_trait]
+pub trait LizenzRepository: Send + Sync {
+    async fn einstellung(&self, schluessel: &str) -> CoreResult<Option<String>>;
+
+    async fn einstellung_setzen(&self, schluessel: &str, wert: &str) -> CoreResult<()>;
+
+    /// Setzt den Wert nur, wenn noch keiner gespeichert ist, und liefert den
+    /// gespeicherten Wert (z. B. Beginn der Testversion).
+    async fn einstellung_vorbelegen(&self, schluessel: &str, wert: &str) -> CoreResult<String>;
+
+    /// Belegt einen Arbeitsplatz oder aktualisiert dessen letzte Meldung.
+    /// Plätze, die sich vor `abgelaufen_vor` zuletzt gemeldet haben, gelten
+    /// als frei. Atomar: Zwei Rechner können nicht gleichzeitig den letzten
+    /// freien Platz bekommen. `false`, wenn alle `max` Plätze belegt sind.
+    async fn arbeitsplatz_belegen(
+        &self,
+        belegung: Arbeitsplatzbelegung,
+        max: u32,
+        abgelaufen_vor: DateTime<Utc>,
+    ) -> CoreResult<bool>;
+
+    async fn arbeitsplatz_freigeben(&self, arbeitsplatz: &str) -> CoreResult<()>;
+
+    /// Aktive Belegungen, älteste zuerst.
+    async fn arbeitsplaetze(
+        &self,
+        abgelaufen_vor: DateTime<Utc>,
+    ) -> CoreResult<Vec<Arbeitsplatzbelegung>>;
+}
+
 /// Bündelt alle Repositories einer Datenbank-Implementierung, damit die
 /// Laufzeitumgebung genau ein Objekt injizieren muss.
 #[derive(Clone)]
@@ -112,4 +146,5 @@ pub struct Repositories {
     pub documents: Arc<dyn DocumentRepository>,
     pub benutzer: Arc<dyn BenutzerRepository>,
     pub protokoll: Arc<dyn ProtokollRepository>,
+    pub lizenz: Arc<dyn LizenzRepository>,
 }

@@ -18,7 +18,7 @@ use crate::domain::{
 use crate::error::{CoreError, CoreResult};
 use crate::formular::{self, Feldwert, Formularfeld, Formularkatalog, Projektkontext};
 use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboEngine};
-use crate::license::LicenseProvider;
+use crate::license::{LicenseProvider, Lizenzstatus};
 use crate::repository::Repositories;
 use crate::storage::{Storage, StorageKey};
 
@@ -83,6 +83,52 @@ impl CoreServices {
     pub fn mit_formularen(mut self, katalog: Formularkatalog) -> Self {
         self.formulare = Arc::new(katalog);
         self
+    }
+
+    // --- Rechte und Lizenz ---------------------------------------------
+
+    /// Rolle prüfen und, für Änderungen an Projekten und Dokumenten, ob die
+    /// Lizenz Schreiben erlaubt. Benutzerverwaltung und Lizenz einspielen
+    /// bleiben auch ohne gültige Lizenz möglich, sonst käme man nie heraus.
+    async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
+        wer.pruefe(recht)?;
+        let status = self.license.status().await?;
+        if !status.schreiben_erlaubt {
+            return Err(CoreError::License(status.meldung));
+        }
+        Ok(())
+    }
+
+    pub async fn lizenz(&self) -> CoreResult<Lizenzstatus> {
+        self.license.status().await
+    }
+
+    /// Spielt eine Lizenzdatei ein (nur Administratoren). Sie gilt danach für
+    /// alle Arbeitsplätze an dieser Datenbank.
+    pub async fn lizenz_einspielen(
+        &self,
+        datei: &[u8],
+        wer: &Benutzer,
+    ) -> CoreResult<Lizenzstatus> {
+        wer.pruefe(Recht::LizenzVerwalten)?;
+        let status = self.license.einspielen(datei).await?;
+        if let Some(l) = &status.lizenz {
+            self.protokollieren(
+                wer,
+                Aktion::LizenzEingespielt,
+                None,
+                None,
+                format!(
+                    "{} ({}, {} Arbeitsplätze, Lizenz {})",
+                    l.lizenznehmer,
+                    l.edition.name(),
+                    l.arbeitsplaetze,
+                    l.lizenz_id
+                ),
+            )
+            .await?;
+        }
+        Ok(status)
     }
 
     // --- Benutzer --------------------------------------------------------
@@ -248,7 +294,7 @@ impl CoreServices {
     // --- Projekte -------------------------------------------------------
 
     pub async fn create_project(&self, project: NewProject, wer: &Benutzer) -> CoreResult<Project> {
-        wer.pruefe(Recht::ProjektAnlegen)?;
+        self.pruefe(wer, Recht::ProjektAnlegen).await?;
         validate_project(&project.name, project.grundstuecksflaeche_m2)?;
         let p = self.repos.projects.create(project).await?;
         self.protokollieren(
@@ -275,7 +321,7 @@ impl CoreServices {
         update: ProjectUpdate,
         wer: &Benutzer,
     ) -> CoreResult<Project> {
-        wer.pruefe(Recht::ProjektBearbeiten)?;
+        self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         validate_project(&update.name, update.grundstuecksflaeche_m2)?;
         let p = self.repos.projects.update(update).await?;
         self.protokollieren(
@@ -367,7 +413,7 @@ impl CoreServices {
         aktion: Aktion,
         zusatz: &str,
     ) -> CoreResult<DocumentVersion> {
-        wer.pruefe(Recht::DokumentAblegen)?;
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
         let file_name = sanitize_file_name(file_name)?;
         let document_id = match document_id {
             Some(id) => {
@@ -511,7 +557,7 @@ impl CoreServices {
         id: DocumentId,
         wer: &Benutzer,
     ) -> CoreResult<DocumentLock> {
-        wer.pruefe(Recht::DokumentSperren)?;
+        self.pruefe(wer, Recht::DokumentSperren).await?;
         let aktuell = self.repos.documents.latest(id).await?;
         if let Some(s) = self.repos.documents.get_lock(id).await?
             && s.benutzer_id == wer.id
@@ -542,7 +588,7 @@ impl CoreServices {
         };
         let fremd = sperre.benutzer_id != wer.id;
         if fremd {
-            wer.pruefe(Recht::FremdeSperreAufheben)?;
+            self.pruefe(wer, Recht::FremdeSperreAufheben).await?;
         }
         let aufgehoben = self
             .repos
@@ -606,7 +652,7 @@ impl CoreServices {
         werte: &BTreeMap<String, Feldwert>,
         wer: &Benutzer,
     ) -> CoreResult<DocumentVersion> {
-        wer.pruefe(Recht::DokumentAblegen)?;
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
         let (original, pdf) = self.load_document(id).await?;
         let ausgefuellt = formular::pdf::befuellen(&pdf, werte)?;
         let stamm = original

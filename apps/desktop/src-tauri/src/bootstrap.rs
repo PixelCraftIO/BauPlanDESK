@@ -8,7 +8,7 @@ use core_lib::CoreServices;
 use core_lib::benutzer::Benutzer;
 use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
-use core_lib::license::DevelopmentLicense;
+use core_lib::license::{DatenbankLizenz, Lizenzpruefer};
 use core_lib::storage::Storage;
 use storage::StorageConfig;
 use tauri::path::BaseDirectory;
@@ -21,6 +21,8 @@ pub struct AppState {
     /// Angemeldeter Benutzer (Betriebssystem-Anmeldung). Wird neu gelesen,
     /// wenn ein Administrator ihn ändert.
     pub benutzer: RwLock<Benutzer>,
+    /// Name dieses Rechners für die Zählung der Lizenz-Arbeitsplätze.
+    pub arbeitsplatz: String,
     pub config: AppConfig,
     /// Nur im Netzwerkmodus vorhanden.
     pub cache: Option<Arc<CachedStorage>>,
@@ -77,8 +79,13 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
 
     let lbo = Arc::new(init_lbo(app, &data_dir)?);
 
-    // TODO: Lizenzprüfung (lokale Lizenzdatei / Lizenzserver) injizieren.
-    let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense))
+    // Lizenz und belegte Arbeitsplätze liegen in der (gemeinsamen) Datenbank.
+    let pruefer = Lizenzpruefer::standard();
+    if !pruefer.hat_schluessel() {
+        tracing::warn!("Kein Lizenzschlüssel eingebaut: nur die Testversion ist möglich.");
+    }
+    let lizenz = DatenbankLizenz::new(repos.lizenz.clone(), pruefer).mit_arbeitsplatzpflicht();
+    let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
         .mit_formularen(init_formulare(app, &data_dir)?);
     // Anmeldung über das Betriebssystem. Im Netzwerkmodus teilen sich alle
     // Arbeitsplätze die Benutzertabelle; die erste Anmeldung wird Administrator.
@@ -86,9 +93,16 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         .anmelden(&whoami::username(), &whoami::realname())
         .await?;
     tracing::info!(benutzer = %benutzer.anmeldename, rolle = ?benutzer.rolle, "angemeldet");
+    let arbeitsplatz = whoami::fallible::hostname().unwrap_or_else(|_| whoami::devicename());
+    let lizenz = core
+        .license
+        .arbeitsplatz_belegen(&arbeitsplatz, &benutzer.anzeigename)
+        .await?;
+    tracing::info!(%arbeitsplatz, zustand = ?lizenz.zustand, "Lizenz geprüft");
     Ok(AppState {
         core,
         benutzer: RwLock::new(benutzer),
+        arbeitsplatz,
         config,
         cache,
     })

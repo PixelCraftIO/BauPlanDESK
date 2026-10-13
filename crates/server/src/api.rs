@@ -16,6 +16,7 @@ use core_lib::domain::{
 use core_lib::domain::{DocumentLock, Protokolleintrag};
 use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
+use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
 use core_lib::{CoreError, CoreServices};
 use serde::Deserialize;
@@ -79,6 +80,7 @@ pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
             post(sperren).delete(entsperren),
         )
         .route("/api/dokumente/{id}/plan", get(cad_plan))
+        .route("/api/lizenz", get(lizenz).put(lizenz_einspielen))
         .route("/api/lbo/regelpakete", get(rule_packs))
         .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
@@ -170,6 +172,18 @@ async fn entsperren(
 ) -> Result<StatusCode, ApiError> {
     core.dokument_entsperren(DocumentId(id), &akteur).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn lizenz(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Lizenzstatus> {
+    Ok(Json(core.lizenz().await?))
+}
+
+/// Body: Inhalt der Lizenzdatei.
+async fn lizenz_einspielen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    datei: axum::body::Bytes,
+) -> ApiResult<Lizenzstatus> {
+    Ok(Json(core.lizenz_einspielen(&datei, &akteur).await?))
 }
 
 async fn cad_plan(

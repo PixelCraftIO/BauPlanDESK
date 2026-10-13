@@ -31,6 +31,7 @@ pub mod id {
     pub const PLAENE: &str = "ansicht.plaene";
     pub const PROTOKOLL: &str = "ansicht.protokoll";
     pub const UPDATES: &str = "hilfe.updates";
+    pub const LIZENZ: &str = "hilfe.lizenz";
     pub const BEENDEN: &str = "datei.beenden";
     pub const RUECKGAENGIG: &str = "bearbeiten.rueckgaengig";
     pub const WIEDERHOLEN: &str = "bearbeiten.wiederholen";
@@ -314,12 +315,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .copyright(Some("© PixelCraftIO"))
         .comments(Some("Bauanträge erstellen, berechnen und einreichen"))
         .build();
-    let mut hilfe = SubmenuBuilder::new(app, "&Hilfe").item(&item(
-        id::UPDATES,
-        "Nach Updates suchen …",
-        None,
-        true,
-    )?);
+    let mut hilfe = SubmenuBuilder::new(app, "&Hilfe")
+        .item(&item(id::LIZENZ, "Lizenz …", None, true)?)
+        .item(&item(id::UPDATES, "Nach Updates suchen …", None, true)?);
     if !cfg!(target_os = "macos") {
         hilfe = hilfe
             .separator()

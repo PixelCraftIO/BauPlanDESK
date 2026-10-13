@@ -7,7 +7,11 @@ mod config;
 mod menu;
 mod updater;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager, RunEvent};
+
+/// So oft meldet sich der Arbeitsplatz als belegt (die Lizenz gibt ihn nach
+/// 15 Minuten ohne Meldung frei).
+const LIZENZ_MELDUNG: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
 fn main() {
     tracing_subscriber::fmt()
@@ -37,6 +41,7 @@ fn main() {
             app.manage(updater::PendingUpdate::default());
             menu::install(app.handle())?;
             updater::check_in_background(app.handle().clone());
+            lizenz_melden(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -58,6 +63,9 @@ fn main() {
             commands::benutzer_auflisten,
             commands::benutzer_anlegen,
             commands::benutzer_aendern,
+            commands::lizenz_status,
+            commands::lizenz_einspielen,
+            commands::arbeitsplatz_belegen,
             commands::dokument_exportieren,
             commands::formular_analysieren,
             commands::formular_ausfuellen,
@@ -68,6 +76,45 @@ fn main() {
             updater::update_pruefen,
             updater::update_installieren,
         ])
-        .run(tauri::generate_context!())
-        .expect("BauProjektIO konnte nicht gestartet werden");
+        .build(tauri::generate_context!())
+        .expect("BauProjektIO konnte nicht gestartet werden")
+        .run(|app, event| {
+            // Arbeitsplatz sofort freigeben, damit ein Kollege ihn nutzen kann.
+            if let RunEvent::Exit = event
+                && let Some(state) = app.try_state::<bootstrap::AppState>()
+            {
+                let ergebnis = tauri::async_runtime::block_on(
+                    state
+                        .core
+                        .license
+                        .arbeitsplatz_freigeben(&state.arbeitsplatz),
+                );
+                if let Err(e) = ergebnis {
+                    tracing::warn!(error = %e, "Arbeitsplatz nicht freigegeben");
+                }
+            }
+        });
+}
+
+/// Meldet den Arbeitsplatz regelmäßig als belegt bzw. versucht, einen zu
+/// bekommen, und schickt den Lizenzstatus an die Oberfläche.
+fn lizenz_melden(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(LIZENZ_MELDUNG).await;
+            let state = app.state::<bootstrap::AppState>();
+            let name = state.benutzer().anzeigename;
+            match state
+                .core
+                .license
+                .arbeitsplatz_belegen(&state.arbeitsplatz, &name)
+                .await
+            {
+                Ok(status) => {
+                    let _ = app.emit("lizenz", status);
+                }
+                Err(e) => tracing::warn!(error = %e, "Lizenzmeldung fehlgeschlagen"),
+            }
+        }
+    });
 }

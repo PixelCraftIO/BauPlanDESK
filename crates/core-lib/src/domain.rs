@@ -218,10 +218,11 @@ pub enum Aktion {
     FormularAusgefuellt,
     BenutzerAngelegt,
     BenutzerGeaendert,
+    LizenzEingespielt,
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 9] = [
+    const ALLE: [Aktion; 10] = [
         Self::ProjektAngelegt,
         Self::ProjektGeaendert,
         Self::DokumentAbgelegt,
@@ -231,6 +232,7 @@ impl Aktion {
         Self::FormularAusgefuellt,
         Self::BenutzerAngelegt,
         Self::BenutzerGeaendert,
+        Self::LizenzEingespielt,
     ];
 
     pub fn code(self) -> &'static str {
@@ -244,6 +246,7 @@ impl Aktion {
             Self::FormularAusgefuellt => "formular_ausgefuellt",
             Self::BenutzerAngelegt => "benutzer_angelegt",
             Self::BenutzerGeaendert => "benutzer_geaendert",
+            Self::LizenzEingespielt => "lizenz_eingespielt",
         }
     }
 }

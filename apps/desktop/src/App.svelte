@@ -10,6 +10,7 @@
     rollenName,
     type AppInfo,
     type Benutzer,
+    type Lizenzstatus,
     type Project,
     type Projektwerte as Werte,
     type UpdateInfo,
@@ -24,10 +25,11 @@
   import Plaene from "./lib/Plaene.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import Protokoll from "./lib/Protokoll.svelte";
+  import LizenzDialog from "./lib/Lizenz.svelte";
   import Startseite from "./lib/Startseite.svelte";
 
   type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "protokoll";
-  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | null;
+  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "lizenz" | null;
 
   let info = $state<AppInfo | null>(null);
   let projekt = $state<Project | null>(null);
@@ -41,7 +43,13 @@
   let importAusloeser = $state(0);
   let planDokument = $state<string | null>(null);
 
-  const ich = $derived(info?.benutzer ?? null);
+  let lizenz = $state<Lizenzstatus | null>(null);
+
+  /** Angemeldeter Benutzer; ohne Schreibrecht der Lizenz wie „Lesen“. */
+  const ich = $derived.by((): Benutzer | null => {
+    const b = info?.benutzer ?? null;
+    return b && lizenz && !lizenz.schreiben_erlaubt ? { ...b, rolle: "lesen" } : b;
+  });
   const darf = (min: "bearbeitung" | "projektleitung") => !!ich && ich.aktiv && mindestens(ich.rolle, min);
 
   const melde = (e: unknown) => (fehler = fehlertext(e));
@@ -138,6 +146,7 @@
       case "berechnung.mass": ansicht = "mass"; break;
       case "berechnung.abstand": ansicht = "abstand"; break;
       case "hilfe.updates": updatePruefen(); break;
+      case "hilfe.lizenz": dialog = "lizenz"; break;
       // Nur unter Linux als eigene Menüpunkte (siehe menu.rs).
       case "bearbeiten.rueckgaengig": document.execCommand("undo"); break;
       case "bearbeiten.wiederholen": document.execCommand("redo"); break;
@@ -147,7 +156,7 @@
   onMount(() => {
     (async () => {
       try {
-        [info, zuletzt] = await Promise.all([api.appInfo(), api.zuletzt()]);
+        [info, zuletzt, lizenz] = await Promise.all([api.appInfo(), api.zuletzt(), api.lizenz()]);
       } catch (e) {
         melde(e);
       }
@@ -155,6 +164,8 @@
     const ab = [
       listen<string>("menu", (e) => menue(e.payload)),
       listen<UpdateInfo>("update-verfuegbar", (e) => (update = e.payload)),
+      // Regelmäßige Meldung des Arbeitsplatzes (siehe main.rs).
+      listen<Lizenzstatus>("lizenz", (e) => (lizenz = e.payload)),
     ];
     return () => ab.forEach((p) => p.then((f) => f()));
   });
@@ -176,6 +187,13 @@
       {installiere ? "Wird installiert …" : "Jetzt aktualisieren"}
     </button>
     <button class="sekundaer" onclick={() => (update = null)}>Später</button>
+  </div>
+{/if}
+
+{#if lizenz && !lizenz.schreiben_erlaubt}
+  <div class="fehler" role="alert">
+    {lizenz.meldung}
+    <button class="sekundaer" onclick={() => (dialog = "lizenz")}>Lizenz …</button>
   </div>
 {/if}
 
@@ -274,11 +292,18 @@
 <footer class="statusleiste meta">
   {#if info}
     <button class="link" onclick={() => (dialog = "benutzer")} title="Benutzerverwaltung">{info.benutzer.anzeigename} ({rollenName(info.benutzer.rolle)})</button> ·
+    {#if lizenz?.zustand.art === "testversion"}
+      <button class="link" onclick={() => (dialog = "lizenz")}>Testversion, noch {lizenz.zustand.tage_uebrig} {lizenz.zustand.tage_uebrig === 1 ? "Tag" : "Tage"}</button> ·
+    {/if}
     BauProjektIO {info.version} · {info.modus} · Ablage: {info.storage} · LBO-Regelpakete: {info.regelpakete.map((r) => r.land).join(", ") || "keine"}
   {/if}
 </footer>
 
-{#if dialog === "benutzer" && info}
+{#if dialog === "lizenz" && info && lizenz}
+  <Dialog titel="Lizenz" onclose={() => (dialog = null)}>
+    <LizenzDialog status={lizenz} ich={info.benutzer} onstatus={(s) => (lizenz = s)} onschliessen={() => (dialog = null)} />
+  </Dialog>
+{:else if dialog === "benutzer" && info}
   <Dialog titel="Benutzerverwaltung" breit onclose={() => (dialog = null)}>
     <Benutzerverwaltung
       ich={info.benutzer}

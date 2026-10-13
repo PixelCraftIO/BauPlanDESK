@@ -26,5 +26,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+chrono.workspace = true
+ed25519-dalek.workspace = true
 core-lib = { workspace = true, features = ["testdaten"] }
 tempfile.workspace = true
