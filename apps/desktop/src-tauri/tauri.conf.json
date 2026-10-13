@@ -45,7 +45,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../../lbo-rules/": "lbo-rules/"
+      "../../../lbo-rules/": "lbo-rules/",
+      "../../../formulare/": "formulare/"
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },

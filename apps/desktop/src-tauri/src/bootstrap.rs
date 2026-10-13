@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use client_cache::{CacheConfig, CachedStorage};
 use core_lib::CoreServices;
+use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
 use core_lib::license::DevelopmentLicense;
 use core_lib::storage::Storage;
@@ -63,12 +64,34 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     let lbo = Arc::new(init_lbo(app, &data_dir)?);
 
     // TODO: Lizenzprüfung (lokale Lizenzdatei / Lizenzserver) injizieren.
-    let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense));
+    let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense))
+        .mit_formularen(init_formulare(app, &data_dir)?);
     Ok(AppState {
         core,
         config,
         cache,
     })
+}
+
+/// Formularvorlagen: mitgelieferte zuerst, dann Updates aus dem Datenverzeichnis.
+fn init_formulare(app: &AppHandle, data_dir: &Path) -> Result<Formularkatalog, BoxError> {
+    let mut katalog = Formularkatalog::default();
+    let bundled = app.path().resolve("formulare", BaseDirectory::Resource)?;
+    let updates = data_dir.join("formulare");
+    std::fs::create_dir_all(&updates)?;
+    for dir in [bundled, updates] {
+        if !dir.is_dir() {
+            continue;
+        }
+        for e in katalog.laden(&dir)? {
+            tracing::error!(error = %e, "Formularvorlage übersprungen");
+        }
+    }
+    tracing::info!(
+        anzahl = katalog.vorlagen().len(),
+        "Formularvorlagen geladen"
+    );
+    Ok(katalog)
 }
 
 /// LBO-Engine initialisieren: erst die mit dem Installer ausgelieferten

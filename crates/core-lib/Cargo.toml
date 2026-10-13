@@ -29,3 +29,7 @@ testdaten = []
 
 [dev-dependencies]
 tokio.workspace = true
+
+[[example]]
+name = "musterformular"
+required-features = ["testdaten"]

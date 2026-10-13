@@ -356,6 +356,16 @@ pub fn befuellen(pdf: &[u8], werte: &BTreeMap<String, Feldwert>) -> CoreResult<V
                         .set("V", Object::Name(zustand.into_bytes()));
                 }
             }
+            (Feldart::Optionsfeld, Feldwert::Text(option)) if option.is_empty() => {
+                for w in &k.widgets {
+                    doc.get_dictionary_mut(*w)
+                        .map_err(pdf_err)?
+                        .set("AS", Object::Name(b"Off".to_vec()));
+                }
+                doc.get_dictionary_mut(k.id)
+                    .map_err(pdf_err)?
+                    .set("V", Object::Name(b"Off".to_vec()));
+            }
             (Feldart::Optionsfeld, Feldwert::Text(option)) => {
                 let mut gefunden = false;
                 for w in &k.widgets {
@@ -463,6 +473,10 @@ mod tests {
         for (name, wert) in &werte {
             assert_eq!(feld(&felder, name).wert.as_ref(), Some(wert), "{name}");
         }
+        // Option wieder abwählen
+        let leer = BTreeMap::from([("Vorhaben".to_owned(), Feldwert::Text(String::new()))]);
+        let pdf = befuellen(&pdf, &leer).unwrap();
+        assert_eq!(feld(&felder_lesen(&pdf).unwrap(), "Vorhaben").wert, None);
     }
 
     #[test]
