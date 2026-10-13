@@ -1,0 +1,11 @@
+{
+  "id": "beispiel-bauantrag",
+  "titel": "Bauantrag (Beispielformular)",
+  "version": "2026.1",
+  "erkennung": ["Bauherr_Name", "Grundstueck.Flaeche"],
+  "zuordnung": {
+    "Bauherr_Name": "projekt.name",
+    "Grundstueck.Flaeche": "grundstueck.flaeche_m2",
+    "Datum": "datum.heute"
+  }
+}

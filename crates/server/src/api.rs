@@ -1,13 +1,19 @@
 //! HTTP-Schicht: nur (De-)Serialisierung und Fehlerabbildung, keine Geschäftslogik.
 
+use std::collections::BTreeMap;
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
-use core_lib::domain::{Bundesland, NewProject, Project, ProjectId, ProjectUpdate};
+use core_lib::domain::{
+    Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
+};
+use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
+use core_lib::service::FormularAnalyse;
 use core_lib::{CoreError, CoreServices};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -49,6 +55,10 @@ pub fn router(core: CoreServices) -> Router {
         .route("/health", get(|| async { "ok" }))
         .route("/api/projekte", get(list_projects).post(create_project))
         .route("/api/projekte/{id}", get(get_project).put(update_project))
+        .route(
+            "/api/dokumente/{id}/formular",
+            get(formular_analysieren).post(formular_ausfuellen),
+        )
         .route("/api/lbo/regelpakete", get(rule_packs))
         .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
@@ -80,6 +90,25 @@ async fn update_project(
     body.id = ProjectId(id);
     let project = core.update_project(body).await?;
     Ok(Json(project))
+}
+
+async fn formular_analysieren(
+    State(core): State<CoreServices>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<FormularAnalyse> {
+    Ok(Json(core.formular_analysieren(DocumentId(id)).await?))
+}
+
+async fn formular_ausfuellen(
+    State(core): State<CoreServices>,
+    Path(id): Path<Uuid>,
+    Json(werte): Json<BTreeMap<String, Feldwert>>,
+) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
+    // TODO: Benutzer aus der Authentifizierung übernehmen (Rollenmanagement).
+    let version = core
+        .formular_ausfuellen(DocumentId(id), &werte, "server")
+        .await?;
+    Ok((StatusCode::CREATED, Json(version)))
 }
 
 async fn rule_packs(State(core): State<CoreServices>) -> ApiResult<Vec<RulePackInfo>> {
