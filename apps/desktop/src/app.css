@@ -37,6 +37,7 @@ form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 input, select, button { font: inherit; padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); user-select: text; }
 input[type="number"] { width: 7rem; }
 button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.sekundaer { background: transparent; color: var(--fg); border: 1px solid var(--border); }
 ul { list-style: none; padding: 0; margin: 1rem 0 0; }
 li { padding: 0.4rem 0; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; align-items: baseline; }
@@ -114,3 +115,8 @@ dialog:has(.formularfelder) { width: min(48rem, 92vw); }
 .farbfeld { width: 0.8rem; height: 0.8rem; border-radius: 2px; border: 1px solid var(--border); flex: none; }
 .hinweise li { display: list-item; list-style: disc; margin-left: 1rem; border: none; padding: 0.1rem 0; }
 .hinweisbox { background: var(--warn-bg); padding: 0.5rem 0.65rem; border-radius: 6px; margin: 0 0 0.5rem; font-size: 0.85rem; }
+
+/* Mehrbenutzer */
+.sperre { font-size: 0.85rem; white-space: nowrap; color: #b26a00; }
+.sperre.eigene { color: var(--accent); }
+dialog.breit { width: min(48rem, 92vw); }

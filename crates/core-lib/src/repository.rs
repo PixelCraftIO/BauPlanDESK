@@ -8,7 +8,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::domain::{DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate};
+use crate::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer};
+use crate::domain::{
+    DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag, NewProject, Project,
+    ProjectId, ProjectUpdate, Protokolleintrag,
+};
 use crate::error::CoreResult;
 
 #[async_trait]
@@ -32,7 +36,16 @@ pub trait ProjectRepository: Send + Sync {
 pub trait DocumentRepository: Send + Sync {
     /// Legt eine neue Version an. `version` wird von der Implementierung
     /// vergeben (fortlaufend je Dokument, beginnend bei 1).
-    async fn add_version(&self, version: DocumentVersion) -> CoreResult<DocumentVersion>;
+    ///
+    /// Optimistic Locking: Mit `basis = Some(n)` entsteht genau Version
+    /// `n + 1`. Hat inzwischen jemand anderes Version `n + 1` angelegt, muss
+    /// die Implementierung [`crate::CoreError::VersionConflict`] liefern
+    /// (eindeutiger Schlüssel auf `(document_id, version)`).
+    async fn add_version(
+        &self,
+        version: DocumentVersion,
+        basis: Option<i64>,
+    ) -> CoreResult<DocumentVersion>;
 
     async fn latest(&self, id: DocumentId) -> CoreResult<DocumentVersion>;
 
@@ -40,6 +53,55 @@ pub trait DocumentRepository: Send + Sync {
     async fn history(&self, id: DocumentId) -> CoreResult<Vec<DocumentVersion>>;
 
     async fn list_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>>;
+
+    /// Sperrt das Dokument für `wer`. Atomar: Hält bereits ein anderer
+    /// Benutzer die Sperre, [`crate::CoreError::Gesperrt`]. Sperrt `wer`
+    /// erneut, bleibt die bestehende Sperre unverändert.
+    async fn lock(
+        &self,
+        id: DocumentId,
+        project: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentLock>;
+
+    /// Hebt die Sperre auf. Mit `nur_von = Some(..)` nur, wenn sie diesem
+    /// Benutzer gehört. Liefert die aufgehobene Sperre, `None` wenn keine bestand.
+    async fn unlock(
+        &self,
+        id: DocumentId,
+        nur_von: Option<BenutzerId>,
+    ) -> CoreResult<Option<DocumentLock>>;
+
+    async fn get_lock(&self, id: DocumentId) -> CoreResult<Option<DocumentLock>>;
+
+    async fn locks_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentLock>>;
+}
+
+#[async_trait]
+pub trait BenutzerRepository: Send + Sync {
+    /// `anmeldename` ist bereits normalisiert. Doppelte Anmeldenamen:
+    /// [`crate::CoreError::InvalidInput`].
+    async fn create(&self, neu: NeuerBenutzer) -> CoreResult<Benutzer>;
+
+    async fn get(&self, id: BenutzerId) -> CoreResult<Benutzer>;
+
+    async fn by_anmeldename(&self, anmeldename: &str) -> CoreResult<Option<Benutzer>>;
+
+    async fn list(&self) -> CoreResult<Vec<Benutzer>>;
+
+    async fn update(&self, aenderung: BenutzerAenderung) -> CoreResult<Benutzer>;
+}
+
+#[async_trait]
+pub trait ProtokollRepository: Send + Sync {
+    async fn append(&self, eintrag: NeuerProtokolleintrag) -> CoreResult<()>;
+
+    /// Neueste zuerst.
+    async fn list_for_project(
+        &self,
+        project: ProjectId,
+        limit: i64,
+    ) -> CoreResult<Vec<Protokolleintrag>>;
 }
 
 /// Bündelt alle Repositories einer Datenbank-Implementierung, damit die
@@ -48,4 +110,6 @@ pub trait DocumentRepository: Send + Sync {
 pub struct Repositories {
     pub projects: Arc<dyn ProjectRepository>,
     pub documents: Arc<dyn DocumentRepository>,
+    pub benutzer: Arc<dyn BenutzerRepository>,
+    pub protokoll: Arc<dyn ProtokollRepository>,
 }

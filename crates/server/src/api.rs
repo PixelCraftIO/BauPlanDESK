@@ -7,11 +7,13 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use core_lib::benutzer::Benutzer;
 use core_lib::cad::{Laengeneinheit, Messung, Punkt};
 use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use core_lib::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
 };
+use core_lib::domain::{DocumentLock, Protokolleintrag};
 use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::service::{CadPlan, FormularAnalyse};
@@ -36,6 +38,8 @@ impl IntoResponse for ApiError {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
             CoreError::License(_) => StatusCode::PAYMENT_REQUIRED,
+            CoreError::Forbidden(_) => StatusCode::FORBIDDEN,
+            CoreError::Gesperrt { .. } => StatusCode::LOCKED,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         if status.is_server_error() {
@@ -51,7 +55,15 @@ impl IntoResponse for ApiError {
 
 type ApiResult<T> = Result<Json<T>, ApiError>;
 
-pub fn router(core: CoreServices) -> Router {
+/// Zustand der Handler. `akteur` ist vorerst das technische Konto; mit der
+/// Server-Anmeldung kommt der Benutzer aus dem Token der Anfrage.
+#[derive(Clone)]
+pub struct ApiState {
+    pub core: CoreServices,
+    pub akteur: Benutzer,
+}
+
+pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/api/projekte", get(list_projects).post(create_project))
@@ -60,61 +72,110 @@ pub fn router(core: CoreServices) -> Router {
             "/api/dokumente/{id}/formular",
             get(formular_analysieren).post(formular_ausfuellen),
         )
+        .route("/api/projekte/{id}/protokoll", get(protokoll))
+        .route("/api/dokumente/{id}/versionen", get(versionen))
+        .route(
+            "/api/dokumente/{id}/sperre",
+            post(sperren).delete(entsperren),
+        )
         .route("/api/dokumente/{id}/plan", get(cad_plan))
         .route("/api/lbo/regelpakete", get(rule_packs))
         .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
         .route("/api/berechnung/aufmass", post(aufmass))
-        .with_state(core)
+        .with_state(ApiState { core, akteur })
 }
 
-async fn list_projects(State(core): State<CoreServices>) -> ApiResult<Vec<Project>> {
+async fn list_projects(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Project>> {
     Ok(Json(core.list_projects().await?))
 }
 
 async fn create_project(
-    State(core): State<CoreServices>,
+    State(ApiState { core, akteur }): State<ApiState>,
     Json(body): Json<NewProject>,
 ) -> Result<(StatusCode, Json<Project>), ApiError> {
-    let project = core.create_project(body).await?;
+    let project = core.create_project(body, &akteur).await?;
     Ok((StatusCode::CREATED, Json(project)))
 }
 
-async fn get_project(State(core): State<CoreServices>, Path(id): Path<Uuid>) -> ApiResult<Project> {
+async fn get_project(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Project> {
     let project = core.get_project(ProjectId(id)).await?;
     Ok(Json(project))
 }
 
 async fn update_project(
-    State(core): State<CoreServices>,
+    State(ApiState { core, akteur }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(mut body): Json<ProjectUpdate>,
 ) -> ApiResult<Project> {
     body.id = ProjectId(id);
-    let project = core.update_project(body).await?;
+    let project = core.update_project(body, &akteur).await?;
     Ok(Json(project))
 }
 
 async fn formular_analysieren(
-    State(core): State<CoreServices>,
+    State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<FormularAnalyse> {
     Ok(Json(core.formular_analysieren(DocumentId(id)).await?))
 }
 
 async fn formular_ausfuellen(
-    State(core): State<CoreServices>,
+    State(ApiState { core, akteur }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(werte): Json<BTreeMap<String, Feldwert>>,
 ) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
-    // TODO: Benutzer aus der Authentifizierung übernehmen (Rollenmanagement).
     let version = core
-        .formular_ausfuellen(DocumentId(id), &werte, "server")
+        .formular_ausfuellen(DocumentId(id), &werte, &akteur)
         .await?;
     Ok((StatusCode::CREATED, Json(version)))
 }
 
-async fn cad_plan(State(core): State<CoreServices>, Path(id): Path<Uuid>) -> ApiResult<CadPlan> {
+#[derive(Deserialize)]
+struct ProtokollQuery {
+    limit: Option<i64>,
+}
+
+async fn protokoll(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    axum::extract::Query(q): axum::extract::Query<ProtokollQuery>,
+) -> ApiResult<Vec<Protokolleintrag>> {
+    Ok(Json(
+        core.protokoll(ProjectId(id), q.limit.unwrap_or(200))
+            .await?,
+    ))
+}
+
+async fn versionen(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<DocumentVersion>> {
+    Ok(Json(core.document_history(DocumentId(id)).await?))
+}
+
+async fn sperren(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<DocumentLock> {
+    Ok(Json(core.dokument_sperren(DocumentId(id), &akteur).await?))
+}
+
+async fn entsperren(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    core.dokument_entsperren(DocumentId(id), &akteur).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn cad_plan(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<CadPlan> {
     Ok(Json(core.cad_plan(DocumentId(id)).await?))
 }
 
@@ -126,7 +187,7 @@ struct AufmassRequest {
 }
 
 async fn aufmass(
-    State(core): State<CoreServices>,
+    State(ApiState { core, .. }): State<ApiState>,
     Json(req): Json<AufmassRequest>,
 ) -> ApiResult<Messung> {
     Ok(Json(core.messen(
@@ -136,7 +197,7 @@ async fn aufmass(
     )?))
 }
 
-async fn rule_packs(State(core): State<CoreServices>) -> ApiResult<Vec<RulePackInfo>> {
+async fn rule_packs(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<RulePackInfo>> {
     Ok(Json(core.lbo.rule_packs()))
 }
 
@@ -148,7 +209,7 @@ struct AbstandsflaecheRequest {
 }
 
 async fn abstandsflaeche(
-    State(core): State<CoreServices>,
+    State(ApiState { core, .. }): State<ApiState>,
     Json(req): Json<AbstandsflaecheRequest>,
 ) -> ApiResult<Berechnung<AbstandsflaecheErgebnis>> {
     let r = core.abstandsflaeche(req.land, &req.input)?;
@@ -164,7 +225,7 @@ struct MassDerNutzungRequest {
 }
 
 async fn mass_der_nutzung(
-    State(core): State<CoreServices>,
+    State(ApiState { core, .. }): State<ApiState>,
     Json(req): Json<MassDerNutzungRequest>,
 ) -> ApiResult<Pruefergebnis> {
     let r = core.mass_der_nutzung(&req.eingabe, req.gebiet, req.festsetzungen)?;

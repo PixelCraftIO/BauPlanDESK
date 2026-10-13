@@ -6,10 +6,12 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 use core_lib::CoreError;
+use core_lib::benutzer::{Benutzer, BenutzerAenderung, NeuerBenutzer};
 use core_lib::cad::{Laengeneinheit, Messung, Punkt};
 use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use core_lib::domain::{
-    Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
+    Bundesland, DocumentId, DocumentLock, DocumentVersion, NewProject, Project, ProjectId,
+    ProjectUpdate, Protokolleintrag,
 };
 use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
@@ -35,6 +37,8 @@ impl From<CoreError> for CmdError {
             CoreError::InvalidInput(_) => "ungueltig",
             CoreError::RulePackMissing(_) | CoreError::Script { .. } => "lbo",
             CoreError::License(_) => "lizenz",
+            CoreError::Forbidden(_) => "keine_berechtigung",
+            CoreError::Gesperrt { .. } => "gesperrt",
             _ => "intern",
         };
         Self {
@@ -49,6 +53,7 @@ type CmdResult<T> = Result<T, CmdError>;
 #[derive(Serialize)]
 pub struct AppInfo {
     version: String,
+    benutzer: Benutzer,
     modus: &'static str,
     storage: String,
     regelpakete: Vec<RulePackInfo>,
@@ -79,6 +84,7 @@ pub async fn app_info(app: tauri::AppHandle, state: State<'_, AppState>) -> CmdR
     };
     Ok(AppInfo {
         version: app.package_info().version.to_string(),
+        benutzer: state.benutzer(),
         modus: state.config.name(),
         storage: state.core.storage.backend_name(),
         regelpakete: state.core.lbo.rule_packs(),
@@ -96,7 +102,10 @@ pub async fn projekt_anlegen(
     state: State<'_, AppState>,
     projekt: NewProject,
 ) -> CmdResult<Project> {
-    Ok(state.core.create_project(projekt).await?)
+    Ok(state
+        .core
+        .create_project(projekt, &state.benutzer())
+        .await?)
 }
 
 #[tauri::command]
@@ -104,7 +113,10 @@ pub async fn projekt_aktualisieren(
     state: State<'_, AppState>,
     aenderung: ProjectUpdate,
 ) -> CmdResult<Project> {
-    Ok(state.core.update_project(aenderung).await?)
+    Ok(state
+        .core
+        .update_project(aenderung, &state.benutzer())
+        .await?)
 }
 
 /// Öffnet ein Projekt: merkt es unter "Zuletzt geöffnet", aktiviert die
@@ -166,12 +178,15 @@ pub async fn dokumente_auflisten(
     Ok(state.core.list_documents(projekt_id).await?)
 }
 
-/// Importiert eine lokale Datei (z. B. per Drag & Drop) ins DMS.
+/// Importiert eine lokale Datei ins DMS. Für eine neue Version eines
+/// bestehenden Dokuments gibt `basis` die Version an, die der Nutzer
+/// gesehen hat (Optimistic Locking).
 #[tauri::command]
 pub async fn dokument_importieren(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
     dokument_id: Option<DocumentId>,
+    basis: Option<i64>,
     pfad: PathBuf,
 ) -> CmdResult<DocumentVersion> {
     let data = tokio::fs::read(&pfad).await.map_err(|e| CmdError {
@@ -182,10 +197,16 @@ pub async fn dokument_importieren(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let user = whoami();
     Ok(state
         .core
-        .store_document(projekt_id, dokument_id, &name, Bytes::from(data), &user)
+        .store_document(
+            projekt_id,
+            dokument_id,
+            basis,
+            &name,
+            Bytes::from(data),
+            &state.benutzer(),
+        )
         .await?)
 }
 
@@ -206,19 +227,24 @@ pub async fn formular_ausfuellen(
 ) -> CmdResult<DocumentVersion> {
     Ok(state
         .core
-        .formular_ausfuellen(dokument_id, &werte, &whoami())
+        .formular_ausfuellen(dokument_id, &werte, &state.benutzer())
         .await?)
 }
 
-/// Schreibt die aktuelle Version eines Dokuments an einen vom Nutzer
-/// gewählten Ort (z. B. zum Einreichen beim Bauamt).
+/// Schreibt die aktuelle (oder mit `version` eine ältere) Version eines
+/// Dokuments an einen vom Nutzer gewählten Ort (z. B. zum Einreichen beim
+/// Bauamt).
 #[tauri::command]
 pub async fn dokument_exportieren(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
+    version: Option<i64>,
     ziel: PathBuf,
 ) -> CmdResult<()> {
-    let (_, data) = state.core.load_document(dokument_id).await?;
+    let (_, data) = match version {
+        Some(v) => state.core.load_version(dokument_id, v).await?,
+        None => state.core.load_document(dokument_id).await?,
+    };
     tokio::fs::write(&ziel, &data).await.map_err(|e| CmdError {
         art: "datei",
         meldung: format!("{}: {e}", ziel.display()),
@@ -270,9 +296,83 @@ pub fn aufmass(
     Ok(state.core.messen(&punkte, geschlossen, einheit)?)
 }
 
-/// Platzhalter bis zur Benutzerverwaltung (Rollenmanagement).
-fn whoami() -> String {
-    std::env::var("USERNAME")
-        .or_else(|_| std::env::var("USER"))
-        .unwrap_or_else(|_| "unbekannt".into())
+#[tauri::command]
+pub async fn version_wiederherstellen(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    version: i64,
+) -> CmdResult<DocumentVersion> {
+    Ok(state
+        .core
+        .version_wiederherstellen(dokument_id, version, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn dokument_sperren(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+) -> CmdResult<DocumentLock> {
+    Ok(state
+        .core
+        .dokument_sperren(dokument_id, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn dokument_entsperren(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+) -> CmdResult<()> {
+    Ok(state
+        .core
+        .dokument_entsperren(dokument_id, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn sperren_auflisten(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<DocumentLock>> {
+    Ok(state.core.sperren_im_projekt(projekt_id).await?)
+}
+
+#[tauri::command]
+pub async fn protokoll(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<Protokolleintrag>> {
+    Ok(state.core.protokoll(projekt_id, 500).await?)
+}
+
+#[tauri::command]
+pub async fn benutzer_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Benutzer>> {
+    Ok(state.core.benutzer_auflisten().await?)
+}
+
+#[tauri::command]
+pub async fn benutzer_anlegen(
+    state: State<'_, AppState>,
+    neu: NeuerBenutzer,
+) -> CmdResult<Benutzer> {
+    Ok(state.core.benutzer_anlegen(neu, &state.benutzer()).await?)
+}
+
+/// Ändert einen Benutzer. Betrifft es den angemeldeten Benutzer selbst,
+/// gelten die neuen Rechte sofort.
+#[tauri::command]
+pub async fn benutzer_aendern(
+    state: State<'_, AppState>,
+    aenderung: BenutzerAenderung,
+) -> CmdResult<Benutzer> {
+    let b = state
+        .core
+        .benutzer_aendern(aenderung, &state.benutzer())
+        .await?;
+    let mut ich = state.benutzer.write().expect("Benutzer-Lock vergiftet");
+    if ich.id == b.id {
+        *ich = b.clone();
+    }
+    Ok(b)
 }

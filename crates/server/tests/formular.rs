@@ -35,21 +35,26 @@ async fn formular_aus_dms_befuellen() {
     )
     .mit_formularen(Formularkatalog::new(vec![vorlage]));
 
+    let wer = core.anmelden("test", "Test").await.unwrap();
     let projekt = core
-        .create_project(NewProject {
-            name: "MFH Lindenweg".into(),
-            bundesland: Bundesland::Nw,
-            grundstuecksflaeche_m2: Some(1250.5),
-        })
+        .create_project(
+            NewProject {
+                name: "MFH Lindenweg".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: Some(1250.5),
+            },
+            &wer,
+        )
         .await
         .unwrap();
     let leer = core
         .store_document(
             projekt.id,
             None,
+            None,
             "Bauantrag.pdf",
             Bytes::from(testdaten::musterformular()),
-            "test",
+            &wer,
         )
         .await
         .unwrap();
@@ -64,7 +69,7 @@ async fn formular_aus_dms_befuellen() {
     let mut werte = analyse.vorschlag.clone();
     werte.insert("Sonderbau".into(), Feldwert::Ja(true));
     let ausgefuellt = core
-        .formular_ausfuellen(leer.document_id, &werte, "test")
+        .formular_ausfuellen(leer.document_id, &werte, &wer)
         .await
         .unwrap();
     assert_eq!(ausgefuellt.file_name, "Bauantrag (ausgefüllt).pdf");

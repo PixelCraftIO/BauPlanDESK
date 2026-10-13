@@ -23,12 +23,16 @@ async fn plan_aus_dms_oeffnen_und_messen() {
         Arc::new(LboEngine::new()),
         Arc::new(DevelopmentLicense),
     );
+    let wer = core.anmelden("test", "Test").await.unwrap();
     let projekt = core
-        .create_project(NewProject {
-            name: "MFH Lindenweg".into(),
-            bundesland: Bundesland::By,
-            grundstuecksflaeche_m2: None,
-        })
+        .create_project(
+            NewProject {
+                name: "MFH Lindenweg".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+            },
+            &wer,
+        )
         .await
         .unwrap();
 
@@ -36,9 +40,10 @@ async fn plan_aus_dms_oeffnen_und_messen() {
         .store_document(
             projekt.id,
             None,
+            None,
             "Lageplan.dxf",
             Bytes::from(testdaten::musterplan()),
-            "test",
+            &wer,
         )
         .await
         .unwrap();
@@ -67,9 +72,10 @@ async fn plan_aus_dms_oeffnen_und_messen() {
         .store_document(
             projekt.id,
             None,
+            None,
             "Grundriss.DWG",
             Bytes::from_static(b"AC1032"),
-            "test",
+            &wer,
         )
         .await
         .unwrap();

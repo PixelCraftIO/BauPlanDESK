@@ -4,11 +4,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{SubsecRound, Utc};
+use core_lib::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer, Rolle};
 use core_lib::domain::{
-    Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
+    Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
+    NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
-use core_lib::repository::{DocumentRepository, ProjectRepository, Repositories};
+use core_lib::repository::{
+    BenutzerRepository, DocumentRepository, ProjectRepository, ProtokollRepository, Repositories,
+};
 use core_lib::storage::ContentHash;
 use core_lib::{CoreError, CoreResult};
 use sqlx::postgres::{PgPoolOptions, PgRow};
@@ -38,12 +42,14 @@ impl PostgresDatabase {
         let this = Arc::new(self.clone());
         Repositories {
             projects: this.clone(),
-            documents: this,
+            documents: this.clone(),
+            benutzer: this.clone(),
+            protokoll: this,
         }
     }
 
     async fn conflict_or_missing(&self, id: ProjectId, expected: i64) -> CoreError {
-        match self.get(id).await {
+        match ProjectRepository::get(self, id).await {
             Ok(current) => CoreError::VersionConflict {
                 expected,
                 actual: current.version,
@@ -165,17 +171,23 @@ impl ProjectRepository for PostgresDatabase {
 
 #[async_trait]
 impl DocumentRepository for PostgresDatabase {
-    async fn add_version(&self, mut v: DocumentVersion) -> CoreResult<DocumentVersion> {
+    async fn add_version(
+        &self,
+        mut v: DocumentVersion,
+        basis: Option<i64>,
+    ) -> CoreResult<DocumentVersion> {
         let size =
             i64::try_from(v.size_bytes).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
         // Zwei gleichzeitige Uploads können dieselbe Versionsnummer berechnen;
-        // der Primärschlüssel verhindert das Duplikat, dann erneut versuchen.
+        // der Primärschlüssel verhindert das Duplikat. Ohne `basis` erneut
+        // versuchen, mit `basis` ist das ein Versionskonflikt.
         for _ in 0..3 {
             let result = sqlx::query_scalar::<_, i64>(
                 "INSERT INTO document_versions
                     (document_id, project_id, version, file_name, storage_key, sha256, size_bytes, created_by, created_at)
                  SELECT $1, $2, COALESCE(MAX(version), 0) + 1, $3, $4, $5, $6, $7, $8
                    FROM document_versions WHERE document_id = $1
+                 HAVING $9::BIGINT IS NULL OR COALESCE(MAX(version), 0) = $9
               RETURNING version",
             )
             .bind(v.document_id.0)
@@ -186,15 +198,33 @@ impl DocumentRepository for PostgresDatabase {
             .bind(size)
             .bind(&v.created_by)
             .bind(v.created_at)
-            .fetch_one(&self.pool)
+            .bind(basis)
+            .fetch_optional(&self.pool)
             .await;
-            match result {
-                Ok(version) => {
+            match (result, basis) {
+                (Ok(Some(version)), _) => {
                     v.version = version;
                     return Ok(v);
                 }
-                Err(sqlx::Error::Database(e)) if e.is_unique_violation() => continue,
-                Err(e) => return Err(db_err(e)),
+                (Ok(None), Some(expected)) => {
+                    return Err(CoreError::VersionConflict {
+                        expected,
+                        actual: self.latest(v.document_id).await?.version,
+                    });
+                }
+                (Err(sqlx::Error::Database(e)), Some(expected)) if e.is_unique_violation() => {
+                    return Err(CoreError::VersionConflict {
+                        expected,
+                        actual: self.latest(v.document_id).await?.version,
+                    });
+                }
+                (Err(sqlx::Error::Database(e)), None) if e.is_unique_violation() => continue,
+                (Ok(None), None) => {
+                    return Err(CoreError::Database(
+                        "Dokumentversion wurde nicht angelegt".into(),
+                    ));
+                }
+                (Err(e), _) => return Err(db_err(e)),
             }
         }
         Err(CoreError::Database(
@@ -236,5 +266,258 @@ impl DocumentRepository for PostgresDatabase {
         .iter()
         .map(document_from_row)
         .collect()
+    }
+
+    async fn lock(
+        &self,
+        id: DocumentId,
+        project: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentLock> {
+        sqlx::query(
+            "INSERT INTO document_locks (document_id, project_id, benutzer_id, benutzer_name, seit)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (document_id) DO NOTHING",
+        )
+        .bind(id.0)
+        .bind(project.0)
+        .bind(wer.id.0)
+        .bind(&wer.anzeigename)
+        .bind(Utc::now())
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        let sperre = self
+            .get_lock(id)
+            .await?
+            .ok_or_else(|| CoreError::Database("Sperre wurde nicht angelegt".into()))?;
+        if sperre.benutzer_id != wer.id {
+            return Err(CoreError::Gesperrt {
+                von: sperre.benutzer_name,
+                seit: sperre.seit,
+            });
+        }
+        Ok(sperre)
+    }
+
+    async fn unlock(
+        &self,
+        id: DocumentId,
+        nur_von: Option<BenutzerId>,
+    ) -> CoreResult<Option<DocumentLock>> {
+        sqlx::query(
+            "DELETE FROM document_locks
+              WHERE document_id = $1 AND ($2::UUID IS NULL OR benutzer_id = $2)
+          RETURNING *",
+        )
+        .bind(id.0)
+        .bind(nur_von.map(|b| b.0))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .as_ref()
+        .map(lock_from_row)
+        .transpose()
+    }
+
+    async fn get_lock(&self, id: DocumentId) -> CoreResult<Option<DocumentLock>> {
+        sqlx::query("SELECT * FROM document_locks WHERE document_id = $1")
+            .bind(id.0)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .as_ref()
+            .map(lock_from_row)
+            .transpose()
+    }
+
+    async fn locks_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentLock>> {
+        sqlx::query("SELECT * FROM document_locks WHERE project_id = $1 ORDER BY seit")
+            .bind(project.0)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(lock_from_row)
+            .collect()
+    }
+}
+
+fn lock_from_row(row: &PgRow) -> CoreResult<DocumentLock> {
+    Ok(DocumentLock {
+        document_id: DocumentId(row.try_get("document_id").map_err(db_err)?),
+        project_id: ProjectId(row.try_get("project_id").map_err(db_err)?),
+        benutzer_id: BenutzerId(row.try_get("benutzer_id").map_err(db_err)?),
+        benutzer_name: row.try_get("benutzer_name").map_err(db_err)?,
+        seit: row.try_get("seit").map_err(db_err)?,
+    })
+}
+
+fn benutzer_from_row(row: &PgRow) -> CoreResult<Benutzer> {
+    let rolle: String = row.try_get("rolle").map_err(db_err)?;
+    Ok(Benutzer {
+        id: BenutzerId(row.try_get("id").map_err(db_err)?),
+        anmeldename: row.try_get("anmeldename").map_err(db_err)?,
+        anzeigename: row.try_get("anzeigename").map_err(db_err)?,
+        rolle: Rolle::from_str(&rolle)?,
+        aktiv: row.try_get("aktiv").map_err(db_err)?,
+        erstellt_am: row.try_get("erstellt_am").map_err(db_err)?,
+    })
+}
+
+fn protokoll_from_row(row: &PgRow) -> CoreResult<Protokolleintrag> {
+    let aktion: String = row.try_get("aktion").map_err(db_err)?;
+    Ok(Protokolleintrag {
+        id: row.try_get("id").map_err(db_err)?,
+        eintrag: NeuerProtokolleintrag {
+            zeit: row.try_get("zeit").map_err(db_err)?,
+            benutzer_id: BenutzerId(row.try_get("benutzer_id").map_err(db_err)?),
+            benutzer_name: row.try_get("benutzer_name").map_err(db_err)?,
+            aktion: Aktion::from_str(&aktion)?,
+            project_id: row
+                .try_get::<Option<uuid::Uuid>, _>("project_id")
+                .map_err(db_err)?
+                .map(ProjectId),
+            document_id: row
+                .try_get::<Option<uuid::Uuid>, _>("document_id")
+                .map_err(db_err)?
+                .map(DocumentId),
+            details: row.try_get("details").map_err(db_err)?,
+        },
+    })
+}
+
+#[async_trait]
+impl BenutzerRepository for PostgresDatabase {
+    async fn create(&self, neu: NeuerBenutzer) -> CoreResult<Benutzer> {
+        let b = Benutzer {
+            id: BenutzerId::new(),
+            anmeldename: neu.anmeldename,
+            anzeigename: neu.anzeigename,
+            rolle: neu.rolle,
+            aktiv: true,
+            // Postgres speichert Mikrosekunden; so ist der Rückgabewert
+            // gleich dem, was später gelesen wird.
+            erstellt_am: Utc::now().trunc_subsecs(6),
+        };
+        sqlx::query(
+            "INSERT INTO benutzer (id, anmeldename, anzeigename, rolle, aktiv, erstellt_am)
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(b.id.0)
+        .bind(&b.anmeldename)
+        .bind(&b.anzeigename)
+        .bind(b.rolle.code())
+        .bind(b.aktiv)
+        .bind(b.erstellt_am)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(d) if d.is_unique_violation() => CoreError::InvalidInput(
+                format!("Den Anmeldenamen „{}“ gibt es bereits", b.anmeldename),
+            ),
+            e => db_err(e),
+        })?;
+        Ok(b)
+    }
+
+    async fn get(&self, id: BenutzerId) -> CoreResult<Benutzer> {
+        let row = sqlx::query("SELECT * FROM benutzer WHERE id = $1")
+            .bind(id.0)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .ok_or_else(|| CoreError::NotFound(format!("Benutzer {id}")))?;
+        benutzer_from_row(&row)
+    }
+
+    async fn by_anmeldename(&self, anmeldename: &str) -> CoreResult<Option<Benutzer>> {
+        sqlx::query("SELECT * FROM benutzer WHERE anmeldename = $1")
+            .bind(anmeldename)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .as_ref()
+            .map(benutzer_from_row)
+            .transpose()
+    }
+
+    async fn list(&self) -> CoreResult<Vec<Benutzer>> {
+        sqlx::query("SELECT * FROM benutzer ORDER BY lower(anzeigename)")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(benutzer_from_row)
+            .collect()
+    }
+
+    async fn update(&self, a: BenutzerAenderung) -> CoreResult<Benutzer> {
+        let row = sqlx::query(
+            "UPDATE benutzer SET anzeigename = $1, rolle = $2, aktiv = $3 WHERE id = $4 RETURNING *",
+        )
+        .bind(&a.anzeigename)
+        .bind(a.rolle.code())
+        .bind(a.aktiv)
+        .bind(a.id.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| CoreError::NotFound(format!("Benutzer {}", a.id)))?;
+        benutzer_from_row(&row)
+    }
+}
+
+#[async_trait]
+impl ProtokollRepository for PostgresDatabase {
+    async fn append(&self, e: NeuerProtokolleintrag) -> CoreResult<()> {
+        sqlx::query(
+            "INSERT INTO protokoll
+                (zeit, benutzer_id, benutzer_name, aktion, project_id, document_id, details)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(e.zeit)
+        .bind(e.benutzer_id.0)
+        .bind(&e.benutzer_name)
+        .bind(e.aktion.code())
+        .bind(e.project_id.map(|p| p.0))
+        .bind(e.document_id.map(|d| d.0))
+        .bind(&e.details)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn list_for_project(
+        &self,
+        project: ProjectId,
+        limit: i64,
+    ) -> CoreResult<Vec<Protokolleintrag>> {
+        sqlx::query("SELECT * FROM protokoll WHERE project_id = $1 ORDER BY id DESC LIMIT $2")
+            .bind(project.0)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(protokoll_from_row)
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Läuft nur mit `BAUPROJEKT_TEST_POSTGRES=postgres://…` (leere Datenbank).
+    #[tokio::test]
+    async fn konformitaet() {
+        let Ok(url) = std::env::var("BAUPROJEKT_TEST_POSTGRES") else {
+            eprintln!("BAUPROJEKT_TEST_POSTGRES nicht gesetzt, Test übersprungen");
+            return;
+        };
+        let db = PostgresDatabase::connect(&url, 4).await.unwrap();
+        core_lib::testsuite::repositories(db.repositories()).await;
     }
 }

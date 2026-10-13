@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use crate::domain::Bundesland;
@@ -12,6 +13,14 @@ pub enum CoreError {
     /// Optimistic Locking: jemand anderes hat den Datensatz zwischenzeitlich geändert.
     #[error("Konflikt: erwartete Version {expected}, aktuell {actual}")]
     VersionConflict { expected: i64, actual: i64 },
+
+    /// Die Rolle des Benutzers reicht nicht aus.
+    #[error("Keine Berechtigung: {0}")]
+    Forbidden(String),
+
+    /// Ein anderer Benutzer hat das Dokument zur Bearbeitung gesperrt.
+    #[error("Das Dokument ist seit {} von {von} gesperrt", seit.with_timezone(&chrono::Local).format("%d.%m.%Y %H:%M"))]
+    Gesperrt { von: String, seit: DateTime<Utc> },
 
     #[error("Ungültige Eingabe: {0}")]
     InvalidInput(String),

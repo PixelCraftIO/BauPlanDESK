@@ -13,3 +13,7 @@ chrono.workspace = true
 core-lib.workspace = true
 sqlx = { workspace = true, features = ["postgres", "tls-rustls-ring-native-roots"] }
 uuid.workspace = true
+
+[dev-dependencies]
+core-lib = { workspace = true, features = ["testdaten"] }
+tokio.workspace = true

@@ -3,11 +3,13 @@
 
   let {
     zuletzt,
+    darfAnlegen = true,
     onneu,
     onoeffnen,
     onzuletzt,
   }: {
     zuletzt: ZuletztEintrag[];
+    darfAnlegen?: boolean;
     onneu: () => void;
     onoeffnen: () => void;
     onzuletzt: (id: string) => void;
@@ -19,7 +21,7 @@
     <h2>Willkommen</h2>
     <p class="meta">Legen Sie ein neues Bauvorhaben an oder öffnen Sie ein bestehendes.</p>
     <div class="knoepfe links">
-      <button onclick={onneu}>Neues Projekt …</button>
+      <button onclick={onneu} disabled={!darfAnlegen} title={darfAnlegen ? "" : "Projekte anlegen darf die Projektleitung."}>Neues Projekt …</button>
       <button class="sekundaer" onclick={onoeffnen}>Projekt öffnen …</button>
     </div>
   </section>

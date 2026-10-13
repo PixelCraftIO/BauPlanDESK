@@ -398,6 +398,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "whoami",
 ]
 
 [[package]]
@@ -1053,6 +1054,7 @@ dependencies = [
  "chrono",
  "core-lib",
  "sqlx",
+ "tokio",
  "uuid",
 ]
 
@@ -6396,6 +6398,7 @@ checksum = "5d4a4db5077702ca3015d3d02d74974948aba2ad9e12ab7df718ee64ccd7e97d"
 dependencies = [
  "libredox",
  "wasite",
+ "web-sys",
 ]
 
 [[package]]
