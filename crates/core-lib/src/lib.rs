@@ -16,6 +16,7 @@ pub mod calc;
 pub mod domain;
 pub mod error;
 pub mod formular;
+pub mod kunden;
 pub mod lbo;
 pub mod license;
 pub mod repository;

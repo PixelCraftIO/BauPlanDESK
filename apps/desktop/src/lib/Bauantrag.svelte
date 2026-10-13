@@ -4,9 +4,12 @@
   import {
     CODELISTE_ANLAGEN,
     MASSNAHMEN,
+    alsBeteiligter,
+    anschriftZeile,
     api,
     fehlertext,
     istKonflikt,
+    kundenname,
     leereAnschrift,
     mindestens,
     type Bauantrag,
@@ -15,6 +18,7 @@
     type Codeliste,
     type DocumentVersion,
     type GespeicherterBauantrag,
+    type Kunde,
     type Project,
   } from "./api";
   import AnschriftFelder from "./AnschriftFelder.svelte";
@@ -25,6 +29,7 @@
     benutzer,
     exportAusloeser,
     onbuero,
+    onbauherren,
     onfehler,
     onhinweis,
   }: {
@@ -33,6 +38,8 @@
     exportAusloeser: number;
     /** Dialog „Büroangaben“ öffnen. */
     onbuero: () => void;
+    /** Dialog „Bauherren“ öffnen. */
+    onbauherren: () => void;
     onfehler: (m: string) => void;
     onhinweis: (m: string) => void;
   } = $props();
@@ -43,6 +50,8 @@
   let antrag = $state<Bauantrag | null>(null);
   let dokumente = $state<DocumentVersion[]>([]);
   let anlagenarten = $state<Codeliste | null>(null);
+  let bauherren = $state<Kunde[]>([]);
+  let kunden = $state<Kunde[]>([]);
   let laeuft = $state(false);
 
   const geaendert = $derived(
@@ -73,12 +82,14 @@
 
   async function laden() {
     try {
-      const [g, d, listen] = await Promise.all([
+      const [g, d, listen, b] = await Promise.all([
         api.bauantrag(projekt.id),
         api.dokumente(projekt.id),
         api.xbauCodelisten(),
+        api.bauherren(projekt.id),
       ]);
       uebernehmen(g);
+      bauherren = b;
       dokumente = neuesteVersionen(d);
       anlagenarten = listen.find((l) => l.uri === CODELISTE_ANLAGEN) ?? null;
     } catch (e) {
@@ -90,6 +101,29 @@
     void projekt.id;
     untrack(laden);
   });
+
+  // Bauherren geändert (die Projektversion steigt): Liste und fehlende
+  // Angaben neu laden, ohne ungespeicherte Eingaben zu verwerfen.
+  let geladeneVersion = untrack(() => projekt.version);
+  $effect(() => {
+    const v = projekt.version;
+    if (v === geladeneVersion) return;
+    geladeneVersion = v;
+    untrack(async () => {
+      try {
+        const [g, b] = await Promise.all([api.bauantrag(projekt.id), api.bauherren(projekt.id)]);
+        bauherren = b;
+        if (!geaendert) uebernehmen(g);
+        else if (gespeichert) gespeichert = { ...gespeichert, fehlende_angaben: g.fehlende_angaben };
+      } catch (e) {
+        onfehler(fehlertext(e));
+      }
+    });
+  });
+
+  async function kundenLaden() {
+    if (kunden.length === 0) kunden = await api.kunden().catch(() => []);
+  }
 
   async function speichern(): Promise<boolean> {
     if (!antrag || !gespeichert) return false;
@@ -220,13 +254,12 @@
 
     <fieldset disabled={!darf}>
       <legend>Bauherren</legend>
-      {#each antrag.bauherren as _, i (antrag.bauherren[i].id)}
-        <div class="eintrag">
-          <BeteiligterFelder bind:wer={antrag.bauherren[i]} gesperrt={!darf} />
-          <button type="button" class="sekundaer" onclick={() => antrag && antrag.bauherren.splice(i, 1)}>Entfernen</button>
-        </div>
+      {#each bauherren as k (k.id)}
+        <div>{kundenname(k)} <span class="meta">{anschriftZeile(k.anschrift)}</span></div>
+      {:else}
+        <p class="meta">Noch kein Bauherr zugeordnet.</p>
       {/each}
-      <button type="button" class="sekundaer" onclick={() => antrag?.bauherren.push(neuePerson())}>Bauherr hinzufügen</button>
+      <button type="button" class="sekundaer" onclick={onbauherren}>Bauherren aus der Kundendatenbank wählen …</button>
       <label class="zeile">
         <input
           type="checkbox"
@@ -240,6 +273,20 @@
           <span class="meta">Gebührenpflichtig</span>
           <BeteiligterFelder bind:wer={antrag.gebuehrenpflichtiger} gesperrt={!darf} />
         </div>
+        <label>Aus der Kundendatenbank übernehmen
+          <select
+            value=""
+            onfocus={kundenLaden}
+            onchange={(e) => {
+              const k = kunden.find((x) => x.id === e.currentTarget.value);
+              if (k && antrag) antrag.gebuehrenpflichtiger = alsBeteiligter(k);
+              e.currentTarget.value = "";
+            }}
+          >
+            <option value="">– Kunde wählen –</option>
+            {#each kunden as k (k.id)}<option value={k.id}>{kundenname(k)}</option>{/each}
+          </select>
+        </label>
       {/if}
     </fieldset>
 

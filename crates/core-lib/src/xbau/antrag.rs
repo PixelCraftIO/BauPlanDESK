@@ -33,6 +33,8 @@ pub struct Anlagendatei {
 pub struct Nachrichtendaten<'a> {
     pub projekt: &'a Project,
     pub antrag: &'a Bauantrag,
+    /// Die dem Projekt zugeordneten Bauherren, siehe [`crate::kunden`].
+    pub bauherren: &'a [Beteiligter],
     pub buero: &'a Buero,
     pub anlagen: &'a [Anlagendatei],
     pub codelisten: &'a Codelisten,
@@ -43,7 +45,7 @@ pub struct Nachrichtendaten<'a> {
 /// Erzeugt die Antragsnachricht. Prüft vorher die Pflichtangaben und die
 /// Codes gegen die Codelisten.
 pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
-    let fehlt = d.antrag.fehlende_angaben(d.buero);
+    let fehlt = d.antrag.fehlende_angaben(d.buero, d.bauherren);
     if !fehlt.is_empty() {
         return Err(CoreError::InvalidInput(format!(
             "Für den XBau-Export fehlen noch: {}.",
@@ -115,7 +117,7 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
         .text("referenzAntragsservice", &d.antrag.vorgang.to_string())
         .zu();
 
-    for b in &d.antrag.bauherren {
+    for b in d.bauherren {
         x.auf("xbau:antragsteller", &[]);
         akteur(&mut x, b);
         x.zu();
@@ -129,7 +131,7 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
     x.auf("xbau:bauvorhaben", &[])
         .text("xbau:bezeichnungDesBauvorhabens", bezeichnung);
     x.auf("xbau:beteiligte", &[]);
-    for b in &d.antrag.bauherren {
+    for b in d.bauherren {
         x.auf("xbau:bauherr", &[]).auf("xbau:bauherr", &[]);
         akteur(&mut x, b);
         x.zu().zu();
@@ -151,7 +153,7 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
         d.antrag
             .gebuehrenpflichtiger
             .as_ref()
-            .unwrap_or(&d.antrag.bauherren[0]),
+            .unwrap_or(&d.bauherren[0]),
     );
     x.zu();
     x.zu(); // beteiligte
@@ -487,6 +489,8 @@ pub(crate) mod tests {
         Nachrichtendaten {
             projekt,
             antrag,
+            // Die Tests führen die Bauherren der Einfachheit halber im Antrag.
+            bauherren: &antrag.bauherren,
             buero,
             anlagen,
             codelisten,

@@ -14,6 +14,7 @@ use core_lib::domain::{
     ProjectUpdate, Protokolleintrag,
 };
 use core_lib::formular::Feldwert;
+use core_lib::kunden::{Kunde, KundeId, Kundendaten};
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
@@ -435,6 +436,69 @@ pub async fn arbeitsplatz_belegen(state: State<'_, AppState>) -> CmdResult<Lizen
         .core
         .license
         .arbeitsplatz_belegen(&state.arbeitsplatz, &name)
+        .await?)
+}
+
+// --- Kunden --------------------------------------------------------------
+
+#[tauri::command]
+pub async fn kunden_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Kunde>> {
+    Ok(state.core.kunden_auflisten().await?)
+}
+
+#[tauri::command]
+pub async fn kunde_anlegen(state: State<'_, AppState>, daten: Kundendaten) -> CmdResult<Kunde> {
+    Ok(state.core.kunde_anlegen(daten, &state.benutzer()).await?)
+}
+
+#[tauri::command]
+pub async fn kunde_aendern(
+    state: State<'_, AppState>,
+    kunde_id: KundeId,
+    daten: Kundendaten,
+    version: i64,
+) -> CmdResult<Kunde> {
+    Ok(state
+        .core
+        .kunde_aendern(kunde_id, daten, version, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn kunde_loeschen(
+    state: State<'_, AppState>,
+    kunde_id: KundeId,
+    version: i64,
+) -> CmdResult<()> {
+    Ok(state
+        .core
+        .kunde_loeschen(kunde_id, version, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn kunde_projekte(
+    state: State<'_, AppState>,
+    kunde_id: KundeId,
+) -> CmdResult<Vec<Project>> {
+    Ok(state.core.kunde_projekte(kunde_id).await?)
+}
+
+#[tauri::command]
+pub async fn bauherren(state: State<'_, AppState>, projekt_id: ProjectId) -> CmdResult<Vec<Kunde>> {
+    Ok(state.core.bauherren(projekt_id).await?)
+}
+
+#[tauri::command]
+pub async fn bauherren_setzen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    kunden: Vec<KundeId>,
+    version: i64,
+) -> CmdResult<Project> {
+    Ok(state
+        .core
+        .bauherren_setzen(projekt_id, kunden, version, &state.benutzer())
         .await?)
 }
 

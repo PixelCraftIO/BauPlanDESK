@@ -7,12 +7,13 @@ use std::sync::Arc;
 use bytes::Bytes;
 use core_lib::benutzer::{NeuerBenutzer, Rolle};
 use core_lib::domain::{Aktion, Bundesland, NewProject};
+use core_lib::kunden::Kundendaten;
 use core_lib::lbo::LboEngine;
 use core_lib::license::DevelopmentLicense;
 use core_lib::xbau::codeliste::{ANLAGEN, MIMETYPES};
 use core_lib::xbau::paket::NACHRICHT_DATEI;
 use core_lib::xbau::{
-    Anlagenwahl, Anschrift, Bauaufsicht, Beteiligter, Buero, Codeeintrag, Codeliste, Codelisten,
+    Anlagenwahl, Anschrift, Bauaufsicht, Buero, Codeeintrag, Codeliste, Codelisten,
 };
 use core_lib::{CoreError, CoreServices};
 
@@ -103,12 +104,20 @@ async fn bauantrag_erfassen_und_exportieren() {
         name: "Bauordnungsamt Köln".into(),
         kennung: "bab:053150000".into(),
     };
-    antrag.bauherren.push(Beteiligter::Person {
-        id: uuid::Uuid::new_v4(),
-        vorname: "Anna".into(),
-        familienname: "Müller".into(),
-        anschrift: Anschrift::default(),
-    });
+    let anna = core
+        .kunde_anlegen(
+            Kundendaten {
+                vorname: "Anna".into(),
+                familienname: "Müller".into(),
+                ..Kundendaten::default()
+            },
+            &chefin,
+        )
+        .await
+        .unwrap();
+    core.bauherren_setzen(p.id, vec![anna.id], p.version, &chefin)
+        .await
+        .unwrap();
     antrag.grundstueck.flurstuecke[0].gemarkung = "Lindenthal".into();
     antrag.grundstueck.flurstuecke[0].zaehler = "17".into();
     antrag.anlagen.push(Anlagenwahl {
@@ -160,6 +169,14 @@ async fn bauantrag_erfassen_und_exportieren() {
         .read_to_string(&mut xml)
         .unwrap();
     assert!(xml.contains("<code>05</code>"), "NRW");
+    assert!(
+        xml.contains("<name>Müller</name>"),
+        "Bauherr aus der Kundendatenbank"
+    );
+    assert!(
+        xml.contains(&anna.id.to_string()),
+        "Kunden-ID als Akteur-ID"
+    );
     assert!(xml.contains("<dateiname>Lageplan.pdf</dateiname>"));
     assert!(xml.contains(&format!("urn:uuid:{}", plan.document_id.0)));
     let mut pdf = Vec::new();

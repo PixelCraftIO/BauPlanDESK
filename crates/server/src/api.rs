@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -15,6 +15,7 @@ use core_lib::domain::{
 };
 use core_lib::domain::{DocumentLock, Protokolleintrag};
 use core_lib::formular::Feldwert;
+use core_lib::kunden::{Kunde, KundeId, Kundendaten};
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
@@ -75,6 +76,16 @@ pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
             get(formular_analysieren).post(formular_ausfuellen),
         )
         .route("/api/projekte/{id}/protokoll", get(protokoll))
+        .route(
+            "/api/projekte/{id}/bauherren",
+            get(bauherren).put(bauherren_setzen),
+        )
+        .route("/api/kunden", get(kunden).post(kunde_anlegen))
+        .route(
+            "/api/kunden/{id}",
+            get(kunde).put(kunde_aendern).delete(kunde_loeschen),
+        )
+        .route("/api/kunden/{id}/projekte", get(kunde_projekte))
         .route("/api/dokumente/{id}/versionen", get(versionen))
         .route(
             "/api/dokumente/{id}/sperre",
@@ -252,6 +263,89 @@ async fn mass_der_nutzung(
 ) -> ApiResult<Pruefergebnis> {
     let r = core.mass_der_nutzung(&req.eingabe, req.gebiet, req.festsetzungen)?;
     Ok(Json(r))
+}
+
+async fn kunden(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Kunde>> {
+    Ok(Json(core.kunden_auflisten().await?))
+}
+
+async fn kunde(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Kunde> {
+    Ok(Json(core.kunde(KundeId(id)).await?))
+}
+
+async fn kunde_anlegen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Json(body): Json<Kundendaten>,
+) -> Result<(StatusCode, Json<Kunde>), ApiError> {
+    let k = core.kunde_anlegen(body, &akteur).await?;
+    Ok((StatusCode::CREATED, Json(k)))
+}
+
+#[derive(Deserialize)]
+struct KundeAendern {
+    daten: Kundendaten,
+    /// Zuletzt gelesene Version.
+    version: i64,
+}
+
+async fn kunde_aendern(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<KundeAendern>,
+) -> ApiResult<Kunde> {
+    Ok(Json(
+        core.kunde_aendern(KundeId(id), body.daten, body.version, &akteur)
+            .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+struct VersionQuery {
+    version: i64,
+}
+
+async fn kunde_loeschen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<VersionQuery>,
+) -> Result<StatusCode, ApiError> {
+    core.kunde_loeschen(KundeId(id), q.version, &akteur).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn kunde_projekte(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<Project>> {
+    Ok(Json(core.kunde_projekte(KundeId(id)).await?))
+}
+
+async fn bauherren(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<Kunde>> {
+    Ok(Json(core.bauherren(ProjectId(id)).await?))
+}
+
+#[derive(Deserialize)]
+struct BauherrenSetzen {
+    kunden: Vec<KundeId>,
+    /// Zuletzt gelesene Projektversion.
+    version: i64,
+}
+
+async fn bauherren_setzen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<BauherrenSetzen>,
+) -> ApiResult<Project> {
+    Ok(Json(
+        core.bauherren_setzen(ProjectId(id), body.kunden, body.version, &akteur)
+            .await?,
+    ))
 }
 
 async fn bauantrag(

@@ -1,15 +1,18 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import {
     api,
     fehlertext,
     istKonflikt,
+    kategorieName,
+    kundenname,
     landName,
     mindestens,
     rollenName,
     type AppInfo,
     type Benutzer,
+    type Kunde,
     type Lizenzstatus,
     type Project,
     type Projektwerte as Werte,
@@ -18,10 +21,12 @@
   } from "./lib/api";
   import Abstandsflaeche from "./lib/Abstandsflaeche.svelte";
   import Bauantrag from "./lib/Bauantrag.svelte";
+  import BauherrenDialog from "./lib/Bauherren.svelte";
   import Benutzerverwaltung from "./lib/Benutzerverwaltung.svelte";
   import BueroDialog from "./lib/Buero.svelte";
   import Dialog from "./lib/Dialog.svelte";
   import Dokumente from "./lib/Dokumente.svelte";
+  import Kunden from "./lib/Kunden.svelte";
   import MassDerNutzung from "./lib/MassDerNutzung.svelte";
   import ProjektFormular from "./lib/ProjektFormular.svelte";
   import Plaene from "./lib/Plaene.svelte";
@@ -31,7 +36,7 @@
   import Startseite from "./lib/Startseite.svelte";
 
   type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "bauantrag" | "protokoll";
-  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "buero" | "lizenz" | null;
+  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "buero" | "lizenz" | "kunden" | "bauherren" | null;
 
   let info = $state<AppInfo | null>(null);
   let projekt = $state<Project | null>(null);
@@ -47,6 +52,22 @@
   let planDokument = $state<string | null>(null);
 
   let lizenz = $state<Lizenzstatus | null>(null);
+  /** Bauherren des offenen Projekts. */
+  let bauherren = $state<Kunde[]>([]);
+  /** Kunden zur Auswahl im Dialog „Neues Projekt“. */
+  let kundenAuswahl = $state<Kunde[] | null>(null);
+
+  // Neu laden, wenn ein anderes Projekt geöffnet wird oder sich die
+  // Projektversion ändert (Zuordnung der Bauherren erhöht sie).
+  $effect(() => {
+    const p = projekt;
+    if (!p) {
+      bauherren = [];
+      return;
+    }
+    void p.version;
+    untrack(() => api.bauherren(p.id).then((b) => (bauherren = b)).catch(melde));
+  });
 
   /** Angemeldeter Benutzer; ohne Schreibrecht der Lizenz wie „Lesen“. */
   const ich = $derived.by((): Benutzer | null => {
@@ -75,9 +96,20 @@
     zuletzt = await api.zuletzt();
   }
 
-  async function anlegen(werte: Werte) {
+  async function neuesProjekt() {
+    dialog = "neu";
+    kundenAuswahl = null;
+    try {
+      kundenAuswahl = await api.kunden();
+    } catch (e) {
+      melde(e);
+    }
+  }
+
+  async function anlegen(werte: Werte, bauherr: string | null) {
     try {
       const neu = await api.projektAnlegen(werte);
+      if (bauherr) await api.bauherrenSetzen(neu.id, [bauherr], neu.version);
       await oeffnen(neu.id);
     } catch (e) {
       melde(e);
@@ -137,7 +169,8 @@
       return;
     }
     switch (id) {
-      case "datei.neu": dialog = "neu"; break;
+      case "datei.neu": neuesProjekt(); break;
+      case "bearbeiten.kunden": dialog = "kunden"; break;
       case "bearbeiten.benutzer": dialog = "benutzer"; break;
       case "bearbeiten.buero": dialog = "buero"; break;
       case "ansicht.bauantrag": ansicht = "bauantrag"; break;
@@ -242,10 +275,19 @@
           <dt>Name</dt><dd>{projekt.name}</dd>
           <dt>Bundesland</dt><dd>{landName(projekt.bundesland)}</dd>
           <dt>Grundstücksfläche</dt><dd>{projekt.grundstuecksflaeche_m2 ? `${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²` : "–"}</dd>
+          <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
+          <dd>
+            {#each bauherren as k (k.id)}
+              <div>{kundenname(k)} <span class="meta">({kategorieName(k.kategorie)}{k.telefon ? `, ${k.telefon}` : ""}{k.email ? `, ${k.email}` : ""})</span></div>
+            {:else}–{/each}
+          </dd>
           <dt>Angelegt</dt><dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
           <dt>Zuletzt geändert</dt><dd>{new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})</dd>
         </dl>
-        <button class="sekundaer" onclick={() => (dialog = "projektdaten")} disabled={!darf("bearbeitung")}>Bearbeiten …</button>
+        <div class="knoepfe links">
+          <button class="sekundaer" onclick={() => (dialog = "projektdaten")} disabled={!darf("bearbeitung")}>Bearbeiten …</button>
+          <button class="sekundaer" onclick={() => (dialog = "bauherren")}>Bauherren …</button>
+        </div>
       </section>
     {:else if ansicht === "mass"}
       <section>
@@ -277,6 +319,7 @@
             benutzer={ich}
             {exportAusloeser}
             onbuero={() => (dialog = "buero")}
+            onbauherren={() => (dialog = "bauherren")}
             onfehler={melde}
             onhinweis={(m) => (hinweis = m)}
           />
@@ -307,8 +350,9 @@
   <Startseite
     {zuletzt}
     darfAnlegen={darf("projektleitung")}
-    onneu={() => (dialog = "neu")}
+    onneu={neuesProjekt}
     onoeffnen={() => (dialog = "oeffnen")}
+    onkunden={() => (dialog = "kunden")}
     onzuletzt={oeffnen}
   />
 {/if}
@@ -339,10 +383,27 @@
   <Dialog titel="Büroangaben" onclose={() => (dialog = null)}>
     <BueroDialog {ich} onschliessen={() => (dialog = null)} />
   </Dialog>
+{:else if dialog === "kunden" && ich}
+  <Dialog titel="Kunden" breit onclose={() => (dialog = null)}>
+    <Kunden
+      {ich}
+      onoeffnen={oeffnen}
+      onschliessen={async () => {
+        dialog = null;
+        // Geänderte Kundendaten in der Übersicht zeigen.
+        if (projekt) bauherren = await api.bauherren(projekt.id);
+      }}
+    />
+  </Dialog>
+{:else if dialog === "bauherren" && ich && projekt}
+  <Dialog titel="Bauherren" breit onclose={() => (dialog = null)}>
+    <BauherrenDialog {projekt} {ich} onprojekt={(p) => (projekt = p)} onschliessen={() => (dialog = null)} />
+  </Dialog>
 {:else if dialog === "neu"}
   <Dialog titel="Neues Projekt" onclose={() => (dialog = null)}>
     <ProjektFormular
       start={{ name: "", bundesland: projekt?.bundesland ?? "BY", grundstuecksflaeche_m2: null }}
+      kunden={kundenAuswahl}
       knopf="Anlegen"
       absenden={anlegen}
       onabbrechen={() => (dialog = null)}

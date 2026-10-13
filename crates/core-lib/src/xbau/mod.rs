@@ -1,7 +1,7 @@
 //! XBau-Export (XBau-Hochbau 2.7 mit Kernmodul 1.4.0).
 //!
 //! Ein Projekt bekommt einen [`Bauantrag`] mit den Angaben, die nicht schon im
-//! Projekt stehen (Bauherr, Grundstück, Bauaufsichtsbehörde, ausgewählte
+//! Projekt stehen (Grundstück, Bauaufsichtsbehörde, ausgewählte
 //! Bauvorlagen). Daraus entsteht die Nachricht `baugenehmigung.antrag.0200`
 //! und ein ZIP-Paket mit der Nachricht und den Anlagen ([`paket`]).
 //!
@@ -36,7 +36,7 @@ pub struct Anschrift {
 }
 
 impl Anschrift {
-    fn ist_leer(&self) -> bool {
+    pub fn ist_leer(&self) -> bool {
         [
             &self.strasse,
             &self.hausnummer,
@@ -145,6 +145,10 @@ pub struct Bauantrag {
     pub bauaufsicht: Bauaufsicht,
     /// Bezeichnung des Bauvorhabens; leer = Projektname.
     pub bezeichnung: String,
+    /// Veraltet: Bauherren stehen in der Kundendatenbank und sind dem Projekt
+    /// zugeordnet ([`crate::kunden`]). Das Feld wird nur noch gelesen, um alte
+    /// Bauanträge zu übernehmen, und nie mehr geschrieben.
+    #[serde(skip_serializing)]
     pub bauherren: Vec<Beteiligter>,
     /// Wer die Gebühren zahlt; `None` = der erste Bauherr.
     pub gebuehrenpflichtiger: Option<Beteiligter>,
@@ -176,7 +180,8 @@ impl Default for Bauantrag {
 
 impl Bauantrag {
     /// Pflichtangaben, die für den Export noch fehlen (leer = vollständig).
-    pub fn fehlende_angaben(&self, buero: &Buero) -> Vec<String> {
+    /// `bauherren` sind die dem Projekt zugeordneten Bauherren.
+    pub fn fehlende_angaben(&self, buero: &Buero, bauherren: &[Beteiligter]) -> Vec<String> {
         let mut fehlt = Vec::new();
         if buero.name.trim().is_empty() {
             fehlt.push("Büro: Name".into());
@@ -190,11 +195,11 @@ impl Bauantrag {
         if self.bauaufsicht.kennung.trim().is_empty() {
             fehlt.push("Bauaufsichtsbehörde: Behördenkennung (DVDV)".into());
         }
-        if self.bauherren.is_empty() {
+        if bauherren.is_empty() {
             fehlt.push("Bauherr".into());
         }
-        for (i, b) in self.bauherren.iter().enumerate() {
-            let wer = if self.bauherren.len() == 1 {
+        for (i, b) in bauherren.iter().enumerate() {
+            let wer = if bauherren.len() == 1 {
                 "Bauherr".to_string()
             } else {
                 format!("{}. Bauherr", i + 1)

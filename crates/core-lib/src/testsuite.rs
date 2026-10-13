@@ -12,6 +12,7 @@ use crate::domain::{
     Aktion, Bundesland, DocumentId, DocumentVersion, NeuerProtokolleintrag, NewProject,
     ProjectUpdate,
 };
+use crate::kunden::{KundeId, Kundendaten, Kundenkategorie, Kundentyp};
 use crate::license::Arbeitsplatzbelegung;
 use crate::repository::Repositories;
 use crate::storage::ContentHash;
@@ -32,6 +33,7 @@ pub async fn repositories(repos: Repositories) {
     protokoll(&repos).await;
     lizenz(&repos).await;
     bauantraege(&repos).await;
+    kunden(&repos).await;
 }
 
 async fn projekt(repos: &Repositories) -> crate::domain::Project {
@@ -393,4 +395,125 @@ async fn bauantraege(repos: &Repositories) {
     // Gelöschtes Projekt nimmt seinen Antrag mit.
     repos.projects.delete(p.id, p.version).await.unwrap();
     assert_eq!(r.bauantrag(p.id).await.unwrap(), None);
+}
+
+async fn kunden(repos: &Repositories) {
+    let k = &repos.kunden;
+    let mut daten = Kundendaten {
+        typ: Kundentyp::Organisation,
+        kategorie: Kundenkategorie::Investor,
+        kundennummer: "K-1001".into(),
+        firma: eindeutig("Wohnbau Süd GmbH"),
+        ansprechpartner: "Frau Öztürk".into(),
+        telefon: "089 123456".into(),
+        email: "info@wohnbau-sued.de".into(),
+        notizen: "Zahlt pünktlich.\nRückfragen nur per E-Mail.".into(),
+        ..Kundendaten::default()
+    };
+    daten.anschrift.ort = "München".into();
+    let investor = k.kunde_anlegen(daten.clone()).await.unwrap();
+    assert_eq!(investor.version, 1);
+    assert_eq!(investor.daten, daten);
+    assert_eq!(k.kunde(investor.id).await.unwrap(), investor);
+    assert!(k.kunden().await.unwrap().contains(&investor));
+    assert!(matches!(
+        k.kunde(KundeId::new()).await,
+        Err(CoreError::NotFound(_))
+    ));
+
+    // Ändern mit Optimistic Locking
+    daten.telefon = "089 654321".into();
+    let geaendert = k
+        .kunde_aendern(investor.id, daten.clone(), 1)
+        .await
+        .unwrap();
+    assert_eq!(geaendert.version, 2);
+    assert_eq!(geaendert.daten.telefon, "089 654321");
+    assert_eq!(geaendert.created_at, investor.created_at);
+    assert!(matches!(
+        k.kunde_aendern(investor.id, daten.clone(), 1).await,
+        Err(CoreError::VersionConflict {
+            expected: 1,
+            actual: 2
+        })
+    ));
+
+    let person = k
+        .kunde_anlegen(Kundendaten {
+            vorname: "Erika".into(),
+            familienname: eindeutig("Mustermann"),
+            ..Kundendaten::default()
+        })
+        .await
+        .unwrap();
+
+    // Zuordnung als Bauherren, Reihenfolge bleibt erhalten.
+    let p = projekt(repos).await;
+    assert!(k.bauherren(p.id).await.unwrap().is_empty());
+    let p2 = k
+        .bauherren_setzen(p.id, &[person.id, investor.id], p.version)
+        .await
+        .unwrap();
+    assert_eq!(p2.version, p.version + 1);
+    let ids = |v: Vec<crate::kunden::Kunde>| v.into_iter().map(|k| k.id).collect::<Vec<_>>();
+    assert_eq!(
+        ids(k.bauherren(p.id).await.unwrap()),
+        [person.id, investor.id]
+    );
+    // Veraltete Projektversion: Konflikt, Zuordnung unverändert.
+    assert!(matches!(
+        k.bauherren_setzen(p.id, &[investor.id], p.version).await,
+        Err(CoreError::VersionConflict { .. })
+    ));
+    let p3 = k
+        .bauherren_setzen(p.id, &[investor.id, person.id], p2.version)
+        .await
+        .unwrap();
+    assert_eq!(
+        ids(k.bauherren(p.id).await.unwrap()),
+        [investor.id, person.id]
+    );
+    assert_eq!(
+        k.projekte_des_kunden(person.id)
+            .await
+            .unwrap()
+            .iter()
+            .map(|p| p.id)
+            .collect::<Vec<_>>(),
+        [p.id]
+    );
+    assert!(matches!(
+        k.bauherren_setzen(crate::domain::ProjectId::new(), &[], 1)
+            .await,
+        Err(CoreError::NotFound(_))
+    ));
+
+    // Zugeordnete Kunden lassen sich nicht löschen.
+    let err = k.kunde_loeschen(person.id, 1).await.unwrap_err();
+    assert!(matches!(err, CoreError::InvalidInput(_)), "{err:?}");
+    let p4 = k
+        .bauherren_setzen(p.id, &[investor.id], p3.version)
+        .await
+        .unwrap();
+    assert!(matches!(
+        k.kunde_loeschen(person.id, 7).await,
+        Err(CoreError::VersionConflict {
+            expected: 7,
+            actual: 1
+        })
+    ));
+    k.kunde_loeschen(person.id, 1).await.unwrap();
+    assert!(matches!(
+        k.kunde(person.id).await,
+        Err(CoreError::NotFound(_))
+    ));
+    assert!(matches!(
+        k.kunde_loeschen(person.id, 1).await,
+        Err(CoreError::NotFound(_))
+    ));
+
+    // Gelöschtes Projekt gibt seine Bauherren frei.
+    repos.projects.delete(p.id, p4.version).await.unwrap();
+    assert!(k.projekte_des_kunden(investor.id).await.unwrap().is_empty());
+    k.kunde_loeschen(investor.id, 2).await.unwrap();
 }

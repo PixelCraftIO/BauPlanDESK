@@ -22,6 +22,7 @@ pub mod id {
     pub const DOKUMENT_IMPORTIEREN: &str = "datei.importieren";
     pub const XBAU_EXPORT: &str = "datei.xbau";
     pub const BUERO: &str = "bearbeiten.buero";
+    pub const KUNDEN: &str = "bearbeiten.kunden";
     pub const BAUANTRAG: &str = "ansicht.bauantrag";
     pub const PROJEKTDATEN: &str = "bearbeiten.projektdaten";
     pub const BENUTZER: &str = "bearbeiten.benutzer";
@@ -265,6 +266,12 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .select_all_with_text("Alles auswählen")
         .separator()
         .item(&projektdaten)
+        .item(&item(
+            id::KUNDEN,
+            "Kunden …",
+            Some("CmdOrCtrl+Shift+K"),
+            true,
+        )?)
         .item(&item(id::BUERO, "Büroangaben …", None, true)?)
         .item(&item(id::BENUTZER, "Benutzerverwaltung …", None, true)?)
         .build()?;
