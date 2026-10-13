@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
+  <Identification><ShortName>anlagen</ShortName><LongName>XBau Anlage Art</LongName><Version>4.0</Version><CanonicalUri>urn:xoev-de:xbau:codeliste:anlagen</CanonicalUri><CanonicalVersionUri>urn:xoev-de:xbau:codeliste:anlagen_4.0</CanonicalVersionUri></Identification>
+  <ColumnSet>
+    <Column Id="code" Use="required"><ShortName>Code</ShortName><Data Type="string"/></Column>
+    <Column Id="beschreibung" Use="required"><ShortName>Beschreibung</ShortName><Data Type="string"/></Column>
+    <Key Id="schluessel"><ShortName>schluessel</ShortName><ColumnRef Ref="code"/></Key>
+  </ColumnSet>
+  <SimpleCodeList>
+    <Row><Value ColumnRef="code"><SimpleValue>0000</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Vorlagen zur Bau-Antragstellung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0010</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Proben von Bauprodukten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0100</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Befähigungsnachweis</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0101</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Befähigung den erforderlichen Standsicherheitsnachweis aufzustellen oder zu prüfen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0102</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Befähigung den erforderlichen Wärmeschutznachweis aufzustellen oder zu prüfen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0103</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Befähigung den erforderlichen Schallschutznachweis aufzustellen oder zu prüfen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0104</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Befähigung den erforderlichen Brandschutznachweis, das erforderliche Brandschutzkonzept aufzustellen oder zu prüfen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0105</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Befähigungsnachweis der Bauleitenden</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0106</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Befähigungsnachweis über die die Bestellung und Qualifikation der Fachbauleitenden</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0107</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Befähigungsnachweis für Verantwortliche für Veranstaltungstechnik</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0108</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis über Befähigung und Ausstattung für Abbrucharbeiten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0200</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauzustandsanzeige</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0201</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baubeginnanzeige</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0202</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anzeige der Fertigstellung des Rohbaus</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0203</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anzeige der beabsichtigten Nutzungsaufnahme</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0204</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anzeige der Fertigstellung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0205</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anzeige Beginn von bestimmten Arbeiten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0206</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anzeige Ende von bestimmten Arbeiten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0300</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bautechnische Nachweise duch saSV</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0304</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Standsicherheit durch saSV</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0305</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis des Schallschutzes durch saSV</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0306</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis des Wärmeschutzes durch saSV</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0307</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis des Brandschutzes durch saSV</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0309</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärungen der saSV zur Beauftragung stichprobenhafte Kontrollen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0400</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0401</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung - Architekt</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0402</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung - Bauingenieur</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0403</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung - Innenarchitekt</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0404</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung - Ingenieur</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0405</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung - Person mit Befähigung zum bautechnischen Verwaltungsdienst Laufbahngruppe 2</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0406</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Bauvorlageberechtigung - Absolventen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0500</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Übereinstimmungserklärung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0600</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Zustimmungen und Vollmachten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0601</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Zustimmung des Grundstückseigentümers</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0602</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Vertretungsvollmacht (Vertreterbestellung/ Vollmacht/ Bevollmächtigung)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0603</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Vollmacht des Bauherren für die Antragsstellung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0610</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baufreigabeschein</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0700</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung bautechnische Nachweise</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0701</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung der Übereinstimmung durch qualifizierte Tragwerksplaner</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0702</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung stichprobenhafte Kontrolle Standsicherheit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0703</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung stichprobenhafte Kontrolle Schall-Wärmeschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0704</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung stichprobenhafte Kontrolle Brandschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0705</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung des Nachweiserstellers über die Erstellung des Standsicherheitsnachweises</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0706</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung des Nachweiserstellers über die Erstellung des Schallschutznachweises</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0707</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung des Nachweiserstellers über die Erstellung des Wärmeschutznachweises (nach GEG)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0708</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung des Nachweiserstellers über die Bauausführung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0800</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erläuterung zu geplanten Ausnahmen, Befreiungen und Abweichungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0900</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Beteiligung der Angrenzer und der Öffentlichkeit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0901</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>vom Nachbarn unterzeichnete Lagepläne und Bauzeichnungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0902</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>von Betroffenen unterzeichnete Lagepläne und Bauzeichnungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>0903</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Schriftliche Erklärungen von Angrenzern/Betroffenen zum Bauvorhaben [Zustimmend | Ablehnend]</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1000</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Schriftverkehr</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1001</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anschreiben an die Bauaufsicht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1002</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anzeigen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1003</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Allgemeiner Schriftverkehr</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1007</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Verträge</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1100</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anträge</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1101</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Antragsformulare [Alle möglichen Anträge]</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1102</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Antragsschreiben [Formlos]</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1300</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Vorhaben im Außenbereich</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1301</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweise und Angaben zu Landwirtschaft (z.B. Maschinenaufstellplan) § 35 Abs. 1 Nr. 1 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1302</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis für Biogasanlagen § 35 Abs. 1 Nr. 6 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1303</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis für Ersatzwohnhaus § 35 Abs. 4 Nr. 2 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1304</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis für Ersatzbau nach Brand o.ä. § 35 Abs. 4 Nr. 3 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1305</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Fachgutachten Kulturlandschaftsprägung § 35 Abs. 4 Nr. 4 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1306</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Begründung Familienangehörige § 35 Abs. 4 Nr. 5 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1307</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis für Angemessenheit § 35 Abs. 4 Nr. 6 BauGB</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1308</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gutachten optisch bedrängende Wirkung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1309</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Wirtschaftlichkeitsberechnung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1310</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bankbürgschaft</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1311</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Meldebescheinigung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1400</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gebäudeeinmessung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1401</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis über die Absteckung der Grundrissfläche und die Festlegung der Höhenlage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1402</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis über die Einhaltung der Grundrissfläche und Höhenlage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1403</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Abstände</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1500</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baubeschreibung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1501</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baubeschreibung formlos</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1502</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baubeschreibung Vordruck</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1503</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Abbruchbeschreibung formlos</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1510</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Kampfmittelüberprüfung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1511</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Kampfmittelüberprüfung - Richtlinie für die Zusammenarbeit zwischen den Bauaufsichtsbehörden und dem staatlichen Kampfmittelbeseitigungsdienst</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1600</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Betriebsbeschreibung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1601</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Betriebsbeschreibung für gewerbliche Betriebe</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1602</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Betriebsbeschreibung für landwirtschaftliche Betriebe</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1603</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Betriebsbeschreibung formlos</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1700</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben über die gesicherte Erschließung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1800</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lageplan und Liegenschaftskarte</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1801</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Auszug aus der Basiskarte 1:5000</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1802</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Liegenschaftskarte / Flurkarte</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1803</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lageplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1804</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Amtlicher Lageplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1805</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lageplan Außenanlage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1806</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lageplan Entwässerung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1807</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Übersichtsplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1808</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestandsplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1809</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Freiflächengestaltungsplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1900</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Planungsrecht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1901</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung des Maßes der geplanten baulichen Nutzung [GFZ | GRZ | BMZ ]</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1902</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Ergänzende Erläuterung zur Umsetzung der textlichen Festsetzungen des Bebauungsplanes</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1903</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung GFZ</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1904</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung GRZ</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1905</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung BMZ</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1906</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Planungsrechtliche Auskunft</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1907</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Auszug aus dem Bebauungsplan oder einer städtebaulichen Satzung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>1908</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Auszug aus örtlichen Bauvorschriften</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2000</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauzeichnungen; Genehmigungsplanung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2001</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Grundrisse</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2002</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Schnitte</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2003</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Ansichten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2004</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Aufteilungspläne (WEG-Verfahren)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2005</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauzeichnungen für die Beurteilung von Grundstücksteilungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2006</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Sonstige Bauzeichnungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2007</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Ansicht der baulichen Anlage als Lichtbild</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2008</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Grundbuchauszug</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2010</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>BIM-Gebäudemodell</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2011</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestuhlungs- / Belegungsplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2012</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Detailzeichnung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2013</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Sparrenplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2014</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Straßenabwicklung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2015</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erschließungsplan SchulBauR</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2100</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2101</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung des höchstgelegenen Geschosses</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2102</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Abstandflächen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2103</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung Vollgeschoss</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2104</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung Gebäudeklasse</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2200</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Flächen und Räume</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2201</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung des umbauten Raums nach DIN 277</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2202</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Nutzungsflächen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2203</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Verkaufsfläche</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2204</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Wohnfläche</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2300</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Stellplatznachweis</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2301</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>KFZ-Stellplatznachweis | Berechnung der erforderlichen Stellplätze</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2302</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Fahrrad-Stellplatznachweis | Berechnung der erforderlichen Stellplätze</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2400</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Barrierefreiheit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2401</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Konzept zur Barrierefreiheit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2402</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Positionsplan Barrierefreiheit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2403</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gesonderter Nachweis barrierefreie Stellplätze (KFZ / Fahrräder)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2404</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis der Barrierefreiheit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2500</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Hochbaustatistik</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2501</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erhebungsbogen für die Baustatistik gem. Hochbaustatistikgesetz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2502</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Abgangsbogen für die Baustatistik gem. Hochbaustatistikgesetz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2503</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Statistischer Erhebungsbogen (Statistik der Baufertigstellung Fertigstellung)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2600</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baukosten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2601</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Rohbaukosten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2602</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Herstellungskosten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2700</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Brandschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2701</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Brandschutznachweis zur Prüfung bei der Bauaufsicht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2702</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung des Brandschutznachweises</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2703</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung über die ordnungsgemäße Bauausführung hinsichtlich Brandschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2704</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestätigung über mit dem Brandschutznachweis übereinstimmende Bauausführung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2705</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Brandschutzkonzept</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2706</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Brandschutzerläuterung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2707</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Räumungskonzept</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2708</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Evakuierungssimulation</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2709</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Brand- und Rauchsimulation</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2710</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis zur Löschwasserrückhaltung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2711</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis zur Wasserversorgung für Löschzwecke</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2712</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung über die Einhaltung der Anforderungen des Brandschutzes</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2713</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Feuerwehrplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2800</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bautechnische Nachweise</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2801</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Standsicherheitsnachweis</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2802</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung des Standsicherheitsnachweises</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2803</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung über die ordnungsgemäße Bauausführung hinsichtlich Standsicherheit</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2804</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis Schallschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2805</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis Wärmeschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2806</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis Erschütterungsschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2807</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung Asbest</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2808</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung des Schallschutznachweises</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2809</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung des Wärmeschutznachweises</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2810</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung des Tragwerkplaners nach Maßgabe des Kriterienkatalogs</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2811</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestätigung/Beurteilung der Standsicherheit des angebauten Gebäudes (bei der Beseitigung von Anlagen)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2812</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bautechnische Prüfbestätigung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2815</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bautechnische Berechnungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2816</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Positionspläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2820</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bautechnische Ausführungspläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2821</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Schal- und Bewehrungspläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2822</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Fertigteilpläne / Halbfertigteilpläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2823</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Holzbaupläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2824</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Stahl-/ Metall-/Verbundbaupläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2825</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Tiefgründung/Pfahlpläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2826</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baugrubenverbau-/ Rammpläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2831</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gutachten (z.B. Baugrundgutachten)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2832</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Protokolle (z.B. Pfahlprotokolle)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2840</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Prüfbericht des Prüfingenieurs</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2850</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung Prüfsachverständige</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2851</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - CO-Warnanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2852</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - ortsfeste, selbsttätige Feuerlöschanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2853</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - ortsfeste, nicht-selbsttätige Feuerlöschanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2854</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - lüftungstechnische Anlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2855</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - maschinelle Lüftungsanlagen in Garagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2856</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - Druckbelüftungsanlagen zur Rauchfreihaltung von Rettungswegen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2857</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - maschinelle Rauchabzugsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2858</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - natürliche Rauchabzugsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2859</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - Sicherheitsbeleuchtungsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2860</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - Sicherheitsstromversorgungsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2861</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - Brandmeldeanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2862</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - Alarmierungsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2863</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung PrüfSV - elektrische Anlagen (der allgemeinen Stromversorgung)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2873</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestätigung über die mit dem Standsicherheitsnachweis übereinstimmende Bauausführung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2900</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweise / Gutachten / Konzepte / Gesuche</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2901</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben zum Artenschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2902</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben zum Baumschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2903</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gutachten zur Sickerfähigkeit des Baugrundes</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2904</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Immissionsgutachten (Lärm / Erschütterung / Schattenwurf / Gerüche ...)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2905</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Verkehrsgutachten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2906</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lüftungsgesuch</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2907</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Abfallkonzept</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2908</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bodengutachten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2909</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Landschaftspflegerischer Begleitplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2910</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Auszug aus EU-Flächenverzeichnis</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2911</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis Nährstoffbeurteilungsblatt</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2912</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erklärung zur Rückbauverpflichtung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2913</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Maßnahmen an einem Baudenkmal</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2914</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Eingriffs-Kompensationserläuterung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2915</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben zum Tierschutz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2916</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Unterlagen zum Umgang mit wassergefährdenden Stoffen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2917</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Abfallverwertungskonzept</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2918</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bodenschutzkonzept</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2919</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis Photovoltaikpflicht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2920</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Immissionsprognose mit Konzeption zur Vermeidung von Baulärm</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2950</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung Sachkundige / Fachkundige / bafähigte Person</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2951</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Für Aufzüge eine EG Konformitätserklärung Aufzugsverordnung - 12. ProdSV</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2952</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung Gebäudefunkanlage für die Feuerwehr</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2953</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung durch den Fachbauleiter (z.B. Brandschutz)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2954</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung zur technischen Anlagen bei nicht wesentlicher Änderung/Einbau</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2955</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung funkvernetzte Rauchmelder</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2956</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheinigung Blitzschutzanlage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2957</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>CO - Messung nach Inbetriebnahme (Garagenlüftung)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2958</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Entsorgungsnachweise (z.B. Bodenaushub, Abbruchmatrial)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>2959</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben über den Verbleib des Abbruchmaterials</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3000</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauvorlagen für Sonderbauten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3001</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der Flächen der Verkaufsräume</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3002</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung (der Flächen) der Brandabschnitte</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3003</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Berechnung der erforderlichen Breiten der Ausgänge aus den Geschossen ins Freie oder in notwendige Treppenräume</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3004</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Krankenhäuser: Angaben über die Zahl der Betten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3005</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Krankenhäuser: Darstellung der Räume für Untersuchung und Behandlung mit ionisierenden Strahlen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3006</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Beherbergungsstätten: Angaben über die Anzahl der Gastbetten und ihre Zuordnung zu Beherbergungsräumen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3007</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestuhlungsplan</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3008</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis über die Zahl der Toiletten für Besucherinnen und Besucher</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3009</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis über die zulässige Nutzerzahl, Anordnung und Zahl der zulässigen Sitz- und Stehplätze bei Versammlungsstätten, Gaststätten, Vergnügungsstätten, Tribünen und Fliegenden Bauten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3010</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gastronomiekonzept</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3100</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baulasten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3101</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Schriftliche Erläuterung zur Baulasteintragung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3102</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lageplan mit Eintragung der Baulast</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3103</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Aktueller Grundbuchauszug des zu belastenden Grundstücks</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3104</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Zustimmung Baulasten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3200</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Werbeanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3201</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Zeichnungen im Maßstab 1:50 [Werbeanlage]</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3202</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>farbiges Lichtbild der Werbeanlage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3203</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>farbige Lichtbildmontage der Werbeanlage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3204</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Werbeanlagen - Nachweis der Einhaltung örtlicher Bauvorschriften (Gemeindesatzung)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3301</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben zum Beseitigungsunternehmen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3302</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Beschreibung des Beseitigungsverfahrens mit Angaben über den Geräteeinsatz und Schutzmaßnahmen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3303</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Angaben über schadstoffhaltige Verunreinigungen des Abbruchmaterials sowie dessen Entsorgung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3400</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Typenprüfungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3401</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Fliegender Bau, Typenprüfungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3500</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Zustimmung im Einzelfall</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3501</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauprodukte, Zustimmung im Einzelfall</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3502</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauprodukte, Verwendbarkeitsnachweis</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3503</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bauprodukte, Übereinstimmungsbestätigung und -erklärung, Zertifizierung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3600</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Sonderbau</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3601</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Sicherheitskonzept einmalige Veranstaltungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3602</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Sicherheitskonzept wiederkehrende Veranstaltungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3603</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gastspielprüfbuch</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3604</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Unbedenklichkeitsbescheinigung durch saSV zur Garagenlüftung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3605</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bestätigung durch saSV zur Garagenlüftung 1 Monat nach Inbetriebnahme</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3606</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Brandschutzordnung für Hochhäuser, Beherbergungsstätten, Versammlungsstätten, Verkaufsstätten, Krankenhäuser</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3607</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis über den Betrieb und die Nutzung einschließlich der Bestellung und der Qualifikation einer oder eines Brandschutzbeauftragten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3700</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Fotos, Fotomontagen zum Bauvorhaben</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3800</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Technische Gebäudeausrüstung (TGA)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3801</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Elektrische Anlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3802</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Lüftungsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3803</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Feuerungsanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3804</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Abgasanlagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3805</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Aufzüge</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3806</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Gebäudeautomation</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3807</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>TGA Sicherheitseinrichtungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3812</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Nachweis natürliche Lüftung Garage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3900</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Abwasserrecht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>3901</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Unterlagen Genehmigungsantrag Indirekteinleitung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4000</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Dienstbarkeiten mit öffentlich-rechtlicher Bedeutung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4100</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Naturschutzrecht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4200</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Lebensmittelrecht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4300</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Wasserrecht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4400</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Beteiligung der Nachbarn</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4500</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Wegerecht</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4600</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Unterlagen zur Umweltverträglichkeitsprüfung (UVPG)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4601</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Unterlagen zur Umweltverträglichkeitsprüfung (UVPG)</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>4700</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>sonstige baunebenrechtliche Erlaubnisse</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5000</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Genehmigungsbehörde an Antragsteller</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5001</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Begründung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5002</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Erläuterung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5003</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gutachten</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5004</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anschreiben</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5005</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Auflagen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5006</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Pläne</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5007</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>PDF-Plan mit Anmerkungen</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5008</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>BCF</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5009</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Mängelschreiben</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5010</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Empfangsbestätigung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5011</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Baufreigabeschein</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5012</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Teilbaufreigabeschein</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5013</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Bescheid</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5100</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gebührenbescheid</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5101</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gebührenberechnung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5102</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Rechnung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5103</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Mahnung</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5200</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Sonstiges Schriftgut</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5201</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Stellungnahme</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5202</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Skizze</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5203</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Vermerk</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5204</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Protokoll</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5205</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Gesprächsnotiz</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>5206</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Anfrage</SimpleValue></Value></Row>
+    <Row><Value ColumnRef="code"><SimpleValue>9999</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Weitere, nicht näher spezifizierte Anlage</SimpleValue></Value></Row>
+  </SimpleCodeList>
+</gc:CodeList>
