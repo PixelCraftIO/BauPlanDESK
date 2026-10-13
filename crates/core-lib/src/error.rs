@@ -1,0 +1,36 @@
+use thiserror::Error;
+
+use crate::domain::Bundesland;
+
+pub type CoreResult<T> = Result<T, CoreError>;
+
+#[derive(Debug, Error)]
+pub enum CoreError {
+    #[error("Datensatz nicht gefunden: {0}")]
+    NotFound(String),
+
+    /// Optimistic Locking: jemand anderes hat den Datensatz zwischenzeitlich geändert.
+    #[error("Konflikt: erwartete Version {expected}, aktuell {actual}")]
+    VersionConflict { expected: i64, actual: i64 },
+
+    #[error("Ungültige Eingabe: {0}")]
+    InvalidInput(String),
+
+    #[error("Für {0:?} ist kein LBO-Regelpaket geladen")]
+    RulePackMissing(Bundesland),
+
+    #[error("LBO-Skriptfehler ({land:?}): {message}")]
+    Script { land: Bundesland, message: String },
+
+    #[error("Integritätsfehler: erwarteter Hash {expected}, erhalten {actual}")]
+    HashMismatch { expected: String, actual: String },
+
+    #[error("Datenbankfehler: {0}")]
+    Database(String),
+
+    #[error("Storage-Fehler: {0}")]
+    Storage(String),
+
+    #[error("Lizenzfehler: {0}")]
+    License(String),
+}
