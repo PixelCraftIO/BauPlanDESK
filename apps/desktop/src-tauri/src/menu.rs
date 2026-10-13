@@ -21,6 +21,7 @@ pub mod id {
     pub const PROJEKT_SCHLIESSEN: &str = "datei.schliessen";
     pub const DOKUMENT_IMPORTIEREN: &str = "datei.importieren";
     pub const PROJEKTDATEN: &str = "bearbeiten.projektdaten";
+    pub const BENUTZER: &str = "bearbeiten.benutzer";
     pub const ZOOM_PLUS: &str = "ansicht.zoom_plus";
     pub const ZOOM_MINUS: &str = "ansicht.zoom_minus";
     pub const ZOOM_RESET: &str = "ansicht.zoom_reset";
@@ -28,6 +29,7 @@ pub mod id {
     pub const ABSTANDSFLAECHEN: &str = "berechnung.abstand";
     pub const DOKUMENTE: &str = "ansicht.dokumente";
     pub const PLAENE: &str = "ansicht.plaene";
+    pub const PROTOKOLL: &str = "ansicht.protokoll";
     pub const UPDATES: &str = "hilfe.updates";
     pub const BEENDEN: &str = "datei.beenden";
     pub const RUECKGAENGIG: &str = "bearbeiten.rueckgaengig";
@@ -252,14 +254,17 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .select_all_with_text("Alles auswählen")
         .separator()
         .item(&projektdaten)
+        .item(&item(id::BENUTZER, "Benutzerverwaltung …", None, true)?)
         .build()?;
 
     // --- Ansicht ---
     let dokumente = item(id::DOKUMENTE, "Dokumente", Some("CmdOrCtrl+D"), false)?;
     let plaene = item(id::PLAENE, "Pläne", Some("CmdOrCtrl+Shift+P"), false)?;
+    let protokoll = item(id::PROTOKOLL, "Protokoll", Some("CmdOrCtrl+Shift+L"), false)?;
     let ansicht = SubmenuBuilder::new(app, "&Ansicht")
         .item(&dokumente)
         .item(&plaene)
+        .item(&protokoll)
         .separator()
         .item(&item(
             id::ZOOM_PLUS,
@@ -354,6 +359,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             projektdaten,
             dokumente,
             plaene,
+            protokoll,
             mass,
             abstand,
         ],

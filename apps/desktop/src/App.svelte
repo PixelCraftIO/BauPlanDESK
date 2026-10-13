@@ -6,23 +6,28 @@
     fehlertext,
     istKonflikt,
     landName,
+    mindestens,
+    rollenName,
     type AppInfo,
+    type Benutzer,
     type Project,
     type Projektwerte as Werte,
     type UpdateInfo,
     type ZuletztEintrag,
   } from "./lib/api";
   import Abstandsflaeche from "./lib/Abstandsflaeche.svelte";
+  import Benutzerverwaltung from "./lib/Benutzerverwaltung.svelte";
   import Dialog from "./lib/Dialog.svelte";
   import Dokumente from "./lib/Dokumente.svelte";
   import MassDerNutzung from "./lib/MassDerNutzung.svelte";
   import ProjektFormular from "./lib/ProjektFormular.svelte";
   import Plaene from "./lib/Plaene.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
+  import Protokoll from "./lib/Protokoll.svelte";
   import Startseite from "./lib/Startseite.svelte";
 
-  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene";
-  type DialogArt = "neu" | "oeffnen" | "projektdaten" | null;
+  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "protokoll";
+  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | null;
 
   let info = $state<AppInfo | null>(null);
   let projekt = $state<Project | null>(null);
@@ -35,6 +40,9 @@
   let installiere = $state(false);
   let importAusloeser = $state(0);
   let planDokument = $state<string | null>(null);
+
+  const ich = $derived(info?.benutzer ?? null);
+  const darf = (min: "bearbeitung" | "projektleitung") => !!ich && ich.aktiv && mindestens(ich.rolle, min);
 
   const melde = (e: unknown) => (fehler = fehlertext(e));
 
@@ -119,6 +127,8 @@
     }
     switch (id) {
       case "datei.neu": dialog = "neu"; break;
+      case "bearbeiten.benutzer": dialog = "benutzer"; break;
+      case "ansicht.protokoll": ansicht = "protokoll"; break;
       case "datei.oeffnen": dialog = "oeffnen"; break;
       case "datei.schliessen": schliessen(); break;
       case "datei.importieren": ansicht = "dokumente"; importAusloeser++; break;
@@ -155,6 +165,7 @@
     { id: "abstand", text: "Abstandsflächen" },
     { id: "dokumente", text: "Dokumente" },
     { id: "plaene", text: "Pläne" },
+    { id: "protokoll", text: "Protokoll" },
   ];
 </script>
 
@@ -209,7 +220,7 @@
           <dt>Angelegt</dt><dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
           <dt>Zuletzt geändert</dt><dd>{new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})</dd>
         </dl>
-        <button class="sekundaer" onclick={() => (dialog = "projektdaten")}>Bearbeiten …</button>
+        <button class="sekundaer" onclick={() => (dialog = "projektdaten")} disabled={!darf("bearbeitung")}>Bearbeiten …</button>
       </section>
     {:else if ansicht === "mass"}
       <section>
@@ -230,21 +241,30 @@
         <h2>Pläne</h2>
         <Plaene projektId={projekt.id} bind:dokumentId={planDokument} onflaeche={grundstuecksflaecheUebernehmen} onfehler={melde} />
       </section>
+    {:else if ansicht === "protokoll"}
+      <section>
+        <h2>Protokoll</h2>
+        <p class="meta">Wer hat wann was im Projekt geändert. Die neuesten Einträge stehen oben.</p>
+        <!-- Wird bei jedem Wechsel auf den Reiter neu eingehängt und lädt dabei frisch. -->
+        <Protokoll projektId={projekt.id} />
+      </section>
     {/if}
     <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
     <section hidden={ansicht !== "dokumente"}>
       <h2>Dokumente</h2>
-      <Dokumente
+      {#if ich}<Dokumente
         projektId={projekt.id}
+        benutzer={ich}
         {importAusloeser}
         onplan={(id) => { planDokument = id; ansicht = "plaene"; }}
         onfehler={melde}
-      />
+      />{/if}
     </section>
   </main>
 {:else}
   <Startseite
     {zuletzt}
+    darfAnlegen={darf("projektleitung")}
     onneu={() => (dialog = "neu")}
     onoeffnen={() => (dialog = "oeffnen")}
     onzuletzt={oeffnen}
@@ -253,11 +273,20 @@
 
 <footer class="statusleiste meta">
   {#if info}
+    <button class="link" onclick={() => (dialog = "benutzer")} title="Benutzerverwaltung">{info.benutzer.anzeigename} ({rollenName(info.benutzer.rolle)})</button> ·
     BauProjektIO {info.version} · {info.modus} · Ablage: {info.storage} · LBO-Regelpakete: {info.regelpakete.map((r) => r.land).join(", ") || "keine"}
   {/if}
 </footer>
 
-{#if dialog === "neu"}
+{#if dialog === "benutzer" && info}
+  <Dialog titel="Benutzerverwaltung" breit onclose={() => (dialog = null)}>
+    <Benutzerverwaltung
+      ich={info.benutzer}
+      onich={(b: Benutzer) => info && (info = { ...info, benutzer: b })}
+      onschliessen={() => (dialog = null)}
+    />
+  </Dialog>
+{:else if dialog === "neu"}
   <Dialog titel="Neues Projekt" onclose={() => (dialog = null)}>
     <ProjektFormular
       start={{ name: "", bundesland: projekt?.bundesland ?? "BY", grundstuecksflaeche_m2: null }}

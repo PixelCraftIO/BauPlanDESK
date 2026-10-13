@@ -16,8 +16,64 @@ export interface RulePackInfo {
   origin: string;
 }
 
+export type Rolle = "lesen" | "bearbeitung" | "projektleitung" | "administrator";
+
+export const ROLLEN: { code: Rolle; name: string; beschreibung: string }[] = [
+  { code: "lesen", name: "Lesen", beschreibung: "Projekte und Dokumente ansehen, rechnen" },
+  { code: "bearbeitung", name: "Bearbeitung", beschreibung: "zusätzlich Projektdaten ändern, Dokumente ablegen und sperren" },
+  { code: "projektleitung", name: "Projektleitung", beschreibung: "zusätzlich Projekte anlegen, Sperren anderer aufheben" },
+  { code: "administrator", name: "Administrator", beschreibung: "zusätzlich Benutzer verwalten" },
+];
+
+export const rollenName = (r: Rolle) => ROLLEN.find((x) => x.code === r)?.name ?? r;
+
+/** Nur für die Oberfläche (Knöpfe ausgrauen); geprüft wird in core-lib. */
+export const mindestens = (r: Rolle, min: Rolle) =>
+  ROLLEN.findIndex((x) => x.code === r) >= ROLLEN.findIndex((x) => x.code === min);
+
+export interface Benutzer {
+  id: string;
+  anmeldename: string;
+  anzeigename: string;
+  rolle: Rolle;
+  aktiv: boolean;
+  erstellt_am: string;
+}
+
+export interface DocumentLock {
+  document_id: string;
+  project_id: string;
+  benutzer_id: string;
+  benutzer_name: string;
+  seit: string;
+}
+
+export interface Protokolleintrag {
+  id: number;
+  zeit: string;
+  benutzer_id: string;
+  benutzer_name: string;
+  aktion: string;
+  project_id: string | null;
+  document_id: string | null;
+  details: string;
+}
+
+export const AKTIONEN: Record<string, string> = {
+  projekt_angelegt: "Projekt angelegt",
+  projekt_geaendert: "Projektdaten geändert",
+  dokument_abgelegt: "Dokument abgelegt",
+  dokument_gesperrt: "Dokument gesperrt",
+  dokument_entsperrt: "Sperre aufgehoben",
+  sperre_aufgehoben: "Fremde Sperre aufgehoben",
+  formular_ausgefuellt: "Formular ausgefüllt",
+  benutzer_angelegt: "Benutzer angelegt",
+  benutzer_geaendert: "Benutzer geändert",
+};
+
 export interface AppInfo {
   version: string;
+  benutzer: Benutzer;
   modus: string;
   storage: string;
   regelpakete: RulePackInfo[];
@@ -175,14 +231,26 @@ export const api = {
   zuletzt: () => invoke<ZuletztEintrag[]>("zuletzt_geoeffnet"),
   dokumente: (projektId: string) =>
     invoke<DocumentVersion[]>("dokumente_auflisten", { projektId }),
-  dokumentImportieren: (projektId: string, pfad: string, dokumentId: string | null = null) =>
-    invoke<DocumentVersion>("dokument_importieren", { projektId, dokumentId, pfad }),
+  dokumentImportieren: (projektId: string, pfad: string, dokumentId: string | null = null, basis: number | null = null) =>
+    invoke<DocumentVersion>("dokument_importieren", { projektId, dokumentId, basis, pfad }),
+  historie: (dokumentId: string) => invoke<DocumentVersion[]>("dokument_historie", { dokumentId }),
+  versionWiederherstellen: (dokumentId: string, version: number) =>
+    invoke<DocumentVersion>("version_wiederherstellen", { dokumentId, version }),
+  sperren: (dokumentId: string) => invoke<DocumentLock>("dokument_sperren", { dokumentId }),
+  entsperren: (dokumentId: string) => invoke<void>("dokument_entsperren", { dokumentId }),
+  sperrenAuflisten: (projektId: string) => invoke<DocumentLock[]>("sperren_auflisten", { projektId }),
+  protokoll: (projektId: string) => invoke<Protokolleintrag[]>("protokoll", { projektId }),
+  benutzerAuflisten: () => invoke<Benutzer[]>("benutzer_auflisten"),
+  benutzerAnlegen: (neu: { anmeldename: string; anzeigename: string; rolle: Rolle }) =>
+    invoke<Benutzer>("benutzer_anlegen", { neu }),
+  benutzerAendern: (aenderung: { id: string; anzeigename: string; rolle: Rolle; aktiv: boolean }) =>
+    invoke<Benutzer>("benutzer_aendern", { aenderung }),
   formularAnalysieren: (dokumentId: string) =>
     invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
   formularAusfuellen: (dokumentId: string, werte: Record<string, Feldwert>) =>
     invoke<DocumentVersion>("formular_ausfuellen", { dokumentId, werte }),
-  dokumentExportieren: (dokumentId: string, ziel: string) =>
-    invoke<void>("dokument_exportieren", { dokumentId, ziel }),
+  dokumentExportieren: (dokumentId: string, ziel: string, version: number | null = null) =>
+    invoke<void>("dokument_exportieren", { dokumentId, version, ziel }),
   cadPlan: (dokumentId: string) => invoke<CadPlan>("cad_plan", { dokumentId }),
   aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>
     invoke<Messung>("aufmass", { punkte, geschlossen, einheit }),

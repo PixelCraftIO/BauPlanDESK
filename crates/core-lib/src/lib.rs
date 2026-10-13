@@ -10,6 +10,7 @@
 //! * Dateien nur über den Trait [`storage::Storage`],
 //! * landesrechtliche Regeln nur über Skripte der [`lbo`]-Engine.
 
+pub mod benutzer;
 pub mod cad;
 pub mod calc;
 pub mod domain;
@@ -20,6 +21,8 @@ pub mod license;
 pub mod repository;
 pub mod service;
 pub mod storage;
+#[cfg(any(test, feature = "testdaten"))]
+pub mod testsuite;
 
 pub use error::{CoreError, CoreResult};
 pub use service::CoreServices;

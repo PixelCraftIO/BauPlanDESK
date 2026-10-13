@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::benutzer::BenutzerId;
 use crate::error::CoreError;
 use crate::storage::ContentHash;
 
@@ -190,4 +191,89 @@ pub struct DocumentVersion {
     pub size_bytes: u64,
     pub created_by: String,
     pub created_at: DateTime<Utc>,
+}
+
+/// Sperre eines Dokuments zur Bearbeitung (Check-out). Solange sie besteht,
+/// können nur ihr Inhaber neue Versionen ablegen.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentLock {
+    pub document_id: DocumentId,
+    pub project_id: ProjectId,
+    pub benutzer_id: BenutzerId,
+    pub benutzer_name: String,
+    pub seit: DateTime<Utc>,
+}
+
+/// Protokollierte Änderungen (Änderungshistorie über alle Dokumente und
+/// Projektdaten hinweg).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Aktion {
+    ProjektAngelegt,
+    ProjektGeaendert,
+    DokumentAbgelegt,
+    DokumentGesperrt,
+    DokumentEntsperrt,
+    SperreAufgehoben,
+    FormularAusgefuellt,
+    BenutzerAngelegt,
+    BenutzerGeaendert,
+}
+
+impl Aktion {
+    const ALLE: [Aktion; 9] = [
+        Self::ProjektAngelegt,
+        Self::ProjektGeaendert,
+        Self::DokumentAbgelegt,
+        Self::DokumentGesperrt,
+        Self::DokumentEntsperrt,
+        Self::SperreAufgehoben,
+        Self::FormularAusgefuellt,
+        Self::BenutzerAngelegt,
+        Self::BenutzerGeaendert,
+    ];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::ProjektAngelegt => "projekt_angelegt",
+            Self::ProjektGeaendert => "projekt_geaendert",
+            Self::DokumentAbgelegt => "dokument_abgelegt",
+            Self::DokumentGesperrt => "dokument_gesperrt",
+            Self::DokumentEntsperrt => "dokument_entsperrt",
+            Self::SperreAufgehoben => "sperre_aufgehoben",
+            Self::FormularAusgefuellt => "formular_ausgefuellt",
+            Self::BenutzerAngelegt => "benutzer_angelegt",
+            Self::BenutzerGeaendert => "benutzer_geaendert",
+        }
+    }
+}
+
+impl std::str::FromStr for Aktion {
+    type Err = CoreError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALLE
+            .into_iter()
+            .find(|a| a.code() == s)
+            .ok_or_else(|| CoreError::Database(format!("unbekannte Aktion im Protokoll: {s}")))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NeuerProtokolleintrag {
+    pub zeit: DateTime<Utc>,
+    pub benutzer_id: BenutzerId,
+    pub benutzer_name: String,
+    pub aktion: Aktion,
+    pub project_id: Option<ProjectId>,
+    pub document_id: Option<DocumentId>,
+    /// Menschlich lesbare Beschreibung, z. B. „Lageplan.dxf, Version 3“.
+    pub details: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Protokolleintrag {
+    pub id: i64,
+    #[serde(flatten)]
+    pub eintrag: NeuerProtokolleintrag,
 }

@@ -5,11 +5,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SubsecRound, Utc};
+use core_lib::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer, Rolle};
 use core_lib::domain::{
-    Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
+    Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
+    NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
-use core_lib::repository::{DocumentRepository, ProjectRepository, Repositories};
+use core_lib::repository::{
+    BenutzerRepository, DocumentRepository, ProjectRepository, ProtokollRepository, Repositories,
+};
 use core_lib::storage::ContentHash;
 use core_lib::{CoreError, CoreResult};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
@@ -59,7 +63,9 @@ impl SqliteDatabase {
         let this = Arc::new(self.clone());
         Repositories {
             projects: this.clone(),
-            documents: this,
+            documents: this.clone(),
+            benutzer: this.clone(),
+            protokoll: this,
         }
     }
 }
@@ -198,7 +204,7 @@ impl ProjectRepository for SqliteDatabase {
 
 impl SqliteDatabase {
     async fn conflict_or_missing(&self, id: ProjectId, expected: i64) -> CoreError {
-        match self.get(id).await {
+        match ProjectRepository::get(self, id).await {
             Ok(current) => CoreError::VersionConflict {
                 expected,
                 actual: current.version,
@@ -210,16 +216,22 @@ impl SqliteDatabase {
 
 #[async_trait]
 impl DocumentRepository for SqliteDatabase {
-    async fn add_version(&self, mut v: DocumentVersion) -> CoreResult<DocumentVersion> {
+    async fn add_version(
+        &self,
+        mut v: DocumentVersion,
+        basis: Option<i64>,
+    ) -> CoreResult<DocumentVersion> {
         // Versionsnummer und Insert in einem Statement: kein Rennen zwischen
-        // zwei gleichzeitigen Uploads desselben Dokuments.
+        // zwei gleichzeitigen Uploads desselben Dokuments. Mit `basis` wird
+        // nur eingefügt, wenn `basis` noch die neueste Version ist.
         let size =
             i64::try_from(v.size_bytes).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
-        let version: i64 = sqlx::query_scalar(
+        let version: Option<i64> = sqlx::query_scalar(
             "INSERT INTO document_versions
                 (document_id, project_id, version, file_name, storage_key, sha256, size_bytes, created_by, created_at)
              SELECT ?1, ?2, COALESCE(MAX(version), 0) + 1, ?3, ?4, ?5, ?6, ?7, ?8
                FROM document_versions WHERE document_id = ?1
+             HAVING ?9 IS NULL OR COALESCE(MAX(version), 0) = ?9
           RETURNING version",
         )
         .bind(v.document_id.0.to_string())
@@ -230,11 +242,23 @@ impl DocumentRepository for SqliteDatabase {
         .bind(size)
         .bind(&v.created_by)
         .bind(v.created_at)
-        .fetch_one(&self.pool)
+        .bind(basis)
+        .fetch_optional(&self.pool)
         .await
         .map_err(db_err)?;
-        v.version = version;
-        Ok(v)
+        match (version, basis) {
+            (Some(version), _) => {
+                v.version = version;
+                Ok(v)
+            }
+            (None, Some(expected)) => Err(CoreError::VersionConflict {
+                expected,
+                actual: self.latest(v.document_id).await?.version,
+            }),
+            (None, None) => Err(CoreError::Database(
+                "Dokumentversion wurde nicht angelegt".into(),
+            )),
+        }
     }
 
     async fn latest(&self, id: DocumentId) -> CoreResult<DocumentVersion> {
@@ -272,6 +296,252 @@ impl DocumentRepository for SqliteDatabase {
         .map(document_from_row)
         .collect()
     }
+
+    async fn lock(
+        &self,
+        id: DocumentId,
+        project: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentLock> {
+        sqlx::query(
+            "INSERT INTO document_locks (document_id, project_id, benutzer_id, benutzer_name, seit)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (document_id) DO NOTHING",
+        )
+        .bind(id.0.to_string())
+        .bind(project.to_string())
+        .bind(wer.id.to_string())
+        .bind(&wer.anzeigename)
+        .bind(Utc::now())
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        let sperre = self
+            .get_lock(id)
+            .await?
+            .ok_or_else(|| CoreError::Database("Sperre wurde nicht angelegt".into()))?;
+        if sperre.benutzer_id != wer.id {
+            return Err(CoreError::Gesperrt {
+                von: sperre.benutzer_name,
+                seit: sperre.seit,
+            });
+        }
+        Ok(sperre)
+    }
+
+    async fn unlock(
+        &self,
+        id: DocumentId,
+        nur_von: Option<BenutzerId>,
+    ) -> CoreResult<Option<DocumentLock>> {
+        sqlx::query(
+            "DELETE FROM document_locks
+              WHERE document_id = ?1 AND (?2 IS NULL OR benutzer_id = ?2)
+          RETURNING *",
+        )
+        .bind(id.0.to_string())
+        .bind(nur_von.map(|b| b.to_string()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .as_ref()
+        .map(lock_from_row)
+        .transpose()
+    }
+
+    async fn get_lock(&self, id: DocumentId) -> CoreResult<Option<DocumentLock>> {
+        sqlx::query("SELECT * FROM document_locks WHERE document_id = ?")
+            .bind(id.0.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .as_ref()
+            .map(lock_from_row)
+            .transpose()
+    }
+
+    async fn locks_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentLock>> {
+        sqlx::query("SELECT * FROM document_locks WHERE project_id = ? ORDER BY seit")
+            .bind(project.to_string())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(lock_from_row)
+            .collect()
+    }
+}
+
+fn lock_from_row(row: &SqliteRow) -> CoreResult<DocumentLock> {
+    let document_id: String = row.try_get("document_id").map_err(db_err)?;
+    let project_id: String = row.try_get("project_id").map_err(db_err)?;
+    let benutzer_id: String = row.try_get("benutzer_id").map_err(db_err)?;
+    Ok(DocumentLock {
+        document_id: DocumentId(parse_uuid(&document_id)?),
+        project_id: ProjectId(parse_uuid(&project_id)?),
+        benutzer_id: BenutzerId(parse_uuid(&benutzer_id)?),
+        benutzer_name: row.try_get("benutzer_name").map_err(db_err)?,
+        seit: row.try_get("seit").map_err(db_err)?,
+    })
+}
+
+fn benutzer_from_row(row: &SqliteRow) -> CoreResult<Benutzer> {
+    let id: String = row.try_get("id").map_err(db_err)?;
+    let rolle: String = row.try_get("rolle").map_err(db_err)?;
+    Ok(Benutzer {
+        id: BenutzerId(parse_uuid(&id)?),
+        anmeldename: row.try_get("anmeldename").map_err(db_err)?,
+        anzeigename: row.try_get("anzeigename").map_err(db_err)?,
+        rolle: Rolle::from_str(&rolle)?,
+        aktiv: row.try_get("aktiv").map_err(db_err)?,
+        erstellt_am: row.try_get("erstellt_am").map_err(db_err)?,
+    })
+}
+
+fn protokoll_from_row(row: &SqliteRow) -> CoreResult<Protokolleintrag> {
+    let benutzer_id: String = row.try_get("benutzer_id").map_err(db_err)?;
+    let aktion: String = row.try_get("aktion").map_err(db_err)?;
+    let project_id: Option<String> = row.try_get("project_id").map_err(db_err)?;
+    let document_id: Option<String> = row.try_get("document_id").map_err(db_err)?;
+    Ok(Protokolleintrag {
+        id: row.try_get("id").map_err(db_err)?,
+        eintrag: NeuerProtokolleintrag {
+            zeit: row.try_get("zeit").map_err(db_err)?,
+            benutzer_id: BenutzerId(parse_uuid(&benutzer_id)?),
+            benutzer_name: row.try_get("benutzer_name").map_err(db_err)?,
+            aktion: Aktion::from_str(&aktion)?,
+            project_id: project_id
+                .as_deref()
+                .map(parse_uuid)
+                .transpose()?
+                .map(ProjectId),
+            document_id: document_id
+                .as_deref()
+                .map(parse_uuid)
+                .transpose()?
+                .map(DocumentId),
+            details: row.try_get("details").map_err(db_err)?,
+        },
+    })
+}
+
+#[async_trait]
+impl BenutzerRepository for SqliteDatabase {
+    async fn create(&self, neu: NeuerBenutzer) -> CoreResult<Benutzer> {
+        let b = Benutzer {
+            id: BenutzerId::new(),
+            anmeldename: neu.anmeldename,
+            anzeigename: neu.anzeigename,
+            rolle: neu.rolle,
+            aktiv: true,
+            // Postgres speichert Mikrosekunden; so ist der Rückgabewert
+            // gleich dem, was später gelesen wird.
+            erstellt_am: Utc::now().trunc_subsecs(6),
+        };
+        sqlx::query(
+            "INSERT INTO benutzer (id, anmeldename, anzeigename, rolle, aktiv, erstellt_am)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(b.id.to_string())
+        .bind(&b.anmeldename)
+        .bind(&b.anzeigename)
+        .bind(b.rolle.code())
+        .bind(b.aktiv)
+        .bind(b.erstellt_am)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(d) if d.is_unique_violation() => CoreError::InvalidInput(
+                format!("Den Anmeldenamen „{}“ gibt es bereits", b.anmeldename),
+            ),
+            e => db_err(e),
+        })?;
+        Ok(b)
+    }
+
+    async fn get(&self, id: BenutzerId) -> CoreResult<Benutzer> {
+        let row = sqlx::query("SELECT * FROM benutzer WHERE id = ?")
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .ok_or_else(|| CoreError::NotFound(format!("Benutzer {id}")))?;
+        benutzer_from_row(&row)
+    }
+
+    async fn by_anmeldename(&self, anmeldename: &str) -> CoreResult<Option<Benutzer>> {
+        sqlx::query("SELECT * FROM benutzer WHERE anmeldename = ?")
+            .bind(anmeldename)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+            .as_ref()
+            .map(benutzer_from_row)
+            .transpose()
+    }
+
+    async fn list(&self) -> CoreResult<Vec<Benutzer>> {
+        sqlx::query("SELECT * FROM benutzer ORDER BY anzeigename COLLATE NOCASE")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(benutzer_from_row)
+            .collect()
+    }
+
+    async fn update(&self, a: BenutzerAenderung) -> CoreResult<Benutzer> {
+        let row = sqlx::query(
+            "UPDATE benutzer SET anzeigename = ?, rolle = ?, aktiv = ? WHERE id = ? RETURNING *",
+        )
+        .bind(&a.anzeigename)
+        .bind(a.rolle.code())
+        .bind(a.aktiv)
+        .bind(a.id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| CoreError::NotFound(format!("Benutzer {}", a.id)))?;
+        benutzer_from_row(&row)
+    }
+}
+
+#[async_trait]
+impl ProtokollRepository for SqliteDatabase {
+    async fn append(&self, e: NeuerProtokolleintrag) -> CoreResult<()> {
+        sqlx::query(
+            "INSERT INTO protokoll
+                (zeit, benutzer_id, benutzer_name, aktion, project_id, document_id, details)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(e.zeit)
+        .bind(e.benutzer_id.to_string())
+        .bind(&e.benutzer_name)
+        .bind(e.aktion.code())
+        .bind(e.project_id.map(|p| p.to_string()))
+        .bind(e.document_id.map(|d| d.0.to_string()))
+        .bind(&e.details)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn list_for_project(
+        &self,
+        project: ProjectId,
+        limit: i64,
+    ) -> CoreResult<Vec<Protokolleintrag>> {
+        sqlx::query("SELECT * FROM protokoll WHERE project_id = ? ORDER BY id DESC LIMIT ?")
+            .bind(project.to_string())
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(protokoll_from_row)
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -279,79 +549,8 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn optimistic_locking() {
+    async fn konformitaet() {
         let db = SqliteDatabase::in_memory().await.unwrap();
-        let repos = db.repositories();
-        let p = repos
-            .projects
-            .create(NewProject {
-                name: "EFH Muster".into(),
-                bundesland: Bundesland::By,
-                grundstuecksflaeche_m2: Some(600.0),
-            })
-            .await
-            .unwrap();
-
-        let update = ProjectUpdate {
-            id: p.id,
-            expected_version: 1,
-            name: "EFH Muster, 2. Entwurf".into(),
-            bundesland: Bundesland::By,
-            grundstuecksflaeche_m2: Some(600.0),
-        };
-        let p2 = repos.projects.update(update.clone()).await.unwrap();
-        assert_eq!(p2.version, 2);
-
-        // Zweiter Client mit veralteter Version
-        let err = repos.projects.update(update).await.unwrap_err();
-        assert!(matches!(
-            err,
-            CoreError::VersionConflict {
-                expected: 1,
-                actual: 2
-            }
-        ));
-    }
-
-    #[tokio::test]
-    async fn dokumenthistorie() {
-        let db = SqliteDatabase::in_memory().await.unwrap();
-        let repos = db.repositories();
-        let p = repos
-            .projects
-            .create(NewProject {
-                name: "MFH".into(),
-                bundesland: Bundesland::Nw,
-                grundstuecksflaeche_m2: None,
-            })
-            .await
-            .unwrap();
-        let doc = DocumentId::new();
-        for inhalt in [b"v1".as_slice(), b"v2"] {
-            repos
-                .documents
-                .add_version(DocumentVersion {
-                    document_id: doc,
-                    project_id: p.id,
-                    version: 0,
-                    file_name: "lageplan.pdf".into(),
-                    storage_key: format!("k/{}", inhalt.len()),
-                    sha256: ContentHash::of(inhalt),
-                    size_bytes: inhalt.len() as u64,
-                    created_by: "test".into(),
-                    created_at: Utc::now(),
-                })
-                .await
-                .unwrap();
-        }
-        let history = repos.documents.history(doc).await.unwrap();
-        assert_eq!(
-            history.iter().map(|v| v.version).collect::<Vec<_>>(),
-            [1, 2]
-        );
-        assert_eq!(
-            repos.documents.latest(doc).await.unwrap().sha256,
-            ContentHash::of(b"v2")
-        );
+        core_lib::testsuite::repositories(db.repositories()).await;
     }
 }

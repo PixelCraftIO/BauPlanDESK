@@ -134,6 +134,40 @@ stehen unter GPL und sind damit ausgeschlossen. Pläne bitte im CAD-Programm als
 DXF exportieren. Noch offen: Schraffuren (`HATCH`, vom Crate `dxf` nicht
 unterstützt), Rasterbilder und PDF-Pläne mit Maßstabskalibrierung.
 
+## Mehrbenutzerbetrieb (DMS)
+
+Mehrere Arbeitsplätze arbeiten auf derselben Datenbank (SQLite im Netzlaufwerk
+für kleine Büros, PostgreSQL für größere) und demselben Storage. Die Regeln
+stehen in [`core-lib`](crates/core-lib/src/benutzer.rs) und gelten so für
+Desktop-App und Server gleich.
+
+- **Anmeldung** über das Benutzerkonto des Betriebssystems (`whoami`).
+  `BUERO\Daniel`, `daniel@buero.local` und `daniel` sind dasselbe Konto. Wer
+  sich als Erster anmeldet, wird Administrator, alle Späteren bekommen die
+  Rolle *Lesen*, bis ein Administrator sie hochstuft (*Bearbeiten →
+  Benutzerverwaltung …* oder Klick auf den Namen in der Statusleiste).
+- **Rollen** (aufsteigend): *Lesen* (ansehen, rechnen), *Bearbeitung*
+  (Projektdaten ändern, Dokumente ablegen und sperren), *Projektleitung*
+  (Projekte anlegen, Sperren anderer aufheben), *Administrator* (Benutzer
+  verwalten). Der letzte aktive Administrator kann sich nicht herabstufen.
+- **Versionen**: Jedes Ablegen erzeugt eine neue Version, alte bleiben
+  erhalten. In der *Historie* lassen sich ältere Versionen exportieren oder als
+  neue Version wiederherstellen.
+- **Konflikte** (Optimistic Locking): Wer eine neue Version ablegt, nennt die
+  Version, auf der er aufbaut. Hat inzwischen jemand anderes abgelegt, lehnt
+  die Datenbank ab, statt zu überschreiben, und die App sagt das verständlich.
+- **Sperren**: Ein Dokument lässt sich für die Dauer einer längeren
+  Bearbeitung sperren; andere sehen, wer es seit wann hat, und können nichts
+  ablegen. Die Projektleitung kann fremde Sperren aufheben.
+- **Protokoll** (*Ansicht → Protokoll*, Strg+Umschalt+L): wer wann was im
+  Projekt geändert hat.
+
+Der Server hat noch keine eigene Anmeldung und handelt bis dahin als
+Benutzer `system` (Administrator-Rechte, zählt aber nicht als Administrator
+für die Benutzerverwaltung). Beide Datenbank-Backends prüft dieselbe
+Testsuite (`core_lib::testsuite`); für PostgreSQL mit
+`BAUPROJEKT_TEST_POSTGRES=postgres://… cargo test -p db-postgres`.
+
 ## Desktop-App
 
 * **Betriebsart** über `<App-Konfiguration>/config.json`; ohne Datei startet die

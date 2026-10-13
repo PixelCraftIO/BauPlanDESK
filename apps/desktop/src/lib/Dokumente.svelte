@@ -1,16 +1,30 @@
 <script lang="ts">
-  import { open, save } from "@tauri-apps/plugin-dialog";
-  import { api, fehlertext, istPlan, type DocumentVersion } from "./api";
+  import { ask, open, save } from "@tauri-apps/plugin-dialog";
+  import {
+    api,
+    fehlertext,
+    istKonflikt,
+    istPlan,
+    mindestens,
+    rollenName,
+    type Benutzer,
+    type CmdError,
+    type DocumentLock,
+    type DocumentVersion,
+  } from "./api";
   import Dialog from "./Dialog.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
+  import Historie from "./Historie.svelte";
 
   let {
     projektId,
+    benutzer,
     importAusloeser,
     onplan,
     onfehler,
   }: {
     projektId: string;
+    benutzer: Benutzer;
     importAusloeser: number;
     onplan: (dokumentId: string) => void;
     onfehler: (m: string) => void;
@@ -20,6 +34,16 @@
   let laeuft = $state(false);
   let formular = $state<DocumentVersion | null>(null);
   let hinweis = $state<string | null>(null);
+  let sperren = $state<Map<string, DocumentLock>>(new Map());
+  let historie = $state<DocumentVersion | null>(null);
+
+  const darfAblegen = $derived(benutzer.aktiv && mindestens(benutzer.rolle, "bearbeitung"));
+  const darfFremdeAufheben = $derived(benutzer.aktiv && mindestens(benutzer.rolle, "projektleitung"));
+  /** Gesperrt von jemand anderem: Ablegen ist dann nicht möglich. */
+  const fremdGesperrt = (id: string) => {
+    const s = sperren.get(id);
+    return !!s && s.benutzer_id !== benutzer.id;
+  };
 
   const istPdf = (d: DocumentVersion) => d.file_name.toLowerCase().endsWith(".pdf");
 
@@ -61,13 +85,49 @@
 
   async function laden() {
     try {
-      versionen = await api.dokumente(projektId);
+      const [v, s] = await Promise.all([api.dokumente(projektId), api.sperrenAuflisten(projektId)]);
+      versionen = v;
+      sperren = new Map(s.map((x) => [x.document_id, x]));
     } catch (e) {
       onfehler(fehlertext(e));
     }
   }
 
+  /** Verständliche Meldung für die beiden typischen Mehrbenutzer-Fälle. */
+  function ablegeFehler(e: unknown, dateiname: string) {
+    if (istKonflikt(e)) {
+      onfehler(
+        `Inzwischen hat jemand eine neuere Version von „${dateiname}“ abgelegt. Ihre Datei wurde nicht gespeichert, damit nichts überschrieben wird. Sehen Sie sich die neue Version an und legen Sie Ihre Änderungen danach erneut ab.`,
+      );
+    } else if ((e as CmdError)?.art === "gesperrt") {
+      onfehler(`„${dateiname}“ ist gesperrt. ${fehlertext(e)}`);
+    } else {
+      onfehler(fehlertext(e));
+    }
+  }
+
+  async function sperrenUmschalten(doc: DocumentVersion) {
+    const s = sperren.get(doc.document_id);
+    try {
+      if (!s) {
+        await api.sperren(doc.document_id);
+        hinweis = `${doc.file_name} ist für Sie gesperrt. Andere können es ansehen, aber keine neue Version ablegen.`;
+      } else {
+        if (s.benutzer_id !== benutzer.id && !(await ask(`${doc.file_name} ist von ${s.benutzer_name} gesperrt. Sperre trotzdem aufheben?`, { title: "Fremde Sperre aufheben", kind: "warning", okLabel: "Aufheben", cancelLabel: "Abbrechen" }))) return;
+        await api.entsperren(doc.document_id);
+        hinweis = `Sperre für ${doc.file_name} aufgehoben.`;
+      }
+    } catch (e) {
+      onfehler(fehlertext(e));
+    }
+    await laden();
+  }
+
   export async function importieren(dokumentId: string | null = null) {
+    if (!darfAblegen) {
+      onfehler(`Dokumente ablegen dürfen nur Benutzer mit der Rolle „Bearbeitung“ oder höher (Ihre Rolle: „${rollenName(benutzer.rolle)}“).`);
+      return;
+    }
     const auswahl = await open({
       multiple: dokumentId === null,
       title: dokumentId ? "Neue Version auswählen" : "Dokumente importieren",
@@ -78,11 +138,17 @@
     });
     if (!auswahl) return;
     const pfade = Array.isArray(auswahl) ? auswahl : [auswahl];
+    // Neue Version: auf der Version aufbauen, die hier angezeigt wird.
+    // Hat jemand anderes inzwischen abgelegt, meldet core-lib einen Konflikt.
+    const bisher = dokumentId ? dokumente.find((d) => d.doc.document_id === dokumentId)?.doc : undefined;
     laeuft = true;
     try {
-      for (const pfad of pfade) await api.dokumentImportieren(projektId, pfad, dokumentId);
+      for (const pfad of pfade) {
+        const v = await api.dokumentImportieren(projektId, pfad, dokumentId, bisher?.version ?? null);
+        hinweis = `${v.file_name} wurde als Version ${v.version} abgelegt.`;
+      }
     } catch (e) {
-      onfehler(fehlertext(e));
+      ablegeFehler(e, bisher?.file_name ?? "Dokument");
     } finally {
       laeuft = false;
       await laden();
@@ -108,7 +174,7 @@
 </script>
 
 <div class="knoepfe links">
-  <button onclick={() => importieren()} disabled={laeuft}>{laeuft ? "Importiere …" : "Dokumente importieren …"}</button>
+  <button onclick={() => importieren()} disabled={laeuft || !darfAblegen} title={darfAblegen ? "" : "Dazu ist mindestens die Rolle „Bearbeitung“ nötig."}>{laeuft ? "Importiere …" : "Dokumente importieren …"}</button>
 </div>
 
 {#if hinweis}
@@ -116,7 +182,7 @@
 {/if}
 
 <table class="ergebnistabelle">
-  <thead><tr><th>Datei</th><th>Version</th><th>Größe</th><th>Geändert</th><th></th></tr></thead>
+  <thead><tr><th>Datei</th><th>Version</th><th>Größe</th><th>Geändert</th><th>Sperre</th><th></th></tr></thead>
   <tbody>
     {#each dokumente as { doc, anzahl } (doc.document_id)}
       <tr>
@@ -124,18 +190,48 @@
         <td>{doc.version}{anzahl > 1 ? ` (${anzahl} Versionen)` : ""}</td>
         <td>{groesse(doc.size_bytes)}</td>
         <td>{new Date(doc.created_at).toLocaleString("de-DE")} · {doc.created_by}</td>
+        <td>
+          {#if sperren.get(doc.document_id)}
+            {@const s = sperren.get(doc.document_id)!}
+            <span class="sperre" class:eigene={s.benutzer_id === benutzer.id} title={`seit ${new Date(s.seit).toLocaleString("de-DE")}`}>
+              🔒 {s.benutzer_id === benutzer.id ? "von Ihnen" : s.benutzer_name}
+            </span>
+          {/if}
+        </td>
         <td class="aktionen">
           {#if istPlan(doc.file_name)}<button class="link" onclick={() => onplan(doc.document_id)}>Plan ansehen</button>{/if}
-          {#if istPdf(doc)}<button class="link" onclick={() => (formular = doc)}>Formular ausfüllen …</button>{/if}
+          {#if istPdf(doc) && darfAblegen && !fremdGesperrt(doc.document_id)}<button class="link" onclick={() => (formular = doc)}>Formular ausfüllen …</button>{/if}
           <button class="link" onclick={() => exportieren(doc)}>Exportieren …</button>
-          <button class="link" onclick={() => importieren(doc.document_id)}>Neue Version …</button>
+          {#if darfAblegen && !fremdGesperrt(doc.document_id)}<button class="link" onclick={() => importieren(doc.document_id)}>Neue Version …</button>{/if}
+          <button class="link" onclick={() => (historie = doc)}>Historie …</button>
+          {#if !sperren.get(doc.document_id)}
+            {#if darfAblegen}<button class="link" onclick={() => sperrenUmschalten(doc)}>Sperren</button>{/if}
+          {:else if !fremdGesperrt(doc.document_id) || darfFremdeAufheben}
+            <button class="link" onclick={() => sperrenUmschalten(doc)}>Entsperren</button>
+          {/if}
         </td>
       </tr>
     {:else}
-      <tr><td colspan="5" class="meta">Noch keine Dokumente. Ziehen Sie Dateien über „Datei → Dokument importieren“ ins Projekt.</td></tr>
+      <tr><td colspan="6" class="meta">Noch keine Dokumente. Ziehen Sie Dateien über „Datei → Dokument importieren“ ins Projekt.</td></tr>
     {/each}
   </tbody>
 </table>
+
+{#if historie}
+  <Dialog titel={`Historie: ${historie.file_name}`} onclose={() => (historie = null)}>
+    <Historie
+      dokument={historie}
+      darfWiederherstellen={darfAblegen && !fremdGesperrt(historie.document_id)}
+      onwiederhergestellt={async (v) => {
+        historie = null;
+        await laden();
+        hinweis = `Version ${v.version} von ${v.file_name} wurde aus einer älteren Version erstellt.`;
+      }}
+      onfehler={(e) => ablegeFehler(e, historie?.file_name ?? "Dokument")}
+      onschliessen={() => (historie = null)}
+    />
+  </Dialog>
+{/if}
 
 {#if formular}
   <Dialog titel="Formular ausfüllen" onclose={() => (formular = null)}>

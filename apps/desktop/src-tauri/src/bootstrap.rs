@@ -1,10 +1,11 @@
 //! Zusammenstecken der Abhängigkeiten je nach Betriebsart (Dependency Injection).
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use client_cache::{CacheConfig, CachedStorage};
 use core_lib::CoreServices;
+use core_lib::benutzer::Benutzer;
 use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
 use core_lib::license::DevelopmentLicense;
@@ -17,9 +18,22 @@ use crate::config::AppConfig;
 
 pub struct AppState {
     pub core: CoreServices,
+    /// Angemeldeter Benutzer (Betriebssystem-Anmeldung). Wird neu gelesen,
+    /// wenn ein Administrator ihn ändert.
+    pub benutzer: RwLock<Benutzer>,
     pub config: AppConfig,
     /// Nur im Netzwerkmodus vorhanden.
     pub cache: Option<Arc<CachedStorage>>,
+}
+
+impl AppState {
+    /// Kopie des angemeldeten Benutzers für einen Aufruf in core-lib.
+    pub fn benutzer(&self) -> Benutzer {
+        self.benutzer
+            .read()
+            .expect("Benutzer-Lock vergiftet")
+            .clone()
+    }
 }
 
 type BoxError = Box<dyn std::error::Error>;
@@ -66,8 +80,15 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     // TODO: Lizenzprüfung (lokale Lizenzdatei / Lizenzserver) injizieren.
     let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense))
         .mit_formularen(init_formulare(app, &data_dir)?);
+    // Anmeldung über das Betriebssystem. Im Netzwerkmodus teilen sich alle
+    // Arbeitsplätze die Benutzertabelle; die erste Anmeldung wird Administrator.
+    let benutzer = core
+        .anmelden(&whoami::username(), &whoami::realname())
+        .await?;
+    tracing::info!(benutzer = %benutzer.anmeldename, rolle = ?benutzer.rolle, "angemeldet");
     Ok(AppState {
         core,
+        benutzer: RwLock::new(benutzer),
         config,
         cache,
     })

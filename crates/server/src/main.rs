@@ -79,9 +79,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense))
         .mit_formularen(formulare);
 
+    // Bis der Server eine eigene Anmeldung hat, handeln alle Anfragen als
+    // technisches Konto „system“ (siehe README, Abschnitt DMS).
+    let akteur = core.systembenutzer().await?;
+
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "BauProjektIO-Server gestartet");
-    axum::serve(listener, api::router(core))
+    axum::serve(listener, api::router(core, akteur))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })
