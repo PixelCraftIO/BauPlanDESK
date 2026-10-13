@@ -14,6 +14,7 @@ async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 hex.workspace = true
+dxf.workspace = true
 lopdf.workspace = true
 rhai.workspace = true
 serde.workspace = true
@@ -32,4 +33,8 @@ tokio.workspace = true
 
 [[example]]
 name = "musterformular"
+required-features = ["testdaten"]
+
+[[example]]
+name = "musterplan"
 required-features = ["testdaten"]

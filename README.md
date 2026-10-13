@@ -107,6 +107,33 @@ Noch offen: eigene Darstellungs-Streams (derzeit setzt die App
 `NeedAppearances`, die meisten Viewer zeichnen die Werte dann selbst),
 Signaturfelder und verschlüsselte Formulare.
 
+## CAD-Pläne
+
+[`crates/core-lib/src/cad`](crates/core-lib/src/cad) liest DXF-Dateien (ASCII
+und binär, AutoCAD R12 bis 2018, über das Crate `dxf`, MIT) in ein neutrales
+2D-Modell aus Linienzügen und Beschriftungen. Bögen, Kreise, Ellipsen, Splines
+und Polylinien mit Wölbung werden dabei aufgelöst, Blöcke (auch verschachtelt,
+gedreht, skaliert, als Array) und Bemaßungen eingesetzt. Längen und Flächen
+rechnet `cad::messen` in Meter um; die Einheit kommt aus `$INSUNITS` oder wird
+im Viewer gewählt.
+
+In der App: *Ansicht → Pläne* (Strg+Umschalt+P) oder *Dokumente → Plan
+ansehen*. Der Viewer zeichnet auf ein Canvas (Mausrad zoomt, Ziehen
+verschiebt), blendet Ebenen ein und aus und misst Längen und Flächen mit
+Punktfang auf Eckpunkte. *Fläche wählen* übernimmt eine geschlossene Linie wie
+die Grundstücksgrenze; ihre Fläche lässt sich als Grundstücksfläche des
+Projekts speichern und steht dann unter *Maß der Nutzung* bereit.
+
+```sh
+cargo run -p core-lib --features testdaten --example musterplan -- Lageplan.dxf
+cargo run -p core-lib --example plan_info -- Lageplan.dxf   # was der Import erkennt
+```
+
+**DWG** wird nicht direkt gelesen: Die freien DWG-Bibliotheken (LibreDWG)
+stehen unter GPL und sind damit ausgeschlossen. Pläne bitte im CAD-Programm als
+DXF exportieren. Noch offen: Schraffuren (`HATCH`, vom Crate `dxf` nicht
+unterstützt), Rasterbilder und PDF-Pläne mit Maßstabskalibrierung.
+
 ## Desktop-App
 
 * **Betriebsart** über `<App-Konfiguration>/config.json`; ohne Datei startet die
@@ -119,7 +146,7 @@ Signaturfelder und verschlüsselte Formulare.
   ```
 * **Menüleiste:** native Menüs *Datei* (Neues Projekt, Projekt öffnen, Zuletzt
   geöffnet, Projekt schließen, Dokument importieren, Beenden), *Bearbeiten*,
-  *Ansicht* (Zoom, Vollbild), *Berechnung* und *Hilfe*; definiert in
+  *Ansicht* (Dokumente, Pläne, Zoom, Vollbild), *Berechnung* und *Hilfe*; definiert in
   [`menu.rs`](apps/desktop/src-tauri/src/menu.rs). Projektbezogene Einträge sind
   nur bei geöffnetem Projekt aktiv; unter macOS gibt es zusätzlich das App-Menü.
 * **Fenster:** native Dekorationen, Mindestgröße, gespeicherte Fensterposition

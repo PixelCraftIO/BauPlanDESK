@@ -53,6 +53,8 @@ fn main() {
             commands::dokument_exportieren,
             commands::formular_analysieren,
             commands::formular_ausfuellen,
+            commands::cad_plan,
+            commands::aufmass,
             commands::abstandsflaeche,
             commands::mass_der_nutzung,
             updater::update_pruefen,

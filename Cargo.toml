@@ -54,6 +54,7 @@ futures = "0.3"
 axum = "0.8"
 tempfile = "3"
 lopdf = { version = "0.45", default-features = false }
+dxf = "0.6"
 
 [profile.release]
 codegen-units = 1
