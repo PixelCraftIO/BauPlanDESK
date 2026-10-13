@@ -100,6 +100,7 @@ pub enum Recht {
     FremdeSperreAufheben,
     BenutzerVerwalten,
     LizenzVerwalten,
+    BueroangabenAendern,
 }
 
 impl Recht {
@@ -108,7 +109,9 @@ impl Recht {
             Self::ProjektBearbeiten | Self::DokumentAblegen | Self::DokumentSperren => {
                 Rolle::Bearbeitung
             }
-            Self::ProjektAnlegen | Self::FremdeSperreAufheben => Rolle::Projektleitung,
+            Self::ProjektAnlegen | Self::FremdeSperreAufheben | Self::BueroangabenAendern => {
+                Rolle::Projektleitung
+            }
             Self::BenutzerVerwalten | Self::LizenzVerwalten => Rolle::Administrator,
         }
     }
@@ -122,6 +125,7 @@ impl Recht {
             Self::FremdeSperreAufheben => "Sperren anderer aufheben",
             Self::BenutzerVerwalten => "Benutzer verwalten",
             Self::LizenzVerwalten => "Lizenzen einspielen",
+            Self::BueroangabenAendern => "Büroangaben ändern",
         }
     }
 }

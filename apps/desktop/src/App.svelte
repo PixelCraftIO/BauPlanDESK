@@ -17,7 +17,9 @@
     type ZuletztEintrag,
   } from "./lib/api";
   import Abstandsflaeche from "./lib/Abstandsflaeche.svelte";
+  import Bauantrag from "./lib/Bauantrag.svelte";
   import Benutzerverwaltung from "./lib/Benutzerverwaltung.svelte";
+  import BueroDialog from "./lib/Buero.svelte";
   import Dialog from "./lib/Dialog.svelte";
   import Dokumente from "./lib/Dokumente.svelte";
   import MassDerNutzung from "./lib/MassDerNutzung.svelte";
@@ -28,8 +30,8 @@
   import LizenzDialog from "./lib/Lizenz.svelte";
   import Startseite from "./lib/Startseite.svelte";
 
-  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "protokoll";
-  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "lizenz" | null;
+  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "bauantrag" | "protokoll";
+  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "buero" | "lizenz" | null;
 
   let info = $state<AppInfo | null>(null);
   let projekt = $state<Project | null>(null);
@@ -41,6 +43,7 @@
   let update = $state<UpdateInfo | null>(null);
   let installiere = $state(false);
   let importAusloeser = $state(0);
+  let exportAusloeser = $state(0);
   let planDokument = $state<string | null>(null);
 
   let lizenz = $state<Lizenzstatus | null>(null);
@@ -136,6 +139,9 @@
     switch (id) {
       case "datei.neu": dialog = "neu"; break;
       case "bearbeiten.benutzer": dialog = "benutzer"; break;
+      case "bearbeiten.buero": dialog = "buero"; break;
+      case "ansicht.bauantrag": ansicht = "bauantrag"; break;
+      case "datei.xbau": ansicht = "bauantrag"; exportAusloeser++; break;
       case "ansicht.protokoll": ansicht = "protokoll"; break;
       case "datei.oeffnen": dialog = "oeffnen"; break;
       case "datei.schliessen": schliessen(); break;
@@ -176,6 +182,7 @@
     { id: "abstand", text: "Abstandsflächen" },
     { id: "dokumente", text: "Dokumente" },
     { id: "plaene", text: "Pläne" },
+    { id: "bauantrag", text: "Bauantrag" },
     { id: "protokoll", text: "Protokoll" },
   ];
 </script>
@@ -259,7 +266,24 @@
         <h2>Pläne</h2>
         <Plaene projektId={projekt.id} bind:dokumentId={planDokument} onflaeche={grundstuecksflaecheUebernehmen} onfehler={melde} />
       </section>
-    {:else if ansicht === "protokoll"}
+    {/if}
+    <!-- Bleibt eingehängt, damit "Datei → Bauantrag als XBau exportieren" aus jeder Ansicht funktioniert. -->
+    <section hidden={ansicht !== "bauantrag"}>
+      <h2>Bauantrag (XBau)</h2>
+      {#if ich}
+        {#key projekt.id}
+          <Bauantrag
+            {projekt}
+            benutzer={ich}
+            {exportAusloeser}
+            onbuero={() => (dialog = "buero")}
+            onfehler={melde}
+            onhinweis={(m) => (hinweis = m)}
+          />
+        {/key}
+      {/if}
+    </section>
+    {#if ansicht === "protokoll"}
       <section>
         <h2>Protokoll</h2>
         <p class="meta">Wer hat wann was im Projekt geändert. Die neuesten Einträge stehen oben.</p>
@@ -310,6 +334,10 @@
       onich={(b: Benutzer) => info && (info = { ...info, benutzer: b })}
       onschliessen={() => (dialog = null)}
     />
+  </Dialog>
+{:else if dialog === "buero" && ich}
+  <Dialog titel="Büroangaben" onclose={() => (dialog = null)}>
+    <BueroDialog {ich} onschliessen={() => (dialog = null)} />
   </Dialog>
 {:else if dialog === "neu"}
   <Dialog titel="Neues Projekt" onclose={() => (dialog = null)}>

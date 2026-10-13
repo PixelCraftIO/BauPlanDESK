@@ -46,7 +46,8 @@
     ],
     "resources": {
       "../../../lbo-rules/": "lbo-rules/",
-      "../../../formulare/": "formulare/"
+      "../../../formulare/": "formulare/",
+      "../../../codelisten/": "codelisten/"
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },

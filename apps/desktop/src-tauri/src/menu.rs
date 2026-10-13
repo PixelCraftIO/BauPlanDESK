@@ -20,6 +20,9 @@ pub mod id {
     pub const PROJEKT_OEFFNEN: &str = "datei.oeffnen";
     pub const PROJEKT_SCHLIESSEN: &str = "datei.schliessen";
     pub const DOKUMENT_IMPORTIEREN: &str = "datei.importieren";
+    pub const XBAU_EXPORT: &str = "datei.xbau";
+    pub const BUERO: &str = "bearbeiten.buero";
+    pub const BAUANTRAG: &str = "ansicht.bauantrag";
     pub const PROJEKTDATEN: &str = "bearbeiten.projektdaten";
     pub const BENUTZER: &str = "bearbeiten.benutzer";
     pub const ZOOM_PLUS: &str = "ansicht.zoom_plus";
@@ -199,6 +202,12 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         Some("CmdOrCtrl+I"),
         false,
     )?;
+    let xbau = item(
+        id::XBAU_EXPORT,
+        "Bauantrag als XBau exportieren …",
+        Some("CmdOrCtrl+Shift+E"),
+        false,
+    )?;
     let zuletzt_menu = SubmenuBuilder::new(app, "Zuletzt geöffnet").build()?;
 
     let mut datei = SubmenuBuilder::new(app, "&Datei")
@@ -208,7 +217,8 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .separator()
         .item(&schliessen)
         .separator()
-        .item(&importieren);
+        .item(&importieren)
+        .item(&xbau);
     // Unter macOS steht "Beenden" im App-Menü. Unter Windows/Linux ein
     // eigener Eintrag, weil das vordefinierte "Quit" unter Linux fehlt.
     if !cfg!(target_os = "macos") {
@@ -255,6 +265,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .select_all_with_text("Alles auswählen")
         .separator()
         .item(&projektdaten)
+        .item(&item(id::BUERO, "Büroangaben …", None, true)?)
         .item(&item(id::BENUTZER, "Benutzerverwaltung …", None, true)?)
         .build()?;
 
@@ -262,9 +273,11 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let dokumente = item(id::DOKUMENTE, "Dokumente", Some("CmdOrCtrl+D"), false)?;
     let plaene = item(id::PLAENE, "Pläne", Some("CmdOrCtrl+Shift+P"), false)?;
     let protokoll = item(id::PROTOKOLL, "Protokoll", Some("CmdOrCtrl+Shift+L"), false)?;
+    let bauantrag = item(id::BAUANTRAG, "Bauantrag", Some("CmdOrCtrl+Shift+B"), false)?;
     let ansicht = SubmenuBuilder::new(app, "&Ansicht")
         .item(&dokumente)
         .item(&plaene)
+        .item(&bauantrag)
         .item(&protokoll)
         .separator()
         .item(&item(
@@ -354,9 +367,11 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         projekt_items: vec![
             schliessen,
             importieren,
+            xbau,
             projektdaten,
             dokumente,
             plaene,
+            bauantrag,
             protokoll,
             mass,
             abstand,

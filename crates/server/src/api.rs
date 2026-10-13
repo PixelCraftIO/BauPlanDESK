@@ -18,6 +18,7 @@ use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
+use core_lib::xbau::{Bauantrag, Buero, Codeliste, GespeicherterBauantrag};
 use core_lib::{CoreError, CoreServices};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -81,6 +82,13 @@ pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
         )
         .route("/api/dokumente/{id}/plan", get(cad_plan))
         .route("/api/lizenz", get(lizenz).put(lizenz_einspielen))
+        .route(
+            "/api/projekte/{id}/bauantrag",
+            get(bauantrag).put(bauantrag_speichern),
+        )
+        .route("/api/projekte/{id}/xbau", get(xbau_exportieren))
+        .route("/api/buero", get(buero).put(buero_speichern))
+        .route("/api/xbau/codelisten", get(codelisten))
         .route("/api/lbo/regelpakete", get(rule_packs))
         .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
@@ -244,4 +252,77 @@ async fn mass_der_nutzung(
 ) -> ApiResult<Pruefergebnis> {
     let r = core.mass_der_nutzung(&req.eingabe, req.gebiet, req.festsetzungen)?;
     Ok(Json(r))
+}
+
+async fn bauantrag(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<GespeicherterBauantrag> {
+    Ok(Json(core.bauantrag(ProjectId(id)).await?))
+}
+
+#[derive(Deserialize)]
+struct BauantragSpeichern {
+    antrag: Bauantrag,
+    /// Zuletzt gelesene Version (0 = neu).
+    version: i64,
+}
+
+async fn bauantrag_speichern(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<BauantragSpeichern>,
+) -> ApiResult<GespeicherterBauantrag> {
+    Ok(Json(
+        core.bauantrag_speichern(ProjectId(id), body.antrag, body.version, &akteur)
+            .await?,
+    ))
+}
+
+async fn buero(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Buero> {
+    Ok(Json(core.buero().await?))
+}
+
+async fn buero_speichern(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Json(body): Json<Buero>,
+) -> ApiResult<Buero> {
+    Ok(Json(core.buero_speichern(body, &akteur).await?))
+}
+
+async fn codelisten(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Codeliste>> {
+    Ok(Json(core.codelisten.alle().cloned().collect()))
+}
+
+/// Liefert das ZIP-Paket als Download.
+async fn xbau_exportieren(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    let export = core.xbau_exportieren(ProjectId(id), &akteur).await?;
+    let disposition = format!(
+        "attachment; filename=\"bauantrag.zip\"; filename*=UTF-8''{}",
+        prozent_kodieren(&export.dateiname)
+    );
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/zip".to_string(),
+            ),
+            (axum::http::header::CONTENT_DISPOSITION, disposition),
+        ],
+        export.zip,
+    )
+        .into_response())
+}
+
+/// Prozentkodierung für `filename*` (RFC 5987).
+fn prozent_kodieren(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }

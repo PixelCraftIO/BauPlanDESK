@@ -138,6 +138,32 @@ pub trait LizenzRepository: Send + Sync {
     ) -> CoreResult<Vec<Arbeitsplatzbelegung>>;
 }
 
+/// Gespeicherte Angaben zum Bauantrag eines Projekts (JSON von
+/// [`crate::xbau::Bauantrag`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BauantragDatensatz {
+    pub daten: String,
+    pub version: i64,
+    pub geaendert_von: String,
+    pub geaendert_am: DateTime<Utc>,
+}
+
+#[async_trait]
+pub trait BauantragRepository: Send + Sync {
+    async fn bauantrag(&self, project: ProjectId) -> CoreResult<Option<BauantragDatensatz>>;
+
+    /// Speichert mit Optimistic Locking: `expected_version` ist die zuletzt
+    /// gelesene Version (0 = noch keiner gespeichert). Liefert die neue
+    /// Version oder [`crate::CoreError::VersionConflict`].
+    async fn bauantrag_speichern(
+        &self,
+        project: ProjectId,
+        daten: &str,
+        expected_version: i64,
+        geaendert_von: &str,
+    ) -> CoreResult<i64>;
+}
+
 /// Bündelt alle Repositories einer Datenbank-Implementierung, damit die
 /// Laufzeitumgebung genau ein Objekt injizieren muss.
 #[derive(Clone)]
@@ -147,4 +173,5 @@ pub struct Repositories {
     pub benutzer: Arc<dyn BenutzerRepository>,
     pub protokoll: Arc<dyn ProtokollRepository>,
     pub lizenz: Arc<dyn LizenzRepository>,
+    pub bauantraege: Arc<dyn BauantragRepository>,
 }

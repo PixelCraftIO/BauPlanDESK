@@ -121,3 +121,20 @@ dialog:has(.formularfelder) { width: min(48rem, 92vw); }
 .sperre { font-size: 0.85rem; white-space: nowrap; color: #b26a00; }
 .sperre.eigene { color: var(--accent); }
 dialog.breit { width: min(48rem, 92vw); }
+
+/* --- Bauantrag (XBau) --- */
+.bauantrag fieldset { border: 1px solid var(--border); border-radius: 8px; margin: 0 0 1rem; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
+.bauantrag legend { font-weight: 600; padding: 0 0.25rem; }
+.bauantrag label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+.bauantrag label.zeile, .massnahmen label, .umschalter label { flex-direction: row; align-items: center; gap: 0.35rem; color: var(--fg); font-size: 1rem; }
+.bauantrag label.voll { align-self: stretch; }
+.anschrift { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+.anschrift label.breit input { width: 14rem; }
+.massnahmen { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; align-items: center; }
+.umschalter { display: flex; gap: 1rem; }
+.beteiligter { display: flex; flex-direction: column; gap: 0.5rem; }
+.eintrag { display: flex; gap: 1rem; align-items: flex-end; padding: 0.6rem 0; border-top: 1px solid var(--border); align-self: stretch; }
+.eintrag .beteiligter { flex: 1; }
+.hinweisbox { background: var(--warn-bg); border-radius: 8px; padding: 0.6rem 0.9rem; margin-bottom: 1rem; }
+.hinweisbox ul { margin: 0.4rem 0 0; }
+.hinweisbox li { border: none; padding: 0.1rem 0; display: list-item; list-style: disc inside; }

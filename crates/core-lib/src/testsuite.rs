@@ -31,6 +31,7 @@ pub async fn repositories(repos: Repositories) {
     benutzer(&repos).await;
     protokoll(&repos).await;
     lizenz(&repos).await;
+    bauantraege(&repos).await;
 }
 
 async fn projekt(repos: &Repositories) -> crate::domain::Project {
@@ -351,4 +352,45 @@ async fn lizenz(repos: &Repositories) {
     l.arbeitsplatz_freigeben("PC-1").await.unwrap();
     l.arbeitsplatz_freigeben("PC-3").await.unwrap();
     assert!(l.arbeitsplaetze(t0).await.unwrap().is_empty());
+}
+
+async fn bauantraege(repos: &Repositories) {
+    let p = projekt(repos).await;
+    let r = &repos.bauantraege;
+    assert_eq!(r.bauantrag(p.id).await.unwrap(), None);
+
+    let daten = r#"{"bezeichnung":"Neubau \"Lindenweg\"","anzahl_gebaeude":2}"#;
+    assert_eq!(
+        r.bauantrag_speichern(p.id, daten, 0, "anna").await.unwrap(),
+        1
+    );
+    let gelesen = r.bauantrag(p.id).await.unwrap().unwrap();
+    assert_eq!(gelesen.version, 1);
+    assert_eq!(gelesen.geaendert_von, "anna");
+    let json: serde_json::Value = serde_json::from_str(&gelesen.daten).unwrap();
+    assert_eq!(json["bezeichnung"], "Neubau \"Lindenweg\"");
+
+    // Zweites Anlegen und veraltete Version: Konflikt.
+    assert!(matches!(
+        r.bauantrag_speichern(p.id, "{}", 0, "ben").await,
+        Err(CoreError::VersionConflict {
+            expected: 0,
+            actual: 1
+        })
+    ));
+    assert_eq!(
+        r.bauantrag_speichern(p.id, "{}", 1, "ben").await.unwrap(),
+        2
+    );
+    assert!(matches!(
+        r.bauantrag_speichern(p.id, "{}", 1, "anna").await,
+        Err(CoreError::VersionConflict {
+            expected: 1,
+            actual: 2
+        })
+    ));
+
+    // Gelöschtes Projekt nimmt seinen Antrag mit.
+    repos.projects.delete(p.id, p.version).await.unwrap();
+    assert_eq!(r.bauantrag(p.id).await.unwrap(), None);
 }

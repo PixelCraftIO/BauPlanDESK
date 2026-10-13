@@ -8,6 +8,7 @@
 //! | `BAUPROJEKT_STORAGE`       | `{"type":"nas","root":"/mnt/nas/bauprojekt"}`     |
 //! | `BAUPROJEKT_LBO_DIR`       | `/opt/bauprojekt/lbo-rules`                       |
 //! | `BAUPROJEKT_FORMULAR_DIR`  | `/opt/bauprojekt/formulare`                       |
+//! | `BAUPROJEKT_CODELISTEN_DIR`| `/opt/bauprojekt/codelisten` (XBau, Genericode)   |
 //! | `BAUPROJEKT_BIND`          | `0.0.0.0:8080`                                    |
 
 mod api;
@@ -19,6 +20,7 @@ use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
 use core_lib::license::{DatenbankLizenz, Lizenzpruefer};
 use core_lib::repository::Repositories;
+use core_lib::xbau::Codelisten;
 use core_lib::{CoreError, CoreResult, CoreServices};
 use storage::StorageConfig;
 use tracing_subscriber::EnvFilter;
@@ -58,6 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ))?;
     let lbo_dir = PathBuf::from(env_or("BAUPROJEKT_LBO_DIR", "lbo-rules"));
     let formular_dir = PathBuf::from(env_or("BAUPROJEKT_FORMULAR_DIR", "formulare"));
+    let codelisten_dir = PathBuf::from(env_or("BAUPROJEKT_CODELISTEN_DIR", "codelisten"));
     let bind = env_or("BAUPROJEKT_BIND", "127.0.0.1:8080");
 
     let repos = connect_database(&database_url).await?;
@@ -75,13 +78,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::error!(error = %e, "Formularvorlage nicht geladen");
     }
 
+    let mut codelisten = Codelisten::eingebaut();
+    for e in codelisten.laden(&codelisten_dir)? {
+        tracing::error!(error = %e, "Codeliste nicht geladen");
+    }
+
     // Lizenz liegt in der Datenbank (gemeinsam mit den Desktop-Arbeitsplätzen).
     // Arbeitsplätze belegt die Desktop-App; der Server selbst zählt nicht mit.
     let lizenz = DatenbankLizenz::new(repos.lizenz.clone(), Lizenzpruefer::standard());
     if !Lizenzpruefer::standard().hat_schluessel() {
         tracing::warn!("Kein Lizenzschlüssel eingebaut: nur die Testversion ist möglich.");
     }
-    let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz)).mit_formularen(formulare);
+    let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
+        .mit_formularen(formulare)
+        .mit_codelisten(codelisten);
 
     // Bis der Server eine eigene Anmeldung hat, handeln alle Anfragen als
     // technisches Konto „system“ (siehe README, Abschnitt DMS).

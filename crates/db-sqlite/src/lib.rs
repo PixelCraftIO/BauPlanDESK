@@ -13,8 +13,8 @@ use core_lib::domain::{
 };
 use core_lib::license::Arbeitsplatzbelegung;
 use core_lib::repository::{
-    BenutzerRepository, DocumentRepository, LizenzRepository, ProjectRepository,
-    ProtokollRepository, Repositories,
+    BauantragDatensatz, BauantragRepository, BenutzerRepository, DocumentRepository,
+    LizenzRepository, ProjectRepository, ProtokollRepository, Repositories,
 };
 use core_lib::storage::ContentHash;
 use core_lib::{CoreError, CoreResult};
@@ -68,7 +68,8 @@ impl SqliteDatabase {
             documents: this.clone(),
             benutzer: this.clone(),
             protokoll: this.clone(),
-            lizenz: this,
+            lizenz: this.clone(),
+            bauantraege: this,
         }
     }
 }
@@ -679,6 +680,75 @@ impl LizenzRepository for SqliteDatabase {
         .iter()
         .map(belegung_from_row)
         .collect()
+    }
+}
+
+#[async_trait]
+impl BauantragRepository for SqliteDatabase {
+    async fn bauantrag(&self, project: ProjectId) -> CoreResult<Option<BauantragDatensatz>> {
+        let row = sqlx::query(
+            "SELECT daten AS daten, version, geaendert_von, geaendert_am
+               FROM bauantraege WHERE project_id = ?",
+        )
+        .bind(project.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?;
+        row.map(|row| {
+            Ok(BauantragDatensatz {
+                daten: row.try_get("daten").map_err(db_err)?,
+                version: row.try_get("version").map_err(db_err)?,
+                geaendert_von: row.try_get("geaendert_von").map_err(db_err)?,
+                geaendert_am: row.try_get("geaendert_am").map_err(db_err)?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn bauantrag_speichern(
+        &self,
+        project: ProjectId,
+        daten: &str,
+        expected_version: i64,
+        geaendert_von: &str,
+    ) -> CoreResult<i64> {
+        let neu: Option<i64> = if expected_version == 0 {
+            sqlx::query_scalar(
+                "INSERT INTO bauantraege (project_id, daten, version, geaendert_von, geaendert_am)
+                 VALUES (?, ?, 1, ?, ?)
+                 ON CONFLICT (project_id) DO NOTHING
+                 RETURNING version",
+            )
+            .bind(project.to_string())
+            .bind(daten)
+            .bind(geaendert_von)
+            .bind(Utc::now())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+        } else {
+            sqlx::query_scalar(
+                "UPDATE bauantraege
+                    SET daten = ?, version = version + 1, geaendert_von = ?, geaendert_am = ?
+                  WHERE project_id = ? AND version = ?
+              RETURNING version",
+            )
+            .bind(daten)
+            .bind(geaendert_von)
+            .bind(Utc::now())
+            .bind(project.to_string())
+            .bind(expected_version)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?
+        };
+        match neu {
+            Some(v) => Ok(v),
+            None => Err(CoreError::VersionConflict {
+                expected: expected_version,
+                actual: self.bauantrag(project).await?.map_or(0, |b| b.version),
+            }),
+        }
     }
 }
 
