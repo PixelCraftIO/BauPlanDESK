@@ -1,0 +1,6 @@
+target
+**/node_modules
+apps/desktop/dist
+.git
+*.key
+.env

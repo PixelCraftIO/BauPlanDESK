@@ -25,6 +25,7 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 ed25519-dalek.workspace = true

@@ -1,0 +1,38 @@
+[package]
+name = "lizenz-server"
+description = "Lizenzserver des Herstellers: Abo-Lizenzen per Stripe, rechnergebundene Tickets, Update-Dateien für den Auto-Updater."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "lizenz-server"
+path = "src/main.rs"
+
+[dependencies]
+axum.workspace = true
+base64.workspace = true
+chrono.workspace = true
+core-lib.workspace = true
+ed25519-dalek.workspace = true
+futures.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hmac = "0.12"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx = { workspace = true, features = ["postgres", "tls-rustls-ring-native-roots"] }
+tokio = { workspace = true, features = ["net", "signal", "fs"] }
+tower-http = { version = "0.6", features = ["fs"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+core-lib = { workspace = true, features = ["testdaten"] }
+tempfile.workspace = true
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

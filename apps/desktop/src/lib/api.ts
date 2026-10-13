@@ -174,7 +174,16 @@ export type Lizenzzustand =
   | { art: "testversion_abgelaufen" }
   | { art: "abgelaufen"; seit: string }
   | { art: "ungueltig"; grund: string }
-  | { art: "kein_arbeitsplatz" };
+  | { art: "kein_arbeitsplatz" }
+  | { art: "nicht_bestaetigt"; grund: string }
+  | { art: "bestaetigung_abgelaufen"; seit: string };
+
+/** Abo-Lizenz über den Lizenzserver. */
+export interface AboStatus {
+  lizenzschluessel: string;
+  bestaetigt_um: string | null;
+  offline_gueltig_bis: string | null;
+}
 
 export interface Lizenzstatus {
   zustand: Lizenzzustand;
@@ -184,6 +193,7 @@ export interface Lizenzstatus {
   arbeitsplaetze_max: number;
   arbeitsplaetze: Arbeitsplatzbelegung[];
   eigener_arbeitsplatz: string | null;
+  abo: AboStatus | null;
 }
 
 /** Datum "JJJJ-MM-TT" deutsch anzeigen. */
@@ -366,6 +376,9 @@ export const api = {
   lizenz: () => invoke<Lizenzstatus>("lizenz_status"),
   lizenzEinspielen: (pfad: string) => invoke<Lizenzstatus>("lizenz_einspielen", { pfad }),
   arbeitsplatzBelegen: () => invoke<Lizenzstatus>("arbeitsplatz_belegen"),
+  lizenzAktivieren: (schluessel: string) => invoke<Lizenzstatus>("lizenz_aktivieren", { schluessel }),
+  lizenzBestaetigen: () => invoke<Lizenzstatus>("lizenz_bestaetigen"),
+  lizenzAbmelden: () => invoke<Lizenzstatus>("lizenz_abmelden"),
   bauantrag: (projektId: string) => invoke<GespeicherterBauantrag>("bauantrag", { projektId }),
   bauantragSpeichern: (projektId: string, antrag: Bauantrag, version: number) =>
     invoke<GespeicherterBauantrag>("bauantrag_speichern", { projektId, antrag, version }),

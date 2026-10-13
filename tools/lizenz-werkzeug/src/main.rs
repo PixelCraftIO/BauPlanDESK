@@ -30,6 +30,9 @@ Verwendung:
       Erzeugt ein neues Schlüsselpaar. Die Datei enthält den GEHEIMEN Schlüssel:
       sicher aufbewahren, nie einchecken. Der ausgegebene öffentliche Schlüssel
       kommt beim Release-Build in BAUPROJEKT_LIZENZ_SCHLUESSEL.
+      Für den Lizenzserver ein zweites Paar erzeugen (ticket.key): Der Inhalt
+      der Datei kommt dort in BAUPROJEKT_TICKET_GEHEIM, der öffentliche
+      Schlüssel in BAUPROJEKT_TICKET_SCHLUESSEL.
 
   lizenz-werkzeug ausstellen <geheim.key> <ausgabe.bplizenz> --lizenznehmer NAME
       [--edition einzelplatz|buero|cloud]   (Standard: einzelplatz)

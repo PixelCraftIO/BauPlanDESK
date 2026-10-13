@@ -15,12 +15,19 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+async-trait.workspace = true
 client-cache.workspace = true
 core-lib.workspace = true
 db-postgres.workspace = true
 db-sqlite.workspace = true
+hex.workspace = true
+# Machine-ID für Abo-Lizenzen (MIT)
+machine-uid = "0.6"
+# Lizenzserver (TLS über rustls wie object_store, Proxy des Systems)
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "system-proxy"] }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 storage = { workspace = true, features = ["s3"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-updater = "2"

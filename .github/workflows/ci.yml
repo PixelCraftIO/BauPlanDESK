@@ -11,6 +11,19 @@ env:
 jobs:
   rust:
     runs-on: ubuntu-24.04
+    services:
+      # Für die PostgreSQL-Tests (db-postgres, lizenz-server).
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bp
+          POSTGRES_PASSWORD: bp
+          POSTGRES_DB: bp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bp" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      BAUPROJEKT_TEST_POSTGRES: postgres://bp:bp@localhost:5432/bp
     steps:
       - uses: actions/checkout@v4
       - name: Tauri-Systembibliotheken, xmllint (XBau-Schemaprüfung)

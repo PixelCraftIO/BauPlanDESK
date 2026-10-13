@@ -5,6 +5,12 @@
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (Updater-Signatur)
 # Benötigte Repository-Variable (kein Secret, der Schlüssel ist öffentlich):
 #   BAUPROJEKT_LIZENZ_SCHLUESSEL  (öffentlicher Lizenzschlüssel, siehe README)
+# Für Abo-Lizenzen und Auto-Update über den eigenen Server (Variablen):
+#   BAUPROJEKT_LIZENZSERVER       (https://lizenz.example.de, ohne / am Ende)
+#   BAUPROJEKT_TICKET_SCHLUESSEL  (öffentlicher Ticket-Schlüssel des Servers)
+#   BAUPROJEKT_UPDATER_PUBKEY     (Inhalt der .pub-Datei von `tauri signer generate`)
+# Nach dem Veröffentlichen des Releases lädt `updates.yml` die Dateien auf
+# den Server.
 # Später zusätzlich für Code-Signing: Windows-Zertifikat, Apple-Developer-ID.
 name: Release
 
@@ -46,10 +52,19 @@ jobs:
         shell: bash
         env:
           BAUPROJEKT_LIZENZ_SCHLUESSEL: ${{ vars.BAUPROJEKT_LIZENZ_SCHLUESSEL }}
+          BAUPROJEKT_LIZENZSERVER: ${{ vars.BAUPROJEKT_LIZENZSERVER }}
+          BAUPROJEKT_TICKET_SCHLUESSEL: ${{ vars.BAUPROJEKT_TICKET_SCHLUESSEL }}
+          BAUPROJEKT_UPDATER_PUBKEY: ${{ vars.BAUPROJEKT_UPDATER_PUBKEY }}
         run: |
           if [ -z "$BAUPROJEKT_LIZENZ_SCHLUESSEL" ]; then
             echo "::error::Repository-Variable BAUPROJEKT_LIZENZ_SCHLUESSEL fehlt; ohne sie wäre nur die Testversion nutzbar."
             exit 1
+          fi
+          if [ -z "$BAUPROJEKT_LIZENZSERVER" ] || [ -z "$BAUPROJEKT_TICKET_SCHLUESSEL" ]; then
+            echo "::warning::BAUPROJEKT_LIZENZSERVER oder BAUPROJEKT_TICKET_SCHLUESSEL fehlt: Dieser Build kann keine Abo-Lizenzen aktivieren."
+          fi
+          if [ -z "$BAUPROJEKT_UPDATER_PUBKEY" ]; then
+            echo "::warning::BAUPROJEKT_UPDATER_PUBKEY fehlt: Es gilt der pubkey aus tauri.conf.json."
           fi
       - working-directory: apps/desktop
         run: npm ci
@@ -59,6 +74,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           BAUPROJEKT_LIZENZ_SCHLUESSEL: ${{ vars.BAUPROJEKT_LIZENZ_SCHLUESSEL }}
+          BAUPROJEKT_LIZENZSERVER: ${{ vars.BAUPROJEKT_LIZENZSERVER }}
+          BAUPROJEKT_TICKET_SCHLUESSEL: ${{ vars.BAUPROJEKT_TICKET_SCHLUESSEL }}
+          BAUPROJEKT_UPDATER_PUBKEY: ${{ vars.BAUPROJEKT_UPDATER_PUBKEY }}
         with:
           projectPath: apps/desktop
           tagName: v__VERSION__

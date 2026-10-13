@@ -147,23 +147,60 @@ impl CoreServices {
     ) -> CoreResult<Lizenzstatus> {
         wer.pruefe(Recht::LizenzVerwalten)?;
         let status = self.license.einspielen(datei).await?;
-        if let Some(l) = &status.lizenz {
-            self.protokollieren(
-                wer,
-                Aktion::LizenzEingespielt,
-                None,
-                None,
-                format!(
-                    "{} ({}, {} Arbeitsplätze, Lizenz {})",
-                    l.lizenznehmer,
-                    l.edition.name(),
-                    l.arbeitsplaetze,
-                    l.lizenz_id
-                ),
-            )
-            .await?;
-        }
+        self.lizenz_protokollieren(wer, &status, "").await?;
         Ok(status)
+    }
+
+    /// Trägt einen Abo-Lizenzschlüssel ein (nur Administratoren) und
+    /// aktiviert diesen Rechner beim Lizenzserver. Die übrigen Arbeitsplätze
+    /// an dieser Datenbank aktivieren sich beim nächsten Kontakt selbst.
+    pub async fn abo_aktivieren(
+        &self,
+        lizenzschluessel: &str,
+        wer: &Benutzer,
+    ) -> CoreResult<Lizenzstatus> {
+        wer.pruefe(Recht::LizenzVerwalten)?;
+        let status = self.license.abo_aktivieren(lizenzschluessel).await?;
+        self.lizenz_protokollieren(wer, &status, "Abo, ").await?;
+        Ok(status)
+    }
+
+    /// Bestätigung sofort beim Lizenzserver erneuern (jeder Benutzer, z. B.
+    /// nach längerer Zeit offline).
+    pub async fn abo_bestaetigen(&self) -> CoreResult<Lizenzstatus> {
+        self.license.abo_bestaetigen().await
+    }
+
+    /// Gibt den Platz dieses Rechners beim Lizenzserver frei (nur
+    /// Administratoren), z. B. vor einem Rechnerwechsel.
+    pub async fn abo_abmelden(&self, wer: &Benutzer) -> CoreResult<Lizenzstatus> {
+        wer.pruefe(Recht::LizenzVerwalten)?;
+        self.license.abo_abmelden().await
+    }
+
+    async fn lizenz_protokollieren(
+        &self,
+        wer: &Benutzer,
+        status: &Lizenzstatus,
+        art: &str,
+    ) -> CoreResult<()> {
+        let Some(l) = &status.lizenz else {
+            return Ok(());
+        };
+        self.protokollieren(
+            wer,
+            Aktion::LizenzEingespielt,
+            None,
+            None,
+            format!(
+                "{} ({art}{}, {} Arbeitsplätze, Lizenz {})",
+                l.lizenznehmer,
+                l.edition.name(),
+                l.arbeitsplaetze,
+                l.lizenz_id
+            ),
+        )
+        .await
     }
 
     // --- Benutzer --------------------------------------------------------
