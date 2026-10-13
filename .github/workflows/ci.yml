@@ -26,6 +26,12 @@ jobs:
       BAUPROJEKT_TEST_POSTGRES: postgres://bp:bp@localhost:5432/bp
     steps:
       - uses: actions/checkout@v4
+      # Workspace samt Tauri-App und Cache sprengt sonst die ~14 GB des
+      # Runners (Linker-Absturz „Bus error“, „running out of disk space“).
+      - name: Speicherplatz freigeben
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - name: Tauri-Systembibliotheken, xmllint (XBau-Schemaprüfung)
         run: |
           sudo apt-get update
