@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
-use core_lib::license::DevelopmentLicense;
+use core_lib::license::{DatenbankLizenz, Lizenzpruefer};
 use core_lib::repository::Repositories;
 use core_lib::{CoreError, CoreResult, CoreServices};
 use storage::StorageConfig;
@@ -70,14 +70,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     tracing::info!(anzahl = geladen.len(), dir = %lbo_dir.display(), "LBO-Regelpakete geladen");
 
-    // TODO: Netzwerk-Lizenzserver statt Entwicklungslizenz injizieren.
     let mut formulare = Formularkatalog::default();
     for e in formulare.laden(&formular_dir)? {
         tracing::error!(error = %e, "Formularvorlage nicht geladen");
     }
 
-    let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense))
-        .mit_formularen(formulare);
+    // Lizenz liegt in der Datenbank (gemeinsam mit den Desktop-Arbeitsplätzen).
+    // Arbeitsplätze belegt die Desktop-App; der Server selbst zählt nicht mit.
+    let lizenz = DatenbankLizenz::new(repos.lizenz.clone(), Lizenzpruefer::standard());
+    if !Lizenzpruefer::standard().hat_schluessel() {
+        tracing::warn!("Kein Lizenzschlüssel eingebaut: nur die Testversion ist möglich.");
+    }
+    let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz)).mit_formularen(formulare);
 
     // Bis der Server eine eigene Anmeldung hat, handeln alle Anfragen als
     // technisches Konto „system“ (siehe README, Abschnitt DMS).

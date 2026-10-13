@@ -4,14 +4,16 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{SubsecRound, Utc};
+use chrono::{DateTime, SubsecRound, Utc};
 use core_lib::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer, Rolle};
 use core_lib::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
+use core_lib::license::Arbeitsplatzbelegung;
 use core_lib::repository::{
-    BenutzerRepository, DocumentRepository, ProjectRepository, ProtokollRepository, Repositories,
+    BenutzerRepository, DocumentRepository, LizenzRepository, ProjectRepository,
+    ProtokollRepository, Repositories,
 };
 use core_lib::storage::ContentHash;
 use core_lib::{CoreError, CoreResult};
@@ -44,7 +46,8 @@ impl PostgresDatabase {
             projects: this.clone(),
             documents: this.clone(),
             benutzer: this.clone(),
-            protokoll: this,
+            protokoll: this.clone(),
+            lizenz: this,
         }
     }
 
@@ -503,6 +506,135 @@ impl ProtokollRepository for PostgresDatabase {
             .iter()
             .map(protokoll_from_row)
             .collect()
+    }
+}
+
+fn belegung_from_row(row: &PgRow) -> CoreResult<Arbeitsplatzbelegung> {
+    Ok(Arbeitsplatzbelegung {
+        arbeitsplatz: row.try_get("arbeitsplatz").map_err(db_err)?,
+        benutzer_name: row.try_get("benutzer_name").map_err(db_err)?,
+        belegt_seit: row.try_get("belegt_seit").map_err(db_err)?,
+        letzte_meldung: row.try_get("letzte_meldung").map_err(db_err)?,
+    })
+}
+
+#[async_trait]
+impl LizenzRepository for PostgresDatabase {
+    async fn einstellung(&self, schluessel: &str) -> CoreResult<Option<String>> {
+        sqlx::query_scalar("SELECT wert FROM einstellungen WHERE schluessel = $1")
+            .bind(schluessel)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)
+    }
+
+    async fn einstellung_setzen(&self, schluessel: &str, wert: &str) -> CoreResult<()> {
+        sqlx::query(
+            "INSERT INTO einstellungen (schluessel, wert) VALUES ($1, $2)
+             ON CONFLICT (schluessel) DO UPDATE SET wert = EXCLUDED.wert",
+        )
+        .bind(schluessel)
+        .bind(wert)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn einstellung_vorbelegen(&self, schluessel: &str, wert: &str) -> CoreResult<String> {
+        sqlx::query(
+            "INSERT INTO einstellungen (schluessel, wert) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(schluessel)
+        .bind(wert)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        sqlx::query_scalar("SELECT wert FROM einstellungen WHERE schluessel = $1")
+            .bind(schluessel)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db_err)
+    }
+
+    async fn arbeitsplatz_belegen(
+        &self,
+        b: Arbeitsplatzbelegung,
+        max: u32,
+        abgelaufen_vor: DateTime<Utc>,
+    ) -> CoreResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        // Zählen und Einfügen dürfen sich zwischen Rechnern nicht überholen.
+        sqlx::query("LOCK TABLE arbeitsplaetze IN SHARE ROW EXCLUSIVE MODE")
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        sqlx::query("DELETE FROM arbeitsplaetze WHERE letzte_meldung < $1")
+            .bind(abgelaufen_vor)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        let aktualisiert = sqlx::query(
+            "UPDATE arbeitsplaetze SET letzte_meldung = $1, benutzer_name = $2 WHERE arbeitsplatz = $3",
+        )
+        .bind(b.letzte_meldung.trunc_subsecs(6))
+        .bind(&b.benutzer_name)
+        .bind(&b.arbeitsplatz)
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?
+        .rows_affected();
+        let erhalten = if aktualisiert > 0 {
+            true
+        } else {
+            let belegt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM arbeitsplaetze")
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db_err)?;
+            if belegt < i64::from(max) {
+                sqlx::query(
+                    "INSERT INTO arbeitsplaetze (arbeitsplatz, benutzer_name, belegt_seit, letzte_meldung)
+                     VALUES ($1, $2, $3, $4)",
+                )
+                .bind(&b.arbeitsplatz)
+                .bind(&b.benutzer_name)
+                .bind(b.belegt_seit.trunc_subsecs(6))
+                .bind(b.letzte_meldung.trunc_subsecs(6))
+                .execute(&mut *tx)
+                .await
+                .map_err(db_err)?;
+                true
+            } else {
+                false
+            }
+        };
+        tx.commit().await.map_err(db_err)?;
+        Ok(erhalten)
+    }
+
+    async fn arbeitsplatz_freigeben(&self, arbeitsplatz: &str) -> CoreResult<()> {
+        sqlx::query("DELETE FROM arbeitsplaetze WHERE arbeitsplatz = $1")
+            .bind(arbeitsplatz)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn arbeitsplaetze(
+        &self,
+        abgelaufen_vor: DateTime<Utc>,
+    ) -> CoreResult<Vec<Arbeitsplatzbelegung>> {
+        sqlx::query(
+            "SELECT * FROM arbeitsplaetze WHERE letzte_meldung >= $1 ORDER BY belegt_seit, arbeitsplatz",
+        )
+        .bind(abgelaufen_vor)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(belegung_from_row)
+        .collect()
     }
 }
 

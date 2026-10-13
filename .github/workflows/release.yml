@@ -3,6 +3,8 @@
 #
 # Benötigte Repository-Secrets:
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (Updater-Signatur)
+# Benötigte Repository-Variable (kein Secret, der Schlüssel ist öffentlich):
+#   BAUPROJEKT_LIZENZ_SCHLUESSEL  (öffentlicher Lizenzschlüssel, siehe README)
 # Später zusätzlich für Code-Signing: Windows-Zertifikat, Apple-Developer-ID.
 name: Release
 
@@ -40,6 +42,15 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
+      - name: Lizenzschlüssel vorhanden?
+        shell: bash
+        env:
+          BAUPROJEKT_LIZENZ_SCHLUESSEL: ${{ vars.BAUPROJEKT_LIZENZ_SCHLUESSEL }}
+        run: |
+          if [ -z "$BAUPROJEKT_LIZENZ_SCHLUESSEL" ]; then
+            echo "::error::Repository-Variable BAUPROJEKT_LIZENZ_SCHLUESSEL fehlt; ohne sie wäre nur die Testversion nutzbar."
+            exit 1
+          fi
       - working-directory: apps/desktop
         run: npm ci
       - uses: tauri-apps/tauri-action@v0
@@ -47,6 +58,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          BAUPROJEKT_LIZENZ_SCHLUESSEL: ${{ vars.BAUPROJEKT_LIZENZ_SCHLUESSEL }}
         with:
           projectPath: apps/desktop
           tagName: v__VERSION__

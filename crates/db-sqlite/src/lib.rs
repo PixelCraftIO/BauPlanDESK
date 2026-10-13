@@ -11,8 +11,10 @@ use core_lib::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
+use core_lib::license::Arbeitsplatzbelegung;
 use core_lib::repository::{
-    BenutzerRepository, DocumentRepository, ProjectRepository, ProtokollRepository, Repositories,
+    BenutzerRepository, DocumentRepository, LizenzRepository, ProjectRepository,
+    ProtokollRepository, Repositories,
 };
 use core_lib::storage::ContentHash;
 use core_lib::{CoreError, CoreResult};
@@ -65,7 +67,8 @@ impl SqliteDatabase {
             projects: this.clone(),
             documents: this.clone(),
             benutzer: this.clone(),
-            protokoll: this,
+            protokoll: this.clone(),
+            lizenz: this,
         }
     }
 }
@@ -541,6 +544,141 @@ impl ProtokollRepository for SqliteDatabase {
             .iter()
             .map(protokoll_from_row)
             .collect()
+    }
+}
+
+fn ms(t: DateTime<Utc>) -> i64 {
+    t.timestamp_millis()
+}
+
+fn aus_ms(ms: i64) -> CoreResult<DateTime<Utc>> {
+    DateTime::from_timestamp_millis(ms)
+        .ok_or_else(|| CoreError::Database(format!("ungültiger Zeitstempel: {ms}")))
+}
+
+fn belegung_from_row(row: &SqliteRow) -> CoreResult<Arbeitsplatzbelegung> {
+    Ok(Arbeitsplatzbelegung {
+        arbeitsplatz: row.try_get("arbeitsplatz").map_err(db_err)?,
+        benutzer_name: row.try_get("benutzer_name").map_err(db_err)?,
+        belegt_seit: aus_ms(row.try_get("belegt_seit").map_err(db_err)?)?,
+        letzte_meldung: aus_ms(row.try_get("letzte_meldung").map_err(db_err)?)?,
+    })
+}
+
+#[async_trait]
+impl LizenzRepository for SqliteDatabase {
+    async fn einstellung(&self, schluessel: &str) -> CoreResult<Option<String>> {
+        sqlx::query_scalar("SELECT wert FROM einstellungen WHERE schluessel = ?")
+            .bind(schluessel)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)
+    }
+
+    async fn einstellung_setzen(&self, schluessel: &str, wert: &str) -> CoreResult<()> {
+        sqlx::query(
+            "INSERT INTO einstellungen (schluessel, wert) VALUES (?, ?)
+             ON CONFLICT (schluessel) DO UPDATE SET wert = excluded.wert",
+        )
+        .bind(schluessel)
+        .bind(wert)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn einstellung_vorbelegen(&self, schluessel: &str, wert: &str) -> CoreResult<String> {
+        sqlx::query(
+            "INSERT INTO einstellungen (schluessel, wert) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        )
+        .bind(schluessel)
+        .bind(wert)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        sqlx::query_scalar("SELECT wert FROM einstellungen WHERE schluessel = ?")
+            .bind(schluessel)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db_err)
+    }
+
+    async fn arbeitsplatz_belegen(
+        &self,
+        b: Arbeitsplatzbelegung,
+        max: u32,
+        abgelaufen_vor: DateTime<Utc>,
+    ) -> CoreResult<bool> {
+        // Das erste DELETE nimmt die Schreibsperre der Datenbank; ab da
+        // kann kein anderer Rechner dazwischen zählen und einfügen.
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        sqlx::query("DELETE FROM arbeitsplaetze WHERE letzte_meldung < ?")
+            .bind(ms(abgelaufen_vor))
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        let aktualisiert = sqlx::query(
+            "UPDATE arbeitsplaetze SET letzte_meldung = ?, benutzer_name = ? WHERE arbeitsplatz = ?",
+        )
+        .bind(ms(b.letzte_meldung))
+        .bind(&b.benutzer_name)
+        .bind(&b.arbeitsplatz)
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?
+        .rows_affected();
+        let erhalten = if aktualisiert > 0 {
+            true
+        } else {
+            let belegt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM arbeitsplaetze")
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db_err)?;
+            if belegt < i64::from(max) {
+                sqlx::query(
+                    "INSERT INTO arbeitsplaetze (arbeitsplatz, benutzer_name, belegt_seit, letzte_meldung)
+                     VALUES (?, ?, ?, ?)",
+                )
+                .bind(&b.arbeitsplatz)
+                .bind(&b.benutzer_name)
+                .bind(ms(b.belegt_seit))
+                .bind(ms(b.letzte_meldung))
+                .execute(&mut *tx)
+                .await
+                .map_err(db_err)?;
+                true
+            } else {
+                false
+            }
+        };
+        tx.commit().await.map_err(db_err)?;
+        Ok(erhalten)
+    }
+
+    async fn arbeitsplatz_freigeben(&self, arbeitsplatz: &str) -> CoreResult<()> {
+        sqlx::query("DELETE FROM arbeitsplaetze WHERE arbeitsplatz = ?")
+            .bind(arbeitsplatz)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn arbeitsplaetze(
+        &self,
+        abgelaufen_vor: DateTime<Utc>,
+    ) -> CoreResult<Vec<Arbeitsplatzbelegung>> {
+        sqlx::query(
+            "SELECT * FROM arbeitsplaetze WHERE letzte_meldung >= ? ORDER BY belegt_seit, arbeitsplatz",
+        )
+        .bind(ms(abgelaufen_vor))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(belegung_from_row)
+        .collect()
     }
 }
 

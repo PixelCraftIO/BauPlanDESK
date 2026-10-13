@@ -15,6 +15,7 @@ use core_lib::domain::{
 };
 use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
+use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -375,4 +376,36 @@ pub async fn benutzer_aendern(
         *ich = b.clone();
     }
     Ok(b)
+}
+
+#[tauri::command]
+pub async fn lizenz_status(state: State<'_, AppState>) -> CmdResult<Lizenzstatus> {
+    Ok(state.core.lizenz().await?)
+}
+
+/// Lizenzdatei einspielen (Administrator) und danach den Arbeitsplatz mit
+/// der neuen Anzahl Plätze belegen.
+#[tauri::command]
+pub async fn lizenz_einspielen(
+    state: State<'_, AppState>,
+    pfad: PathBuf,
+) -> CmdResult<Lizenzstatus> {
+    let datei = tokio::fs::read(&pfad).await.map_err(|e| CmdError {
+        art: "datei",
+        meldung: format!("{}: {e}", pfad.display()),
+    })?;
+    let ich = state.benutzer();
+    state.core.lizenz_einspielen(&datei, &ich).await?;
+    arbeitsplatz_belegen(state).await
+}
+
+/// Arbeitsplatz (erneut) belegen, z. B. wenn ein Kollege die App beendet hat.
+#[tauri::command]
+pub async fn arbeitsplatz_belegen(state: State<'_, AppState>) -> CmdResult<Lizenzstatus> {
+    let name = state.benutzer().anzeigename;
+    Ok(state
+        .core
+        .license
+        .arbeitsplatz_belegen(&state.arbeitsplatz, &name)
+        .await?)
 }

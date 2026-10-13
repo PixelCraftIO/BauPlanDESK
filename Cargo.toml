@@ -8,6 +8,7 @@ members = [
     "crates/client-cache",
     "crates/server",
     "apps/desktop/src-tauri",
+    "tools/lizenz-werkzeug",
 ]
 default-members = [
     "crates/core-lib",
@@ -55,6 +56,10 @@ axum = "0.8"
 tempfile = "3"
 lopdf = { version = "0.45", default-features = false }
 dxf = "0.6"
+# Lizenzdateien: Ed25519-Signaturen (BSD-3-Clause), Base64 (MIT/Apache-2.0)
+ed25519-dalek = { version = "2.2", default-features = false, features = ["std", "zeroize"] }
+base64 = "0.22"
+getrandom = "0.3"
 
 [profile.release]
 codegen-units = 1

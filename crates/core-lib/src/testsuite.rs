@@ -12,6 +12,7 @@ use crate::domain::{
     Aktion, Bundesland, DocumentId, DocumentVersion, NeuerProtokolleintrag, NewProject,
     ProjectUpdate,
 };
+use crate::license::Arbeitsplatzbelegung;
 use crate::repository::Repositories;
 use crate::storage::ContentHash;
 
@@ -29,6 +30,7 @@ pub async fn repositories(repos: Repositories) {
     sperren(&repos).await;
     benutzer(&repos).await;
     protokoll(&repos).await;
+    lizenz(&repos).await;
 }
 
 async fn projekt(repos: &Repositories) -> crate::domain::Project {
@@ -281,4 +283,72 @@ async fn protokoll(repos: &Repositories) {
             .len(),
         1
     );
+}
+
+async fn lizenz(repos: &Repositories) {
+    let l = &repos.lizenz;
+    let k = eindeutig("schluessel");
+    assert_eq!(l.einstellung(&k).await.unwrap(), None);
+    assert_eq!(l.einstellung_vorbelegen(&k, "erst").await.unwrap(), "erst");
+    assert_eq!(l.einstellung_vorbelegen(&k, "zweit").await.unwrap(), "erst");
+    l.einstellung_setzen(&k, "neu").await.unwrap();
+    assert_eq!(l.einstellung(&k).await.unwrap().as_deref(), Some("neu"));
+
+    // Ab hier gelten alle älteren Belegungen (auch aus früheren Läufen)
+    // als abgelaufen.
+    let t0 = Utc::now();
+    let min = chrono::Duration::minutes(1);
+    let platz = |name: &str, t| Arbeitsplatzbelegung {
+        arbeitsplatz: name.into(),
+        benutzer_name: format!("Benutzer an {name}"),
+        belegt_seit: t,
+        letzte_meldung: t,
+    };
+    assert!(
+        l.arbeitsplatz_belegen(platz("PC-1", t0), 2, t0)
+            .await
+            .unwrap()
+    );
+    assert!(
+        l.arbeitsplatz_belegen(platz("PC-2", t0 + min), 2, t0)
+            .await
+            .unwrap()
+    );
+    // Lizenz für zwei Plätze: der dritte Rechner bekommt keinen.
+    assert!(
+        !l.arbeitsplatz_belegen(platz("PC-3", t0 + min), 2, t0)
+            .await
+            .unwrap()
+    );
+    // Ein belegter Rechner meldet sich weiter.
+    assert!(
+        l.arbeitsplatz_belegen(platz("PC-1", t0 + min * 2), 2, t0)
+            .await
+            .unwrap()
+    );
+    let aktiv = l.arbeitsplaetze(t0).await.unwrap();
+    assert_eq!(
+        aktiv
+            .iter()
+            .map(|b| b.arbeitsplatz.as_str())
+            .collect::<Vec<_>>(),
+        ["PC-1", "PC-2"]
+    );
+    assert_eq!(
+        aktiv[0].letzte_meldung.timestamp_millis(),
+        (t0 + min * 2).timestamp_millis()
+    );
+
+    // PC-2 hat sich seit t0 + 1 min nicht gemeldet und läuft ab.
+    let spaeter = t0 + chrono::Duration::seconds(90);
+    assert!(
+        l.arbeitsplatz_belegen(platz("PC-3", t0 + min * 3), 2, spaeter)
+            .await
+            .unwrap()
+    );
+    assert_eq!(l.arbeitsplaetze(spaeter).await.unwrap().len(), 2);
+
+    l.arbeitsplatz_freigeben("PC-1").await.unwrap();
+    l.arbeitsplatz_freigeben("PC-3").await.unwrap();
+    assert!(l.arbeitsplaetze(t0).await.unwrap().is_empty());
 }

@@ -69,7 +69,49 @@ export const AKTIONEN: Record<string, string> = {
   formular_ausgefuellt: "Formular ausgefüllt",
   benutzer_angelegt: "Benutzer angelegt",
   benutzer_geaendert: "Benutzer geändert",
+  lizenz_eingespielt: "Lizenz eingespielt",
 };
+
+export type Edition = "einzelplatz" | "buero" | "cloud";
+export const EDITIONEN: Record<Edition, string> = { einzelplatz: "Einzelplatz", buero: "Büro", cloud: "Cloud" };
+
+export interface Lizenz {
+  lizenz_id: string;
+  lizenznehmer: string;
+  edition: Edition;
+  arbeitsplaetze: number;
+  ausgestellt_am: string;
+  gueltig_bis: string | null;
+  wartung_bis: string | null;
+}
+
+export interface Arbeitsplatzbelegung {
+  arbeitsplatz: string;
+  benutzer_name: string;
+  belegt_seit: string;
+  letzte_meldung: string;
+}
+
+export type Lizenzzustand =
+  | { art: "lizenziert" }
+  | { art: "testversion"; tage_uebrig: number }
+  | { art: "testversion_abgelaufen" }
+  | { art: "abgelaufen"; seit: string }
+  | { art: "ungueltig"; grund: string }
+  | { art: "kein_arbeitsplatz" };
+
+export interface Lizenzstatus {
+  zustand: Lizenzzustand;
+  schreiben_erlaubt: boolean;
+  meldung: string;
+  lizenz: Lizenz | null;
+  arbeitsplaetze_max: number;
+  arbeitsplaetze: Arbeitsplatzbelegung[];
+  eigener_arbeitsplatz: string | null;
+}
+
+/** Datum "JJJJ-MM-TT" deutsch anzeigen. */
+export const datumDe = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("de-DE");
 
 export interface AppInfo {
   version: string;
@@ -245,6 +287,9 @@ export const api = {
     invoke<Benutzer>("benutzer_anlegen", { neu }),
   benutzerAendern: (aenderung: { id: string; anzeigename: string; rolle: Rolle; aktiv: boolean }) =>
     invoke<Benutzer>("benutzer_aendern", { aenderung }),
+  lizenz: () => invoke<Lizenzstatus>("lizenz_status"),
+  lizenzEinspielen: (pfad: string) => invoke<Lizenzstatus>("lizenz_einspielen", { pfad }),
+  arbeitsplatzBelegen: () => invoke<Lizenzstatus>("arbeitsplatz_belegen"),
   formularAnalysieren: (dokumentId: string) =>
     invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
   formularAusfuellen: (dokumentId: string, werte: Record<string, Feldwert>) =>

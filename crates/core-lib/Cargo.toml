@@ -11,10 +11,12 @@ publish.workspace = true
 # Storage-Client: core-lib kennt nur ihre eigenen Traits.
 [dependencies]
 async-trait.workspace = true
+base64.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 hex.workspace = true
 dxf.workspace = true
+ed25519-dalek.workspace = true
 lopdf.workspace = true
 rhai.workspace = true
 serde.workspace = true
@@ -37,4 +39,8 @@ required-features = ["testdaten"]
 
 [[example]]
 name = "musterplan"
+required-features = ["testdaten"]
+
+[[example]]
+name = "testlizenz"
 required-features = ["testdaten"]
