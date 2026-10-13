@@ -1,19 +1,20 @@
 <script lang="ts">
-  import { api, fehlertext, type AbstandsflaecheErgebnis, type Baugebiet, type Berechnung, type Bundesland, type RulePackInfo } from "./api";
+  import { api, fehlertext, GEBIETE, LAENDER, type AbstandsflaecheErgebnis, type Baugebiet, type Berechnung, type Bundesland, type RulePackInfo } from "./api";
 
   let {
-    laender,
-    gebiete,
+    startLand,
     regelpakete,
     onfehler,
   }: {
-    laender: Bundesland[];
-    gebiete: Baugebiet[];
+    startLand: Bundesland;
     regelpakete: RulePackInfo[];
     onfehler: (meldung: string) => void;
   } = $props();
 
-  let land = $state<Bundesland>("BY");
+  const laender = LAENDER.map((l) => l.code);
+  const gebiete = GEBIETE.map((g) => g.code);
+  // svelte-ignore state_referenced_locally
+  let land = $state<Bundesland>(startLand);
   let gebiet = $state<Baugebiet>("WA");
   let wandhoehe = $state(6.5);
   let ergebnis = $state<Berechnung<AbstandsflaecheErgebnis> | null>(null);

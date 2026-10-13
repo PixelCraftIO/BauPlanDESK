@@ -99,6 +99,11 @@ dann Updates aus `<App-Daten>/lbo-rules/`.
     "storage": { "type": "nas", "root": "\\\\nas\\bauprojekt" },
     "cache_max_gb": 20 }
   ```
+* **Menüleiste:** native Menüs *Datei* (Neues Projekt, Projekt öffnen, Zuletzt
+  geöffnet, Projekt schließen, Dokument importieren, Beenden), *Bearbeiten*,
+  *Ansicht* (Zoom, Vollbild), *Berechnung* und *Hilfe*; definiert in
+  [`menu.rs`](apps/desktop/src-tauri/src/menu.rs). Projektbezogene Einträge sind
+  nur bei geöffnetem Projekt aktiv; unter macOS gibt es zusätzlich das App-Menü.
 * **Fenster:** native Dekorationen, Mindestgröße, gespeicherte Fensterposition
   (`tauri-plugin-window-state`), nur eine Instanz (`tauri-plugin-single-instance`).
 * **Auto-Update:** `tauri-plugin-updater`. Die App prüft beim Start im

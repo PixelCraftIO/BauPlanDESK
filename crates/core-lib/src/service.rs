@@ -110,6 +110,11 @@ impl CoreServices {
         Ok((version, data))
     }
 
+    /// Alle Versionen aller Dokumente eines Projekts.
+    pub async fn list_documents(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        self.repos.documents.list_for_project(project).await
+    }
+
     pub async fn document_history(&self, id: DocumentId) -> CoreResult<Vec<DocumentVersion>> {
         self.repos.documents.history(id).await
     }

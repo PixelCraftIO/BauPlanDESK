@@ -45,3 +45,37 @@ li { padding: 0.4rem 0; border-top: 1px solid var(--border); display: flex; gap:
 .banner { background: var(--warn-bg); }
 .fehler { background: var(--err-bg); }
 .ergebnis { font-size: 1.1rem; margin: 1rem 0 0.25rem; }
+
+/* --- Projektansicht --- */
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+.projektkopf { flex-direction: column; align-items: stretch; gap: 0.5rem; padding-bottom: 0; }
+.projektkopf h1 { font-size: 1.2rem; }
+.reiter { display: flex; gap: 0.25rem; }
+.reiter button { background: transparent; color: var(--muted); border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; }
+.reiter button.aktiv { color: var(--accent); border-bottom-color: var(--accent); }
+main { grid-template-columns: 1fr; flex: 1; align-content: start; }
+.statusleiste { padding: 0.35rem 1.25rem; border-top: 1px solid var(--border); background: var(--panel); }
+.start { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 2rem 1.25rem; flex: 1; align-content: start; }
+.daten { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1.5rem; margin: 0 0 1rem; }
+.daten dt { color: var(--muted); }
+.daten dd { margin: 0; }
+.raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.75rem; align-items: end; }
+.raster label, .spalte label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
+.raster input, .raster select { width: auto; }
+.spalte { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+.spalte input[type="number"] { width: auto; }
+.knoepfe { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.knoepfe.links { justify-content: flex-start; margin-bottom: 0.75rem; }
+button.link { background: none; color: var(--accent); padding: 0; text-decoration: underline; }
+.ergebnistabelle { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.ergebnistabelle th, .ergebnistabelle td { text-align: left; padding: 0.4rem 0.5rem; border-top: 1px solid var(--border); }
+.ergebnistabelle th { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.verstoss { color: #c62828; font-weight: 600; }
+.fehlertext { color: #c62828; }
+
+dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg); padding: 1.25rem; width: min(32rem, 90vw); }
+dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+.auswahlliste { max-height: 18rem; overflow-y: auto; margin: 0; border: 1px solid var(--border); border-radius: 6px; }
+.auswahlliste li { padding: 0.5rem 0.75rem; cursor: default; flex-direction: column; gap: 0.1rem; align-items: flex-start; }
+.auswahlliste li:first-child { border-top: none; }
+.auswahlliste li.aktiv { background: color-mix(in srgb, var(--accent) 15%, transparent); }

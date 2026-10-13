@@ -4,6 +4,7 @@
 mod bootstrap;
 mod commands;
 mod config;
+mod menu;
 mod updater;
 
 use tauri::Manager;
@@ -29,10 +30,12 @@ fn main() {
         // Fenstergröße, -position und Maximierung bleiben über Neustarts erhalten.
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let state = tauri::async_runtime::block_on(bootstrap::init(app.handle()))?;
             app.manage(state);
             app.manage(updater::PendingUpdate::default());
+            menu::install(app.handle())?;
             updater::check_in_background(app.handle().clone());
             Ok(())
         })
@@ -41,6 +44,10 @@ fn main() {
             commands::projekte_auflisten,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
+            commands::projekt_oeffnen,
+            commands::projekt_schliessen,
+            commands::zuletzt_geoeffnet,
+            commands::dokumente_auflisten,
             commands::dokument_importieren,
             commands::dokument_historie,
             commands::abstandsflaeche,

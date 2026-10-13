@@ -11,9 +11,10 @@ use core_lib::domain::{
 };
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::bootstrap::AppState;
+use crate::menu::{MenuState, ZuletztEintrag};
 
 /// Fehler, wie das Frontend sie sieht.
 #[derive(Debug, Serialize)]
@@ -100,6 +101,65 @@ pub async fn projekt_aktualisieren(
     aenderung: ProjectUpdate,
 ) -> CmdResult<Project> {
     Ok(state.core.update_project(aenderung).await?)
+}
+
+/// Öffnet ein Projekt: merkt es unter "Zuletzt geöffnet", aktiviert die
+/// projektbezogenen Menüpunkte und setzt den Fenstertitel.
+#[tauri::command]
+pub async fn projekt_oeffnen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    menu: State<'_, MenuState>,
+    id: ProjectId,
+) -> CmdResult<Project> {
+    let projekt = match state.core.get_project(id).await {
+        Ok(p) => p,
+        Err(e) => {
+            if matches!(e, CoreError::NotFound(_)) {
+                menu.vergiss_projekt(&app, &id.to_string());
+            }
+            return Err(e.into());
+        }
+    };
+    menu.merke_projekt(
+        &app,
+        ZuletztEintrag {
+            id: projekt.id.to_string(),
+            name: projekt.name.clone(),
+        },
+    );
+    menu.set_projekt_offen(true);
+    set_titel(&app, Some(&projekt.name));
+    Ok(projekt)
+}
+
+#[tauri::command]
+pub fn projekt_schliessen(app: AppHandle, menu: State<'_, MenuState>) {
+    menu.set_projekt_offen(false);
+    set_titel(&app, None);
+}
+
+#[tauri::command]
+pub fn zuletzt_geoeffnet(menu: State<'_, MenuState>) -> Vec<ZuletztEintrag> {
+    menu.zuletzt.lock().expect("Menü-Lock vergiftet").0.clone()
+}
+
+fn set_titel(app: &AppHandle, projekt: Option<&str>) {
+    let titel = match projekt {
+        Some(name) => format!("{name} – BauProjektIO"),
+        None => "BauProjektIO".to_owned(),
+    };
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_title(&titel);
+    }
+}
+
+#[tauri::command]
+pub async fn dokumente_auflisten(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<DocumentVersion>> {
+    Ok(state.core.list_documents(projekt_id).await?)
 }
 
 /// Importiert eine lokale Datei (z. B. per Drag & Drop) ins DMS.

@@ -4,45 +4,90 @@
   import {
     api,
     fehlertext,
+    istKonflikt,
+    landName,
     type AppInfo,
-    type Baugebiet,
-    type Bundesland,
     type Project,
+    type Projektwerte as Werte,
     type UpdateInfo,
+    type ZuletztEintrag,
   } from "./lib/api";
   import Abstandsflaeche from "./lib/Abstandsflaeche.svelte";
+  import Dialog from "./lib/Dialog.svelte";
+  import Dokumente from "./lib/Dokumente.svelte";
+  import MassDerNutzung from "./lib/MassDerNutzung.svelte";
+  import ProjektFormular from "./lib/ProjektFormular.svelte";
+  import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
+  import Startseite from "./lib/Startseite.svelte";
+
+  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente";
+  type DialogArt = "neu" | "oeffnen" | "projektdaten" | null;
 
   let info = $state<AppInfo | null>(null);
-  let projekte = $state<Project[]>([]);
+  let projekt = $state<Project | null>(null);
+  let ansicht = $state<Ansicht>("uebersicht");
+  let dialog = $state<DialogArt>(null);
+  let zuletzt = $state<ZuletztEintrag[]>([]);
   let fehler = $state<string | null>(null);
+  let hinweis = $state<string | null>(null);
   let update = $state<UpdateInfo | null>(null);
   let installiere = $state(false);
+  let importAusloeser = $state(0);
 
-  let neuName = $state("");
-  let neuLand = $state<Bundesland>("BY");
-  let neuFlaeche = $state<number | null>(null);
+  const melde = (e: unknown) => (fehler = fehlertext(e));
 
-  async function laden() {
+  async function oeffnen(id: string) {
+    dialog = null;
     try {
-      [info, projekte] = await Promise.all([api.appInfo(), api.projekte()]);
+      projekt = await api.projektOeffnen(id);
+      ansicht = "uebersicht";
     } catch (e) {
-      fehler = fehlertext(e);
+      melde(e);
+    }
+    zuletzt = await api.zuletzt();
+  }
+
+  async function schliessen() {
+    projekt = null;
+    await api.projektSchliessen();
+    zuletzt = await api.zuletzt();
+  }
+
+  async function anlegen(werte: Werte) {
+    try {
+      const neu = await api.projektAnlegen(werte);
+      await oeffnen(neu.id);
+    } catch (e) {
+      melde(e);
     }
   }
 
-  async function anlegen(event: SubmitEvent) {
-    event.preventDefault();
+  async function speichern(werte: Werte) {
+    if (!projekt) return;
     try {
-      await api.projektAnlegen({
-        name: neuName,
-        bundesland: neuLand,
-        grundstuecksflaeche_m2: neuFlaeche,
+      projekt = await api.projektAktualisieren({
+        id: projekt.id,
+        expected_version: projekt.version,
+        ...werte,
       });
-      neuName = "";
-      neuFlaeche = null;
-      projekte = await api.projekte();
+      dialog = null;
     } catch (e) {
-      fehler = fehlertext(e);
+      if (istKonflikt(e)) {
+        // Optimistic Locking: jemand anderes hat das Projekt geändert.
+        fehler = "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
+        projekt = await api.projektOeffnen(projekt.id);
+      } else {
+        melde(e);
+      }
+    }
+  }
+
+  async function updatePruefen() {
+    try {
+      update = await api.updatePruefen();
+      if (!update) hinweis = "BauProjektIO ist auf dem neuesten Stand.";
+    } catch (e) {
+      melde(e);
     }
   }
 
@@ -51,29 +96,54 @@
     try {
       await api.updateInstallieren(); // startet die App neu
     } catch (e) {
-      fehler = fehlertext(e);
+      melde(e);
       installiere = false;
     }
   }
 
+  function menue(id: string) {
+    if (id.startsWith("zuletzt:")) {
+      oeffnen(id.slice("zuletzt:".length));
+      return;
+    }
+    switch (id) {
+      case "datei.neu": dialog = "neu"; break;
+      case "datei.oeffnen": dialog = "oeffnen"; break;
+      case "datei.schliessen": schliessen(); break;
+      case "datei.importieren": ansicht = "dokumente"; importAusloeser++; break;
+      case "bearbeiten.projektdaten": dialog = "projektdaten"; break;
+      case "ansicht.dokumente": ansicht = "dokumente"; break;
+      case "berechnung.mass": ansicht = "mass"; break;
+      case "berechnung.abstand": ansicht = "abstand"; break;
+      case "hilfe.updates": updatePruefen(); break;
+      // Nur unter Linux als eigene Menüpunkte (siehe menu.rs).
+      case "bearbeiten.rueckgaengig": document.execCommand("undo"); break;
+      case "bearbeiten.wiederholen": document.execCommand("redo"); break;
+    }
+  }
+
   onMount(() => {
-    laden();
-    const ab = listen<UpdateInfo>("update-verfuegbar", (e) => (update = e.payload));
-    return () => {
-      ab.then((f) => f());
-    };
+    (async () => {
+      try {
+        [info, zuletzt] = await Promise.all([api.appInfo(), api.zuletzt()]);
+      } catch (e) {
+        melde(e);
+      }
+    })();
+    const ab = [
+      listen<string>("menu", (e) => menue(e.payload)),
+      listen<UpdateInfo>("update-verfuegbar", (e) => (update = e.payload)),
+    ];
+    return () => ab.forEach((p) => p.then((f) => f()));
   });
 
-  const laender: Bundesland[] = ["BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", "NI", "NW", "RP", "SL", "SN", "ST", "SH", "TH"];
-  const gebiete: Baugebiet[] = ["WS", "WR", "WA", "WB", "MD", "MDW", "MI", "MU", "MK", "GE", "GI", "SO"];
+  const reiter: { id: Ansicht; text: string }[] = [
+    { id: "uebersicht", text: "Übersicht" },
+    { id: "mass", text: "Maß der Nutzung" },
+    { id: "abstand", text: "Abstandsflächen" },
+    { id: "dokumente", text: "Dokumente" },
+  ];
 </script>
-
-<header>
-  <h1>BauProjektIO</h1>
-  {#if info}
-    <span class="meta">v{info.version} · {info.modus} · Ablage: {info.storage}</span>
-  {/if}
-</header>
 
 {#if update}
   <div class="banner">
@@ -92,31 +162,98 @@
   </div>
 {/if}
 
-<main>
-  <section>
-    <h2>Projekte</h2>
-    <form onsubmit={anlegen}>
-      <input placeholder="Projektname" bind:value={neuName} required />
-      <select bind:value={neuLand}>
-        {#each laender as land}<option value={land}>{land}</option>{/each}
-      </select>
-      <input type="number" min="1" step="0.01" placeholder="Grundstück m²" bind:value={neuFlaeche} />
-      <button type="submit">Anlegen</button>
-    </form>
-    <ul>
-      {#each projekte as p (p.id)}
-        <li>
-          <strong>{p.name}</strong>
-          <span class="meta">{p.bundesland}{p.grundstuecksflaeche_m2 ? ` · ${p.grundstuecksflaeche_m2} m²` : ""} · Version {p.version}</span>
-        </li>
-      {:else}
-        <li class="meta">Noch keine Projekte.</li>
-      {/each}
-    </ul>
-  </section>
+{#if hinweis}
+  <div class="banner" role="status">
+    {hinweis}
+    <button class="sekundaer" onclick={() => (hinweis = null)}>OK</button>
+  </div>
+{/if}
 
-  <section>
-    <h2>Abstandsfläche</h2>
-    <Abstandsflaeche {laender} {gebiete} regelpakete={info?.regelpakete ?? []} onfehler={(m) => (fehler = m)} />
-  </section>
-</main>
+{#if projekt}
+  <header class="projektkopf">
+    <div>
+      <h1>{projekt.name}</h1>
+      <span class="meta">
+        {landName(projekt.bundesland)}
+        {projekt.grundstuecksflaeche_m2 ? ` · Grundstück ${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²` : ""}
+      </span>
+    </div>
+    <nav class="reiter" aria-label="Projektbereiche">
+      {#each reiter as r}
+        <button class:aktiv={ansicht === r.id} aria-current={ansicht === r.id} onclick={() => (ansicht = r.id)}>{r.text}</button>
+      {/each}
+    </nav>
+  </header>
+
+  <main>
+    {#if ansicht === "uebersicht"}
+      <section>
+        <h2>Projektdaten</h2>
+        <dl class="daten">
+          <dt>Name</dt><dd>{projekt.name}</dd>
+          <dt>Bundesland</dt><dd>{landName(projekt.bundesland)}</dd>
+          <dt>Grundstücksfläche</dt><dd>{projekt.grundstuecksflaeche_m2 ? `${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²` : "–"}</dd>
+          <dt>Angelegt</dt><dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
+          <dt>Zuletzt geändert</dt><dd>{new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})</dd>
+        </dl>
+        <button class="sekundaer" onclick={() => (dialog = "projektdaten")}>Bearbeiten …</button>
+      </section>
+    {:else if ansicht === "mass"}
+      <section>
+        <h2>Maß der baulichen Nutzung</h2>
+        {#key projekt.id}
+          <MassDerNutzung grundstuecksflaeche={projekt.grundstuecksflaeche_m2} onfehler={melde} />
+        {/key}
+      </section>
+    {:else if ansicht === "abstand"}
+      <section>
+        <h2>Abstandsflächen</h2>
+        {#key projekt.id}
+          <Abstandsflaeche startLand={projekt.bundesland} regelpakete={info?.regelpakete ?? []} onfehler={melde} />
+        {/key}
+      </section>
+    {/if}
+    <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
+    <section hidden={ansicht !== "dokumente"}>
+      <h2>Dokumente</h2>
+      <Dokumente projektId={projekt.id} {importAusloeser} onfehler={melde} />
+    </section>
+  </main>
+{:else}
+  <Startseite
+    {zuletzt}
+    onneu={() => (dialog = "neu")}
+    onoeffnen={() => (dialog = "oeffnen")}
+    onzuletzt={oeffnen}
+  />
+{/if}
+
+<footer class="statusleiste meta">
+  {#if info}
+    BauProjektIO {info.version} · {info.modus} · Ablage: {info.storage} · LBO-Regelpakete: {info.regelpakete.map((r) => r.land).join(", ") || "keine"}
+  {/if}
+</footer>
+
+{#if dialog === "neu"}
+  <Dialog titel="Neues Projekt" onclose={() => (dialog = null)}>
+    <ProjektFormular
+      start={{ name: "", bundesland: projekt?.bundesland ?? "BY", grundstuecksflaeche_m2: null }}
+      knopf="Anlegen"
+      absenden={anlegen}
+      onabbrechen={() => (dialog = null)}
+    />
+  </Dialog>
+{:else if dialog === "oeffnen"}
+  <Dialog titel="Projekt öffnen" onclose={() => (dialog = null)}>
+    <ProjektOeffnen onoeffnen={oeffnen} onabbrechen={() => (dialog = null)} />
+  </Dialog>
+{:else if dialog === "projektdaten" && projekt}
+  <Dialog titel="Projektdaten" onclose={() => (dialog = null)}>
+    <ProjektFormular
+      start={{ name: projekt.name, bundesland: projekt.bundesland, grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2 }}
+      knopf="Speichern"
+      absenden={speichern}
+      onabbrechen={() => (dialog = null)}
+    />
+  </Dialog>
+{/if}
