@@ -7,6 +7,7 @@
 //! | `BAUPROJEKT_DATABASE_URL`  | `postgres://user:pw@db/bauprojekt` oder `sqlite:///data/bp.db` |
 //! | `BAUPROJEKT_STORAGE`       | `{"type":"nas","root":"/mnt/nas/bauprojekt"}`     |
 //! | `BAUPROJEKT_LBO_DIR`       | `/opt/bauprojekt/lbo-rules`                       |
+//! | `BAUPROJEKT_FORMULAR_DIR`  | `/opt/bauprojekt/formulare`                       |
 //! | `BAUPROJEKT_BIND`          | `0.0.0.0:8080`                                    |
 
 mod api;
@@ -14,6 +15,7 @@ mod api;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use core_lib::formular::Formularkatalog;
 use core_lib::lbo::LboEngine;
 use core_lib::license::DevelopmentLicense;
 use core_lib::repository::Repositories;
@@ -55,6 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r#"{"type":"local","root":"bauprojekt-dateien"}"#,
     ))?;
     let lbo_dir = PathBuf::from(env_or("BAUPROJEKT_LBO_DIR", "lbo-rules"));
+    let formular_dir = PathBuf::from(env_or("BAUPROJEKT_FORMULAR_DIR", "formulare"));
     let bind = env_or("BAUPROJEKT_BIND", "127.0.0.1:8080");
 
     let repos = connect_database(&database_url).await?;
@@ -68,7 +71,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(anzahl = geladen.len(), dir = %lbo_dir.display(), "LBO-Regelpakete geladen");
 
     // TODO: Netzwerk-Lizenzserver statt Entwicklungslizenz injizieren.
-    let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense));
+    let mut formulare = Formularkatalog::default();
+    for e in formulare.laden(&formular_dir)? {
+        tracing::error!(error = %e, "Formularvorlage nicht geladen");
+    }
+
+    let core = CoreServices::new(repos, storage, lbo, Arc::new(DevelopmentLicense))
+        .mit_formularen(formulare);
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "BauProjektIO-Server gestartet");

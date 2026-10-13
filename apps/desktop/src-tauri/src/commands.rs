@@ -1,6 +1,7 @@
 //! Tauri-Commands: nur Übersetzung zwischen IPC und core-lib.
 //! Hier liegt bewusst keine Geschäftslogik.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use bytes::Bytes;
@@ -9,7 +10,9 @@ use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebni
 use core_lib::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
 };
+use core_lib::formular::Feldwert;
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
+use core_lib::service::FormularAnalyse;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -183,6 +186,42 @@ pub async fn dokument_importieren(
         .core
         .store_document(projekt_id, dokument_id, &name, Bytes::from(data), &user)
         .await?)
+}
+
+#[tauri::command]
+pub async fn formular_analysieren(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+) -> CmdResult<FormularAnalyse> {
+    Ok(state.core.formular_analysieren(dokument_id).await?)
+}
+
+/// Befüllt das Formular und legt es als neues Dokument im Projekt ab.
+#[tauri::command]
+pub async fn formular_ausfuellen(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    werte: BTreeMap<String, Feldwert>,
+) -> CmdResult<DocumentVersion> {
+    Ok(state
+        .core
+        .formular_ausfuellen(dokument_id, &werte, &whoami())
+        .await?)
+}
+
+/// Schreibt die aktuelle Version eines Dokuments an einen vom Nutzer
+/// gewählten Ort (z. B. zum Einreichen beim Bauamt).
+#[tauri::command]
+pub async fn dokument_exportieren(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    ziel: PathBuf,
+) -> CmdResult<()> {
+    let (_, data) = state.core.load_document(dokument_id).await?;
+    tokio::fs::write(&ziel, &data).await.map_err(|e| CmdError {
+        art: "datei",
+        meldung: format!("{}: {e}", ziel.display()),
+    })
 }
 
 #[tauri::command]

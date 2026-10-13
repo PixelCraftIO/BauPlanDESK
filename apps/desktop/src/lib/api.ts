@@ -87,6 +87,26 @@ export interface Pruefergebnis {
   bmz_eingehalten: boolean | null;
 }
 
+export type Feldart = "text" | "ankreuzfeld" | "optionsfeld" | "auswahl" | "sonstiges";
+export type Feldwert = string | boolean;
+
+export interface Formularfeld {
+  name: string;
+  beschriftung: string | null;
+  art: Feldart;
+  wert: Feldwert | null;
+  optionen: string[];
+  schreibgeschuetzt: boolean;
+  max_laenge: number | null;
+}
+
+export interface FormularAnalyse {
+  dokument: DocumentVersion;
+  felder: Formularfeld[];
+  vorlage: { id: string; titel: string; version: string } | null;
+  vorschlag: Record<string, Feldwert>;
+}
+
 export interface CmdError {
   art: string;
   meldung: string;
@@ -109,6 +129,12 @@ export const api = {
     invoke<DocumentVersion[]>("dokumente_auflisten", { projektId }),
   dokumentImportieren: (projektId: string, pfad: string, dokumentId: string | null = null) =>
     invoke<DocumentVersion>("dokument_importieren", { projektId, dokumentId, pfad }),
+  formularAnalysieren: (dokumentId: string) =>
+    invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
+  formularAusfuellen: (dokumentId: string, werte: Record<string, Feldwert>) =>
+    invoke<DocumentVersion>("formular_ausfuellen", { dokumentId, werte }),
+  dokumentExportieren: (dokumentId: string, ziel: string) =>
+    invoke<void>("dokument_exportieren", { dokumentId, ziel }),
   massDerNutzung: (eingabe: MassDerNutzung, gebiet: Baugebiet) =>
     invoke<Pruefergebnis>("mass_der_nutzung", { eingabe, gebiet, festsetzungen: null }),
   abstandsflaeche: (land: Bundesland, eingabe: { wandhoehe_m: number; gebiet: Baugebiet }) =>

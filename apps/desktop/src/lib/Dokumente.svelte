@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { open } from "@tauri-apps/plugin-dialog";
+  import { open, save } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, type DocumentVersion } from "./api";
+  import Dialog from "./Dialog.svelte";
+  import FormularAusfuellen from "./FormularAusfuellen.svelte";
 
   let {
     projektId,
@@ -10,6 +12,32 @@
 
   let versionen = $state<DocumentVersion[]>([]);
   let laeuft = $state(false);
+  let formular = $state<DocumentVersion | null>(null);
+  let hinweis = $state<string | null>(null);
+
+  const istPdf = (d: DocumentVersion) => d.file_name.toLowerCase().endsWith(".pdf");
+
+  async function exportieren(doc: DocumentVersion) {
+    const ziel = await save({
+      title: "Dokument exportieren",
+      defaultPath: doc.file_name,
+      filters: istPdf(doc) ? [{ name: "PDF", extensions: ["pdf"] }] : [],
+    });
+    if (!ziel) return;
+    try {
+      await api.dokumentExportieren(doc.document_id, ziel);
+      hinweis = `${doc.file_name} wurde exportiert.`;
+    } catch (e) {
+      onfehler(fehlertext(e));
+    }
+  }
+
+  async function formularFertig(ergebnis: DocumentVersion) {
+    formular = null;
+    await laden();
+    hinweis = `${ergebnis.file_name} wurde abgelegt.`;
+    await exportieren(ergebnis);
+  }
 
   // Je Dokument nur die neueste Version anzeigen, ältere als Historie zählen.
   const dokumente = $derived.by(() => {
@@ -77,6 +105,10 @@
   <button onclick={() => importieren()} disabled={laeuft}>{laeuft ? "Importiere …" : "Dokumente importieren …"}</button>
 </div>
 
+{#if hinweis}
+  <p class="meta" role="status">{hinweis}</p>
+{/if}
+
 <table class="ergebnistabelle">
   <thead><tr><th>Datei</th><th>Version</th><th>Größe</th><th>Geändert</th><th></th></tr></thead>
   <tbody>
@@ -86,10 +118,20 @@
         <td>{doc.version}{anzahl > 1 ? ` (${anzahl} Versionen)` : ""}</td>
         <td>{groesse(doc.size_bytes)}</td>
         <td>{new Date(doc.created_at).toLocaleString("de-DE")} · {doc.created_by}</td>
-        <td><button class="link" onclick={() => importieren(doc.document_id)}>Neue Version …</button></td>
+        <td class="aktionen">
+          {#if istPdf(doc)}<button class="link" onclick={() => (formular = doc)}>Formular ausfüllen …</button>{/if}
+          <button class="link" onclick={() => exportieren(doc)}>Exportieren …</button>
+          <button class="link" onclick={() => importieren(doc.document_id)}>Neue Version …</button>
+        </td>
       </tr>
     {:else}
       <tr><td colspan="5" class="meta">Noch keine Dokumente. Ziehen Sie Dateien über „Datei → Dokument importieren“ ins Projekt.</td></tr>
     {/each}
   </tbody>
 </table>
+
+{#if formular}
+  <Dialog titel="Formular ausfüllen" onclose={() => (formular = null)}>
+    <FormularAusfuellen dokumentId={formular.document_id} onfertig={formularFertig} onabbrechen={() => (formular = null)} />
+  </Dialog>
+{/if}

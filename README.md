@@ -89,6 +89,24 @@ dann Updates aus `<App-Daten>/lbo-rules/`.
 > Die enthaltenen Regelpakete (BY, BW, NW) sind **beispielhaft** und müssen vor
 > produktivem Einsatz fachlich und rechtlich geprüft werden.
 
+## PDF-Formulare
+
+[`crates/core-lib/src/formular`](crates/core-lib/src/formular) liest die
+Formularfelder (AcroForm) amtlicher PDF-Formulare, schlägt Werte aus den
+Projektdaten vor und schreibt das befüllte PDF als neues Dokument ins DMS;
+das leere Original bleibt erhalten. Welche Projektdaten in welches Feld gehören,
+steht in Vorlagen unter [`formulare/`](formulare) (JSON, ohne Neukompilierung
+aktualisierbar). In der App: *Dokumente → Formular ausfüllen …*, danach
+*Exportieren …* zum Einreichen.
+
+```sh
+cargo run -p core-lib --features testdaten --example musterformular -- muster.pdf
+```
+
+Noch offen: eigene Darstellungs-Streams (derzeit setzt die App
+`NeedAppearances`, die meisten Viewer zeichnen die Werte dann selbst),
+Signaturfelder und verschlüsselte Formulare.
+
 ## Desktop-App
 
 * **Betriebsart** über `<App-Konfiguration>/config.json`; ohne Datei startet die

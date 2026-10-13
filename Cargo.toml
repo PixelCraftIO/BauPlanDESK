@@ -53,6 +53,7 @@ object_store = { version = "0.14", default-features = false }
 futures = "0.3"
 axum = "0.8"
 tempfile = "3"
+lopdf = { version = "0.45", default-features = false }
 
 [profile.release]
 codegen-units = 1

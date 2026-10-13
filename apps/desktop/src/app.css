@@ -79,3 +79,12 @@ dialog::backdrop { background: rgb(0 0 0 / 0.35); }
 .auswahlliste li { padding: 0.5rem 0.75rem; cursor: default; flex-direction: column; gap: 0.1rem; align-items: flex-start; }
 .auswahlliste li:first-child { border-top: none; }
 .auswahlliste li.aktiv { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+
+/* --- Formulare --- */
+dialog:has(.formularfelder) { width: min(48rem, 92vw); }
+.formularfelder { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1rem; max-height: 55vh; overflow-y: auto; padding-right: 0.25rem; }
+.formularfelder label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+.formularfelder label.vorschlag input, .formularfelder label.vorschlag select { border-color: var(--accent); }
+.formularfelder input[type="checkbox"] { align-self: flex-start; }
+.zeile { display: flex; gap: 0.4rem; align-items: center; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+.aktionen { display: flex; gap: 0.75rem; flex-wrap: wrap; }

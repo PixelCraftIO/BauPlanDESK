@@ -23,3 +23,8 @@ tokio = { workspace = true, features = ["net", "signal"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+core-lib = { workspace = true, features = ["testdaten"] }
+tempfile.workspace = true

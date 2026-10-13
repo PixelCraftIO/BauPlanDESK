@@ -1,16 +1,19 @@
 //! Anwendungsfälle. Tauri-Commands und axum-Handler rufen ausschließlich
 //! diese Methoden auf und enthalten selbst keine Geschäftslogik.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use chrono::Utc;
+use serde::Serialize;
 
 use crate::calc::{self, Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use crate::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
 };
 use crate::error::{CoreError, CoreResult};
+use crate::formular::{self, Feldwert, Formularfeld, Formularkatalog, Projektkontext};
 use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboEngine};
 use crate::license::LicenseProvider;
 use crate::repository::Repositories;
@@ -29,6 +32,25 @@ pub struct CoreServices {
     pub storage: Arc<dyn Storage>,
     pub lbo: Arc<LboEngine>,
     pub license: Arc<dyn LicenseProvider>,
+    pub formulare: Arc<Formularkatalog>,
+}
+
+/// Ergebnis der Analyse eines PDF-Formulars aus dem DMS.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FormularAnalyse {
+    pub dokument: DocumentVersion,
+    pub felder: Vec<Formularfeld>,
+    /// Erkannte Vorlage (id, Titel, Version), falls vorhanden.
+    pub vorlage: Option<VorlageInfo>,
+    /// Vorgeschlagene Werte aus den Projektdaten.
+    pub vorschlag: BTreeMap<String, Feldwert>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct VorlageInfo {
+    pub id: String,
+    pub titel: String,
+    pub version: String,
 }
 
 impl CoreServices {
@@ -43,7 +65,14 @@ impl CoreServices {
             storage,
             lbo,
             license,
+            formulare: Arc::new(Formularkatalog::default()),
         }
+    }
+
+    /// Formularvorlagen injizieren (siehe [`crate::formular::vorlage`]).
+    pub fn mit_formularen(mut self, katalog: Formularkatalog) -> Self {
+        self.formulare = Arc::new(katalog);
+        self
     }
 
     // --- Projekte -------------------------------------------------------
@@ -113,6 +142,60 @@ impl CoreServices {
     /// Alle Versionen aller Dokumente eines Projekts.
     pub async fn list_documents(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
         self.repos.documents.list_for_project(project).await
+    }
+
+    // --- PDF-Formulare ---------------------------------------------------
+
+    /// Liest die Felder eines PDF-Formulars aus dem DMS und schlägt Werte aus
+    /// den Projektdaten vor.
+    pub async fn formular_analysieren(&self, id: DocumentId) -> CoreResult<FormularAnalyse> {
+        let (dokument, pdf) = self.load_document(id).await?;
+        let projekt = self.repos.projects.get(dokument.project_id).await?;
+        let felder = formular::pdf::felder_lesen(&pdf)?;
+        if felder.is_empty() {
+            return Err(CoreError::InvalidInput(format!(
+                "{} enthält keine ausfüllbaren Formularfelder",
+                dokument.file_name
+            )));
+        }
+        let vorlage = self.formulare.erkenne(&felder);
+        let vorschlag =
+            formular::vorlage::vorschlag(&felder, vorlage, &Projektkontext::aus_projekt(&projekt));
+        Ok(FormularAnalyse {
+            vorlage: vorlage.map(|v| VorlageInfo {
+                id: v.id.clone(),
+                titel: v.titel.clone(),
+                version: v.version.clone(),
+            }),
+            dokument,
+            felder,
+            vorschlag,
+        })
+    }
+
+    /// Befüllt das Formular und legt das Ergebnis als neues Dokument im
+    /// selben Projekt ab; das leere Original bleibt unverändert.
+    pub async fn formular_ausfuellen(
+        &self,
+        id: DocumentId,
+        werte: &BTreeMap<String, Feldwert>,
+        user: &str,
+    ) -> CoreResult<DocumentVersion> {
+        let (original, pdf) = self.load_document(id).await?;
+        let ausgefuellt = formular::pdf::befuellen(&pdf, werte)?;
+        let stamm = original
+            .file_name
+            .strip_suffix(".pdf")
+            .or_else(|| original.file_name.strip_suffix(".PDF"))
+            .unwrap_or(&original.file_name);
+        self.store_document(
+            original.project_id,
+            None,
+            &format!("{stamm} (ausgefüllt).pdf"),
+            Bytes::from(ausgefuellt),
+            user,
+        )
+        .await
     }
 
     pub async fn document_history(&self, id: DocumentId) -> CoreResult<Vec<DocumentVersion>> {

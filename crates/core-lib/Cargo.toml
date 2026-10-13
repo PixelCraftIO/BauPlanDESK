@@ -14,6 +14,7 @@ async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 hex.workspace = true
+lopdf.workspace = true
 rhai.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -22,5 +23,13 @@ thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
+[features]
+# Stellt Beispiel-PDFs für Tests anderer Crates bereit.
+testdaten = []
+
 [dev-dependencies]
 tokio.workspace = true
+
+[[example]]
+name = "musterformular"
+required-features = ["testdaten"]
