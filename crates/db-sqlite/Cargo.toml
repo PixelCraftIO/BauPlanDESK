@@ -1,0 +1,18 @@
+[package]
+name = "db-sqlite"
+description = "SQLite-Implementierung der core-lib-Repositories (Einzelplatz)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+core-lib.workspace = true
+sqlx = { workspace = true, features = ["sqlite"] }
+uuid.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

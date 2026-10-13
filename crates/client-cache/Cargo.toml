@@ -1,0 +1,20 @@
+[package]
+name = "client-cache"
+description = "Lokaler Datei-Cache der Desktop-App für den Server-/Cloud-Modus (Hash-validiert, LRU)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bytes.workspace = true
+core-lib.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+storage = { workspace = true, default-features = false }
+tempfile.workspace = true

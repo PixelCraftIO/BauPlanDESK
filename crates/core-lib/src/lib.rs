@@ -1,0 +1,23 @@
+//! # core-lib
+//!
+//! Die gesamte Geschäftslogik von BauProjektIO. Dieses Crate wird
+//! unverändert in die Tauri-Desktop-App (Einzelplatz) und in den
+//! axum-Server (NAS/Büro/Cloud) eingebunden.
+//!
+//! Regeln für dieses Crate:
+//! * keine Abhängigkeit auf eine konkrete Datenbank, ein Dateisystem, Tauri oder axum,
+//! * Persistenz nur über die Traits in [`repository`],
+//! * Dateien nur über den Trait [`storage::Storage`],
+//! * landesrechtliche Regeln nur über Skripte der [`lbo`]-Engine.
+
+pub mod calc;
+pub mod domain;
+pub mod error;
+pub mod lbo;
+pub mod license;
+pub mod repository;
+pub mod service;
+pub mod storage;
+
+pub use error::{CoreError, CoreResult};
+pub use service::CoreServices;
