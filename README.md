@@ -5,6 +5,12 @@ BauGB/BauNVO und den 16 Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
 XBau-Export und DMS. Läuft als native Desktop-App (Einzelplatz), als
 NAS-/Büro-Server und optional in der Cloud.
 
+## Plattformstrategie
+
+[Analyse der Anwendung, Zielarchitektur und priorisierter Maßnahmenplan](docs/plattform-analyse/README.md)
+bewertet Fachabläufe, Oberfläche, Modulverträge und den Ausbau zur Büroplattform
+mit konkreten Fundstellen und Prüfprotokollen.
+
 ## Entwicklungsregeln
 
 [Verbindliche Regeln für eigenständige Fachmodule und stabile Schnittstellen](docs/entwicklungsregeln.md)
