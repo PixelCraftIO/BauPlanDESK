@@ -172,6 +172,7 @@
 
   const groesse = (b: number) =>
     b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`;
+export function istBeschaeftigt() { return laeuft || !!formular || !!historie; }
 </script>
 
 <div class="knoepfe links">

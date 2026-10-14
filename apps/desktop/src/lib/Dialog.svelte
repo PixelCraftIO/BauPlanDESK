@@ -4,9 +4,10 @@
   let {
     titel,
     breit = false,
+    schliessenErlaubt = true,
     onclose,
     children,
-  }: { titel: string; breit?: boolean; onclose: () => void; children: Snippet } = $props();
+  }: { titel: string; breit?: boolean; schliessenErlaubt?: boolean; onclose: () => void; children: Snippet } = $props();
 
   let dialog: HTMLDialogElement;
 
@@ -17,7 +18,7 @@
 </script>
 
 <!-- Natives modales <dialog>: Escape schließt, Fokus bleibt im Dialog. -->
-<dialog bind:this={dialog} class:breit onclose={onclose} aria-labelledby="dialog-titel">
+<dialog bind:this={dialog} class:breit onclose={onclose} oncancel={(e)=>{if(!schliessenErlaubt)e.preventDefault();}} aria-labelledby="dialog-titel">
   <h2 id="dialog-titel">{titel}</h2>
   {@render children()}
 </dialog>

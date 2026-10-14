@@ -1,0 +1,24 @@
+{
+  "browser": "Chromium / Playwright",
+  "checks": [
+    "Änderungen markieren Nachweise als veraltet; Speichern und erneutes Prüfen funktionieren.",
+    "Escape erhält Eingaben; Verwerfen stellt zuletzt gespeicherte Werte wieder her; Grundstück B wird separat geprüft.",
+    "Projekt- und Dokumentensuche, Typfilter und Projektsortierung funktionieren; leere Trefferliste enthält keine Öffnen-Aktion.",
+    "Alle zehn Fachansichten ohne JavaScript-Fehler erreichbar."
+  ],
+  "responsive": [
+    {
+      "width": 1024,
+      "horizontaler_seitenoverflow": false
+    },
+    {
+      "width": 768,
+      "horizontaler_seitenoverflow": false
+    },
+    {
+      "width": 620,
+      "horizontaler_seitenoverflow": false
+    }
+  ],
+  "javascript_errors": []
+}

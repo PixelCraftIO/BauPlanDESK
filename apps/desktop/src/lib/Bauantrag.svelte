@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { save } from "@tauri-apps/plugin-dialog";
+  import { save, ask } from "@tauri-apps/plugin-dialog";
   import {
     CODELISTE_ANLAGEN,
     MASSNAHMEN,
@@ -121,6 +121,10 @@
     });
   });
 
+  async function neuLaden() {
+    if (geaendert && !(await ask("Ungespeicherte Antragsdaten verwerfen und den aktuellen Stand laden?", {title:"Bauantrag",kind:"warning",okLabel:"Stand laden",cancelLabel:"Weiter bearbeiten"}))) return;
+    laeuft=true;try{await laden();}finally{laeuft=false;}
+  }
   async function kundenLaden() {
     if (kunden.length === 0) kunden = await api.kunden().catch(() => []);
   }
@@ -133,8 +137,7 @@
       return true;
     } catch (e) {
       if (istKonflikt(e)) {
-        onfehler("Der Bauantrag wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.");
-        await laden();
+        onfehler("Der Bauantrag wurde inzwischen an einem anderen Arbeitsplatz geändert. Ihre Eingaben bleiben erhalten; bitte den aktuellen Stand abgleichen.");
       } else {
         onfehler(fehlertext(e));
       }
@@ -207,6 +210,10 @@
   }
 
   const dokumentName = (id: string) => dokumente.find((d) => d.document_id === id)?.file_name ?? "(gelöscht)";
+
+  export function hatAenderungen() { return geaendert; }
+  export function istBeschaeftigt() { return laeuft; }
+  export async function speichernBeimSchliessen(): Promise<boolean> { if (istBeschaeftigt()) return false; await speichern(); return !hatAenderungen(); }
 </script>
 
 {#if antrag && gespeichert}
@@ -215,6 +222,7 @@
       <button onclick={speichern} disabled={!darf || !geaendert || laeuft}>Speichern</button>
       <button class="sekundaer" onclick={() => antrag && gespeichert && (antrag = structuredClone(gespeichert.antrag))} disabled={!geaendert || laeuft}>Verwerfen</button>
       <button onclick={exportieren} disabled={laeuft}>Als XBau exportieren …</button>
+      <button class="sekundaer" onclick={neuLaden} disabled={laeuft}>Aktuellen Stand laden</button>
       <button class="sekundaer" onclick={onbuero}>Büroangaben …</button>
     </div>
     <p class="meta">

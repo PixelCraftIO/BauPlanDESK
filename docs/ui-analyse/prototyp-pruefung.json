@@ -1,0 +1,25 @@
+{
+  "browser": "Chromium",
+  "javascript_fehler": [],
+  "pruefungen": [
+    "Projektfilter mit leerer Ergebnismenge",
+    "Projekt-/Bereichsnavigation",
+    "Grundstückswechsel",
+    "Lokale Flächenänderung",
+    "Escape behält Entwurf",
+    "Verwerfen stellt zuletzt lokal gespeicherte Werte her",
+    "GRZ-/GFZ-Überschreitung auf Grundstück B",
+    "Dokumentfilter",
+    "Kunden-/Verwaltungsansicht"
+  ],
+  "responsive": [
+    {
+      "width": 1024,
+      "horizontaler_seitenoverflow": false
+    },
+    {
+      "width": 768,
+      "horizontaler_seitenoverflow": false
+    }
+  ]
+}

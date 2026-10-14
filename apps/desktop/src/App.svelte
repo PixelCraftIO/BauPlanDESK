@@ -1,17 +1,13 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { listen } from "@tauri-apps/api/event";
   import {
     api,
     fehlertext,
     istKonflikt,
-    kategorieName,
-    kundenname,
-    landName,
     mindestens,
     rollenName,
-    rechtsgrundlageName,
-    bebauungsplanName,
     type AppInfo,
     type Benutzer,
     type Kunde,
@@ -21,93 +17,214 @@
     type UpdateInfo,
     type ZuletztEintrag,
   } from "./lib/api";
-  import Abstandsflaeche from "./lib/Abstandsflaeche.svelte";
-  import Bauantrag from "./lib/Bauantrag.svelte";
+  import Projektakte from "./lib/Projektakte.svelte";
+  import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
+  import { reiter, type Ansicht } from "./lib/projektSitzung";
   import BauherrenDialog from "./lib/Bauherren.svelte";
   import Benutzerverwaltung from "./lib/Benutzerverwaltung.svelte";
   import BueroDialog from "./lib/Buero.svelte";
   import Dialog from "./lib/Dialog.svelte";
-  import Dokumente from "./lib/Dokumente.svelte";
   import Kunden from "./lib/Kunden.svelte";
-  import MassDerNutzung from "./lib/MassDerNutzung.svelte";
   import ProjektFormular from "./lib/ProjektFormular.svelte";
-  import Plaene from "./lib/Plaene.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
-  import Protokoll from "./lib/Protokoll.svelte";
   import LizenzDialog from "./lib/Lizenz.svelte";
-  import Rechtsgrundlagen from "./lib/Rechtsgrundlagen.svelte";
-  import Startseite from "./lib/Startseite.svelte";
 
-  type Ansicht = "rechtsgrundlagen" | "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "bauantrag" | "protokoll";
-  type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "buero" | "lizenz" | "kunden" | "bauherren" | null;
+  type DialogArt =
+    | "neu"
+    | "oeffnen"
+    | "projektdaten"
+    | "benutzer"
+    | "buero"
+    | "lizenz"
+    | "kunden"
+    | "bauherren"
+    | null;
 
   let info = $state<AppInfo | null>(null);
-  let projekt = $state<Project | null>(null);
-  let planEditor = $state<{ verwerfenErlaubt: () => Promise<boolean> }>();
-  let nutzungsEditor = $state<{ verwerfenErlaubt: () => Promise<boolean> }>();
-  let rechtsEditor = $state<{ verwerfenErlaubt: () => Promise<boolean> }>();
-  let ansicht = $state<Ansicht>("uebersicht");
+  type Sitzung = {
+    projekt: Project;
+    ansicht: Ansicht;
+    planDokument: string | null;
+    importAusloeser: number;
+    exportAusloeser: number;
+    editor?: Projektakte;
+  };
+  let sitzungen = $state<Sitzung[]>([]);
+  let aktiveId = $state<string | null>(null);
+  let globalAnsicht = $state<"projekte" | "kunden" | "verwaltung" | null>(
+    "projekte",
+  );
+  const aktiv = $derived(sitzungen.find((s) => s.projekt.id === aktiveId));
+  const projekt = $derived(aktiv?.projekt ?? null);
+  let schliessZiel = $state<string | null>(null);
+  let schliessLaeuft = $state(false);
+  let beendenAngefragt = $state(false);
+  let beendenLaeuft = $state(false);
+  let kundenBesucht = $state(false);
+  let kundenEditor = $state<Kunden>();
+  $effect(() => {
+    if (globalAnsicht === "kunden") kundenBesucht = true;
+  });
+  let speicherLaeuft = $state(false);
+  const ansicht = $derived(aktiv?.ansicht ?? "uebersicht");
+  function bereich(id: Ansicht) {
+    if (aktiv) {
+      aktiv.ansicht = id;
+      globalAnsicht = null;
+    }
+  }
+  function projektSetzen(p: Project) {
+    const s = sitzungen.find((s) => s.projekt.id === p.id);
+    if (s) s.projekt = p;
+  }
+  // Serialize native title/menu updates; never replace a retained draft on activation.
+  let nativeQueue = Promise.resolve();
+  $effect(() => {
+    const id = aktiveId;
+    nativeQueue = nativeQueue.then(async () => {
+      if (aktiveId !== id) return;
+      try {
+        if (id) {
+          await api.projektAktivieren(id);
+          zuletzt = await api.zuletzt();
+        } else await api.projektSchliessen();
+      } catch (e) {
+        if (aktiveId === id) melde(e);
+      }
+    });
+  });
   let dialog = $state<DialogArt>(null);
   let zuletzt = $state<ZuletztEintrag[]>([]);
   let fehler = $state<string | null>(null);
   let hinweis = $state<string | null>(null);
   let update = $state<UpdateInfo | null>(null);
   let installiere = $state(false);
-  let importAusloeser = $state(0);
-  let exportAusloeser = $state(0);
-  let planDokument = $state<string | null>(null);
 
   let lizenz = $state<Lizenzstatus | null>(null);
-  /** Bauherren des offenen Projekts. */
-  let bauherren = $state<Kunde[]>([]);
   /** Kunden zur Auswahl im Dialog „Neues Projekt“. */
   let kundenAuswahl = $state<Kunde[] | null>(null);
-
-  // Neu laden, wenn ein anderes Projekt geöffnet wird oder sich die
-  // Projektversion ändert (Zuordnung der Bauherren erhöht sie).
-  $effect(() => {
-    const p = projekt;
-    if (!p) {
-      bauherren = [];
-      return;
-    }
-    void p.version;
-    untrack(() => api.bauherren(p.id).then((b) => (bauherren = b)).catch(melde));
-  });
 
   /** Angemeldeter Benutzer; ohne Schreibrecht der Lizenz wie „Lesen“. */
   const ich = $derived.by((): Benutzer | null => {
     const b = info?.benutzer ?? null;
-    return b && lizenz && !lizenz.schreiben_erlaubt ? { ...b, rolle: "lesen" } : b;
+    return b && lizenz && !lizenz.schreiben_erlaubt
+      ? { ...b, rolle: "lesen" }
+      : b;
   });
-  const darf = (min: "bearbeitung" | "projektleitung") => !!ich && ich.aktiv && mindestens(ich.rolle, min);
+  const darf = (min: "bearbeitung" | "projektleitung") =>
+    !!ich && ich.aktiv && mindestens(ich.rolle, min);
 
   const melde = (e: unknown) => (fehler = fehlertext(e));
 
-  async function oeffnen(id: string, schonBestaetigt = false) {
-    if (!schonBestaetigt && planEditor && !(await planEditor.verwerfenErlaubt())) return;
-    if (!schonBestaetigt && nutzungsEditor && !(await nutzungsEditor.verwerfenErlaubt())) return;
-    if (!schonBestaetigt && rechtsEditor && !(await rechtsEditor.verwerfenErlaubt())) return;
+  async function oeffnen(id: string) {
     dialog = null;
+    if (sitzungen.some((s) => s.projekt.id === id)) {
+      aktiveId = id;
+      globalAnsicht = null;
+      return;
+    }
     try {
-      projekt = await api.projektOeffnen(id);
-      ansicht = "uebersicht";
-      planDokument = null;
+      const p = await api.projektOeffnen(id);
+      if (!sitzungen.some((s) => s.projekt.id === id))
+        sitzungen.push({
+          projekt: p,
+          ansicht: "uebersicht",
+          planDokument: null,
+          importAusloeser: 0,
+          exportAusloeser: 0,
+        });
+      aktiveId = id;
+      globalAnsicht = null;
+      zuletzt = await api.zuletzt();
     } catch (e) {
       melde(e);
     }
-    zuletzt = await api.zuletzt();
   }
-
-  async function schliessen() {
-    if (planEditor && !(await planEditor.verwerfenErlaubt())) return;
-    if (nutzungsEditor && !(await nutzungsEditor.verwerfenErlaubt())) return;
-    if (rechtsEditor && !(await rechtsEditor.verwerfenErlaubt())) return;
-    projekt = null;
-    await api.projektSchliessen();
-    zuletzt = await api.zuletzt();
+  function schliessen(id = aktiveId) {
+    const s = sitzungen.find((s) => s.projekt.id === id);
+    if (!s) return;
+    if (s.editor?.istBeschaeftigt()) {
+      hinweis =
+        "In dieser Projektakte läuft eine Aktion oder ein Dokumentdialog ist geöffnet. Bitte zuerst abschließen.";
+      return;
+    }
+    if (s.editor?.hatAenderungen()) {
+      schliessZiel = s.projekt.id;
+      return;
+    }
+    entfernen(s.projekt.id);
   }
-
+  function entfernen(id: string) {
+    const index = sitzungen.findIndex((s) => s.projekt.id === id);
+    sitzungen = sitzungen.filter((s) => s.projekt.id !== id);
+    if (aktiveId === id) {
+      aktiveId =
+        sitzungen[index]?.projekt.id ??
+        sitzungen[index - 1]?.projekt.id ??
+        null;
+      if (!aktiveId) globalAnsicht = "projekte";
+    }
+    schliessZiel = null;
+  }
+  async function speichernUndSchliessen() {
+    const id = schliessZiel;
+    const s = sitzungen.find((s) => s.projekt.id === id);
+    if (!s || !id) return;
+    schliessLaeuft = true;
+    try {
+      if (await s.editor?.speichern()) entfernen(id);
+      else {
+        aktiveId = id;
+        globalAnsicht = null;
+        schliessZiel = null;
+        hinweis =
+          "Speichern konnte nicht abgeschlossen werden. Die Projektakte bleibt mit ihren Eingaben geöffnet.";
+      }
+    } finally {
+      schliessLaeuft = false;
+    }
+  }
+  async function aktiveAkteSpeichern() {
+    if (!aktiv || speicherLaeuft) return;
+    speicherLaeuft = true;
+    try {
+      if (!(await aktiv.editor?.speichern()))
+        hinweis =
+          "Bitte prüfen Sie die Angaben in der Projektakte. Die Eingaben bleiben erhalten.";
+    } finally {
+      speicherLaeuft = false;
+    }
+  }
+  async function speichernUndBeenden() {
+    beendenLaeuft = true;
+    try {
+      for (const s of sitzungen) {
+        if (!(await s.editor?.speichern())) {
+          aktiveId = s.projekt.id;
+          globalAnsicht = null;
+          beendenAngefragt = false;
+          hinweis =
+            "Speichern konnte nicht abgeschlossen werden. Die Anwendung und alle Projektakten bleiben geöffnet.";
+          return;
+        }
+      }
+      if (
+        kundenEditor?.hatAenderungen() &&
+        !(await kundenEditor.speichernBeimSchliessen())
+      ) {
+        globalAnsicht = "kunden";
+        beendenAngefragt = false;
+        hinweis =
+          "Kundendaten konnten nicht gespeichert werden. Ihre Eingaben bleiben erhalten.";
+        return;
+      }
+      await getCurrentWindow().destroy();
+    } catch (e) {
+      melde(e);
+    } finally {
+      beendenLaeuft = false;
+    }
+  }
   async function neuesProjekt() {
     dialog = "neu";
     kundenAuswahl = null;
@@ -119,44 +236,37 @@
   }
 
   async function anlegen(werte: Werte, bauherr: string | null) {
-    if (planEditor && !(await planEditor.verwerfenErlaubt())) return;
-    if (nutzungsEditor && !(await nutzungsEditor.verwerfenErlaubt())) return;
-    if (rechtsEditor && !(await rechtsEditor.verwerfenErlaubt())) return;
     try {
       const neu = await api.projektAnlegen(werte);
       if (bauherr) await api.bauherrenSetzen(neu.id, [bauherr], neu.version);
-      await oeffnen(neu.id, true);
+      await oeffnen(neu.id);
     } catch (e) {
       melde(e);
     }
   }
 
   async function speichern(werte: Werte) {
-    if (!projekt) return;
+    const ziel = projekt;
+    if (!ziel) return;
     try {
-      projekt = await api.projektAktualisieren({
-        id: projekt.id,
-        expected_version: projekt.version,
-        ...werte,
-      });
+      projektSetzen(
+        await api.projektAktualisieren({
+          id: ziel.id,
+          expected_version: ziel.version,
+          ...werte,
+        }),
+      );
       dialog = null;
     } catch (e) {
       if (istKonflikt(e)) {
         // Optimistic Locking: jemand anderes hat das Projekt geändert.
-        fehler = "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
-        projekt = await api.projektOeffnen(projekt.id);
+        fehler =
+          "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
+        projektSetzen(await api.projektOeffnen(ziel.id));
       } else {
         melde(e);
       }
     }
-  }
-
-  /** Gemessene Fläche aus dem Plan-Viewer als Grundstücksfläche speichern. */
-  async function grundstuecksflaecheUebernehmen(m2: number) {
-    if (!projekt) return;
-    await speichern({ name: projekt.name, bundesland: projekt.bundesland, grundstuecksflaeche_m2: m2 });
-    if (projekt.grundstuecksflaeche_m2 === m2)
-      hinweis = `Grundstücksfläche ${m2.toLocaleString("de-DE")} m² übernommen. Sie steht jetzt unter „Maß der Nutzung“ bereit.`;
   }
 
   async function updatePruefen() {
@@ -184,38 +294,106 @@
       return;
     }
     switch (id) {
-      case "datei.neu": neuesProjekt(); break;
-      case "bearbeiten.kunden": dialog = "kunden"; break;
-      case "bearbeiten.benutzer": dialog = "benutzer"; break;
-      case "bearbeiten.buero": dialog = "buero"; break;
-      case "ansicht.bauantrag": ansicht = "bauantrag"; break;
-      case "datei.xbau": ansicht = "bauantrag"; exportAusloeser++; break;
-      case "ansicht.protokoll": ansicht = "protokoll"; break;
-      case "datei.oeffnen": dialog = "oeffnen"; break;
-      case "datei.schliessen": schliessen(); break;
-      case "datei.importieren": ansicht = "dokumente"; importAusloeser++; break;
-      case "bearbeiten.projektdaten": dialog = "projektdaten"; break;
-      case "ansicht.dokumente": ansicht = "dokumente"; break;
-      case "ansicht.plaene": ansicht = "plaene"; break;
-      case "berechnung.mass": ansicht = "mass"; break;
-      case "berechnung.abstand": ansicht = "abstand"; break;
-      case "hilfe.updates": updatePruefen(); break;
-      case "hilfe.lizenz": dialog = "lizenz"; break;
+      case "datei.neu":
+        neuesProjekt();
+        break;
+      case "bearbeiten.kunden":
+        dialog = "kunden";
+        break;
+      case "bearbeiten.benutzer":
+        dialog = "benutzer";
+        break;
+      case "bearbeiten.buero":
+        dialog = "buero";
+        break;
+      case "ansicht.bauantrag":
+        bereich("bauantrag");
+        break;
+      case "datei.xbau":
+        bereich("bauantrag");
+        aktiv && aktiv.exportAusloeser++;
+        break;
+      case "ansicht.protokoll":
+        bereich("protokoll");
+        break;
+      case "datei.oeffnen":
+        dialog = "oeffnen";
+        break;
+      case "datei.schliessen":
+        schliessen();
+        break;
+      case "datei.importieren":
+        bereich("dokumente");
+        aktiv && aktiv.importAusloeser++;
+        break;
+      case "bearbeiten.projektdaten":
+        dialog = "projektdaten";
+        break;
+      case "ansicht.dokumente":
+        bereich("dokumente");
+        break;
+      case "ansicht.plaene":
+        bereich("plaene");
+        break;
+      case "berechnung.mass":
+        bereich("mass");
+        break;
+      case "berechnung.abstand":
+        bereich("abstand");
+        break;
+      case "hilfe.updates":
+        updatePruefen();
+        break;
+      case "hilfe.lizenz":
+        dialog = "lizenz";
+        break;
       // Nur unter Linux als eigene Menüpunkte (siehe menu.rs).
-      case "bearbeiten.rueckgaengig": document.execCommand("undo"); break;
-      case "bearbeiten.wiederholen": document.execCommand("redo"); break;
+      case "bearbeiten.rueckgaengig":
+        document.execCommand("undo");
+        break;
+      case "bearbeiten.wiederholen":
+        document.execCommand("redo");
+        break;
     }
   }
 
   onMount(() => {
     (async () => {
       try {
-        [info, zuletzt, lizenz] = await Promise.all([api.appInfo(), api.zuletzt(), api.lizenz()]);
+        [info, zuletzt, lizenz] = await Promise.all([
+          api.appInfo(),
+          api.zuletzt(),
+          api.lizenz(),
+        ]);
       } catch (e) {
         melde(e);
       }
     })();
     const ab = [
+      getCurrentWindow().onCloseRequested((event) => {
+        if (dialog) {
+          event.preventDefault();
+          hinweis = "Bitte den geöffneten Dialog zuerst abschließen.";
+          return;
+        }
+        if (
+          sitzungen.some((s) => s.editor?.istBeschaeftigt()) ||
+          kundenEditor?.istBeschaeftigt() ||
+          speicherLaeuft ||
+          schliessLaeuft
+        ) {
+          event.preventDefault();
+          hinweis = "Bitte laufende Aktionen zuerst abschließen.";
+          return;
+        }
+        if (
+          sitzungen.some((s) => s.editor?.hatAenderungen()) ||
+          kundenEditor?.hatAenderungen()
+        ) {
+          event.preventDefault();
+          beendenAngefragt = true;
+        }
+      }),
       listen<string>("menu", (e) => menue(e.payload)),
       listen<UpdateInfo>("update-verfuegbar", (e) => (update = e.payload)),
       // Regelmäßige Meldung des Arbeitsplatzes (siehe main.rs).
@@ -223,17 +401,6 @@
     ];
     return () => ab.forEach((p) => p.then((f) => f()));
   });
-
-  const reiter: { id: Ansicht; text: string }[] = [
-    { id: "uebersicht", text: "Übersicht" },
-    { id: "rechtsgrundlagen", text: "Rechtsgrundlagen" },
-    { id: "mass", text: "Maß der Nutzung" },
-    { id: "abstand", text: "Abstandsflächen" },
-    { id: "dokumente", text: "Dokumente" },
-    { id: "plaene", text: "Pläne" },
-    { id: "bauantrag", text: "Bauantrag" },
-    { id: "protokoll", text: "Protokoll" },
-  ];
 </script>
 
 {#if update}
@@ -249,7 +416,9 @@
 {#if lizenz && !lizenz.schreiben_erlaubt}
   <div class="fehler" role="alert">
     {lizenz.meldung}
-    <button class="sekundaer" onclick={() => (dialog = "lizenz")}>Lizenz …</button>
+    <button class="sekundaer" onclick={() => (dialog = "lizenz")}
+      >Lizenz …</button
+    >
   </div>
 {/if}
 
@@ -267,134 +436,282 @@
   </div>
 {/if}
 
-{#if projekt}
-  <header class="projektkopf">
-    <div>
-      <h1>{projekt.name}</h1>
-      <span class="meta">
-        {landName(projekt.bundesland)}
-        {projekt.grundstuecksflaeche_m2 ? ` · Grundstück ${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²` : ""}
-      </span>
+<header class="app-kopf">
+  <strong>BauProjektIO</strong><span class="meta">Projektverwaltung</span><span
+    class="konto meta">{ich?.anzeigename ?? "Wird geladen …"}</span
+  >
+</header>
+<nav class="app-werkzeuge" aria-label="Werkzeugleiste">
+  <button class="sekundaer" onclick={() => (globalAnsicht = "projekte")}
+    >Projektverzeichnis</button
+  >
+  <button
+    class="sekundaer"
+    onclick={neuesProjekt}
+    disabled={!darf("projektleitung")}>Neues Projekt</button
+  >
+  <span class="werkzeug-trenner"></span>
+  <button
+    class="sekundaer"
+    onclick={aktiveAkteSpeichern}
+    disabled={!aktiv ||
+      !darf("bearbeitung") ||
+      speicherLaeuft ||
+      !!globalAnsicht}
+    >{speicherLaeuft ? "Wird gespeichert …" : "Speichern"}</button
+  >
+  <button class="sekundaer" onclick={() => bereich("mass")} disabled={!aktiv}
+    >Nachweise</button
+  >
+  <button
+    class="sekundaer"
+    onclick={() => menue("datei.xbau")}
+    disabled={!aktiv}>XBau exportieren</button
+  >
+</nav>
+<div class="arbeitsrahmen">
+  <aside class="aktennavigation" aria-label="Arbeitsbereiche">
+    <div class="nav-gruppe">Arbeitsbereich</div>
+    <button
+      class:aktiv={globalAnsicht === "projekte"}
+      onclick={() => (globalAnsicht = "projekte")}>Projektverzeichnis</button
+    >
+    <div class="nav-gruppe">{projekt?.name ?? "Projektakte"}</div>
+    {#each reiter as r}<button
+        disabled={!aktiv}
+        class:aktiv={!globalAnsicht && ansicht === r.id}
+        aria-current={!globalAnsicht && ansicht === r.id ? "page" : undefined}
+        onclick={() => bereich(r.id)}>{r.text}</button
+      >{/each}
+    <div class="nav-gruppe">Stammdaten und Verwaltung</div>
+    <button
+      class:aktiv={globalAnsicht === "kunden"}
+      onclick={() => (globalAnsicht = "kunden")}>Kunden / Bauherren</button
+    >
+    <button
+      class:aktiv={globalAnsicht === "verwaltung"}
+      onclick={() => (globalAnsicht = "verwaltung")}
+      >Büro / Benutzer / Lizenz</button
+    >
+    <div class="nav-fuss meta">
+      {sitzungen.length} offene Projektakte{sitzungen.length === 1 ? "" : "n"}
     </div>
-    <nav class="reiter" aria-label="Projektbereiche">
-      {#each reiter as r}
-        <button class:aktiv={ansicht === r.id} aria-current={ansicht === r.id} onclick={() => (ansicht = r.id)}>{r.text}</button>
-      {/each}
+  </aside>
+  <div class="aktenbereich">
+    <nav class="projekttabs" aria-label="Geöffnete Projekte">
+      <button
+        class="verzeichnis-tab"
+        class:aktiv={globalAnsicht === "projekte"}
+        onclick={() => (globalAnsicht = "projekte")}>Projektverzeichnis</button
+      >
+      <div class="offene-projekte">
+        {#each sitzungen as s (s.projekt.id)}
+          <div
+            class="projekttab"
+            class:aktiv={!globalAnsicht && aktiveId === s.projekt.id}
+          >
+            <button
+              class="tab-auswahl"
+              title={s.projekt.name}
+              aria-current={!globalAnsicht && aktiveId === s.projekt.id
+                ? "page"
+                : undefined}
+              onclick={() => {
+                aktiveId = s.projekt.id;
+                globalAnsicht = null;
+              }}
+              >{s.projekt.name}{#if s.editor?.hatAenderungen()}<span
+                  class="entwurf-punkt"
+                  aria-label="Ungespeicherte Änderungen">●</span
+                >{/if}</button
+            >
+            <button
+              class="tab-schliessen"
+              aria-label={`${s.projekt.name} schließen`}
+              onclick={() => schliessen(s.projekt.id)}>×</button
+            >
+          </div>
+        {/each}
+      </div>
     </nav>
-  </header>
-
-  <main>
-    {#if ansicht === "uebersicht"}
-      <section>
-        <h2>Projektdaten</h2>
-        <dl class="daten">
-          <dt>Name</dt><dd>{projekt.name}</dd>
-          <dt>Bundesland</dt><dd>{landName(projekt.bundesland)}</dd>
-          <dt>Grundstücksfläche</dt><dd>{projekt.grundstuecksflaeche_m2 ? `${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²` : "–"}</dd>
-          <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
-          <dd>
-            {#each bauherren as k (k.id)}
-              <div>{kundenname(k)} <span class="meta">({kategorieName(k.kategorie)}{k.telefon ? `, ${k.telefon}` : ""}{k.email ? `, ${k.email}` : ""})</span></div>
-            {:else}–{/each}
-          </dd>
-          <dt>Rechtsgrundlage</dt><dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
-          <dt>Bebauungsplan</dt><dd>{bebauungsplanName(projekt.planungsrecht.bebauungsplan_art)}{!["kein", "ungeklaert"].includes(projekt.planungsrecht.bebauungsplan_art) && projekt.planungsrecht.plan_bezeichnung ? ` · ${projekt.planungsrecht.plan_bezeichnung}` : ""}</dd>
-          <dt>Angelegt</dt><dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
-          <dt>Zuletzt geändert</dt><dd>{new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})</dd>
-        </dl>
-        <div class="knoepfe links">
-          <button class="sekundaer" onclick={() => (dialog = "projektdaten")} disabled={!darf("bearbeitung")}>Bearbeiten …</button>
-          <button class="sekundaer" onclick={() => (dialog = "bauherren")}>Bauherren …</button>
-          <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}>Rechtsgrundlagen …</button>
+    <div class="globale-seite" hidden={globalAnsicht !== "projekte"}>
+      <ProjektVerzeichnis
+        {zuletzt}
+        darfAnlegen={darf("projektleitung")}
+        onneu={neuesProjekt}
+        onoeffnen={oeffnen}
+      />
+    </div>
+    {#if kundenBesucht && ich}<div
+        class="globale-seite"
+        hidden={globalAnsicht !== "kunden"}
+      >
+        <h1>Kunden / Bauherren</h1>
+        <Kunden
+          bind:this={kundenEditor}
+          {ich}
+          onoeffnen={oeffnen}
+          onschliessen={() => (globalAnsicht = "projekte")}
+        />
+      </div>{/if}
+    {#if globalAnsicht === "verwaltung"}<div class="globale-seite">
+        <h1>Verwaltung</h1>
+        <div class="verwaltungszeile">
+          <div>
+            <h2>Büroangaben</h2>
+            <p class="meta">Absenderdaten und Behördenkennung</p>
+          </div>
+          <button class="sekundaer" onclick={() => (dialog = "buero")}
+            >Bearbeiten</button
+          >
         </div>
-      </section>
-    {:else if ansicht === "abstand"}
-      <section>
-        <h2>Abstandsflächen</h2>
-        {#key projekt.id}
-          <Abstandsflaeche startLand={projekt.bundesland} regelpakete={info?.regelpakete ?? []} onfehler={melde} />
-        {/key}
-      </section>
-    {/if}
-    <section hidden={ansicht !== "plaene"}>
-      <h2>Pläne</h2>
-      {#key projekt.id}
-        <Plaene bind:this={planEditor} {projekt} aktiv={ansicht === "plaene"} darf={darf("bearbeitung")} onprojekt={(p) => (projekt = p)} bind:dokumentId={planDokument} onflaeche={grundstuecksflaecheUebernehmen} onfehler={melde} />
-      {/key}
-    </section>
-    <section hidden={ansicht !== "mass"}>
-      <h2>Maß der baulichen Nutzung</h2>
-      {#key projekt.id}
-        <MassDerNutzung bind:this={nutzungsEditor} {projekt} darf={darf("bearbeitung")} onprojekt={(p) => (projekt = p)} onrechtsgrundlagen={() => (ansicht = "rechtsgrundlagen")} />
-      {/key}
-    </section>
-    <section hidden={ansicht !== "rechtsgrundlagen"}>
-      <h2>Rechtsgrundlagen und Eckdaten</h2>
-      {#key projekt.id}
-        <Rechtsgrundlagen bind:this={rechtsEditor} {projekt} darf={darf("bearbeitung")} onprojekt={(p) => (projekt = p)} />
-      {/key}
-    </section>
-    <!-- Bleibt eingehängt, damit "Datei → Bauantrag als XBau exportieren" aus jeder Ansicht funktioniert. -->
-    <section hidden={ansicht !== "bauantrag"}>
-      <h2>Bauantrag (XBau)</h2>
-      {#if ich}
-        {#key projekt.id}
-          <Bauantrag
-            {projekt}
-            benutzer={ich}
-            {exportAusloeser}
-            onbuero={() => (dialog = "buero")}
-            onbauherren={() => (dialog = "bauherren")}
-            onfehler={melde}
-            onhinweis={(m) => (hinweis = m)}
-          />
-        {/key}
-      {/if}
-    </section>
-    {#if ansicht === "protokoll"}
-      <section>
-        <h2>Protokoll</h2>
-        <p class="meta">Wer hat wann was im Projekt geändert. Die neuesten Einträge stehen oben.</p>
-        <!-- Wird bei jedem Wechsel auf den Reiter neu eingehängt und lädt dabei frisch. -->
-        <Protokoll projektId={projekt.id} />
-      </section>
-    {/if}
-    <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
-    <section hidden={ansicht !== "dokumente"}>
-      <h2>Dokumente</h2>
-      {#if ich}<Dokumente
-        projektId={projekt.id}
-        benutzer={ich}
-        {importAusloeser}
-        onplan={(id) => { planDokument = id; ansicht = "plaene"; }}
-        onfehler={melde}
-      />{/if}
-    </section>
-  </main>
-{:else}
-  <Startseite
-    {zuletzt}
-    darfAnlegen={darf("projektleitung")}
-    onneu={neuesProjekt}
-    onoeffnen={() => (dialog = "oeffnen")}
-    onkunden={() => (dialog = "kunden")}
-    onzuletzt={oeffnen}
-  />
+        <div class="verwaltungszeile">
+          <div>
+            <h2>Benutzer und Rechte</h2>
+            <p class="meta">Arbeitsplätze und Zugriffsberechtigungen</p>
+          </div>
+          <button class="sekundaer" onclick={() => (dialog = "benutzer")}
+            >Öffnen</button
+          >
+        </div>
+        <div class="verwaltungszeile">
+          <div>
+            <h2>Lizenz</h2>
+            <p class="meta">Lizenzstatus und verfügbare Arbeitsplätze</p>
+          </div>
+          <button class="sekundaer" onclick={() => (dialog = "lizenz")}
+            >Anzeigen</button
+          >
+        </div>
+        <div class="verwaltungszeile">
+          <div>
+            <h2>Version und Ablage</h2>
+            <p class="meta">
+              {info?.version} · {info?.modus} · {info?.storage}
+            </p>
+          </div>
+          <button class="sekundaer" onclick={updatePruefen}
+            >Updates prüfen</button
+          >
+        </div>
+      </div>{/if}
+    {#each sitzungen as s (s.projekt.id)}
+      <div
+        class="projekt-sitzung"
+        hidden={!!globalAnsicht || aktiveId !== s.projekt.id}
+      >
+        <Projektakte
+          bind:this={s.editor}
+          projekt={s.projekt}
+          bind:ansicht={s.ansicht}
+          bind:planDokument={s.planDokument}
+          aktiv={!globalAnsicht && aktiveId === s.projekt.id}
+          {info}
+          {ich}
+          {darf}
+          importAusloeser={s.importAusloeser}
+          exportAusloeser={s.exportAusloeser}
+          onprojekt={projektSetzen}
+          ondialog={(art) => {
+            aktiveId = s.projekt.id;
+            dialog = art;
+          }}
+        />
+      </div>
+    {/each}
+  </div>
+</div>
+{#if beendenAngefragt}
+  <Dialog
+    titel="Anwendung schließen?"
+    schliessenErlaubt={!beendenLaeuft}
+    onclose={() => {
+      if (!beendenLaeuft) beendenAngefragt = false;
+    }}
+  >
+    <p>In Projektakten oder Kundendaten gibt es ungespeicherte Änderungen.</p>
+    <div class="knoepfe">
+      <button
+        class="sekundaer"
+        disabled={beendenLaeuft}
+        onclick={() => (beendenAngefragt = false)}>Weiter bearbeiten</button
+      ><button
+        class="sekundaer"
+        disabled={beendenLaeuft}
+        onclick={() => getCurrentWindow().destroy().catch(melde)}
+        >Verwerfen und beenden</button
+      ><button
+        disabled={beendenLaeuft || !darf("bearbeitung")}
+        onclick={speichernUndBeenden}
+        >{beendenLaeuft
+          ? "Wird gespeichert …"
+          : "Alle speichern und beenden"}</button
+      >
+    </div>
+  </Dialog>
+{/if}
+{#if schliessZiel}
+  <Dialog
+    schliessenErlaubt={!schliessLaeuft}
+    titel="Projektakte schließen?"
+    onclose={() => {
+      if (!schliessLaeuft) schliessZiel = null;
+    }}
+  >
+    <p>
+      <strong
+        >{sitzungen.find((s) => s.projekt.id === schliessZiel)?.projekt
+          .name}</strong
+      > enthält ungespeicherte Änderungen. Andere Projektakten bleiben geöffnet.
+    </p>
+    <div class="knoepfe">
+      <button
+        class="sekundaer"
+        disabled={schliessLaeuft}
+        onclick={() => (schliessZiel = null)}>Weiter bearbeiten</button
+      ><button
+        class="sekundaer"
+        disabled={schliessLaeuft}
+        onclick={() => schliessZiel && entfernen(schliessZiel)}
+        >Verwerfen und schließen</button
+      ><button
+        disabled={schliessLaeuft || !darf("bearbeitung")}
+        onclick={speichernUndSchliessen}
+        >{schliessLaeuft
+          ? "Wird gespeichert …"
+          : "Speichern und schließen"}</button
+      >
+    </div>
+  </Dialog>
 {/if}
 
 <footer class="statusleiste meta">
   {#if info}
-    <button class="link" onclick={() => (dialog = "benutzer")} title="Benutzerverwaltung">{info.benutzer.anzeigename} ({rollenName(info.benutzer.rolle)})</button> ·
+    <button
+      class="link"
+      onclick={() => (dialog = "benutzer")}
+      title="Benutzerverwaltung"
+      >{info.benutzer.anzeigename} ({rollenName(info.benutzer.rolle)})</button
+    >
+    ·
     {#if lizenz?.zustand.art === "testversion"}
-      <button class="link" onclick={() => (dialog = "lizenz")}>Testversion, noch {lizenz.zustand.tage_uebrig} {lizenz.zustand.tage_uebrig === 1 ? "Tag" : "Tage"}</button> ·
+      <button class="link" onclick={() => (dialog = "lizenz")}
+        >Testversion, noch {lizenz.zustand.tage_uebrig}
+        {lizenz.zustand.tage_uebrig === 1 ? "Tag" : "Tage"}</button
+      > ·
     {/if}
-    BauProjektIO {info.version} · {info.modus} · Ablage: {info.storage} · LBO-Regelpakete: {info.regelpakete.map((r) => r.land).join(", ") || "keine"}
+    BauProjektIO {info.version} · {projekt?.name ?? "Projektverzeichnis"}
   {/if}
 </footer>
 
 {#if dialog === "lizenz" && info && lizenz}
   <Dialog titel="Lizenz" onclose={() => (dialog = null)}>
-    <LizenzDialog status={lizenz} ich={info.benutzer} onstatus={(s) => (lizenz = s)} onschliessen={() => (dialog = null)} />
+    <LizenzDialog
+      status={lizenz}
+      ich={info.benutzer}
+      onstatus={(s) => (lizenz = s)}
+      onschliessen={() => (dialog = null)}
+    />
   </Dialog>
 {:else if dialog === "benutzer" && info}
   <Dialog titel="Benutzerverwaltung" breit onclose={() => (dialog = null)}>
@@ -416,18 +733,26 @@
       onschliessen={async () => {
         dialog = null;
         // Geänderte Kundendaten in der Übersicht zeigen.
-        if (projekt) bauherren = await api.bauherren(projekt.id);
       }}
     />
   </Dialog>
 {:else if dialog === "bauherren" && ich && projekt}
   <Dialog titel="Bauherren" breit onclose={() => (dialog = null)}>
-    <BauherrenDialog {projekt} {ich} onprojekt={(p) => (projekt = p)} onschliessen={() => (dialog = null)} />
+    <BauherrenDialog
+      {projekt}
+      {ich}
+      onprojekt={projektSetzen}
+      onschliessen={() => (dialog = null)}
+    />
   </Dialog>
 {:else if dialog === "neu"}
   <Dialog titel="Neues Projekt" onclose={() => (dialog = null)}>
     <ProjektFormular
-      start={{ name: "", bundesland: projekt?.bundesland ?? "BY", grundstuecksflaeche_m2: null }}
+      start={{
+        name: "",
+        bundesland: projekt?.bundesland ?? "BY",
+        grundstuecksflaeche_m2: null,
+      }}
       kunden={kundenAuswahl}
       knopf="Anlegen"
       absenden={anlegen}
@@ -441,7 +766,11 @@
 {:else if dialog === "projektdaten" && projekt}
   <Dialog titel="Projektdaten" onclose={() => (dialog = null)}>
     <ProjektFormular
-      start={{ name: projekt.name, bundesland: projekt.bundesland, grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2 }}
+      start={{
+        name: projekt.name,
+        bundesland: projekt.bundesland,
+        grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
+      }}
       knopf="Speichern"
       absenden={speichern}
       onabbrechen={() => (dialog = null)}

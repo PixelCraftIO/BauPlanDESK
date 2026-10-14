@@ -1,0 +1,184 @@
+{
+  "id": "0af2bbea-56ee-444a-82c2-0a79092cc613",
+  "name": "Flurstuecke - getrennte Baugrundstuecke",
+  "bundesland": "BY",
+  "grundstuecksflaeche_m2": 900,
+  "version": 1,
+  "created_at": "2026-10-14T06:40:59.444271878Z",
+  "updated_at": "2026-10-14T06:40:59.444271878Z",
+  "planungsrecht": {
+    "rechtsgrundlage": "par30",
+    "bebauungsplan_art": "qualifiziert",
+    "ergaenzende_grundlage": null,
+    "aussenbereich_vorhaben": null,
+    "plan_bezeichnung": "",
+    "plan_nummer": "",
+    "plan_rechtskraft": "",
+    "gemeinde": "",
+    "standort": "",
+    "vorhaben": "",
+    "nutzung": "",
+    "festsetzungen": "",
+    "begruendung": "",
+    "festgesetzte_werte": {
+      "nichtvollgeschoss_faktor": null,
+      "nichtvollgeschoss_festsetzung": "",
+      "baugebiet": null,
+      "grz": 0.3,
+      "grz_gesamt": null,
+      "gfz": 0.6,
+      "bmz": null,
+      "grundflaeche_m2": null,
+      "geschossflaeche_m2": null,
+      "ueberbaubare_flaeche_m2": null,
+      "vollgeschosse": null,
+      "geschossigkeit": "maximal"
+    },
+    "berechnung": null,
+    "baugrundstuecke": {
+      "flurstuecke": [
+        {
+          "id": "a",
+          "gemarkung": "Muenchen",
+          "flur": "1",
+          "nummer": "100/1",
+          "grundbuchbezirk": "Muenchen",
+          "grundbuchblatt": "42",
+          "laufende_nummer": 1,
+          "flaeche_m2": 300,
+          "abzuege": [
+            {
+              "art": "private_gruenflaeche",
+              "flaeche_m2": 50,
+              "grundlage": "Festgesetzte private Gruenflaeche im Bebauungsplan"
+            }
+          ],
+          "abweichende_zuordnung": null
+        },
+        {
+          "id": "b",
+          "gemarkung": "Muenchen",
+          "flur": "1",
+          "nummer": "100/2",
+          "grundbuchbezirk": "Muenchen",
+          "grundbuchblatt": "42",
+          "laufende_nummer": 1,
+          "flaeche_m2": 200,
+          "abzuege": [
+            {
+              "art": "private_gruenflaeche",
+              "flaeche_m2": 20,
+              "grundlage": "Festgesetzte private Gruenflaeche im Bebauungsplan"
+            }
+          ],
+          "abweichende_zuordnung": null
+        },
+        {
+          "id": "c",
+          "gemarkung": "Muenchen",
+          "flur": "1",
+          "nummer": "101/1",
+          "grundbuchbezirk": "Muenchen",
+          "grundbuchblatt": "42",
+          "laufende_nummer": 2,
+          "flaeche_m2": 400,
+          "abzuege": [],
+          "abweichende_zuordnung": null
+        }
+      ],
+      "berechnungen": [
+        {
+          "schluessel": "[\"muenchen\",\"42\",1]",
+          "eingabe": {
+            "aufstellung": {
+              "bau_nvo": "2017",
+              "grundstueck": {
+                "basisflaeche_m2": 900,
+                "nicht_massgebend_m2": 0,
+                "abzug_begruendung": "",
+                "gemeinschaftsanteile": []
+              },
+              "bauteile": [
+                {
+                  "bezeichnung": "Wohnhaus",
+                  "typ": "hauptanlage",
+                  "flaeche_m2": 100,
+                  "abweichende_anrechnung": null,
+                  "begruendung": ""
+                }
+              ],
+              "geschosse": [
+                {
+                  "bezeichnung": "Erdgeschoss",
+                  "vollgeschoss": true,
+                  "aussenmass_m2": 200,
+                  "aufenthalt_m2": 0,
+                  "waende_m2": 0,
+                  "erschliessung_m2": 0
+                }
+              ],
+              "nichtvollgeschoss_faktor": 0,
+              "nichtvollgeschoss_festsetzung": ""
+            },
+            "mass": {
+              "grundstuecksflaeche_m2": 900,
+              "grundflaeche_m2": 0,
+              "grundflaeche_nebenanlagen_m2": 0,
+              "geschossflaeche_m2": 0,
+              "baumasse_m3": 1000
+            },
+            "vollgeschosse": null,
+            "gebiet": "WA"
+          },
+          "eigene_festsetzungen": null
+        },
+        {
+          "schluessel": "[\"muenchen\",\"42\",2]",
+          "eingabe": {
+            "aufstellung": {
+              "bau_nvo": "2017",
+              "grundstueck": {
+                "basisflaeche_m2": 900,
+                "nicht_massgebend_m2": 0,
+                "abzug_begruendung": "",
+                "gemeinschaftsanteile": []
+              },
+              "bauteile": [
+                {
+                  "bezeichnung": "Wohnhaus",
+                  "typ": "hauptanlage",
+                  "flaeche_m2": 200,
+                  "abweichende_anrechnung": null,
+                  "begruendung": ""
+                }
+              ],
+              "geschosse": [
+                {
+                  "bezeichnung": "Erdgeschoss",
+                  "vollgeschoss": true,
+                  "aussenmass_m2": 400,
+                  "aufenthalt_m2": 0,
+                  "waende_m2": 0,
+                  "erschliessung_m2": 0
+                }
+              ],
+              "nichtvollgeschoss_faktor": 0,
+              "nichtvollgeschoss_festsetzung": ""
+            },
+            "mass": {
+              "grundstuecksflaeche_m2": 900,
+              "grundflaeche_m2": 0,
+              "grundflaeche_nebenanlagen_m2": 0,
+              "geschossflaeche_m2": 0,
+              "baumasse_m3": 1000
+            },
+            "vollgeschosse": null,
+            "gebiet": "WA"
+          },
+          "eigene_festsetzungen": null
+        }
+      ]
+    },
+    "baugrenzen": null
+  }
+}
