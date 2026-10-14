@@ -3,7 +3,7 @@ use crate::{bootstrap::AppState, commands::CmdError};
 use core_lib::{
     CoreError,
     benutzer::Recht,
-    domain::{DocumentId, DocumentVersion, ProjectId},
+    domain::{DocumentId, ProjectId},
 };
 use std::path::{Path, PathBuf};
 use storage::arbeitskopie::{self, Arbeitskopie};
@@ -134,7 +134,7 @@ pub async fn arbeitskopie_uebernehmen(
     app: AppHandle,
     state: State<'_, AppState>,
     id: Uuid,
-) -> Result<DocumentVersion, CmdError> {
+) -> Result<crate::projektordner::ProjektDokument, CmdError> {
     state.benutzer().pruefe(Recht::DokumentAblegen)?;
     let copy = arbeitskopie::laden(&root(&app)?, id).await?;
     if !copy.geaendert {
@@ -154,5 +154,5 @@ pub async fn arbeitskopie_uebernehmen(
         )
         .await?;
     arbeitskopie::basis_aktualisieren(&root(&app)?, id, gespeichert.clone()).await.map_err(|e|CoreError::Storage(format!("Dokument bereits als Version {} gespeichert, lokale Basis konnte nicht aktualisiert werden: {e}",gespeichert.version)))?;
-    Ok(gespeichert)
+    Ok(crate::projektordner::ablegen(&state, gespeichert).await)
 }

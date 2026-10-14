@@ -493,6 +493,8 @@ export interface FlaechenAufstellung {
   nichtvollgeschoss_festsetzung: string;
 }
 export interface FlaechenErgebnis {
+  bauteile_vorhanden: boolean;
+  geschosse_vorhanden: boolean;
   regelwerk_id: string;
   regelwerk_version: string;
   grundstueck: GrundstueckErgebnis;
@@ -592,6 +594,7 @@ export interface BaugrenzenPruefung {
 }
 
 export interface Planungsrecht {
+  bau_nvo?: BauNvo | null;
   rechtsgrundlage: "par30" | "par34" | "par35" | null;
   bebauungsplan_art:
     | "ungeklaert"
@@ -660,6 +663,8 @@ export interface Projektwerte {
 }
 
 export interface DocumentVersion {
+  projektordner_pfad?: string | null;
+  ablage_hinweis?: string | null;
   document_id: string;
   project_id: string;
   version: number;
@@ -831,6 +836,7 @@ export interface ProjektordnerExport {
 }
 
 export interface BibliotheksVorlage {
+  felder?: number | null;
   name: string;
   sha256: string;
   size: number;
@@ -891,7 +897,56 @@ export interface DokumentVergleich {
     | "geaendert"
     | "aelter";
 }
+export interface BibliothekQuelle {
+  projektId: string;
+  vorlage: BibliotheksVorlage;
+}
+export interface BibliothekMaske {
+  schema: Omit<FormularAnalyse, "dokument">;
+  pdf_base64: string;
+  seiten: PdfSeite[];
+}
 export const api = {
+  projektordnerStatus: () => invoke<string>("projektordner_status"),
+  projektordnerWaehlen: (pfad: string) =>
+    invoke<void>("projektordner_waehlen", { pfad }),
+  baugrundstueckeErmitteln: (projektId: string, plan: BaugrundstuecksPlan) =>
+    invoke<BaugrundstueckGruppe[]>("baugrundstuecke_ermitteln", {
+      projektId,
+      plan,
+    }),
+  bibliothekFormular: (quelle: BibliothekQuelle) =>
+    invoke<BibliothekMaske>("bibliothek_formular", {
+      projektId: quelle.projektId,
+      vorlage: quelle.vorlage,
+    }),
+  bibliothekFormularSpeichern: (
+    quelle: BibliothekQuelle,
+    werte: Record<string, Feldwert>,
+  ) =>
+    invoke<DocumentVersion>("bibliothek_formular_speichern", {
+      projektId: quelle.projektId,
+      vorlage: quelle.vorlage,
+      werte,
+    }),
+  bibliothekFelderErstellen: (
+    vorlage: BibliotheksVorlage,
+    felder: EigenesPdfFeld[],
+  ) =>
+    invoke<BibliotheksVorlage>("bibliothek_felder_erstellen", {
+      vorlage,
+      felder,
+    }),
+  formularImProjektSpeichern: (
+    dokumentId: string,
+    basis: number,
+    werte: Record<string, Feldwert>,
+  ) =>
+    invoke<DocumentVersion>("formular_im_projekt_speichern", {
+      dokumentId,
+      basis,
+      werte,
+    }),
   dokumentExternOeffnen: (dokumentId: string, version: number) =>
     invoke<Arbeitskopie>("dokument_extern_oeffnen", { dokumentId, version }),
   arbeitskopien: (projektId: string) =>

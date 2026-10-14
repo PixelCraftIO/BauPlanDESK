@@ -159,6 +159,7 @@ pub enum AussenbereichsVorhaben {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Planungsrecht {
+    pub bau_nvo: Option<crate::flaechen::BauNvo>,
     pub rechtsgrundlage: Option<Rechtsgrundlage>,
     pub bebauungsplan_art: BebauungsplanArt,
     pub ergaenzende_grundlage: Option<Rechtsgrundlage>,

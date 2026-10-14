@@ -5,6 +5,11 @@ BauGB/BauNVO und den 16 Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
 XBau-Export und DMS. Läuft als native Desktop-App (Einzelplatz), als
 NAS-/Büro-Server und optional in der Cloud.
 
+## Aktuelle Bedienoberfläche
+
+[Hierarchische Projektakte, Formulare im Projekt und Speicherorte](docs/klare-projektstruktur/README.md)
+beschreibt den aktuellen Ablauf mit Screenshots und Prüfprotokollen.
+
 ## Entwicklungsregeln
 
 [Verbindliche Regeln für eigenständige Fachmodule und stabile Schnittstellen](docs/entwicklungsregeln.md)

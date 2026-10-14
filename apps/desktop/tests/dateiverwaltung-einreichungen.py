@@ -46,10 +46,10 @@ with sync_playwright() as p:
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1431'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
  def view(n):page.locator('.aktennavigation').get_by_role('button',name=n,exact=True).click()
- view('Dokumente')
+ view('Projektdateien')
  page.get_by_label('Dateien suchen',exact=True).fill('.xlsx')
  expect(page.locator('.ergebnistabelle:visible tbody tr')).to_have_count(1)
- page.get_by_role('button',name='Im zugeordneten Programm öffnen',exact=True).click()
+ page.get_by_role('button',name='Öffnen',exact=True).click()
  expect(page.get_by_text('Unverändert',exact=True)).to_be_visible()
  opened=page.evaluate('window.calls.find(c=>c.cmd==="dokument_extern_oeffnen").args')
  assert opened=={'dokumentId':wf['excel']['document_id'],'version':1}
@@ -76,7 +76,7 @@ with sync_playwright() as p:
  page.get_by_role('button',name='Paket festhalten und ZIP exportieren …',exact=True).click()
  assert page.evaluate('window.calls.filter(c=>c.cmd==="einreichung_erstellen").length')==0
  # Draft remains in its project after switching to another tab.
- view('Stammblatt');view('Einreichungen')
+ view('Stammdaten');view('Einreichungen')
  expect(page.get_by_role('textbox',name='Bezeichnung',exact=True)).to_have_value('Korrektur der Planunterlagen')
  page.evaluate('window.cancelSave=false;window.failExport=true')
  page.get_by_role('button',name='Paket festhalten und ZIP exportieren …',exact=True).click()

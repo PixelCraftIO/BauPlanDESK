@@ -1,27 +1,30 @@
 <script lang="ts">
-  import { untrack, tick } from "svelte";
-  import { ask } from "@tauri-apps/plugin-dialog";
+  import { onMount, untrack, tick } from "svelte";
   import {
     api,
     fehlertext,
-    GEBIETE,
     type Project,
     type BaugrundstuecksPlan,
-    type BaugrundstuecksPruefung,
     type BaugrundstueckGruppe,
-    type GrundstuecksFlurstueck,
-    type Festsetzungen,
+    type BaugrundstuecksPruefung,
+    type BaugrundstueckBerechnung,
   } from "./api";
-  import { REGELWERKE, regelwerk } from "./baunvo";
+  import type { BerechnungsBereich } from "./projektSitzung";
+  import { regelwerk } from "./baunvo";
   import ABZUEGE from "../../../../regelwerke/grundstueck-abzuege.json";
-  import FlaechenFormular from "./FlaechenFormular.svelte";
   import GrundstueckFormular from "./GrundstueckFormular.svelte";
+  import FlaechenFormular from "./FlaechenFormular.svelte";
   let {
     projekt,
     darf,
     onprojekt,
-  }: { projekt: Project; darf: boolean; onprojekt: (p: Project) => void } =
-    $props();
+    bereich = "grundstueck",
+  }: {
+    projekt: Project;
+    darf: boolean;
+    onprojekt: (p: Project) => void;
+    bereich?: BerechnungsBereich;
+  } = $props();
   const initial = (): BaugrundstuecksPlan =>
     structuredClone(
       $state.snapshot(
@@ -31,113 +34,72 @@
         },
       ),
     );
-  let eingabe = $state(untrack(initial));
-  let gespeichert = $state(untrack(initial));
-  let ergebnis = $state<BaugrundstuecksPruefung | null>(null);
-  let ergebnisStand = $state("");
-  let laeuft = $state(false);
-  let fehler = $state<string | null>(null);
-  let hinweis = $state<string | null>(null);
-  let formular: HTMLFormElement;
-  let flurstueckAuswahl = $state<string | null>(null);
-  let grundstueckAuswahl = $state<string | null>(null);
-  const ausgewaehltesFlurstueck = $derived(
-    eingabe.flurstuecke.some((f) => f.id === flurstueckAuswahl)
-      ? flurstueckAuswahl
-      : eingabe.flurstuecke[0]?.id,
-  );
-  const geaendert = $derived(
-    JSON.stringify(eingabe) !== JSON.stringify(gespeichert),
-  );
-  const fingerprint = $derived(JSON.stringify([eingabe, projekt.version]));
-  const aktuell = $derived(ergebnisStand === fingerprint);
+  let eingabe = $state(untrack(initial)),
+    gespeichert = $state(untrack(initial)),
+    basis = $state(untrack(() => projekt.version));
+  let gruppen = $state<BaugrundstueckGruppe[]>([]),
+    gruppenStand = $state(""),
+    ergebnis = $state<BaugrundstuecksPruefung | null>(null),
+    ergebnisStand = $state(""),
+    auswahl = $state(""),
+    laeuft = $state(false),
+    fehler = $state<string | null>(null),
+    hinweis = $state<string | null>(null);
   const mitPlan = $derived(
     !["kein", "ungeklaert"].includes(projekt.planungsrecht.bebauungsplan_art),
   );
-  const z = (n: number | null) =>
-    n == null ? "–" : n.toLocaleString("de-DE", { maximumFractionDigits: 6 });
-  const titel: Record<string, string> = {
-    grz: "GRZ I / GRZ",
-    grz_gesamt: "GRZ II",
-    gfz: "GFZ",
-    bmz: "BMZ",
-    grundflaeche: "Grundfläche (m²)",
-    geschossflaeche: "Geschossfläche (m²)",
-    baufensterflaeche: "Baufenster-Flächenvergleich (m²)",
-    vollgeschosse: "Vollgeschosse",
-  };
-  const quellen = {
-    festsetzung: "Bebauungsplan",
-    orientierungswert: "Orientierungswert § 17 BauNVO",
-    bau_nvo19: "§ 19 Abs. 4",
-    keine: "Nicht festgelegt",
-  };
-  const festLabels: Record<string, string> = {
-    grz: "GRZ I / GRZ",
-    grz_gesamt: "GRZ II",
-    gfz: "GFZ",
-    bmz: "BMZ",
-    grundflaeche_m2: "Grundfläche (m²)",
-    geschossflaeche_m2: "Geschossfläche (m²)",
-    ueberbaubare_flaeche_m2: "Baufensterfläche (m²)",
-    vollgeschosse: "Vollgeschosse",
-  };
-  function schluessel(f: GrundstuecksFlurstueck): string {
-    return f.abweichende_zuordnung
-      ? `zuordnung:${f.abweichende_zuordnung.kennung.trim().toLowerCase()}`
-      : JSON.stringify([
-          f.grundbuchbezirk.trim().toLowerCase(),
-          f.grundbuchblatt.trim().toLowerCase(),
-          f.laufende_nummer,
-        ]);
-  }
-  const gruppen = $derived.by(() => {
-    const map = new Map<string, BaugrundstueckGruppe>();
-    for (const f of eingabe.flurstuecke) {
-      if (
-        !f.grundbuchbezirk.trim() ||
-        !f.grundbuchblatt.trim() ||
-        !(f.laufende_nummer > 0) ||
-        (f.abweichende_zuordnung && !f.abweichende_zuordnung.kennung.trim())
-      )
-        continue;
-      const key = schluessel(f);
-      const g = map.get(key) ?? {
-        schluessel: key,
-        bezeichnung: f.abweichende_zuordnung
-          ? `Zuordnung ${f.abweichende_zuordnung.kennung}`
-          : `${f.grundbuchbezirk} · Blatt ${f.grundbuchblatt} · lfd. Nr. ${f.laufende_nummer}`,
-        flurstueck_ids: [],
-        eigentumsflaeche_m2: 0,
-        abzuege_m2: 0,
-        bauland_m2: 0,
-      };
-      g.flurstueck_ids.push(f.id);
-      g.eigentumsflaeche_m2 += f.flaeche_m2 || 0;
-      g.abzuege_m2 += f.abzuege.reduce((s, a) => s + (a.flaeche_m2 || 0), 0);
-      g.bauland_m2 = g.eigentumsflaeche_m2 - g.abzuege_m2;
-      map.set(key, g);
-    }
-    return [...map.values()].sort((a, b) =>
-      a.schluessel.localeCompare(b.schluessel),
-    );
-  });
-  const ausgewaehltesGrundstueck = $derived(
-    gruppen.some((g) => g.schluessel === grundstueckAuswahl)
-      ? grundstueckAuswahl
-      : gruppen[0]?.schluessel,
+  const gruppenFingerprint = $derived(
+    JSON.stringify([eingabe.flurstuecke, projekt.version]),
   );
-
-  const verwaist = $derived(
-    eingabe.berechnungen.filter(
-      (b) => !gruppen.some((g) => g.schluessel === b.schluessel),
+  const fingerprint = $derived(JSON.stringify([eingabe, projekt.version]));
+  const gruppenAktuell = $derived(gruppenStand === gruppenFingerprint),
+    aktuell = $derived(ergebnisStand === fingerprint);
+  const geaendert = $derived(
+    JSON.stringify(eingabe) !== JSON.stringify(gespeichert),
+  );
+  const gruppe = $derived(
+    gruppen.find((g) => g.schluessel === auswahl) ?? gruppen[0],
+  );
+  const berechnung = $derived(
+    eingabe.berechnungen.find((b) => b.schluessel === gruppe?.schluessel),
+  );
+  const nachweis = $derived(
+    aktuell
+      ? ergebnis?.baugrundstuecke.find(
+          (g) => g.grundstueck.schluessel === gruppe?.schluessel,
+        )?.pruefung
+      : null,
+  );
+  const z = (n: number | null | undefined) =>
+    n == null ? "—" : n.toLocaleString("de-DE", { maximumFractionDigits: 3 });
+  const nachweisTitel: Record<string, string> = {
+    grz: "GRZ I / GRZ",
+    grz_gesamt: "GRZ II",
+    gfz: "GFZ",
+    bmz: "BMZ",
+    grundflaeche: "Grundfläche",
+    geschossflaeche: "Geschossfläche",
+    baufensterflaeche: "Baufensterfläche",
+    vollgeschosse: "Vollgeschosse",
+  };
+  const relevanteNachweise = $derived(
+    (nachweis?.nachweise ?? []).filter((n) =>
+      bereich === "grz"
+        ? ["grz", "grz_gesamt", "grundflaeche"].includes(n.art)
+        : bereich === "gfz"
+          ? ["gfz", "geschossflaeche"].includes(n.art)
+          : bereich === "geschosse"
+            ? n.art === "vollgeschosse"
+            : bereich === "volumen"
+              ? n.art === "bmz"
+              : false,
     ),
   );
   $effect(() => {
     const p = projekt;
     untrack(() => {
       if (!geaendert) {
-        gespeichert = structuredClone(
+        eingabe = structuredClone(
           $state.snapshot(
             p.planungsrecht.baugrundstuecke ?? {
               flurstuecke: [],
@@ -145,42 +107,26 @@
             },
           ),
         );
-        eingabe = structuredClone($state.snapshot(gespeichert));
+        gespeichert = structuredClone($state.snapshot(eingabe));
+        basis = p.version;
       }
     });
   });
-  export async function verwerfenErlaubt(): Promise<boolean> {
-    return (
-      !geaendert ||
-      (await ask(
-        "Flurstücke und Grundstücksberechnungen sind noch nicht gespeichert. Verwerfen?",
-        {
-          title: "Baugrundstücke",
-          kind: "warning",
-          okLabel: "Verwerfen",
-          cancelLabel: "Abbrechen",
-        },
-      ))
-    );
-  }
-  function hinzufuegen() {
-    const id = crypto.randomUUID();
-    flurstueckAuswahl = id;
-    eingabe.flurstuecke.push({
-      id,
-      gemarkung: "",
-      flur: "",
-      nummer: "",
-      grundbuchbezirk: "",
-      grundbuchblatt: "",
-      laufende_nummer: 1,
-      flaeche_m2: 0,
-      abzuege: [],
-      abweichende_zuordnung: null,
-    });
-  }
-  function anlegen(g: BaugrundstueckGruppe) {
-    eingabe.berechnungen.push({
+  $effect(() => {
+    const f = projekt.planungsrecht.bau_nvo;
+    if (f)
+      for (const b of eingabe.berechnungen) {
+        const a = b.eingabe.aufstellung;
+        if (a && a.bau_nvo !== f) {
+          a.bau_nvo = f;
+          if (!a.nichtvollgeschoss_festsetzung.trim())
+            a.nichtvollgeschoss_faktor = regelwerk(f).nichtvollgeschoss_faktor;
+        }
+      }
+  });
+  function anlegen(g: BaugrundstueckGruppe): BaugrundstueckBerechnung {
+    const f = projekt.planungsrecht.bau_nvo ?? "2017";
+    return {
       schluessel: g.schluessel,
       eigene_festsetzungen: null,
       eingabe: {
@@ -194,10 +140,10 @@
           baumasse_m3: null,
         },
         aufstellung: {
-          bau_nvo: "2017",
+          bau_nvo: f,
           bauteile: [],
           geschosse: [],
-          nichtvollgeschoss_faktor: regelwerk("2017").nichtvollgeschoss_faktor,
+          nichtvollgeschoss_faktor: regelwerk(f).nichtvollgeschoss_faktor,
           nichtvollgeschoss_festsetzung: "",
           grundstueck: {
             basisflaeche_m2: g.eigentumsflaeche_m2,
@@ -207,538 +153,414 @@
           },
         },
       },
+    };
+  }
+  async function ermitteln() {
+    const stand = gruppenFingerprint;
+    fehler = null;
+    try {
+      const g = await api.baugrundstueckeErmitteln(
+        projekt.id,
+        structuredClone($state.snapshot(eingabe)),
+      );
+      if (stand !== gruppenFingerprint) return false;
+      gruppen = g;
+      gruppenStand = stand;
+      if (!g.some((x) => x.schluessel === auswahl))
+        auswahl = g[0]?.schluessel ?? "";
+      for (const gruppe of g)
+        if (
+          !eingabe.berechnungen.some((b) => b.schluessel === gruppe.schluessel)
+        )
+          eingabe.berechnungen.push(anlegen(gruppe));
+      return true;
+    } catch (e) {
+      fehler = fehlertext(e);
+      return false;
+    }
+  }
+  onMount(async () => {
+    if (eingabe.flurstuecke.length) await ermitteln();
+  });
+  async function neuErmitteln() {
+    laeuft = true;
+    try {
+      await ermitteln();
+    } finally {
+      laeuft = false;
+    }
+  }
+  function hinzufuegen() {
+    eingabe.flurstuecke.push({
+      id: crypto.randomUUID(),
+      gemarkung: "",
+      flur: "",
+      nummer: "",
+      grundbuchbezirk: "",
+      grundbuchblatt: "",
+      laufende_nummer: 1,
+      flaeche_m2: 0,
+      abzuege: [],
+      abweichende_zuordnung: null,
     });
   }
-  function request(): BaugrundstuecksPlan {
+  function request() {
     const e = structuredClone($state.snapshot(eingabe));
     for (const b of e.berechnungen) {
-      b.eingabe.mass.baumasse_m3 ??= null;
-      b.eingabe.vollgeschosse ??= null;
+      if (b.eingabe.aufstellung && projekt.planungsrecht.bau_nvo)
+        b.eingabe.aufstellung.bau_nvo = projekt.planungsrecht.bau_nvo;
     }
     return e;
   }
-  async function berechnen(event: SubmitEvent) {
-    event.preventDefault();
+  async function berechnen() {
     laeuft = true;
     fehler = null;
-    hinweis = null;
-    const stand = fingerprint;
     try {
+      if (!(await ermitteln())) return;
+      const stand = fingerprint;
       const r = await api.projektBaugrundstueckePruefen(projekt.id, request());
-      if (r.projekt_version !== projekt.version)
-        throw new Error("Projektstand geändert. Bitte Projekt erneut öffnen.");
-      ergebnis = r;
-      ergebnisStand = stand;
+      if (stand === fingerprint) {
+        ergebnis = r;
+        ergebnisStand = stand;
+      }
     } catch (e) {
-      ergebnis = null;
       fehler = fehlertext(e);
     } finally {
       laeuft = false;
     }
   }
   async function speichern() {
-    if (!formular.checkValidity()) {
-      const invalid = formular.querySelector(":invalid");
-      const parcel = invalid?.closest<HTMLElement>("[data-flurstueck]");
-      const unit = invalid?.closest<HTMLElement>("[data-grundstueck]");
-      if (parcel) flurstueckAuswahl = parcel.dataset.flurstueck ?? null;
-      if (unit) grundstueckAuswahl = unit.dataset.grundstueck ?? null;
-      await tick();
-      formular.reportValidity();
-      return;
-    }
     laeuft = true;
     fehler = null;
-    hinweis = null;
     try {
-      const e = request();
-      const r = await api.projektBaugrundstueckePruefen(projekt.id, e);
-      if (r.projekt_version !== projekt.version)
-        throw new Error("Projektstand geändert. Bitte Projekt erneut öffnen.");
+      if (!(await ermitteln())) return;
+      const plan = request();
+      await api.projektBaugrundstueckePruefen(projekt.id, plan);
       const p = await api.projektAktualisieren({
         id: projekt.id,
-        expected_version: projekt.version,
+        expected_version: basis,
         name: projekt.name,
         bundesland: projekt.bundesland,
-        grundstuecksflaeche_m2: e.flurstuecke.reduce(
-          (s, f) => s + f.flaeche_m2,
-          0,
-        ),
+        grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
         planungsrecht: {
           ...structuredClone($state.snapshot(projekt.planungsrecht)),
-          baugrundstuecke: e,
+          baugrundstuecke: plan,
         },
       });
-      gespeichert = structuredClone(
+      eingabe = structuredClone(
         $state.snapshot(p.planungsrecht.baugrundstuecke!),
       );
-      eingabe = structuredClone($state.snapshot(gespeichert));
-      ergebnis = null;
+      gespeichert = structuredClone($state.snapshot(eingabe));
+      basis = p.version;
       onprojekt(p);
-      hinweis = "Flurstücke und Berechnungen gespeichert.";
+      await tick();
+      await ermitteln();
+      hinweis = "Baugrundstücke und Berechnungseingaben gespeichert.";
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
       laeuft = false;
     }
   }
-
   export function hatAenderungen() {
     return geaendert;
   }
   export function istBeschaeftigt() {
     return laeuft;
   }
-  export async function speichernBeimSchliessen(): Promise<boolean> {
-    if (istBeschaeftigt()) return false;
-    await speichern();
-    return !hatAenderungen();
+  export async function speichernBeimSchliessen() {
+    if (laeuft) return false;
+    if (geaendert) await speichern();
+    return !geaendert;
   }
 </script>
 
-<p class="meta">
-  Die grundbuchliche Einheit ergibt sich aus Grundbuchbezirk, Blatt und
-  laufender Nummer im Bestandsverzeichnis. Flurstücke derselben Einheit werden
-  zusammengefasst; unterschiedliche Einheiten getrennt berechnet. Besondere
-  rechtliche Zuordnungen können mit ihrer Grundlage erfasst werden.
-</p>
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}{#if hinweis}<p
     role="status"
   >
     {hinweis}
   </p>{/if}
-<form
-  bind:this={formular}
-  onsubmit={berechnen}
-  class="flaechenformular flurstuecksformular"
->
-  <h3>Flurstücksverzeichnis</h3>
-  <div class="tabellen-scroll">
-    <table class="projekttabelle">
-      <thead
-        ><tr
-          ><th>Gemarkung / Flur</th><th>Flurstück</th><th>Grundbuch</th><th
-            class="zahl">Eigentumsfläche</th
-          ><th>Bearbeiten</th></tr
-        ></thead
-      ><tbody>
-        {#each eingabe.flurstuecke as f (f.id)}<tr
-            class:ausgewaehlt={ausgewaehltesFlurstueck === f.id}
-            ><td>{f.gemarkung || "—"} {f.flur ? ` / ${f.flur}` : ""}</td><td
-              >{f.nummer || "Neues Flurstück"}</td
-            ><td>{f.grundbuchblatt || "—"} · lfd. Nr. {f.laufende_nummer}</td
-            ><td class="zahl">{z(f.flaeche_m2)} m²</td><td
-              ><button
-                type="button"
-                class="link"
-                aria-pressed={ausgewaehltesFlurstueck === f.id}
-                onclick={() => (flurstueckAuswahl = f.id)}>Auswählen</button
-              ></td
-            ></tr
-          >{:else}<tr><td colspan="5">Noch keine Flurstücke erfasst.</td></tr
-          >{/each}
-      </tbody>
-    </table>
-  </div>
-  <h3>Flurstücksdetails und Flächenabzüge</h3>
-  {#each eingabe.flurstuecke as f, i (f.id)}
-    <fieldset data-flurstueck={f.id} hidden={ausgewaehltesFlurstueck !== f.id}>
-      <legend>Flurstück {f.nummer || i + 1}</legend>
-      <div class="raster">
-        <label
-          >Gemarkung<input
-            bind:value={f.gemarkung}
-            required
-            maxlength="500"
-          /></label
-        ><label
-          >Flur (optional)<input bind:value={f.flur} maxlength="500" /></label
-        ><label
-          >Flurstücksnummer<input
-            bind:value={f.nummer}
-            required
-            maxlength="500"
-          /></label
+{#if bereich === "grundstueck"}
+  <p class="meta">
+    Flurstücke erfassen → grundbuchliche Einheiten ermitteln → maßgebende Fläche
+    je Baugrundstück verwenden.
+  </p>
+  <fieldset disabled={!darf || laeuft}>
+    <legend>1 · Flurstücke</legend>
+    <div class="tabellen-scroll">
+      <table class="ergebnistabelle eingabetabelle">
+        <thead
+          ><tr
+            ><th>Gemarkung / Flur</th><th>Flurstück</th><th
+              >Grundbuchbezirk / Blatt</th
+            ><th>Lfd. Nr.</th><th>Fläche m²</th><th></th></tr
+          ></thead
+        ><tbody>
+          {#each eingabe.flurstuecke as f (f.id)}<tr
+              ><td
+                ><input
+                  aria-label="Gemarkung"
+                  bind:value={f.gemarkung}
+                  placeholder="Gemarkung"
+                /><input
+                  aria-label="Flur"
+                  bind:value={f.flur}
+                  placeholder="Flur"
+                /></td
+              ><td
+                ><input
+                  aria-label="Flurstücknummer"
+                  bind:value={f.nummer}
+                /></td
+              ><td
+                ><input
+                  aria-label="Grundbuchbezirk"
+                  bind:value={f.grundbuchbezirk}
+                  placeholder="Bezirk"
+                /><input
+                  aria-label="Grundbuchblatt"
+                  bind:value={f.grundbuchblatt}
+                  placeholder="Blatt"
+                /></td
+              ><td
+                ><input
+                  aria-label="Laufende Nummer"
+                  type="number"
+                  min="1"
+                  step="1"
+                  bind:value={f.laufende_nummer}
+                /></td
+              ><td
+                ><input
+                  aria-label="Eigentumsfläche"
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  bind:value={f.flaeche_m2}
+                /></td
+              ><td
+                ><button
+                  class="link"
+                  onclick={() =>
+                    (eingabe.flurstuecke = eingabe.flurstuecke.filter(
+                      (x) => x.id !== f.id,
+                    ))}>Entfernen</button
+                ></td
+              ></tr
+            >{/each}
+        </tbody>
+      </table>
+    </div>
+    <button class="sekundaer" onclick={hinzufuegen}>Flurstück hinzufügen</button
+    >
+  </fieldset>
+  <fieldset disabled={!darf || laeuft}>
+    <legend>2 · Flächenabzüge und besondere Zuordnungen</legend>
+    {#each eingabe.flurstuecke as f (f.id)}<details>
+        <summary
+          >{f.gemarkung || "Gemarkung"} · {f.nummer || "Flurstück"} · {f.abzuege
+            .length} Abzüge</summary
         >
-        <label
-          >Grundbuchbezirk<input
-            bind:value={f.grundbuchbezirk}
-            required
-            maxlength="500"
-          /></label
-        ><label
-          >Grundbuchblatt<input
-            bind:value={f.grundbuchblatt}
-            required
-            maxlength="500"
-          /></label
-        ><label
-          >Laufende Nummer im Bestandsverzeichnis<input
-            type="number"
-            min="1"
-            step="1"
-            bind:value={f.laufende_nummer}
-            required
-          /></label
-        >
-        <label
-          >Flurstücksfläche (m²)<input
-            type="number"
-            min="0.01"
-            step="any"
-            bind:value={f.flaeche_m2}
-            required
-          /></label
-        >
-      </div>
-      {#each f.abzuege as a, j}<fieldset>
-          <legend>Abzugsfläche {j + 1}</legend>
-          <div class="raster">
-            <label
-              >Art<select bind:value={a.art}
-                >{#each Object.entries(ABZUEGE) as [code, r]}<option
-                    value={code}>{r.bezeichnung}</option
-                  >{/each}</select
-              ></label
-            ><label
-              >Fläche (m²)<input
-                type="number"
-                min="0"
-                step="any"
-                bind:value={a.flaeche_m2}
-                required
-              /></label
-            ><label
-              >Planfestsetzung / Grundlage<input
-                bind:value={a.grundlage}
-                required
-                maxlength="4000"
-              /></label
-            >
-          </div>
-          <button
-            type="button"
-            class="sekundaer"
-            onclick={() => f.abzuege.splice(j, 1)}>Abzug entfernen</button
+        <table class="ergebnistabelle">
+          <thead
+            ><tr><th>Abzugsart</th><th>m²</th><th>Grundlage</th><th></th></tr
+            ></thead
+          ><tbody
+            >{#each f.abzuege as a, i}<tr
+                ><td
+                  ><select aria-label="Abzugsart" bind:value={a.art}
+                    >{#each Object.entries(ABZUEGE).filter(([, r]) => mitPlan || !r.bebauungsplan_erforderlich) as [code, r]}<option
+                        value={code}>{r.bezeichnung}</option
+                      >{/each}</select
+                  ></td
+                ><td
+                  ><input
+                    aria-label="Abzugsfläche"
+                    type="number"
+                    min="0"
+                    step="any"
+                    bind:value={a.flaeche_m2}
+                  /></td
+                ><td
+                  ><input
+                    aria-label="Abzugsgrundlage"
+                    bind:value={a.grundlage}
+                  /></td
+                ><td
+                  ><button class="link" onclick={() => f.abzuege.splice(i, 1)}
+                    >Entfernen</button
+                  ></td
+                ></tr
+              >{/each}</tbody
           >
-        </fieldset>{/each}
-      <div class="knoepfe links">
+        </table>
         <button
-          type="button"
           class="sekundaer"
           onclick={() =>
             f.abzuege.push({
-              art: mitPlan ? "private_gruenflaeche" : "ausserhalb_bauland",
+              art: "sonstiger_abzug",
               flaeche_m2: 0,
               grundlage: "",
-            })}>Abzugsfläche hinzufügen</button
-        ><button
-          type="button"
-          class="sekundaer"
-          onclick={() => eingabe.flurstuecke.splice(i, 1)}
-          >Flurstück entfernen</button
-        >
-      </div>
-      <details>
-        <summary>Abweichende rechtliche Grundstückszuordnung</summary>
-        <p class="meta">
-          Nur bei einer belegten besonderen Zuordnung. Gleiche Kennungen werden
-          zusammengefasst. Unterschiedliche Kennungen können eine grundbuchliche
-          Einheit aufteilen.
-        </p>
-        {#if f.abweichende_zuordnung}<div class="raster">
-            <label
-              >Kennung des Baugrundstücks<input
-                bind:value={f.abweichende_zuordnung.kennung}
-                required
-                maxlength="500"
-              /></label
-            ><label
-              >Rechtliche Grundlage / Nachweis<input
-                bind:value={f.abweichende_zuordnung.grundlage}
-                required
-                maxlength="4000"
-              /></label
-            >
-          </div>
-          <button
-            type="button"
-            class="sekundaer"
-            onclick={() => (f.abweichende_zuordnung = null)}
-            >Grundbuchliche Zuordnung verwenden</button
-          >
-        {:else}<button
-            type="button"
-            class="sekundaer"
-            onclick={() =>
-              (f.abweichende_zuordnung = { kennung: "", grundlage: "" })}
-            >Besondere Zuordnung erfassen</button
-          >{/if}
-      </details>
-    </fieldset>
-  {/each}
-  <button type="button" class="sekundaer" onclick={hinzufuegen}
-    >Flurstück hinzufügen</button
-  >
-  <h3>Baugrundstücke und einzelne Berechnungen</h3>
-  <p class="meta">
-    Abzüge betreffen die maßgebende Baulandfläche, nicht die Eigentumsfläche.
-    Überlagerte Abzugsflächen nur einmal erfassen. Eine nicht überbaubare Fläche
-    außerhalb des Baufensters ist allein kein Grundstücksflächenabzug.
-  </p>
-  <div class="grundstuecksauswahl" aria-label="Baugrundstücke">
-    {#each gruppen as g (g.schluessel)}<button
-        type="button"
-        class="sekundaer"
-        class:aktiv={ausgewaehltesGrundstueck === g.schluessel}
-        aria-pressed={ausgewaehltesGrundstueck === g.schluessel}
-        onclick={() => (grundstueckAuswahl = g.schluessel)}
-        ><strong>{g.bezeichnung}</strong><span class="meta"
-          >{z(g.bauland_m2)} m² Bauland · {g.flurstueck_ids.length} Flurstücke</span
-        ></button
-      >{/each}
-  </div>
-  {#each gruppen as g (g.schluessel)}
-    {@const b = eingabe.berechnungen.find((b) => b.schluessel === g.schluessel)}
-    {@const r = aktuell
-      ? (ergebnis?.baugrundstuecke.find(
-          (r) => r.grundstueck.schluessel === g.schluessel,
-        )?.pruefung ?? null)
-      : null}
-    <fieldset
-      data-grundstueck={g.schluessel}
-      hidden={ausgewaehltesGrundstueck !== g.schluessel}
-    >
-      <legend>{g.bezeichnung}</legend>
-      <p>
-        {g.flurstueck_ids.length} Flurstück(e): {z(g.eigentumsflaeche_m2)} m² − {z(
-          g.abzuege_m2,
-        )} m² Abzüge = <strong>{z(g.bauland_m2)} m² Bauland</strong>
-      </p>
-      <p class="meta">
-        {eingabe.flurstuecke
-          .filter((f) => g.flurstueck_ids.includes(f.id))
-          .map(
-            (f) =>
-              `${f.gemarkung} ${f.flur ? `Flur ${f.flur} ` : ""}${f.nummer}`,
-          )
-          .join(" · ")}
-      </p>
-      {#if !b}<button type="button" onclick={() => anlegen(g)}
-          >Berechnung für dieses Baugrundstück anlegen</button
-        >
-      {:else if b.eingabe.aufstellung}
-        <p class="meta">
-          {mitPlan
-            ? "Vergleich mit den Projektfestsetzungen oder eigenen Festsetzungen dieser Grundstückseinheit."
-            : "Ohne Bebauungsplan: Orientierungswerte nach § 17 BauNVO, keine verbindliche Zulässigkeitsentscheidung."}
-        </p>
-        <label
-          >Baugebiet<select bind:value={b.eingabe.gebiet}
-            >{#each GEBIETE as gebiet}<option value={gebiet.code}
-                >{gebiet.code} – {gebiet.name}</option
-              >{/each}</select
-          ></label
-        >
-        <label
-          >BauNVO-Fassung<select bind:value={b.eingabe.aufstellung.bau_nvo}
-            >{#each REGELWERKE as r}<option value={r.fassung}
-                >BauNVO {r.fassung}</option
-              >{/each}</select
-          ></label
-        >
-        <label
-          >Baumasse dieses Baugrundstücks (m³, optional)<input
-            type="number"
-            min="0"
-            step="any"
-            bind:value={b.eingabe.mass.baumasse_m3}
-          /></label
+            })}>Abzug hinzufügen</button
         >
         <details>
-          <summary>Zugeordnete Gemeinschaftsflächen</summary
-          ><GrundstueckFormular
-            aufstellung={b.eingabe.aufstellung}
-            basisFallback={g.eigentumsflaeche_m2}
-            ergebnis={r?.aufstellung?.grundstueck ?? null}
-            {mitPlan}
-            flurstuecksBasis={{
-              basis: g.eigentumsflaeche_m2,
-              abzug: g.abzuege_m2,
-            }}
-          />
-        </details>
-        <details>
-          <summary>Eigene Festsetzungen für dieses Baugrundstück</summary>
-          <p class="meta">
-            Ohne eigene Angaben gelten die Projektfestsetzungen. Eigene Angaben
-            ersetzen diese vollständig; leere Werte bleiben ungeprüft.
-          </p>
-          {#if b.eigene_festsetzungen}<div class="raster">
-              {#each ["grz", "grz_gesamt", "gfz", "bmz", "grundflaeche_m2", "geschossflaeche_m2", "ueberbaubare_flaeche_m2", "vollgeschosse"] as key}<label
-                  >{festLabels[key]}<input
-                    type="number"
-                    min="0"
-                    step={key === "vollgeschosse" ? "1" : "any"}
-                    bind:value={
-                      b.eigene_festsetzungen[
-                        key as keyof Pick<
-                          Festsetzungen,
-                          | "grz"
-                          | "grz_gesamt"
-                          | "gfz"
-                          | "bmz"
-                          | "grundflaeche_m2"
-                          | "geschossflaeche_m2"
-                          | "ueberbaubare_flaeche_m2"
-                          | "vollgeschosse"
-                        >
-                      ]
-                    }
-                  /></label
-                >{/each}
+          <summary>Abweichende rechtliche Grundstückszuordnung</summary
+          >{#if f.abweichende_zuordnung}<div class="raster">
               <label
-                >Baugebiet laut Plan<select
-                  bind:value={b.eigene_festsetzungen.baugebiet}
-                  ><option value={null}>Nicht festgelegt</option
-                  >{#each GEBIETE as gebiet}<option value={gebiet.code}
-                      >{gebiet.code} – {gebiet.name}</option
-                    >{/each}</select
-                ></label
-              >
-              <label
-                >Geschossigkeit<select
-                  bind:value={b.eigene_festsetzungen.geschossigkeit}
-                  ><option value="maximal">Maximal</option><option
-                    value="zwingend">Zwingend</option
-                  ></select
-                ></label
-              ><label
-                >Nichtvollgeschoss-Anteil (optional)<input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="any"
-                  bind:value={b.eigene_festsetzungen.nichtvollgeschoss_faktor}
+                >Zuordnungskennung<input
+                  bind:value={f.abweichende_zuordnung.kennung}
                 /></label
               ><label
-                >Planfestsetzung Nichtvollgeschosse<input
-                  bind:value={
-                    b.eigene_festsetzungen.nichtvollgeschoss_festsetzung
-                  }
-                  required={(b.eigene_festsetzungen.nichtvollgeschoss_faktor ??
-                    0) > 0}
+                >Rechtliche Grundlage<input
+                  bind:value={f.abweichende_zuordnung.grundlage}
                 /></label
               >
             </div>
             <button
-              type="button"
-              class="sekundaer"
-              onclick={() => (b.eigene_festsetzungen = null)}
-              >Projektfestsetzungen verwenden</button
-            >
-          {:else}<button
-              type="button"
+              class="link"
+              onclick={() => (f.abweichende_zuordnung = null)}
+              >Besondere Zuordnung entfernen</button
+            >{:else}<button
               class="sekundaer"
               onclick={() =>
-                (b.eigene_festsetzungen = structuredClone(
-                  $state.snapshot(projekt.planungsrecht.festgesetzte_werte),
-                ))}>Eigene Festsetzungen erfassen</button
+                (f.abweichende_zuordnung = { kennung: "", grundlage: "" })}
+              >Besondere Zuordnung erfassen</button
             >{/if}
         </details>
-        <FlaechenFormular
-          bind:aufstellung={b.eingabe.aufstellung}
-          festsetzungen={mitPlan
-            ? (b.eigene_festsetzungen ??
-              projekt.planungsrecht.festgesetzte_werte)
-            : {
-                ...projekt.planungsrecht.festgesetzte_werte,
-                nichtvollgeschoss_faktor: null,
-              }}
-          ergebnis={r?.aufstellung ?? null}
-        />
-        {#if r}<p class="hinweisbox">
-            Maßgebende Bezugsfläche: <strong
-              >{z(r.aufstellung?.mass.grundstuecksflaeche_m2 ?? g.bauland_m2)} m²</strong
-            >, einschließlich zugeordneter Gemeinschaftsanteile.
-          </p>
-          <div class="tabellen-scroll">
-            <table class="ergebnistabelle">
-              <thead
-                ><tr
-                  ><th>Nachweis</th><th>Ist</th><th>Soll</th><th>Quelle</th><th
-                    >Überschreitung / Abweichung</th
-                  ><th>Ergebnis</th></tr
-                ></thead
-              ><tbody
-                >{#each r.nachweise as n}{#if !(n.art === "grz_gesamt" && !regelwerk(b.eingabe.aufstellung.bau_nvo).grz_ii)}<tr
-                      ><td
-                        >{n.art === "grz"
-                          ? regelwerk(b.eingabe.aufstellung.bau_nvo).grz_ii
-                            ? "GRZ I"
-                            : "GRZ"
-                          : titel[n.art]}</td
-                      ><td>{z(n.ist)}</td><td>{z(n.soll)}</td><td
-                        >{quellen[n.quelle]}</td
-                      ><td
-                        >{z(
-                          n.zwingend ? n.abweichung : n.ueberschreitung,
-                        )}{n.ueberschreitung_prozent != null &&
-                        n.ueberschreitung_prozent > 0
-                          ? ` (${z(n.ueberschreitung_prozent)} %)`
-                          : ""}{n.flaechenueberschreitung_m2
-                          ? ` · ${z(n.flaechenueberschreitung_m2)} m²`
-                          : ""}</td
-                      ><td class:verstoss={n.eingehalten === false}
-                        >{n.soll == null
-                          ? "Nicht festgelegt"
-                          : n.ist == null
-                            ? "Eingabe fehlt"
-                            : n.eingehalten
-                              ? "✓ Vergleichswert eingehalten"
-                              : "✗ Abweichung"}</td
-                      ></tr
-                    >{/if}{/each}</tbody
-              >
-            </table>
-          </div>{/if}
-      {/if}
-    </fieldset>
-  {/each}
-  {#each verwaist as b}<p class="hinweisbox">
-      Berechnung ohne passende Flurstücke: {b.schluessel}. Bitte Zuordnung
-      korrigieren oder ausdrücklich entfernen.
-    </p>
-    <button
-      type="button"
-      class="sekundaer"
-      onclick={async () => {
-        if (
-          await ask("Diese Berechnung mit allen Eingaben entfernen?", {
-            title: "Verwaiste Berechnung",
-            kind: "warning",
-          })
-        )
-          eingabe.berechnungen = eingabe.berechnungen.filter((x) => x !== b);
-      }}>Verwaiste Berechnung entfernen</button
-    >{/each}
-  {#if ergebnis && !aktuell}<p class="hinweisbox">
-      Eingaben oder Projektfestsetzungen geändert. Bitte neu berechnen.
-    </p>{/if}
-  <p class="meta">
-    Die Nachweise betreffen GRZ, GFZ, BMZ, Geschossigkeit und Flächengrenzen.
-    Die Lage innerhalb der Baugrenzen wird weiterhin unter „Pläne“ geometrisch
-    geprüft.
+      </details>{/each}
+  </fieldset>
+  <h3>3 · Baugrundstücksermittlung</h3>
+  <button
+    class="sekundaer"
+    disabled={laeuft || !eingabe.flurstuecke.length}
+    onclick={neuErmitteln}>Baugrundstücke ermitteln</button
+  >
+  {#if gruppen.length}<div class="tabellen-scroll">
+      <table class="ergebnistabelle">
+        <thead
+          ><tr
+            ><th>Baugrundstück</th><th>Flurstücke</th><th>Eigentumsfläche</th
+            ><th>Abzüge</th><th>Bauland</th></tr
+          ></thead
+        ><tbody
+          >{#each gruppen as g}<tr
+              ><td>{g.bezeichnung}</td><td>{g.flurstueck_ids.length}</td><td
+                >{z(g.eigentumsflaeche_m2)} m²</td
+              ><td>− {z(g.abzuege_m2)} m²</td><td
+                ><strong>{z(g.bauland_m2)} m²</strong></td
+              ></tr
+            >{/each}</tbody
+        >
+      </table>
+    </div>{/if}
+{/if}
+{#if gruppen.length && !gruppenAktuell}<p class="hinweisbox">
+    Flurstücke oder Grundlagen geändert. Die angezeigte Ermittlung ist veraltet;
+    bitte neu ermitteln.
+  </p>{/if}
+{#if !eingabe.flurstuecke.length}<p class="meta">
+    Zuerst unter „Baugrundstück“ die Flurstücke erfassen.
+  </p>{/if}
+{#if gruppe && berechnung?.eingabe.aufstellung}
+  <label
+    >Baugrundstück<select aria-label="Baugrundstück" bind:value={auswahl}
+      >{#each gruppen as g}<option value={g.schluessel}>{g.bezeichnung}</option
+        >{/each}</select
+    ></label
+  >
+  <fieldset disabled={!darf || laeuft || !gruppenAktuell}>
+    {#if bereich === "grundstueck"}<GrundstueckFormular
+        aufstellung={berechnung.eingabe.aufstellung}
+        basisFallback={gruppe.eigentumsflaeche_m2}
+        ergebnis={nachweis?.aufstellung?.grundstueck ?? null}
+        {mitPlan}
+        flurstuecksBasis={{
+          basis: gruppe.eigentumsflaeche_m2,
+          abzug: gruppe.abzuege_m2,
+        }}
+      />
+    {:else if bereich === "volumen"}<label
+        >Baumasse / Bauvolumen (m³)<input
+          type="number"
+          min="0"
+          step="any"
+          bind:value={berechnung.eingabe.mass.baumasse_m3}
+        /></label
+      >
+    {:else}<FlaechenFormular
+        bereich={bereich === "grz" ? "grz" : "gfz"}
+        aufstellung={berechnung.eingabe.aufstellung}
+        festsetzungen={projekt.planungsrecht.festgesetzte_werte}
+        ergebnis={nachweis?.aufstellung ?? null}
+      />{/if}
+  </fieldset>
+{/if}
+{#if eingabe.berechnungen.some((b) => !gruppen.some((g) => g.schluessel === b.schluessel)) && gruppenAktuell}<p
+    class="hinweisbox"
+  >
+    Die Grundstückszuordnung hat sich geändert. Verwaiste Berechnungen müssen
+    vor dem Speichern geprüft werden.
   </p>
-  <div class="knoepfe links">
-    <button type="submit" disabled={laeuft}
-      >Alle Baugrundstücke berechnen</button
-    ><button
-      type="button"
-      class="sekundaer"
-      onclick={speichern}
-      disabled={!darf || laeuft || !geaendert}
-      >Flurstücke und Berechnungen speichern</button
+  <button
+    class="sekundaer"
+    disabled={!darf || laeuft}
+    onclick={() => {
+      eingabe.berechnungen = eingabe.berechnungen.filter((b) =>
+        gruppen.some((g) => g.schluessel === b.schluessel),
+      );
+    }}>Nicht zugeordnete Berechnungen entfernen</button
+  >{/if}
+{#if relevanteNachweise.length}<table class="ergebnistabelle">
+    <thead
+      ><tr
+        ><th>Nachweis</th><th>Ist</th><th>Vorgabe</th><th>Grundlage</th><th
+          >Abweichung</th
+        ></tr
+      ></thead
+    ><tbody
+      >{#each relevanteNachweise as n}<tr
+          ><td>{nachweisTitel[n.art]}</td><td>{z(n.ist)}</td><td>{z(n.soll)}</td
+          ><td class:verstoss={n.eingehalten === false}
+            >{z(n.abweichung ?? n.ueberschreitung)}</td
+          ></tr
+        >{/each}</tbody
     >
-  </div>
-</form>
+  </table>{/if}
+{#if ergebnis && !aktuell}<p class="meta">
+    Eingaben geändert. Ergebnisse bitte neu berechnen.
+  </p>{/if}
+<div class="knoepfe links">
+  <button disabled={laeuft || !eingabe.flurstuecke.length} onclick={berechnen}
+    >{bereich === "grundstueck"
+      ? "Bezugsflächen berechnen"
+      : "Berechnen"}</button
+  ><button
+    class="sekundaer"
+    disabled={!darf || laeuft || !geaendert}
+    onclick={speichern}>Eingaben speichern</button
+  >{#if geaendert}<span class="meta">Ungespeicherte Eingaben</span>{/if}
+</div>
+
+<style>
+  .eingabetabelle input {
+    min-width: 4.2rem;
+    width: 100%;
+    margin: 0.15rem 0;
+  }
+  .eingabetabelle td:first-child,
+  .eingabetabelle td:nth-child(3) {
+    min-width: 10rem;
+  }
+  table {
+    margin: 1rem 0;
+  }
+  details {
+    padding: 0.6rem 0;
+  }
+  fieldset {
+    margin: 1rem 0;
+  }
+  th {
+    text-align: left;
+  }
+</style>

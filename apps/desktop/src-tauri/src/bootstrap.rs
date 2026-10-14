@@ -27,6 +27,7 @@ pub struct AppState {
     pub config: AppConfig,
     /// Nur im Netzwerkmodus vorhanden.
     pub cache: Option<Arc<CachedStorage>>,
+    pub projektordner: tokio::sync::RwLock<std::path::PathBuf>,
     pub formularordner: tokio::sync::RwLock<std::path::PathBuf>,
     pub lokale_ablage: Option<Arc<storage::WechselbareAblage>>,
 }
@@ -104,6 +105,12 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     )?
     .root;
 
+    let projektordner = crate::config::DateiablageConfig::load_named(
+        &config_dir,
+        data_dir.join("Projektordner"),
+        "projektordner.json",
+    )?
+    .root;
     let lbo = Arc::new(init_lbo(app, &data_dir)?);
 
     // Lizenz und belegte Arbeitsplätze liegen in der (gemeinsamen) Datenbank.
@@ -161,6 +168,7 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         cache,
         lokale_ablage,
         formularordner: tokio::sync::RwLock::new(formularordner),
+        projektordner: tokio::sync::RwLock::new(projektordner),
     })
 }
 

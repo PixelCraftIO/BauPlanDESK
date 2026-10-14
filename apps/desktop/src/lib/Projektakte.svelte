@@ -13,9 +13,15 @@
     type Kunde,
     type Project,
   } from "./api";
-  import { reiter, type Ansicht } from "./projektSitzung";
+  import {
+    berechnungsAnsichten,
+    berechnungsTitel,
+    type BerechnungsBereich,
+    type Ansicht,
+  } from "./projektSitzung";
   import Abstandsflaeche from "./Abstandsflaeche.svelte";
   import Bauantrag from "./Bauantrag.svelte";
+  import ProjektFormulare from "./ProjektFormulare.svelte";
   import Einreichungen from "./Einreichungen.svelte";
   import Dokumente from "./Dokumente.svelte";
   import MassDerNutzung from "./MassDerNutzung.svelte";
@@ -49,6 +55,13 @@
   } = $props();
   let planEditor = $state<Plaene>();
   let nutzungsEditor = $state<MassDerNutzung>();
+  let formularEditor = $state<ProjektFormulare>();
+  let festsetzungsEditor = $state<Rechtsgrundlagen>();
+  let stammdatenEditor = $state<Rechtsgrundlagen>();
+  let formulareBesucht = $state(false);
+  $effect(() => {
+    if (ansicht === "formulare") formulareBesucht = true;
+  });
   let rechtsEditor = $state<Rechtsgrundlagen>();
   let antragEditor = $state<Bauantrag>();
   let einreichungsEditor = $state<Einreichungen>();
@@ -79,6 +92,8 @@
       planEditor?.hatAenderungen() ||
       nutzungsEditor?.hatAenderungen() ||
       rechtsEditor?.hatAenderungen() ||
+      festsetzungsEditor?.hatAenderungen() ||
+      stammdatenEditor?.hatAenderungen() ||
       einreichungsEditor?.hatAenderungen() ||
       antragEditor?.hatAenderungen()
     );
@@ -88,6 +103,9 @@
       planEditor?.istBeschaeftigt() ||
       nutzungsEditor?.istBeschaeftigt() ||
       rechtsEditor?.istBeschaeftigt() ||
+      festsetzungsEditor?.istBeschaeftigt() ||
+      stammdatenEditor?.istBeschaeftigt() ||
+      formularEditor?.istBeschaeftigt() ||
       antragEditor?.istBeschaeftigt() ||
       einreichungsEditor?.istBeschaeftigt() ||
       dokumentEditor?.istBeschaeftigt()
@@ -110,7 +128,9 @@
       bereich: Ansicht;
     }[] = [
       { editor: rechtsEditor, bereich: "rechtsgrundlagen" },
-      { editor: nutzungsEditor, bereich: "mass" },
+      { editor: festsetzungsEditor, bereich: "festsetzungen" },
+      { editor: stammdatenEditor, bereich: "uebersicht" },
+      { editor: nutzungsEditor, bereich: "grundstueck" },
       { editor: planEditor, bereich: "plaene" },
       { editor: antragEditor, bereich: "bauantrag" },
     ];
@@ -164,79 +184,75 @@
         : ""}
     </span>
   </div>
-  <nav class="reiter" aria-label="Projektbereiche">
-    {#each reiter as r}
-      <button
-        class:aktiv={ansicht === r.id}
-        aria-current={ansicht === r.id}
-        onclick={() => (ansicht = r.id)}>{r.text}</button
-      >
-    {/each}
-  </nav>
 </header>
 
 <main>
-  {#if ansicht === "uebersicht"}
-    <section>
-      <h2>Projektdaten</h2>
-      <dl class="daten">
-        <dt>Name</dt>
-        <dd>{projekt.name}</dd>
-        <dt>Bundesland</dt>
-        <dd>{landName(projekt.bundesland)}</dd>
-        <dt>Grundstücksfläche</dt>
-        <dd>
-          {projekt.grundstuecksflaeche_m2
-            ? `${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²`
-            : "–"}
-        </dd>
-        <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
-        <dd>
-          {#each bauherren as k (k.id)}
-            <div>
-              {kundenname(k)}
-              <span class="meta"
-                >({kategorieName(k.kategorie)}{k.telefon
-                  ? `, ${k.telefon}`
-                  : ""}{k.email ? `, ${k.email}` : ""})</span
-              >
-            </div>
-          {:else}–{/each}
-        </dd>
-        <dt>Rechtsgrundlage</dt>
-        <dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
-        <dt>Bebauungsplan</dt>
-        <dd>
-          {bebauungsplanName(projekt.planungsrecht.bebauungsplan_art)}{![
-            "kein",
-            "ungeklaert",
-          ].includes(projekt.planungsrecht.bebauungsplan_art) &&
-          projekt.planungsrecht.plan_bezeichnung
-            ? ` · ${projekt.planungsrecht.plan_bezeichnung}`
-            : ""}
-        </dd>
-        <dt>Angelegt</dt>
-        <dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
-        <dt>Zuletzt geändert</dt>
-        <dd>
-          {new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})
-        </dd>
-      </dl>
-      <div class="knoepfe links">
-        <button
-          class="sekundaer"
-          onclick={() => ondialog("projektdaten")}
-          disabled={!darf("bearbeitung")}>Bearbeiten …</button
-        >
-        <button class="sekundaer" onclick={() => ondialog("bauherren")}
-          >Bauherren …</button
-        >
-        <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}
-          >Rechtsgrundlagen …</button
-        >
-      </div>
-    </section>
-  {/if}
+  <section hidden={ansicht !== "uebersicht"}>
+    <h2>Stammdaten</h2>
+    <dl class="daten">
+      <dt>Name</dt>
+      <dd>{projekt.name}</dd>
+      <dt>Bundesland</dt>
+      <dd>{landName(projekt.bundesland)}</dd>
+      <dt>Grundstücksfläche</dt>
+      <dd>
+        {projekt.grundstuecksflaeche_m2
+          ? `${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²`
+          : "–"}
+      </dd>
+      <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
+      <dd>
+        {#each bauherren as k (k.id)}
+          <div>
+            {kundenname(k)}
+            <span class="meta"
+              >({kategorieName(k.kategorie)}{k.telefon
+                ? `, ${k.telefon}`
+                : ""}{k.email ? `, ${k.email}` : ""})</span
+            >
+          </div>
+        {:else}–{/each}
+      </dd>
+      <dt>Rechtsgrundlage</dt>
+      <dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
+      <dt>Bebauungsplan</dt>
+      <dd>
+        {bebauungsplanName(projekt.planungsrecht.bebauungsplan_art)}{![
+          "kein",
+          "ungeklaert",
+        ].includes(projekt.planungsrecht.bebauungsplan_art) &&
+        projekt.planungsrecht.plan_bezeichnung
+          ? ` · ${projekt.planungsrecht.plan_bezeichnung}`
+          : ""}
+      </dd>
+      <dt>Angelegt</dt>
+      <dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
+      <dt>Zuletzt geändert</dt>
+      <dd>
+        {new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})
+      </dd>
+    </dl>
+    <div class="knoepfe links">
+      <button
+        class="sekundaer"
+        onclick={() => ondialog("projektdaten")}
+        disabled={!darf("bearbeitung")}>Bearbeiten …</button
+      >
+      <button class="sekundaer" onclick={() => ondialog("bauherren")}
+        >Bauherren …</button
+      >
+      <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}
+        >Rechtsgrundlagen …</button
+      >
+    </div>
+    <Rechtsgrundlagen
+      bind:this={stammdatenEditor}
+      {projekt}
+      darf={darf("bearbeitung")}
+      {onprojekt}
+      bereich="stammdaten"
+    />
+  </section>
   <section hidden={ansicht !== "abstand"}>
     <h2>Abstandsflächen</h2>
     {#key projekt.id}
@@ -255,36 +271,64 @@
         {projekt}
         aktiv={aktiv && ansicht === "plaene"}
         darf={darf("bearbeitung")}
-        onprojekt={(p) => (projekt = p)}
+        {onprojekt}
         bind:dokumentId={planDokument}
         onflaeche={grundstuecksflaecheUebernehmen}
         onfehler={melde}
       />
     {/key}
   </section>
-  <section hidden={ansicht !== "mass"}>
-    <h2>Maß der baulichen Nutzung</h2>
+  <section hidden={!berechnungsAnsichten.includes(ansicht)}>
+    <h2>
+      {berechnungsTitel[
+        (ansicht === "mass" ? "grundstueck" : ansicht) as BerechnungsBereich
+      ] ?? "Berechnungen"}
+    </h2>
     {#key projekt.id}
       <MassDerNutzung
         bind:this={nutzungsEditor}
         {projekt}
         darf={darf("bearbeitung")}
-        onprojekt={(p) => (projekt = p)}
-        onrechtsgrundlagen={() => (ansicht = "rechtsgrundlagen")}
+        {onprojekt}
+        bereich={(berechnungsAnsichten.includes(ansicht) && ansicht !== "mass"
+          ? ansicht
+          : "grundstueck") as BerechnungsBereich}
       />
     {/key}
   </section>
-  <section hidden={ansicht !== "rechtsgrundlagen"}>
-    <h2>Rechtsgrundlagen und Eckdaten</h2>
+  <section
+    aria-label="Rechtsgrundlagen"
+    hidden={ansicht !== "rechtsgrundlagen"}
+  >
+    <h2>Rechtsgrundlagen</h2>
     {#key projekt.id}
       <Rechtsgrundlagen
         bind:this={rechtsEditor}
         {projekt}
         darf={darf("bearbeitung")}
-        onprojekt={(p) => (projekt = p)}
+        {onprojekt}
       />
     {/key}
   </section>
+  <section hidden={ansicht !== "festsetzungen"}>
+    <h2>Bebauungsplanfestsetzungen</h2>
+    <Rechtsgrundlagen
+      bind:this={festsetzungsEditor}
+      {projekt}
+      darf={darf("bearbeitung")}
+      {onprojekt}
+      bereich="festsetzungen"
+    />
+  </section>
+  {#if formulareBesucht}<section hidden={ansicht !== "formulare"}>
+      <ProjektFormulare
+        bind:this={formularEditor}
+        {projekt}
+        darf={darf("bearbeitung")}
+        ongespeichert={dokumenteAktualisieren}
+        ondateien={() => (ansicht = "dokumente")}
+      />
+    </section>{/if}
   <!-- Bleibt eingehängt, damit "Datei → Bauantrag als XBau exportieren" aus jeder Ansicht funktioniert. -->
   <section hidden={ansicht !== "bauantrag"}>
     <h2>Bauantrag (XBau)</h2>
@@ -323,7 +367,7 @@
     </section>{/if}
   <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
   <section hidden={ansicht !== "dokumente"}>
-    <h2>Dokumente</h2>
+    <h2>Projektdateien</h2>
     {#if ich}<Dokumente
         bind:this={dokumentEditor}
         projektId={projekt.id}

@@ -7,27 +7,34 @@
     type Feldwert,
     type FormularAnalyse,
     type PdfVorschauDaten,
+    type BibliothekQuelle,
   } from "./api";
 
   import PdfVorschau from "./PdfVorschau.svelte";
   let {
     dokumentId,
+    quelle,
     onfertig,
     onabbrechen,
     onstatus,
   }: {
-    dokumentId: string;
+    dokumentId?: string;
+    quelle?: BibliothekQuelle;
     onfertig: (ergebnis: DocumentVersion) => void;
     onabbrechen: () => void;
     onstatus?: (dirty: boolean, busy: boolean) => void;
   } = $props();
 
-  let analyse = $state<FormularAnalyse | null>(null);
+  let analyse = $state<
+    (Omit<FormularAnalyse, "dokument"> & { dokument?: DocumentVersion }) | null
+  >(null);
   let werte = $state<Record<string, Feldwert>>({});
   let fehler = $state<string | null>(null);
   let laeuft = $state(false);
   let nurLeere = $state(false);
-  let vorschau = $state<PdfVorschauDaten | null>(null);
+  let vorschau = $state<Pick<PdfVorschauDaten, "pdf_base64" | "seiten"> | null>(
+    null,
+  );
   let seite = $state(1);
   const dirty = $derived(
     !!analyse &&
@@ -42,7 +49,13 @@
 
   onMount(async () => {
     try {
-      const a = await api.formularAnalysieren(dokumentId);
+      const bibliothek = quelle ? await api.bibliothekFormular(quelle) : null;
+      const a: Omit<FormularAnalyse, "dokument"> & {
+        dokument?: DocumentVersion;
+      } = bibliothek
+        ? bibliothek.schema
+        : await api.formularAnalysieren(dokumentId!);
+      if (bibliothek) vorschau = bibliothek;
       const start: Record<string, Feldwert> = {};
       for (const f of a.felder) {
         if (f.art === "sonstiges") continue;
@@ -53,10 +66,11 @@
       }
       werte = start;
       analyse = a;
-      void api
-        .pdfVorschau(dokumentId, a.dokument.version)
-        .then((p) => (vorschau = p))
-        .catch(() => {});
+      if (a.dokument)
+        void api
+          .pdfVorschau(dokumentId!, a.dokument.version)
+          .then((p) => (vorschau = p))
+          .catch(() => {});
     } catch (e) {
       fehler = fehlertext(e);
     }
@@ -84,11 +98,13 @@
     laeuft = true;
     try {
       onfertig(
-        await api.formularAusfuellen(
-          dokumentId,
-          geaendert,
-          analyse.dokument.version,
-        ),
+        quelle
+          ? await api.bibliothekFormularSpeichern(quelle, geaendert)
+          : await api.formularImProjektSpeichern(
+              dokumentId!,
+              analyse.dokument!.version,
+              geaendert,
+            ),
       );
     } catch (e) {
       fehler = fehlertext(e);
@@ -102,7 +118,8 @@
 
 {#if analyse}
   <p class="meta">
-    {analyse.dokument.file_name} · {analyse.felder.length} Felder
+    {analyse.dokument?.file_name ?? quelle?.vorlage.name} · {analyse.felder
+      .length} Felder
     {#if analyse.vorlage}· erkannt als <strong>{analyse.vorlage.titel}</strong>
       ({analyse.vorlage.version}){/if}
     · {Object.keys(analyse.vorschlag).length} Werte aus den Projektdaten übernommen
@@ -165,8 +182,9 @@
         {/each}
       </div>
       <p class="meta">
-        Das leere Formular bleibt erhalten; das Ergebnis wird als neues Dokument
-        „… (ausgefüllt).pdf“ abgelegt.
+        {quelle
+          ? "Die Bibliotheksvorlage bleibt unverändert. Im Projekt wird nur die ausgefüllte Datei gespeichert."
+          : "Die Angaben werden als neue Version derselben Projektdatei gespeichert."}
       </p>
       <div class="knoepfe">
         <button type="button" class="sekundaer" onclick={onabbrechen}
@@ -177,7 +195,7 @@
           disabled={laeuft ||
             !analyse.felder.some(
               (f) => f.art !== "sonstiges" && !f.schreibgeschuetzt,
-            )}>{laeuft ? "Speichere …" : "Ausfüllen und ablegen"}</button
+            )}>{laeuft ? "Speichere …" : "Im Projekt speichern"}</button
         >
       </div>
     </form>
@@ -185,3 +203,7 @@
 {:else if !fehler}
   <p class="meta">Formular wird gelesen …</p>
 {/if}
+
+{#if fehler && !analyse}<button class="sekundaer" onclick={onabbrechen}
+    >Schließen</button
+  >{/if}

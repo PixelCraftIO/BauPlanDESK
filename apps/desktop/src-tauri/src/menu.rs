@@ -19,23 +19,10 @@ pub mod id {
     pub const NEUES_PROJEKT: &str = "datei.neu";
     pub const PROJEKT_OEFFNEN: &str = "datei.oeffnen";
     pub const PROJEKT_SCHLIESSEN: &str = "datei.schliessen";
-    pub const DOKUMENT_IMPORTIEREN: &str = "datei.importieren";
-    pub const XBAU_EXPORT: &str = "datei.xbau";
-    pub const BUERO: &str = "bearbeiten.buero";
-    pub const KUNDEN: &str = "bearbeiten.kunden";
-    pub const BAUANTRAG: &str = "ansicht.bauantrag";
-    pub const PROJEKTDATEN: &str = "bearbeiten.projektdaten";
-    pub const BENUTZER: &str = "bearbeiten.benutzer";
     pub const ZOOM_PLUS: &str = "ansicht.zoom_plus";
     pub const ZOOM_MINUS: &str = "ansicht.zoom_minus";
     pub const ZOOM_RESET: &str = "ansicht.zoom_reset";
-    pub const MASS_DER_NUTZUNG: &str = "berechnung.mass";
-    pub const ABSTANDSFLAECHEN: &str = "berechnung.abstand";
-    pub const DOKUMENTE: &str = "ansicht.dokumente";
-    pub const PLAENE: &str = "ansicht.plaene";
-    pub const PROTOKOLL: &str = "ansicht.protokoll";
     pub const UPDATES: &str = "hilfe.updates";
-    pub const LIZENZ: &str = "hilfe.lizenz";
     pub const BEENDEN: &str = "datei.beenden";
     pub const RUECKGAENGIG: &str = "bearbeiten.rueckgaengig";
     pub const WIEDERHOLEN: &str = "bearbeiten.wiederholen";
@@ -197,29 +184,28 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         Some("CmdOrCtrl+W"),
         false,
     )?;
-    let importieren = item(
-        id::DOKUMENT_IMPORTIEREN,
-        "Dokument importieren …",
-        Some("CmdOrCtrl+I"),
-        false,
-    )?;
-    let xbau = item(
-        id::XBAU_EXPORT,
-        "Bauantrag als XBau exportieren …",
-        Some("CmdOrCtrl+Shift+E"),
+    let speichern = item(
+        "anwendung.speichern",
+        "Projekt speichern",
+        Some("CmdOrCtrl+S"),
         false,
     )?;
     let zuletzt_menu = SubmenuBuilder::new(app, "Zuletzt geöffnet").build()?;
 
-    let mut datei = SubmenuBuilder::new(app, "&Datei")
+    let mut datei = SubmenuBuilder::new(app, "&Anwendung")
         .item(&neu)
         .item(&oeffnen)
         .item(&zuletzt_menu)
         .separator()
         .item(&schliessen)
+        .item(&speichern)
         .separator()
-        .item(&importieren)
-        .item(&xbau);
+        .item(&item(
+            "anwendung.einstellungen",
+            "Einstellungen …",
+            None,
+            true,
+        )?);
     // Unter macOS steht "Beenden" im App-Menü. Unter Windows/Linux ein
     // eigener Eintrag, weil das vordefinierte "Quit" unter Linux fehlt.
     if !cfg!(target_os = "macos") {
@@ -230,12 +216,6 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let datei = datei.build()?;
 
     // --- Bearbeiten ---
-    let projektdaten = item(
-        id::PROJEKTDATEN,
-        "Projektdaten …",
-        Some("CmdOrCtrl+E"),
-        false,
-    )?;
     let mut bearbeiten = SubmenuBuilder::new(app, "&Bearbeiten");
     bearbeiten = if cfg!(target_os = "linux") {
         // GTK kennt kein vordefiniertes Rückgängig/Wiederholen; das Frontend
@@ -264,29 +244,10 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .copy_with_text("Kopieren")
         .paste_with_text("Einfügen")
         .select_all_with_text("Alles auswählen")
-        .separator()
-        .item(&projektdaten)
-        .item(&item(
-            id::KUNDEN,
-            "Kunden …",
-            Some("CmdOrCtrl+Shift+K"),
-            true,
-        )?)
-        .item(&item(id::BUERO, "Büroangaben …", None, true)?)
-        .item(&item(id::BENUTZER, "Benutzerverwaltung …", None, true)?)
         .build()?;
 
     // --- Ansicht ---
-    let dokumente = item(id::DOKUMENTE, "Dokumente", Some("CmdOrCtrl+D"), false)?;
-    let plaene = item(id::PLAENE, "Pläne", Some("CmdOrCtrl+Shift+P"), false)?;
-    let protokoll = item(id::PROTOKOLL, "Protokoll", Some("CmdOrCtrl+Shift+L"), false)?;
-    let bauantrag = item(id::BAUANTRAG, "Bauantrag", Some("CmdOrCtrl+Shift+B"), false)?;
-    let ansicht = SubmenuBuilder::new(app, "&Ansicht")
-        .item(&dokumente)
-        .item(&plaene)
-        .item(&bauantrag)
-        .item(&protokoll)
-        .separator()
+    let ansicht = SubmenuBuilder::new(app, "&Fenster")
         .item(&item(
             id::ZOOM_PLUS,
             "Vergrößern",
@@ -309,24 +270,6 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .fullscreen_with_text("Vollbild")
         .build()?;
 
-    // --- Berechnung ---
-    let mass = item(
-        id::MASS_DER_NUTZUNG,
-        "Maß der baulichen Nutzung (GRZ/GFZ/BMZ) …",
-        Some("CmdOrCtrl+1"),
-        false,
-    )?;
-    let abstand = item(
-        id::ABSTANDSFLAECHEN,
-        "Abstandsflächen …",
-        Some("CmdOrCtrl+2"),
-        false,
-    )?;
-    let berechnung = SubmenuBuilder::new(app, "Be&rechnung")
-        .item(&mass)
-        .item(&abstand)
-        .build()?;
-
     // --- Hilfe ---
     let info = app.package_info();
     let about = AboutMetadataBuilder::new()
@@ -335,9 +278,12 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .copyright(Some("© PixelCraftIO"))
         .comments(Some("Bauanträge erstellen, berechnen und einreichen"))
         .build();
-    let mut hilfe = SubmenuBuilder::new(app, "&Hilfe")
-        .item(&item(id::LIZENZ, "Lizenz …", None, true)?)
-        .item(&item(id::UPDATES, "Nach Updates suchen …", None, true)?);
+    let mut hilfe = SubmenuBuilder::new(app, "&Hilfe").item(&item(
+        id::UPDATES,
+        "Nach Updates suchen …",
+        None,
+        true,
+    )?);
     if !cfg!(target_os = "macos") {
         hilfe = hilfe
             .separator()
@@ -361,7 +307,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             .build()?;
         menu.append(&app_menu)?;
     }
-    for submenu in [&datei, &bearbeiten, &ansicht, &berechnung, &hilfe] {
+    for submenu in [&datei, &bearbeiten, &ansicht, &hilfe] {
         menu.append(submenu)?;
     }
     app.set_menu(menu)?;
@@ -371,18 +317,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     fuelle_zuletzt(app, &zuletzt_menu, &zuletzt)?;
 
     app.manage(MenuState {
-        projekt_items: vec![
-            schliessen,
-            importieren,
-            xbau,
-            projektdaten,
-            dokumente,
-            plaene,
-            bauantrag,
-            protokoll,
-            mass,
-            abstand,
-        ],
+        projekt_items: vec![schliessen, speichern],
         zuletzt_menu,
         zuletzt: Mutex::new(zuletzt),
         zuletzt_pfad,

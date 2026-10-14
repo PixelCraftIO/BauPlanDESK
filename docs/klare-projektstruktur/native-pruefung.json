@@ -1,0 +1,14 @@
+{
+  "umgebung": "Native Linux-Desktop-Anwendung, isoliertes Testprofil, ohne externe Netzwerkverbindung",
+  "projekt": "Formularablauf Native-Test",
+  "dokumente": 1,
+  "versionen": [
+    1
+  ],
+  "projektordner_pdf": "Projektordner/Formularablauf Native-Test--d3827a4b-15be-428a-bdc5-197fe6b2d594/Dokumente/3d8c85d2-eab5-4ec9-8d7c-567269b3569f/v1-vorlage.pdf",
+  "vorname": "Daniel",
+  "zustimmung": "/Yes",
+  "bibliotheksvorlage_unveraendert": true,
+  "ausgabe_hash_entspricht_dms": true,
+  "speicherdialog": false
+}

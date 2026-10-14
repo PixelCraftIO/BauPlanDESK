@@ -15,7 +15,6 @@
   } from "./api";
   import Arbeitskopien from "./Arbeitskopien.svelte";
   import Dialog from "./Dialog.svelte";
-  import PdfVorlagenEditor from "./PdfVorlagenEditor.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
   import Historie from "./Historie.svelte";
 
@@ -41,7 +40,6 @@
   let hinweis = $state<string | null>(null);
   let sperren = $state<Map<string, DocumentLock>>(new Map());
   let historie = $state<DocumentVersion | null>(null);
-  let vorlagenDokument = $state<DocumentVersion | null>(null);
   let pdfDirty = $state(false),
     pdfBusy = $state(false),
     ordnerLaeuft = $state(false),
@@ -61,17 +59,8 @@
   async function pdfAbbrechen() {
     if (await pdfSchliessenErlaubt()) {
       formular = null;
-      vorlagenDokument = null;
       pdfDirty = false;
     }
-  }
-  async function vorlageFertig(d: DocumentVersion) {
-    vorlagenDokument = null;
-    pdfDirty = false;
-    await laden();
-    formular = d;
-    hinweis =
-      "PDF-Vorlage erstellt. Jetzt können Sie die eigenen Felder ausfüllen.";
   }
   async function inBibliothek(d: DocumentVersion) {
     if (
@@ -162,7 +151,9 @@
     pdfDirty = false;
     await laden();
     hinweis = `${ergebnis.file_name} wurde abgelegt.`;
-    await exportieren(ergebnis);
+    hinweis =
+      ergebnis.ablage_hinweis ??
+      `${ergebnis.file_name} wurde im Projekt gespeichert. ${ergebnis.projektordner_pfad ?? ""}`;
   }
 
   // Je Dokument nur die neueste Version anzeigen, ältere als Historie zählen.
@@ -296,7 +287,9 @@
           dokumentId,
           bisher?.version ?? null,
         );
-        hinweis = `${v.file_name} wurde als Version ${v.version} abgelegt.`;
+        hinweis =
+          v.ablage_hinweis ??
+          `${v.file_name} wurde als Version ${v.version} abgelegt.`;
       }
     } catch (e) {
       ablegeFehler(e, bisher?.file_name ?? "Dokument");
@@ -330,8 +323,7 @@
       laeuft ||
       ordnerLaeuft ||
       !!formular ||
-      !!historie ||
-      !!vorlagenDokument
+      !!historie
     );
   }
 </script>
@@ -343,7 +335,7 @@
     title={darfAblegen
       ? ""
       : "Dazu ist mindestens die Rolle „Bearbeitung“ nötig."}
-    >{laeuft ? "Importiere …" : "Dokumente importieren …"}</button
+    >{laeuft ? "Importiere …" : "Dateien importieren …"}</button
   >
   <button
     class="sekundaer"
@@ -406,63 +398,61 @@
               </span>
             {/if}
           </td>
-          <td class="aktionen"
-            ><button
+          <td class="aktionen">
+            <button
               class="link"
               disabled={laeuft}
-              onclick={() => externOeffnen(doc)}
-              >Im zugeordneten Programm öffnen</button
+              title="Im zugeordneten Programm öffnen"
+              onclick={() => externOeffnen(doc)}>Öffnen</button
             >
-            {#if istPlan(doc.file_name)}<button
-                class="link"
-                onclick={() => onplan(doc.document_id)}>Plan ansehen</button
-              >{/if}
             {#if istPdf(doc) && darfAblegen && !fremdGesperrt(doc.document_id)}<button
                 class="link"
                 onclick={() => {
                   pdfDirty = false;
                   formular = doc;
-                }}>Formular ausfüllen …</button
-              ><button
-                class="link"
-                onclick={() => {
-                  pdfDirty = false;
-                  vorlagenDokument = doc;
-                }}>Eigene Felder / Vorlage …</button
-              ><button
-                class="link"
-                disabled={laeuft}
-                onclick={() => inBibliothek(doc)}
-                >In Formularbibliothek ablegen …</button
+                }}>Formular bearbeiten</button
               >{/if}
-            <button class="link" onclick={() => exportieren(doc)}
-              >Exportieren …</button
-            >
-            {#if darfAblegen && !fremdGesperrt(doc.document_id)}<button
-                class="link"
-                onclick={() => importieren(doc.document_id)}
-                >Neue Version …</button
-              >{/if}
-            <button class="link" onclick={() => (historie = doc)}
-              >Historie …</button
-            >
-            {#if !sperren.get(doc.document_id)}
-              {#if darfAblegen}<button
-                  class="link"
-                  onclick={() => sperrenUmschalten(doc)}>Sperren</button
-                >{/if}
-            {:else if !fremdGesperrt(doc.document_id) || darfFremdeAufheben}
-              <button class="link" onclick={() => sperrenUmschalten(doc)}
-                >Entsperren</button
+            <details class="dateiaktionen">
+              <summary aria-label={`Weitere Aktionen für ${doc.file_name}`}
+                >Weitere …</summary
               >
-            {/if}
+              <div>
+                <button class="link" onclick={() => exportieren(doc)}
+                  >Exportieren …</button
+                >
+                {#if istPlan(doc.file_name)}<button
+                    class="link"
+                    onclick={() => onplan(doc.document_id)}>Plan ansehen</button
+                  >{/if}
+                {#if darfAblegen && !fremdGesperrt(doc.document_id)}<button
+                    class="link"
+                    onclick={() => importieren(doc.document_id)}
+                    >Neue Version …</button
+                  >{/if}
+                <button class="link" onclick={() => (historie = doc)}
+                  >Historie …</button
+                >
+                {#if istPdf(doc) && darfAblegen}<button
+                    class="link"
+                    disabled={laeuft}
+                    onclick={() => inBibliothek(doc)}
+                    >In Formularbibliothek ablegen …</button
+                  >{/if}
+                {#if !sperren.get(doc.document_id)}{#if darfAblegen}<button
+                      class="link"
+                      onclick={() => sperrenUmschalten(doc)}>Sperren</button
+                    >{/if}{:else if !fremdGesperrt(doc.document_id) || darfFremdeAufheben}<button
+                    class="link"
+                    onclick={() => sperrenUmschalten(doc)}>Entsperren</button
+                  >{/if}
+              </div>
+            </details>
           </td>
         </tr>
       {:else}
         <tr
           ><td colspan="6" class="meta"
-            >Noch keine Dokumente. Ziehen Sie Dateien über „Datei → Dokument
-            importieren“ ins Projekt.</td
+            >Noch keine Projektdateien. Über „Dateien importieren“ hinzufügen.</td
           ></tr
         >
       {/each}
@@ -508,25 +498,6 @@
   </Dialog>
 {/if}
 
-{#if vorlagenDokument}
-  <Dialog
-    titel="Eigene PDF-Felder und Vorlage"
-    schliessenErlaubt={!pdfBusy}
-    onrequestclose={pdfSchliessenErlaubt}
-    onclose={() => (vorlagenDokument = null)}
-  >
-    <PdfVorlagenEditor
-      dokumentId={vorlagenDokument.document_id}
-      onfertig={vorlageFertig}
-      onabbrechen={pdfAbbrechen}
-      onstatus={(dirty, busy) => {
-        pdfDirty = dirty;
-        pdfBusy = busy;
-      }}
-    />
-  </Dialog>
-{/if}
-
 <Arbeitskopien
   bind:this={arbeitsEditor}
   {projektId}
@@ -546,5 +517,19 @@
   .dateisuche input {
     flex: 1;
     min-width: 0;
+  }
+  .dateiaktionen summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.85rem;
+  }
+  .dateiaktionen > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    min-width: 12rem;
   }
 </style>

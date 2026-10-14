@@ -87,6 +87,13 @@ pub struct FormularAnalyse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FormularSchema {
+    pub felder: Vec<Formularfeld>,
+    pub vorlage: Option<VorlageInfo>,
+    pub vorschlag: BTreeMap<String, Feldwert>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct VorlageInfo {
     pub id: String,
     pub titel: String,
@@ -1201,31 +1208,89 @@ impl CoreServices {
     /// den Projektdaten vor.
     pub async fn formular_analysieren(&self, id: DocumentId) -> CoreResult<FormularAnalyse> {
         let (dokument, pdf) = self.load_document(id).await?;
-        let projekt = self.repos.projects.get(dokument.project_id).await?;
-        let felder = formular::pdf::felder_lesen(&pdf)?;
+        let schema = self.formular_schema(dokument.project_id, &pdf).await?;
+        Ok(FormularAnalyse {
+            dokument,
+            felder: schema.felder,
+            vorlage: schema.vorlage,
+            vorschlag: schema.vorschlag,
+        })
+    }
+
+    /// Analysiert eine Bibliotheksquelle, ohne sie vorher im Projekt abzulegen.
+    pub async fn formular_schema(
+        &self,
+        projekt_id: ProjectId,
+        pdf: &[u8],
+    ) -> CoreResult<FormularSchema> {
+        let projekt = self.repos.projects.get(projekt_id).await?;
+        let felder = formular::pdf::felder_lesen(pdf)?;
         if felder.is_empty() {
-            return Err(CoreError::InvalidInput(format!(
-                "{} enthält keine ausfüllbaren Formularfelder",
-                dokument.file_name
-            )));
+            return Err(CoreError::InvalidInput("Diese Vorlage hat noch keine Eingabefelder. Bitte in der Formularbibliothek Felder definieren.".into()));
         }
         let vorlage = self.formulare.erkenne(&felder);
         let mut kontext = Projektkontext::aus_projekt(&projekt);
-        let bauherren = self.repos.kunden.bauherren(projekt.id).await?;
-        if let Some(b) = bauherren.first() {
+        if let Some(b) = self.repos.kunden.bauherren(projekt.id).await?.first() {
             kontext.bauherr(b);
         }
-        let vorschlag = formular::vorlage::vorschlag(&felder, vorlage, &kontext);
-        Ok(FormularAnalyse {
+        Ok(FormularSchema {
+            vorschlag: formular::vorlage::vorschlag(&felder, vorlage, &kontext),
             vorlage: vorlage.map(|v| VorlageInfo {
                 id: v.id.clone(),
                 titel: v.titel.clone(),
                 version: v.version.clone(),
             }),
-            dokument,
             felder,
-            vorschlag,
         })
+    }
+
+    /// Eine ausgefüllte Bibliotheksvorlage erzeugt genau ein Projektdokument.
+    pub async fn formular_aus_bibliothek(
+        &self,
+        projekt: ProjectId,
+        name: &str,
+        pdf: &[u8],
+        werte: &BTreeMap<String, Feldwert>,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        self.repos.projects.get(projekt).await?;
+        let data = formular::pdf::befuellen(pdf, werte)?;
+        self.ablegen(
+            projekt,
+            None,
+            None,
+            name,
+            Bytes::from(data),
+            wer,
+            Aktion::FormularAusgefuellt,
+            " aus Formularbibliothek",
+        )
+        .await
+    }
+
+    /// Erneutes Ausfüllen einer Projektdatei erhält deren Identität und Historie.
+    pub async fn formular_im_projekt_speichern(
+        &self,
+        id: DocumentId,
+        basis: i64,
+        werte: &BTreeMap<String, Feldwert>,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        let (d, pdf) = self.load_version(id, basis).await?;
+        let data = formular::pdf::befuellen(&pdf, werte)?;
+        self.ablegen(
+            d.project_id,
+            Some(id),
+            Some(basis),
+            &d.file_name,
+            Bytes::from(data),
+            wer,
+            Aktion::FormularAusgefuellt,
+            "",
+        )
+        .await
     }
 
     /// Befüllt das Formular und legt das Ergebnis als neues Dokument im

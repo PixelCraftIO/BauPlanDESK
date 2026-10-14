@@ -197,7 +197,7 @@ pub async fn dokument_importieren(
     dokument_id: Option<DocumentId>,
     basis: Option<i64>,
     pfad: PathBuf,
-) -> CmdResult<DocumentVersion> {
+) -> CmdResult<crate::projektordner::ProjektDokument> {
     let data = tokio::fs::read(&pfad).await.map_err(|e| CmdError {
         art: "datei",
         meldung: format!("{}: {e}", pfad.display()),
@@ -206,7 +206,7 @@ pub async fn dokument_importieren(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    Ok(state
+    let d = state
         .core
         .store_document(
             projekt_id,
@@ -216,7 +216,8 @@ pub async fn dokument_importieren(
             Bytes::from(data),
             &state.benutzer(),
         )
-        .await?)
+        .await?;
+    Ok(crate::projektordner::ablegen(&state, d).await)
 }
 
 #[tauri::command]
@@ -759,4 +760,34 @@ pub async fn projektordner_exportieren(
         dateien: plan.dateien.len(),
         neu,
     })
+}
+
+#[tauri::command]
+pub async fn formular_im_projekt_speichern(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    basis: i64,
+    werte: BTreeMap<String, Feldwert>,
+) -> CmdResult<crate::projektordner::ProjektDokument> {
+    let d = state
+        .core
+        .formular_im_projekt_speichern(dokument_id, basis, &werte, &state.benutzer())
+        .await?;
+    Ok(crate::projektordner::ablegen(&state, d).await)
+}
+
+#[tauri::command]
+pub async fn baugrundstuecke_ermitteln(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    plan: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+) -> CmdResult<Vec<core_lib::baugrundstuecke::BaugrundstueckGruppe>> {
+    let p = state.core.get_project(projekt_id).await?;
+    let mit_plan = matches!(
+        p.planungsrecht.bebauungsplan_art,
+        core_lib::domain::BebauungsplanArt::Qualifiziert
+            | core_lib::domain::BebauungsplanArt::Einfach
+            | core_lib::domain::BebauungsplanArt::Vorhabenbezogen
+    );
+    Ok(plan.gruppen(mit_plan)?)
 }

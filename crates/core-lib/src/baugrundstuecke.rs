@@ -243,6 +243,7 @@ impl BaugrundstuecksPlan {
             grond.nicht_massgebend_m2 = g.abzuege_m2;
             grond.abzug_begruendung = "Einzelne Flurstücksabzüge".into();
             let p = Planungsrecht {
+                bau_nvo: plan.bau_nvo,
                 bebauungsplan_art: plan.bebauungsplan_art,
                 festgesetzte_werte: b
                     .eigene_festsetzungen

@@ -76,6 +76,8 @@ pub struct FlaechenErgebnis {
     pub mass: MassDerNutzung,
     pub vollgeschosse: u32,
     pub grz_ii: bool,
+    pub bauteile_vorhanden: bool,
+    pub geschosse_vorhanden: bool,
     pub bauteile: Vec<BauteilAnsatz>,
     pub geschosse: Vec<f64>,
 }
@@ -173,6 +175,9 @@ pub fn berechne_aufstellung(
         return Ok(None);
     };
     let mut a = quelle.clone();
+    if let Some(fassung) = p.bau_nvo {
+        a.bau_nvo = fassung;
+    }
     let mit_plan = matches!(
         p.bebauungsplan_art,
         crate::domain::BebauungsplanArt::Qualifiziert
@@ -222,11 +227,6 @@ impl FlaechenAufstellung {
                 anteile_m2: vec![],
             },
         };
-        if self.bauteile.is_empty() || self.geschosse.is_empty() {
-            return Err(CoreError::InvalidInput(
-                "Mindestens ein Bauteil und ein Geschoss erfassen".into(),
-            ));
-        }
         if self.bauteile.len() > 1000 || self.geschosse.len() > 1000 {
             return Err(CoreError::InvalidInput(
                 "Höchstens 1000 Bauteile bzw. Geschosse zulässig".into(),
@@ -267,6 +267,8 @@ impl FlaechenAufstellung {
             },
             vollgeschosse: 0,
             grz_ii: self.bau_nvo.modern(),
+            bauteile_vorhanden: !self.bauteile.is_empty(),
+            geschosse_vorhanden: !self.geschosse.is_empty(),
             bauteile: vec![],
             geschosse: vec![],
         };
@@ -510,5 +512,34 @@ mod tests {
         a.bauteile[0].flaeche_m2 = f64::MAX;
         a.bauteile[1].flaeche_m2 = f64::MAX;
         assert!(a.berechne(1.0, None).is_err());
+    }
+    #[test]
+    fn zentrale_baunvo_ueberschreibt_die_lokale_fassung() {
+        let e = crate::festsetzungen::NutzungsEingabe {
+            gebiet: crate::calc::Baugebiet::WA,
+            mass: crate::calc::MassDerNutzung {
+                grundstuecksflaeche_m2: 1000.0,
+                grundflaeche_m2: 0.0,
+                grundflaeche_nebenanlagen_m2: 0.0,
+                geschossflaeche_m2: 0.0,
+                baumasse_m3: None,
+            },
+            vollgeschosse: None,
+            aufstellung: Some(FlaechenAufstellung {
+                bau_nvo: BauNvo::V2017,
+                bauteile: vec![],
+                geschosse: vec![],
+                nichtvollgeschoss_faktor: 0.0,
+                nichtvollgeschoss_festsetzung: String::new(),
+                grundstueck: None,
+            }),
+        };
+        let p = crate::domain::Planungsrecht {
+            bau_nvo: Some(BauNvo::V1962),
+            ..Default::default()
+        };
+        let r = berechne_aufstellung(&e, &p).unwrap().unwrap();
+        assert!(!r.grz_ii);
+        assert_eq!(r.regelwerk_id, crate::baunvo::regelwerk(BauNvo::V1962).id);
     }
 }

@@ -6,20 +6,28 @@
     type EigenesPdfFeld,
     type PdfVorschauDaten,
     type DocumentVersion,
+    type BibliotheksVorlage,
   } from "./api";
   import PdfVorschau from "./PdfVorschau.svelte";
   let {
     dokumentId,
+    bibliothekVorlage,
+    onbibliothekFertig,
     onfertig,
     onabbrechen,
     onstatus,
   }: {
-    dokumentId: string;
-    onfertig: (d: DocumentVersion) => void;
+    dokumentId?: string;
+    bibliothekVorlage?: BibliotheksVorlage;
+    onbibliothekFertig?: (v: BibliotheksVorlage) => void;
+    onfertig?: (d: DocumentVersion) => void;
     onabbrechen: () => void;
     onstatus?: (dirty: boolean, busy: boolean) => void;
   } = $props();
-  let daten = $state<PdfVorschauDaten | null>(null),
+  let daten = $state<
+      | (Omit<PdfVorschauDaten, "dokument"> & { dokument?: DocumentVersion })
+      | null
+    >(null),
     felder = $state<EigenesPdfFeld[]>([]),
     seite = $state(1),
     auswahl = $state(0),
@@ -30,7 +38,9 @@
   $effect(() => onstatus?.(felder.length > 0, laeuft));
   onMount(async () => {
     try {
-      daten = await api.pdfVorschau(dokumentId);
+      daten = bibliothekVorlage
+        ? await api.bibliothekVorschau(bibliothekVorlage)
+        : await api.pdfVorschau(dokumentId!);
     } catch (e) {
       fehler = fehlertext(e);
     }
@@ -73,13 +83,19 @@
     laeuft = true;
     fehler = null;
     try {
-      onfertig(
-        await api.formularVorlageErstellen(
-          dokumentId,
-          daten.dokument.version,
-          $state.snapshot(felder),
-        ),
-      );
+      const definitionen = structuredClone($state.snapshot(felder));
+      if (bibliothekVorlage)
+        onbibliothekFertig?.(
+          await api.bibliothekFelderErstellen(bibliothekVorlage, definitionen),
+        );
+      else
+        onfertig?.(
+          await api.formularVorlageErstellen(
+            dokumentId!,
+            daten.dokument!.version,
+            definitionen,
+          ),
+        );
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -91,8 +107,9 @@
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
 {#if daten}
   <p class="meta">
-    {daten.dokument.file_name} · {daten.felder.length} bestehende Felder. Neue Felder
-    bleiben in einer eigenen PDF-Vorlage gespeichert; das Original wird erhalten.
+    {daten.dokument?.file_name ?? bibliothekVorlage?.name} · {daten.felder
+      .length} bestehende Felder. Neue Felder bleiben in einer eigenen PDF-Vorlage
+    gespeichert; das Original wird erhalten.
   </p>
   <form class="pdf-arbeitsplatz" onsubmit={speichern}>
     <div class="pdf-vorschau-spalte">

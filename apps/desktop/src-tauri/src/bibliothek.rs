@@ -118,3 +118,55 @@ pub async fn bibliothek_veroeffentlichen(
     let root = state.formularordner.read().await;
     Ok(ordner::ablegen(&root, &dokument.file_name, &pdf).await?)
 }
+
+#[derive(Serialize)]
+pub struct BibliothekMaske {
+    schema: core_lib::service::FormularSchema,
+    pdf_base64: String,
+    seiten: Vec<core_lib::formular::editor::PdfSeite>,
+}
+#[tauri::command]
+pub async fn bibliothek_formular(
+    state: State<'_, AppState>,
+    vorlage: BibliotheksVorlage,
+    projekt_id: ProjectId,
+) -> Resultat<BibliothekMaske> {
+    let root = state.formularordner.read().await;
+    let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
+    Ok(BibliothekMaske {
+        schema: state.core.formular_schema(projekt_id, &pdf).await?,
+        pdf_base64: base64::engine::general_purpose::STANDARD.encode(&pdf),
+        seiten: core_lib::formular::editor::seiten(&pdf)?,
+    })
+}
+#[tauri::command]
+pub async fn bibliothek_formular_speichern(
+    state: State<'_, AppState>,
+    vorlage: BibliotheksVorlage,
+    projekt_id: ProjectId,
+    werte: std::collections::BTreeMap<String, core_lib::formular::Feldwert>,
+) -> Resultat<crate::projektordner::ProjektDokument> {
+    let root = state.formularordner.read().await;
+    let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
+    let d = state
+        .core
+        .formular_aus_bibliothek(projekt_id, &vorlage.name, &pdf, &werte, &state.benutzer())
+        .await?;
+    Ok(crate::projektordner::ablegen(&state, d).await)
+}
+#[tauri::command]
+pub async fn bibliothek_felder_erstellen(
+    state: State<'_, AppState>,
+    vorlage: BibliotheksVorlage,
+    felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
+) -> Resultat<BibliotheksVorlage> {
+    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+    let root = state.formularordner.read().await;
+    let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
+    let neu = core_lib::formular::editor::felder_hinzufuegen(&pdf, &felder)?;
+    let stem = vorlage
+        .name
+        .get(..vorlage.name.len().saturating_sub(4))
+        .unwrap_or("Formular");
+    Ok(ordner::ablegen(&root, &format!("{stem} (ausfüllbar).pdf"), &neu).await?)
+}

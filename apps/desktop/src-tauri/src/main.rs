@@ -9,6 +9,7 @@ mod dateien;
 mod einreichungen;
 mod lizenzdienst;
 mod menu;
+mod projektordner;
 mod updater;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -50,6 +51,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            projektordner::projektordner_status,
+            projektordner::projektordner_waehlen,
+            commands::baugrundstuecke_ermitteln,
             dateien::dokument_extern_oeffnen,
             dateien::arbeitskopien,
             einreichungen::einreichungen,
@@ -60,6 +64,10 @@ fn main() {
             dateien::arbeitskopie_oeffnen,
             dateien::arbeitskopie_uebernehmen,
             bibliothek::formularbibliothek,
+            bibliothek::bibliothek_formular,
+            bibliothek::bibliothek_formular_speichern,
+            bibliothek::bibliothek_felder_erstellen,
+            commands::formular_im_projekt_speichern,
             bibliothek::formularordner_waehlen,
             bibliothek::bibliothek_importieren,
             bibliothek::bibliothek_uebernehmen,

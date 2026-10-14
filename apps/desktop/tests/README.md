@@ -40,7 +40,7 @@ BAUPROJEKT_PDF_ARTEFAKTE=/tmp/bauprojekt-pdf BAUPROJEKT_UI_URL=http://127.0.0.1:
 Dieser UI-Test verwendet den echten PDF.js-Worker mit den erzeugten PDFs; nur die
 Tauri-Aufrufe für die Bedienaktionen sind kontrolliert. Der Rust-Test prüft den
 gesamten PDF-/DMS-/Ablagepfad mit SQLite und echten Dateisystemen. Screenshots und
-Protokoll liegen unter `docs/pdf-ablage`.
+Protokolle liegen unter `docs/klare-projektstruktur` und dessen Unterordner `pdf`.
 
 `BAUPROJEKT_UI_URL` kann auch für `projekttabs.py` gesetzt werden.
 `BAUPROJEKT_UI_ARTEFAKTE` legt dort einen alternativen Ausgabeordner fest, damit
@@ -77,3 +77,18 @@ diese Variable läuft er nicht gegen einen Server.
 
 Für PDF-Regressionsläufe kann `BAUPROJEKT_PDF_UI_ARTEFAKTE` einen separaten
 Ausgabeordner wählen, damit vorhandene Dokumentationsbilder erhalten bleiben.
+
+## Hierarchische Projektakte und Formulare im Projekt
+
+```sh
+cargo test -p storage --test projekt_formulare --locked
+BAUPROJEKT_UI_URL=http://127.0.0.1:1430 python3 apps/desktop/tests/klare-projektstruktur.py
+```
+
+Die Suite prüft bedingte Bereiche, getrennte Rechtsgrundlagen/Festsetzungen,
+tabellarische Flurstücke, gemeinsame Eingaben der Berechnungsansichten,
+Bibliotheksauswahl im Projekt ohne vorzeitige Dokumentanlage, Speicherfehler,
+genau einen Dateieintrag, weitere Versionen, fehlenden Exportdialog, Theme und
+Speicherorte. PDF-Testartefakte werden wie oben über `formular_workflow` erzeugt.
+`pdf-ablage.py` führt diese Suite und `formularbibliothek.py` gemeinsam aus.
+Der Desktop-Modultest in `projektordner.rs` prüft die automatische lesbare Ausgabe.
