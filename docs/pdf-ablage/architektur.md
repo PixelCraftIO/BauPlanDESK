@@ -5,6 +5,8 @@ keine neue Berechnungslogik im Frontend und keine Änderung am Datenbankschema.
 
 | Liefermodul | Eingaben | Ergebnis / Verbraucher |
 | --- | --- | --- |
+| `core-lib::formular::bibliothek` | PDF und Benutzer | Validierung und `BibliotheksVorlage` mit Dateiname, SHA-256 und Größe; unabhängige Ordneradapter |
+| `storage::formularbibliothek` | Absoluter Ordner, Vorlage und erwarteter Inhaltsstand | Liste, unveränderlicher Import und geprüfte PDF-Bytes; bestehender DMS-Service übernimmt Projektkopien |
 | `core-lib::formular::editor` | PDF-Bytes und `EigenesPdfFeld`: Name, Typ, Seite ab 1, Rechteck in mm, Schriftgröße in pt | Standard-PDF mit zusätzlichen AcroForm-Feldern; bestehender Feldleser und Ausfüllmodul |
 | `core-lib::formular::pdf` | PDF und typisierte `Feldwert`-Zuordnung | Neues ausgefülltes PDF; `CoreServices` legt es als neues DMS-Dokument ab |
 | `core-lib::formular::schrift` | Internes Dokument, Text und Feldgeometrie | Eingebettete Schrift und Darstellungsobjekte; außerhalb des PDF-Moduls nicht sichtbar |
@@ -60,3 +62,12 @@ Die unveränderte eingebettete DejaVu-Sans-Schrift enthält ihren Lizenzhinweis
 unter `crates/core-lib/assets/DejaVuSans-LICENSE.txt`. Vorschau-Fonts und CMaps
 werden bei `predev`/`prebuild` aus der festgeschriebenen npm-Abhängigkeit kopiert
 und mit der Anwendung ausgeliefert; die Vorschau benötigt keine externen URLs.
+
+Die zentrale PDF-Bibliothek verwendet weder Projekt-Fremdschlüssel noch die
+JSON-Zuordnungskonfigurationen. Der Desktop-Adapter verbindet einen Ordner, der
+auch eine eingebundene Serverfreigabe sein kann. Neue Ordner werden verbunden,
+nicht automatisch migriert. Namenskollisionen erzeugen separate Vorlagen;
+bestehende Dateien werden nicht ersetzt. Beim Vorschauen und Übernehmen wird
+der ausgewählte Inhalts-Hash geprüft. Nach der Übernahme übernimmt das bestehende
+DMS sämtliche Versionierung und PDF-Ausfüllabläufe. Der Server erhält keine
+neue globale Ordnerkonfiguration oder Bibliotheks-HTTP-Endpunkte.

@@ -7,6 +7,7 @@
 //!   wie die LBO-Regelpakete ohne Neukompilierung aktualisiert werden, wenn
 //!   ein Land sein Formular ändert.
 
+pub mod bibliothek;
 pub mod editor;
 pub mod pdf;
 mod schrift;

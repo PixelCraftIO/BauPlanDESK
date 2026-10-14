@@ -17,6 +17,7 @@
     type UpdateInfo,
     type ZuletztEintrag,
   } from "./lib/api";
+  import Formularbibliothek from "./lib/Formularbibliothek.svelte";
   import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
@@ -52,9 +53,9 @@
   };
   let sitzungen = $state<Sitzung[]>([]);
   let aktiveId = $state<string | null>(null);
-  let globalAnsicht = $state<"projekte" | "kunden" | "verwaltung" | null>(
-    "projekte",
-  );
+  let globalAnsicht = $state<
+    "projekte" | "kunden" | "verwaltung" | "formulare" | null
+  >("projekte");
   const aktiv = $derived(sitzungen.find((s) => s.projekt.id === aktiveId));
   const projekt = $derived(aktiv?.projekt ?? null);
   let schliessZiel = $state<string | null>(null);
@@ -64,6 +65,11 @@
   let kundenBesucht = $state(false);
   let kundenEditor = $state<Kunden>();
   let ablageEditor = $state<AblageEinstellungen>();
+  let bibliothekEditor = $state<Formularbibliothek>();
+  let formulareBesucht = $state(false);
+  $effect(() => {
+    if (globalAnsicht === "formulare") formulareBesucht = true;
+  });
   let verwaltungBesucht = $state(false);
   $effect(() => {
     if (globalAnsicht === "verwaltung") verwaltungBesucht = true;
@@ -386,6 +392,7 @@
           sitzungen.some((s) => s.editor?.istBeschaeftigt()) ||
           kundenEditor?.istBeschaeftigt() ||
           ablageEditor?.istBeschaeftigt() ||
+          bibliothekEditor?.istBeschaeftigt() ||
           speicherLaeuft ||
           schliessLaeuft
         ) {
@@ -492,6 +499,10 @@
       >{/each}
     <div class="nav-gruppe">Stammdaten und Verwaltung</div>
     <button
+      class:aktiv={globalAnsicht === "formulare"}
+      onclick={() => (globalAnsicht = "formulare")}>Formularbibliothek</button
+    >
+    <button
       class:aktiv={globalAnsicht === "kunden"}
       onclick={() => (globalAnsicht = "kunden")}>Kunden / Bauherren</button
     >
@@ -559,6 +570,20 @@
           {ich}
           onoeffnen={oeffnen}
           onschliessen={() => (globalAnsicht = "projekte")}
+        />
+      </div>{/if}
+    {#if formulareBesucht && ich}<div
+        class="globale-seite"
+        hidden={globalAnsicht !== "formulare"}
+      >
+        <Formularbibliothek
+          bind:this={bibliothekEditor}
+          {ich}
+          onprojektAenderung={(id) => {
+            void sitzungen
+              .find((s) => s.projekt.id === id)
+              ?.editor?.dokumenteAktualisieren();
+          }}
         />
       </div>{/if}
     {#if verwaltungBesucht}<div

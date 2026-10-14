@@ -65,6 +65,9 @@
         .catch(melde),
     );
   });
+  export async function dokumenteAktualisieren() {
+    await dokumentEditor?.aktualisieren();
+  }
   export function hatAenderungen() {
     return !!(
       planEditor?.hatAenderungen() ||

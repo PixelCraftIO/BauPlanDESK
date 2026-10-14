@@ -70,6 +70,24 @@
     hinweis =
       "PDF-Vorlage erstellt. Jetzt können Sie die eigenen Felder ausfüllen.";
   }
+  async function inBibliothek(d: DocumentVersion) {
+    if (
+      !(await ask(
+        "Diese PDF als gemeinsame Vorlage in der Formularbibliothek ablegen? Enthaltene Eingaben werden mitkopiert. Verwenden Sie eine leere Vorlage ohne persönliche Daten.",
+        { title: "Formularbibliothek", kind: "warning" },
+      ))
+    )
+      return;
+    laeuft = true;
+    try {
+      const v = await api.bibliothekVeroeffentlichen(d.document_id, d.version);
+      hinweis = `In der Formularbibliothek abgelegt: ${v.name}`;
+    } catch (e) {
+      onfehler(fehlertext(e));
+    } finally {
+      laeuft = false;
+    }
+  }
   async function projektordnerExportieren() {
     const root = await api.ablageStatus().catch(() => null);
     const ziel = await open({
@@ -151,6 +169,9 @@
     );
   });
 
+  export async function aktualisieren() {
+    await laden();
+  }
   async function laden() {
     try {
       const [v, s] = await Promise.all([
@@ -354,6 +375,11 @@
                   pdfDirty = false;
                   vorlagenDokument = doc;
                 }}>Eigene Felder / Vorlage …</button
+              ><button
+                class="link"
+                disabled={laeuft}
+                onclick={() => inBibliothek(doc)}
+                >In Formularbibliothek ablegen …</button
               >{/if}
             <button class="link" onclick={() => exportieren(doc)}
               >Exportieren …</button

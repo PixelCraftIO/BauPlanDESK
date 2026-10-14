@@ -45,3 +45,17 @@ Protokoll liegen unter `docs/pdf-ablage`.
 `BAUPROJEKT_UI_URL` kann auch für `projekttabs.py` gesetzt werden.
 `BAUPROJEKT_UI_ARTEFAKTE` legt dort einen alternativen Ausgabeordner fest, damit
 frühere Dokumentationsaufnahmen beim erneuten Testen erhalten bleiben.
+
+## Zentrale Formularbibliothek
+
+Nach Erstellung der PDF-Testartefakte und `npm run build` gegen die lokal
+bereitgestellte `dist`-Anwendung:
+
+```bash
+python3 apps/desktop/tests/formularbibliothek.py
+```
+
+`BAUPROJEKT_UI_URL` und `BAUPROJEKT_PDF_ARTEFAKTE` können den UI-Server bzw.
+den Artefaktordner überschreiben. Die UI-Prüfung verwendet Test-IPC und echte
+PDF.js-Darstellung. Reale Ordner-, Hash-, Berechtigungs- und projektübergreifende
+DMS-Verträge prüft `cargo test -p storage --test formularbibliothek`.

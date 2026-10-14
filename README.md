@@ -59,6 +59,8 @@ lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
 [Bedienung, unterstützte Formulare und Ablagekonfiguration](docs/pdf-ablage/README.md)
 und [Modulverträge](docs/pdf-ablage/architektur.md) beschreiben eigene PDF-Felder,
 die automatische Eingabemaske, den PDF-Export und auswählbare Dateispeicher.
+Die [zentrale Formularbibliothek](docs/formularbibliothek/README.md) verwaltet
+PDF-Vorlagen projektunabhängig in einem eigenen lokalen oder freigegebenen Ordner.
 
 ## Entwicklung
 

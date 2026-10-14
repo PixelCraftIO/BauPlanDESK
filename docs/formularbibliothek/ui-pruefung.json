@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Ohne geöffnetes Projekt verfügbar",
+    "Import-Abbruch unverändert",
+    "Reale PDF.js-Vorschau",
+    "Zielprojekt erforderlich",
+    "Projektkopie mit ausgewähltem Hash",
+    "Ausfüllen mit festem Dokumentstand",
+    "Export der ausgefüllten Projektdatei",
+    "Verbindungsfehler erhält alten Ordner",
+    "Erfolgreicher Ordnerwechsel"
+  ],
+  "page_errors": []
+}

@@ -56,9 +56,17 @@ impl AppConfig {
 pub struct DateiablageConfig {
     pub root: std::path::PathBuf,
 }
+
 impl DateiablageConfig {
     pub fn load(dir: &Path, standard: std::path::PathBuf) -> Result<Self, String> {
-        let file = dir.join("dateiablage.json");
+        Self::load_named(dir, standard, "dateiablage.json")
+    }
+    pub fn load_named(
+        dir: &Path,
+        standard: std::path::PathBuf,
+        datei: &str,
+    ) -> Result<Self, String> {
+        let file = dir.join(datei);
         match std::fs::read(&file) {
             Ok(data) => serde_json::from_slice(&data).map_err(|e| e.to_string()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self { root: standard }),
@@ -66,14 +74,52 @@ impl DateiablageConfig {
         }
     }
     pub fn save(&self, dir: &Path) -> Result<(), String> {
+        self.save_named(dir, "dateiablage.json")
+    }
+    pub fn save_named(&self, dir: &Path, datei: &str) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         let tmp = dir.join(format!("dateiablage-{}.tmp", uuid::Uuid::new_v4()));
         let data = serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?;
         std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
-        if let Err(e) = std::fs::rename(&tmp, dir.join("dateiablage.json")) {
+        if let Err(e) = std::fs::rename(&tmp, dir.join(datei)) {
             let _ = std::fs::remove_file(tmp);
             return Err(e.to_string());
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DateiablageConfig;
+    #[test]
+    fn formularordner_bleibt_nach_neuladen_getrennt_von_dms() {
+        let dir = std::env::temp_dir().join(format!("bauprojekt-config-{}", uuid::Uuid::new_v4()));
+        let formular = dir.join("Formulare");
+        let dms = dir.join("Dateien");
+        DateiablageConfig { root: dms.clone() }.save(&dir).unwrap();
+        DateiablageConfig {
+            root: formular.clone(),
+        }
+        .save_named(&dir, "formularbibliothek.json")
+        .unwrap();
+        assert_eq!(
+            DateiablageConfig::load_named(&dir, dir.join("Standard"), "formularbibliothek.json")
+                .unwrap()
+                .root,
+            formular
+        );
+        assert_eq!(
+            DateiablageConfig::load(&dir, dir.join("Standard"))
+                .unwrap()
+                .root,
+            dms
+        );
+        std::fs::write(dir.join("formularbibliothek.json"), "ungültig").unwrap();
+        assert!(
+            DateiablageConfig::load_named(&dir, dir.join("Standard"), "formularbibliothek.json")
+                .is_err()
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

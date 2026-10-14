@@ -26,3 +26,7 @@ Eigene PDF-Eingabefelder können auch ohne Bearbeitung dieser JSON-Dateien unter
 **Dokumente → Eigene Felder / Vorlage** angelegt werden. Die Felder werden als
 AcroForm in einer neuen PDF gespeichert; die bisherige Ausfüllfunktion erkennt
 sie direkt. [Bedienung und Grenzen](../docs/pdf-ablage/README.md).
+
+Die [zentrale PDF-Formularbibliothek](../docs/formularbibliothek/README.md)
+verwendet einen eigenen wählbaren Ordner für die eigentlichen PDF-Dateien.
+Dieser Ordner ist von den hier beschriebenen JSON-Feldzuordnungen getrennt.

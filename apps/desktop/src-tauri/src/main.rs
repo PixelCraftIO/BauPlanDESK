@@ -1,6 +1,7 @@
 // Unter Windows kein zusätzliches Konsolenfenster im Release-Build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod bibliothek;
 mod bootstrap;
 mod commands;
 mod config;
@@ -47,6 +48,12 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            bibliothek::formularbibliothek,
+            bibliothek::formularordner_waehlen,
+            bibliothek::bibliothek_importieren,
+            bibliothek::bibliothek_uebernehmen,
+            bibliothek::bibliothek_vorschau,
+            bibliothek::bibliothek_veroeffentlichen,
             commands::ablage_status,
             commands::ablage_wechseln,
             commands::projektordner_exportieren,

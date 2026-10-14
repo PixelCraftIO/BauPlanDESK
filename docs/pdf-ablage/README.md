@@ -27,8 +27,9 @@ werden beim Erstellen entfernt. Die resultierende Maske kann dann etwa
 ab. Ihre Felder werden danach von derselben Ausfüllmaske erkannt wie native
 Formularfelder. Hintergrund, Seiteninhalt und bestehende Felder bleiben erhalten.
 Die eigene Vorlage bleibt als Dokument gespeichert und kann erneut ausgefüllt,
-exportiert oder in einem anderen Projekt wieder importiert werden. Eine separate
-zentrale Vorlagenbibliothek ist damit noch nicht eingeführt.
+exportiert oder über **In Formularbibliothek ablegen** für andere Projekte
+bereitgestellt werden. Die [zentrale Formularbibliothek](../formularbibliothek/README.md)
+hat einen eigenen, projektunabhängigen Speicherort.
 
 Für verfügbare automatische Vorschläge kann ein Feld beispielsweise
 `bauherr.vorname` oder `projekt.name` heißen. Solche Namen werden als echte

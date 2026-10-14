@@ -828,7 +828,35 @@ export interface ProjektordnerExport {
   neu: number;
 }
 
+export interface BibliotheksVorlage {
+  name: string;
+  sha256: string;
+  size: number;
+}
+export interface Formularbibliothek {
+  root: string;
+  vorlagen: BibliotheksVorlage[];
+}
+export interface BibliothekVorschau {
+  pdf_base64: string;
+  seiten: PdfSeite[];
+  felder: Formularfeld[];
+}
 export const api = {
+  formularbibliothek: () => invoke<Formularbibliothek>("formularbibliothek"),
+  formularordnerWaehlen: (pfad: string) =>
+    invoke<void>("formularordner_waehlen", { pfad }),
+  bibliothekImportieren: (pfad: string) =>
+    invoke<BibliotheksVorlage>("bibliothek_importieren", { pfad }),
+  bibliothekVorschau: (vorlage: BibliotheksVorlage) =>
+    invoke<BibliothekVorschau>("bibliothek_vorschau", { vorlage }),
+  bibliothekUebernehmen: (vorlage: BibliotheksVorlage, projektId: string) =>
+    invoke<DocumentVersion>("bibliothek_uebernehmen", { vorlage, projektId }),
+  bibliothekVeroeffentlichen: (dokumentId: string, version: number) =>
+    invoke<BibliotheksVorlage>("bibliothek_veroeffentlichen", {
+      dokumentId,
+      version,
+    }),
   pdfVorschau: (dokumentId: string, version: number | null = null) =>
     invoke<PdfVorschauDaten>("pdf_vorschau", { dokumentId, version }),
   formularVorlageErstellen: (

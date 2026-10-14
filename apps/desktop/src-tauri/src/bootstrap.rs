@@ -27,6 +27,7 @@ pub struct AppState {
     pub config: AppConfig,
     /// Nur im Netzwerkmodus vorhanden.
     pub cache: Option<Arc<CachedStorage>>,
+    pub formularordner: tokio::sync::RwLock<std::path::PathBuf>,
     pub lokale_ablage: Option<Arc<storage::WechselbareAblage>>,
 }
 
@@ -85,6 +86,24 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         }
     };
 
+    let standard_formulare = match &config {
+        AppConfig::Netzwerk {
+            storage: storage::StorageConfig::Nas { root },
+            ..
+        }
+        | AppConfig::Netzwerk {
+            storage: storage::StorageConfig::Local { root },
+            ..
+        } => root.join("Formulare"),
+        _ => data_dir.join("Formularvorlagen"),
+    };
+    let formularordner = crate::config::DateiablageConfig::load_named(
+        &config_dir,
+        standard_formulare,
+        "formularbibliothek.json",
+    )?
+    .root;
+
     let lbo = Arc::new(init_lbo(app, &data_dir)?);
 
     // Lizenz und belegte Arbeitsplätze liegen in der (gemeinsamen) Datenbank.
@@ -141,6 +160,7 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         config,
         cache,
         lokale_ablage,
+        formularordner: tokio::sync::RwLock::new(formularordner),
     })
 }
 
