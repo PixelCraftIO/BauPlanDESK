@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "Projektwechsel erhält unabhängige, ungespeicherte Eingaben und die letzte Fachansicht.",
+    "Dokumentfilter bleiben je Projekt erhalten; wiederholtes Öffnen erzeugt keine doppelten Tabs.",
+    "Schließen eines Hintergrundtabs: Escape erhält Eingaben; Verwerfen und Speichern betreffen ausschließlich dessen Projekt.",
+    "Ungültige Werte verhindern Speichern und Schließen; aktiver Tab wechselt nach erfolgreichem Schließen zur Nachbarakte.",
+    "Letzten Tab schließen führt zum Projektverzeichnis; erneutes Öffnen lädt den gespeicherten Beispielstand. Keine Seitenüberläufe bei 1024, 768 und 620 px."
+  ],
+  "javascript_errors": []
+}

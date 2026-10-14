@@ -338,6 +338,7 @@
 
   onMount(() => {
     const ro = new ResizeObserver(([eintrag]) => {
+      if (!eintrag.contentRect.width || !eintrag.contentRect.height) return;
       const erst = breite === 0;
       breite = eintrag.contentRect.width;
       hoehe = eintrag.contentRect.height;

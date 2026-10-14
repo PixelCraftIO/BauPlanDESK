@@ -66,6 +66,10 @@
         : fehlertext(e);
     } finally { laeuft = false; }
   }
+
+  export function hatAenderungen() { return geaendert; }
+  export function istBeschaeftigt() { return laeuft; }
+  export async function speichernBeimSchliessen(): Promise<boolean> { if (istBeschaeftigt()) return false; await speichern(new Event("submit") as SubmitEvent); return !hatAenderungen(); }
 </script>
 
 <p class="meta">Planungsrechtliche Einordnung und Eckdaten dieses Bauvorhabens. Angaben können zunächst offen bleiben und später ergänzt werden.</p>

@@ -3,7 +3,7 @@
   import GrundstueckFormular from "./GrundstueckFormular.svelte";
   import { regelwerk, REGELWERKE } from "./baunvo";
   import FlaechenFormular from "./FlaechenFormular.svelte";
-  import { untrack } from "svelte";
+  import { untrack, tick } from "svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, GEBIETE, type NutzungsEingabe, type NutzungsPruefung, type Project } from "./api";
 
@@ -49,9 +49,11 @@
     const flaeche = projekt.grundstuecksflaeche_m2;
     untrack(() => {
       if (flaeche !== letzteProjektflaeche) {
+        const unveraendert = !geaendert;
         if (eingabe.aufstellung?.grundstueck) {
           if (eingabe.aufstellung.grundstueck.basisflaeche_m2 === (letzteProjektflaeche ?? 0)) eingabe.aufstellung.grundstueck.basisflaeche_m2 = flaeche ?? 0;
         } else if (eingabe.mass.grundstuecksflaeche_m2 === (letzteProjektflaeche ?? 0)) eingabe.mass.grundstuecksflaeche_m2 = flaeche ?? 0;
+        if (unveraendert) gespeichert = structuredClone($state.snapshot(eingabe));
         letzteProjektflaeche = flaeche;
       }
     });
@@ -119,6 +121,16 @@
       hinweis = "Berechnungseingaben gespeichert.";
     } catch(e) { fehler = fehlertext(e); }
     finally { laeuft = false; }
+  }
+
+  export function hatAenderungen() { return geaendert || !!flurstueckeEditor?.hatAenderungen(); }
+  export function istBeschaeftigt() { return laeuft || !!flurstueckeEditor?.istBeschaeftigt(); }
+  export async function speichernBeimSchliessen(): Promise<boolean> {
+    if (istBeschaeftigt()) return false;
+    if (flurstueckeEditor?.hatAenderungen() && !(await flurstueckeEditor.speichernBeimSchliessen())) return false;
+    await tick();
+    if (geaendert) await speichern();
+    return !hatAenderungen();
   }
 </script>
 

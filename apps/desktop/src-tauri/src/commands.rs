@@ -122,6 +122,12 @@ pub async fn projekt_aktualisieren(
         .await?)
 }
 
+/// Liest eine Projektakte ohne den aktiven Fenster-/Menükontext zu ändern.
+#[tauri::command]
+pub async fn projekt_laden(state: State<'_, AppState>, id: ProjectId) -> CmdResult<Project> {
+    Ok(state.core.get_project(id).await?)
+}
+
 /// Öffnet ein Projekt: merkt es unter "Zuletzt geöffnet", aktiviert die
 /// projektbezogenen Menüpunkte und setzt den Fenstertitel.
 #[tauri::command]

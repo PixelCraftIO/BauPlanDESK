@@ -223,6 +223,10 @@
   const einheitKurz: Record<Laengeneinheit, string> = {
     millimeter: "mm", zentimeter: "cm", dezimeter: "dm", meter: "m", kilometer: "km", zoll: "in", fuss: "ft",
   };
+
+  export function hatAenderungen() { return geoGeaendert; }
+  export function istBeschaeftigt() { return geoLaeuft || laedt; }
+  export async function speichernBeimSchliessen(): Promise<boolean> { if (istBeschaeftigt()) return false; await grenzePruefen(true); return !hatAenderungen(); }
 </script>
 
 <svelte:window onkeydown={taste} />

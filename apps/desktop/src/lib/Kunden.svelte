@@ -141,6 +141,9 @@
   async function schliessen() {
     if (await verwerfenErlaubt()) onschliessen();
   }
+  export function hatAenderungen() {return geaendert;}
+  export function istBeschaeftigt() {return laeuft;}
+  export async function speichernBeimSchliessen() {if(laeuft)return false;await speichern(new Event("submit") as SubmitEvent);return !geaendert;}
 </script>
 
 <div class="kunden">
