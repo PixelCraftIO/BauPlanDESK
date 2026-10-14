@@ -23,7 +23,10 @@ impl Projektkontext {
         k.setze("projekt.name", &p.name);
         k.setze("projekt.bundesland", p.bundesland.code());
         k.setze("projekt.bundesland_name", p.bundesland.name());
-        if let Some(f) = p.grundstuecksflaeche_m2 {
+        if let Ok(einheiten) = crate::grundstueckskontext::ermitteln(p)
+            && einheiten.len() == 1
+            && let Some(f) = einheiten[0].bezugsflaeche_m2
+        {
             k.setze("grundstueck.flaeche_m2", zahl(f, 2));
         }
         k.setze("datum.heute", Local::now().format("%d.%m.%Y").to_string());

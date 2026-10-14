@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
@@ -25,10 +26,12 @@
   } = $props();
   let land = $state<Bundesland>(untrack(() => projekt.bundesland));
   let gespeichertLand = $state<Bundesland>(untrack(() => projekt.bundesland));
-  function grundlagen(p:Project):Planungsrecht {const wert=structuredClone($state.snapshot(p.planungsrecht));wert.bau_nvo??=null;return wert;}
-  let gespeichert = $state(
-    untrack(() => grundlagen(projekt)),
-  );
+  function grundlagen(p: Project): Planungsrecht {
+    const wert = structuredClone($state.snapshot(p.planungsrecht));
+    wert.bau_nvo ??= null;
+    return wert;
+  }
+  let gespeichert = $state(untrack(() => grundlagen(projekt)));
   let version = $state(untrack(() => projekt.version));
   let eingabe = $state<Planungsrecht>(
     untrack(() => structuredClone($state.snapshot(gespeichert))),
@@ -101,14 +104,23 @@
     fehler = null;
     hinweis = null;
     try {
-      const p = await api.projektAktualisieren({
-        id: projekt.id,
-        expected_version: version,
-        name: projekt.name,
-        bundesland: land,
-        grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
-        planungsrecht: structuredClone($state.snapshot(eingabe)),
-      });
+      const p = await api.projektBereichSpeichern(
+        {
+          ...projekt,
+          version,
+          bundesland: gespeichertLand,
+          planungsrecht: structuredClone($state.snapshot(gespeichert)),
+        },
+        bereich === "grundlagen" ? "grundlagen" : bereich,
+        {
+          id: projekt.id,
+          expected_version: version,
+          name: projekt.name,
+          bundesland: land,
+          grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
+          planungsrecht: structuredClone($state.snapshot(eingabe)),
+        },
+      );
       gespeichert = grundlagen(p);
       eingabe = structuredClone($state.snapshot(gespeichert));
       version = p.version;
@@ -136,6 +148,16 @@
     await speichern(new Event("submit") as SubmitEvent);
     return !hatAenderungen();
   }
+  // Bereich ist für diese Editorinstanz fest; Projektwechsel erzeugt einen eigenen Kontext.
+  // svelte-ignore state_referenced_locally
+  editorAnmelden(
+    bereich === "grundlagen"
+      ? "rechtsgrundlagen"
+      : bereich === "stammdaten"
+        ? "uebersicht"
+        : "festsetzungen",
+    { hatAenderungen, istBeschaeftigt, speichern: speichernBeimSchliessen },
+  );
 </script>
 
 <p class="meta">

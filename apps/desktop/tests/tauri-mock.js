@@ -57,6 +57,14 @@ window.__TAURI_INTERNALS__ = {
     }
     if (cmd === "plugin:dialog|save" || cmd === "plugin:dialog|open")
       return null;
+    if (["fachobjekte","fachverlauf","nachweise"].includes(cmd)) return [];
+    if (cmd === "projektstatus") return {ermittelt_am:initial.created_at,offene_aufgaben:0,ueberfaellige_aufgaben:0,erforderliche_unterlagen:0,fehlende_unterlagen:0,ungepruefte_unterlagen:0,nachweise:0,veraltete_nachweise:0,offene_freigaben:0,exportierte_pakete:0,bestaetigte_einreichungen:0,hinweise:[]};
+    if (cmd === "grundstueckskontext") return [];
+    if (cmd === "projekt_bereich_speichern") {
+      const a=args.aenderung,p=window.testProjects.find(p=>p.id===a.id);
+      // Die Core-Vertragstests prüfen Merge/Konflikte; IPC-Fixture bleibt projektgebunden.
+      return window.__TAURI_INTERNALS__.invoke("projekt_aktualisieren",{aenderung:{...a,expected_version:p.version}});
+    }
     if (cmd === "arbeitskopien") return [];
     if (cmd === "baugrundstuecke_ermitteln") return [];
     if (cmd === "einreichungen") return [];

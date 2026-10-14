@@ -51,10 +51,43 @@ pub struct BaugrundstueckBerechnung {
     pub eingabe: NutzungsEingabe,
     pub eigene_festsetzungen: Option<Festsetzungen>,
 }
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct BaugrundstuecksPlan {
     pub flurstuecke: Vec<Flurstueck>,
     pub berechnungen: Vec<BaugrundstueckBerechnung>,
+}
+/// Identität hängt an den zugeordneten Flurstücken, nicht an deren veränderlichen Grundbuchtexten.
+pub fn einheitsschluessel(ids: &[String]) -> String {
+    let mut ids = ids.to_vec();
+    ids.sort();
+    let bytes = serde_json::to_vec(&ids).expect("Flurstückidentitäten");
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, &bytes).to_string()
+}
+impl<'de> Deserialize<'de> for BaugrundstuecksPlan {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Daten {
+            flurstuecke: Vec<Flurstueck>,
+            berechnungen: Vec<BaugrundstueckBerechnung>,
+        }
+        let Daten {
+            flurstuecke,
+            mut berechnungen,
+        } = Daten::deserialize(d)?;
+        let mut alt = std::collections::BTreeMap::<String, Vec<String>>::new();
+        for f in &flurstuecke {
+            alt.entry(f.schluessel()).or_default().push(f.id.clone());
+        }
+        for b in &mut berechnungen {
+            if let Some(ids) = alt.get(&b.schluessel) {
+                b.schluessel = einheitsschluessel(ids);
+            }
+        }
+        Ok(Self {
+            flurstuecke,
+            berechnungen,
+        })
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BaugrundstueckGruppe {
@@ -192,7 +225,13 @@ impl BaugrundstuecksPlan {
                 "Zu viele Baugrundstücke oder nicht darstellbare Flächensummen".into(),
             ));
         }
-        Ok(gruppen.into_values().collect())
+        Ok(gruppen
+            .into_values()
+            .map(|mut g| {
+                g.schluessel = einheitsschluessel(&g.flurstueck_ids);
+                g
+            })
+            .collect())
     }
     pub fn pruefe(
         &self,
@@ -243,13 +282,11 @@ impl BaugrundstuecksPlan {
             grond.nicht_massgebend_m2 = g.abzuege_m2;
             grond.abzug_begruendung = "Einzelne Flurstücksabzüge".into();
             let p = Planungsrecht {
-                bau_nvo: plan.bau_nvo,
-                bebauungsplan_art: plan.bebauungsplan_art,
                 festgesetzte_werte: b
                     .eigene_festsetzungen
                     .clone()
                     .unwrap_or_else(|| plan.festgesetzte_werte.clone()),
-                ..Default::default()
+                ..plan.clone()
             };
             let r = crate::festsetzungen::pruefe(&e, &p, version)?;
             ergebnisse.push(BaugrundstueckNachweis {
@@ -352,6 +389,53 @@ mod tests {
         }
     }
     #[test]
+    fn grundbuchkorrektur_erhaelt_identitaet_aufteilung_aendert_sie() {
+        let mut plan = musterplan();
+        let alt = plan.gruppen(true).unwrap();
+        for f in &mut plan.flurstuecke {
+            f.grundbuchblatt = "Korrigiertes Blatt".into();
+        }
+        let neu = plan.gruppen(true).unwrap();
+        assert_eq!(
+            alt.iter().map(|g| &g.schluessel).collect::<Vec<_>>(),
+            neu.iter().map(|g| &g.schluessel).collect::<Vec<_>>()
+        );
+        plan.pruefe(&planrecht(), 1).unwrap();
+        plan.flurstuecke[0].laufende_nummer = 3;
+        assert!(plan.pruefe(&planrecht(), 1).is_err());
+    }
+    #[test]
+    fn rechtskontext_bleibt_in_jeder_grundstueckspruefung_erhalten() {
+        for grundlage in [
+            crate::domain::Rechtsgrundlage::Par34,
+            crate::domain::Rechtsgrundlage::Par35,
+        ] {
+            let mut plan = musterplan();
+            for f in &mut plan.flurstuecke {
+                f.abzuege.clear();
+            }
+            let recht = Planungsrecht {
+                rechtsgrundlage: Some(grundlage),
+                bebauungsplan_art: crate::domain::BebauungsplanArt::Kein,
+                ..Default::default()
+            };
+            let gruppiert = plan.pruefe(&recht, 1).unwrap();
+            for (eingabe, nachweis) in plan.berechnungen.iter().zip(&gruppiert.baugrundstuecke) {
+                let direkt = crate::festsetzungen::pruefe(&eingabe.eingabe, &recht, 1).unwrap();
+                for art in ["grz", "gfz", "bmz"] {
+                    let a = direkt.nachweise.iter().find(|n| n.art == art).unwrap();
+                    let b = nachweis
+                        .pruefung
+                        .nachweise
+                        .iter()
+                        .find(|n| n.art == art)
+                        .unwrap();
+                    assert_eq!((a.soll, a.quelle), (b.soll, b.quelle));
+                }
+            }
+        }
+    }
+    #[test]
     fn gleiche_einheit_zusammen_unterschiedliche_getrennt_mit_eigenen_kennzahlen() {
         let p = musterplan();
         let r = p.pruefe(&planrecht(), 8).unwrap();
@@ -407,7 +491,7 @@ mod tests {
         p.berechnungen.pop();
         assert!(p.pruefe(&planrecht(), 1).is_err());
         p = musterplan();
-        p.flurstuecke[2].laufende_nummer = 3;
+        p.flurstuecke[2].laufende_nummer = 1;
         assert!(p.pruefe(&planrecht(), 1).is_err());
     }
     #[test]

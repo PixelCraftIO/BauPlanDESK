@@ -76,11 +76,7 @@ impl CoreServices {
             version: 1,
             einreichung: None,
         };
-        if let Err(e) = self.repos.einreichungen.anlegen(&paket).await {
-            let _ = self.storage.delete(&key).await;
-            return Err(e);
-        }
-        self.protokollieren(
+        let audit = Self::audit(
             wer,
             Aktion::EinreichungErstellt,
             Some(projekt),
@@ -91,10 +87,16 @@ impl CoreServices {
                 paket.stand.dokumente.len(),
                 paket.stand.empfaenger
             ),
-        )
-        .await?;
-        Ok(paket)
+        );
+        match self.repos.commit.einreichung(paket, None, audit).await {
+            Ok(p) => Ok(p),
+            Err(e) => {
+                let _ = self.storage.delete(&key).await;
+                Err(e)
+            }
+        }
     }
+
     pub async fn einreichung_bestaetigen(
         &self,
         id: Uuid,
@@ -116,8 +118,22 @@ impl CoreServices {
             bestaetigt_am: Utc::now(),
             bestaetigt_von: wer.anzeigename.clone(),
         };
-        let e = self.repos.einreichungen.bestaetigen(id, basis, b).await?;
-        self.protokollieren(
+        let mut e = self.repos.einreichungen.laden(id).await?;
+        if e.version != basis {
+            return Err(CoreError::VersionConflict {
+                expected: basis,
+                actual: e.version,
+            });
+        }
+        if e.einreichung.is_some() {
+            return Err(CoreError::InvalidInput(
+                "Einreichung bereits bestätigt; neue Unterlagen als eigenes Paket nachreichen"
+                    .into(),
+            ));
+        }
+        e.einreichung = Some(b);
+        e.version += 1;
+        let audit = Self::audit(
             wer,
             Aktion::EinreichungBestaetigt,
             Some(e.stand.projekt_id),
@@ -126,10 +142,10 @@ impl CoreServices {
                 "{} an {}, eingereicht am {datum}",
                 e.stand.titel, e.stand.empfaenger
             ),
-        )
-        .await?;
-        Ok(e)
+        );
+        self.repos.commit.einreichung(e, Some(basis), audit).await
     }
+
     pub async fn einreichung_zip(&self, id: Uuid) -> CoreResult<(Einreichung, Bytes)> {
         let e = self.repos.einreichungen.laden(id).await?;
         let data = self

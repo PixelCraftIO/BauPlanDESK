@@ -50,6 +50,10 @@ pub struct Bauteil {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Geschoss {
+    #[serde(default)]
+    pub gebaeude_id: Option<String>,
+    #[serde(default)]
+    pub geschoss_id: Option<String>,
     pub bezeichnung: String,
     pub vollgeschoss: bool,
     pub aussenmass_m2: f64,
@@ -75,6 +79,7 @@ pub struct FlaechenErgebnis {
     pub grundstueck: GrundstueckErgebnis,
     pub mass: MassDerNutzung,
     pub vollgeschosse: u32,
+    pub vollgeschosse_je_gebaeude: std::collections::BTreeMap<String, u32>,
     pub grz_ii: bool,
     pub bauteile_vorhanden: bool,
     pub geschosse_vorhanden: bool,
@@ -111,7 +116,10 @@ pub struct GrundstueckErgebnis {
     pub anteile_m2: Vec<f64>,
 }
 impl GrundstueckAufstellung {
-    fn berechne(&self, regel: &crate::baunvo::Regelwerk) -> CoreResult<GrundstueckErgebnis> {
+    pub(crate) fn berechne(
+        &self,
+        regel: &crate::baunvo::Regelwerk,
+    ) -> CoreResult<GrundstueckErgebnis> {
         wert(self.basisflaeche_m2)?;
         wert(self.nicht_massgebend_m2)?;
         if self.basisflaeche_m2 <= 0.0 || self.nicht_massgebend_m2 > self.basisflaeche_m2 {
@@ -266,6 +274,7 @@ impl FlaechenAufstellung {
                 baumasse_m3: baumasse,
             },
             vollgeschosse: 0,
+            vollgeschosse_je_gebaeude: Default::default(),
             grz_ii: self.bau_nvo.modern(),
             bauteile_vorhanden: !self.bauteile.is_empty(),
             geschosse_vorhanden: !self.geschosse.is_empty(),
@@ -308,7 +317,24 @@ impl FlaechenAufstellung {
                 },
             });
         }
+        if self.geschosse.iter().any(|g| g.gebaeude_id.is_some())
+            && self.geschosse.iter().any(|g| g.gebaeude_id.is_none())
+        {
+            return Err(CoreError::InvalidInput(
+                "Bei mehreren Gebäuden alle Geschosse einem Gebäude zuordnen".into(),
+            ));
+        }
         for g in &self.geschosse {
+            let gebaeude = g.gebaeude_id.as_deref().unwrap_or("Bestandsgebäude");
+            if gebaeude.trim().is_empty() || gebaeude.len() > 120 {
+                return Err(CoreError::InvalidInput(
+                    "Gültige Gebäudezuordnung erforderlich".into(),
+                ));
+            }
+            let anzahl = r
+                .vollgeschosse_je_gebaeude
+                .entry(gebaeude.into())
+                .or_default();
             if g.bezeichnung.trim().is_empty() || g.bezeichnung.len() > 500 {
                 return Err(CoreError::InvalidInput(
                     "Geschoss benötigt eine Bezeichnung (max. 500 Zeichen)".into(),
@@ -330,7 +356,7 @@ impl FlaechenAufstellung {
                 return Err(CoreError::InvalidInput("Aufenthaltsräume mit Wänden und Erschließung dürfen die Geschossfläche nach Außenmaßen nicht überschreiten".into()));
             }
             let gf = if g.vollgeschoss {
-                r.vollgeschosse += 1;
+                *anzahl += 1;
                 g.aussenmass_m2
             } else {
                 teil * nichtvollgeschoss_faktor
@@ -338,6 +364,12 @@ impl FlaechenAufstellung {
             r.mass.geschossflaeche_m2 += gf;
             r.geschosse.push(gf);
         }
+        r.vollgeschosse = r
+            .vollgeschosse_je_gebaeude
+            .values()
+            .copied()
+            .max()
+            .unwrap_or(0);
         let k = crate::calc::kennzahlen(&r.mass)?;
         if [k.grz, k.grz_gesamt, k.gfz, k.bmz.unwrap_or(0.0)]
             .iter()
@@ -375,6 +407,8 @@ mod tests {
             .collect(),
             geschosse: vec![
                 Geschoss {
+                    gebaeude_id: None,
+                    geschoss_id: None,
                     bezeichnung: "EG".into(),
                     vollgeschoss: true,
                     aussenmass_m2: 100.0,
@@ -383,6 +417,8 @@ mod tests {
                     erschliessung_m2: 0.0,
                 },
                 Geschoss {
+                    gebaeude_id: None,
+                    geschoss_id: None,
                     bezeichnung: "DG".into(),
                     vollgeschoss: false,
                     aussenmass_m2: 80.0,
@@ -395,6 +431,30 @@ mod tests {
             nichtvollgeschoss_festsetzung: String::new(),
         }
     }
+    #[test]
+    fn geschossigkeit_wird_nicht_ueber_mehrere_gebaeude_addiert() {
+        let mut a = aufstellung(BauNvo::V2017);
+        let vorlage = a.geschosse[0].clone();
+        a.geschosse.clear();
+        for gebaeude in ["Haus A", "Haus B"] {
+            for etage in ["EG", "OG"] {
+                a.geschosse.push(Geschoss {
+                    gebaeude_id: Some(gebaeude.into()),
+                    geschoss_id: Some(format!("{gebaeude}/{etage}")),
+                    bezeichnung: etage.into(),
+                    ..vorlage.clone()
+                });
+            }
+        }
+        let r = a.berechne(500., None).unwrap();
+        assert_eq!(r.vollgeschosse, 2);
+        assert_eq!(r.vollgeschosse_je_gebaeude.len(), 2);
+        assert_eq!(r.mass.geschossflaeche_m2, 400.);
+        // Teilweise Gebäudezuordnung verschleiert keine weitere Einheit.
+        a.geschosse[0].gebaeude_id = None;
+        assert!(a.berechne(500., None).is_err());
+    }
+
     #[test]
     fn gemeinschaftsflaechen_erhoehen_bezugsflaeche_ohne_doppelte_zurechnung() {
         let mut a = aufstellung(BauNvo::V2017);

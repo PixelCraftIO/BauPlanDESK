@@ -3,7 +3,7 @@ from pathlib import Path
 import json,base64,os
 from playwright.sync_api import sync_playwright,expect
 root=Path(__file__).resolve().parent
-pdfroot=Path('/workspace/review-main/pdf-ablage')
+pdfroot=Path(os.environ.get('BAUPROJEKT_PDF_ARTEFAKTE','/workspace/review-main/pdf-ablage'))
 wf=json.loads((pdfroot/'workflow.json').read_text())
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='Wohnhaus Lindenweg'
 fixture['planungsrecht'].update({'bau_nvo':None,'rechtsgrundlage':None,'bebauungsplan_art':'ungeklaert','baugrundstuecke':None,'berechnung':None})
@@ -39,7 +39,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
 '''
 errors=[];checks=[]
 with sync_playwright() as p:
- browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium')
+ browser=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
  page=browser.new_page(viewport={'width':1440,'height':1000},color_scheme='light')
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(fixture)+';window.pdfWorkflow='+json.dumps(wf)+';window.sourcePdf='+json.dumps(pdf)+';'+(root/'tauri-mock.js').read_text()+custom)

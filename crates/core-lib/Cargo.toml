@@ -29,6 +29,7 @@ thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 zip.workspace = true
+ts-rs.workspace = true
 
 [features]
 # Stellt Beispiel-PDFs für Tests anderer Crates bereit.

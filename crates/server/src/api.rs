@@ -6,7 +6,9 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{Extension, Json, Router};
+#[path = "zugang.rs"]
+pub mod zugang;
 use core_lib::benutzer::Benutzer;
 use core_lib::cad::{Laengeneinheit, Messung, Punkt};
 use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
@@ -58,88 +60,118 @@ impl IntoResponse for ApiError {
 
 type ApiResult<T> = Result<Json<T>, ApiError>;
 
-/// Zustand der Handler. `akteur` ist vorerst das technische Konto; mit der
-/// Server-Anmeldung kommt der Benutzer aus dem Token der Anfrage.
+/// Gemeinsamer Servicezustand. Der verifizierte Benutzer kommt pro Anfrage aus der Middleware.
 #[derive(Clone)]
 pub struct ApiState {
     pub core: CoreServices,
-    pub akteur: Benutzer,
 }
 
-pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
-    Router::new()
-        .route("/health", get(|| async { "ok" }))
-        .route("/api/projekte", get(list_projects).post(create_project))
-        .route("/api/projekte/{id}", get(get_project).put(update_project))
+fn routen(core: CoreServices) -> Router {
+    let api = Router::new()
+        .route("/sitzung", get(sitzung))
+        .route("/projekte/{id}/status", get(projektstatus))
         .route(
-            "/api/dokumente/{id}/formular",
+            "/projekte/{id}/checkliste",
+            axum::routing::post(checkliste_anwenden),
+        )
+        .route(
+            "/projekte/{id}/mitglieder",
+            get(mitglieder).post(mitglied_setzen),
+        )
+        .route(
+            "/projekte/{id}/grundstueckskontext",
+            get(grundstueckskontext),
+        )
+        .route("/projekte/{id}/bereiche/{bereich}", post(bereich_speichern))
+        .route(
+            "/projekte/{id}/fachobjekte/{art}",
+            get(fachobjekte).post(fachobjekt_speichern),
+        )
+        .route(
+            "/projekte/{id}/nachweise",
+            get(nachweise).post(nachweis_erstellen),
+        )
+        .route(
+            "/projekte/{id}/nachweise/{nachweis}/freigabe",
+            post(nachweis_freigeben),
+        )
+        .route(
+            "/projekte/{id}/nachweise/{nachweis}/wiederholung",
+            get(nachweis_wiederholen),
+        )
+        .route("/projekte", get(list_projects).post(create_project))
+        .route("/projekte/{id}", get(get_project).put(update_project))
+        .route(
+            "/dokumente/{id}/formular",
             get(formular_analysieren).post(formular_ausfuellen),
         )
+        .route("/dokumente/{id}/vorlage", post(formular_vorlage_erstellen))
         .route(
-            "/api/dokumente/{id}/vorlage",
-            post(formular_vorlage_erstellen),
-        )
-        .route(
-            "/api/projekte/{id}/einreichungen",
+            "/projekte/{id}/einreichungen",
             get(einreichungen).post(einreichung_erstellen),
         )
         .route(
-            "/api/projekte/{id}/einreichungsvergleich",
+            "/projekte/{id}/einreichungsvergleich",
             get(einreichungsvergleich),
         )
         .route(
-            "/api/einreichungen/{id}/bestaetigen",
+            "/einreichungen/{id}/bestaetigen",
             post(einreichung_bestaetigen),
         )
-        .route("/api/einreichungen/{id}/zip", get(einreichung_zip))
-        .route("/api/projekte/{id}/projektordner", get(projektordner_plan))
-        .route("/api/projekte/{id}/protokoll", get(protokoll))
+        .route("/einreichungen/{id}/zip", get(einreichung_zip))
+        .route("/projekte/{id}/projektordner", get(projektordner_plan))
+        .route("/projekte/{id}/protokoll", get(protokoll))
         .route(
-            "/api/projekte/{id}/bauherren",
+            "/projekte/{id}/bauherren",
             get(bauherren).put(bauherren_setzen),
         )
-        .route("/api/kunden", get(kunden).post(kunde_anlegen))
+        .route("/kunden", get(kunden).post(kunde_anlegen))
         .route(
-            "/api/kunden/{id}",
+            "/kunden/{id}",
             get(kunde).put(kunde_aendern).delete(kunde_loeschen),
         )
-        .route("/api/kunden/{id}/projekte", get(kunde_projekte))
-        .route("/api/dokumente/{id}/versionen", get(versionen))
+        .route("/kunden/{id}/projekte", get(kunde_projekte))
+        .route("/dokumente/{id}/versionen", get(versionen))
+        .route("/dokumente/{id}/sperre", post(sperren).delete(entsperren))
+        .route("/dokumente/{id}/plan", get(cad_plan))
+        .route("/lizenz", get(lizenz).put(lizenz_einspielen))
         .route(
-            "/api/dokumente/{id}/sperre",
-            post(sperren).delete(entsperren),
-        )
-        .route("/api/dokumente/{id}/plan", get(cad_plan))
-        .route("/api/lizenz", get(lizenz).put(lizenz_einspielen))
-        .route(
-            "/api/projekte/{id}/bauantrag",
+            "/projekte/{id}/bauantrag",
             get(bauantrag).put(bauantrag_speichern),
         )
-        .route("/api/projekte/{id}/xbau", get(xbau_exportieren))
-        .route("/api/buero", get(buero).put(buero_speichern))
-        .route("/api/xbau/codelisten", get(codelisten))
-        .route("/api/lbo/regelpakete", get(rule_packs))
-        .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
-        .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
-        .route("/api/berechnung/aufmass", post(aufmass))
+        .route("/projekte/{id}/xbau", get(xbau_exportieren))
+        .route("/buero", get(buero).put(buero_speichern))
+        .route("/xbau/codelisten", get(codelisten))
+        .route("/lbo/regelpakete", get(rule_packs))
+        .route("/berechnung/abstandsflaeche", post(abstandsflaeche))
+        .route("/berechnung/mass-der-nutzung", post(mass_der_nutzung))
+        .route("/berechnung/aufmass", post(aufmass))
         .route(
-            "/api/projekte/{id}/nutzung/pruefen",
+            "/projekte/{id}/nutzung/pruefen",
             post(projekt_nutzung_pruefen),
         )
         .route(
-            "/api/projekte/{id}/baugrundstuecke/pruefen",
+            "/projekte/{id}/baugrundstuecke/pruefen",
             post(projekt_baugrundstuecke_pruefen),
         )
-        .route("/api/berechnung/baugrenzen", post(baugrenzen_pruefen))
-        .with_state(ApiState { core, akteur })
+        .route("/berechnung/baugrenzen", post(baugrenzen_pruefen));
+    Router::new()
+        .route("/health", get(bereitschaft))
+        .nest("/api", api.clone())
+        .nest("/api/v1", api)
+        .with_state(ApiState { core })
 }
 
-async fn list_projects(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Project>> {
-    Ok(Json(core.list_projects().await?))
+async fn list_projects(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<Vec<Project>> {
+    Ok(Json(core.projekte_fuer_benutzer(&akteur).await?))
 }
 
 async fn create_project(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Json(body): Json<NewProject>,
 ) -> Result<(StatusCode, Json<Project>), ApiError> {
     let project = core.create_project(body, &akteur).await?;
@@ -155,7 +187,8 @@ async fn get_project(
 }
 
 async fn update_project(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(mut body): Json<ProjectUpdate>,
 ) -> ApiResult<Project> {
@@ -192,7 +225,8 @@ struct VorlageRequest {
     felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
 }
 async fn formular_vorlage_erstellen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(body): Json<VorlageRequest>,
 ) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
@@ -210,7 +244,8 @@ struct FormularStandQuery {
     basis: Option<i64>,
 }
 async fn formular_ausfuellen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Query(stand): Query<FormularStandQuery>,
     Json(werte): Json<BTreeMap<String, Feldwert>>,
@@ -245,14 +280,16 @@ async fn versionen(
 }
 
 async fn sperren(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<DocumentLock> {
     Ok(Json(core.dokument_sperren(DocumentId(id), &akteur).await?))
 }
 
 async fn entsperren(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     core.dokument_entsperren(DocumentId(id), &akteur).await?;
@@ -265,7 +302,8 @@ async fn lizenz(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Lize
 
 /// Body: Inhalt der Lizenzdatei.
 async fn lizenz_einspielen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     datei: axum::body::Bytes,
 ) -> ApiResult<Lizenzstatus> {
     Ok(Json(core.lizenz_einspielen(&datei, &akteur).await?))
@@ -343,7 +381,8 @@ async fn kunde(
 }
 
 async fn kunde_anlegen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Json(body): Json<Kundendaten>,
 ) -> Result<(StatusCode, Json<Kunde>), ApiError> {
     let k = core.kunde_anlegen(body, &akteur).await?;
@@ -358,7 +397,8 @@ struct KundeAendern {
 }
 
 async fn kunde_aendern(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(body): Json<KundeAendern>,
 ) -> ApiResult<Kunde> {
@@ -374,7 +414,8 @@ struct VersionQuery {
 }
 
 async fn kunde_loeschen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Query(q): Query<VersionQuery>,
 ) -> Result<StatusCode, ApiError> {
@@ -383,10 +424,21 @@ async fn kunde_loeschen(
 }
 
 async fn kunde_projekte(
+    Extension(akteur): Extension<Benutzer>,
     State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Vec<Project>> {
-    Ok(Json(core.kunde_projekte(KundeId(id)).await?))
+    let mut sichtbar = Vec::new();
+    for p in core.kunde_projekte(KundeId(id)).await? {
+        if core
+            .projekt_zugriff(p.id, &akteur, core_lib::zugriff::ProjektRecht::Lesen)
+            .await
+            .is_ok()
+        {
+            sichtbar.push(p);
+        }
+    }
+    Ok(Json(sichtbar))
 }
 
 async fn bauherren(
@@ -404,7 +456,8 @@ struct BauherrenSetzen {
 }
 
 async fn bauherren_setzen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(body): Json<BauherrenSetzen>,
 ) -> ApiResult<Project> {
@@ -429,7 +482,8 @@ struct BauantragSpeichern {
 }
 
 async fn bauantrag_speichern(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(body): Json<BauantragSpeichern>,
 ) -> ApiResult<GespeicherterBauantrag> {
@@ -444,7 +498,8 @@ async fn buero(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Buero
 }
 
 async fn buero_speichern(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Json(body): Json<Buero>,
 ) -> ApiResult<Buero> {
     Ok(Json(core.buero_speichern(body, &akteur).await?))
@@ -456,7 +511,8 @@ async fn codelisten(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<
 
 /// Liefert das ZIP-Paket als Download.
 async fn xbau_exportieren(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
     let export = core.xbau_exportieren(ProjectId(id), &akteur).await?;
@@ -534,7 +590,8 @@ async fn einreichungsvergleich(
     ))
 }
 async fn einreichung_erstellen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(p): Json<core_lib::einreichung::NeuesPaket>,
 ) -> Result<(StatusCode, Json<core_lib::einreichung::Einreichung>), ApiError> {
@@ -553,7 +610,8 @@ struct Bestaetigung {
     notiz: String,
 }
 async fn einreichung_bestaetigen(
-    State(ApiState { core, akteur }): State<ApiState>,
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(b): Json<Bestaetigung>,
 ) -> ApiResult<core_lib::einreichung::Einreichung> {
@@ -581,4 +639,165 @@ async fn einreichung_zip(
         bytes,
     )
         .into_response())
+}
+
+async fn grundstueckskontext(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::grundstueckskontext::GrundstueckKontext>> {
+    Ok(Json(core.grundstueckskontext(ProjectId(id)).await?))
+}
+#[derive(Deserialize)]
+struct BereichRequest {
+    basis: Project,
+    aenderung: ProjectUpdate,
+}
+async fn bereich_speichern(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((id, bereich)): Path<(Uuid, core_lib::projektbereiche::ProjektBereich)>,
+    Json(body): Json<BereichRequest>,
+) -> ApiResult<Project> {
+    if body.basis.id != ProjectId(id) || body.aenderung.id != ProjectId(id) {
+        return Err(CoreError::InvalidInput("Projektzuordnung stimmt nicht überein".into()).into());
+    }
+    Ok(Json(
+        core.projekt_bereich_speichern(body.basis, bereich, body.aenderung, &akteur)
+            .await?,
+    ))
+}
+async fn fachobjekte(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path((id, art)): Path<(Uuid, core_lib::plattform::ObjektArt)>,
+) -> ApiResult<Vec<core_lib::commit::Fachstand>> {
+    Ok(Json(core.fachobjekte(ProjectId(id), art).await?))
+}
+#[derive(Deserialize)]
+struct FachRequest {
+    id: Uuid,
+    basis: i64,
+    daten: serde_json::Value,
+}
+async fn fachobjekt_speichern(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((projekt, art)): Path<(Uuid, core_lib::plattform::ObjektArt)>,
+    Json(body): Json<FachRequest>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.fachobjekt_speichern(
+            ProjectId(projekt),
+            art,
+            body.id,
+            body.basis,
+            body.daten,
+            &akteur,
+        )
+        .await?,
+    ))
+}
+async fn nachweise(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::plattform::nachweise::NachweisAnsicht>> {
+    Ok(Json(core.nachweise(ProjectId(id)).await?))
+}
+#[derive(Deserialize)]
+struct NachweisRequest {
+    id: Uuid,
+    bezeichnung: String,
+    eingabe: core_lib::plattform::nachweise::NachweisEingabe,
+}
+async fn nachweis_erstellen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<NachweisRequest>,
+) -> ApiResult<core_lib::plattform::nachweise::Nachweisstand> {
+    Ok(Json(
+        core.nachweis_erstellen(
+            ProjectId(id),
+            body.id,
+            body.bezeichnung,
+            body.eingabe,
+            &akteur,
+        )
+        .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct FreigabeRequest {
+    bemerkung: String,
+}
+async fn nachweis_freigeben(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((id, n)): Path<(Uuid, Uuid)>,
+    Json(body): Json<FreigabeRequest>,
+) -> ApiResult<core_lib::plattform::nachweise::Freigabe> {
+    Ok(Json(
+        core.nachweis_freigeben(ProjectId(id), n, body.bemerkung, &akteur)
+            .await?,
+    ))
+}
+async fn nachweis_wiederholen(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path((id, n)): Path<(Uuid, Uuid)>,
+) -> ApiResult<serde_json::Value> {
+    Ok(Json(core.nachweis_wiederholen(ProjectId(id), n).await?))
+}
+
+async fn sitzung(Extension(b): Extension<Benutzer>) -> Json<Benutzer> {
+    Json(b)
+}
+async fn bereitschaft(State(ApiState { core }): State<ApiState>) -> Response {
+    match core.repos.lizenz.einstellung("bereitschaft").await {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"datenbank":"bereit","speicher":"separat zu prüfen"})),
+        )
+            .into_response(),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    }
+}
+async fn mitglieder(
+    Extension(b): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::commit::Fachstand>> {
+    Ok(Json(core.projektmitglieder(ProjectId(id), &b).await?))
+}
+#[derive(Deserialize)]
+struct MitgliedRequest {
+    mitglied: core_lib::zugriff::ProjektMitglied,
+    basis: i64,
+}
+async fn mitglied_setzen(
+    Extension(b): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<MitgliedRequest>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.projektmitglied_setzen(ProjectId(id), body.mitglied, body.basis, &b)
+            .await?,
+    ))
+}
+
+async fn projektstatus(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<core_lib::plattform::ablauf::Projektstatus> {
+    Ok(Json(core.projektstatus(ProjectId(id)).await?))
+}
+async fn checkliste_anwenden(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(vorlage): Json<core_lib::plattform::ablauf::Checkliste>,
+) -> ApiResult<usize> {
+    Ok(Json(
+        core.checkliste_anwenden(ProjectId(id), vorlage, &wer)
+            .await?,
+    ))
 }

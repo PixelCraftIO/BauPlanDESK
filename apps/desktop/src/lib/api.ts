@@ -456,6 +456,8 @@ export interface Bauteil {
   begruendung: string;
 }
 export interface Geschoss {
+  gebaeude_id?: string | null;
+  geschoss_id?: string | null;
   bezeichnung: string;
   vollgeschoss: boolean;
   aussenmass_m2: number;
@@ -500,6 +502,7 @@ export interface FlaechenErgebnis {
   grundstueck: GrundstueckErgebnis;
   mass: MassDerNutzung;
   vollgeschosse: number;
+  vollgeschosse_je_gebaeude: Record<string, number>;
   grz_ii: boolean;
   bauteile: { anrechnung: Anrechnung; flaeche_m2: number }[];
   geschosse: number[];
@@ -559,6 +562,7 @@ export interface NutzungsPruefung {
   bebauungsplan: boolean;
   nachweise: {
     art: string;
+    gegenstand?: string | null;
     ist: number | null;
     soll: number | null;
     quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "keine";
@@ -722,7 +726,25 @@ export interface Formularfeld {
   max_laenge: number | null;
 }
 
+export interface FormularBezug {
+  grundstueck_id: string | null;
+  bauherr_id: string | null;
+}
+export interface FormularDatenstand {
+  projekt_id: string;
+  projekt_version: number;
+  bezug: FormularBezug;
+  daten_hash: string;
+  werte: Record<string, string>;
+}
+export interface FormularQuellen {
+  datenstand: FormularDatenstand;
+  grundstuecke: { id: string; bezeichnung: string }[];
+  bauherren: { id: string; bezeichnung: string }[];
+  hinweise: string[];
+}
 export interface FormularAnalyse {
+  quellen?: FormularQuellen;
   dokument: DocumentVersion;
   felder: Formularfeld[];
   vorlage: { id: string; titel: string; version: string } | null;
@@ -907,6 +929,19 @@ export interface BibliothekMaske {
   seiten: PdfSeite[];
 }
 export const api = {
+  projektBereichSpeichern: (
+    basis: Project,
+    bereich:
+      | "stammdaten"
+      | "grundlagen"
+      | "festsetzungen"
+      | "grundstuecke"
+      | "projektdaten",
+    aenderung: ProjectUpdate,
+  ) =>
+    invoke<Project>("projekt_bereich_speichern", { basis, bereich, aenderung }),
+  grundstueckskontext: (projektId: string) =>
+    invoke<GrundstueckKontext[]>("grundstueckskontext", { projektId }),
   projektordnerStatus: () => invoke<string>("projektordner_status"),
   projektordnerWaehlen: (pfad: string) =>
     invoke<void>("projektordner_waehlen", { pfad }),
@@ -915,19 +950,24 @@ export const api = {
       projektId,
       plan,
     }),
-  bibliothekFormular: (quelle: BibliothekQuelle) =>
+  bibliothekFormular: (quelle: BibliothekQuelle, bezug?: FormularBezug) =>
     invoke<BibliothekMaske>("bibliothek_formular", {
+      bezug,
       projektId: quelle.projektId,
       vorlage: quelle.vorlage,
     }),
   bibliothekFormularSpeichern: (
     quelle: BibliothekQuelle,
     werte: Record<string, Feldwert>,
+    vorgang?: string,
+    datenstand?: FormularDatenstand,
   ) =>
     invoke<DocumentVersion>("bibliothek_formular_speichern", {
       projektId: quelle.projektId,
       vorlage: quelle.vorlage,
       werte,
+      vorgang,
+      datenstand,
     }),
   bibliothekFelderErstellen: (
     vorlage: BibliotheksVorlage,
@@ -941,8 +981,10 @@ export const api = {
     dokumentId: string,
     basis: number,
     werte: Record<string, Feldwert>,
+    datenstand?: FormularDatenstand,
   ) =>
     invoke<DocumentVersion>("formular_im_projekt_speichern", {
+      datenstand,
       dokumentId,
       basis,
       werte,
@@ -1103,8 +1145,8 @@ export const api = {
       projektId,
       ziel,
     }),
-  formularAnalysieren: (dokumentId: string) =>
-    invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
+  formularAnalysieren: (dokumentId: string, bezug?: FormularBezug) =>
+    invoke<FormularAnalyse>("formular_analysieren", { dokumentId, bezug }),
   formularAusfuellen: (
     dokumentId: string,
     werte: Record<string, Feldwert>,
@@ -1200,3 +1242,23 @@ export function fehlertext(e: unknown): string {
     return (e as CmdError).meldung;
   return String(e);
 }
+
+export interface GrundstueckKontext {
+  id: string;
+  projekt_id: string;
+  projekt_version: number;
+  schluessel: string;
+  bezeichnung: string;
+  flurstueck_ids: string[];
+  eigentumsflaeche_m2: number;
+  abzug_m2: number;
+  zuschlag_m2: number;
+  bezugsflaeche_m2: number | null;
+  quelle: string;
+}
+
+export type ProjectUpdate = Projektwerte & {
+  id: string;
+  expected_version: number;
+  planungsrecht?: Planungsrecht;
+};

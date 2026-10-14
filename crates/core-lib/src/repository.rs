@@ -212,6 +212,7 @@ pub trait KundenRepository: Send + Sync {
 /// Laufzeitumgebung genau ein Objekt injizieren muss.
 #[derive(Clone)]
 pub struct Repositories {
+    pub commit: Arc<dyn crate::commit::CommitRepository>,
     pub einreichungen: Arc<dyn EinreichungRepository>,
     pub projects: Arc<dyn ProjectRepository>,
     pub documents: Arc<dyn DocumentRepository>,

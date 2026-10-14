@@ -81,7 +81,7 @@
   <table class="projekttabelle">
     <thead
       ><tr
-        ><th>Projekt</th><th>Bundesland</th><th>Eigentumsfläche</th><th
+        ><th>Projekt</th><th>Bundesland</th><th>Grundstück</th><th
           >Zuletzt geändert</th
         ><th>Aktion</th></tr
       ></thead
@@ -92,8 +92,13 @@
               >{p.name}</button
             ></td
           ><td>{landName(p.bundesland)}</td><td class="zahl"
-            >{p.grundstuecksflaeche_m2?.toLocaleString("de-DE") ?? "—"}
-            {p.grundstuecksflaeche_m2 == null ? "" : "m²"}</td
+            >{#if p.planungsrecht.baugrundstuecke}{p.planungsrecht
+                .baugrundstuecke.flurstuecke.length} Flurstücke{:else}{p.grundstuecksflaeche_m2?.toLocaleString(
+                "de-DE",
+              ) ?? "—"}
+              {p.grundstuecksflaeche_m2 == null
+                ? ""
+                : "m² (noch nicht aufgeschlüsselt)"}{/if}</td
           ><td>{new Date(p.updated_at).toLocaleDateString("de-DE")}</td><td
             ><button class="sekundaer" onclick={() => onoeffnen(p.id)}
               >Öffnen</button

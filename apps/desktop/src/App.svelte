@@ -19,6 +19,7 @@
     type ZuletztEintrag,
   } from "./lib/api";
   import Formularbibliothek from "./lib/Formularbibliothek.svelte";
+  import { MODULE, voraussetzung } from "./lib/module";
   import Sidebar from "./lib/Sidebar.svelte";
   import Darstellung from "./lib/Darstellung.svelte";
   import Speicherorte from "./lib/Speicherorte.svelte";
@@ -64,14 +65,11 @@
   const aktiv = $derived(sitzungen.find((s) => s.projekt.id === aktiveId));
   const projekt = $derived(aktiv?.projekt ?? null);
   $effect(() => {
-    if (
-      aktiv?.ansicht === "festsetzungen" &&
-      (aktiv.projekt.planungsrecht.rechtsgrundlage !== "par30" ||
-        ["kein", "ungeklaert"].includes(
-          aktiv.projekt.planungsrecht.bebauungsplan_art,
-        ))
-    )
-      aktiv.ansicht = "rechtsgrundlagen";
+    if (aktiv) {
+      const modul = MODULE.find((m) => m.id === aktiv.ansicht);
+      if (modul && voraussetzung(aktiv.projekt, modul))
+        aktiv.ansicht = "rechtsgrundlagen";
+    }
   });
   let schliessZiel = $state<string | null>(null);
   let schliessLaeuft = $state(false);
@@ -97,12 +95,8 @@
   const ansicht = $derived(aktiv?.ansicht ?? "uebersicht");
   function bereich(id: Ansicht) {
     if (aktiv) {
-      if (
-        ["grz", "gfz", "geschosse", "volumen"].includes(id) &&
-        (!aktiv.projekt.planungsrecht.rechtsgrundlage ||
-          !aktiv.projekt.planungsrecht.bau_nvo)
-      )
-        id = "rechtsgrundlagen";
+      const modul = MODULE.find((m) => m.id === id);
+      if (modul && voraussetzung(aktiv.projekt, modul)) id = "rechtsgrundlagen";
       aktiv.ansicht = id;
       globalAnsicht = null;
     }

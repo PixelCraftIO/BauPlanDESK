@@ -93,6 +93,7 @@ pub enum Quelle {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Nachweis {
+    pub gegenstand: Option<String>,
     pub art: &'static str,
     pub ist: Option<f64>,
     pub soll: Option<f64>,
@@ -121,6 +122,7 @@ fn nachweis(
         .zip(soll)
         .and_then(|(u, s)| (s > 0.0).then(|| u / s * 100.0).filter(|v| v.is_finite()));
     Nachweis {
+        gegenstand: None,
         art,
         ist,
         soll,
@@ -275,6 +277,22 @@ pub fn pruefe(
             ),
         ],
     };
+    if let Some(a) = &r.aufstellung
+        && a.vollgeschosse_je_gebaeude.len() > 1
+    {
+        r.nachweise.retain(|n| n.art != "vollgeschosse");
+        for (id, anzahl) in &a.vollgeschosse_je_gebaeude {
+            let mut n = nachweis(
+                "vollgeschosse",
+                Some(f64::from(*anzahl)),
+                f.vollgeschosse.map(f64::from),
+                Quelle::Festsetzung,
+                f.geschossigkeit == Geschossigkeit::Zwingend,
+            );
+            n.gegenstand = Some(id.clone());
+            r.nachweise.push(n);
+        }
+    }
     let fehlende_bauteile = r
         .aufstellung
         .as_ref()

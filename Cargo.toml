@@ -32,6 +32,7 @@ repository = "https://github.com/PixelCraftIO/BauProjektIO"
 # Zentrale Versionsverwaltung. Jede Abhängigkeit muss MIT/Apache-2.0/BSD o. ä.
 # lizenziert sein; `cargo deny check licenses` (siehe deny.toml) erzwingt das.
 [workspace.dependencies]
+ts-rs = { version = "11", features = ["chrono-impl", "uuid-impl", "serde-json-impl", "no-serde-warnings"] }
 core-lib = { path = "crates/core-lib" }
 db-sqlite = { path = "crates/db-sqlite" }
 db-postgres = { path = "crates/db-postgres" }

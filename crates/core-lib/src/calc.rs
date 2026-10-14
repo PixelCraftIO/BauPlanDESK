@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{CoreError, CoreResult};
 
 /// Art der baulichen Nutzung (§§ 2–11 BauNVO).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ts_rs::TS)]
 pub enum Baugebiet {
     /// Kleinsiedlungsgebiet
     WS,

@@ -10,7 +10,7 @@ out.mkdir(parents=True,exist_ok=True)
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='Wohnbebauung Lindenweg'
 errors=[];checks=[]
 with sync_playwright() as p:
- browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium')
+ browser=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
  page=browser.new_page(viewport={'width':1440,'height':1000})
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text())

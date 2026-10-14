@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
   import { ask, open, save } from "@tauri-apps/plugin-dialog";
   import {
@@ -17,6 +18,28 @@
   import Dialog from "./Dialog.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
   import Historie from "./Historie.svelte";
+  import Dokumentdaten from "./Dokumentdaten.svelte";
+  let metadaten = $state<DocumentVersion | null>(null),
+    metaDirty = $state(false),
+    metaBusy = $state(false);
+  async function metaSchliessen() {
+    return (
+      !metaBusy &&
+      (!metaDirty ||
+        (await ask(
+          "Dokumentangaben wurden noch nicht gespeichert. Verwerfen?",
+          {
+            title: "Dokumentangaben",
+            kind: "warning",
+            okLabel: "Verwerfen",
+            cancelLabel: "Weiter bearbeiten",
+          },
+        )))
+    );
+  }
+  async function metaAbbrechen() {
+    if (await metaSchliessen()) metadaten = null;
+  }
 
   let {
     projektId,
@@ -323,9 +346,17 @@
       laeuft ||
       ordnerLaeuft ||
       !!formular ||
-      !!historie
+      !!historie ||
+      !!metadaten
     );
   }
+  editorAnmelden("dokumente", {
+    hatAenderungen: () => false,
+    istBeschaeftigt: istBeschaeftigt,
+    speichern: async () => true,
+    hinweis:
+      "Einreichungsauswahl zuerst als Paket festhalten oder ausdrücklich verwerfen.",
+  });
 </script>
 
 <div class="knoepfe links">
@@ -429,6 +460,13 @@
                     onclick={() => importieren(doc.document_id)}
                     >Neue Version …</button
                   >{/if}
+                <button
+                  class="link"
+                  onclick={() => {
+                    metaDirty = false;
+                    metadaten = doc;
+                  }}>Dokumentangaben …</button
+                >
                 <button class="link" onclick={() => (historie = doc)}
                   >Historie …</button
                 >
@@ -459,6 +497,23 @@
     </tbody>
   </table>
 </div>
+
+{#if metadaten}<Dialog
+    titel="Dokumentangaben"
+    schliessenErlaubt={!metaBusy}
+    onrequestclose={metaSchliessen}
+    onclose={() => (metadaten = null)}
+    ><Dokumentdaten
+      dokument={metadaten}
+      benutzerId={benutzer.id}
+      darf={darfAblegen}
+      onschliessen={metaAbbrechen}
+      onstatus={(dirty, busy) => {
+        metaDirty = dirty;
+        metaBusy = busy;
+      }}
+    /></Dialog
+  >{/if}
 
 {#if historie}
   <Dialog

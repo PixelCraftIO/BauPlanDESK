@@ -9,6 +9,7 @@ mod dateien;
 mod einreichungen;
 mod lizenzdienst;
 mod menu;
+mod plattform;
 mod projektordner;
 mod updater;
 
@@ -51,6 +52,17 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            plattform::fachobjekte,
+            plattform::projektstatus,
+            plattform::standard_checkliste,
+            plattform::checkliste_anwenden,
+            plattform::fachverlauf,
+            plattform::fachobjekt_speichern,
+            plattform::nachweise,
+            plattform::nachweis_erstellen,
+            plattform::nachweis_freigeben,
+            plattform::nachweis_wiederholen,
+            plattform::raumbuch_summen,
             projektordner::projektordner_status,
             projektordner::projektordner_waehlen,
             commands::baugrundstuecke_ermitteln,
@@ -79,6 +91,8 @@ fn main() {
             commands::projekte_auflisten,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
+            commands::projekt_bereich_speichern,
+            commands::grundstueckskontext,
             commands::projekt_oeffnen,
             commands::projekt_laden,
             commands::projekt_schliessen,

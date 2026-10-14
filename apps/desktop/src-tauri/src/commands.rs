@@ -224,8 +224,12 @@ pub async fn dokument_importieren(
 pub async fn formular_analysieren(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
+    bezug: Option<core_lib::formular::instanz::FormularBezug>,
 ) -> CmdResult<FormularAnalyse> {
-    Ok(state.core.formular_analysieren(dokument_id).await?)
+    Ok(state
+        .core
+        .formular_analysieren_mit_bezug(dokument_id, bezug)
+        .await?)
 }
 
 #[derive(Serialize)]
@@ -765,13 +769,14 @@ pub async fn projektordner_exportieren(
 #[tauri::command]
 pub async fn formular_im_projekt_speichern(
     state: State<'_, AppState>,
+    datenstand: Option<core_lib::formular::instanz::FormularDatenstand>,
     dokument_id: DocumentId,
     basis: i64,
     werte: BTreeMap<String, Feldwert>,
 ) -> CmdResult<crate::projektordner::ProjektDokument> {
     let d = state
         .core
-        .formular_im_projekt_speichern(dokument_id, basis, &werte, &state.benutzer())
+        .formular_im_projekt_mit_quellen(dokument_id, basis, &werte, datenstand, &state.benutzer())
         .await?;
     Ok(crate::projektordner::ablegen(&state, d).await)
 }
@@ -790,4 +795,24 @@ pub async fn baugrundstuecke_ermitteln(
             | core_lib::domain::BebauungsplanArt::Vorhabenbezogen
     );
     Ok(plan.gruppen(mit_plan)?)
+}
+
+#[tauri::command]
+pub async fn projekt_bereich_speichern(
+    state: State<'_, AppState>,
+    basis: Project,
+    bereich: core_lib::projektbereiche::ProjektBereich,
+    aenderung: ProjectUpdate,
+) -> CmdResult<Project> {
+    Ok(state
+        .core
+        .projekt_bereich_speichern(basis, bereich, aenderung, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn grundstueckskontext(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<core_lib::grundstueckskontext::GrundstueckKontext>> {
+    Ok(state.core.grundstueckskontext(projekt_id).await?)
 }

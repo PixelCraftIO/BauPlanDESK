@@ -508,3 +508,5 @@ besonderer Grundstücksverhältnisse.
 `POST /api/projekte/{id}/baugrundstuecke/pruefen` nimmt die Sammlung aus
 `flurstuecke` und `berechnungen` entgegen und liefert die Grundstückseinheiten
 mit den jeweiligen Nachweisen und der Projektversion.
+
+Aktueller Implementierungsstand: [Plattformumsetzung](docs/plattform-umsetzung/README.md).

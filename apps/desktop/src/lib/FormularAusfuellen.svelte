@@ -8,9 +8,11 @@
     type FormularAnalyse,
     type PdfVorschauDaten,
     type BibliothekQuelle,
+    type FormularBezug,
   } from "./api";
 
   import PdfVorschau from "./PdfVorschau.svelte";
+  const vorgang = crypto.randomUUID();
   let {
     dokumentId,
     quelle,
@@ -47,14 +49,28 @@
   );
   $effect(() => onstatus?.(dirty, laeuft));
 
-  onMount(async () => {
+  let auswahl = $state<FormularBezug>({
+    grundstueck_id: null,
+    bauherr_id: null,
+  });
+  async function laden(auffrischen = false) {
+    laeuft = true;
+    fehler = null;
     try {
-      const bibliothek = quelle ? await api.bibliothekFormular(quelle) : null;
+      const bibliothek = quelle
+        ? await api.bibliothekFormular(
+            quelle,
+            auffrischen ? auswahl : undefined,
+          )
+        : null;
       const a: Omit<FormularAnalyse, "dokument"> & {
         dokument?: DocumentVersion;
       } = bibliothek
         ? bibliothek.schema
-        : await api.formularAnalysieren(dokumentId!);
+        : await api.formularAnalysieren(
+            dokumentId!,
+            auffrischen ? auswahl : undefined,
+          );
       if (bibliothek) vorschau = bibliothek;
       const start: Record<string, Feldwert> = {};
       for (const f of a.felder) {
@@ -64,8 +80,19 @@
           f.wert ??
           (f.art === "ankreuzfeld" ? false : "");
       }
+      if (auffrischen && analyse) {
+        // Nur unveränderte Vorschläge ersetzen; manuelle Eingaben bleiben bestehen.
+        for (const f of analyse.felder) {
+          const alt =
+            analyse.vorschlag[f.name] ??
+            f.wert ??
+            (f.art === "ankreuzfeld" ? false : "");
+          if (werte[f.name] !== alt) start[f.name] = werte[f.name];
+        }
+      }
       werte = start;
       analyse = a;
+      if (a.quellen) auswahl = { ...a.quellen.datenstand.bezug };
       if (a.dokument)
         void api
           .pdfVorschau(dokumentId!, a.dokument.version)
@@ -73,7 +100,12 @@
           .catch(() => {});
     } catch (e) {
       fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
     }
+  }
+  onMount(() => {
+    void laden();
   });
 
   const sichtbar = $derived(
@@ -87,6 +119,15 @@
   async function absenden(event: SubmitEvent) {
     event.preventDefault();
     if (!analyse) return;
+    if (
+      analyse.quellen &&
+      JSON.stringify(auswahl) !==
+        JSON.stringify(analyse.quellen.datenstand.bezug)
+    ) {
+      fehler =
+        "Bitte die gewählten Projektdaten zuerst laden und die Vorschläge prüfen.";
+      return;
+    }
     // Nur geänderte bzw. gesetzte Felder schicken; schreibgeschützte nie.
     const geaendert: Record<string, Feldwert> = {};
     for (const f of analyse.felder) {
@@ -99,11 +140,17 @@
     try {
       onfertig(
         quelle
-          ? await api.bibliothekFormularSpeichern(quelle, geaendert)
+          ? await api.bibliothekFormularSpeichern(
+              quelle,
+              geaendert,
+              vorgang,
+              analyse.quellen?.datenstand,
+            )
           : await api.formularImProjektSpeichern(
               dokumentId!,
               analyse.dokument!.version,
               geaendert,
+              analyse.quellen?.datenstand,
             ),
       );
     } catch (e) {
@@ -124,6 +171,39 @@
       ({analyse.vorlage.version}){/if}
     · {Object.keys(analyse.vorschlag).length} Werte aus den Projektdaten übernommen
   </p>
+  {#if analyse.quellen}
+    <fieldset disabled={laeuft}>
+      <legend>Quellen für Formularvorschläge</legend>
+      <div class="zeile">
+        <label
+          >Baugrundstück<select bind:value={auswahl.grundstueck_id}
+            ><option value={null}>Keine Auswahl</option
+            >{#each analyse.quellen.grundstuecke as g}<option value={g.id}
+                >{g.bezeichnung}</option
+              >{/each}</select
+          ></label
+        >
+        <label
+          >Bauherr<select bind:value={auswahl.bauherr_id}
+            ><option value={null}>Keine Auswahl</option
+            >{#each analyse.quellen.bauherren as b}<option value={b.id}
+                >{b.bezeichnung}</option
+              >{/each}</select
+          ></label
+        >
+        <button type="button" onclick={() => laden(true)}
+          >Projektdaten neu laden</button
+        >
+      </div>
+      <p class="meta">
+        Manuell geänderte Werte bleiben beim Laden erhalten. Die verwendeten
+        Quellen werden mit der PDF-Version gespeichert.
+      </p>
+      {#each analyse.quellen.hinweise as hinweis}<p class="hinweis">
+          {hinweis}
+        </p>{/each}
+    </fieldset>
+  {/if}
   <label class="zeile"
     ><input type="checkbox" bind:checked={nurLeere} /> Nur leere Felder anzeigen</label
   >

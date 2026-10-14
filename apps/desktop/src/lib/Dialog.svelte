@@ -28,11 +28,13 @@
       event.preventDefault();
       return;
     }
+    event.preventDefault();
     if (onrequestclose) {
-      event.preventDefault();
       void onrequestclose().then((ok) => {
         if (ok) onclose();
       });
+    } else {
+      onclose();
     }
   }
 </script>

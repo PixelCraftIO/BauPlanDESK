@@ -1,26 +1,11 @@
+import { MODULE, type ModulId } from "./module";
 export type BerechnungsBereich =
   | "grundstueck"
   | "grz"
   | "gfz"
   | "geschosse"
   | "volumen";
-export type Ansicht =
-  | "rechtsgrundlagen"
-  | "uebersicht"
-  | "festsetzungen"
-  | "grundstueck"
-  | "grz"
-  | "gfz"
-  | "geschosse"
-  | "volumen"
-  | "mass"
-  | "abstand"
-  | "dokumente"
-  | "formulare"
-  | "plaene"
-  | "bauantrag"
-  | "protokoll"
-  | "einreichungen";
+export type Ansicht = ModulId | "mass";
 export const berechnungsAnsichten: Ansicht[] = [
   "grundstueck",
   "grz",
@@ -36,20 +21,4 @@ export const berechnungsTitel: Record<BerechnungsBereich, string> = {
   geschosse: "Geschossigkeit",
   volumen: "Bauvolumen / BMZ",
 };
-export const reiter: { id: Ansicht; text: string }[] = [
-  { id: "uebersicht", text: "Stammdaten" },
-  { id: "rechtsgrundlagen", text: "Rechtsgrundlagen" },
-  { id: "festsetzungen", text: "Bebauungsplanfestsetzungen" },
-  { id: "grundstueck", text: "Baugrundstück" },
-  { id: "grz", text: "GRZ" },
-  { id: "gfz", text: "GFZ" },
-  { id: "geschosse", text: "Geschossigkeit" },
-  { id: "abstand", text: "Abstandsflächen" },
-  { id: "volumen", text: "Bauvolumen" },
-  { id: "formulare", text: "Formulare" },
-  { id: "dokumente", text: "Projektdateien" },
-  { id: "plaene", text: "Pläne / Aufmaß" },
-  { id: "bauantrag", text: "Bauantrag / XBau" },
-  { id: "einreichungen", text: "Einreichungen" },
-  { id: "protokoll", text: "Chronik" },
-];
+export const reiter = MODULE.map((m) => ({ id: m.id, text: m.titel }));

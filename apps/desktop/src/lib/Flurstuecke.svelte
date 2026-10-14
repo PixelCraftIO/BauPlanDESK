@@ -1,4 +1,8 @@
 <script lang="ts">
+  import type { Gebaeude } from "./generated/plattform";
+  import type { Datensatz } from "./plattformApi";
+  import { plattformApi } from "./plattformApi";
+  import { editorAnmelden } from "./editoren";
   import { onMount, untrack, tick } from "svelte";
   import {
     api,
@@ -212,6 +216,49 @@
     }
     return e;
   }
+  let nachweisHinweis = $state<string | null>(null),
+    nachweisVorgang = "",
+    nachweisStand = "";
+  let gebaeude = $state<Datensatz<Gebaeude>[]>([]);
+  $effect(() => {
+    void bereich;
+    untrack(() => {
+      void plattformApi
+        .liste<Gebaeude>(projekt.id, "gebaeude")
+        .then((g) => (gebaeude = g))
+        .catch((e) => (fehler = fehlertext(e)));
+    });
+  });
+  async function nachweisSpeichern() {
+    if (!ergebnis || !aktuell) return;
+    laeuft = true;
+    try {
+      if (nachweisStand !== fingerprint) {
+        nachweisVorgang = crypto.randomUUID();
+        nachweisStand = fingerprint;
+      }
+      const fach =
+        bereich === "geschosse"
+          ? "geschossigkeit"
+          : bereich === "volumen"
+            ? "bmz"
+            : bereich === "gfz"
+              ? "gfz"
+              : "grz";
+      await plattformApi.nachweisErstellen(
+        projekt.id,
+        nachweisVorgang,
+        `${fach.toLocaleUpperCase("de-DE")} – ${projekt.name}`,
+        { art: "nutzung", fach, plan: request() },
+      );
+      nachweisHinweis =
+        "Nachweisstand mit Eingaben und Regelpaketen gespeichert.";
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
+    }
+  }
   async function berechnen() {
     laeuft = true;
     fehler = null;
@@ -236,17 +283,27 @@
       if (!(await ermitteln())) return;
       const plan = request();
       await api.projektBaugrundstueckePruefen(projekt.id, plan);
-      const p = await api.projektAktualisieren({
-        id: projekt.id,
-        expected_version: basis,
-        name: projekt.name,
-        bundesland: projekt.bundesland,
-        grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
-        planungsrecht: {
-          ...structuredClone($state.snapshot(projekt.planungsrecht)),
-          baugrundstuecke: plan,
+      const p = await api.projektBereichSpeichern(
+        {
+          ...projekt,
+          planungsrecht: {
+            ...projekt.planungsrecht,
+            baugrundstuecke: structuredClone($state.snapshot(gespeichert)),
+          },
         },
-      });
+        "grundstuecke",
+        {
+          id: projekt.id,
+          expected_version: basis,
+          name: projekt.name,
+          bundesland: projekt.bundesland,
+          grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
+          planungsrecht: {
+            ...structuredClone($state.snapshot(projekt.planungsrecht)),
+            baugrundstuecke: plan,
+          },
+        },
+      );
       eingabe = structuredClone(
         $state.snapshot(p.planungsrecht.baugrundstuecke!),
       );
@@ -273,6 +330,11 @@
     if (geaendert) await speichern();
     return !geaendert;
   }
+  editorAnmelden("grundstueck", {
+    hatAenderungen,
+    istBeschaeftigt,
+    speichern: speichernBeimSchliessen,
+  });
 </script>
 
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}{#if hinweis}<p
@@ -488,6 +550,7 @@
         /></label
       >
     {:else}<FlaechenFormular
+        {gebaeude}
         bereich={bereich === "grz" ? "grz" : "gfz"}
         aufstellung={berechnung.eingabe.aufstellung}
         festsetzungen={projekt.planungsrecht.festgesetzte_werte}
@@ -519,8 +582,12 @@
       ></thead
     ><tbody
       >{#each relevanteNachweise as n}<tr
-          ><td>{nachweisTitel[n.art]}</td><td>{z(n.ist)}</td><td>{z(n.soll)}</td
-          ><td class:verstoss={n.eingehalten === false}
+          ><td
+            >{nachweisTitel[n.art]}{#if n.gegenstand}<span class="meta">
+                · {n.gegenstand}</span
+              >{/if}</td
+          ><td>{z(n.ist)}</td><td>{z(n.soll)}</td><td
+            class:verstoss={n.eingehalten === false}
             >{z(n.abweichung ?? n.ueberschreitung)}</td
           ></tr
         >{/each}</tbody
@@ -540,6 +607,12 @@
     onclick={speichern}>Eingaben speichern</button
   >{#if geaendert}<span class="meta">Ungespeicherte Eingaben</span>{/if}
 </div>
+
+{#if ergebnis}<button
+    disabled={!darf || !aktuell || laeuft}
+    onclick={nachweisSpeichern}>Nachweisstand speichern</button
+  >{/if}
+{#if nachweisHinweis}<p role="status">{nachweisHinweis}</p>{/if}
 
 <style>
   .eingabetabelle input {

@@ -16,12 +16,12 @@ use crate::domain::{
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
 use crate::error::{CoreError, CoreResult};
-use crate::formular::{self, Feldwert, Formularfeld, Formularkatalog, Projektkontext};
+use crate::formular::{self, Feldwert, Formularfeld, Formularkatalog};
 use crate::kunden::{self, Kunde, KundeId, Kundendaten};
 use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboEngine};
 use crate::license::{LicenseProvider, Lizenzstatus};
 use crate::repository::Repositories;
-use crate::storage::{Storage, StorageKey};
+use crate::storage::{ContentHash, Storage, StorageKey};
 use crate::xbau::{
     self, Anlagendatei, Bauantrag, Beteiligter, Buero, Codelisten, GespeicherterBauantrag,
     Nachrichtendaten,
@@ -84,6 +84,7 @@ pub struct FormularAnalyse {
     pub vorlage: Option<VorlageInfo>,
     /// Vorgeschlagene Werte aus den Projektdaten.
     pub vorschlag: BTreeMap<String, Feldwert>,
+    pub quellen: formular::instanz::FormularQuellen,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -91,6 +92,7 @@ pub struct FormularSchema {
     pub felder: Vec<Formularfeld>,
     pub vorlage: Option<VorlageInfo>,
     pub vorschlag: BTreeMap<String, Feldwert>,
+    pub quellen: formular::instanz::FormularQuellen,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -383,16 +385,25 @@ impl CoreServices {
                 "Baugrenzen erst einem angelegten Projekt zuordnen".into(),
             ));
         }
-        let p = self.repos.projects.create(project).await?;
-        self.protokollieren(
+        let now = Utc::now();
+        let p = Project {
+            id: ProjectId::new(),
+            name: project.name,
+            bundesland: project.bundesland,
+            grundstuecksflaeche_m2: project.grundstuecksflaeche_m2,
+            planungsrecht: project.planungsrecht,
+            version: 1,
+            created_at: now,
+            updated_at: now,
+        };
+        let audit = Self::audit(
             wer,
             Aktion::ProjektAngelegt,
             Some(p.id),
             None,
             projekt_details(&p),
-        )
-        .await?;
-        Ok(p)
+        );
+        self.repos.commit.projekt(p, None, audit).await
     }
 
     pub async fn get_project(&self, id: ProjectId) -> CoreResult<Project> {
@@ -419,16 +430,28 @@ impl CoreServices {
                 }
             }
         }
-        let p = self.repos.projects.update(update).await?;
-        self.protokollieren(
+        let vorher = self.repos.projects.get(update.id).await?;
+        let p = Project {
+            id: update.id,
+            name: update.name,
+            bundesland: update.bundesland,
+            grundstuecksflaeche_m2: update.grundstuecksflaeche_m2,
+            planungsrecht: update.planungsrecht.unwrap_or(vorher.planungsrecht),
+            version: update.expected_version + 1,
+            created_at: vorher.created_at,
+            updated_at: Utc::now(),
+        };
+        let audit = Self::audit(
             wer,
             Aktion::ProjektGeaendert,
             Some(p.id),
             None,
             projekt_details(&p),
-        )
-        .await?;
-        Ok(p)
+        );
+        self.repos
+            .commit
+            .projekt(p, Some(update.expected_version), audit)
+            .await
     }
 
     /// Protokoll eines Projekts, neueste Einträge zuerst.
@@ -443,6 +466,23 @@ impl CoreServices {
             .await
     }
 
+    pub(crate) fn audit(
+        wer: &Benutzer,
+        aktion: Aktion,
+        project_id: Option<ProjectId>,
+        document_id: Option<DocumentId>,
+        details: String,
+    ) -> NeuerProtokolleintrag {
+        NeuerProtokolleintrag {
+            zeit: Utc::now(),
+            benutzer_id: wer.id,
+            benutzer_name: wer.anzeigename.clone(),
+            aktion,
+            project_id,
+            document_id,
+            details,
+        }
+    }
     pub(crate) async fn protokollieren(
         &self,
         wer: &Benutzer,
@@ -950,8 +990,43 @@ impl CoreServices {
         aktion: Aktion,
         zusatz: &str,
     ) -> CoreResult<DocumentVersion> {
+        self.ablegen_vorgang(
+            project_id,
+            document_id,
+            basis,
+            file_name,
+            data,
+            wer,
+            aktion,
+            zusatz,
+            None,
+            vec![],
+        )
+        .await
+    }
+    #[allow(clippy::too_many_arguments)]
+    async fn ablegen_vorgang(
+        &self,
+        project_id: ProjectId,
+        document_id: Option<DocumentId>,
+        basis: Option<i64>,
+        file_name: &str,
+        data: Bytes,
+        wer: &Benutzer,
+        aktion: Aktion,
+        zusatz: &str,
+        vorgang: Option<uuid::Uuid>,
+        mut zusaetze: Vec<crate::commit::DokumentZusatz>,
+    ) -> CoreResult<DocumentVersion> {
         self.pruefe(wer, Recht::DokumentAblegen).await?;
         let file_name = sanitize_file_name(file_name)?;
+        let neuanlage = document_id.is_none();
+        let daten_hash = ContentHash::of(&data);
+        zusaetze.push(crate::commit::DokumentZusatz {
+            modul: "ausgabeereignis".into(),
+            schema_version: 1,
+            daten: serde_json::json!({"angefordert_am":Utc::now()}),
+        });
         let document_id = match document_id {
             Some(id) => {
                 let aktuell = self.repos.documents.latest(id).await?;
@@ -971,6 +1046,12 @@ impl CoreServices {
                 if let Some(b) = basis
                     && b != aktuell.version
                 {
+                    if aktuell.version == b + 1
+                        && aktuell.file_name == file_name
+                        && aktuell.sha256 == daten_hash
+                    {
+                        return Ok(aktuell);
+                    }
                     return Err(CoreError::VersionConflict {
                         expected: b,
                         actual: aktuell.version,
@@ -983,7 +1064,9 @@ impl CoreServices {
                     "Eine Basisversion gibt es nur für bestehende Dokumente".into(),
                 ));
             }
-            None => DocumentId::new(),
+            None => vorgang
+                .map(|v| DocumentId(uuid::Uuid::new_v5(&project_id.0, v.as_bytes())))
+                .unwrap_or_default(),
         };
         // Jede Version bekommt einen eigenen, unveränderlichen Schlüssel.
         let key = StorageKey::new(format!(
@@ -1003,7 +1086,31 @@ impl CoreServices {
             created_by: wer.anzeigename.clone(),
             created_at: Utc::now(),
         };
-        let gespeichert = match self.repos.documents.add_version(version, basis).await {
+        let audit = Self::audit(
+            wer,
+            aktion,
+            Some(project_id),
+            Some(document_id),
+            format!(
+                "{}, Version {}{zusatz}",
+                version.file_name,
+                basis.unwrap_or(0) + 1
+            ),
+        );
+        let gespeichert = match self
+            .repos
+            .commit
+            .dokument(
+                crate::commit::DokumentCommit {
+                    dokument: version,
+                    basis,
+                    neuanlage,
+                    zusaetze,
+                },
+                audit,
+            )
+            .await
+        {
             Ok(v) => v,
             Err(e) => {
                 // Die Datei wäre ohne Datenbankeintrag verwaist.
@@ -1013,17 +1120,11 @@ impl CoreServices {
                 return Err(e);
             }
         };
-        self.protokollieren(
-            wer,
-            aktion,
-            Some(project_id),
-            Some(document_id),
-            format!(
-                "{}, Version {}{zusatz}",
-                gespeichert.file_name, gespeichert.version
-            ),
-        )
-        .await?;
+        if gespeichert.storage_key != key.to_string()
+            && let Err(e) = self.storage.delete(&key).await
+        {
+            tracing::warn!(fehler=%e,"Unbestätigte Wiederholungskopie konnte nicht entfernt werden");
+        }
         Ok(gespeichert)
     }
 
@@ -1207,13 +1308,29 @@ impl CoreServices {
     /// Liest die Felder eines PDF-Formulars aus dem DMS und schlägt Werte aus
     /// den Projektdaten vor.
     pub async fn formular_analysieren(&self, id: DocumentId) -> CoreResult<FormularAnalyse> {
+        self.formular_analysieren_mit_bezug(id, None).await
+    }
+    pub async fn formular_analysieren_mit_bezug(
+        &self,
+        id: DocumentId,
+        wahl: Option<formular::instanz::FormularBezug>,
+    ) -> CoreResult<FormularAnalyse> {
         let (dokument, pdf) = self.load_document(id).await?;
-        let schema = self.formular_schema(dokument.project_id, &pdf).await?;
+        let bezug = wahl.unwrap_or(
+            self.formular_instanz(id, dokument.version)
+                .await?
+                .map(|i| i.quellen.datenstand.bezug)
+                .unwrap_or_default(),
+        );
+        let schema = self
+            .formular_schema_mit_bezug(dokument.project_id, &pdf, bezug)
+            .await?;
         Ok(FormularAnalyse {
             dokument,
             felder: schema.felder,
             vorlage: schema.vorlage,
             vorschlag: schema.vorschlag,
+            quellen: schema.quellen,
         })
     }
 
@@ -1223,24 +1340,30 @@ impl CoreServices {
         projekt_id: ProjectId,
         pdf: &[u8],
     ) -> CoreResult<FormularSchema> {
-        let projekt = self.repos.projects.get(projekt_id).await?;
+        self.formular_schema_mit_bezug(projekt_id, pdf, Default::default())
+            .await
+    }
+    pub async fn formular_schema_mit_bezug(
+        &self,
+        projekt_id: ProjectId,
+        pdf: &[u8],
+        bezug: formular::instanz::FormularBezug,
+    ) -> CoreResult<FormularSchema> {
+        let quellen = self.formular_quellen(projekt_id, bezug).await?;
         let felder = formular::pdf::felder_lesen(pdf)?;
         if felder.is_empty() {
             return Err(CoreError::InvalidInput("Diese Vorlage hat noch keine Eingabefelder. Bitte in der Formularbibliothek Felder definieren.".into()));
         }
         let vorlage = self.formulare.erkenne(&felder);
-        let mut kontext = Projektkontext::aus_projekt(&projekt);
-        if let Some(b) = self.repos.kunden.bauherren(projekt.id).await?.first() {
-            kontext.bauherr(b);
-        }
         Ok(FormularSchema {
-            vorschlag: formular::vorlage::vorschlag(&felder, vorlage, &kontext),
+            vorschlag: formular::vorlage::vorschlag(&felder, vorlage, &quellen.datenstand.werte),
             vorlage: vorlage.map(|v| VorlageInfo {
                 id: v.id.clone(),
                 titel: v.titel.clone(),
                 version: v.version.clone(),
             }),
             felder,
+            quellen,
         })
     }
 
@@ -1253,10 +1376,50 @@ impl CoreServices {
         werte: &BTreeMap<String, Feldwert>,
         wer: &Benutzer,
     ) -> CoreResult<DocumentVersion> {
+        self.formular_aus_bibliothek_vorgang(projekt, name, pdf, werte, None, wer)
+            .await
+    }
+    pub async fn formular_aus_bibliothek_vorgang(
+        &self,
+        projekt: ProjectId,
+        name: &str,
+        pdf: &[u8],
+        werte: &BTreeMap<String, Feldwert>,
+        vorgang: Option<uuid::Uuid>,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        self.formular_aus_bibliothek_mit_quellen(
+            projekt,
+            name,
+            pdf,
+            werte,
+            formular::instanz::FormularSpeicheroptionen {
+                vorgang,
+                datenstand: None,
+            },
+            wer,
+        )
+        .await
+    }
+    pub async fn formular_aus_bibliothek_mit_quellen(
+        &self,
+        projekt: ProjectId,
+        name: &str,
+        pdf: &[u8],
+        werte: &BTreeMap<String, Feldwert>,
+        optionen: formular::instanz::FormularSpeicheroptionen,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        let formular::instanz::FormularSpeicheroptionen {
+            vorgang,
+            datenstand: stand,
+        } = optionen;
         self.pruefe(wer, Recht::DokumentAblegen).await?;
-        self.repos.projects.get(projekt).await?;
         let data = formular::pdf::befuellen(pdf, werte)?;
-        self.ablegen(
+        let instanz = self
+            .formular_instanz_zusatz(projekt, name, pdf, werte, stand)
+            .await?;
+        self.ablegen_vorgang(
             projekt,
             None,
             None,
@@ -1265,6 +1428,8 @@ impl CoreServices {
             wer,
             Aktion::FormularAusgefuellt,
             " aus Formularbibliothek",
+            vorgang,
+            vec![instanz],
         )
         .await
     }
@@ -1277,10 +1442,44 @@ impl CoreServices {
         werte: &BTreeMap<String, Feldwert>,
         wer: &Benutzer,
     ) -> CoreResult<DocumentVersion> {
+        self.formular_im_projekt_mit_quellen(id, basis, werte, None, wer)
+            .await
+    }
+    pub async fn formular_im_projekt_mit_quellen(
+        &self,
+        id: DocumentId,
+        basis: i64,
+        werte: &BTreeMap<String, Feldwert>,
+        stand: Option<formular::instanz::FormularDatenstand>,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
         self.pruefe(wer, Recht::DokumentAblegen).await?;
         let (d, pdf) = self.load_version(id, basis).await?;
+        let bisher = self.formular_instanz(id, basis).await?;
+        let (vorlagen_name, quelle) = if let Some(i) = &bisher {
+            (
+                i.vorlagen_name.clone(),
+                self.storage
+                    .load_verified(&StorageKey::new(&i.vorlagen_storage_key)?, &i.vorlagen_hash)
+                    .await?,
+            )
+        } else {
+            (d.file_name.clone(), pdf.clone())
+        };
+        let mut alle = BTreeMap::new();
+        for f in formular::pdf::felder_lesen(&pdf)? {
+            if !f.schreibgeschuetzt
+                && let Some(w) = f.wert
+            {
+                alle.insert(f.name, w);
+            }
+        }
+        alle.extend(werte.clone());
+        let instanz = self
+            .formular_instanz_zusatz(d.project_id, &vorlagen_name, &quelle, &alle, stand)
+            .await?;
         let data = formular::pdf::befuellen(&pdf, werte)?;
-        self.ablegen(
+        self.ablegen_vorgang(
             d.project_id,
             Some(id),
             Some(basis),
@@ -1289,6 +1488,8 @@ impl CoreServices {
             wer,
             Aktion::FormularAusgefuellt,
             "",
+            None,
+            vec![instanz],
         )
         .await
     }
@@ -1395,7 +1596,9 @@ impl CoreServices {
         eingabe: &crate::baugrundstuecke::BaugrundstuecksPlan,
     ) -> CoreResult<crate::baugrundstuecke::BaugrundstuecksPruefung> {
         let p = self.get_project(projekt_id).await?;
-        eingabe.pruefe(&p.planungsrecht, p.version)
+        self.geschosszuordnung(projekt_id, eingabe)
+            .await?
+            .pruefe(&p.planungsrecht, p.version)
     }
 
     pub fn baugrenzen_pruefen(

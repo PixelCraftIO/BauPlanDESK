@@ -24,6 +24,7 @@ jobs:
           --health-cmd "pg_isready -U bp" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       BAUPROJEKT_TEST_POSTGRES: postgres://bp:bp@localhost:5432/bp
+      BAUPROJEKT_TEST_POSTGRES_URL: postgres://bp:bp@localhost:5432/bp
     steps:
       - uses: actions/checkout@v4
       # Workspace samt Tauri-App und Cache sprengt sonst die ~14 GB des
@@ -43,6 +44,10 @@ jobs:
       - name: Frontend bauen (wird von generate_context! eingebettet)
         working-directory: apps/desktop
         run: npm ci && npm run build
+      - name: Generierte Plattformverträge prüfen
+        run: |
+          cargo run -p core-lib --example vertraege --locked > /tmp/plattform.ts
+          diff -u apps/desktop/src/lib/generated/plattform.ts /tmp/plattform.ts
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
@@ -65,3 +70,61 @@ jobs:
           node-version: 22
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
+
+  ui:
+    runs-on: ubuntu-24.04
+    env:
+      BAUPROJEKT_UI_URL: http://127.0.0.1:1430
+      BAUPROJEKT_PDF_ARTEFAKTE: /tmp/bauprojekt-pdf
+      BAUPROJEKT_EINREICHUNG_ARTEFAKTE: /tmp/bauprojekt-einreichungen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: pip install playwright==1.62.0 && python -m playwright install --with-deps chromium
+      - name: Browserpfad bereitstellen
+        run: |
+          python - <<'PYCODE' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print('BAUPROJEKT_CHROMIUM=' + p.chromium.executable_path)
+          PYCODE
+      - name: Echte PDF- und Paket-Testdaten erzeugen
+        run: cargo test -p storage --test formular_workflow --test einreichungen --locked
+      - working-directory: apps/desktop
+        run: npm ci && npm run check && npm run build
+      - name: Produktionsoberfläche prüfen
+        run: |
+          python -m http.server 1430 --bind 127.0.0.1 --directory apps/desktop/dist > /tmp/bauprojekt-ui.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          python - <<'PYCODE'
+          import time, urllib.request
+          for attempt in range(40):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:1430', timeout=1).close()
+                  break
+              except OSError:
+                  time.sleep(0.1)
+          else:
+              raise RuntimeError('UI-Testserver nicht erreichbar')
+          PYCODE
+          python apps/desktop/tests/projekttabs.py
+          python apps/desktop/tests/pdf-ablage.py
+          python apps/desktop/tests/dateiverwaltung-einreichungen.py
+          python apps/desktop/tests/plattform.py
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ui-pruefung
+          path: |
+            docs/ui-umsetzung
+            docs/klare-projektstruktur
+            docs/dateiverwaltung-einreichungen
+            /tmp/bauprojekt-ui.log

@@ -13,6 +13,7 @@ use crate::storage::ContentHash;
 /// Dateiname des LBO-Regelpakets (`by.rhai`, `bw.rhai`, …).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[derive(ts_rs::TS)]
 pub enum Bundesland {
     Bw,
     By,
@@ -108,6 +109,7 @@ impl std::str::FromStr for Bundesland {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
+#[derive(ts_rs::TS)]
 pub struct ProjectId(pub Uuid);
 
 impl ProjectId {
@@ -269,6 +271,7 @@ pub struct ProjectUpdate {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
+#[derive(ts_rs::TS)]
 pub struct DocumentId(pub Uuid);
 
 impl DocumentId {

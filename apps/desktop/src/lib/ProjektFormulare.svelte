@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { editorAnmelden } from "./editoren";
   import { onMount } from "svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
@@ -75,6 +76,13 @@
     dirty = false;
     await ongespeichert();
   }
+  editorAnmelden("formulare", {
+    hatAenderungen: () => false,
+    istBeschaeftigt: istBeschaeftigt,
+    speichern: async () => true,
+    hinweis:
+      "Einreichungsauswahl zuerst als Paket festhalten oder ausdrücklich verwerfen.",
+  });
 </script>
 
 <h2>Formulare</h2>

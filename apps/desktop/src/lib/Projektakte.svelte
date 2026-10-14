@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { tick, untrack } from "svelte";
+  import Projektstatus from "./Projektstatus.svelte";
+  import { FACHMODULE } from "./fachmodule/register";
+  import { projektEditoren } from "./editoren";
+  import { untrack } from "svelte";
   import {
     api,
     fehlertext,
@@ -11,6 +14,7 @@
     type AppInfo,
     type Benutzer,
     type Kunde,
+    type GrundstueckKontext,
     type Project,
   } from "./api";
   import {
@@ -53,6 +57,11 @@
     onprojekt: (p: Project) => void;
     ondialog: (art: "projektdaten" | "bauherren" | "buero") => void;
   } = $props();
+  const editoren = projektEditoren();
+  let fachBesucht = $state<Record<string, boolean>>({});
+  $effect(() => {
+    if (FACHMODULE.some((m) => m.id === ansicht)) fachBesucht[ansicht] = true;
+  });
   let planEditor = $state<Plaene>();
   let nutzungsEditor = $state<MassDerNutzung>();
   let formularEditor = $state<ProjektFormulare>();
@@ -71,6 +80,26 @@
   });
   let dokumentEditor = $state<Dokumente>();
   let bauherren = $state<Kunde[]>([]);
+  let grundstuecke = $state<GrundstueckKontext[]>([]);
+  let flaechenFehler = $state<string | null>(null);
+  $effect(() => {
+    const id = projekt.id;
+    const version = projekt.version;
+    void api
+      .grundstueckskontext(id)
+      .then((k) => {
+        if (projekt.id === id && projekt.version === version) {
+          grundstuecke = k;
+          flaechenFehler = null;
+        }
+      })
+      .catch((e) => {
+        if (projekt.id === id && projekt.version === version) {
+          grundstuecke = [];
+          flaechenFehler = fehlertext(e);
+        }
+      });
+  });
   let fehler = $state<string | null>(null);
   let hinweis = $state<string | null>(null);
   const melde = (e: unknown) => (fehler = fehlertext(e));
@@ -88,60 +117,20 @@
     await dokumentEditor?.aktualisieren();
   }
   export function hatAenderungen() {
-    return !!(
-      planEditor?.hatAenderungen() ||
-      nutzungsEditor?.hatAenderungen() ||
-      rechtsEditor?.hatAenderungen() ||
-      festsetzungsEditor?.hatAenderungen() ||
-      stammdatenEditor?.hatAenderungen() ||
-      einreichungsEditor?.hatAenderungen() ||
-      antragEditor?.hatAenderungen()
-    );
+    return editoren.hatAenderungen();
   }
   export function istBeschaeftigt() {
-    return !!(
-      planEditor?.istBeschaeftigt() ||
-      nutzungsEditor?.istBeschaeftigt() ||
-      rechtsEditor?.istBeschaeftigt() ||
-      festsetzungsEditor?.istBeschaeftigt() ||
-      stammdatenEditor?.istBeschaeftigt() ||
-      formularEditor?.istBeschaeftigt() ||
-      antragEditor?.istBeschaeftigt() ||
-      einreichungsEditor?.istBeschaeftigt() ||
-      dokumentEditor?.istBeschaeftigt()
-    );
+    return editoren.istBeschaeftigt();
   }
   export async function speichern(): Promise<boolean> {
     if (istBeschaeftigt()) return false;
-    if (einreichungsEditor?.hatAenderungen()) {
-      ansicht = "einreichungen";
+    const blockiert = await editoren.speichern();
+    if (blockiert) {
+      ansicht = blockiert.bereich;
       fehler =
-        "Die Einreichungsauswahl zuerst als Paket festhalten oder beim Schließen ausdrücklich verwerfen. Einreichungsdaten werden im eigenen Bereich bestätigt.";
+        blockiert.hinweis ??
+        "Eingaben konnten nicht vollständig gespeichert werden. Bitte den markierten Bereich prüfen.";
       return false;
-    }
-    const editoren: {
-      editor:
-        | typeof rechtsEditor
-        | typeof nutzungsEditor
-        | typeof planEditor
-        | typeof antragEditor;
-      bereich: Ansicht;
-    }[] = [
-      { editor: rechtsEditor, bereich: "rechtsgrundlagen" },
-      { editor: festsetzungsEditor, bereich: "festsetzungen" },
-      { editor: stammdatenEditor, bereich: "uebersicht" },
-      { editor: nutzungsEditor, bereich: "grundstueck" },
-      { editor: planEditor, bereich: "plaene" },
-      { editor: antragEditor, bereich: "bauantrag" },
-    ];
-    for (const { editor, bereich } of editoren) {
-      if (editor?.hatAenderungen()) {
-        if (!(await editor.speichernBeimSchliessen())) {
-          ansicht = bereich;
-          return false;
-        }
-        await tick();
-      }
     }
     return !hatAenderungen();
   }
@@ -179,16 +168,29 @@
     <h1>{projekt.name}</h1>
     <span class="meta">
       {landName(projekt.bundesland)}
-      {projekt.grundstuecksflaeche_m2
-        ? ` · Grundstück ${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²`
-        : ""}
     </span>
   </div>
 </header>
 
 <main>
+  {#each FACHMODULE as modul (modul.id)}
+    {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}>
+        <modul.komponente
+          {projekt}
+          benutzerId={ich?.id ?? ""}
+          darf={darf("bearbeitung")}
+          darfFreigeben={darf("projektleitung")}
+        />
+      </section>{/if}
+  {/each}
   <section hidden={ansicht !== "uebersicht"}>
     <h2>Stammdaten</h2>
+    <Projektstatus
+      projektId={projekt.id}
+      version={projekt.version}
+      sichtbar={aktiv && ansicht === "uebersicht"}
+      onbereich={(id) => (ansicht = id)}
+    />
     <dl class="daten">
       <dt>Name</dt>
       <dd>{projekt.name}</dd>
@@ -196,9 +198,14 @@
       <dd>{landName(projekt.bundesland)}</dd>
       <dt>Grundstücksfläche</dt>
       <dd>
-        {projekt.grundstuecksflaeche_m2
-          ? `${projekt.grundstuecksflaeche_m2.toLocaleString("de-DE")} m²`
-          : "–"}
+        {#each grundstuecke as g (g.schluessel)}<div>
+            {g.bezeichnung}: {g.bezugsflaeche_m2?.toLocaleString("de-DE") ??
+              "noch zu prüfen"}
+            {g.bezugsflaeche_m2 === null ? "" : "m²"}<span class="meta">
+              · {g.quelle}</span
+            >
+          </div>{:else}{flaechenFehler ??
+            "Noch keine Grundstücksfläche ermittelt"}{/each}
       </dd>
       <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
       <dd>
@@ -258,6 +265,8 @@
     {#key projekt.id}
       <Abstandsflaeche
         startLand={projekt.bundesland}
+        projektId={projekt.id}
+        darfSpeichern={darf("bearbeitung")}
         regelpakete={info?.regelpakete ?? []}
         onfehler={melde}
       />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { editorAnmelden } from "./editoren";
   import { onMount } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
   import {
@@ -155,6 +156,13 @@
       await laden();
     }
   }
+  editorAnmelden("einreichungen", {
+    hatAenderungen: hatAenderungen,
+    istBeschaeftigt: istBeschaeftigt,
+    speichern: async () => false,
+    hinweis:
+      "Einreichungsauswahl zuerst als Paket festhalten oder ausdrücklich verwerfen.",
+  });
 </script>
 
 <h2>Einreichungen und Nachreichungen</h2>

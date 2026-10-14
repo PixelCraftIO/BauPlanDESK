@@ -36,3 +36,13 @@ pub use error::{CoreError, CoreResult};
 pub use service::CoreServices;
 
 pub mod projektablage;
+
+pub mod grundstueckskontext;
+
+pub mod commit;
+
+pub mod projektbereiche;
+
+pub mod plattform;
+
+pub mod zugriff;

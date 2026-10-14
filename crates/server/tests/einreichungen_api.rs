@@ -1,6 +1,4 @@
 //! HTTP adapter uses the same versioned Core contract as Desktop.
-#[path = "../src/api.rs"]
-mod api;
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
@@ -12,6 +10,7 @@ use core_lib::{
     lbo::LboEngine,
     license::DevelopmentLicense,
 };
+use server::api;
 use std::sync::Arc;
 use tower::ServiceExt;
 #[tokio::test]
@@ -48,12 +47,28 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
         )
         .await
         .unwrap();
-    let router = api::router(core.clone(), user.clone());
+    let zugang = api::zugang::Zugaenge {
+        schema_version: 1,
+        zugaenge: vec![api::zugang::Zugang {
+            benutzer_id: user.id,
+            token_sha256: core_lib::storage::ContentHash::of(
+                b"isolierter-http-testzugang-12345678901234567890",
+            ),
+            gueltig_bis: None,
+        }],
+    };
+    let path = temp.path().join("zugaenge.json");
+    std::fs::write(&path, serde_json::to_vec(&zugang).unwrap()).unwrap();
+    let router = api::zugang::gesichert(core.clone(), api::zugang::ZugangQuelle::Datei(path));
     let payload = serde_json::json!({"titel":"Bauantrag","empfaenger":"Bauamt","dokumente":[{"dokument_id":d.document_id,"version":1}]});
     let response = router
         .clone()
         .oneshot(
             Request::builder()
+                .header(
+                    "authorization",
+                    "Bearer isolierter-http-testzugang-12345678901234567890",
+                )
                 .method("POST")
                 .uri(format!("/api/projekte/{}/einreichungen", p.id))
                 .header("content-type", "application/json")
@@ -70,6 +85,10 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
         .clone()
         .oneshot(
             Request::builder()
+                .header(
+                    "authorization",
+                    "Bearer isolierter-http-testzugang-12345678901234567890",
+                )
                 .uri(&zip_uri)
                 .body(Body::empty())
                 .unwrap(),
@@ -84,6 +103,10 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
         .clone()
         .oneshot(
             Request::builder()
+                .header(
+                    "authorization",
+                    "Bearer isolierter-http-testzugang-12345678901234567890",
+                )
                 .method("POST")
                 .uri(&uri)
                 .header("content-type", "application/json")
@@ -100,6 +123,10 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
         .clone()
         .oneshot(
             Request::builder()
+                .header(
+                    "authorization",
+                    "Bearer isolierter-http-testzugang-12345678901234567890",
+                )
                 .method("POST")
                 .uri(&uri)
                 .header("content-type", "application/json")
@@ -125,6 +152,10 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
         .clone()
         .oneshot(
             Request::builder()
+                .header(
+                    "authorization",
+                    "Bearer isolierter-http-testzugang-12345678901234567890",
+                )
                 .uri(format!(
                     "/api/projekte/{}/einreichungsvergleich?empfaenger=Bauamt",
                     p.id
@@ -142,7 +173,16 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
     );
     assert_eq!(v[0].zuletzt_eingereicht.as_ref().unwrap().version, 1);
     let response = router
-        .oneshot(Request::builder().uri(zip_uri).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .header(
+                    "authorization",
+                    "Bearer isolierter-http-testzugang-12345678901234567890",
+                )
+                .uri(zip_uri)
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(

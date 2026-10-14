@@ -12,6 +12,7 @@ use crate::error::{CoreError, CoreResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
+#[derive(ts_rs::TS)]
 pub struct BenutzerId(pub Uuid);
 
 impl BenutzerId {

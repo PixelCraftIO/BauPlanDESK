@@ -7,11 +7,15 @@
   } from "./api";
   let {
     aufstellung = $bindable(),
+    gebaeude = [],
     ergebnis,
     festsetzungen,
     bereich = "alle",
   }: {
     bereich?: "alle" | "grz" | "gfz";
+    gebaeude?: import("./plattformApi").Datensatz<
+      import("./generated/plattform").Gebaeude
+    >[];
     aufstellung: FlaechenAufstellung;
     ergebnis: FlaechenErgebnis | null;
     festsetzungen: Festsetzungen;
@@ -152,16 +156,53 @@
       <fieldset>
         <legend>Geschoss {i + 1}</legend>
         <div class="raster">
+          {#if gebaeude.length}<label
+              >Gebäude<select
+                bind:value={g.gebaeude_id}
+                onchange={() => (g.geschoss_id = null)}
+                ><option value={null}>Noch nicht zugeordnet</option
+                >{#each gebaeude as haus (haus.objekt)}<option
+                    value={haus.objekt}>{haus.daten.bezeichnung}</option
+                  >{/each}</select
+              ></label
+            >
+            {@const haus = gebaeude.find((h) => h.objekt === g.gebaeude_id)}
+            {#if haus?.daten.geschosse.length}<label
+                >Geschoss aus Gebäudemodell<select
+                  bind:value={g.geschoss_id}
+                  onchange={() => {
+                    const quelle = haus.daten.geschosse.find(
+                      (s) => s.id === g.geschoss_id,
+                    );
+                    if (quelle) {
+                      g.bezeichnung = quelle.bezeichnung;
+                      if (quelle.vollgeschoss !== null)
+                        g.vollgeschoss = quelle.vollgeschoss;
+                    }
+                  }}
+                  ><option value={null}>Geschoss auswählen</option
+                  >{#each haus.daten.geschosse as geschoss (geschoss.id)}<option
+                      value={geschoss.id}
+                      >{geschoss.bezeichnung}{geschoss.vollgeschoss === null
+                        ? " – Einstufung offen"
+                        : ""}</option
+                    >{/each}</select
+                ></label
+              >{/if}
+          {/if}
           <label
             >Bezeichnung<input
               bind:value={g.bezeichnung}
+              readonly={!!g.geschoss_id}
               required
               maxlength="500"
               placeholder="z. B. Dachgeschoss"
             /></label
           >
           <label
-            >Geschosstyp<select bind:value={g.vollgeschoss}
+            >Geschosstyp<select
+              bind:value={g.vollgeschoss}
+              disabled={!!g.geschoss_id}
               ><option value={true}>Vollgeschoss</option><option value={false}
                 >Nichtvollgeschoss</option
               ></select

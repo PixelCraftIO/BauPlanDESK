@@ -39,7 +39,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
 '''
 errors=[]
 with sync_playwright() as p:
- browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium')
+ browser=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
  page=browser.new_page(viewport={'width':1600,'height':1100})
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(wf['projekt'])+';window.workflow='+json.dumps(wf)+';'+(root/'tauri-mock.js').read_text()+custom)

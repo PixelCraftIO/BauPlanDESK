@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MODULE, MODULGRUPPEN, voraussetzung } from "./module";
   import NavIcon from "./NavIcon.svelte";
   import type { Project } from "./api";
   import type { Ansicht } from "./projektSitzung";
@@ -15,15 +16,6 @@
     onbereich: (a: Ansicht) => void;
     onglobal: (a: "projekte" | "kunden" | "formulare" | "verwaltung") => void;
   } = $props();
-  const mitPlan = $derived(
-    !!projekt &&
-      projekt.planungsrecht.rechtsgrundlage === "par30" &&
-      !["kein", "ungeklaert"].includes(projekt.planungsrecht.bebauungsplan_art),
-  );
-  const rechnen = $derived(
-    !!projekt?.planungsrecht.rechtsgrundlage &&
-      !!projekt?.planungsrecht.bau_nvo,
-  );
 </script>
 
 <aside class="aktennavigation" aria-label="Arbeitsbereiche">
@@ -50,56 +42,26 @@
     {#if projekt}<div class="nav-gruppe projekt-nav-name" title={projekt.name}>
         {projekt.name}
       </div>
-      <details open class="nav-zweig">
-        <summary>Grundlagen</summary>
-        <div>
-          <button
-            class:aktiv={!globalAnsicht && ansicht === "uebersicht"}
-            onclick={() => onbereich("uebersicht")}>Stammdaten</button
-          >
-          <button
-            class:aktiv={!globalAnsicht && ansicht === "rechtsgrundlagen"}
-            onclick={() => onbereich("rechtsgrundlagen")}
-            >Rechtsgrundlagen</button
-          >
-          {#if mitPlan}<button
-              class:aktiv={!globalAnsicht && ansicht === "festsetzungen"}
-              onclick={() => onbereich("festsetzungen")}
-              >Bebauungsplanfestsetzungen</button
-            >{/if}
-          <button
-            class:aktiv={!globalAnsicht &&
-              ["grundstueck", "mass"].includes(ansicht)}
-            onclick={() => onbereich("grundstueck")}>Baugrundstück</button
-          >
-        </div>
-      </details>
-      <details open class="nav-zweig">
-        <summary>Berechnungen</summary>
-        <div>
-          {#each [{ id: "grz", text: "GRZ" }, { id: "gfz", text: "GFZ" }, { id: "geschosse", text: "Geschossigkeit" }, { id: "volumen", text: "Bauvolumen / BMZ" }] as e}<button
-              disabled={!rechnen}
-              title={!rechnen
-                ? "Zuerst Rechtsgrundlage und BauNVO festlegen"
-                : undefined}
-              class:aktiv={!globalAnsicht && ansicht === e.id}
-              onclick={() => onbereich(e.id as Ansicht)}>{e.text}</button
-            >{/each}
-          <button
-            class:aktiv={!globalAnsicht && ansicht === "abstand"}
-            onclick={() => onbereich("abstand")}>Abstandsflächen</button
-          >
-        </div>
-      </details>
-      <details open class="nav-zweig">
-        <summary>Unterlagen</summary>
-        <div>
-          {#each [{ id: "formulare", text: "Formulare" }, { id: "dokumente", text: "Projektdateien" }, { id: "plaene", text: "Pläne / Aufmaß" }, { id: "bauantrag", text: "Bauantrag / XBau" }, { id: "einreichungen", text: "Einreichungen" }, { id: "protokoll", text: "Chronik" }] as e}<button
-              class:aktiv={!globalAnsicht && ansicht === e.id}
-              onclick={() => onbereich(e.id as Ansicht)}>{e.text}</button
-            >{/each}
-        </div>
-      </details>{/if}
+      {#each MODULGRUPPEN as gruppe}
+        <details open class="nav-zweig">
+          <summary>{gruppe}</summary>
+          <div>
+            {#each MODULE.filter((m) => m.gruppe === gruppe) as modul}
+              {@const grund = voraussetzung(projekt, modul)}
+              {#if !(modul.id === "festsetzungen" && grund)}
+                <button
+                  class:aktiv={!globalAnsicht &&
+                    (ansicht === modul.id ||
+                      (ansicht === "mass" && modul.id === "grundstueck"))}
+                  disabled={!!grund}
+                  title={grund ?? undefined}
+                  onclick={() => onbereich(modul.id)}>{modul.titel}</button
+                >
+              {/if}
+            {/each}
+          </div>
+        </details>
+      {/each}{/if}
   </div>
   <div class="sidebar-system">
     <button
