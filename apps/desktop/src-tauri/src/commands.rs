@@ -569,3 +569,35 @@ pub async fn xbau_exportieren(
         groesse_bytes: export.zip.len(),
     })
 }
+
+#[tauri::command]
+pub async fn projekt_nutzung_pruefen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    eingabe: core_lib::festsetzungen::NutzungsEingabe,
+) -> CmdResult<core_lib::festsetzungen::NutzungsPruefung> {
+    Ok(state
+        .core
+        .projekt_nutzung_pruefen(projekt_id, &eingabe)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn projekt_baugrundstuecke_pruefen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    eingabe: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+) -> CmdResult<core_lib::baugrundstuecke::BaugrundstuecksPruefung> {
+    Ok(state
+        .core
+        .projekt_baugrundstuecke_pruefen(projekt_id, &eingabe)
+        .await?)
+}
+
+#[tauri::command]
+pub fn baugrenzen_pruefen(
+    state: State<'_, AppState>,
+    geometrie: core_lib::cad::baugrenzen::BaugrenzenGeometrie,
+) -> CmdResult<core_lib::cad::baugrenzen::BaugrenzenPruefung> {
+    Ok(state.core.baugrenzen_pruefen(&geometrie)?)
+}

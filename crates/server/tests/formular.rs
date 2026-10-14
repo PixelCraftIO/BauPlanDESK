@@ -42,6 +42,7 @@ async fn formular_aus_dms_befuellen() {
                 name: "MFH Lindenweg".into(),
                 bundesland: Bundesland::Nw,
                 grundstuecksflaeche_m2: Some(1250.5),
+                planungsrecht: Default::default(),
             },
             &wer,
         )

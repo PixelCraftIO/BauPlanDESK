@@ -10,11 +10,15 @@
 //! * Dateien nur über den Trait [`storage::Storage`],
 //! * landesrechtliche Regeln nur über Skripte der [`lbo`]-Engine.
 
+pub mod baugrundstuecke;
+pub mod baunvo;
 pub mod benutzer;
 pub mod cad;
 pub mod calc;
 pub mod domain;
 pub mod error;
+pub mod festsetzungen;
+pub mod flaechen;
 pub mod formular;
 pub mod kunden;
 pub mod lbo;

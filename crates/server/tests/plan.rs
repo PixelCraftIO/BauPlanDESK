@@ -30,6 +30,7 @@ async fn plan_aus_dms_oeffnen_und_messen() {
                 name: "MFH Lindenweg".into(),
                 bundesland: Bundesland::By,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &wer,
         )

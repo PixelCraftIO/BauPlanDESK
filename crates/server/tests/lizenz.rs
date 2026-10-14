@@ -53,6 +53,7 @@ async fn projekt_anlegen(core: &CoreServices, wer: &Benutzer) -> Result<(), Core
             name: "Test".into(),
             bundesland: Bundesland::By,
             grundstuecksflaeche_m2: None,
+            planungsrecht: Default::default(),
         },
         wer,
     )

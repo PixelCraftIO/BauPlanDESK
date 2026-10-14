@@ -299,6 +299,101 @@ export interface AppInfo {
   cache: { eintraege: number; belegt_bytes: number; treffer: number; downloads: number } | null;
 }
 
+export interface Festsetzungen {
+  nichtvollgeschoss_faktor: number | null;
+  nichtvollgeschoss_festsetzung: string;
+  baugebiet: Baugebiet | null;
+  grz: number | null;
+  grz_gesamt: number | null;
+  gfz: number | null;
+  bmz: number | null;
+  grundflaeche_m2: number | null;
+  geschossflaeche_m2: number | null;
+  ueberbaubare_flaeche_m2: number | null;
+  vollgeschosse: number | null;
+  geschossigkeit: "maximal" | "zwingend";
+}
+
+export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
+export type Anrechnung = "grz" | "grz_ii" | "keine";
+export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";
+export interface Bauteil { bezeichnung: string; typ: Bauteiltyp; flaeche_m2: number; abweichende_anrechnung: Anrechnung | null; begruendung: string }
+export interface Geschoss { bezeichnung: string; vollgeschoss: boolean; aussenmass_m2: number; aufenthalt_m2: number; waende_m2: number; erschliessung_m2: number }
+export interface Gemeinschaftsanteil { bezeichnung: string; gesamtflaeche_m2: number; anteil_prozent: number; festsetzung: string; im_plangebiet: boolean; ausserhalb_baugrundstueck: boolean }
+export interface GrundstueckAufstellung { basisflaeche_m2: number; nicht_massgebend_m2: number; abzug_begruendung: string; gemeinschaftsanteile: Gemeinschaftsanteil[] }
+export interface GrundstueckErgebnis { basis_m2: number; abzug_m2: number; zuschlag_m2: number; massgebend_m2: number; anteile_m2: number[] }
+export interface FlaechenAufstellung { grundstueck?: GrundstueckAufstellung | null; bau_nvo: BauNvo; bauteile: Bauteil[]; geschosse: Geschoss[]; nichtvollgeschoss_faktor: number; nichtvollgeschoss_festsetzung: string }
+export interface FlaechenErgebnis { regelwerk_id: string; regelwerk_version: string; grundstueck: GrundstueckErgebnis; mass: MassDerNutzung; vollgeschosse: number; grz_ii: boolean; bauteile: { anrechnung: Anrechnung; flaeche_m2: number }[]; geschosse: number[] }
+export interface FlaechenAbzug { art: string; flaeche_m2: number; grundlage: string }
+export interface GrundstuecksFlurstueck { id: string; gemarkung: string; flur: string; nummer: string; grundbuchbezirk: string; grundbuchblatt: string; laufende_nummer: number; flaeche_m2: number; abzuege: FlaechenAbzug[]; abweichende_zuordnung: { kennung: string; grundlage: string } | null }
+export interface BaugrundstueckBerechnung { schluessel: string; eingabe: NutzungsEingabe; eigene_festsetzungen: Festsetzungen | null }
+export interface BaugrundstuecksPlan { flurstuecke: GrundstuecksFlurstueck[]; berechnungen: BaugrundstueckBerechnung[] }
+export interface BaugrundstueckGruppe { schluessel: string; bezeichnung: string; flurstueck_ids: string[]; eigentumsflaeche_m2: number; abzuege_m2: number; bauland_m2: number }
+export interface BaugrundstuecksPruefung { projekt_version: number; baugrundstuecke: { grundstueck: BaugrundstueckGruppe; pruefung: NutzungsPruefung }[] }
+export interface NutzungsEingabe {
+  aufstellung?: FlaechenAufstellung | null;
+  mass: MassDerNutzung;
+  vollgeschosse: number | null;
+  gebiet: Baugebiet;
+}
+
+export interface NutzungsPruefung {
+  aufstellung: FlaechenErgebnis | null;
+  projekt_version: number;
+  kennzahlen: Pruefergebnis["kennzahlen"];
+  bebauungsplan: boolean;
+  nachweise: {
+    art: string; ist: number | null; soll: number | null;
+    quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "keine";
+    zwingend: boolean; eingehalten: boolean | null; abweichung: number | null;
+    ueberschreitung: number | null; ueberschreitung_prozent: number | null;
+    flaechenueberschreitung_m2: number | null;
+  }[];
+}
+
+export interface BaugrenzenGeometrie {
+  dokument_id: string;
+  dokument_version: number;
+  einheit: Laengeneinheit;
+  baufenster: Punkt[];
+  vorhaben: Punkt[];
+}
+
+export interface Aussenflaeche { aussenring: Punkt[]; innenringe: Punkt[][] }
+export interface BaugrenzenPruefung {
+  baufenster_m2: number; vorhaben_m2: number; ausserhalb_m2: number;
+  ausserhalb_prozent: number; eckpunkt_ueberstand_m: number;
+  eingehalten: boolean; aussenflaechen: Aussenflaeche[];
+}
+
+export interface Planungsrecht {
+  rechtsgrundlage: "par30" | "par34" | "par35" | null;
+  bebauungsplan_art: "ungeklaert" | "kein" | "qualifiziert" | "einfach" | "vorhabenbezogen";
+  ergaenzende_grundlage: "par34" | "par35" | null;
+  aussenbereich_vorhaben: "privilegiert" | "sonstiges" | null;
+  plan_bezeichnung: string;
+  plan_nummer: string;
+  plan_rechtskraft: string;
+  gemeinde: string;
+  standort: string;
+  vorhaben: string;
+  nutzung: string;
+  festsetzungen: string;
+  begruendung: string;
+  festgesetzte_werte: Festsetzungen;
+  berechnung: NutzungsEingabe | null;
+  baugrundstuecke: BaugrundstuecksPlan | null;
+  baugrenzen: BaugrenzenGeometrie | null;
+}
+
+export const rechtsgrundlageName = (g: Planungsrecht["rechtsgrundlage"]) =>
+  g ? { par30: "§ 30 BauGB", par34: "§ 34 BauGB", par35: "§ 35 BauGB" }[g] : "Noch nicht festgelegt";
+
+export const bebauungsplanName = (art: Planungsrecht["bebauungsplan_art"]) => ({
+  ungeklaert: "Noch ungeklärt", kein: "Kein Bebauungsplan", qualifiziert: "Qualifizierter Bebauungsplan",
+  einfach: "Einfacher Bebauungsplan", vorhabenbezogen: "Vorhabenbezogener Bebauungsplan",
+}[art]);
+
 export interface Project {
   id: string;
   name: string;
@@ -307,6 +402,7 @@ export interface Project {
   version: number;
   created_at: string;
   updated_at: string;
+  planungsrecht: Planungsrecht;
 }
 
 export interface AbstandsflaecheErgebnis {
@@ -446,7 +542,7 @@ export const api = {
   projektAnlegen: (projekt: Projektwerte) => invoke<Project>("projekt_anlegen", { projekt }),
   projektOeffnen: (id: string) => invoke<Project>("projekt_oeffnen", { id }),
   projektSchliessen: () => invoke<void>("projekt_schliessen"),
-  projektAktualisieren: (aenderung: Projektwerte & { id: string; expected_version: number }) => invoke<Project>("projekt_aktualisieren", { aenderung }),
+  projektAktualisieren: (aenderung: Projektwerte & { id: string; expected_version: number; planungsrecht?: Planungsrecht }) => invoke<Project>("projekt_aktualisieren", { aenderung }),
   zuletzt: () => invoke<ZuletztEintrag[]>("zuletzt_geoeffnet"),
   dokumente: (projektId: string) =>
     invoke<DocumentVersion[]>("dokumente_auflisten", { projektId }),
@@ -494,6 +590,11 @@ export const api = {
   dokumentExportieren: (dokumentId: string, ziel: string, version: number | null = null) =>
     invoke<void>("dokument_exportieren", { dokumentId, version, ziel }),
   cadPlan: (dokumentId: string) => invoke<CadPlan>("cad_plan", { dokumentId }),
+  projektNutzungPruefen: (projektId: string, eingabe: NutzungsEingabe) =>
+    invoke<NutzungsPruefung>("projekt_nutzung_pruefen", { projektId, eingabe }),
+  projektBaugrundstueckePruefen: (projektId: string, eingabe: BaugrundstuecksPlan) => invoke<BaugrundstuecksPruefung>("projekt_baugrundstuecke_pruefen", { projektId, eingabe }),
+  baugrenzenPruefen: (geometrie: BaugrenzenGeometrie) =>
+    invoke<BaugrenzenPruefung>("baugrenzen_pruefen", { geometrie }),
   aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>
     invoke<Messung>("aufmass", { punkte, geschlossen, einheit }),
   massDerNutzung: (eingabe: MassDerNutzung, gebiet: Baugebiet) =>

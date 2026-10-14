@@ -27,6 +27,7 @@ fn eindeutig(name: &str) -> String {
 /// einer Panik ab (für `#[tokio::test]`).
 pub async fn repositories(repos: Repositories) {
     projekte(&repos).await;
+    planungsrecht(&repos).await;
     dokumente(&repos).await;
     sperren(&repos).await;
     benutzer(&repos).await;
@@ -43,6 +44,7 @@ async fn projekt(repos: &Repositories) -> crate::domain::Project {
             name: "MFH Lindenweg".into(),
             bundesland: Bundesland::Nw,
             grundstuecksflaeche_m2: Some(600.0),
+            planungsrecht: Default::default(),
         })
         .await
         .unwrap()
@@ -70,6 +72,7 @@ async fn projekte(repos: &Repositories) {
         name: "MFH Lindenweg, 2. Entwurf".into(),
         bundesland: Bundesland::Nw,
         grundstuecksflaeche_m2: Some(600.0),
+        planungsrecht: None,
     };
     assert_eq!(
         repos.projects.update(update.clone()).await.unwrap().version,
@@ -86,6 +89,88 @@ async fn projekte(repos: &Repositories) {
             }
         ),
         "{err:?}"
+    );
+}
+
+async fn planungsrecht(repos: &Repositories) {
+    use crate::domain::{BebauungsplanArt, Planungsrecht, Rechtsgrundlage};
+    let p = projekt(repos).await;
+    assert_eq!(p.planungsrecht, Planungsrecht::default());
+    let mut grundlagen = Planungsrecht {
+        rechtsgrundlage: Some(Rechtsgrundlage::Par30),
+        bebauungsplan_art: BebauungsplanArt::Einfach,
+        ergaenzende_grundlage: Some(Rechtsgrundlage::Par34),
+        festgesetzte_werte: crate::festsetzungen::Festsetzungen {
+            grz: Some(0.37),
+            gfz: Some(0.65),
+            vollgeschosse: Some(2),
+            ..Default::default()
+        },
+        berechnung: Some(serde_json::from_value(serde_json::json!({
+            "mass": { "grundstuecksflaeche_m2": 500, "grundflaeche_m2": 100, "grundflaeche_nebenanlagen_m2": 0, "geschossflaeche_m2": 100, "baumasse_m3": null }, "gebiet": "WA", "vollgeschosse": 1,
+            "aufstellung": { "bau_nvo": "1968", "bauteile": [{"bezeichnung":"Haus", "typ":"hauptanlage", "flaeche_m2":100,"abweichende_anrechnung":null,"begruendung":""}], "geschosse":[{"bezeichnung":"EG", "vollgeschoss":true,"aussenmass_m2":100,"aufenthalt_m2":0,"waende_m2":0,"erschliessung_m2":0}], "nichtvollgeschoss_faktor":0,"nichtvollgeschoss_festsetzung":"", "grundstueck": {"basisflaeche_m2":500,"nicht_massgebend_m2":0,"abzug_begruendung":"","gemeinschaftsanteile":[{"bezeichnung":"Spielplatz", "gesamtflaeche_m2":400,"anteil_prozent":25,"festsetzung":"TF 3","im_plangebiet":true,"ausserhalb_baugrundstueck":true}]} }
+        })).unwrap()),
+        plan_bezeichnung: "Lindenweg".into(),
+        plan_nummer: "42, 2. Änderung".into(),
+        plan_rechtskraft: "2024-06-01".into(),
+        gemeinde: "München".into(),
+        festsetzungen: "GRZ 0,4; zwei Vollgeschosse".into(),
+        ..Default::default()
+    };
+    grundlagen.baugrundstuecke = Some(crate::baugrundstuecke::musterplan());
+    let erstellt = repos
+        .projects
+        .create(NewProject {
+            name: "Mit Rechtsgrundlagen angelegt".into(),
+            bundesland: p.bundesland,
+            grundstuecksflaeche_m2: None,
+            planungsrecht: grundlagen.clone(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        repos.projects.get(erstellt.id).await.unwrap().planungsrecht,
+        grundlagen
+    );
+    let mut u = ProjectUpdate {
+        id: p.id,
+        expected_version: p.version,
+        name: p.name.clone(),
+        bundesland: p.bundesland,
+        grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+        planungsrecht: Some(grundlagen.clone()),
+    };
+    let gespeichert = repos.projects.update(u.clone()).await.unwrap();
+    assert_eq!(
+        repos.projects.get(p.id).await.unwrap().planungsrecht,
+        grundlagen
+    );
+    assert!(
+        repos
+            .projects
+            .list()
+            .await
+            .unwrap()
+            .iter()
+            .any(|p| p.id == gespeichert.id && p.planungsrecht == grundlagen)
+    );
+    assert!(matches!(
+        repos.projects.update(u.clone()).await,
+        Err(CoreError::VersionConflict { .. })
+    ));
+    u.expected_version = gespeichert.version;
+    u.name = "Neuer Projektname".into();
+    u.planungsrecht = None;
+    let umbenannt = repos.projects.update(u.clone()).await.unwrap();
+    assert_eq!(
+        umbenannt.planungsrecht, grundlagen,
+        "normale Projektbearbeitung muss Rechtsgrundlagen bewahren"
+    );
+    u.expected_version = umbenannt.version;
+    u.planungsrecht = Some(Planungsrecht::default());
+    assert_eq!(
+        repos.projects.update(u).await.unwrap().planungsrecht,
+        Planungsrecht::default()
     );
 }
 

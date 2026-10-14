@@ -93,6 +93,10 @@ fn project_from_row(row: &SqliteRow) -> CoreResult<Project> {
         name: row.try_get("name").map_err(db_err)?,
         bundesland: Bundesland::from_str(&land)?,
         grundstuecksflaeche_m2: row.try_get("grundstuecksflaeche_m2").map_err(db_err)?,
+        planungsrecht: serde_json::from_str(
+            &row.try_get::<String, _>("planungsrecht").map_err(db_err)?,
+        )
+        .map_err(|e| CoreError::Database(e.to_string()))?,
         version: row.try_get("version").map_err(db_err)?,
         created_at: row
             .try_get::<DateTime<Utc>, _>("created_at")
@@ -130,13 +134,14 @@ impl ProjectRepository for SqliteDatabase {
             name: p.name,
             bundesland: p.bundesland,
             grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+            planungsrecht: p.planungsrecht,
             version: 1,
             created_at: now,
             updated_at: now,
         };
         sqlx::query(
-            "INSERT INTO projects (id, name, bundesland, grundstuecksflaeche_m2, version, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO projects (id, name, bundesland, grundstuecksflaeche_m2, version, created_at, updated_at, planungsrecht)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(project.id.to_string())
         .bind(&project.name)
@@ -145,6 +150,7 @@ impl ProjectRepository for SqliteDatabase {
         .bind(project.version)
         .bind(project.created_at)
         .bind(project.updated_at)
+        .bind(serde_json::to_string(&project.planungsrecht).map_err(|e| CoreError::Database(e.to_string()))?)
         .execute(&self.pool)
         .await
         .map_err(db_err)?;
@@ -175,6 +181,7 @@ impl ProjectRepository for SqliteDatabase {
         let row = sqlx::query(
             "UPDATE projects
                 SET name = ?, bundesland = ?, grundstuecksflaeche_m2 = ?,
+                    planungsrecht = COALESCE(?, planungsrecht),
                     version = version + 1, updated_at = ?
               WHERE id = ? AND version = ?
           RETURNING *",
@@ -182,6 +189,13 @@ impl ProjectRepository for SqliteDatabase {
         .bind(&u.name)
         .bind(u.bundesland.code())
         .bind(u.grundstuecksflaeche_m2)
+        .bind(
+            u.planungsrecht
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|e| CoreError::Database(e.to_string()))?,
+        )
         .bind(Utc::now())
         .bind(u.id.to_string())
         .bind(u.expected_version)
@@ -995,6 +1009,34 @@ impl SqliteDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn migration_bewahrt_bestehende_projekte() {
+        use std::borrow::Cow;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let alle = sqlx::migrate!("./migrations");
+        let alt = sqlx::migrate::Migrator {
+            migrations: Cow::Owned(alle.iter().filter(|m| m.version < 6).cloned().collect()),
+            ignore_missing: false,
+            locking: true,
+            no_tx: false,
+        };
+        alt.run(&pool).await.unwrap();
+        let id = ProjectId::new();
+        sqlx::query("INSERT INTO projects (id, name, bundesland, grundstuecksflaeche_m2, created_at, updated_at) VALUES (?, 'Bestandsprojekt', 'BY', 800, ?, ?)")
+            .bind(id.to_string()).bind(Utc::now()).bind(Utc::now()).execute(&pool).await.unwrap();
+        alle.run(&pool).await.unwrap();
+        let db = SqliteDatabase { pool };
+        let p = ProjectRepository::get(&db, id).await.unwrap();
+        assert_eq!(p.name, "Bestandsprojekt");
+        assert_eq!(p.grundstuecksflaeche_m2, Some(800.0));
+        assert_eq!(p.version, 1);
+        assert_eq!(p.planungsrecht, Default::default());
+    }
 
     #[tokio::test]
     async fn konformitaet() {

@@ -157,3 +157,35 @@ textarea { font: inherit; padding: 0.35rem 0.5rem; border-radius: 6px; border: 1
 .bauherren li { justify-content: space-between; align-items: center; }
 .bauherren li > div { display: flex; flex-direction: column; gap: 0.1rem; }
 .bauherren .werkzeuge button { padding: 0.2rem 0.45rem; }
+
+/* --- Planungsrechtliche Projektgrundlagen --- */
+.rechtsgrundlagen { display: grid; gap: 1rem; }
+.rechtsgrundlagen fieldset { min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin: 0; display: block; }
+.rechtsgrundlagen legend { font-weight: 600; padding: 0 0.35rem; }
+.rechtsgrundlagen label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--muted); font-size: 0.85rem; }
+.rechtsgrundlagen fieldset > label, .rechtsgrundlagen fieldset > .raster { align-self: stretch; }
+.rechtsgrundlagen input, .rechtsgrundlagen select, .rechtsgrundlagen textarea { min-width: 0; }
+.rechtsgrundlagen p { margin: 0; }
+.rechtsgrundlagen .knoepfe { align-items: center; margin-bottom: 0; flex-wrap: wrap; }
+.rechtsgrundlagen .raster { grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+.reiter { flex-wrap: wrap; }
+
+.rechtsgrundlagen fieldset > .raster { margin-bottom: 0.75rem; }
+.rechtsgrundlagen fieldset > label + label { margin-top: 0.75rem; }
+.tabellen-scroll { overflow-x: auto; }
+.rechtsgrundlagen h3 { font-size: 1rem; margin: 1rem 0 0.75rem; }
+.grenzdaten { margin: 0.75rem 0; display: grid; grid-template-columns: 1fr auto; gap: 0.4rem; font-size: 0.85rem; }
+.grenzdaten dt { color: var(--muted); }
+.grenzdaten dd { margin: 0; text-align: right; }
+.planseite p { font-size: 0.85rem; }
+.nutzungsformular .knoepfe { grid-column: 1 / -1; margin-bottom: 0; }
+
+.formular-breit { grid-column: 1 / -1; }
+.flaechenformular fieldset { border: 1px solid var(--rand, #cbd5e1); border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+.flaechenformular legend { font-weight: 600; padding: 0 .4rem; }
+
+.flaechenformular .raster { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+
+form.flurstuecksformular { display: block; }
+.flurstuecksformular > .knoepfe { margin-top: 1rem; }
+.flurstuecksformular details { margin: .8rem 0; }

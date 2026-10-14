@@ -77,6 +77,10 @@ fn project_from_row(row: &PgRow) -> CoreResult<Project> {
         name: row.try_get("name").map_err(db_err)?,
         bundesland: Bundesland::from_str(&land)?,
         grundstuecksflaeche_m2: row.try_get("grundstuecksflaeche_m2").map_err(db_err)?,
+        planungsrecht: serde_json::from_str(
+            &row.try_get::<String, _>("planungsrecht").map_err(db_err)?,
+        )
+        .map_err(|e| CoreError::Database(e.to_string()))?,
         version: row.try_get("version").map_err(db_err)?,
         created_at: row.try_get("created_at").map_err(db_err)?,
         updated_at: row.try_get("updated_at").map_err(db_err)?,
@@ -104,8 +108,8 @@ impl ProjectRepository for PostgresDatabase {
     async fn create(&self, p: NewProject) -> CoreResult<Project> {
         let now = Utc::now();
         let row = sqlx::query(
-            "INSERT INTO projects (id, name, bundesland, grundstuecksflaeche_m2, version, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, 1, $5, $5)
+            "INSERT INTO projects (id, name, bundesland, grundstuecksflaeche_m2, version, created_at, updated_at, planungsrecht)
+             VALUES ($1, $2, $3, $4, 1, $5, $5, $6)
           RETURNING *",
         )
         .bind(ProjectId::new().0)
@@ -113,6 +117,7 @@ impl ProjectRepository for PostgresDatabase {
         .bind(p.bundesland.code())
         .bind(p.grundstuecksflaeche_m2)
         .bind(now)
+        .bind(serde_json::to_string(&p.planungsrecht).map_err(|e| CoreError::Database(e.to_string()))?)
         .fetch_one(&self.pool)
         .await
         .map_err(db_err)?;
@@ -143,6 +148,7 @@ impl ProjectRepository for PostgresDatabase {
         let row = sqlx::query(
             "UPDATE projects
                 SET name = $1, bundesland = $2, grundstuecksflaeche_m2 = $3,
+                    planungsrecht = COALESCE($6, planungsrecht),
                     version = version + 1, updated_at = now()
               WHERE id = $4 AND version = $5
           RETURNING *",
@@ -152,6 +158,13 @@ impl ProjectRepository for PostgresDatabase {
         .bind(u.grundstuecksflaeche_m2)
         .bind(u.id.0)
         .bind(u.expected_version)
+        .bind(
+            u.planungsrecht
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|e| CoreError::Database(e.to_string()))?,
+        )
         .fetch_optional(&self.pool)
         .await
         .map_err(db_err)?;

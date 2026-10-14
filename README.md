@@ -63,6 +63,46 @@ npm run tauri build                          # Installer (.exe/.msi, .app/.dmg, 
 cargo run -p server                          # Server (Konfiguration siehe crates/server/src/main.rs)
 ```
 
+## Rechtsgrundlagen je Projekt
+
+Der Projektbereich **Rechtsgrundlagen** erfasst die planungsrechtliche Einordnung
+nach § 30, § 34 oder § 35 BauGB. Zum Bebauungsplan lassen sich die Art
+(qualifiziert, einfach oder vorhabenbezogen), Bezeichnung, Nummer/Fassung,
+Rechtskraft und Festsetzungen hinterlegen. Bei einfachen Bebauungsplänen kann
+die ergänzende Beurteilung nach § 34 oder § 35 angegeben werden; im Außenbereich
+ist die Unterscheidung zwischen privilegierten und sonstigen Vorhaben möglich.
+
+Gemeinde, Grundstück/Standort, Nutzung, Vorhabenbeschreibung und offene Prüfpunkte
+werden ebenfalls je Projekt gespeichert. Die Projektübersicht zeigt die gewählte
+Rechtsgrundlage und den Bebauungsplan. Bestehende Projekte bleiben erhalten;
+fehlende Angaben werden als noch nicht festgelegt angezeigt. Die Einordnung und Freitexte bleiben Projektdokumentation. Strukturierte
+Festsetzungen für Baugebiet, GRZ, GRZ einschließlich Nebenanlagen, GFZ, BMZ,
+Grundfläche (GR), Geschossfläche (GF), Baufensterfläche und Vollgeschosse werden
+in **Maß der Nutzung** automatisch aus dem gespeicherten Projekt gelesen.
+Vollgeschosse können als Höchstzahl oder zwingende Zahl angegeben werden.
+Die Ergebnisse zeigen Ist, Soll, Quelle und absolute/prozentuale Überschreitung.
+Fehlende Planfestsetzungen bleiben ungeprüft; ohne Bebauungsplan werden ausdrücklich
+gekennzeichnete Orientierungswerte nach § 17 BauNVO verwendet. Berechnungseingaben
+können je Projekt gespeichert werden; nach Änderungen werden alte Ergebnisse
+nicht mehr als aktuell dargestellt.
+
+Unter **Pläne** lassen sich geschlossene Umrisse auswählen oder zeichnen und als
+Baufenster bzw. Vorhaben zuordnen. **Baugrenze prüfen** vergleicht die Polygone,
+zeigt die Fläche außerhalb des Baufensters in m² und Prozent und markiert sie rot.
+Zusätzlich wird der größte Überstand an den Gebäudeeckpunkten in Metern gezeigt;
+dieser ist kein Maximum aller Kantenpunkte. Die Prüfung unterstützt auch konkave
+Umrisse. Ein reiner Zahlenvergleich von Grundfläche und Baufensterfläche prüft
+die Lage des Gebäudes nicht. Die Zuordnung wird zusammen mit Plan-Dokument,
+Version und Zeichnungseinheit gespeichert; die Baufensterfläche kann damit in
+die Festsetzungen übernommen werden. Eine neue Planversion erfordert eine neue
+Zuordnung. Pro Prüfung werden ein Baufenster und ein Gebäudeumriss verwendet;
+Ausnahmen, Befreiungen und besondere Bauteilregelungen werden fachlich beurteilt.
+
+Der Server stellt die projektbezogene Nutzung unter
+`POST /api/projekte/{id}/nutzung/pruefen` (NutzungsEingabe mit `mass`, `gebiet`
+und optional `vollgeschosse`) und den geometrischen Vergleich unter
+`POST /api/berechnung/baugrenzen` (BaugrenzenGeometrie) bereit.
+
 ## LBO-Engine
 
 Bundesrecht (BauNVO §§ 17, 19–21) ist nativ in Rust umgesetzt
@@ -342,3 +382,97 @@ transitiv über Tauri (`cssparser`, `selectors`, `dtoa-short`, `option-ext`) und
 Rhai (`smartstring`) und ist mit proprietärem Vertrieb vereinbar, solange diese
 Dateien selbst nicht verändert werden. Mehrfach lizenzierte Crates wie `r-efi`
 (MIT/Apache-2.0/LGPL) werden unter MIT/Apache genutzt.
+
+### Flächenformulare nach BauNVO
+
+Unter „Maß der Nutzung“ kann von direkten Summen auf eine Bauteil- und
+Geschossaufstellung gewechselt werden. Die maßgebende BauNVO (1962, 1968, 1977,
+1990 oder 2017) ist anhand des Plans und der Überleitungsvorschriften zu bestimmen.
+Die Aufstellung wird im Projekt gespeichert und im gemeinsamen Rust-Rechenkern
+für Desktop und HTTP ausgewertet. Manuelle Summen und Geschosszahlen werden bei
+vorhandener Aufstellung nicht als Berechnungsquelle verwendet.
+
+* 1962/1968/1977: eine GRZ, keine heutige GRZ-II-50-%-Regel. Hauptanlagen und
+  Garagen werden grundsätzlich angesetzt; Nebenanlagen nach § 14, offene
+  Stellplätze/Zufahrten, rein unterirdische Anlagen und privilegierte
+  Balkone/Loggien/Terrassen bleiben im Regelansatz unberücksichtigt.
+* 1990/2017: Hauptanlagen einschließlich zugehöriger Terrassen/Balkonprojektionen
+  für GRZ I; Garagen, Stellplätze/Zufahrten, §-14-Nebenanlagen und zusätzliche
+  unterirdische Umgriffe für GRZ II. GRZ II enthält die GRZ-I-Fläche.
+* Vollgeschosse: Geschossfläche nach Außenmaßen. Nichtvollgeschosse:
+  Aufenthaltsräume plus Umfassungswände plus zugehörige Erschließung/Treppenräume
+  bei den älteren Fassungen; bei 1990/2017 standardmäßig keine Anrechnung,
+  vollständige oder anteilige Anrechnung mit dokumentierter Planfestsetzung.
+
+Die Vollgeschosseinstufung erfolgt durch den Anwender nach dem maßgebenden
+Landesrecht. Flächenüberschneidungen sind vor der Eingabe abzuziehen. Sonderfälle,
+insbesondere § 21a, abweichende Planfestsetzungen und die rechtliche Einordnung
+von Terrassen, werden nicht aus einer Bezeichnung erraten: abweichende
+Bauteilanrechnungen benötigen eine Begründung und den konkret geprüften Ansatz.
+Nichtvollgeschoss-Teilflächen dürfen die Außenmaßfläche nicht überschreiten.
+Die Ergebnisübersicht zeigt die Anrechnung je Position. Änderungen blenden alte
+Ergebnisse aus. Leere Aufstellungen und ungültige Zahlen werden abgelehnt.
+
+`POST /api/projekte/{id}/nutzung/pruefen` akzeptiert optional `aufstellung` mit
+`bau_nvo`, `bauteile`, `geschosse`, `nichtvollgeschoss_faktor` und
+`nichtvollgeschoss_festsetzung`. Die Antwort ergänzt `aufstellung` um die
+berechneten Flächensummen und Einzelansätze. Alte Eingaben ohne dieses Feld
+bleiben lesbar und verwenden die bisherige Summenberechnung.
+
+### Vorkonfigurierte Flächenanrechnung und Gemeinschaftsanlagen
+
+Die gemeinsamen Konfigurationen liegen in [`regelwerke/baunvo`](regelwerke/baunvo/README.md).
+Neue Projekte starten mit der strukturierten Flächenaufstellung; bestehende
+Summeneingaben bleiben erhalten. Die gewählte BauNVO steuert Bauteilansätze,
+benötigte Geschossflächenfelder und GRZ-II-Grenzen. Die normale Eingabe benötigt
+keine Auswahl der rechtlichen Anrechnung je Bauteil. Eine besondere
+Nichtvollgeschoss-Festsetzung kann in den Rechtsgrundlagen hinterlegt werden.
+
+Die Grundstücksaufstellung trennt eigene Basisfläche, nicht maßgebende Flächen
+und durch den Bebauungsplan zugeordnete Anteile an Gemeinschaftsanlagen. Etwa
+500 m² eigene Fläche und 25 % einer externen 400-m²-Gemeinschaftsanlage ergeben
+600 m² Bezugsfläche für GRZ/GFZ/BMZ. Zuschläge werden nicht in die Basis zurückgeschrieben.
+Die Originalfläche des Projekts und die geometrischen Baugrenzen bleiben erhalten.
+
+### Flurstücke und einzelne Baugrundstücke
+
+Unter „Maß der Nutzung“ ist die Grundstücksberechnung aus Flurstücken verfügbar.
+Neue Projekte starten in diesem Modus. Jede Katasterposition erhält Gemarkung,
+Flur/Nummer, Grundbuchbezirk, Blatt, laufende Nummer im Bestandsverzeichnis und
+Eigentumsfläche. Gleiche Grundbuchzuordnung wird zusammengefasst; verschiedene
+Blätter, Bezirke oder laufende Nummern werden getrennt. Die laufende Nummer
+allein ist über mehrere Grundbuchblätter nicht eindeutig. Eine besondere
+rechtliche Zuordnung kann mit Kennung und dokumentierter Grundlage hinterlegt
+werden; sie ersetzt ausdrücklich die automatische grundbuchliche Gruppierung.
+
+Abzüge werden je Flurstück mit Art, Fläche und Grundlage erfasst. Die Kategorien
+stammen aus `regelwerke/grundstueck-abzuege.json` (private/öffentliche Grünfläche,
+Verkehrsfläche, außerhalb Bauland, sonstige nicht maßgebende Fläche).
+Planfestsetzungs-Abzüge benötigen einen Bebauungsplan. Sich überschneidende
+Abzugsflächen müssen vor der Eingabe bereinigt werden. Die Lage außerhalb eines
+Baufensters allein ist kein Grundstücksflächenabzug.
+
+Jedes Baugrundstück bekommt eigene Bauteile, Geschosse, Baumasse und optional
+abweichende Festsetzungen. GRZ, GFZ, BMZ, Geschossigkeit und Flächenlimits werden
+getrennt nachgewiesen; es gibt keine Verrechnung der Kennzahlen über mehrere
+Grundstückseinheiten. Zugeordnete Gemeinschaftsanlagen können die jeweilige
+Bezugsfläche ergänzen. Eine gleich benannte Anlage darf über alle Einheiten
+nicht mit mehr als 100 % ihrer Fläche zugeordnet werden. Eigene Festsetzungen
+ersetzen die Projektfestsetzungen vollständig; unbekannte Werte bleiben ungeprüft.
+
+Grundstücksflächen werden bei jeder Berechnung aus den Original-Flurstücken und
+Abzügen abgeleitet. Gespeicherte Summen werden nicht erneut abgezogen. Änderungen
+an der Grundbuchzuordnung lassen alte Berechnungen sichtbar als verwaiste
+Zuordnungen stehen; sie werden nicht stillschweigend anderen Grundstücken
+zugewiesen. Fehlende, verwaiste oder doppelte Berechnungen werden abgelehnt.
+Die Sammlung wird unter `planungsrecht.baugrundstuecke` gespeichert. SQLite und
+PostgreSQL benötigen dafür keine zusätzliche Spalte. Vorherige Gesamteingaben
+bleiben erhalten; bei gespeicherten Einzelgrundstücken ist deren gepoolte
+Berechnung gesperrt. Geometrische Baugrenzenprüfung und Abstandsflächen erfolgen
+weiterhin in ihren bisherigen Bereichen und werden hier nicht über Grundstücke
+zusammengefasst. Die automatische Gruppierung ersetzt keine rechtliche Prüfung
+besonderer Grundstücksverhältnisse.
+
+`POST /api/projekte/{id}/baugrundstuecke/pruefen` nimmt die Sammlung aus
+`flurstuecke` und `berechnungen` entgegen und liefert die Grundstückseinheiten
+mit den jeweiligen Nachweisen und der Projektversion.

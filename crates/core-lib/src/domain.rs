@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::benutzer::BenutzerId;
-use crate::error::CoreError;
+use crate::error::{CoreError, CoreResult};
 use crate::storage::ContentHash;
 
 /// Die 16 Bundesländer, jeweils mit eigener Landesbauordnung (LBO).
@@ -128,6 +128,106 @@ impl std::fmt::Display for ProjectId {
     }
 }
 
+/// Planungsrechtliche Einordnung und Eckdaten, vom Projektteam erfasst.
+/// Diese Angaben ersetzen keine Prüfung der bauplanungsrechtlichen Zulässigkeit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Rechtsgrundlage {
+    Par30,
+    Par34,
+    Par35,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BebauungsplanArt {
+    #[default]
+    Ungeklaert,
+    Kein,
+    Qualifiziert,
+    Einfach,
+    Vorhabenbezogen,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AussenbereichsVorhaben {
+    Privilegiert,
+    Sonstiges,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Planungsrecht {
+    pub rechtsgrundlage: Option<Rechtsgrundlage>,
+    pub bebauungsplan_art: BebauungsplanArt,
+    pub ergaenzende_grundlage: Option<Rechtsgrundlage>,
+    pub aussenbereich_vorhaben: Option<AussenbereichsVorhaben>,
+    pub plan_bezeichnung: String,
+    pub plan_nummer: String,
+    /// Datum im Format YYYY-MM-DD; leer, solange nicht bekannt.
+    pub plan_rechtskraft: String,
+    pub gemeinde: String,
+    pub standort: String,
+    pub vorhaben: String,
+    pub nutzung: String,
+    pub festsetzungen: String,
+    pub begruendung: String,
+    pub festgesetzte_werte: crate::festsetzungen::Festsetzungen,
+    pub berechnung: Option<crate::festsetzungen::NutzungsEingabe>,
+    pub baugrundstuecke: Option<crate::baugrundstuecke::BaugrundstuecksPlan>,
+    pub baugrenzen: Option<crate::cad::baugrenzen::BaugrenzenGeometrie>,
+}
+
+impl Planungsrecht {
+    pub fn validate(&self) -> CoreResult<()> {
+        self.festgesetzte_werte.validate()?;
+        if let Some(b) = &self.baugrundstuecke {
+            b.pruefe(self, 0)?;
+        }
+        if let Some(e) = &self.berechnung {
+            if e.aufstellung.is_some() {
+                crate::flaechen::berechne_aufstellung(e, self)?;
+            } else {
+                crate::calc::kennzahlen(&e.mass)?;
+            }
+        }
+        if let Some(g) = &self.baugrenzen {
+            g.validate()?;
+        }
+        if self.ergaenzende_grundlage == Some(Rechtsgrundlage::Par30) {
+            return Err(CoreError::InvalidInput(
+                "Ergänzend ist § 34 oder § 35 BauGB anzugeben".into(),
+            ));
+        }
+        if !self.plan_rechtskraft.is_empty()
+            && (self.plan_rechtskraft.len() != 10
+                || chrono::NaiveDate::parse_from_str(&self.plan_rechtskraft, "%Y-%m-%d").is_err())
+        {
+            return Err(CoreError::InvalidInput(
+                "Rechtskraft: gültiges Datum im Format YYYY-MM-DD erforderlich".into(),
+            ));
+        }
+        for (name, value, max) in [
+            ("Planbezeichnung", &self.plan_bezeichnung, 500),
+            ("Plannummer", &self.plan_nummer, 100),
+            ("Gemeinde", &self.gemeinde, 500),
+            ("Standort", &self.standort, 1000),
+            ("Vorhaben", &self.vorhaben, 10000),
+            ("Nutzung", &self.nutzung, 1000),
+            ("Festsetzungen", &self.festsetzungen, 10000),
+            ("Begründung", &self.begruendung, 10000),
+        ] {
+            if value.chars().count() > max {
+                return Err(CoreError::InvalidInput(format!(
+                    "{name}: höchstens {max} Zeichen"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Ein Bauvorhaben. `version` dient dem Optimistic Locking im Mehrbenutzerbetrieb.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Project {
@@ -139,6 +239,8 @@ pub struct Project {
     pub version: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub planungsrecht: Planungsrecht,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -146,6 +248,8 @@ pub struct NewProject {
     pub name: String,
     pub bundesland: Bundesland,
     pub grundstuecksflaeche_m2: Option<f64>,
+    #[serde(default)]
+    pub planungsrecht: Planungsrecht,
 }
 
 /// Änderung an einem Projekt. `expected_version` ist die Version, die der
@@ -158,6 +262,8 @@ pub struct ProjectUpdate {
     pub name: String,
     pub bundesland: Bundesland,
     pub grundstuecksflaeche_m2: Option<f64>,
+    #[serde(default)]
+    pub planungsrecht: Option<Planungsrecht>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -297,4 +403,36 @@ pub struct Protokolleintrag {
     pub id: i64,
     #[serde(flatten)]
     pub eintrag: NeuerProtokolleintrag,
+}
+
+#[cfg(test)]
+mod planungsrecht_tests {
+    use super::*;
+
+    #[test]
+    fn bestehende_api_payloads_bleiben_kompatibel() {
+        let p: NewProject = serde_json::from_str(
+            r#"{"name":"Alt","bundesland":"BY","grundstuecksflaeche_m2":800}"#,
+        )
+        .unwrap();
+        assert_eq!(p.planungsrecht, Planungsrecht::default());
+        let u: ProjectUpdate = serde_json::from_value(serde_json::json!({
+            "id": ProjectId::new(), "expected_version": 1, "name": "Alt", "bundesland": "BY",
+            "grundstuecksflaeche_m2": 900
+        }))
+        .unwrap();
+        assert!(u.planungsrecht.is_none());
+    }
+
+    #[test]
+    fn rechtskraft_muss_ein_gueltiges_datum_sein() {
+        let mut p = Planungsrecht::default();
+        assert!(p.validate().is_ok());
+        p.plan_rechtskraft = "2024-02-29".into();
+        assert!(p.validate().is_ok());
+        p.plan_rechtskraft = "2025-02-29".into();
+        assert!(p.validate().is_err());
+        p.plan_rechtskraft = "2025-2-01".into();
+        assert!(p.validate().is_err());
+    }
 }
