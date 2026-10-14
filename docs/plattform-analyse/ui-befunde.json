@@ -1,0 +1,12 @@
+{
+  "abstand": {
+    "eingabe_wandhoehe_m": 20,
+    "sichtbares_ergebnis_nach_alter_eingabe": "T = 4.00 m (0.4 · H, mind. 3 m)",
+    "neu_berechnet": false
+  },
+  "bereichskonflikt": {
+    "ein_benutzer_ein_projekt": true,
+    "rechtsgrundlagen_entwurf_erhalten": true,
+    "meldung": "Das Projekt wurde inzwischen geändert. Ihre Eingaben bleiben erhalten. Laden Sie den aktuellen Stand, bevor Sie die Angaben erneut bearbeiten."
+  }
+}

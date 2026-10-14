@@ -9,6 +9,11 @@ NAS-/Büro-Server und optional in der Cloud.
 
 [Hierarchische Projektakte, Formulare im Projekt und Speicherorte](docs/klare-projektstruktur/README.md)
 beschreibt den aktuellen Ablauf mit Screenshots und Prüfprotokollen.
+## Plattformstrategie
+
+[Analyse der Anwendung, Zielarchitektur und priorisierter Maßnahmenplan](docs/plattform-analyse/README.md)
+bewertet Fachabläufe, Oberfläche, Modulverträge und den Ausbau zur Büroplattform
+mit konkreten Fundstellen und Prüfprotokollen.
 
 ## Entwicklungsregeln
 
