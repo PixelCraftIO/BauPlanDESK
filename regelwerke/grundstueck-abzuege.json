@@ -1,0 +1,7 @@
+{
+  "private_gruenflaeche": {"bezeichnung":"Festgesetzte private Grünfläche", "bebauungsplan_erforderlich":true},
+  "oeffentliche_gruenflaeche": {"bezeichnung":"Festgesetzte öffentliche Grünfläche", "bebauungsplan_erforderlich":true},
+  "verkehrsflaeche": {"bezeichnung":"Festgesetzte Verkehrsfläche", "bebauungsplan_erforderlich":true},
+  "ausserhalb_bauland": {"bezeichnung":"Fläche außerhalb des maßgebenden Baulands", "bebauungsplan_erforderlich":false},
+  "sonstiger_abzug": {"bezeichnung":"Sonstige nicht maßgebende Fläche", "bebauungsplan_erforderlich":false}
+}

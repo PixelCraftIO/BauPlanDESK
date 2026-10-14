@@ -104,6 +104,15 @@ pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
         .route("/api/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/api/berechnung/mass-der-nutzung", post(mass_der_nutzung))
         .route("/api/berechnung/aufmass", post(aufmass))
+        .route(
+            "/api/projekte/{id}/nutzung/pruefen",
+            post(projekt_nutzung_pruefen),
+        )
+        .route(
+            "/api/projekte/{id}/baugrundstuecke/pruefen",
+            post(projekt_baugrundstuecke_pruefen),
+        )
+        .route("/api/berechnung/baugrenzen", post(baugrenzen_pruefen))
         .with_state(ApiState { core, akteur })
 }
 
@@ -419,4 +428,30 @@ fn prozent_kodieren(s: &str) -> String {
             _ => format!("%{b:02X}"),
         })
         .collect()
+}
+
+async fn projekt_nutzung_pruefen(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(e): Json<core_lib::festsetzungen::NutzungsEingabe>,
+) -> ApiResult<core_lib::festsetzungen::NutzungsPruefung> {
+    Ok(Json(core.projekt_nutzung_pruefen(ProjectId(id), &e).await?))
+}
+
+async fn projekt_baugrundstuecke_pruefen(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(e): Json<core_lib::baugrundstuecke::BaugrundstuecksPlan>,
+) -> ApiResult<core_lib::baugrundstuecke::BaugrundstuecksPruefung> {
+    Ok(Json(
+        core.projekt_baugrundstuecke_pruefen(ProjectId(id), &e)
+            .await?,
+    ))
+}
+
+async fn baugrenzen_pruefen(
+    State(ApiState { core, .. }): State<ApiState>,
+    Json(g): Json<core_lib::cad::baugrenzen::BaugrenzenGeometrie>,
+) -> ApiResult<core_lib::cad::baugrenzen::BaugrenzenPruefung> {
+    Ok(Json(core.baugrenzen_pruefen(&g)?))
 }

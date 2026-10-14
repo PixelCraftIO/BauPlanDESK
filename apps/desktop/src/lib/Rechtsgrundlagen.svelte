@@ -1,0 +1,171 @@
+<script lang="ts">
+  import { untrack } from "svelte";
+  import { ask } from "@tauri-apps/plugin-dialog";
+  import { api, fehlertext, istKonflikt, GEBIETE, type Planungsrecht, type Project } from "./api";
+
+  let { projekt, darf, onprojekt }: { projekt: Project; darf: boolean; onprojekt: (p: Project) => void } = $props();
+  let gespeichert = $state(untrack(() => structuredClone($state.snapshot(projekt.planungsrecht))));
+  let version = $state(untrack(() => projekt.version));
+  let eingabe = $state<Planungsrecht>(untrack(() => structuredClone($state.snapshot(gespeichert))));
+  let laeuft = $state(false);
+  let fehler = $state<string | null>(null);
+  let hinweis = $state<string | null>(null);
+  const geaendert = $derived(JSON.stringify(eingabe) !== JSON.stringify(gespeichert));
+  const mitPlan = $derived(!["kein", "ungeklaert"].includes(eingabe.bebauungsplan_art));
+  const aussenbereich = $derived(eingabe.rechtsgrundlage === "par35" || (eingabe.bebauungsplan_art === "einfach" && eingabe.ergaenzende_grundlage === "par35"));
+
+  // Änderungen in anderen Projektbereichen übernehmen, solange hier kein Entwurf offen ist.
+  $effect(() => {
+    const p = projekt;
+    untrack(() => {
+      if (!geaendert) {
+        gespeichert = structuredClone($state.snapshot(p.planungsrecht));
+        eingabe = structuredClone($state.snapshot(gespeichert));
+        version = p.version;
+      }
+    });
+  });
+
+  export async function verwerfenErlaubt(): Promise<boolean> {
+    return !geaendert || await ask("Die Rechtsgrundlagen wurden noch nicht gespeichert. Änderungen verwerfen?", { title: "Rechtsgrundlagen", kind: "warning", okLabel: "Verwerfen", cancelLabel: "Abbrechen" });
+  }
+
+  async function neuLaden() {
+    if (!(await verwerfenErlaubt())) return;
+    try {
+      const p = await api.projektOeffnen(projekt.id);
+      gespeichert = structuredClone($state.snapshot(p.planungsrecht));
+      eingabe = structuredClone($state.snapshot(gespeichert));
+      version = p.version;
+      fehler = null;
+      hinweis = null;
+      onprojekt(p);
+    } catch (e) { fehler = fehlertext(e); }
+  }
+
+  async function speichern(e: SubmitEvent) {
+    e.preventDefault();
+    laeuft = true;
+    fehler = null;
+    hinweis = null;
+    try {
+      const p = await api.projektAktualisieren({
+        id: projekt.id, expected_version: version,
+        name: projekt.name, bundesland: projekt.bundesland,
+        grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
+        planungsrecht: structuredClone($state.snapshot(eingabe)),
+      });
+      gespeichert = structuredClone($state.snapshot(p.planungsrecht));
+      eingabe = structuredClone($state.snapshot(gespeichert));
+      version = p.version;
+      onprojekt(p);
+      hinweis = "Rechtsgrundlagen und Eckdaten gespeichert.";
+    } catch (e) {
+      fehler = istKonflikt(e)
+        ? "Das Projekt wurde inzwischen geändert. Ihre Eingaben bleiben erhalten. Laden Sie den aktuellen Stand, bevor Sie die Angaben erneut bearbeiten."
+        : fehlertext(e);
+    } finally { laeuft = false; }
+  }
+</script>
+
+<p class="meta">Planungsrechtliche Einordnung und Eckdaten dieses Bauvorhabens. Angaben können zunächst offen bleiben und später ergänzt werden.</p>
+<form class="rechtsgrundlagen" onsubmit={speichern}>
+  <div class="knoepfe links">
+    <button type="submit" disabled={!darf || !geaendert || laeuft}>{laeuft ? "Wird gespeichert …" : "Speichern"}</button>
+    <button type="button" class="sekundaer" onclick={neuLaden} disabled={laeuft}>Aktuellen Stand laden</button>
+    {#if geaendert}<span class="meta" role="status">Ungespeicherte Änderungen</span>{/if}
+  </div>
+  {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
+  {#if hinweis}<p role="status">{hinweis}</p>{/if}
+  <fieldset disabled={!darf || laeuft}>
+    <legend>Planungsrechtliche Grundlage</legend>
+    <div class="raster">
+      <label>Rechtsgrundlage
+        <select bind:value={eingabe.rechtsgrundlage}>
+          <option value={null}>Noch nicht festgelegt</option>
+          <option value="par30">§ 30 BauGB – Bebauungsplan</option>
+          <option value="par34">§ 34 BauGB – unbeplanter Innenbereich</option>
+          <option value="par35">§ 35 BauGB – Außenbereich</option>
+        </select>
+      </label>
+      <label>Bebauungsplan
+        <select bind:value={eingabe.bebauungsplan_art}>
+          <option value="ungeklaert">Noch ungeklärt</option>
+          <option value="kein">Kein Bebauungsplan</option>
+          <option value="qualifiziert">Qualifizierter Bebauungsplan (§ 30 Abs. 1)</option>
+          <option value="vorhabenbezogen">Vorhabenbezogener Bebauungsplan (§ 30 Abs. 2)</option>
+          <option value="einfach">Einfacher Bebauungsplan (§ 30 Abs. 3)</option>
+        </select>
+      </label>
+      {#if eingabe.bebauungsplan_art === "einfach"}
+        <label>Ergänzende Beurteilung (§ 30 Abs. 3 BauGB)
+          <select bind:value={eingabe.ergaenzende_grundlage}>
+            <option value={null}>Noch nicht festgelegt</option>
+            <option value="par34">§ 34 BauGB – Innenbereich</option>
+            <option value="par35">§ 35 BauGB – Außenbereich</option>
+          </select>
+        </label>
+      {/if}
+      {#if aussenbereich}
+        <label>Vorhaben im Außenbereich
+          <select bind:value={eingabe.aussenbereich_vorhaben}>
+            <option value={null}>Noch nicht festgelegt</option>
+            <option value="privilegiert">Privilegiertes Vorhaben (§ 35 Abs. 1)</option>
+            <option value="sonstiges">Sonstiges Vorhaben (§ 35 Abs. 2)</option>
+          </select>
+        </label>
+      {/if}
+    </div>
+    {#if eingabe.rechtsgrundlage === "par30" && !mitPlan}
+      <p class="hinweisbox">Für die Einordnung nach § 30 BauGB bitte den maßgeblichen Bebauungsplan klären und dessen Art angeben.</p>
+    {/if}
+    {#if eingabe.rechtsgrundlage === "par34"}<p class="meta">Einfügen in die Eigenart der näheren Umgebung, Erschließung und weitere Voraussetzungen unter „Beurteilung“ dokumentieren.</p>{/if}
+  </fieldset>
+  {#if mitPlan}
+    <fieldset disabled={!darf || laeuft}>
+      <legend>Angaben zum Bebauungsplan</legend>
+      <div class="raster">
+        <label>Planbezeichnung<input bind:value={eingabe.plan_bezeichnung} maxlength="500" placeholder="z. B. Wohngebiet Lindenweg" /></label>
+        <label>Plannummer / Fassung<input bind:value={eingabe.plan_nummer} maxlength="100" /></label>
+        <label>Rechtskraft seit<input type="date" bind:value={eingabe.plan_rechtskraft} /></label>
+      </div>
+      <h3>Festgesetzte Werte</h3>
+      <div class="raster">
+        <label>Baugebiet
+          <select bind:value={eingabe.festgesetzte_werte.baugebiet}>
+            <option value={null}>Nicht festgelegt</option>
+            {#each GEBIETE as g}<option value={g.code}>{g.code} – {g.name}</option>{/each}
+          </select>
+        </label>
+        <label>GRZ – Hauptanlagen<input type="number" min="0" max="1" step="any" bind:value={eingabe.festgesetzte_werte.grz} /></label>
+        <label>GRZ einschließlich Nebenanlagen<input type="number" min="0" max="1" step="any" bind:value={eingabe.festgesetzte_werte.grz_gesamt} placeholder="Leer: Regel nach § 19 Abs. 4" /></label>
+        <label>GFZ<input type="number" min="0" step="any" bind:value={eingabe.festgesetzte_werte.gfz} /></label>
+        <label>BMZ<input type="number" min="0" step="any" bind:value={eingabe.festgesetzte_werte.bmz} /></label>
+        <label>Festgesetzte Grundfläche (GR, m²)<input type="number" min="0" step="any" bind:value={eingabe.festgesetzte_werte.grundflaeche_m2} /></label>
+        <label>Festgesetzte Geschossfläche (GF, m²)<input type="number" min="0" step="any" bind:value={eingabe.festgesetzte_werte.geschossflaeche_m2} /></label>
+        <label>Überbaubare Grundstücksfläche / Baufenster (m²)<input type="number" min="0" step="any" bind:value={eingabe.festgesetzte_werte.ueberbaubare_flaeche_m2} /></label>
+        <label>Festgesetzte Vollgeschosse (Z)<input type="number" min="0" step="1" bind:value={eingabe.festgesetzte_werte.vollgeschosse} /></label>
+        <label>Anforderung an die Vollgeschosse
+          <select bind:value={eingabe.festgesetzte_werte.geschossigkeit}><option value="maximal">Höchstzahl</option><option value="zwingend">Zwingende Zahl</option></select>
+        </label>
+      </div>
+      <p class="meta">Die gespeicherten Werte werden unter „Maß der Nutzung“ übernommen. Leere Felder bleiben ungeprüft. Die Baufensterfläche allein prüft die Lage des Gebäudes nicht; dafür Baufenster und Vorhaben unter „Pläne“ zuordnen.</p>
+      <fieldset><legend>Besondere GFZ-Festsetzung für Nichtvollgeschosse</legend>
+        <p class="meta">Leer lassen: automatisch nach gewählter BauNVO. Hier nur eine ausdrücklich abweichende Festsetzung des Bebauungsplans hinterlegen.</p>
+        <div class="raster"><label>Anrechnungsanteil (0–1, optional)<input type="number" min="0" max="1" step="any" bind:value={eingabe.festgesetzte_werte.nichtvollgeschoss_faktor} placeholder="Automatisch nach BauNVO" /></label>
+        <label>Wortlaut / Fundstelle<textarea bind:value={eingabe.festgesetzte_werte.nichtvollgeschoss_festsetzung} required={(eingabe.festgesetzte_werte.nichtvollgeschoss_faktor ?? 0) > 0}></textarea></label></div>
+      </fieldset>
+      <label>Weitere Festsetzungen und Abweichungen<textarea bind:value={eingabe.festsetzungen} maxlength="10000" rows="3" placeholder="Baugebiet, GRZ / GFZ, Vollgeschosse, Bauweise, Baugrenzen, örtliche Vorschriften, Ausnahmen oder Befreiungen …"></textarea></label>
+    </fieldset>
+  {/if}
+  <fieldset disabled={!darf || laeuft}>
+    <legend>Eckdaten des Bauvorhabens</legend>
+    <div class="raster">
+      <label>Gemeinde / Stadt<input bind:value={eingabe.gemeinde} maxlength="500" /></label>
+      <label>Standort / Grundstück<input bind:value={eingabe.standort} maxlength="1000" placeholder="Adresse, Gemarkung, Flurstück …" /></label>
+      <label>Geplante Nutzung<input bind:value={eingabe.nutzung} maxlength="1000" placeholder="z. B. Wohngebäude mit zwei Wohneinheiten" /></label>
+    </div>
+    <label>Beschreibung des Vorhabens<textarea bind:value={eingabe.vorhaben} maxlength="10000" rows="3" placeholder="Neubau, Anbau, Umbau, Nutzungsänderung; wesentliche Eckdaten …"></textarea></label>
+    <label>Beurteilung / offene Fragen<textarea bind:value={eingabe.begruendung} maxlength="10000" rows="3" placeholder="Einordnung, Erschließung, Abstimmung mit der Behörde, offene Prüfpunkte …"></textarea></label>
+  </fieldset>
+</form>

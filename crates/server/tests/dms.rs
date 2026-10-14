@@ -58,6 +58,7 @@ async fn erste_anmeldung_wird_administrator() {
                 name: "Test".into(),
                 bundesland: Bundesland::By,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &azubi,
         )
@@ -145,6 +146,7 @@ async fn zwei_arbeitsplaetze_bearbeiten_einen_plan() {
                 name: "MFH Lindenweg".into(),
                 bundesland: Bundesland::Nw,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &leitung,
         )
@@ -271,6 +273,7 @@ async fn zwei_arbeitsplaetze_bearbeiten_einen_plan() {
                 name: "Anderes".into(),
                 bundesland: Bundesland::By,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &leitung,
         )

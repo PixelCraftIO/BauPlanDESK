@@ -1,10 +1,15 @@
 <script lang="ts">
+  import { untrack } from "svelte";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import {
     api,
     EINHEITEN,
     fehlertext,
     istPlan,
     type CadPlan,
+    type Project,
+    type BaugrenzenGeometrie,
+    type BaugrenzenPruefung,
     type DocumentVersion,
     type Laengeneinheit,
     type Messung,
@@ -13,18 +18,25 @@
   import PlanViewer, { type Werkzeug } from "./PlanViewer.svelte";
 
   let {
-    projektId,
+    projekt,
+    aktiv,
+    darf,
+    onprojekt,
     dokumentId = $bindable(null),
     onflaeche,
     onfehler,
   }: {
-    projektId: string;
+    projekt: Project;
+    aktiv: boolean;
+    darf: boolean;
+    onprojekt: (p: Project) => void;
     dokumentId: string | null;
     /** Gemessene Fläche als Grundstücksfläche übernehmen. */
     onflaeche: (m2: number) => void;
     onfehler: (m: string) => void;
   } = $props();
 
+  const projektId = $derived(projekt.id);
   let plaene = $state<DocumentVersion[]>([]);
   let geladen = $state<CadPlan | null>(null);
   let laedt = $state(false);
@@ -36,6 +48,54 @@
   let messungen = $state<{ nr: number; art: string; ergebnis: Messung; punkte: Punkt[]; geschlossen: boolean }[]>([]);
   let viewer = $state<PlanViewer>();
   let laufendeNr = 0;
+  let baufenster = $state<Punkt[]>([]);
+  let vorhaben = $state<Punkt[]>([]);
+  let gespeichertSignatur = $state("");
+  let grenzpruefung = $state<BaugrenzenPruefung | null>(null);
+  let ergebnisSignatur = $state("");
+  let geoLaeuft = $state(false);
+  let geoHinweis = $state<string | null>(null);
+  const signatur = $derived(JSON.stringify([geladen?.dokument.document_id, geladen?.dokument.version, einheit, baufenster, vorhaben]));
+  const geoGeaendert = $derived((baufenster.length > 0 || vorhaben.length > 0) && signatur !== gespeichertSignatur);
+  const geometrie = $derived<BaugrenzenGeometrie | null>(geladen && baufenster.length >= 3 && vorhaben.length >= 3 ? {
+    dokument_id: geladen.dokument.document_id, dokument_version: geladen.dokument.version, einheit, baufenster, vorhaben,
+  } : null);
+  const aktuellesGrenzergebnis = $derived(grenzpruefung && ergebnisSignatur === signatur ? grenzpruefung : null);
+
+  export async function verwerfenErlaubt(): Promise<boolean> {
+    return !geoGeaendert || await ask("Die Zuordnung von Baufenster und Vorhaben wurde nicht gespeichert. Verwerfen?", { title: "Baugrenzen", kind: "warning", okLabel: "Verwerfen", cancelLabel: "Abbrechen" });
+  }
+
+  async function planWechsel(id: string) {
+    if (await verwerfenErlaubt()) dokumentId = id;
+  }
+
+  async function grenzePruefen(speichern = false) {
+    if (!geometrie) return;
+    geoLaeuft = true; geoHinweis = null;
+    const stand = signatur;
+    const g = structuredClone($state.snapshot(geometrie));
+    try {
+      const r = await api.baugrenzenPruefen(g);
+      grenzpruefung = r;
+      ergebnisSignatur = stand;
+      if (speichern) {
+        const p = await api.projektAktualisieren({
+          id: projekt.id, expected_version: projekt.version, name: projekt.name, bundesland: projekt.bundesland,
+          grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
+          planungsrecht: {
+            ...structuredClone($state.snapshot(projekt.planungsrecht)), baugrenzen: g,
+            festgesetzte_werte: { ...structuredClone($state.snapshot(projekt.planungsrecht.festgesetzte_werte)), ueberbaubare_flaeche_m2: r.baufenster_m2 },
+          },
+        });
+        onprojekt(p);
+        gespeichertSignatur = stand;
+        geoHinweis = "Umrisse dem Projekt zugeordnet; Baufensterfläche in die Festsetzungen übernommen.";
+      }
+    } catch(e) { grenzpruefung = null; onfehler(fehlertext(e)); }
+    finally { geoLaeuft = false; }
+  }
+
 
   // Jede Messung wird in core-lib gerechnet; hier nur die jeweils neueste Antwort anzeigen.
   let anfrage = 0;
@@ -84,6 +144,11 @@
         if ((neueste.get(v.document_id)?.version ?? 0) < v.version) neueste.set(v.document_id, v);
       plaene = [...neueste.values()].sort((a, b) => a.file_name.localeCompare(b.file_name, "de"));
       if (!dokumentId && plaene.length) dokumentId = plaene[0].document_id;
+      const aktuell = geladen ? neueste.get(geladen.dokument.document_id) : null;
+      if (geladen && aktuell && aktuell.version !== geladen.dokument.version) {
+        if (geoGeaendert) geoHinweis = "Eine neuere Planversion ist verfügbar. Bitte die aktuelle Zuordnung sichern oder verwerfen und den Plan neu laden.";
+        else await planLaden(geladen.dokument.document_id);
+      }
     } catch (e) {
       onfehler(fehlertext(e));
     }
@@ -98,6 +163,18 @@
       sichtbar = p.plan.ebenen.map((e) => e.sichtbar);
       messungen = [];
       live = null;
+      grenzpruefung = null;
+      geoHinweis = null;
+      const g = untrack(() => projekt.planungsrecht.baugrenzen);
+      if (g && g.dokument_id === p.dokument.document_id && g.dokument_version === p.dokument.version) {
+        baufenster = structuredClone($state.snapshot(g.baufenster));
+        vorhaben = structuredClone($state.snapshot(g.vorhaben));
+        einheit = g.einheit;
+      } else {
+        baufenster = []; vorhaben = [];
+        if (g?.dokument_id === p.dokument.document_id) geoHinweis = "Die gespeicherte Baugrenzenzuordnung gehört zu einer älteren Planversion. Bitte Umrisse neu zuordnen.";
+      }
+      gespeichertSignatur = JSON.stringify([p.dokument.document_id, p.dokument.version, einheit, baufenster, vorhaben]);
     } catch (e) {
       geladen = null;
       onfehler(fehlertext(e));
@@ -108,7 +185,7 @@
 
   $effect(() => {
     void projektId;
-    listeLaden();
+    if (aktiv) untrack(listeLaden);
   });
 
   $effect(() => {
@@ -130,7 +207,7 @@
   ];
 
   function taste(e: KeyboardEvent) {
-    if (!geladen || (e.target as HTMLElement).closest("input, select, textarea, dialog")) return;
+    if (!aktiv || !geladen || (e.target as HTMLElement).closest("input, select, textarea, dialog")) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const w = WERKZEUGE.find((w) => w.taste.toLowerCase() === e.key.toLowerCase());
     if (w) werkzeug = w.id;
@@ -155,7 +232,7 @@
 {:else}
   <div class="planleiste">
     <label class="zeile">Plan
-      <select bind:value={dokumentId}>
+      <select value={dokumentId ?? ""} disabled={geoLaeuft} onchange={(e) => planWechsel(e.currentTarget.value)}>
         {#each plaene as p (p.document_id)}<option value={p.document_id}>{p.file_name} (V{p.version})</option>{/each}
       </select>
     </label>
@@ -163,10 +240,11 @@
       {#each WERKZEUGE as w}
         <button class:aktiv={werkzeug === w.id} aria-pressed={werkzeug === w.id} title="{w.tipp} (Taste {w.taste})" onclick={() => (werkzeug = w.id)}>{w.text}</button>
       {/each}
+      <button class="sekundaer" disabled={geoLaeuft} onclick={async () => { if (dokumentId && await verwerfenErlaubt()) await planLaden(dokumentId); }}>Plan neu laden</button>
       <button class="sekundaer" title="Ganzen Plan zeigen (Pos1)" onclick={() => viewer?.einpassen()}>Einpassen</button>
     </div>
     <label class="zeile">Einheit
-      <select bind:value={einheit} onchange={einheitGeaendert}>
+      <select bind:value={einheit} onchange={einheitGeaendert} disabled={geoLaeuft}>
         {#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}
       </select>
     </label>
@@ -180,6 +258,8 @@
           plan={geladen.plan}
           {sichtbar}
           {werkzeug}
+          baugrenzen={geometrie}
+          grenzpruefung={aktuellesGrenzergebnis}
           onaufmass={liveMessen}
           onfertig={fertig}
           oncursor={(p) => (cursor = p)}
@@ -198,6 +278,26 @@
           <p class="hinweisbox">Die Datei nennt keine Einheit. Bitte oben die Einheit wählen, in der gezeichnet wurde, bevor Sie messen.</p>
         {/if}
 
+        <h3>Baugrenzenprüfung</h3>
+        <p class="meta">Geschlossene Umrisse mit „Fläche wählen“ auswählen oder mit „Fläche“ zeichnen, dann unten als Baufenster und Vorhaben zuordnen.</p>
+        <p class="meta">Baufenster: {baufenster.length >= 3 ? "zugeordnet (blau)" : "fehlt"}<br />Vorhaben: {vorhaben.length >= 3 ? "zugeordnet (violett)" : "fehlt"}</p>
+        <div class="aktionen">
+          <button onclick={() => grenzePruefen()} disabled={!geometrie || geoLaeuft}>Baugrenze prüfen</button>
+          <button class="sekundaer" onclick={() => grenzePruefen(true)} disabled={!darf || !geometrie || geoLaeuft || !geoGeaendert}>Zuordnung speichern</button>
+        </div>
+        {#if geoGeaendert}<p class="meta">Ungespeicherte Zuordnung</p>{/if}
+        {#if geoHinweis}<p class="hinweisbox" role="status">{geoHinweis}</p>{/if}
+        {#if grenzpruefung && !aktuellesGrenzergebnis}<p class="hinweisbox">Zuordnung oder Einheit geändert. Bitte neu prüfen.</p>{/if}
+        {#if aktuellesGrenzergebnis}
+          <dl class="grenzdaten">
+            <dt>Baufenster</dt><dd>{z(aktuellesGrenzergebnis.baufenster_m2)} m²</dd>
+            <dt>Vorhaben</dt><dd>{z(aktuellesGrenzergebnis.vorhaben_m2)} m²</dd>
+            <dt>Außerhalb</dt><dd class:verstoss={!aktuellesGrenzergebnis.eingehalten}>{z(aktuellesGrenzergebnis.ausserhalb_m2)} m² ({z(aktuellesGrenzergebnis.ausserhalb_prozent)} %)</dd>
+            <dt>Größter Überstand an Eckpunkten</dt><dd>{z(aktuellesGrenzergebnis.eckpunkt_ueberstand_m)} m</dd>
+          </dl>
+          <p class:fehlertext={!aktuellesGrenzergebnis.eingehalten}>{aktuellesGrenzergebnis.eingehalten ? "Umriss liegt innerhalb des Baufensters." : "Umriss überschreitet das Baufenster (rote Fläche)."}</p>
+          <p class="meta">Geometrischer Flächenvergleich. Der Eckpunktabstand erfasst nicht alle möglichen Überstände an Kanten. Ausnahmen, Befreiungen oder zulässige Bauteilüberschreitungen sind gesondert zu beurteilen.</p>
+        {/if}
         <h3>Messungen</h3>
         {#each messungen as m (m.nr)}
           <div class="messung">
@@ -213,7 +313,11 @@
             </div>
             <div class="aktionen">
               {#if m.ergebnis.flaeche_m2 !== null && !m.ergebnis.selbstschneidend}
-                <button class="link" onclick={() => onflaeche(Math.round(m.ergebnis.flaeche_m2! * 100) / 100)}>Als Grundstücksfläche übernehmen</button>
+                <button class="link" disabled={!darf || geoLaeuft} onclick={() => onflaeche(Math.round(m.ergebnis.flaeche_m2! * 100) / 100)}>Als Grundstücksfläche übernehmen</button>
+              {/if}
+              {#if m.ergebnis.flaeche_m2 !== null && !m.ergebnis.selbstschneidend && m.punkte.length >= 3}
+                <button class="link" disabled={geoLaeuft} onclick={() => { baufenster = structuredClone($state.snapshot(m.punkte)); geoHinweis = null; }}>Als Baufenster</button>
+                <button class="link" disabled={geoLaeuft} onclick={() => { vorhaben = structuredClone($state.snapshot(m.punkte)); geoHinweis = null; }}>Als Vorhaben</button>
               {/if}
               <button class="link" onclick={() => (messungen = messungen.filter((x) => x.nr !== m.nr))}>Entfernen</button>
             </div>

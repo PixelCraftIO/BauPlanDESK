@@ -134,7 +134,10 @@ pub fn pruefe(
 ) -> CoreResult<Pruefergebnis> {
     let k = kennzahlen(m)?;
     let g = grenzwerte.unwrap_or_else(|| gebiet.orientierungswerte());
-    let grz_gesamt_max = (g.grz * 1.5).min(0.8).max(g.grz);
+    let regel = crate::baunvo::regelwerk(crate::flaechen::BauNvo::V2017);
+    let grz_gesamt_max = (g.grz * regel.grz_ii_faktor)
+        .min(regel.grz_ii_kappung)
+        .max(g.grz);
     Ok(Pruefergebnis {
         grz_eingehalten: k.grz <= g.grz + f64::EPSILON,
         grz_gesamt_eingehalten: k.grz_gesamt <= grz_gesamt_max + f64::EPSILON,

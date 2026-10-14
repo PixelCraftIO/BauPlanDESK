@@ -227,6 +227,7 @@ mod tests {
             name: "EFH Muster".into(),
             bundesland: Bundesland::By,
             grundstuecksflaeche_m2: Some(640.0),
+            planungsrecht: Default::default(),
             version: 1,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),

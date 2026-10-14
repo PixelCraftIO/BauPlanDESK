@@ -1,0 +1,54 @@
+{
+  "id": "baunvo-1990",
+  "version": "1.0.0",
+  "fassung": "1990",
+  "grz_ii": true,
+  "grz_ii_faktor": 1.5,
+  "grz_ii_kappung": 0.8,
+  "bauteile": {
+    "hauptanlage": {
+      "bezeichnung": "Hauptgebäude / Hauptanlage",
+      "anrechnung": "grz"
+    },
+    "terrasse_hauptanlage": {
+      "bezeichnung": "Terrasse am Hauptgebäude",
+      "anrechnung": "grz"
+    },
+    "garage": {
+      "bezeichnung": "Garage / Carport",
+      "anrechnung": "grz_ii"
+    },
+    "stellplatz": {
+      "bezeichnung": "Offener Stellplatz",
+      "anrechnung": "grz_ii"
+    },
+    "zufahrt": {
+      "bezeichnung": "Zufahrt",
+      "anrechnung": "grz_ii"
+    },
+    "nebenanlage14": {
+      "bezeichnung": "Nebenanlage nach § 14",
+      "anrechnung": "grz_ii"
+    },
+    "unterirdisch": {
+      "bezeichnung": "Unterirdische Anlage (zusätzlicher Umgriff)",
+      "anrechnung": "grz_ii"
+    },
+    "balkon_loggia": {
+      "bezeichnung": "Balkon / Loggia (Projektion)",
+      "anrechnung": "grz"
+    },
+    "terrasse_nebenanlage": {
+      "bezeichnung": "Freistehende Terrasse / Nebenanlage",
+      "anrechnung": "grz_ii"
+    }
+  },
+  "nichtvollgeschoss_faktor": 0.0,
+  "nichtvollgeschoss_planabweichung": true,
+  "gemeinschaftsanteile": true,
+  "gemeinschaftsanteile_rechtsgrundlage": "§ 21a Abs. 2 BauNVO",
+  "quellen": [
+    "§ 19 BauNVO 1990",
+    "§ 20 BauNVO 1990"
+  ]
+}

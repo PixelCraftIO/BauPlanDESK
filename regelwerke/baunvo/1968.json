@@ -1,0 +1,54 @@
+{
+  "id": "baunvo-1968",
+  "version": "1.0.0",
+  "fassung": "1968",
+  "grz_ii": false,
+  "grz_ii_faktor": 1.0,
+  "grz_ii_kappung": 1.0,
+  "bauteile": {
+    "hauptanlage": {
+      "bezeichnung": "Hauptgebäude / Hauptanlage",
+      "anrechnung": "grz"
+    },
+    "terrasse_hauptanlage": {
+      "bezeichnung": "Terrasse am Hauptgebäude",
+      "anrechnung": "keine"
+    },
+    "garage": {
+      "bezeichnung": "Garage / Carport",
+      "anrechnung": "grz"
+    },
+    "stellplatz": {
+      "bezeichnung": "Offener Stellplatz",
+      "anrechnung": "keine"
+    },
+    "zufahrt": {
+      "bezeichnung": "Zufahrt",
+      "anrechnung": "keine"
+    },
+    "nebenanlage14": {
+      "bezeichnung": "Nebenanlage nach § 14",
+      "anrechnung": "keine"
+    },
+    "unterirdisch": {
+      "bezeichnung": "Unterirdische Anlage (zusätzlicher Umgriff)",
+      "anrechnung": "keine"
+    },
+    "balkon_loggia": {
+      "bezeichnung": "Balkon / Loggia (Projektion)",
+      "anrechnung": "keine"
+    },
+    "terrasse_nebenanlage": {
+      "bezeichnung": "Freistehende Terrasse / Nebenanlage",
+      "anrechnung": "keine"
+    }
+  },
+  "nichtvollgeschoss_faktor": 1.0,
+  "nichtvollgeschoss_planabweichung": false,
+  "gemeinschaftsanteile": true,
+  "gemeinschaftsanteile_rechtsgrundlage": "§ 21a Abs. 2 BauNVO",
+  "quellen": [
+    "§ 19 BauNVO 1968",
+    "§ 20 BauNVO 1968"
+  ]
+}

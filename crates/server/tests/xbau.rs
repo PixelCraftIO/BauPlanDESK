@@ -64,6 +64,7 @@ async fn bauantrag_erfassen_und_exportieren() {
                 name: "MFH Lindenweg".into(),
                 bundesland: Bundesland::Nw,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &chefin,
         )
@@ -211,6 +212,7 @@ async fn ungeeignete_anlagen_stehen_bei_den_fehlenden_angaben() {
                 name: "MFH Lindenweg".into(),
                 bundesland: Bundesland::By,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &chefin,
         )
@@ -264,6 +266,7 @@ async fn ohne_codelisten_nennt_der_export_die_fehlende_liste() {
                 name: "Test".into(),
                 bundesland: Bundesland::By,
                 grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
             },
             &chefin,
         )

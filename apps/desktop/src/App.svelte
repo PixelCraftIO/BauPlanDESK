@@ -10,6 +10,8 @@
     landName,
     mindestens,
     rollenName,
+    rechtsgrundlageName,
+    bebauungsplanName,
     type AppInfo,
     type Benutzer,
     type Kunde,
@@ -33,13 +35,17 @@
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import Protokoll from "./lib/Protokoll.svelte";
   import LizenzDialog from "./lib/Lizenz.svelte";
+  import Rechtsgrundlagen from "./lib/Rechtsgrundlagen.svelte";
   import Startseite from "./lib/Startseite.svelte";
 
-  type Ansicht = "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "bauantrag" | "protokoll";
+  type Ansicht = "rechtsgrundlagen" | "uebersicht" | "mass" | "abstand" | "dokumente" | "plaene" | "bauantrag" | "protokoll";
   type DialogArt = "neu" | "oeffnen" | "projektdaten" | "benutzer" | "buero" | "lizenz" | "kunden" | "bauherren" | null;
 
   let info = $state<AppInfo | null>(null);
   let projekt = $state<Project | null>(null);
+  let planEditor = $state<{ verwerfenErlaubt: () => Promise<boolean> }>();
+  let nutzungsEditor = $state<{ verwerfenErlaubt: () => Promise<boolean> }>();
+  let rechtsEditor = $state<{ verwerfenErlaubt: () => Promise<boolean> }>();
   let ansicht = $state<Ansicht>("uebersicht");
   let dialog = $state<DialogArt>(null);
   let zuletzt = $state<ZuletztEintrag[]>([]);
@@ -78,7 +84,10 @@
 
   const melde = (e: unknown) => (fehler = fehlertext(e));
 
-  async function oeffnen(id: string) {
+  async function oeffnen(id: string, schonBestaetigt = false) {
+    if (!schonBestaetigt && planEditor && !(await planEditor.verwerfenErlaubt())) return;
+    if (!schonBestaetigt && nutzungsEditor && !(await nutzungsEditor.verwerfenErlaubt())) return;
+    if (!schonBestaetigt && rechtsEditor && !(await rechtsEditor.verwerfenErlaubt())) return;
     dialog = null;
     try {
       projekt = await api.projektOeffnen(id);
@@ -91,6 +100,9 @@
   }
 
   async function schliessen() {
+    if (planEditor && !(await planEditor.verwerfenErlaubt())) return;
+    if (nutzungsEditor && !(await nutzungsEditor.verwerfenErlaubt())) return;
+    if (rechtsEditor && !(await rechtsEditor.verwerfenErlaubt())) return;
     projekt = null;
     await api.projektSchliessen();
     zuletzt = await api.zuletzt();
@@ -107,10 +119,13 @@
   }
 
   async function anlegen(werte: Werte, bauherr: string | null) {
+    if (planEditor && !(await planEditor.verwerfenErlaubt())) return;
+    if (nutzungsEditor && !(await nutzungsEditor.verwerfenErlaubt())) return;
+    if (rechtsEditor && !(await rechtsEditor.verwerfenErlaubt())) return;
     try {
       const neu = await api.projektAnlegen(werte);
       if (bauherr) await api.bauherrenSetzen(neu.id, [bauherr], neu.version);
-      await oeffnen(neu.id);
+      await oeffnen(neu.id, true);
     } catch (e) {
       melde(e);
     }
@@ -211,6 +226,7 @@
 
   const reiter: { id: Ansicht; text: string }[] = [
     { id: "uebersicht", text: "Übersicht" },
+    { id: "rechtsgrundlagen", text: "Rechtsgrundlagen" },
     { id: "mass", text: "Maß der Nutzung" },
     { id: "abstand", text: "Abstandsflächen" },
     { id: "dokumente", text: "Dokumente" },
@@ -281,20 +297,16 @@
               <div>{kundenname(k)} <span class="meta">({kategorieName(k.kategorie)}{k.telefon ? `, ${k.telefon}` : ""}{k.email ? `, ${k.email}` : ""})</span></div>
             {:else}–{/each}
           </dd>
+          <dt>Rechtsgrundlage</dt><dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
+          <dt>Bebauungsplan</dt><dd>{bebauungsplanName(projekt.planungsrecht.bebauungsplan_art)}{!["kein", "ungeklaert"].includes(projekt.planungsrecht.bebauungsplan_art) && projekt.planungsrecht.plan_bezeichnung ? ` · ${projekt.planungsrecht.plan_bezeichnung}` : ""}</dd>
           <dt>Angelegt</dt><dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
           <dt>Zuletzt geändert</dt><dd>{new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})</dd>
         </dl>
         <div class="knoepfe links">
           <button class="sekundaer" onclick={() => (dialog = "projektdaten")} disabled={!darf("bearbeitung")}>Bearbeiten …</button>
           <button class="sekundaer" onclick={() => (dialog = "bauherren")}>Bauherren …</button>
+          <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}>Rechtsgrundlagen …</button>
         </div>
-      </section>
-    {:else if ansicht === "mass"}
-      <section>
-        <h2>Maß der baulichen Nutzung</h2>
-        {#key `${projekt.id}:${projekt.grundstuecksflaeche_m2}`}
-          <MassDerNutzung grundstuecksflaeche={projekt.grundstuecksflaeche_m2} onfehler={melde} />
-        {/key}
       </section>
     {:else if ansicht === "abstand"}
       <section>
@@ -303,12 +315,25 @@
           <Abstandsflaeche startLand={projekt.bundesland} regelpakete={info?.regelpakete ?? []} onfehler={melde} />
         {/key}
       </section>
-    {:else if ansicht === "plaene"}
-      <section>
-        <h2>Pläne</h2>
-        <Plaene projektId={projekt.id} bind:dokumentId={planDokument} onflaeche={grundstuecksflaecheUebernehmen} onfehler={melde} />
-      </section>
     {/if}
+    <section hidden={ansicht !== "plaene"}>
+      <h2>Pläne</h2>
+      {#key projekt.id}
+        <Plaene bind:this={planEditor} {projekt} aktiv={ansicht === "plaene"} darf={darf("bearbeitung")} onprojekt={(p) => (projekt = p)} bind:dokumentId={planDokument} onflaeche={grundstuecksflaecheUebernehmen} onfehler={melde} />
+      {/key}
+    </section>
+    <section hidden={ansicht !== "mass"}>
+      <h2>Maß der baulichen Nutzung</h2>
+      {#key projekt.id}
+        <MassDerNutzung bind:this={nutzungsEditor} {projekt} darf={darf("bearbeitung")} onprojekt={(p) => (projekt = p)} onrechtsgrundlagen={() => (ansicht = "rechtsgrundlagen")} />
+      {/key}
+    </section>
+    <section hidden={ansicht !== "rechtsgrundlagen"}>
+      <h2>Rechtsgrundlagen und Eckdaten</h2>
+      {#key projekt.id}
+        <Rechtsgrundlagen bind:this={rechtsEditor} {projekt} darf={darf("bearbeitung")} onprojekt={(p) => (projekt = p)} />
+      {/key}
+    </section>
     <!-- Bleibt eingehängt, damit "Datei → Bauantrag als XBau exportieren" aus jeder Ansicht funktioniert. -->
     <section hidden={ansicht !== "bauantrag"}>
       <h2>Bauantrag (XBau)</h2>

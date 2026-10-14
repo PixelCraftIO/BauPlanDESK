@@ -370,6 +370,12 @@ impl CoreServices {
     pub async fn create_project(&self, project: NewProject, wer: &Benutzer) -> CoreResult<Project> {
         self.pruefe(wer, Recht::ProjektAnlegen).await?;
         validate_project(&project.name, project.grundstuecksflaeche_m2)?;
+        project.planungsrecht.validate()?;
+        if project.planungsrecht.baugrenzen.is_some() {
+            return Err(CoreError::InvalidInput(
+                "Baugrenzen erst einem angelegten Projekt zuordnen".into(),
+            ));
+        }
         let p = self.repos.projects.create(project).await?;
         self.protokollieren(
             wer,
@@ -397,6 +403,15 @@ impl CoreServices {
     ) -> CoreResult<Project> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         validate_project(&update.name, update.grundstuecksflaeche_m2)?;
+        if let Some(p) = &update.planungsrecht {
+            p.validate()?;
+            if let Some(g) = &p.baugrenzen {
+                let vorher = self.repos.projects.get(update.id).await?;
+                if vorher.planungsrecht.baugrenzen.as_ref() != Some(g) {
+                    self.pruefe_planbezug(update.id, g).await?;
+                }
+            }
+        }
         let p = self.repos.projects.update(update).await?;
         self.protokollieren(
             wer,
@@ -1214,6 +1229,48 @@ impl CoreServices {
     }
 
     // --- Berechnungen ---------------------------------------------------
+
+    async fn pruefe_planbezug(
+        &self,
+        projekt: ProjectId,
+        g: &crate::cad::baugrenzen::BaugrenzenGeometrie,
+    ) -> CoreResult<()> {
+        let d = self.repos.documents.latest(g.dokument_id).await?;
+        if d.project_id != projekt || d.version != g.dokument_version {
+            return Err(CoreError::InvalidInput("Der zugeordnete Plan gehört nicht zu diesem Projekt oder wurde geändert. Baugrenzen erneut zuordnen.".into()));
+        }
+        Ok(())
+    }
+
+    pub async fn projekt_nutzung_pruefen(
+        &self,
+        id: ProjectId,
+        eingabe: &crate::festsetzungen::NutzungsEingabe,
+    ) -> CoreResult<crate::festsetzungen::NutzungsPruefung> {
+        let p = self.repos.projects.get(id).await?;
+        if p.planungsrecht.baugrundstuecke.is_some() {
+            return Err(CoreError::InvalidInput(
+                "Für dieses Projekt die getrennten Baugrundstücksnachweise verwenden".into(),
+            ));
+        }
+        crate::festsetzungen::pruefe(eingabe, &p.planungsrecht, p.version)
+    }
+
+    pub async fn projekt_baugrundstuecke_pruefen(
+        &self,
+        projekt_id: ProjectId,
+        eingabe: &crate::baugrundstuecke::BaugrundstuecksPlan,
+    ) -> CoreResult<crate::baugrundstuecke::BaugrundstuecksPruefung> {
+        let p = self.get_project(projekt_id).await?;
+        eingabe.pruefe(&p.planungsrecht, p.version)
+    }
+
+    pub fn baugrenzen_pruefen(
+        &self,
+        g: &crate::cad::baugrenzen::BaugrenzenGeometrie,
+    ) -> CoreResult<crate::cad::baugrenzen::BaugrenzenPruefung> {
+        crate::cad::baugrenzen::pruefe(g)
+    }
 
     pub fn mass_der_nutzung(
         &self,

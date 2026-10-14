@@ -11,6 +11,7 @@
 //! stehen unter GPL. Pläne werden daher als DXF ausgetauscht, was jedes
 //! CAD-Programm exportieren kann.
 
+pub mod baugrenzen;
 pub mod dxf;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;

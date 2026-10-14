@@ -15,6 +15,7 @@ base64.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 hex.workspace = true
+geo.workspace = true
 dxf.workspace = true
 ed25519-dalek.workspace = true
 lopdf.workspace = true

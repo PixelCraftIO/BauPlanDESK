@@ -6,7 +6,7 @@
   // Zeichnet einen Plan auf ein Canvas und nimmt Aufmaßpunkte entgegen.
   // Gemessen wird nicht hier, sondern in core-lib (onaufmass → api.aufmass).
   import { onMount, untrack } from "svelte";
-  import type { Plan, Punkt } from "./api";
+  import type { Plan, Punkt, BaugrenzenGeometrie, BaugrenzenPruefung } from "./api";
 
   let {
     plan,
@@ -15,6 +15,8 @@
     onaufmass,
     onfertig,
     oncursor,
+    baugrenzen = null,
+    grenzpruefung = null,
   }: {
     plan: Plan;
     sichtbar: boolean[];
@@ -24,6 +26,8 @@
     /** Abgeschlossene Messung bzw. angeklickte geschlossene Linie. */
     onfertig: (punkte: Punkt[], geschlossen: boolean) => void;
     oncursor: (p: Punkt | null) => void;
+    baugrenzen?: BaugrenzenGeometrie | null;
+    grenzpruefung?: BaugrenzenPruefung | null;
   } = $props();
 
   let huelle: HTMLDivElement;
@@ -152,6 +156,27 @@
       }
       ctx.stroke();
     };
+    if (baugrenzen) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#1976d2";
+      ctx.setLineDash([6, 4]);
+      linie(baugrenzen.baufenster, true, false);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#8e24aa";
+      linie(baugrenzen.vorhaben, true, false);
+    }
+    if (grenzpruefung) {
+      ctx.strokeStyle = "#d32f2f";
+      ctx.fillStyle = "#d32f2f";
+      for (const f of grenzpruefung.aussenflaechen) {
+        ctx.beginPath();
+        for (const ring of [f.aussenring, ...f.innenringe]) {
+          ring.forEach((p,i) => { const [x,y] = nachBildschirm(p); if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+          ctx.closePath();
+        }
+        ctx.globalAlpha = 0.3; ctx.fill("evenodd"); ctx.globalAlpha = 1; ctx.stroke();
+      }
+    }
     ctx.strokeStyle = akzent;
     ctx.fillStyle = akzent;
     ctx.lineWidth = 2;
@@ -175,7 +200,7 @@
 
   // Neu zeichnen, wenn sich etwas Sichtbares ändert.
   $effect(() => {
-    void [pfade, sichtbar.join(), s, ox, oy, breite, hoehe, punkte, cursor, fang, markiert, werkzeug];
+    void [pfade, sichtbar.join(), s, ox, oy, breite, hoehe, punkte, cursor, fang, markiert, werkzeug, baugrenzen, grenzpruefung];
     zeichnen();
   });
 

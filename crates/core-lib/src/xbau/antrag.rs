@@ -354,6 +354,7 @@ pub(crate) mod tests {
             name: "MFH Lindenweg".into(),
             bundesland: Bundesland::By,
             grundstuecksflaeche_m2: Some(812.0),
+            planungsrecht: Default::default(),
             version: 1,
             created_at: Utc::now(),
             updated_at: Utc::now(),

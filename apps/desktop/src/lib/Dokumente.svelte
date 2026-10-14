@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { ask, open, save } from "@tauri-apps/plugin-dialog";
   import {
     api,
@@ -161,7 +162,7 @@
   });
 
   // Menü "Datei → Dokument importieren" zählt diesen Wert hoch.
-  let letzterAusloeser = 0;
+  let letzterAusloeser = untrack(() => importAusloeser);
   $effect(() => {
     if (importAusloeser > letzterAusloeser) {
       letzterAusloeser = importAusloeser;

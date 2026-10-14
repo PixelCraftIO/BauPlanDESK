@@ -31,6 +31,7 @@ async fn projekt(core: &CoreServices, name: &str) -> Project {
             name: name.into(),
             bundesland: Bundesland::By,
             grundstuecksflaeche_m2: None,
+            planungsrecht: Default::default(),
         },
         &chefin,
     )
