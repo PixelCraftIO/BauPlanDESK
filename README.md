@@ -5,6 +5,13 @@ BauGB/BauNVO und den 16 Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
 XBau-Export und DMS. Läuft als native Desktop-App (Einzelplatz), als
 NAS-/Büro-Server und optional in der Cloud.
 
+## Entwicklungsregeln
+
+[Verbindliche Regeln für eigenständige Fachmodule und stabile Schnittstellen](docs/entwicklungsregeln.md)
+legen fest, wie Berechnungen, Baugrundstücke, PDF-Formulare und weitere Features
+unabhängig erweitert werden. [AGENTS.md](AGENTS.md) verankert diese Regeln für
+Programmierarbeiten im Repository.
+
 ## Architektur
 
 ```
