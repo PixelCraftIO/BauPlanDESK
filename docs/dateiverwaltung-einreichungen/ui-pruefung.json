@@ -1,0 +1,20 @@
+{
+  "checks": [
+    "Excel-Datei gezielt suchen",
+    "Öffnen mit konkreter Dokumentversion",
+    "Externe Arbeitskopie und Änderungsprüfung",
+    "Konflikt erhält Arbeitskopie",
+    "Übernahme als neue Version",
+    "Vergleich eingereichter und geänderter Dateien",
+    "Neue/geänderte Auswahl",
+    "ZIP-Abbruch erhält Entwurf",
+    "Entwurf bei Bereichswechsel",
+    "Auswahl mit festem Versionstand",
+    "Exportfehler erhält gespeichertes Paket",
+    "ZIP erneut exportieren",
+    "Einreichungsdatum/Notiz ausdrücklich bestätigen",
+    "Empfängerwechsel sperrt veralteten Vergleich",
+    "Schmale Ansicht ohne Seitenüberlauf"
+  ],
+  "page_errors": []
+}

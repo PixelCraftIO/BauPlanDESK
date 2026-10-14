@@ -5,6 +5,13 @@ BauGB/BauNVO und den 16 Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
 XBau-Export und DMS. Läuft als native Desktop-App (Einzelplatz), als
 NAS-/Büro-Server und optional in der Cloud.
 
+## Entwicklungsregeln
+
+[Verbindliche Regeln für eigenständige Fachmodule und stabile Schnittstellen](docs/entwicklungsregeln.md)
+legen fest, wie Berechnungen, Baugrundstücke, PDF-Formulare und weitere Features
+unabhängig erweitert werden. [AGENTS.md](AGENTS.md) verankert diese Regeln für
+Programmierarbeiten im Repository.
+
 ## Architektur
 
 ```
@@ -46,6 +53,21 @@ apps/desktop               Svelte-Frontend
 apps/desktop/src-tauri     Tauri-App (Fenster, Updater, Bootstrap, Commands)
 lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
 ```
+
+## Projektdateien und Einreichungen
+
+[Dateiverwaltung und Einreichungschronik](docs/dateiverwaltung-einreichungen/README.md)
+ermöglichen das Öffnen von Projektdateien im zugeordneten Programm, die Übernahme
+externer Änderungen als neue Version und ZIP-Pakete mit festgehaltenen
+Unterlagenständen, Empfängervergleich und ausdrücklichem Einreichungsdatum.
+
+## PDF-Vorlagen und Projektablage
+
+[Bedienung, unterstützte Formulare und Ablagekonfiguration](docs/pdf-ablage/README.md)
+und [Modulverträge](docs/pdf-ablage/architektur.md) beschreiben eigene PDF-Felder,
+die automatische Eingabemaske, den PDF-Export und auswählbare Dateispeicher.
+Die [zentrale Formularbibliothek](docs/formularbibliothek/README.md) verwaltet
+PDF-Vorlagen projektunabhängig in einem eigenen lokalen oder freigegebenen Ordner.
 
 ## Entwicklung
 

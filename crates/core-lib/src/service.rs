@@ -127,7 +127,7 @@ impl CoreServices {
     /// Rolle prüfen und, für Änderungen an Projekten und Dokumenten, ob die
     /// Lizenz Schreiben erlaubt. Benutzerverwaltung und Lizenz einspielen
     /// bleiben auch ohne gültige Lizenz möglich, sonst käme man nie heraus.
-    async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
+    pub(crate) async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
         wer.pruefe(recht)?;
         let status = self.license.status().await?;
         if !status.schreiben_erlaubt {
@@ -436,7 +436,7 @@ impl CoreServices {
             .await
     }
 
-    async fn protokollieren(
+    pub(crate) async fn protokollieren(
         &self,
         wer: &Benutzer,
         aktion: Aktion,
@@ -1147,6 +1147,56 @@ impl CoreServices {
 
     // --- PDF-Formulare ---------------------------------------------------
 
+    /// Liefert einen backendunabhängigen Stand für lesbare Projektordner.
+    pub async fn projektordner_plan(
+        &self,
+        id: ProjectId,
+        historie: bool,
+    ) -> CoreResult<crate::projektablage::ProjektordnerPlan> {
+        let project = self.get_project(id).await?;
+        let docs = crate::projektablage::versionen(self.list_documents(id).await?, historie);
+        crate::projektablage::planen(&project, &docs)
+    }
+
+    /// Fügt benannte Felder einer wiederverwendbaren PDF-Vorlage hinzu.
+    /// Der PDF-Hintergrund und das importierte Original bleiben erhalten.
+    pub async fn formular_vorlage_erstellen(
+        &self,
+        id: DocumentId,
+        basis: i64,
+        felder: &[formular::editor::EigenesPdfFeld],
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        let (original, bytes) = self.load_document(id).await?;
+        if original.version != basis {
+            return Err(CoreError::VersionConflict {
+                expected: basis,
+                actual: original.version,
+            });
+        }
+        let pdf = formular::editor::felder_hinzufuegen(&bytes, felder)?;
+        let stamm = original
+            .file_name
+            .rsplit_once('.')
+            .map(|(s, _)| s)
+            .unwrap_or(&original.file_name);
+        self.ablegen(
+            original.project_id,
+            None,
+            None,
+            &format!("{stamm} (Vorlage).pdf"),
+            Bytes::from(pdf),
+            wer,
+            Aktion::DokumentAbgelegt,
+            &format!(
+                "; PDF-Vorlage aus {}, Version {}",
+                original.file_name, original.version
+            ),
+        )
+        .await
+    }
+
     /// Liest die Felder eines PDF-Formulars aus dem DMS und schlägt Werte aus
     /// den Projektdaten vor.
     pub async fn formular_analysieren(&self, id: DocumentId) -> CoreResult<FormularAnalyse> {
@@ -1186,8 +1236,26 @@ impl CoreServices {
         werte: &BTreeMap<String, Feldwert>,
         wer: &Benutzer,
     ) -> CoreResult<DocumentVersion> {
+        self.formular_ausfuellen_version(id, werte, None, wer).await
+    }
+
+    pub async fn formular_ausfuellen_version(
+        &self,
+        id: DocumentId,
+        werte: &BTreeMap<String, Feldwert>,
+        basis: Option<i64>,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
         self.pruefe(wer, Recht::DokumentAblegen).await?;
         let (original, pdf) = self.load_document(id).await?;
+        if let Some(b) = basis
+            && b != original.version
+        {
+            return Err(CoreError::VersionConflict {
+                expected: b,
+                actual: original.version,
+            });
+        }
         let ausgefuellt = formular::pdf::befuellen(&pdf, werte)?;
         let stamm = original
             .file_name

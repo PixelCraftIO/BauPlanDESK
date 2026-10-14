@@ -12,6 +12,7 @@ name = "bauprojekt-server"
 path = "src/main.rs"
 
 [dependencies]
+chrono.workspace = true
 axum.workspace = true
 core-lib.workspace = true
 db-postgres.workspace = true
@@ -25,6 +26,7 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
 async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true

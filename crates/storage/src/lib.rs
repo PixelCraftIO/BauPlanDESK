@@ -3,7 +3,12 @@
 //! Welche verwendet wird, entscheidet allein die [`StorageConfig`] der
 //! jeweiligen Installation – core-lib sieht immer nur `Arc<dyn Storage>`.
 
+pub mod arbeitskopie;
+pub mod formularbibliothek;
 mod local;
+pub mod projekt_export;
+mod wechselbar;
+pub use wechselbar::WechselbareAblage;
 #[cfg(feature = "s3")]
 mod s3;
 

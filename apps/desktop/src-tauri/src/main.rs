@@ -1,9 +1,12 @@
 // Unter Windows kein zusätzliches Konsolenfenster im Release-Build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod bibliothek;
 mod bootstrap;
 mod commands;
 mod config;
+mod dateien;
+mod einreichungen;
 mod lizenzdienst;
 mod menu;
 mod updater;
@@ -47,6 +50,24 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            dateien::dokument_extern_oeffnen,
+            dateien::arbeitskopien,
+            einreichungen::einreichungen,
+            einreichungen::einreichungs_vergleich,
+            einreichungen::einreichung_erstellen,
+            einreichungen::einreichung_bestaetigen,
+            einreichungen::einreichung_exportieren,
+            dateien::arbeitskopie_oeffnen,
+            dateien::arbeitskopie_uebernehmen,
+            bibliothek::formularbibliothek,
+            bibliothek::formularordner_waehlen,
+            bibliothek::bibliothek_importieren,
+            bibliothek::bibliothek_uebernehmen,
+            bibliothek::bibliothek_vorschau,
+            bibliothek::bibliothek_veroeffentlichen,
+            commands::ablage_status,
+            commands::ablage_wechseln,
+            commands::projektordner_exportieren,
             commands::projekte_auflisten,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
@@ -86,6 +107,8 @@ fn main() {
             commands::xbau_codelisten,
             commands::xbau_exportieren,
             commands::formular_analysieren,
+            commands::pdf_vorschau,
+            commands::formular_vorlage_erstellen,
             commands::formular_ausfuellen,
             commands::cad_plan,
             commands::aufmass,

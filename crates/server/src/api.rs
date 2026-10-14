@@ -75,6 +75,24 @@ pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
             "/api/dokumente/{id}/formular",
             get(formular_analysieren).post(formular_ausfuellen),
         )
+        .route(
+            "/api/dokumente/{id}/vorlage",
+            post(formular_vorlage_erstellen),
+        )
+        .route(
+            "/api/projekte/{id}/einreichungen",
+            get(einreichungen).post(einreichung_erstellen),
+        )
+        .route(
+            "/api/projekte/{id}/einreichungsvergleich",
+            get(einreichungsvergleich),
+        )
+        .route(
+            "/api/einreichungen/{id}/bestaetigen",
+            post(einreichung_bestaetigen),
+        )
+        .route("/api/einreichungen/{id}/zip", get(einreichung_zip))
+        .route("/api/projekte/{id}/projektordner", get(projektordner_plan))
         .route("/api/projekte/{id}/protokoll", get(protokoll))
         .route(
             "/api/projekte/{id}/bauherren",
@@ -146,6 +164,21 @@ async fn update_project(
     Ok(Json(project))
 }
 
+#[derive(Deserialize)]
+struct ProjektordnerQuery {
+    #[serde(default)]
+    historie: bool,
+}
+async fn projektordner_plan(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<ProjektordnerQuery>,
+) -> ApiResult<core_lib::projektablage::ProjektordnerPlan> {
+    Ok(Json(
+        core.projektordner_plan(ProjectId(id), q.historie).await?,
+    ))
+}
+
 async fn formular_analysieren(
     State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
@@ -153,13 +186,37 @@ async fn formular_analysieren(
     Ok(Json(core.formular_analysieren(DocumentId(id)).await?))
 }
 
+#[derive(Deserialize)]
+struct VorlageRequest {
+    basis: i64,
+    felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
+}
+async fn formular_vorlage_erstellen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<VorlageRequest>,
+) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(
+            core.formular_vorlage_erstellen(DocumentId(id), body.basis, &body.felder, &akteur)
+                .await?,
+        ),
+    ))
+}
+
+#[derive(Deserialize)]
+struct FormularStandQuery {
+    basis: Option<i64>,
+}
 async fn formular_ausfuellen(
     State(ApiState { core, akteur }): State<ApiState>,
     Path(id): Path<Uuid>,
+    Query(stand): Query<FormularStandQuery>,
     Json(werte): Json<BTreeMap<String, Feldwert>>,
 ) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
     let version = core
-        .formular_ausfuellen(DocumentId(id), &werte, &akteur)
+        .formular_ausfuellen_version(DocumentId(id), &werte, stand.basis, &akteur)
         .await?;
     Ok((StatusCode::CREATED, Json(version)))
 }
@@ -454,4 +511,74 @@ async fn baugrenzen_pruefen(
     Json(g): Json<core_lib::cad::baugrenzen::BaugrenzenGeometrie>,
 ) -> ApiResult<core_lib::cad::baugrenzen::BaugrenzenPruefung> {
     Ok(Json(core.baugrenzen_pruefen(&g)?))
+}
+
+async fn einreichungen(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::einreichung::Einreichung>> {
+    Ok(Json(core.einreichungen(ProjectId(id)).await?))
+}
+#[derive(Deserialize)]
+struct EmpfaengerQuery {
+    empfaenger: String,
+}
+async fn einreichungsvergleich(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<EmpfaengerQuery>,
+) -> ApiResult<Vec<core_lib::einreichung::DokumentVergleich>> {
+    Ok(Json(
+        core.einreichungs_vergleich(ProjectId(id), &q.empfaenger)
+            .await?,
+    ))
+}
+async fn einreichung_erstellen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(p): Json<core_lib::einreichung::NeuesPaket>,
+) -> Result<(StatusCode, Json<core_lib::einreichung::Einreichung>), ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(
+            core.einreichung_erstellen(ProjectId(id), p, &akteur)
+                .await?,
+        ),
+    ))
+}
+#[derive(Deserialize)]
+struct Bestaetigung {
+    basis: i64,
+    datum: chrono::NaiveDate,
+    notiz: String,
+}
+async fn einreichung_bestaetigen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(b): Json<Bestaetigung>,
+) -> ApiResult<core_lib::einreichung::Einreichung> {
+    Ok(Json(
+        core.einreichung_bestaetigen(id, b.basis, b.datum, b.notiz, &akteur)
+            .await?,
+    ))
+}
+async fn einreichung_zip(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    let (_, bytes) = core.einreichung_zip(id).await?;
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/zip".to_string(),
+            ),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"Einreichung-{id}.zip\""),
+            ),
+        ],
+        bytes,
+    )
+        .into_response())
 }

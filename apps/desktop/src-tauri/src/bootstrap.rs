@@ -11,7 +11,6 @@ use core_lib::lbo::LboEngine;
 use core_lib::license::{AboAnbindung, DatenbankLizenz, Lizenzpruefer};
 use core_lib::storage::Storage;
 use core_lib::xbau::Codelisten;
-use storage::StorageConfig;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
@@ -28,6 +27,8 @@ pub struct AppState {
     pub config: AppConfig,
     /// Nur im Netzwerkmodus vorhanden.
     pub cache: Option<Arc<CachedStorage>>,
+    pub formularordner: tokio::sync::RwLock<std::path::PathBuf>,
+    pub lokale_ablage: Option<Arc<storage::WechselbareAblage>>,
 }
 
 impl AppState {
@@ -53,13 +54,18 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     let config = AppConfig::load(&config_dir)?;
     tracing::info!(modus = config.name(), "BauProjektIO startet");
 
-    let (repos, storage, cache): (_, Arc<dyn Storage>, _) = match &config {
+    let (repos, storage, cache, lokale_ablage): (_, Arc<dyn Storage>, _, _) = match &config {
         AppConfig::Einzelplatz => {
             let db = db_sqlite::SqliteDatabase::open(&data_dir.join("bauprojekt.db")).await?;
-            let storage = storage::build(&StorageConfig::Local {
-                root: data_dir.join("dateien"),
-            })?;
-            (db.repositories(), storage, None)
+            let auswahl =
+                crate::config::DateiablageConfig::load(&config_dir, data_dir.join("dateien"))?;
+            let ablage = Arc::new(storage::WechselbareAblage::new(auswahl.root)?);
+            (
+                db.repositories(),
+                ablage.clone() as Arc<dyn Storage>,
+                None,
+                Some(ablage),
+            )
         }
         AppConfig::Netzwerk {
             database_url,
@@ -75,9 +81,28 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
                 db.repositories(),
                 cache.clone() as Arc<dyn Storage>,
                 Some(cache),
+                None,
             )
         }
     };
+
+    let standard_formulare = match &config {
+        AppConfig::Netzwerk {
+            storage: storage::StorageConfig::Nas { root },
+            ..
+        }
+        | AppConfig::Netzwerk {
+            storage: storage::StorageConfig::Local { root },
+            ..
+        } => root.join("Formulare"),
+        _ => data_dir.join("Formularvorlagen"),
+    };
+    let formularordner = crate::config::DateiablageConfig::load_named(
+        &config_dir,
+        standard_formulare,
+        "formularbibliothek.json",
+    )?
+    .root;
 
     let lbo = Arc::new(init_lbo(app, &data_dir)?);
 
@@ -134,6 +159,8 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         arbeitsplatz,
         config,
         cache,
+        lokale_ablage,
+        formularordner: tokio::sync::RwLock::new(formularordner),
     })
 }
 

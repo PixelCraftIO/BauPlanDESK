@@ -66,12 +66,10 @@ pub(crate) fn text_dekodieren(bytes: &[u8]) -> String {
     }
 }
 
-/// Kodiert als PDFDocEncoding, wenn möglich, sonst als UTF-16BE mit BOM.
+/// ASCII ist direkt verwendbar; sonst UTF-16BE mit BOM, um abweichende
+/// PDFDocEncoding-Zuordnungen (z. B. NBSP) nicht falsch zu schreiben.
 pub(crate) fn text_kodieren(text: &str) -> Object {
-    let bytes = if text
-        .chars()
-        .all(|c| (c as u32) < 0x80 || ('\u{A0}'..='\u{FF}').contains(&c))
-    {
+    let bytes = if text.is_ascii() {
         text.chars().map(|c| c as u8).collect()
     } else {
         let mut b = vec![0xFE, 0xFF];
@@ -222,7 +220,7 @@ fn feldart(k: &Knoten) -> Feldart {
     }
 }
 
-fn lade(pdf: &[u8]) -> CoreResult<Document> {
+pub(super) fn lade(pdf: &[u8]) -> CoreResult<Document> {
     let doc = Document::load_mem(pdf).map_err(pdf_err)?;
     if doc.is_encrypted() {
         return Err(CoreError::InvalidInput(
@@ -230,6 +228,29 @@ fn lade(pdf: &[u8]) -> CoreResult<Document> {
         ));
     }
     Ok(doc)
+}
+
+/// Änderungen würden bestehende digitale Signaturen ungültig machen.
+/// Leere Signaturfelder bleiben dagegen als Teil der Vorlage erhalten.
+pub(super) fn bearbeitbar(doc: &Document) -> CoreResult<()> {
+    if doc.objects.values().any(|o| {
+        o.as_dict()
+            .ok()
+            .is_some_and(|d| d.has(b"ByteRange") && d.has(b"Contents"))
+    }) {
+        return Err(pdf_err(
+            "Das PDF ist digital signiert. Bitte eine unsignierte Vorlage verwenden.",
+        ));
+    }
+    if let Ok(acro) = doc.catalog().map_err(pdf_err)?.get(b"AcroForm") {
+        let (_, a) = doc.dereference(acro).map_err(pdf_err)?;
+        if a.as_dict().map_err(pdf_err)?.has(b"XFA") {
+            return Err(pdf_err(
+                "XFA-Formulare werden nicht unterstützt. Bitte eine Standard-PDF-/AcroForm-Version verwenden.",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Liest alle Formularfelder eines PDF.
@@ -309,7 +330,67 @@ pub fn felder_lesen(pdf: &[u8]) -> CoreResult<Vec<Formularfeld>> {
 /// eingereicht wird.
 pub fn befuellen(pdf: &[u8], werte: &BTreeMap<String, Feldwert>) -> CoreResult<Vec<u8>> {
     let mut doc = lade(pdf)?;
+    bearbeitbar(&doc)?;
     let knoten = felder_sammeln(&doc)?;
+    let unicode_texte: Vec<&str> = werte
+        .iter()
+        .filter_map(|(name, wert)| {
+            let k = knoten.iter().find(|k| &k.name == name)?;
+            if !dict(&doc, k.id)
+                .ok()?
+                .get(b"BauProjektIOFeld")
+                .ok()?
+                .as_bool()
+                .ok()?
+            {
+                return None;
+            }
+            match wert {
+                Feldwert::Text(t) => Some(t.as_str()),
+                _ => None,
+            }
+        })
+        .collect();
+    let unicode_font = if unicode_texte.is_empty() {
+        None
+    } else {
+        Some(super::schrift::einbetten(&mut doc, &unicode_texte)?)
+    };
+    // Also register the embedded font as a field default. Mixed documents may
+    // request native appearance regeneration for unchanged third-party widgets.
+    if let Some(font) = unicode_font {
+        let mut acro = doc
+            .dereference(
+                doc.catalog()
+                    .map_err(pdf_err)?
+                    .get(b"AcroForm")
+                    .map_err(pdf_err)?,
+            )
+            .map_err(pdf_err)?
+            .1
+            .as_dict()
+            .map_err(pdf_err)?
+            .clone();
+        let mut dr = acro
+            .get(b"DR")
+            .ok()
+            .and_then(|o| doc.dereference(o).ok())
+            .and_then(|(_, o)| o.as_dict().ok())
+            .cloned()
+            .unwrap_or_default();
+        let mut fonts = dr
+            .get(b"Font")
+            .ok()
+            .and_then(|o| doc.dereference(o).ok())
+            .and_then(|(_, o)| o.as_dict().ok())
+            .cloned()
+            .unwrap_or_default();
+        fonts.set("BauUnicode", font);
+        dr.set("Font", fonts);
+        acro.set("DR", dr);
+        doc.catalog_mut().map_err(pdf_err)?.set("AcroForm", acro);
+    }
+    let mut need_appearances = false;
     for (name, wert) in werte {
         let k = knoten.iter().find(|k| &k.name == name).ok_or_else(|| {
             CoreError::InvalidInput(format!("Formularfeld {name:?} existiert nicht"))
@@ -337,7 +418,45 @@ pub fn befuellen(pdf: &[u8], werte: &BTreeMap<String, Feldwert>) -> CoreResult<V
                     .set("V", text_kodieren(t));
                 // Alte Darstellung verwerfen, damit Viewer den neuen Wert zeichnen.
                 for w in &k.widgets {
-                    doc.get_dictionary_mut(*w).map_err(pdf_err)?.remove(b"AP");
+                    let widget = dict(&doc, *w)?;
+                    if widget
+                        .get(b"BauProjektIOFeld")
+                        .and_then(Object::as_bool)
+                        .unwrap_or(false)
+                    {
+                        let rect = widget
+                            .get(b"Rect")
+                            .map_err(pdf_err)?
+                            .as_array()
+                            .map_err(pdf_err)?;
+                        let values: Vec<f32> = rect
+                            .iter()
+                            .map(|v| v.as_float().map_err(pdf_err))
+                            .collect::<CoreResult<_>>()?;
+                        let size = widget
+                            .get(b"BauProjektIOSchrift")
+                            .and_then(Object::as_float)
+                            .unwrap_or(10.0);
+                        let font = unicode_font.ok_or_else(|| pdf_err("Schrift fehlt"))?;
+                        doc.get_dictionary_mut(*w).map_err(pdf_err)?.set(
+                            "DA",
+                            Object::string_literal(format!("/BauUnicode {size} Tf 0 g")),
+                        );
+                        let ap = super::schrift::darstellung(
+                            &mut doc,
+                            t,
+                            values[2] - values[0],
+                            values[3] - values[1],
+                            size,
+                            font,
+                        )?;
+                        doc.get_dictionary_mut(*w)
+                            .map_err(pdf_err)?
+                            .set("AP", lopdf::dictionary! {"N"=>ap});
+                    } else {
+                        need_appearances = true;
+                        doc.get_dictionary_mut(*w).map_err(pdf_err)?.remove(b"AP");
+                    }
                 }
             }
             (Feldart::Ankreuzfeld, Feldwert::Ja(an)) => {
@@ -406,10 +525,10 @@ pub fn befuellen(pdf: &[u8], werte: &BTreeMap<String, Feldwert>) -> CoreResult<V
         Object::Reference(id) => {
             doc.get_dictionary_mut(id)
                 .map_err(pdf_err)?
-                .set("NeedAppearances", true);
+                .set("NeedAppearances", need_appearances);
         }
         Object::Dictionary(mut d) => {
-            d.set("NeedAppearances", true);
+            d.set("NeedAppearances", need_appearances);
             doc.catalog_mut().map_err(pdf_err)?.set("AcroForm", d);
         }
         _ => {}

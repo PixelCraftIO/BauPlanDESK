@@ -2,10 +2,10 @@
 Requires Python Playwright and Chromium; test IPC is injected before app startup.
 """
 from pathlib import Path
-import json
+import json, os
 from playwright.sync_api import sync_playwright, expect
 root=Path(__file__).resolve().parent
-out=root.parents[2]/'docs/ui-umsetzung'
+out=Path(os.environ.get('BAUPROJEKT_UI_ARTEFAKTE',str(root.parents[2]/'docs/ui-umsetzung')))
 out.mkdir(exist_ok=True)
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='Wohnbebauung Lindenweg'
 errors=[];checks=[]
@@ -14,7 +14,7 @@ with sync_playwright() as p:
  page=browser.new_page(viewport={'width':1440,'height':1000})
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text())
- page.goto('http://127.0.0.1:1430')
+ page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1430'))
  def active():return page.locator('.projekt-sitzung:visible')
  def view(name):page.locator('.aktennavigation').get_by_role('button',name=name,exact=True).click()
  def tab(name):page.locator('.tab-auswahl').filter(has_text=name).click()
@@ -109,7 +109,7 @@ with sync_playwright() as p:
  reader=browser.new_page(viewport={'width':1024,'height':768})
  reader.on('pageerror',lambda e:errors.append(str(e)))
  reader.add_init_script('window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text()+';window.testUser.rolle="lesen";')
- reader.goto('http://127.0.0.1:1430')
+ reader.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1430'))
  reader.locator('.projekttabelle').get_by_role('button',name='Wohnbebauung Lindenweg',exact=True).click()
  reader.locator('.aktennavigation').get_by_role('button',name='Rechtsgrundlagen',exact=True).click()
  assert reader.locator('.projekt-sitzung:visible').get_by_label('Planbezeichnung',exact=True).is_disabled()

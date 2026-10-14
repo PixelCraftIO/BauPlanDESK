@@ -57,6 +57,16 @@ window.__TAURI_INTERNALS__ = {
     }
     if (cmd === "plugin:dialog|save" || cmd === "plugin:dialog|open")
       return null;
+    if (cmd === "arbeitskopien") return [];
+    if (cmd === "einreichungen") return [];
+    if (cmd === "ablage_status")
+      return {
+        modus: "Einzelplatz",
+        root: "/tmp/BauProjektIO",
+        datenbank: "/tmp/bauprojekt.db",
+        wechsel_erlaubt: window.testUser.rolle === "administrator",
+        hinweis: "Testablage",
+      };
     if (cmd === "app_info")
       return {
         version: "0.1.0",

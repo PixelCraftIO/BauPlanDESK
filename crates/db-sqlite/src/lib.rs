@@ -1,5 +1,7 @@
 //! SQLite-Backend für die Einzelplatz-Version.
 
+mod einreichungen;
+
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -66,6 +68,7 @@ impl SqliteDatabase {
     pub fn repositories(&self) -> Repositories {
         let this = Arc::new(self.clone());
         Repositories {
+            einreichungen: this.clone(),
             projects: this.clone(),
             documents: this.clone(),
             benutzer: this.clone(),

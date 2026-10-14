@@ -16,6 +16,7 @@
   import { reiter, type Ansicht } from "./projektSitzung";
   import Abstandsflaeche from "./Abstandsflaeche.svelte";
   import Bauantrag from "./Bauantrag.svelte";
+  import Einreichungen from "./Einreichungen.svelte";
   import Dokumente from "./Dokumente.svelte";
   import MassDerNutzung from "./MassDerNutzung.svelte";
   import Plaene from "./Plaene.svelte";
@@ -50,6 +51,11 @@
   let nutzungsEditor = $state<MassDerNutzung>();
   let rechtsEditor = $state<Rechtsgrundlagen>();
   let antragEditor = $state<Bauantrag>();
+  let einreichungsEditor = $state<Einreichungen>();
+  let einreichungenBesucht = $state(false);
+  $effect(() => {
+    if (ansicht === "einreichungen") einreichungenBesucht = true;
+  });
   let dokumentEditor = $state<Dokumente>();
   let bauherren = $state<Kunde[]>([]);
   let fehler = $state<string | null>(null);
@@ -65,11 +71,15 @@
         .catch(melde),
     );
   });
+  export async function dokumenteAktualisieren() {
+    await dokumentEditor?.aktualisieren();
+  }
   export function hatAenderungen() {
     return !!(
       planEditor?.hatAenderungen() ||
       nutzungsEditor?.hatAenderungen() ||
       rechtsEditor?.hatAenderungen() ||
+      einreichungsEditor?.hatAenderungen() ||
       antragEditor?.hatAenderungen()
     );
   }
@@ -79,11 +89,18 @@
       nutzungsEditor?.istBeschaeftigt() ||
       rechtsEditor?.istBeschaeftigt() ||
       antragEditor?.istBeschaeftigt() ||
+      einreichungsEditor?.istBeschaeftigt() ||
       dokumentEditor?.istBeschaeftigt()
     );
   }
   export async function speichern(): Promise<boolean> {
     if (istBeschaeftigt()) return false;
+    if (einreichungsEditor?.hatAenderungen()) {
+      ansicht = "einreichungen";
+      fehler =
+        "Die Einreichungsauswahl zuerst als Paket festhalten oder beim Schließen ausdrücklich verwerfen. Einreichungsdaten werden im eigenen Bereich bestätigt.";
+      return false;
+    }
     const editoren: {
       editor:
         | typeof rechtsEditor
@@ -296,6 +313,14 @@
       <Protokoll projektId={projekt.id} />
     </section>
   {/if}
+  {#if einreichungenBesucht}<section hidden={ansicht !== "einreichungen"}>
+      <Einreichungen
+        bind:this={einreichungsEditor}
+        projektId={projekt.id}
+        darfAblegen={darf("bearbeitung")}
+        onfehler={melde}
+      />
+    </section>{/if}
   <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
   <section hidden={ansicht !== "dokumente"}>
     <h2>Dokumente</h2>

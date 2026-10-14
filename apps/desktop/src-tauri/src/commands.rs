@@ -227,16 +227,57 @@ pub async fn formular_analysieren(
     Ok(state.core.formular_analysieren(dokument_id).await?)
 }
 
+#[derive(Serialize)]
+pub struct PdfVorschau {
+    dokument: DocumentVersion,
+    pdf_base64: String,
+    seiten: Vec<core_lib::formular::editor::PdfSeite>,
+    felder: Vec<core_lib::formular::Formularfeld>,
+}
+#[tauri::command]
+pub async fn pdf_vorschau(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    version: Option<i64>,
+) -> CmdResult<PdfVorschau> {
+    use base64::Engine;
+    let (dokument, pdf) = match version {
+        Some(v) => state.core.load_version(dokument_id, v).await?,
+        None => state.core.load_document(dokument_id).await?,
+    };
+    let seiten = core_lib::formular::editor::seiten(&pdf)?;
+    let felder = core_lib::formular::pdf::felder_lesen(&pdf)?;
+    Ok(PdfVorschau {
+        dokument,
+        pdf_base64: base64::engine::general_purpose::STANDARD.encode(&pdf),
+        seiten,
+        felder,
+    })
+}
+#[tauri::command]
+pub async fn formular_vorlage_erstellen(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    basis: i64,
+    felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
+) -> CmdResult<DocumentVersion> {
+    Ok(state
+        .core
+        .formular_vorlage_erstellen(dokument_id, basis, &felder, &state.benutzer())
+        .await?)
+}
+
 /// Befüllt das Formular und legt es als neues Dokument im Projekt ab.
 #[tauri::command]
 pub async fn formular_ausfuellen(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
     werte: BTreeMap<String, Feldwert>,
+    basis: Option<i64>,
 ) -> CmdResult<DocumentVersion> {
     Ok(state
         .core
-        .formular_ausfuellen(dokument_id, &werte, &state.benutzer())
+        .formular_ausfuellen_version(dokument_id, &werte, basis, &state.benutzer())
         .await?)
 }
 
@@ -606,4 +647,116 @@ pub fn baugrenzen_pruefen(
     geometrie: core_lib::cad::baugrenzen::BaugrenzenGeometrie,
 ) -> CmdResult<core_lib::cad::baugrenzen::BaugrenzenPruefung> {
     Ok(state.core.baugrenzen_pruefen(&geometrie)?)
+}
+
+#[derive(Serialize)]
+pub struct AblageStatus {
+    modus: &'static str,
+    pub root: Option<String>,
+    datenbank: String,
+    wechsel_erlaubt: bool,
+    hinweis: String,
+}
+#[tauri::command]
+pub async fn ablage_status(app: AppHandle, state: State<'_, AppState>) -> CmdResult<AblageStatus> {
+    let root = if let Some(a) = &state.lokale_ablage {
+        Some(a.root().await.to_string_lossy().into_owned())
+    } else {
+        match &state.config {
+            crate::config::AppConfig::Netzwerk {
+                storage:
+                    storage::StorageConfig::Local { root } | storage::StorageConfig::Nas { root },
+                ..
+            } => Some(root.to_string_lossy().into_owned()),
+            _ => None,
+        }
+    };
+    let lokale_db = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| CmdError {
+            art: "datei",
+            meldung: e.to_string(),
+        })?
+        .join("bauprojekt.db");
+    Ok(AblageStatus{modus:state.config.name(),root,datenbank:if state.lokale_ablage.is_some(){lokale_db.display().to_string()}else{"Gemeinsame PostgreSQL-Datenbank (Zugang in der Büro-Konfiguration)".into()},wechsel_erlaubt:state.lokale_ablage.is_some()&&state.benutzer().rolle==core_lib::benutzer::Rolle::Administrator,hinweis:if state.lokale_ablage.is_some(){"Der Wechsel kopiert alle DMS-Dateiversionen mit Hash-Prüfung. Die bisherige Ablage bleibt als Sicherung erhalten. Die Projektdatenbank bleibt an ihrem bisherigen Ort. Eine Freigabe allein macht daraus noch keinen Mehrbenutzerbetrieb."}else{"Gemeinsame Ablage und Datenbank sind zentral in config.json konfiguriert. Ein abweichender Ordner je Arbeitsplatz würde gemeinsame Dokumente unerreichbar machen."}.into()})
+}
+#[tauri::command]
+pub async fn ablage_wechseln(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pfad: PathBuf,
+) -> CmdResult<usize> {
+    state
+        .benutzer()
+        .pruefe(core_lib::benutzer::Recht::BenutzerVerwalten)?;
+    let a = state.lokale_ablage.as_ref().ok_or_else(|| {
+        CoreError::InvalidInput("Im Netzwerkmodus wird die Ablage zentral konfiguriert".into())
+    })?;
+    let dir = app.path().app_config_dir().map_err(|e| CmdError {
+        art: "datei",
+        meldung: e.to_string(),
+    })?;
+    Ok(a.wechseln(&pfad, |root| {
+        crate::config::DateiablageConfig {
+            root: root.to_path_buf(),
+        }
+        .save(&dir)
+        .map_err(CoreError::Storage)
+    })
+    .await?)
+}
+#[derive(Serialize)]
+pub struct ProjektordnerExport {
+    ordner: String,
+    dateien: usize,
+    neu: usize,
+}
+#[tauri::command]
+pub async fn projektordner_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ziel: PathBuf,
+    historie: bool,
+) -> CmdResult<ProjektordnerExport> {
+    if !ziel.is_absolute() {
+        return Err(CoreError::InvalidInput("Absoluten Zielordner wählen".into()).into());
+    }
+    let plan = state.core.projektordner_plan(projekt_id, historie).await?;
+    let mut neu = 0;
+    for f in &plan.dateien {
+        let (_, data) = state
+            .core
+            .load_version(f.dokument.document_id, f.dokument.version)
+            .await?;
+        let hash = f.dokument.sha256.clone();
+        if storage::projekt_export::unveraenderlich_schreiben(
+            &ziel,
+            &format!("{}/{}", plan.ordner, f.relativer_pfad),
+            &data,
+            &hash,
+        )
+        .await?
+        {
+            neu += 1;
+        }
+    }
+    // Each export manifest has its own name; previous snapshots are retained.
+    let manifest = serde_json::to_vec_pretty(&plan).map_err(|e| CmdError {
+        art: "datei",
+        meldung: e.to_string(),
+    })?;
+    let path = format!("{}/Projektstand-{}.json", plan.ordner, uuid::Uuid::new_v4());
+    storage::projekt_export::unveraenderlich_schreiben(
+        &ziel,
+        &path,
+        &manifest,
+        &core_lib::storage::ContentHash::of(&manifest),
+    )
+    .await?;
+    Ok(ProjektordnerExport {
+        ordner: ziel.join(&plan.ordner).display().to_string(),
+        dateien: plan.dateien.len(),
+        neu,
+    })
 }

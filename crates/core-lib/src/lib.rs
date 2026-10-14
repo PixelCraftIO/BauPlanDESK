@@ -15,7 +15,9 @@ pub mod baunvo;
 pub mod benutzer;
 pub mod cad;
 pub mod calc;
+pub mod dateiverwaltung;
 pub mod domain;
+pub mod einreichung;
 pub mod error;
 pub mod festsetzungen;
 pub mod flaechen;
@@ -32,3 +34,5 @@ pub mod xbau;
 
 pub use error::{CoreError, CoreResult};
 pub use service::CoreServices;
+
+pub mod projektablage;
