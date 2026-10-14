@@ -21,3 +21,27 @@ python apps/desktop/tests/projekttabs.py
 Die Tests prüfen getrennte Entwürfe, Dirty-Markierungen, Hintergrundtab schließen, verzögertes Speichern, Bauantragsdaten, Beenden, native Menüauslöser, leere Suchergebnisse, Leserrechte und schmale Fenster. Aufnahmen und Prüfergebnis werden unter `docs/ui-umsetzung` geschrieben. Die JSON-Fixture enthält ausschließlich lokale Beispieldaten.
 
 Diese Suite überprüft die UI und ihre IPC-Zuordnung. Backend-Berechnungen und Persistenz werden durch die vorhandenen Rust-Tests überprüft; eine native Desktop-Probe ergänzt die UI-Tests.
+
+
+## PDF-Vorlagen und Dateiablage
+
+Mit dem Rust-Integrationstest zuerst echte PDFs und DMS-Metadaten erzeugen:
+
+```sh
+BAUPROJEKT_PDF_ARTEFAKTE=/tmp/bauprojekt-pdf cargo test -p storage --test formular_workflow --locked
+```
+
+Dann den Produktionsbuild wie oben bereitstellen und prüfen:
+
+```sh
+BAUPROJEKT_PDF_ARTEFAKTE=/tmp/bauprojekt-pdf BAUPROJEKT_UI_URL=http://127.0.0.1:1430 python apps/desktop/tests/pdf-ablage.py
+```
+
+Dieser UI-Test verwendet den echten PDF.js-Worker mit den erzeugten PDFs; nur die
+Tauri-Aufrufe für die Bedienaktionen sind kontrolliert. Der Rust-Test prüft den
+gesamten PDF-/DMS-/Ablagepfad mit SQLite und echten Dateisystemen. Screenshots und
+Protokoll liegen unter `docs/pdf-ablage`.
+
+`BAUPROJEKT_UI_URL` kann auch für `projekttabs.py` gesetzt werden.
+`BAUPROJEKT_UI_ARTEFAKTE` legt dort einen alternativen Ausgabeordner fest, damit
+frühere Dokumentationsaufnahmen beim erneuten Testen erhalten bleiben.

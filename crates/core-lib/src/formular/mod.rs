@@ -7,7 +7,9 @@
 //!   wie die LBO-Regelpakete ohne Neukompilierung aktualisiert werden, wenn
 //!   ein Land sein Formular ändert.
 
+pub mod editor;
 pub mod pdf;
+mod schrift;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;
 pub mod vorlage;

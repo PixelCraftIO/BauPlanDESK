@@ -54,6 +54,12 @@ apps/desktop/src-tauri     Tauri-App (Fenster, Updater, Bootstrap, Commands)
 lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
 ```
 
+## PDF-Vorlagen und Projektablage
+
+[Bedienung, unterstützte Formulare und Ablagekonfiguration](docs/pdf-ablage/README.md)
+und [Modulverträge](docs/pdf-ablage/architektur.md) beschreiben eigene PDF-Felder,
+die automatische Eingabemaske, den PDF-Export und auswählbare Dateispeicher.
+
 ## Entwicklung
 
 Voraussetzungen: Rust (stable, ≥ 1.90), Node.js 22, unter Linux zusätzlich

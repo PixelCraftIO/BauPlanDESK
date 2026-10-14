@@ -1366,3 +1366,124 @@ dialog h2 {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--panel));
 }
+/* PDF-Felder, Vorschau und wiederverwendbare Vorlagen. */
+dialog:has(.pdf-arbeitsplatz) {
+  width: min(1280px, 96vw);
+  max-height: 94dvh;
+}
+.pdf-arbeitsplatz {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: 24px;
+  align-items: start;
+}
+.pdf-vorschau-spalte {
+  min-width: 0;
+}
+.pdf-render-area {
+  width: 100%;
+  overflow: auto;
+  background: #e5eaed;
+  padding: 10px;
+  min-height: 150px;
+}
+.pdf-seite {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: white;
+  line-height: 0;
+  max-width: 100%;
+  cursor: crosshair;
+}
+.pdf-seite:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.pdf-seite canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.pdf-feldmarkierung {
+  position: absolute;
+  border: 1px dashed #315e78;
+  background: #e6f1f9aa;
+  color: #23485e;
+  overflow: hidden;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: left;
+}
+.pdf-eigene-felder,
+.pdf-eingabemaske {
+  min-width: 0;
+}
+.pdf-eigene-felder .raster {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.pdf-eigene-felder fieldset {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 14px;
+}
+.pdf-eigene-felder fieldset input {
+  width: 100%;
+}
+.pdf-feldliste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0;
+}
+.pdf-feldliste .aktiv {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.pdf-eingabemaske .formularfelder {
+  grid-template-columns: 1fr;
+  max-height: 60dvh;
+}
+.ablage-einstellungen {
+  margin-bottom: 26px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.ablage-einstellungen dd {
+  overflow-wrap: anywhere;
+}
+.ablage-einstellungen details {
+  margin-top: 18px;
+}
+.ablage-einstellungen p {
+  line-height: 1.55;
+}
+@media (max-width: 900px) {
+  .pdf-arbeitsplatz {
+    grid-template-columns: 1fr;
+  }
+  .pdf-render-area {
+    max-height: 45dvh;
+  }
+  .pdf-eingabemaske .formularfelder {
+    max-height: 40dvh;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .pdf-render-area {
+    background: #10181e;
+  }
+  .pdf-feldmarkierung {
+    color: #193b50;
+    background: #e6f1f9cc;
+  }
+}
+
+.pdf-render-area {
+  max-height: 65dvh;
+}

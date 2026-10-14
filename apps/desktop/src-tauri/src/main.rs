@@ -47,6 +47,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            commands::ablage_status,
+            commands::ablage_wechseln,
+            commands::projektordner_exportieren,
             commands::projekte_auflisten,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
@@ -86,6 +89,8 @@ fn main() {
             commands::xbau_codelisten,
             commands::xbau_exportieren,
             commands::formular_analysieren,
+            commands::pdf_vorschau,
+            commands::formular_vorlage_erstellen,
             commands::formular_ausfuellen,
             commands::cad_plan,
             commands::aufmass,

@@ -1,0 +1,15 @@
+{
+  "umgebung": "Isolierte native Desktop-Testinstallation, ohne externes Netzwerk",
+  "checks": [
+    "Projekt angelegt und PDF ohne AcroForm importiert",
+    "Textfeld über Seitenklick positioniert und als neue Vorlage gespeichert",
+    "Maske erkennt das eigene Feld Vorname",
+    "Vorname mit Daniel gefüllt und neues Dokument im DMS abgelegt",
+    "PDF über nativen Dateidialog exportiert und mit unabhängigem PDF-Reader gelesen"
+  ],
+  "export": {
+    "seiten": 1,
+    "vorname": "Daniel",
+    "sha256": "42b9a9551164e463978f34c480a3ed24aba14c130effd8ddf71625a2c02cd777"
+  }
+}

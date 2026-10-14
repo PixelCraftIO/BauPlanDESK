@@ -40,3 +40,4 @@ tracing-subscriber.workspace = true
 whoami = "1.6"
 uuid.workspace = true
 bytes.workspace = true
+base64.workspace = true

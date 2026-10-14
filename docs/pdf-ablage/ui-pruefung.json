@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "PDF ohne Felder: Platzhalter und Checkbox definieren; echtes PDF.js rendert die Vorlage; Escape und Speicherfehler erhalten den Entwurf.",
+    "Automatische Maske mit Vorname und Zustimmung; versionierter Ausfüllaufruf und Export des abgeleiteten Dokuments, Original bleibt vorhanden.",
+    "Ablageauswahl: Abbrechen ändert nichts; Fehler erhält den bisherigen Ort; Erfolg zeigt die neue Ablage. Projektordner-Export verwendet die ursprüngliche Projekt-ID."
+  ],
+  "javascript_errors": [],
+  "pdf_rendering": "real PDF.js worker; input PDFs generated through actual Rust/DMS integration test",
+  "transport": "controlled Tauri IPC for UI actions"
+}

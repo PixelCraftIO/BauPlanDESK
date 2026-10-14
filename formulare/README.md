@@ -20,3 +20,9 @@ Die Feldnamen der amtlichen Formulare liest die App selbst aus
 (Dokumente → „Formular ausfüllen …“ zeigt alle Felder). Die enthaltene
 Vorlage ist ein **Beispiel**; für jedes Landesformular wird eine eigene
 Vorlage mit den echten Feldnamen angelegt.
+
+
+Eigene PDF-Eingabefelder können auch ohne Bearbeitung dieser JSON-Dateien unter
+**Dokumente → Eigene Felder / Vorlage** angelegt werden. Die Felder werden als
+AcroForm in einer neuen PDF gespeichert; die bisherige Ausfüllfunktion erkennt
+sie direkt. [Bedienung und Grenzen](../docs/pdf-ablage/README.md).

@@ -49,3 +49,31 @@ impl AppConfig {
         }
     }
 }
+
+/// Arbeitsplatzbezogene Auswahl der lokalen DMS-Ablage. Die Datenbank bleibt
+/// am bisherigen Ort; Netzwerk-Installationen nutzen weiter die Büro-Konfiguration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DateiablageConfig {
+    pub root: std::path::PathBuf,
+}
+impl DateiablageConfig {
+    pub fn load(dir: &Path, standard: std::path::PathBuf) -> Result<Self, String> {
+        let file = dir.join("dateiablage.json");
+        match std::fs::read(&file) {
+            Ok(data) => serde_json::from_slice(&data).map_err(|e| e.to_string()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self { root: standard }),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    pub fn save(&self, dir: &Path) -> Result<(), String> {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        let tmp = dir.join(format!("dateiablage-{}.tmp", uuid::Uuid::new_v4()));
+        let data = serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?;
+        std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
+        if let Err(e) = std::fs::rename(&tmp, dir.join("dateiablage.json")) {
+            let _ = std::fs::remove_file(tmp);
+            return Err(e.to_string());
+        }
+        Ok(())
+    }
+}

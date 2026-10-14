@@ -75,6 +75,11 @@ pub fn router(core: CoreServices, akteur: Benutzer) -> Router {
             "/api/dokumente/{id}/formular",
             get(formular_analysieren).post(formular_ausfuellen),
         )
+        .route(
+            "/api/dokumente/{id}/vorlage",
+            post(formular_vorlage_erstellen),
+        )
+        .route("/api/projekte/{id}/projektordner", get(projektordner_plan))
         .route("/api/projekte/{id}/protokoll", get(protokoll))
         .route(
             "/api/projekte/{id}/bauherren",
@@ -146,6 +151,21 @@ async fn update_project(
     Ok(Json(project))
 }
 
+#[derive(Deserialize)]
+struct ProjektordnerQuery {
+    #[serde(default)]
+    historie: bool,
+}
+async fn projektordner_plan(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<ProjektordnerQuery>,
+) -> ApiResult<core_lib::projektablage::ProjektordnerPlan> {
+    Ok(Json(
+        core.projektordner_plan(ProjectId(id), q.historie).await?,
+    ))
+}
+
 async fn formular_analysieren(
     State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
@@ -153,13 +173,37 @@ async fn formular_analysieren(
     Ok(Json(core.formular_analysieren(DocumentId(id)).await?))
 }
 
+#[derive(Deserialize)]
+struct VorlageRequest {
+    basis: i64,
+    felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
+}
+async fn formular_vorlage_erstellen(
+    State(ApiState { core, akteur }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<VorlageRequest>,
+) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
+    Ok((
+        StatusCode::CREATED,
+        Json(
+            core.formular_vorlage_erstellen(DocumentId(id), body.basis, &body.felder, &akteur)
+                .await?,
+        ),
+    ))
+}
+
+#[derive(Deserialize)]
+struct FormularStandQuery {
+    basis: Option<i64>,
+}
 async fn formular_ausfuellen(
     State(ApiState { core, akteur }): State<ApiState>,
     Path(id): Path<Uuid>,
+    Query(stand): Query<FormularStandQuery>,
     Json(werte): Json<BTreeMap<String, Feldwert>>,
 ) -> Result<(StatusCode, Json<DocumentVersion>), ApiError> {
     let version = core
-        .formular_ausfuellen(DocumentId(id), &werte, &akteur)
+        .formular_ausfuellen_version(DocumentId(id), &werte, stand.basis, &akteur)
         .await?;
     Ok((StatusCode::CREATED, Json(version)))
 }

@@ -32,3 +32,5 @@ pub mod xbau;
 
 pub use error::{CoreError, CoreResult};
 pub use service::CoreServices;
+
+pub mod projektablage;

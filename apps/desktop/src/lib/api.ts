@@ -3,11 +3,36 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type Bundesland =
-  | "BW" | "BY" | "BE" | "BB" | "HB" | "HH" | "HE" | "MV"
-  | "NI" | "NW" | "RP" | "SL" | "SN" | "ST" | "SH" | "TH";
+  | "BW"
+  | "BY"
+  | "BE"
+  | "BB"
+  | "HB"
+  | "HH"
+  | "HE"
+  | "MV"
+  | "NI"
+  | "NW"
+  | "RP"
+  | "SL"
+  | "SN"
+  | "ST"
+  | "SH"
+  | "TH";
 
 export type Baugebiet =
-  | "WS" | "WR" | "WA" | "WB" | "MD" | "MDW" | "MI" | "MU" | "MK" | "GE" | "GI" | "SO";
+  | "WS"
+  | "WR"
+  | "WA"
+  | "WB"
+  | "MD"
+  | "MDW"
+  | "MI"
+  | "MU"
+  | "MK"
+  | "GE"
+  | "GI"
+  | "SO";
 
 export interface RulePackInfo {
   land: Bundesland;
@@ -16,20 +41,43 @@ export interface RulePackInfo {
   origin: string;
 }
 
-export type Rolle = "lesen" | "bearbeitung" | "projektleitung" | "administrator";
+export type Rolle =
+  | "lesen"
+  | "bearbeitung"
+  | "projektleitung"
+  | "administrator";
 
 export const ROLLEN: { code: Rolle; name: string; beschreibung: string }[] = [
-  { code: "lesen", name: "Lesen", beschreibung: "Projekte und Dokumente ansehen, rechnen" },
-  { code: "bearbeitung", name: "Bearbeitung", beschreibung: "zusätzlich Projektdaten ändern, Dokumente ablegen und sperren" },
-  { code: "projektleitung", name: "Projektleitung", beschreibung: "zusätzlich Projekte anlegen, Sperren anderer aufheben" },
-  { code: "administrator", name: "Administrator", beschreibung: "zusätzlich Benutzer verwalten" },
+  {
+    code: "lesen",
+    name: "Lesen",
+    beschreibung: "Projekte und Dokumente ansehen, rechnen",
+  },
+  {
+    code: "bearbeitung",
+    name: "Bearbeitung",
+    beschreibung:
+      "zusätzlich Projektdaten ändern, Dokumente ablegen und sperren",
+  },
+  {
+    code: "projektleitung",
+    name: "Projektleitung",
+    beschreibung: "zusätzlich Projekte anlegen, Sperren anderer aufheben",
+  },
+  {
+    code: "administrator",
+    name: "Administrator",
+    beschreibung: "zusätzlich Benutzer verwalten",
+  },
 ];
 
-export const rollenName = (r: Rolle) => ROLLEN.find((x) => x.code === r)?.name ?? r;
+export const rollenName = (r: Rolle) =>
+  ROLLEN.find((x) => x.code === r)?.name ?? r;
 
 /** Nur für die Oberfläche (Knöpfe ausgrauen); geprüft wird in core-lib. */
 export const mindestens = (r: Rolle, min: Rolle) =>
-  ROLLEN.findIndex((x) => x.code === r) >= ROLLEN.findIndex((x) => x.code === min);
+  ROLLEN.findIndex((x) => x.code === r) >=
+  ROLLEN.findIndex((x) => x.code === min);
 
 export interface Benutzer {
   id: string;
@@ -87,10 +135,21 @@ export interface Anschrift {
   ort: string;
 }
 
-export const leereAnschrift = (): Anschrift => ({ strasse: "", hausnummer: "", postleitzahl: "", ort: "" });
+export const leereAnschrift = (): Anschrift => ({
+  strasse: "",
+  hausnummer: "",
+  postleitzahl: "",
+  ort: "",
+});
 
 export type Beteiligter =
-  | { art: "person"; id: string; vorname: string; familienname: string; anschrift: Anschrift }
+  | {
+      art: "person";
+      id: string;
+      vorname: string;
+      familienname: string;
+      anschrift: Anschrift;
+    }
   | { art: "organisation"; id: string; name: string; anschrift: Anschrift };
 
 export interface Flurstueck {
@@ -130,8 +189,14 @@ export interface GespeicherterBauantrag {
 export type Kundentyp = "person" | "organisation";
 
 export type Kundenkategorie =
-  | "privat" | "bautraeger" | "baufirma" | "investor" | "planungsbuero"
-  | "wohnungsunternehmen" | "oeffentliche_hand" | "sonstige";
+  | "privat"
+  | "bautraeger"
+  | "baufirma"
+  | "investor"
+  | "planungsbuero"
+  | "wohnungsunternehmen"
+  | "oeffentliche_hand"
+  | "sonstige";
 
 export const KUNDENKATEGORIEN: { code: Kundenkategorie; name: string }[] = [
   { code: "privat", name: "Privatperson" },
@@ -144,7 +209,8 @@ export const KUNDENKATEGORIEN: { code: Kundenkategorie; name: string }[] = [
   { code: "sonstige", name: "Sonstige" },
 ];
 
-export const kategorieName = (k: Kundenkategorie) => KUNDENKATEGORIEN.find((x) => x.code === k)?.name ?? k;
+export const kategorieName = (k: Kundenkategorie) =>
+  KUNDENKATEGORIEN.find((x) => x.code === k)?.name ?? k;
 
 export interface Kundendaten {
   typ: Kundentyp;
@@ -183,12 +249,38 @@ export const leereKundendaten = (): Kundendaten => ({
 
 /** Nur die bearbeitbaren Angaben eines Kunden. */
 export function kundendaten(k: Kundendaten): Kundendaten {
-  const { typ, kategorie, kundennummer, vorname, familienname, firma, ansprechpartner, anschrift, telefon, email, notizen } = k;
-  return { typ, kategorie, kundennummer, vorname, familienname, firma, ansprechpartner, anschrift: { ...anschrift }, telefon, email, notizen };
+  const {
+    typ,
+    kategorie,
+    kundennummer,
+    vorname,
+    familienname,
+    firma,
+    ansprechpartner,
+    anschrift,
+    telefon,
+    email,
+    notizen,
+  } = k;
+  return {
+    typ,
+    kategorie,
+    kundennummer,
+    vorname,
+    familienname,
+    firma,
+    ansprechpartner,
+    anschrift: { ...anschrift },
+    telefon,
+    email,
+    notizen,
+  };
 }
 
 export function kundenname(k: Kundendaten): string {
-  return k.typ === "person" ? [k.vorname, k.familienname].filter((s) => s.trim()).join(" ") : k.firma;
+  return k.typ === "person"
+    ? [k.vorname, k.familienname].filter((s) => s.trim()).join(" ")
+    : k.firma;
 }
 
 /** Eine Zeile Anschrift, z. B. „Lindenweg 4, 80331 München“. */
@@ -202,15 +294,33 @@ export function anschriftZeile(a: Anschrift): string {
 export function kundePasst(k: Kunde, suche: string): boolean {
   const s = suche.trim().toLocaleLowerCase("de");
   if (!s) return true;
-  return [kundenname(k), k.kundennummer, k.ansprechpartner, k.anschrift.ort, k.anschrift.postleitzahl, k.email, k.telefon]
-    .some((f) => f.toLocaleLowerCase("de").includes(s));
+  return [
+    kundenname(k),
+    k.kundennummer,
+    k.ansprechpartner,
+    k.anschrift.ort,
+    k.anschrift.postleitzahl,
+    k.email,
+    k.telefon,
+  ].some((f) => f.toLocaleLowerCase("de").includes(s));
 }
 
 /** Kunde als Beteiligter im Bauantrag (z. B. als Gebührenpflichtiger). */
 export function alsBeteiligter(k: Kunde): Beteiligter {
   return k.typ === "person"
-    ? { art: "person", id: k.id, vorname: k.vorname, familienname: k.familienname, anschrift: { ...k.anschrift } }
-    : { art: "organisation", id: k.id, name: k.firma, anschrift: { ...k.anschrift } };
+    ? {
+        art: "person",
+        id: k.id,
+        vorname: k.vorname,
+        familienname: k.familienname,
+        anschrift: { ...k.anschrift },
+      }
+    : {
+        art: "organisation",
+        id: k.id,
+        name: k.firma,
+        anschrift: { ...k.anschrift },
+      };
 }
 
 export interface Buero {
@@ -240,7 +350,11 @@ export const MASSNAHMEN: { code: string; name: string }[] = [
 ];
 
 export type Edition = "einzelplatz" | "buero" | "cloud";
-export const EDITIONEN: Record<Edition, string> = { einzelplatz: "Einzelplatz", buero: "Büro", cloud: "Cloud" };
+export const EDITIONEN: Record<Edition, string> = {
+  einzelplatz: "Einzelplatz",
+  buero: "Büro",
+  cloud: "Cloud",
+};
 
 export interface Lizenz {
   lizenz_id: string;
@@ -288,7 +402,8 @@ export interface Lizenzstatus {
 }
 
 /** Datum "JJJJ-MM-TT" deutsch anzeigen. */
-export const datumDe = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("de-DE");
+export const datumDe = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString("de-DE");
 
 export interface AppInfo {
   version: string;
@@ -296,7 +411,12 @@ export interface AppInfo {
   modus: string;
   storage: string;
   regelpakete: RulePackInfo[];
-  cache: { eintraege: number; belegt_bytes: number; treffer: number; downloads: number } | null;
+  cache: {
+    eintraege: number;
+    belegt_bytes: number;
+    treffer: number;
+    downloads: number;
+  } | null;
 }
 
 export interface Festsetzungen {
@@ -316,20 +436,111 @@ export interface Festsetzungen {
 
 export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
 export type Anrechnung = "grz" | "grz_ii" | "keine";
-export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";
-export interface Bauteil { bezeichnung: string; typ: Bauteiltyp; flaeche_m2: number; abweichende_anrechnung: Anrechnung | null; begruendung: string }
-export interface Geschoss { bezeichnung: string; vollgeschoss: boolean; aussenmass_m2: number; aufenthalt_m2: number; waende_m2: number; erschliessung_m2: number }
-export interface Gemeinschaftsanteil { bezeichnung: string; gesamtflaeche_m2: number; anteil_prozent: number; festsetzung: string; im_plangebiet: boolean; ausserhalb_baugrundstueck: boolean }
-export interface GrundstueckAufstellung { basisflaeche_m2: number; nicht_massgebend_m2: number; abzug_begruendung: string; gemeinschaftsanteile: Gemeinschaftsanteil[] }
-export interface GrundstueckErgebnis { basis_m2: number; abzug_m2: number; zuschlag_m2: number; massgebend_m2: number; anteile_m2: number[] }
-export interface FlaechenAufstellung { grundstueck?: GrundstueckAufstellung | null; bau_nvo: BauNvo; bauteile: Bauteil[]; geschosse: Geschoss[]; nichtvollgeschoss_faktor: number; nichtvollgeschoss_festsetzung: string }
-export interface FlaechenErgebnis { regelwerk_id: string; regelwerk_version: string; grundstueck: GrundstueckErgebnis; mass: MassDerNutzung; vollgeschosse: number; grz_ii: boolean; bauteile: { anrechnung: Anrechnung; flaeche_m2: number }[]; geschosse: number[] }
-export interface FlaechenAbzug { art: string; flaeche_m2: number; grundlage: string }
-export interface GrundstuecksFlurstueck { id: string; gemarkung: string; flur: string; nummer: string; grundbuchbezirk: string; grundbuchblatt: string; laufende_nummer: number; flaeche_m2: number; abzuege: FlaechenAbzug[]; abweichende_zuordnung: { kennung: string; grundlage: string } | null }
-export interface BaugrundstueckBerechnung { schluessel: string; eingabe: NutzungsEingabe; eigene_festsetzungen: Festsetzungen | null }
-export interface BaugrundstuecksPlan { flurstuecke: GrundstuecksFlurstueck[]; berechnungen: BaugrundstueckBerechnung[] }
-export interface BaugrundstueckGruppe { schluessel: string; bezeichnung: string; flurstueck_ids: string[]; eigentumsflaeche_m2: number; abzuege_m2: number; bauland_m2: number }
-export interface BaugrundstuecksPruefung { projekt_version: number; baugrundstuecke: { grundstueck: BaugrundstueckGruppe; pruefung: NutzungsPruefung }[] }
+export type Bauteiltyp =
+  | "hauptanlage"
+  | "terrasse_hauptanlage"
+  | "garage"
+  | "stellplatz"
+  | "zufahrt"
+  | "nebenanlage14"
+  | "unterirdisch"
+  | "balkon_loggia"
+  | "terrasse_nebenanlage";
+export interface Bauteil {
+  bezeichnung: string;
+  typ: Bauteiltyp;
+  flaeche_m2: number;
+  abweichende_anrechnung: Anrechnung | null;
+  begruendung: string;
+}
+export interface Geschoss {
+  bezeichnung: string;
+  vollgeschoss: boolean;
+  aussenmass_m2: number;
+  aufenthalt_m2: number;
+  waende_m2: number;
+  erschliessung_m2: number;
+}
+export interface Gemeinschaftsanteil {
+  bezeichnung: string;
+  gesamtflaeche_m2: number;
+  anteil_prozent: number;
+  festsetzung: string;
+  im_plangebiet: boolean;
+  ausserhalb_baugrundstueck: boolean;
+}
+export interface GrundstueckAufstellung {
+  basisflaeche_m2: number;
+  nicht_massgebend_m2: number;
+  abzug_begruendung: string;
+  gemeinschaftsanteile: Gemeinschaftsanteil[];
+}
+export interface GrundstueckErgebnis {
+  basis_m2: number;
+  abzug_m2: number;
+  zuschlag_m2: number;
+  massgebend_m2: number;
+  anteile_m2: number[];
+}
+export interface FlaechenAufstellung {
+  grundstueck?: GrundstueckAufstellung | null;
+  bau_nvo: BauNvo;
+  bauteile: Bauteil[];
+  geschosse: Geschoss[];
+  nichtvollgeschoss_faktor: number;
+  nichtvollgeschoss_festsetzung: string;
+}
+export interface FlaechenErgebnis {
+  regelwerk_id: string;
+  regelwerk_version: string;
+  grundstueck: GrundstueckErgebnis;
+  mass: MassDerNutzung;
+  vollgeschosse: number;
+  grz_ii: boolean;
+  bauteile: { anrechnung: Anrechnung; flaeche_m2: number }[];
+  geschosse: number[];
+}
+export interface FlaechenAbzug {
+  art: string;
+  flaeche_m2: number;
+  grundlage: string;
+}
+export interface GrundstuecksFlurstueck {
+  id: string;
+  gemarkung: string;
+  flur: string;
+  nummer: string;
+  grundbuchbezirk: string;
+  grundbuchblatt: string;
+  laufende_nummer: number;
+  flaeche_m2: number;
+  abzuege: FlaechenAbzug[];
+  abweichende_zuordnung: { kennung: string; grundlage: string } | null;
+}
+export interface BaugrundstueckBerechnung {
+  schluessel: string;
+  eingabe: NutzungsEingabe;
+  eigene_festsetzungen: Festsetzungen | null;
+}
+export interface BaugrundstuecksPlan {
+  flurstuecke: GrundstuecksFlurstueck[];
+  berechnungen: BaugrundstueckBerechnung[];
+}
+export interface BaugrundstueckGruppe {
+  schluessel: string;
+  bezeichnung: string;
+  flurstueck_ids: string[];
+  eigentumsflaeche_m2: number;
+  abzuege_m2: number;
+  bauland_m2: number;
+}
+export interface BaugrundstuecksPruefung {
+  projekt_version: number;
+  baugrundstuecke: {
+    grundstueck: BaugrundstueckGruppe;
+    pruefung: NutzungsPruefung;
+  }[];
+}
 export interface NutzungsEingabe {
   aufstellung?: FlaechenAufstellung | null;
   mass: MassDerNutzung;
@@ -343,10 +554,15 @@ export interface NutzungsPruefung {
   kennzahlen: Pruefergebnis["kennzahlen"];
   bebauungsplan: boolean;
   nachweise: {
-    art: string; ist: number | null; soll: number | null;
+    art: string;
+    ist: number | null;
+    soll: number | null;
     quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "keine";
-    zwingend: boolean; eingehalten: boolean | null; abweichung: number | null;
-    ueberschreitung: number | null; ueberschreitung_prozent: number | null;
+    zwingend: boolean;
+    eingehalten: boolean | null;
+    abweichung: number | null;
+    ueberschreitung: number | null;
+    ueberschreitung_prozent: number | null;
     flaechenueberschreitung_m2: number | null;
   }[];
 }
@@ -359,16 +575,28 @@ export interface BaugrenzenGeometrie {
   vorhaben: Punkt[];
 }
 
-export interface Aussenflaeche { aussenring: Punkt[]; innenringe: Punkt[][] }
+export interface Aussenflaeche {
+  aussenring: Punkt[];
+  innenringe: Punkt[][];
+}
 export interface BaugrenzenPruefung {
-  baufenster_m2: number; vorhaben_m2: number; ausserhalb_m2: number;
-  ausserhalb_prozent: number; eckpunkt_ueberstand_m: number;
-  eingehalten: boolean; aussenflaechen: Aussenflaeche[];
+  baufenster_m2: number;
+  vorhaben_m2: number;
+  ausserhalb_m2: number;
+  ausserhalb_prozent: number;
+  eckpunkt_ueberstand_m: number;
+  eingehalten: boolean;
+  aussenflaechen: Aussenflaeche[];
 }
 
 export interface Planungsrecht {
   rechtsgrundlage: "par30" | "par34" | "par35" | null;
-  bebauungsplan_art: "ungeklaert" | "kein" | "qualifiziert" | "einfach" | "vorhabenbezogen";
+  bebauungsplan_art:
+    | "ungeklaert"
+    | "kein"
+    | "qualifiziert"
+    | "einfach"
+    | "vorhabenbezogen";
   ergaenzende_grundlage: "par34" | "par35" | null;
   aussenbereich_vorhaben: "privilegiert" | "sonstiges" | null;
   plan_bezeichnung: string;
@@ -387,12 +615,18 @@ export interface Planungsrecht {
 }
 
 export const rechtsgrundlageName = (g: Planungsrecht["rechtsgrundlage"]) =>
-  g ? { par30: "§ 30 BauGB", par34: "§ 34 BauGB", par35: "§ 35 BauGB" }[g] : "Noch nicht festgelegt";
+  g
+    ? { par30: "§ 30 BauGB", par34: "§ 34 BauGB", par35: "§ 35 BauGB" }[g]
+    : "Noch nicht festgelegt";
 
-export const bebauungsplanName = (art: Planungsrecht["bebauungsplan_art"]) => ({
-  ungeklaert: "Noch ungeklärt", kein: "Kein Bebauungsplan", qualifiziert: "Qualifizierter Bebauungsplan",
-  einfach: "Einfacher Bebauungsplan", vorhabenbezogen: "Vorhabenbezogener Bebauungsplan",
-}[art]);
+export const bebauungsplanName = (art: Planungsrecht["bebauungsplan_art"]) =>
+  ({
+    ungeklaert: "Noch ungeklärt",
+    kein: "Kein Bebauungsplan",
+    qualifiziert: "Qualifizierter Bebauungsplan",
+    einfach: "Einfacher Bebauungsplan",
+    vorhabenbezogen: "Vorhabenbezogener Bebauungsplan",
+  })[art];
 
 export interface Project {
   id: string;
@@ -449,7 +683,12 @@ export interface MassDerNutzung {
 }
 
 export interface Pruefergebnis {
-  kennzahlen: { grz: number; grz_gesamt: number; gfz: number; bmz: number | null };
+  kennzahlen: {
+    grz: number;
+    grz_gesamt: number;
+    gfz: number;
+    bmz: number | null;
+  };
   grenzwerte: { grz: number; gfz: number | null; bmz: number | null };
   grz_gesamt_max: number;
   grz_eingehalten: boolean;
@@ -458,7 +697,12 @@ export interface Pruefergebnis {
   bmz_eingehalten: boolean | null;
 }
 
-export type Feldart = "text" | "ankreuzfeld" | "optionsfeld" | "auswahl" | "sonstiges";
+export type Feldart =
+  | "text"
+  | "ankreuzfeld"
+  | "optionsfeld"
+  | "auswahl"
+  | "sonstiges";
 export type Feldwert = string | boolean;
 
 export interface Formularfeld {
@@ -479,7 +723,13 @@ export interface FormularAnalyse {
 }
 
 export type Laengeneinheit =
-  | "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
+  | "millimeter"
+  | "zentimeter"
+  | "dezimeter"
+  | "meter"
+  | "kilometer"
+  | "zoll"
+  | "fuss";
 
 /** Punkt in Zeichnungseinheiten als [x, y]. */
 export type Punkt = [number, number];
@@ -487,7 +737,12 @@ export type Punkt = [number, number];
 export interface Plan {
   einheit: Laengeneinheit | null;
   ebenen: { name: string; farbe: string | null; sichtbar: boolean }[];
-  linien: { ebene: number; farbe: string | null; punkte: Punkt[]; geschlossen: boolean }[];
+  linien: {
+    ebene: number;
+    farbe: string | null;
+    punkte: Punkt[];
+    geschlossen: boolean;
+  }[];
   texte: {
     ebene: number;
     farbe: string | null;
@@ -536,72 +791,206 @@ export interface UpdateInfo {
   notizen: string | null;
 }
 
+export interface PdfSeite {
+  nummer: number;
+  breite_mm: number;
+  hoehe_mm: number;
+  rotation: number;
+  platzierbar: boolean;
+}
+export interface EigenesPdfFeld {
+  name: string;
+  beschriftung: string;
+  art: "text" | "ankreuzfeld";
+  seite: number;
+  x_mm: number;
+  y_mm: number;
+  breite_mm: number;
+  hoehe_mm: number;
+  schriftgroesse_pt: number;
+}
+export interface PdfVorschauDaten {
+  dokument: DocumentVersion;
+  pdf_base64: string;
+  seiten: PdfSeite[];
+  felder: Formularfeld[];
+}
+export interface AblageStatus {
+  modus: string;
+  root: string | null;
+  datenbank: string;
+  wechsel_erlaubt: boolean;
+  hinweis: string;
+}
+export interface ProjektordnerExport {
+  ordner: string;
+  dateien: number;
+  neu: number;
+}
+
 export const api = {
+  pdfVorschau: (dokumentId: string, version: number | null = null) =>
+    invoke<PdfVorschauDaten>("pdf_vorschau", { dokumentId, version }),
+  formularVorlageErstellen: (
+    dokumentId: string,
+    basis: number,
+    felder: EigenesPdfFeld[],
+  ) =>
+    invoke<DocumentVersion>("formular_vorlage_erstellen", {
+      dokumentId,
+      basis,
+      felder,
+    }),
+  ablageStatus: () => invoke<AblageStatus>("ablage_status"),
+  ablageWechseln: (pfad: string) => invoke<number>("ablage_wechseln", { pfad }),
+  projektordnerExportieren: (
+    projektId: string,
+    ziel: string,
+    historie = false,
+  ) =>
+    invoke<ProjektordnerExport>("projektordner_exportieren", {
+      projektId,
+      ziel,
+      historie,
+    }),
   appInfo: () => invoke<AppInfo>("app_info"),
   projekte: () => invoke<Project[]>("projekte_auflisten"),
-  projektAnlegen: (projekt: Projektwerte) => invoke<Project>("projekt_anlegen", { projekt }),
+  projektAnlegen: (projekt: Projektwerte) =>
+    invoke<Project>("projekt_anlegen", { projekt }),
   projektOeffnen: (id: string) => invoke<Project>("projekt_laden", { id }),
   projektAktivieren: (id: string) => invoke<Project>("projekt_oeffnen", { id }),
   projektSchliessen: () => invoke<void>("projekt_schliessen"),
-  projektAktualisieren: (aenderung: Projektwerte & { id: string; expected_version: number; planungsrecht?: Planungsrecht }) => invoke<Project>("projekt_aktualisieren", { aenderung }),
+  projektAktualisieren: (
+    aenderung: Projektwerte & {
+      id: string;
+      expected_version: number;
+      planungsrecht?: Planungsrecht;
+    },
+  ) => invoke<Project>("projekt_aktualisieren", { aenderung }),
   zuletzt: () => invoke<ZuletztEintrag[]>("zuletzt_geoeffnet"),
   dokumente: (projektId: string) =>
     invoke<DocumentVersion[]>("dokumente_auflisten", { projektId }),
-  dokumentImportieren: (projektId: string, pfad: string, dokumentId: string | null = null, basis: number | null = null) =>
-    invoke<DocumentVersion>("dokument_importieren", { projektId, dokumentId, basis, pfad }),
-  historie: (dokumentId: string) => invoke<DocumentVersion[]>("dokument_historie", { dokumentId }),
+  dokumentImportieren: (
+    projektId: string,
+    pfad: string,
+    dokumentId: string | null = null,
+    basis: number | null = null,
+  ) =>
+    invoke<DocumentVersion>("dokument_importieren", {
+      projektId,
+      dokumentId,
+      basis,
+      pfad,
+    }),
+  historie: (dokumentId: string) =>
+    invoke<DocumentVersion[]>("dokument_historie", { dokumentId }),
   versionWiederherstellen: (dokumentId: string, version: number) =>
-    invoke<DocumentVersion>("version_wiederherstellen", { dokumentId, version }),
-  sperren: (dokumentId: string) => invoke<DocumentLock>("dokument_sperren", { dokumentId }),
-  entsperren: (dokumentId: string) => invoke<void>("dokument_entsperren", { dokumentId }),
-  sperrenAuflisten: (projektId: string) => invoke<DocumentLock[]>("sperren_auflisten", { projektId }),
-  protokoll: (projektId: string) => invoke<Protokolleintrag[]>("protokoll", { projektId }),
+    invoke<DocumentVersion>("version_wiederherstellen", {
+      dokumentId,
+      version,
+    }),
+  sperren: (dokumentId: string) =>
+    invoke<DocumentLock>("dokument_sperren", { dokumentId }),
+  entsperren: (dokumentId: string) =>
+    invoke<void>("dokument_entsperren", { dokumentId }),
+  sperrenAuflisten: (projektId: string) =>
+    invoke<DocumentLock[]>("sperren_auflisten", { projektId }),
+  protokoll: (projektId: string) =>
+    invoke<Protokolleintrag[]>("protokoll", { projektId }),
   benutzerAuflisten: () => invoke<Benutzer[]>("benutzer_auflisten"),
-  benutzerAnlegen: (neu: { anmeldename: string; anzeigename: string; rolle: Rolle }) =>
-    invoke<Benutzer>("benutzer_anlegen", { neu }),
-  benutzerAendern: (aenderung: { id: string; anzeigename: string; rolle: Rolle; aktiv: boolean }) =>
-    invoke<Benutzer>("benutzer_aendern", { aenderung }),
+  benutzerAnlegen: (neu: {
+    anmeldename: string;
+    anzeigename: string;
+    rolle: Rolle;
+  }) => invoke<Benutzer>("benutzer_anlegen", { neu }),
+  benutzerAendern: (aenderung: {
+    id: string;
+    anzeigename: string;
+    rolle: Rolle;
+    aktiv: boolean;
+  }) => invoke<Benutzer>("benutzer_aendern", { aenderung }),
   lizenz: () => invoke<Lizenzstatus>("lizenz_status"),
-  lizenzEinspielen: (pfad: string) => invoke<Lizenzstatus>("lizenz_einspielen", { pfad }),
+  lizenzEinspielen: (pfad: string) =>
+    invoke<Lizenzstatus>("lizenz_einspielen", { pfad }),
   arbeitsplatzBelegen: () => invoke<Lizenzstatus>("arbeitsplatz_belegen"),
-  lizenzAktivieren: (schluessel: string) => invoke<Lizenzstatus>("lizenz_aktivieren", { schluessel }),
+  lizenzAktivieren: (schluessel: string) =>
+    invoke<Lizenzstatus>("lizenz_aktivieren", { schluessel }),
   lizenzBestaetigen: () => invoke<Lizenzstatus>("lizenz_bestaetigen"),
   lizenzAbmelden: () => invoke<Lizenzstatus>("lizenz_abmelden"),
   kunden: () => invoke<Kunde[]>("kunden_auflisten"),
-  kundeAnlegen: (daten: Kundendaten) => invoke<Kunde>("kunde_anlegen", { daten }),
+  kundeAnlegen: (daten: Kundendaten) =>
+    invoke<Kunde>("kunde_anlegen", { daten }),
   kundeAendern: (kundeId: string, daten: Kundendaten, version: number) =>
     invoke<Kunde>("kunde_aendern", { kundeId, daten, version }),
-  kundeLoeschen: (kundeId: string, version: number) => invoke<void>("kunde_loeschen", { kundeId, version }),
-  kundeProjekte: (kundeId: string) => invoke<Project[]>("kunde_projekte", { kundeId }),
+  kundeLoeschen: (kundeId: string, version: number) =>
+    invoke<void>("kunde_loeschen", { kundeId, version }),
+  kundeProjekte: (kundeId: string) =>
+    invoke<Project[]>("kunde_projekte", { kundeId }),
   bauherren: (projektId: string) => invoke<Kunde[]>("bauherren", { projektId }),
   bauherrenSetzen: (projektId: string, kunden: string[], version: number) =>
     invoke<Project>("bauherren_setzen", { projektId, kunden, version }),
-  bauantrag: (projektId: string) => invoke<GespeicherterBauantrag>("bauantrag", { projektId }),
+  bauantrag: (projektId: string) =>
+    invoke<GespeicherterBauantrag>("bauantrag", { projektId }),
   bauantragSpeichern: (projektId: string, antrag: Bauantrag, version: number) =>
-    invoke<GespeicherterBauantrag>("bauantrag_speichern", { projektId, antrag, version }),
+    invoke<GespeicherterBauantrag>("bauantrag_speichern", {
+      projektId,
+      antrag,
+      version,
+    }),
   buero: () => invoke<Buero>("buero"),
   bueroSpeichern: (buero: Buero) => invoke<Buero>("buero_speichern", { buero }),
   xbauCodelisten: () => invoke<Codeliste[]>("xbau_codelisten"),
   xbauExportieren: (projektId: string, ziel: string) =>
-    invoke<{ dateiname: string; groesse_bytes: number }>("xbau_exportieren", { projektId, ziel }),
+    invoke<{ dateiname: string; groesse_bytes: number }>("xbau_exportieren", {
+      projektId,
+      ziel,
+    }),
   formularAnalysieren: (dokumentId: string) =>
     invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
-  formularAusfuellen: (dokumentId: string, werte: Record<string, Feldwert>) =>
-    invoke<DocumentVersion>("formular_ausfuellen", { dokumentId, werte }),
-  dokumentExportieren: (dokumentId: string, ziel: string, version: number | null = null) =>
-    invoke<void>("dokument_exportieren", { dokumentId, version, ziel }),
+  formularAusfuellen: (
+    dokumentId: string,
+    werte: Record<string, Feldwert>,
+    basis: number | null = null,
+  ) =>
+    invoke<DocumentVersion>("formular_ausfuellen", {
+      dokumentId,
+      werte,
+      basis,
+    }),
+  dokumentExportieren: (
+    dokumentId: string,
+    ziel: string,
+    version: number | null = null,
+  ) => invoke<void>("dokument_exportieren", { dokumentId, version, ziel }),
   cadPlan: (dokumentId: string) => invoke<CadPlan>("cad_plan", { dokumentId }),
   projektNutzungPruefen: (projektId: string, eingabe: NutzungsEingabe) =>
     invoke<NutzungsPruefung>("projekt_nutzung_pruefen", { projektId, eingabe }),
-  projektBaugrundstueckePruefen: (projektId: string, eingabe: BaugrundstuecksPlan) => invoke<BaugrundstuecksPruefung>("projekt_baugrundstuecke_pruefen", { projektId, eingabe }),
+  projektBaugrundstueckePruefen: (
+    projektId: string,
+    eingabe: BaugrundstuecksPlan,
+  ) =>
+    invoke<BaugrundstuecksPruefung>("projekt_baugrundstuecke_pruefen", {
+      projektId,
+      eingabe,
+    }),
   baugrenzenPruefen: (geometrie: BaugrenzenGeometrie) =>
     invoke<BaugrenzenPruefung>("baugrenzen_pruefen", { geometrie }),
   aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>
     invoke<Messung>("aufmass", { punkte, geschlossen, einheit }),
   massDerNutzung: (eingabe: MassDerNutzung, gebiet: Baugebiet) =>
-    invoke<Pruefergebnis>("mass_der_nutzung", { eingabe, gebiet, festsetzungen: null }),
-  abstandsflaeche: (land: Bundesland, eingabe: { wandhoehe_m: number; gebiet: Baugebiet }) =>
-    invoke<Berechnung<AbstandsflaecheErgebnis>>("abstandsflaeche", { land, eingabe }),
+    invoke<Pruefergebnis>("mass_der_nutzung", {
+      eingabe,
+      gebiet,
+      festsetzungen: null,
+    }),
+  abstandsflaeche: (
+    land: Bundesland,
+    eingabe: { wandhoehe_m: number; gebiet: Baugebiet },
+  ) =>
+    invoke<Berechnung<AbstandsflaecheErgebnis>>("abstandsflaeche", {
+      land,
+      eingabe,
+    }),
   updatePruefen: () => invoke<UpdateInfo | null>("update_pruefen"),
   updateInstallieren: () => invoke<void>("update_installieren"),
 };
@@ -649,6 +1038,7 @@ export function istKonflikt(e: unknown): boolean {
 }
 
 export function fehlertext(e: unknown): string {
-  if (e && typeof e === "object" && "meldung" in e) return (e as CmdError).meldung;
+  if (e && typeof e === "object" && "meldung" in e)
+    return (e as CmdError).meldung;
   return String(e);
 }

@@ -17,6 +17,7 @@
     type UpdateInfo,
     type ZuletztEintrag,
   } from "./lib/api";
+  import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
   import { reiter, type Ansicht } from "./lib/projektSitzung";
@@ -62,6 +63,11 @@
   let beendenLaeuft = $state(false);
   let kundenBesucht = $state(false);
   let kundenEditor = $state<Kunden>();
+  let ablageEditor = $state<AblageEinstellungen>();
+  let verwaltungBesucht = $state(false);
+  $effect(() => {
+    if (globalAnsicht === "verwaltung") verwaltungBesucht = true;
+  });
   $effect(() => {
     if (globalAnsicht === "kunden") kundenBesucht = true;
   });
@@ -379,6 +385,7 @@
         if (
           sitzungen.some((s) => s.editor?.istBeschaeftigt()) ||
           kundenEditor?.istBeschaeftigt() ||
+          ablageEditor?.istBeschaeftigt() ||
           speicherLaeuft ||
           schliessLaeuft
         ) {
@@ -554,8 +561,12 @@
           onschliessen={() => (globalAnsicht = "projekte")}
         />
       </div>{/if}
-    {#if globalAnsicht === "verwaltung"}<div class="globale-seite">
+    {#if verwaltungBesucht}<div
+        class="globale-seite"
+        hidden={globalAnsicht !== "verwaltung"}
+      >
         <h1>Verwaltung</h1>
+        <AblageEinstellungen bind:this={ablageEditor} />
         <div class="verwaltungszeile">
           <div>
             <h2>Büroangaben</h2>
