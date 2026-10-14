@@ -6,7 +6,8 @@ export type Ansicht =
   | "dokumente"
   | "plaene"
   | "bauantrag"
-  | "protokoll";
+  | "protokoll"
+  | "einreichungen";
 export const reiter: { id: Ansicht; text: string }[] = [
   { id: "uebersicht", text: "Stammblatt" },
   { id: "rechtsgrundlagen", text: "Rechtsgrundlagen" },
@@ -15,5 +16,6 @@ export const reiter: { id: Ansicht; text: string }[] = [
   { id: "dokumente", text: "Dokumente" },
   { id: "plaene", text: "Pläne / Aufmaß" },
   { id: "bauantrag", text: "Bauantrag" },
+  { id: "einreichungen", text: "Einreichungen" },
   { id: "protokoll", text: "Verlauf" },
 ];

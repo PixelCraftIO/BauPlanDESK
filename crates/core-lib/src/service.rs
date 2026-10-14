@@ -127,7 +127,7 @@ impl CoreServices {
     /// Rolle prüfen und, für Änderungen an Projekten und Dokumenten, ob die
     /// Lizenz Schreiben erlaubt. Benutzerverwaltung und Lizenz einspielen
     /// bleiben auch ohne gültige Lizenz möglich, sonst käme man nie heraus.
-    async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
+    pub(crate) async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
         wer.pruefe(recht)?;
         let status = self.license.status().await?;
         if !status.schreiben_erlaubt {
@@ -436,7 +436,7 @@ impl CoreServices {
             .await
     }
 
-    async fn protokollieren(
+    pub(crate) async fn protokollieren(
         &self,
         wer: &Benutzer,
         aktion: Aktion,

@@ -59,3 +59,21 @@ python3 apps/desktop/tests/formularbibliothek.py
 den Artefaktordner überschreiben. Die UI-Prüfung verwendet Test-IPC und echte
 PDF.js-Darstellung. Reale Ordner-, Hash-, Berechtigungs- und projektübergreifende
 DMS-Verträge prüft `cargo test -p storage --test formularbibliothek`.
+
+## Dateiverwaltung und Einreichungen
+
+```bash
+BAUPROJEKT_EINREICHUNG_ARTEFAKTE=/workspace/review-main/einreichungen \
+  cargo test -p storage --test einreichungen
+python3 apps/desktop/tests/dateiverwaltung-einreichungen.py
+```
+
+Die UI-Prüfung nutzt die kompilierte Anwendung mit Test-IPC. Der UI-Server ist
+über `BAUPROJEKT_UI_URL` einstellbar, der Artefaktordner über
+`BAUPROJEKT_EINREICHUNG_ARTEFAKTE`. Reale HTTP-Grenzen prüft
+`cargo test -p server --test einreichungen_api`. Der PostgreSQL-Repositorytest
+benötigt `BAUPROJEKT_TEST_POSTGRES_URL` zu einer dedizierten Testdatenbank; ohne
+diese Variable läuft er nicht gegen einen Server.
+
+Für PDF-Regressionsläufe kann `BAUPROJEKT_PDF_UI_ARTEFAKTE` einen separaten
+Ausgabeordner wählen, damit vorhandene Dokumentationsbilder erhalten bleiben.

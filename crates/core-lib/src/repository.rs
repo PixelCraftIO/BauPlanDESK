@@ -212,6 +212,7 @@ pub trait KundenRepository: Send + Sync {
 /// Laufzeitumgebung genau ein Objekt injizieren muss.
 #[derive(Clone)]
 pub struct Repositories {
+    pub einreichungen: Arc<dyn EinreichungRepository>,
     pub projects: Arc<dyn ProjectRepository>,
     pub documents: Arc<dyn DocumentRepository>,
     pub benutzer: Arc<dyn BenutzerRepository>,
@@ -219,4 +220,21 @@ pub struct Repositories {
     pub lizenz: Arc<dyn LizenzRepository>,
     pub bauantraege: Arc<dyn BauantragRepository>,
     pub kunden: Arc<dyn KundenRepository>,
+}
+
+#[async_trait]
+pub trait EinreichungRepository: Send + Sync {
+    async fn anlegen(&self, paket: &crate::einreichung::Einreichung) -> CoreResult<()>;
+    async fn laden(&self, id: uuid::Uuid) -> CoreResult<crate::einreichung::Einreichung>;
+    async fn auflisten(
+        &self,
+        projekt: ProjectId,
+    ) -> CoreResult<Vec<crate::einreichung::Einreichung>>;
+    /// Nur Bestätigung ergänzen, niemals Paketinhalt verändern; atomare Basisprüfung.
+    async fn bestaetigen(
+        &self,
+        id: uuid::Uuid,
+        basis: i64,
+        bestaetigung: crate::einreichung::EinreichungsBestaetigung,
+    ) -> CoreResult<crate::einreichung::Einreichung>;
 }

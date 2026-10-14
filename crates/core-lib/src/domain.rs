@@ -327,6 +327,8 @@ pub enum Aktion {
     LizenzEingespielt,
     BauantragGeaendert,
     XbauExportiert,
+    EinreichungErstellt,
+    EinreichungBestaetigt,
     KundeAngelegt,
     KundeGeaendert,
     KundeGeloescht,
@@ -334,7 +336,7 @@ pub enum Aktion {
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 16] = [
+    const ALLE: [Aktion; 18] = [
         Self::ProjektAngelegt,
         Self::ProjektGeaendert,
         Self::DokumentAbgelegt,
@@ -347,6 +349,8 @@ impl Aktion {
         Self::LizenzEingespielt,
         Self::BauantragGeaendert,
         Self::XbauExportiert,
+        Self::EinreichungErstellt,
+        Self::EinreichungBestaetigt,
         Self::KundeAngelegt,
         Self::KundeGeaendert,
         Self::KundeGeloescht,
@@ -366,6 +370,8 @@ impl Aktion {
             Self::BenutzerGeaendert => "benutzer_geaendert",
             Self::LizenzEingespielt => "lizenz_eingespielt",
             Self::BauantragGeaendert => "bauantrag_geaendert",
+            Self::EinreichungErstellt => "einreichung_erstellt",
+            Self::EinreichungBestaetigt => "einreichung_bestaetigt",
             Self::XbauExportiert => "xbau_exportiert",
             Self::KundeAngelegt => "kunde_angelegt",
             Self::KundeGeaendert => "kunde_geaendert",

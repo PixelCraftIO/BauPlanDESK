@@ -5,6 +5,8 @@ mod bibliothek;
 mod bootstrap;
 mod commands;
 mod config;
+mod dateien;
+mod einreichungen;
 mod lizenzdienst;
 mod menu;
 mod updater;
@@ -48,6 +50,15 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            dateien::dokument_extern_oeffnen,
+            dateien::arbeitskopien,
+            einreichungen::einreichungen,
+            einreichungen::einreichungs_vergleich,
+            einreichungen::einreichung_erstellen,
+            einreichungen::einreichung_bestaetigen,
+            einreichungen::einreichung_exportieren,
+            dateien::arbeitskopie_oeffnen,
+            dateien::arbeitskopie_uebernehmen,
             bibliothek::formularbibliothek,
             bibliothek::formularordner_waehlen,
             bibliothek::bibliothek_importieren,

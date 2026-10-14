@@ -15,6 +15,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+chrono.workspace = true
 async-trait.workspace = true
 client-cache.workspace = true
 core-lib.workspace = true

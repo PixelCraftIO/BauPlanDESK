@@ -8,7 +8,7 @@ root=Path(__file__).resolve().parent
 artefacts=Path(os.environ.get('BAUPROJEKT_PDF_ARTEFAKTE','/workspace/review-main/pdf-ablage'))
 workflow=json.loads((artefacts/'workflow.json').read_text())
 pdfs={name:base64.b64encode((artefacts/(name+'.pdf')).read_bytes()).decode() for name in ['original','vorlage','ausgefuellt']}
-out=root.parents[2]/'docs/pdf-ablage';out.mkdir(exist_ok=True)
+out=Path(os.environ.get('BAUPROJEKT_PDF_UI_ARTEFAKTE',str(root.parents[2]/'docs/pdf-ablage')));out.mkdir(parents=True,exist_ok=True)
 custom='''
 const originalInvoke=window.__TAURI_INTERNALS__.invoke;
 const wf=window.pdfWorkflow;

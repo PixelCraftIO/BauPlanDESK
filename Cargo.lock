@@ -392,6 +392,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
+ "chrono",
  "client-cache",
  "core-lib",
  "db-postgres",
@@ -4852,6 +4853,7 @@ dependencies = [
  "storage",
  "tempfile",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -5311,6 +5313,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "zip",
 ]
 
 [[package]]

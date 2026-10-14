@@ -119,6 +119,8 @@ export const AKTIONEN: Record<string, string> = {
   benutzer_geaendert: "Benutzer geändert",
   lizenz_eingespielt: "Lizenz eingespielt",
   bauantrag_geaendert: "Bauantrag geändert",
+  einreichung_erstellt: "Einreichungspaket erstellt",
+  einreichung_bestaetigt: "Einreichung bestätigt",
   xbau_exportiert: "XBau-Bauantrag exportiert",
   kunde_angelegt: "Kunde angelegt",
   kunde_geaendert: "Kunde geändert",
@@ -842,7 +844,80 @@ export interface BibliothekVorschau {
   seiten: PdfSeite[];
   felder: Formularfeld[];
 }
+export interface Arbeitskopie {
+  stand: { id: string; dokument: DocumentVersion };
+  pfad: string;
+  geaendert: boolean;
+}
+export interface Einreichung {
+  stand: {
+    id: string;
+    projekt_id: string;
+    titel: string;
+    empfaenger: string;
+    erstellt_am: string;
+    erstellt_von: string;
+    dokumente: DocumentVersion[];
+  };
+  zip_key: string;
+  zip_hash: string;
+  size: number;
+  version: number;
+  einreichung: {
+    datum: string;
+    notiz: string;
+    bestaetigt_am: string;
+    bestaetigt_von: string;
+  } | null;
+}
+export interface DokumentAuswahl {
+  dokument_id: string;
+  version: number;
+}
+export interface NeuesPaket {
+  titel: string;
+  empfaenger: string;
+  dokumente: DokumentAuswahl[];
+}
+export interface DokumentVergleich {
+  aktuell: DocumentVersion;
+  zuletzt_eingereicht: DocumentVersion | null;
+  paket_id: string | null;
+  eingereicht_am: string | null;
+  status:
+    | "neu"
+    | "bereits_eingereicht"
+    | "gleicher_inhalt"
+    | "geaendert"
+    | "aelter";
+}
 export const api = {
+  dokumentExternOeffnen: (dokumentId: string, version: number) =>
+    invoke<Arbeitskopie>("dokument_extern_oeffnen", { dokumentId, version }),
+  arbeitskopien: (projektId: string) =>
+    invoke<Arbeitskopie[]>("arbeitskopien", { projektId }),
+  arbeitskopieOeffnen: (id: string) =>
+    invoke<void>("arbeitskopie_oeffnen", { id }),
+  arbeitskopieUebernehmen: (id: string) =>
+    invoke<DocumentVersion>("arbeitskopie_uebernehmen", { id }),
+  einreichungen: (projektId: string) =>
+    invoke<Einreichung[]>("einreichungen", { projektId }),
+  einreichungsVergleich: (projektId: string, empfaenger: string) =>
+    invoke<DokumentVergleich[]>("einreichungs_vergleich", {
+      projektId,
+      empfaenger,
+    }),
+  einreichungErstellen: (projektId: string, paket: NeuesPaket) =>
+    invoke<Einreichung>("einreichung_erstellen", { projektId, paket }),
+  einreichungBestaetigen: (
+    id: string,
+    basis: number,
+    datum: string,
+    notiz: string,
+  ) =>
+    invoke<Einreichung>("einreichung_bestaetigen", { id, basis, datum, notiz }),
+  einreichungExportieren: (id: string, ziel: string) =>
+    invoke<void>("einreichung_exportieren", { id, ziel }),
   formularbibliothek: () => invoke<Formularbibliothek>("formularbibliothek"),
   formularordnerWaehlen: (pfad: string) =>
     invoke<void>("formularordner_waehlen", { pfad }),

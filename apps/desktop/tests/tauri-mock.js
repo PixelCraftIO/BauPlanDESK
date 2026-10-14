@@ -57,6 +57,8 @@ window.__TAURI_INTERNALS__ = {
     }
     if (cmd === "plugin:dialog|save" || cmd === "plugin:dialog|open")
       return null;
+    if (cmd === "arbeitskopien") return [];
+    if (cmd === "einreichungen") return [];
     if (cmd === "ablage_status")
       return {
         modus: "Einzelplatz",

@@ -13,6 +13,7 @@
     type DocumentLock,
     type DocumentVersion,
   } from "./api";
+  import Arbeitskopien from "./Arbeitskopien.svelte";
   import Dialog from "./Dialog.svelte";
   import PdfVorlagenEditor from "./PdfVorlagenEditor.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
@@ -32,6 +33,8 @@
     onfehler: (m: string) => void;
   } = $props();
 
+  let arbeitsEditor = $state<Arbeitskopien>();
+  let suche = $state("");
   let versionen = $state<DocumentVersion[]>([]);
   let laeuft = $state(false);
   let formular = $state<DocumentVersion | null>(null);
@@ -127,6 +130,18 @@
   const istPdf = (d: DocumentVersion) =>
     d.file_name.toLowerCase().endsWith(".pdf");
 
+  async function externOeffnen(doc: DocumentVersion) {
+    laeuft = true;
+    try {
+      await api.dokumentExternOeffnen(doc.document_id, doc.version);
+      hinweis = `${doc.file_name} als Arbeitskopie im zugeordneten Programm geöffnet.`;
+    } catch (e) {
+      onfehler(fehlertext(e));
+    } finally {
+      laeuft = false;
+      await arbeitsEditor?.aktualisieren();
+    }
+  }
   async function exportieren(doc: DocumentVersion) {
     const ziel = await save({
       title: "Dokument exportieren",
@@ -164,9 +179,13 @@
         bisher.anzahl++;
       }
     }
-    return [...neueste.values()].sort((a, b) =>
-      a.doc.file_name.localeCompare(b.doc.file_name, "de"),
-    );
+    return [...neueste.values()]
+      .filter(({ doc }) =>
+        doc.file_name
+          .toLocaleLowerCase("de")
+          .includes(suche.toLocaleLowerCase("de")),
+      )
+      .sort((a, b) => a.doc.file_name.localeCompare(b.doc.file_name, "de"));
   });
 
   export async function aktualisieren() {
@@ -239,8 +258,24 @@
       title: dokumentId ? "Neue Version auswählen" : "Dokumente importieren",
       filters: [
         {
-          name: "Pläne und Formulare",
-          extensions: ["pdf", "dxf", "dwg", "xml", "png", "jpg"],
+          name: "Projektdateien",
+          extensions: [
+            "pdf",
+            "dxf",
+            "dwg",
+            "xml",
+            "png",
+            "jpg",
+            "jpeg",
+            "xlsx",
+            "xls",
+            "docx",
+            "doc",
+            "odt",
+            "ods",
+            "csv",
+            "txt",
+          ],
         },
         { name: "Alle Dateien", extensions: ["*"] },
       ],
@@ -291,7 +326,12 @@
       : `${(b / 1024 / 1024).toFixed(1)} MB`;
   export function istBeschaeftigt() {
     return (
-      laeuft || ordnerLaeuft || !!formular || !!historie || !!vorlagenDokument
+      arbeitsEditor?.istBeschaeftigt() ||
+      laeuft ||
+      ordnerLaeuft ||
+      !!formular ||
+      !!historie ||
+      !!vorlagenDokument
     );
   }
 </script>
@@ -321,6 +361,14 @@
   Projektordner sind Exportkopien mit „Dokumente“ und „Pläne“. Änderungen an
   diesen Kopien werden nicht automatisch in die Anwendung übernommen.
 </p>
+
+<label class="dateisuche"
+  >Dateien suchen<input
+    type="search"
+    bind:value={suche}
+    placeholder="Dateiname, z. B. Lageplan oder .xlsx"
+  /></label
+>
 
 {#if hinweis}
   <p class="meta" role="status">{hinweis}</p>
@@ -358,7 +406,13 @@
               </span>
             {/if}
           </td>
-          <td class="aktionen">
+          <td class="aktionen"
+            ><button
+              class="link"
+              disabled={laeuft}
+              onclick={() => externOeffnen(doc)}
+              >Im zugeordneten Programm öffnen</button
+            >
             {#if istPlan(doc.file_name)}<button
                 class="link"
                 onclick={() => onplan(doc.document_id)}>Plan ansehen</button
@@ -472,3 +526,25 @@
     />
   </Dialog>
 {/if}
+
+<Arbeitskopien
+  bind:this={arbeitsEditor}
+  {projektId}
+  {darfAblegen}
+  onaktualisiert={laden}
+  {onfehler}
+/>
+
+<style>
+  .dateisuche {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    max-width: 40rem;
+    margin: 1rem 0;
+  }
+  .dateisuche input {
+    flex: 1;
+    min-width: 0;
+  }
+</style>

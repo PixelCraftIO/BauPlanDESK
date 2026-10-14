@@ -54,6 +54,13 @@ apps/desktop/src-tauri     Tauri-App (Fenster, Updater, Bootstrap, Commands)
 lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
 ```
 
+## Projektdateien und Einreichungen
+
+[Dateiverwaltung und Einreichungschronik](docs/dateiverwaltung-einreichungen/README.md)
+ermöglichen das Öffnen von Projektdateien im zugeordneten Programm, die Übernahme
+externer Änderungen als neue Version und ZIP-Pakete mit festgehaltenen
+Unterlagenständen, Empfängervergleich und ausdrücklichem Einreichungsdatum.
+
 ## PDF-Vorlagen und Projektablage
 
 [Bedienung, unterstützte Formulare und Ablagekonfiguration](docs/pdf-ablage/README.md)
