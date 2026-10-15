@@ -238,6 +238,14 @@ impl BaugrundstuecksPlan {
         plan: &Planungsrecht,
         version: i64,
     ) -> CoreResult<BaugrundstuecksPruefung> {
+        self.pruefe_mit_regeln(plan, version, crate::baunvo::regelwerke())
+    }
+    pub fn pruefe_mit_regeln(
+        &self,
+        plan: &Planungsrecht,
+        version: i64,
+        regeln: &[crate::baunvo::Regelwerk],
+    ) -> CoreResult<BaugrundstuecksPruefung> {
         let mit_plan = matches!(
             plan.bebauungsplan_art,
             crate::domain::BebauungsplanArt::Qualifiziert
@@ -288,7 +296,7 @@ impl BaugrundstuecksPlan {
                     .unwrap_or_else(|| plan.festgesetzte_werte.clone()),
                 ..plan.clone()
             };
-            let r = crate::festsetzungen::pruefe(&e, &p, version)?;
+            let r = crate::festsetzungen::pruefe_mit_regeln(&e, &p, version, regeln)?;
             ergebnisse.push(BaugrundstueckNachweis {
                 grundstueck: g,
                 pruefung: r,

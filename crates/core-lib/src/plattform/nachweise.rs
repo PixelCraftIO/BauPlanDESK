@@ -427,13 +427,16 @@ impl CoreServices {
                 Ok(ergebnis)
             }
             NachweisEingabe::Nutzung { .. } => {
-                let live = archiv(self, &p, &n.eingabe)?;
-                if live.iter().map(|r| &r.sha256).collect::<Vec<_>>()
-                    != n.regeln.iter().map(|r| &r.sha256).collect::<Vec<_>>()
-                {
-                    return Err(CoreError::InvalidInput("Archivierte BauNVO-Ausgabe benötigt den zugehörigen Rechenkern. Archiviertes Ergebnis bleibt lesbar.".into()));
-                }
-                Ok(auswerten(self, &p, &n.eingabe)?.0)
+                let regeln = archivierte_baunvo(&n.regeln)?;
+                let NachweisEingabe::Nutzung { plan, .. } = &n.eingabe else {
+                    unreachable!()
+                };
+                serde_json::to_value(plan.pruefe_mit_regeln(
+                    &p.planungsrecht,
+                    p.version,
+                    &regeln,
+                )?)
+                .map_err(json_err)
             }
         }
     }
@@ -459,4 +462,36 @@ fn gebaeude_fingerprint(e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResu
         }
     }
     hash(&serde_json::to_value(stand).map_err(json_err)?)
+}
+
+/// Archivinhalt und Metadaten müssen dieselbe Regel bezeichnen.
+fn archivierte_baunvo(archiv: &[RegelArchiv]) -> CoreResult<Vec<crate::baunvo::Regelwerk>> {
+    if archiv.is_empty() || archiv.len() > 5 {
+        return Err(CoreError::InvalidInput(
+            "BauNVO-Regelarchiv fehlt oder ist zu groß".into(),
+        ));
+    }
+    let mut werke = Vec::new();
+    for a in archiv {
+        if a.format != "baunvo-json" || a.inhalt.len() > 1_000_000 {
+            return Err(CoreError::InvalidInput(
+                "Nicht unterstütztes BauNVO-Regelarchiv".into(),
+            ));
+        }
+        a.sha256.verify(a.inhalt.as_bytes())?;
+        let r: crate::baunvo::Regelwerk = serde_json::from_str(&a.inhalt).map_err(json_err)?;
+        r.validate()?;
+        if r.id != a.id
+            || r.version != a.version
+            || werke
+                .iter()
+                .any(|w: &crate::baunvo::Regelwerk| w.fassung == r.fassung || w.id == r.id)
+        {
+            return Err(CoreError::InvalidInput(
+                "Widersprüchliches BauNVO-Regelarchiv".into(),
+            ));
+        }
+        werke.push(r);
+    }
+    Ok(werke)
 }

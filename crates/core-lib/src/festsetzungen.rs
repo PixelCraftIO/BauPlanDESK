@@ -150,7 +150,15 @@ pub fn pruefe(
     p: &Planungsrecht,
     projekt_version: i64,
 ) -> CoreResult<NutzungsPruefung> {
-    let aufstellung = crate::flaechen::berechne_aufstellung(e, p)?;
+    pruefe_mit_regeln(e, p, projekt_version, crate::baunvo::regelwerke())
+}
+pub fn pruefe_mit_regeln(
+    e: &NutzungsEingabe,
+    p: &Planungsrecht,
+    projekt_version: i64,
+    regeln: &[crate::baunvo::Regelwerk],
+) -> CoreResult<NutzungsPruefung> {
+    let aufstellung = crate::flaechen::berechne_aufstellung_mit_regeln(e, p, regeln)?;
     let mut e = e.clone();
     if let Some(a) = &aufstellung {
         e.mass = a.mass.clone();
@@ -197,18 +205,17 @@ pub fn pruefe(
         (Some(a), None) | (None, Some(a)) => Some(a),
         _ => None,
     };
+    let regel = crate::baunvo::aus_katalog(
+        regeln,
+        p.bau_nvo
+            .or(e.aufstellung.as_ref().map(|a| a.bau_nvo))
+            .unwrap_or(crate::flaechen::BauNvo::V2017),
+    )?;
     let grz_gesamt = if historisch {
         None
     } else {
         f.grz_gesamt.or_else(|| {
-            basis_gesamt.map(|v| {
-                let regel = crate::baunvo::regelwerk(
-                    p.bau_nvo
-                        .or(e.aufstellung.as_ref().map(|a| a.bau_nvo))
-                        .unwrap_or(crate::flaechen::BauNvo::V2017),
-                );
-                (v * regel.grz_ii_faktor).min(regel.grz_ii_kappung).max(v)
-            })
+            basis_gesamt.map(|v| (v * regel.grz_ii_faktor).min(regel.grz_ii_kappung).max(v))
         })
     };
     let quelle_gesamt = if f.grz_gesamt.is_some() {
@@ -344,6 +351,32 @@ mod tests {
             festgesetzte_werte: f,
             ..Default::default()
         }
+    }
+    #[test]
+    fn grz_ii_grenze_stammt_aus_explizitem_katalog() {
+        let recht = plan(Festsetzungen {
+            grz: Some(0.4),
+            ..Default::default()
+        });
+        let mut regel = crate::baunvo::regelwerk(crate::flaechen::BauNvo::V2017).clone();
+        regel.grz_ii_faktor = 1.1;
+        regel.grz_ii_kappung = 0.42;
+        let r = pruefe_mit_regeln(&eingabe(), &recht, 1, &[regel]).unwrap();
+        let grz_ii = r.nachweise.iter().find(|n| n.art == "grz_gesamt").unwrap();
+        assert_eq!(grz_ii.soll, Some(0.42));
+        let live = pruefe(&eingabe(), &recht, 1).unwrap();
+        assert!(
+            (live
+                .nachweise
+                .iter()
+                .find(|n| n.art == "grz_gesamt")
+                .unwrap()
+                .soll
+                .unwrap()
+                - 0.6)
+                .abs()
+                < 1e-9
+        );
     }
     #[test]
     fn festsetzungen_haben_vorrang_und_abweichungen_sind_quantifiziert() {

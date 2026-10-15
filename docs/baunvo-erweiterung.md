@@ -50,4 +50,8 @@ cmp apps/desktop/src/lib/generated/plattform.ts /tmp/plattform.ts
 cargo test -p core-lib
 ```
 
-Archivierte LBO-Skripte können unabhängig vom aktuell geladenen Skript wiederholt werden. Bei BauNVO-Archiven verlangt die Wiederholung derzeit noch denselben Regelhash und den passenden Rechenkern; alte Ergebnisse bleiben lesbar. Ein austauschbarer BauNVO-Paketkatalog mit Wiederholung historischer Regelkonfigurationen ist eine sinnvolle nächste Erweiterung an dieser Modulgrenze.
+Archivierte LBO-Skripte und BauNVO-Regelkonfigurationen können unabhängig vom aktuell ausgelieferten Regelpaket wiederholt werden. BauNVO-Nachweise verwenden dafür ausschließlich ihre archivierten JSON-Pakete, einschließlich Bauteilanrechnung, Nichtvollgeschossansatz und GRZ-II-Grenzen. Fehlende, unvollständige, doppelte oder widersprüchliche Pakete führen zu einem Fehler; ein Rückfall auf aktuelle Regeln ist ausgeschlossen. Hash, Regelkennung und Version werden überprüft.
+
+Die vorhandenen Berechnungsaufrufe bleiben erhalten. `FlaechenAufstellung::berechne_mit_regeln`, `festsetzungen::pruefe_mit_regeln` und `BaugrundstuecksPlan::pruefe_mit_regeln` bilden die zusätzliche Katalogschnittstelle. Der Ergebnisvertrag bleibt unverändert. Integrationstests prüfen einen gespeicherten historischen Nachweis mit abweichender Anrechnung sowie beschädigte Archive.
+
+Regelkonfiguration und Algorithmus sind getrennt: Die Wiederholung benötigt weiterhin einen unterstützten **Rechenkernstand** (`plattform-1`). Ein künftiger Algorithmuswechsel muss historische Rechenkerne ausdrücklich unterstützen oder die Wiederholung mit einer klaren Meldung verweigern. Das archivierte Ergebnis bleibt lesbar. Eine Endnutzeroberfläche zum Installieren eigener BauNVO-Pakete ist damit noch nicht verbunden.

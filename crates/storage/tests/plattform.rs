@@ -587,3 +587,131 @@ async fn geoeffneter_arbeitsplatz_kann_entzogene_adminrechte_nicht_weiterverwend
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn baunvo_archiv_verwendet_eigene_regeln_und_verweigert_defekte_pakete() {
+    use core_lib::{
+        baugrundstuecke::musterplan,
+        baunvo::regelwerk,
+        domain::{Aktion, BebauungsplanArt, NeuerProtokolleintrag, Planungsrecht},
+        flaechen::{Anrechnung, BauNvo, Bauteiltyp},
+        plattform::nachweise::{NachweisEingabe, Nachweisstand, NutzungsArt},
+        storage::ContentHash,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().to_path_buf(), "test").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Planer").await.unwrap();
+    let plan = musterplan();
+    let recht = Planungsrecht {
+        bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+        bau_nvo: Some(BauNvo::V2017),
+        baugrundstuecke: Some(plan.clone()),
+        ..Default::default()
+    };
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Regelarchiv".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: recht.clone(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let id = uuid::Uuid::new_v4();
+    let n = core
+        .nachweis_erstellen(
+            p.id,
+            id,
+            "GRZ".into(),
+            NachweisEingabe::Nutzung {
+                fach: NutzungsArt::Grz,
+                plan: plan.clone(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        core.nachweis_wiederholen(p.id, id).await.unwrap(),
+        n.ergebnis
+    );
+    // Importierter historischer Stand: absichtlich andere Ansätze als die Auslieferung.
+    // Die Fachstand-Schnittstelle simuliert hier das Einlesen einer früheren Datenbank.
+    let mut alt = regelwerk(BauNvo::V2017).clone();
+    alt.version = "historischer-teststand".into();
+    alt.bauteile
+        .get_mut(&Bauteiltyp::Hauptanlage)
+        .unwrap()
+        .anrechnung = Anrechnung::Keine;
+    alt.grz_ii_faktor = 1.1;
+    let erwartet = serde_json::to_value(
+        plan.pruefe_mit_regeln(&recht, p.version, &[alt.clone()])
+            .unwrap(),
+    )
+    .unwrap();
+    assert_ne!(erwartet, n.ergebnis);
+    let mut historisch = n.clone();
+    historisch.regeln[0].version = alt.version.clone();
+    historisch.regeln[0].inhalt = serde_json::to_string(&alt).unwrap();
+    historisch.regeln[0].sha256 = ContentHash::of(historisch.regeln[0].inhalt.as_bytes());
+    historisch.ergebnis = erwartet.clone();
+    let mut faelle: Vec<(Nachweisstand, bool)> = vec![(historisch.clone(), true)];
+    let mut defekt = historisch.clone();
+    defekt.regeln[0].inhalt.push(' '); // Hash unverändert.
+    faelle.push((defekt, false));
+    let mut defekt = historisch.clone();
+    defekt.regeln[0].version = "abweichende Metadaten".into();
+    faelle.push((defekt, false));
+    let mut defekt = historisch.clone();
+    defekt.regeln.push(defekt.regeln[0].clone());
+    faelle.push((defekt, false));
+    let mut defekt = historisch.clone();
+    defekt.regeln.clear();
+    faelle.push((defekt, false));
+    let mut defekt = historisch;
+    defekt.rechenstand = "unbekannter-algorithmus".into();
+    faelle.push((defekt, false));
+    for (stand, gueltig) in faelle {
+        let mut f = core
+            .repos
+            .commit
+            .fachstaende(p.id, "nachweise")
+            .await
+            .unwrap()
+            .remove(0);
+        let basis = f.revision;
+        f.daten = serde_json::to_value(stand).unwrap();
+        core.repos
+            .commit
+            .fachstand(
+                f,
+                basis,
+                NeuerProtokolleintrag {
+                    zeit: n.erstellt_am,
+                    benutzer_id: user.id,
+                    benutzer_name: user.anzeigename.clone(),
+                    aktion: Aktion::ProjektGeaendert,
+                    project_id: Some(p.id),
+                    document_id: None,
+                    details: "Test: historisches Archiv einlesen".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let wiederholt = core.nachweis_wiederholen(p.id, id).await;
+        if gueltig {
+            assert_eq!(wiederholt.unwrap(), erwartet);
+        } else {
+            assert!(wiederholt.is_err());
+        }
+    }
+}
