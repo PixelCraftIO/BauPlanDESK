@@ -21,6 +21,67 @@ fn zuordnung(revision: i64, kategorie: Option<&str>) -> KategorieZuordnung {
     }
 }
 #[tokio::test]
+async fn email_in_bestehendem_buerokatalog_und_unveraendertem_dateiarchiv() {
+    let tmp = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(tmp.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("email-test", "Daniel").await.unwrap();
+    let mut alt = core.kategorienkatalog().await.unwrap();
+    alt.revision = 4;
+    alt.kategorien.retain(|k| k.id != "email");
+    core.repos
+        .lizenz
+        .einstellung_setzen(
+            "dokumentkategorien/v1",
+            &serde_json::to_string(&alt).unwrap(),
+        )
+        .await
+        .unwrap();
+    let katalog = core.kategorienkatalog().await.unwrap();
+    assert_eq!(katalog.revision, 4);
+    assert_eq!(katalog.kategorie("email").unwrap().name, "E-Mail");
+    assert_eq!(
+        core.kategorienkatalog_speichern(katalog, &user)
+            .await
+            .unwrap()
+            .revision,
+        5
+    );
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Mailarchiv".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    // Dateiinhalte werden archiviert und an das zugeordnete Programm weitergegeben.
+    for name in ["Nachricht.eml", "Nachricht.msg"] {
+        let bytes = Bytes::from_static(b"Archivierte Originalnachricht");
+        let d = core
+            .store_document_kategorisiert(p.id, name, bytes.clone(), Some("email".into()), &user)
+            .await
+            .unwrap();
+        assert_eq!(core.externe_datei(d.document_id, 1).await.unwrap().1, bytes);
+        assert_eq!(
+            core.kategoriesnapshots(p.id).await.unwrap()[&d.document_id.0.to_string()]
+                .as_ref()
+                .unwrap()
+                .name,
+            "E-Mail"
+        );
+    }
+}
+#[tokio::test]
 async fn kategorien_ueber_versionen_vorlagen_pakete_und_neustart() {
     let temp = tempfile::tempdir().unwrap();
     let dbpfad = temp.path().join("projekt.db");

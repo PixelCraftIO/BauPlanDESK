@@ -370,6 +370,8 @@
             "ods",
             "csv",
             "txt",
+            "eml",
+            "msg",
           ],
         },
         { name: "Alle Dateien", extensions: ["*"] },

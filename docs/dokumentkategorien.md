@@ -2,7 +2,7 @@
 
 Dateiname, Dateiformat, Ordner und fachliche Kategorie sind getrennte Angaben.
 Jedes Dokument besitzt höchstens eine Hauptzuordnung, etwa „Baubeschreibung“,
-„Lageplan“, „Anschreiben“ oder „Berechnung / GRZ-Berechnung“. DWG-, PDF-, Office-
+„Lageplan“, „Anschreiben“, „E-Mail“ oder „Berechnung / GRZ-Berechnung“. DWG-, PDF-, Office-
 und Bilddateien werden gleich behandelt. Ohne Zuordnung bleibt eine Unterlage
 ausdrücklich „Ohne Kategorie“; Dateinamen werden nicht automatisch interpretiert.
 
@@ -24,6 +24,13 @@ ausdrücklich „Ohne Kategorie“; Dateinamen werden nicht automatisch interpre
 - **Einreichungen:** Aktuelle Kategorien helfen bei der Auswahl. Die Chronik
   zeigt die zum Paket gehörenden Kategorien. ZIP und JSON-Manifest enthalten
   diese historischen Bezeichnungen; spätere Änderungen wirken sich nicht aus.
+
+Archivierte E-Mails können als `.eml` oder `.msg` importiert und der Kategorie
+„E-Mail“ zugeordnet werden. „Öffnen“ verwendet das auf dem Gerät zugeordnete
+Mailprogramm; ein Mailimportdienst oder das Versenden von E-Mails ist dafür nicht
+erforderlich. Auch als PDF archivierte Nachrichten können diese Kategorie erhalten.
+Neue Standardkategorien ergänzen bereits gespeicherte Bürokataloge beim Lesen;
+individuelle Namen und Archivierungen bleiben erhalten.
 
 Eine Kategorieänderung erzeugt keine neue Dateiversion. Neue Versionen,
 Arbeitskopien und Wiederherstellungen behalten die Zuordnung des Dokuments.

@@ -38,6 +38,7 @@ impl Default for KategorienKatalog {
             ("statik", "Standsicherheitsnachweis / Statik"),
             ("gutachten", "Gutachten"),
             ("anschreiben", "Anschreiben"),
+            ("email", "E-Mail"),
             ("bescheid", "Bescheid"),
             ("foto", "Foto"),
         ];
@@ -72,6 +73,22 @@ impl Default for KategorienKatalog {
     }
 }
 impl KategorienKatalog {
+    /// Neue Standardkategorien auch in bereits gespeicherten Bürokatalogen anbieten.
+    /// Bestehende Namen, Hierarchien, Archivierungen und Revisionen bleiben erhalten.
+    fn standard_ergaenzen(mut self) -> Self {
+        for mut k in Self::default().kategorien {
+            if !self.kategorien.iter().any(|vorhanden| vorhanden.id == k.id) {
+                if let Some(parent) = &k.eltern_id
+                    && self.kategorien.iter().any(|p| &p.id == parent && !p.aktiv)
+                {
+                    k.aktiv = false;
+                }
+                self.kategorien.push(k);
+            }
+        }
+        self
+    }
+
     pub fn kategorie(&self, id: &str) -> CoreResult<&Dokumentkategorie> {
         self.kategorien
             .iter()
@@ -171,7 +188,11 @@ impl CoreServices {
             .lizenz
             .einstellung(KATALOG)
             .await?
-            .map(|s| serde_json::from_str(&s).map_err(json))
+            .map(|s| {
+                serde_json::from_str::<KategorienKatalog>(&s)
+                    .map(KategorienKatalog::standard_ergaenzen)
+                    .map_err(json)
+            })
             .unwrap_or_else(|| Ok(KategorienKatalog::default()))
     }
     pub async fn kategorienkatalog_speichern(
@@ -187,6 +208,7 @@ impl CoreServices {
             .transpose()
             .map_err(json)?
             .unwrap_or_default();
+        let alt = alt.standard_ergaenzen();
         if alt.revision != neu.revision {
             return Err(CoreError::VersionConflict {
                 expected: neu.revision,
