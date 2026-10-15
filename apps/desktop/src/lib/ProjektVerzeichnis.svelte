@@ -92,8 +92,10 @@
               >{p.name}</button
             ></td
           ><td>{landName(p.bundesland)}</td><td class="zahl"
-            >{#if p.planungsrecht.baugrundstuecke}{p.planungsrecht
-                .baugrundstuecke.flurstuecke.length} Flurstücke{:else}{p.grundstuecksflaeche_m2?.toLocaleString(
+            >{#if p.planungsrecht.grundstuecksinformationen || p.planungsrecht.baugrundstuecke}{p
+                .planungsrecht.grundstuecksinformationen?.flurstuecke.length ??
+                p.planungsrecht.baugrundstuecke?.flurstuecke.length ??
+                0} Flurstücke{:else}{p.grundstuecksflaeche_m2?.toLocaleString(
                 "de-DE",
               ) ?? "—"}
               {p.grundstuecksflaeche_m2 == null

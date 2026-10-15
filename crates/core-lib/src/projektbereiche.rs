@@ -13,6 +13,7 @@ pub enum ProjektBereich {
     Grundlagen,
     Festsetzungen,
     Grundstuecke,
+    Grundstuecksinformationen,
     Projektdaten,
 }
 impl ProjektBereich {
@@ -30,7 +31,8 @@ impl ProjektBereich {
                 "plan_rechtskraft",
             ],
             Self::Festsetzungen => &["festgesetzte_werte", "festsetzungen"],
-            Self::Grundstuecke => &["baugrundstuecke"],
+            Self::Grundstuecke => &["baugrundstuecksermittlung"],
+            Self::Grundstuecksinformationen => &["grundstuecksinformationen"],
             Self::Projektdaten => &[],
         }
     }
@@ -62,9 +64,9 @@ fn json_err(e: serde_json::Error) -> CoreError {
 impl CoreServices {
     pub async fn projekt_bereich_speichern(
         &self,
-        basis: Project,
+        mut basis: Project,
         bereich: ProjektBereich,
-        a: ProjectUpdate,
+        mut a: ProjectUpdate,
         wer: &Benutzer,
     ) -> CoreResult<Project> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
@@ -73,6 +75,10 @@ impl CoreServices {
                 "Entwurf gehört zu einem anderen Projekt".into(),
             ));
         }
+        crate::grundstuecksinformationen::normalisieren(&mut basis.planungsrecht)?;
+        if let Some(p) = &mut a.planungsrecht {
+            crate::grundstuecksinformationen::normalisieren(p)?;
+        }
         let mut ziel = basis.clone();
         ziel.name = a.name;
         ziel.bundesland = a.bundesland;
@@ -80,10 +86,28 @@ impl CoreServices {
         if let Some(p) = a.planungsrecht {
             ziel.planungsrecht = p;
         }
+        if bereich == ProjektBereich::Grundstuecke
+            && let Some(e) = &mut ziel.planungsrecht.baugrundstuecksermittlung
+        {
+            e.quellen_hash = Some(
+                crate::grundstuecksinformationen::informationen(&basis.planungsrecht)
+                    .fingerprint()?,
+            );
+        }
         let alt = bereich.auszug(&basis)?;
         let neu = bereich.auszug(&ziel)?;
         for _ in 0..5 {
             let mut aktuell = self.repos.projects.get(basis.id).await?;
+            crate::grundstuecksinformationen::normalisieren(&mut aktuell.planungsrecht)?;
+            if bereich == ProjektBereich::Grundstuecke
+                && crate::grundstuecksinformationen::informationen(&aktuell.planungsrecht)
+                    != crate::grundstuecksinformationen::informationen(&basis.planungsrecht)
+            {
+                return Err(CoreError::VersionConflict {
+                    expected: basis.version,
+                    actual: aktuell.version,
+                });
+            }
             let stand = bereich.auszug(&aktuell)?;
             // Nur tatsächlich geänderte Felder kollidieren. Gleichlautende Änderungen sind wiederholbar.
             for (k, v) in neu.as_object().unwrap() {
@@ -131,11 +155,29 @@ impl CoreServices {
                 }
                 let teil: Planungsrecht = serde_json::from_value(teil).map_err(json_err)?;
                 if bereich == ProjektBereich::Grundstuecke {
-                    if let Some(plan) = &teil.baugrundstuecke {
-                        plan.pruefe(&aktuell.planungsrecht, aktuell.version)?;
+                    if let Some(e) = &aktuell.planungsrecht.baugrundstuecksermittlung {
+                        crate::grundstuecksinformationen::validiere_ansaetze(
+                            &aktuell.planungsrecht,
+                            e,
+                        )?;
+                        if let Some(plan) =
+                            crate::grundstuecksinformationen::plan(&aktuell.planungsrecht)?
+                        {
+                            self.geschosszuordnung(aktuell.id, &plan)
+                                .await?
+                                .pruefe(&aktuell.planungsrecht, aktuell.version)?;
+                        }
                     }
                 } else {
                     teil.validate()?;
+                    if bereich == ProjektBereich::Grundstuecksinformationen {
+                        crate::grundstuecksinformationen::dokumente_pruefen(
+                            self,
+                            aktuell.id,
+                            &aktuell.planungsrecht,
+                        )
+                        .await?;
+                    }
                 }
             }
             if bereich.auszug(&aktuell)? == stand {

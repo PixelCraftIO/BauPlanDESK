@@ -22,7 +22,11 @@ pub struct GrundstueckKontext {
 }
 
 pub fn ermitteln(p: &Project) -> CoreResult<Vec<GrundstueckKontext>> {
-    let Some(plan) = &p.planungsrecht.baugrundstuecke else {
+    if !crate::grundstuecksinformationen::quellen_aktuell(&p.planungsrecht)? {
+        return Err(crate::CoreError::InvalidInput("Baugrundstück noch nicht berechnet oder Grundstücksinformationen geändert. Baugrundstücksermittlung prüfen und speichern.".into()));
+    }
+    let eingabe = crate::grundstuecksinformationen::plan(&p.planungsrecht)?;
+    let Some(plan) = &eingabe else {
         // Dokumentierter Adapter für noch nicht aufgeschlüsselte Bestandsprojekte.
         return Ok(p
             .grundstuecksflaeche_m2

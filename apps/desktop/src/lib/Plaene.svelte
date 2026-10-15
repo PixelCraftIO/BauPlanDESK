@@ -32,7 +32,7 @@
     darf: boolean;
     onprojekt: (p: Project) => void;
     dokumentId: string | null;
-    /** Gemessene Fläche als Grundstücksfläche übernehmen. */
+    /** Gemessene Planfläche bei den Flurstücksinformationen prüfen. */
     onflaeche: (m2: number) => void;
     onfehler: (m: string) => void;
   } = $props();
@@ -550,7 +550,7 @@
                   disabled={!darf || geoLaeuft}
                   onclick={() =>
                     onflaeche(Math.round(m.ergebnis.flaeche_m2! * 100) / 100)}
-                  >Als Grundstücksfläche übernehmen</button
+                  >Bei Flurstücksinformationen prüfen</button
                 >
               {/if}
               {#if m.ergebnis.flaeche_m2 !== null && !m.ergebnis.selbstschneidend && m.punkte.length >= 3}

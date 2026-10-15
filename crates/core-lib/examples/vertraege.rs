@@ -8,10 +8,14 @@ use core_lib::{
 use ts_rs::TS;
 fn main() {
     println!(
-        "// Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.\nimport type {{ BaugrundstuecksPlan, Planungsrecht }} from '../api';"
+        "// Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.\nimport type {{ BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht }} from '../api';"
     );
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
+        core_lib::grundstuecksinformationen::Grundstuecksinformationen,
+        core_lib::grundstuecksinformationen::FlurstuecksInfo,
+        core_lib::grundstuecksinformationen::FlurstuecksAnsatz,
+        core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
         core_lib::calc::Baugebiet,
         core_lib::flaechen::BauNvo,
         core_lib::flaechen::Bauteiltyp,

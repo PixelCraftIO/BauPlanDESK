@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { berechnungsplan, berechnungsansaetze } from "./grundstuecksdaten";
   import type { Gebaeude } from "./generated/plattform";
   import type { Datensatz } from "./plattformApi";
   import { plattformApi } from "./plattformApi";
@@ -23,21 +24,19 @@
     darf,
     onprojekt,
     bereich = "grundstueck",
+    bezugsflaechenAktuell = false,
   }: {
     projekt: Project;
     darf: boolean;
     onprojekt: (p: Project) => void;
     bereich?: BerechnungsBereich;
+    bezugsflaechenAktuell?: boolean;
   } = $props();
   const initial = (): BaugrundstuecksPlan =>
-    structuredClone(
-      $state.snapshot(
-        projekt.planungsrecht.baugrundstuecke ?? {
-          flurstuecke: [],
-          berechnungen: [],
-        },
-      ),
-    );
+    structuredClone(berechnungsplan($state.snapshot(projekt.planungsrecht)));
+  let basisProjekt = $state(
+    untrack(() => structuredClone($state.snapshot(projekt))),
+  );
   let eingabe = $state(untrack(initial)),
     gespeichert = $state(untrack(initial)),
     basis = $state(untrack(() => projekt.version));
@@ -58,6 +57,54 @@
   const fingerprint = $derived(JSON.stringify([eingabe, projekt.version]));
   const gruppenAktuell = $derived(gruppenStand === gruppenFingerprint),
     aktuell = $derived(ergebnisStand === fingerprint);
+  const quellenGeaendert = $derived(
+    JSON.stringify(
+      eingabe.flurstuecke.map(
+        ({
+          id,
+          gemarkung,
+          flur,
+          nummer,
+          grundbuchbezirk,
+          grundbuchblatt,
+          laufende_nummer,
+          flaeche_m2,
+        }) => ({
+          id,
+          gemarkung,
+          flur,
+          nummer,
+          grundbuchbezirk,
+          grundbuchblatt,
+          laufende_nummer,
+          flaeche_m2,
+        }),
+      ),
+    ) !==
+      JSON.stringify(
+        berechnungsplan($state.snapshot(projekt.planungsrecht)).flurstuecke.map(
+          ({
+            id,
+            gemarkung,
+            flur,
+            nummer,
+            grundbuchbezirk,
+            grundbuchblatt,
+            laufende_nummer,
+            flaeche_m2,
+          }) => ({
+            id,
+            gemarkung,
+            flur,
+            nummer,
+            grundbuchbezirk,
+            grundbuchblatt,
+            laufende_nummer,
+            flaeche_m2,
+          }),
+        ),
+      ),
+  );
   const geaendert = $derived(
     JSON.stringify(eingabe) !== JSON.stringify(gespeichert),
   );
@@ -104,13 +151,9 @@
     untrack(() => {
       if (!geaendert) {
         eingabe = structuredClone(
-          $state.snapshot(
-            p.planungsrecht.baugrundstuecke ?? {
-              flurstuecke: [],
-              berechnungen: [],
-            },
-          ),
+          berechnungsplan($state.snapshot(p.planungsrecht)),
         );
+        basisProjekt = structuredClone($state.snapshot(p));
         gespeichert = structuredClone($state.snapshot(eingabe));
         basis = p.version;
       }
@@ -194,20 +237,6 @@
       laeuft = false;
     }
   }
-  function hinzufuegen() {
-    eingabe.flurstuecke.push({
-      id: crypto.randomUUID(),
-      gemarkung: "",
-      flur: "",
-      nummer: "",
-      grundbuchbezirk: "",
-      grundbuchblatt: "",
-      laufende_nummer: 1,
-      flaeche_m2: 0,
-      abzuege: [],
-      abweichende_zuordnung: null,
-    });
-  }
   function request() {
     const e = structuredClone($state.snapshot(eingabe));
     for (const b of e.berechnungen) {
@@ -284,13 +313,7 @@
       const plan = request();
       await api.projektBaugrundstueckePruefen(projekt.id, plan);
       const p = await api.projektBereichSpeichern(
-        {
-          ...projekt,
-          planungsrecht: {
-            ...projekt.planungsrecht,
-            baugrundstuecke: structuredClone($state.snapshot(gespeichert)),
-          },
-        },
+        structuredClone($state.snapshot(basisProjekt)),
         "grundstuecke",
         {
           id: projekt.id,
@@ -300,13 +323,14 @@
           grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
           planungsrecht: {
             ...structuredClone($state.snapshot(projekt.planungsrecht)),
-            baugrundstuecke: plan,
+            baugrundstuecksermittlung: berechnungsansaetze(plan),
           },
         },
       );
       eingabe = structuredClone(
-        $state.snapshot(p.planungsrecht.baugrundstuecke!),
+        berechnungsplan($state.snapshot(p.planungsrecht)),
       );
+      basisProjekt = structuredClone($state.snapshot(p));
       gespeichert = structuredClone($state.snapshot(eingabe));
       basis = p.version;
       onprojekt(p);
@@ -342,82 +366,67 @@
   >
     {hinweis}
   </p>{/if}
+{#if bereich !== "grundstueck" && !bezugsflaechenAktuell && eingabe.flurstuecke.length}<p
+    class="hinweisbox"
+  >
+    Vor einem Nachweisstand die Baugrundstücksermittlung prüfen und speichern.
+    Die Berechnung ist bis dahin eine Vorschau.
+  </p>{/if}
+{#if quellenGeaendert}<p class="hinweisbox" role="status">
+    Die gespeicherten Flurstücksdaten wurden geändert. Der Berechnungsentwurf
+    bleibt erhalten. Für eine neue Berechnung bitte die aktuellen Daten laden.
+  </p>
+  <button
+    class="sekundaer"
+    disabled={laeuft}
+    onclick={async () => {
+      eingabe = initial();
+      gespeichert = initial();
+      basisProjekt = structuredClone($state.snapshot(projekt));
+      basis = projekt.version;
+      ergebnis = null;
+      await neuErmitteln();
+    }}>Berechnungsentwurf verwerfen und aktuelle Daten laden</button
+  >{/if}
 {#if bereich === "grundstueck"}
   <p class="meta">
-    Flurstücke erfassen → grundbuchliche Einheiten ermitteln → maßgebende Fläche
-    je Baugrundstück verwenden.
+    Die gespeicherten Flurstücke sind die unveränderte Datengrundlage. Hier
+    werden Zuordnung, Abzüge und Zuschläge für die Baugrundstücke ermittelt.
+  </p>
+  {#if !bezugsflaechenAktuell && eingabe.flurstuecke.length}<p
+      class="hinweisbox"
+    >
+      Es liegen noch keine bestätigten aktuellen Bezugsflächen vor. Die
+      Ermittlung prüfen und anschließend „Eingaben speichern“ wählen.
+    </p>{/if}
+  <h3>Datengrundlage: gespeicherte Flurstücke</h3>
+  <div class="tabellen-scroll">
+    <table class="ergebnistabelle">
+      <thead
+        ><tr
+          ><th>Gemarkung / Flur</th><th>Flurstück</th><th>Flurstücksfläche</th
+          ><th>Grundbuchzuordnung</th></tr
+        ></thead
+      ><tbody>
+        {#each eingabe.flurstuecke as f (f.id)}<tr
+            ><td>{f.gemarkung} / {f.flur || "—"}</td><td>{f.nummer}</td><td
+              >{z(f.flaeche_m2)} m²</td
+            ><td
+              >{f.grundbuchbezirk && f.grundbuchblatt && f.laufende_nummer
+                ? `${f.grundbuchbezirk} · Blatt ${f.grundbuchblatt} · lfd. Nr. ${f.laufende_nummer}`
+                : "Noch ungeklärt"}</td
+            ></tr
+          >{/each}
+      </tbody>
+    </table>
+  </div>
+  <p class="meta">
+    Kataster- und Grundbuchangaben werden unter Grundstücksinformationen →
+    Flurstücke und Grundbuch gepflegt. Fehlende Grundbuchangaben benötigen hier
+    eine begründete Zuordnung.
   </p>
   <fieldset disabled={!darf || laeuft}>
-    <legend>1 · Flurstücke</legend>
-    <div class="tabellen-scroll">
-      <table class="ergebnistabelle eingabetabelle">
-        <thead
-          ><tr
-            ><th>Gemarkung / Flur</th><th>Flurstück</th><th
-              >Grundbuchbezirk / Blatt</th
-            ><th>Lfd. Nr.</th><th>Fläche m²</th><th></th></tr
-          ></thead
-        ><tbody>
-          {#each eingabe.flurstuecke as f (f.id)}<tr
-              ><td
-                ><input
-                  aria-label="Gemarkung"
-                  bind:value={f.gemarkung}
-                  placeholder="Gemarkung"
-                /><input
-                  aria-label="Flur"
-                  bind:value={f.flur}
-                  placeholder="Flur"
-                /></td
-              ><td
-                ><input
-                  aria-label="Flurstücknummer"
-                  bind:value={f.nummer}
-                /></td
-              ><td
-                ><input
-                  aria-label="Grundbuchbezirk"
-                  bind:value={f.grundbuchbezirk}
-                  placeholder="Bezirk"
-                /><input
-                  aria-label="Grundbuchblatt"
-                  bind:value={f.grundbuchblatt}
-                  placeholder="Blatt"
-                /></td
-              ><td
-                ><input
-                  aria-label="Laufende Nummer"
-                  type="number"
-                  min="1"
-                  step="1"
-                  bind:value={f.laufende_nummer}
-                /></td
-              ><td
-                ><input
-                  aria-label="Eigentumsfläche"
-                  type="number"
-                  min="0.01"
-                  step="any"
-                  bind:value={f.flaeche_m2}
-                /></td
-              ><td
-                ><button
-                  class="link"
-                  onclick={() =>
-                    (eingabe.flurstuecke = eingabe.flurstuecke.filter(
-                      (x) => x.id !== f.id,
-                    ))}>Entfernen</button
-                ></td
-              ></tr
-            >{/each}
-        </tbody>
-      </table>
-    </div>
-    <button class="sekundaer" onclick={hinzufuegen}>Flurstück hinzufügen</button
-    >
-  </fieldset>
-  <fieldset disabled={!darf || laeuft}>
-    <legend>2 · Flächenabzüge und besondere Zuordnungen</legend>
+    <legend>1 · Flächenabzüge und Zuordnungen</legend>
     {#each eingabe.flurstuecke as f (f.id)}<details>
         <summary
           >{f.gemarkung || "Gemarkung"} · {f.nummer || "Flurstück"} · {f.abzuege
@@ -491,7 +500,7 @@
         </details>
       </details>{/each}
   </fieldset>
-  <h3>3 · Baugrundstücksermittlung</h3>
+  <h3>2 · Baugrundstücksermittlung</h3>
   <button
     class="sekundaer"
     disabled={laeuft || !eingabe.flurstuecke.length}
@@ -521,7 +530,8 @@
     bitte neu ermitteln.
   </p>{/if}
 {#if !eingabe.flurstuecke.length}<p class="meta">
-    Zuerst unter „Baugrundstück“ die Flurstücke erfassen.
+    Zuerst unter Grundstücksinformationen → Flurstücke und Grundbuch die
+    Flurstücke erfassen und speichern.
   </p>{/if}
 {#if gruppe && berechnung?.eingabe.aufstellung}
   <label
@@ -603,27 +613,18 @@
       : "Berechnen"}</button
   ><button
     class="sekundaer"
-    disabled={!darf || laeuft || !geaendert}
+    disabled={!darf || laeuft || (!geaendert && bezugsflaechenAktuell)}
     onclick={speichern}>Eingaben speichern</button
   >{#if geaendert}<span class="meta">Ungespeicherte Eingaben</span>{/if}
 </div>
 
 {#if ergebnis}<button
-    disabled={!darf || !aktuell || laeuft}
+    disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}
     onclick={nachweisSpeichern}>Nachweisstand speichern</button
   >{/if}
 {#if nachweisHinweis}<p role="status">{nachweisHinweis}</p>{/if}
 
 <style>
-  .eingabetabelle input {
-    min-width: 4.2rem;
-    width: 100%;
-    margin: 0.15rem 0;
-  }
-  .eingabetabelle td:first-child,
-  .eingabetabelle td:nth-child(3) {
-    min-width: 10rem;
-  }
   table {
     margin: 1rem 0;
   }

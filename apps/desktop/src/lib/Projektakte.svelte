@@ -29,6 +29,7 @@
   import ProjektFormulare from "./ProjektFormulare.svelte";
   import Einreichungen from "./Einreichungen.svelte";
   import Dokumente from "./Dokumente.svelte";
+  import Grundstuecksinformationen from "./Grundstuecksinformationen.svelte";
   import MassDerNutzung from "./MassDerNutzung.svelte";
   import Plaene from "./Plaene.svelte";
   import Protokoll from "./Protokoll.svelte";
@@ -86,6 +87,8 @@
   $effect(() => {
     const id = projekt.id;
     const version = projekt.version;
+    grundstuecke = [];
+    flaechenFehler = null;
     void api
       .grundstueckskontext(id)
       .then((k) => {
@@ -135,22 +138,9 @@
     }
     return !hatAenderungen();
   }
-  async function grundstuecksflaecheUebernehmen(m2: number) {
-    const p = projekt;
-    try {
-      onprojekt(
-        await api.projektAktualisieren({
-          id: p.id,
-          expected_version: p.version,
-          name: p.name,
-          bundesland: p.bundesland,
-          grundstuecksflaeche_m2: m2,
-        }),
-      );
-      hinweis = `Grundstücksfläche ${m2.toLocaleString("de-DE")} m² übernommen.`;
-    } catch (e) {
-      melde(e);
-    }
+  function grundstuecksflaecheUebernehmen(m2: number) {
+    ansicht = "flurstuecke";
+    hinweis = `Gemessene Planfläche: ${m2.toLocaleString("de-DE")} m². Bitte beim passenden Flurstück mit den Katasterangaben abgleichen und bei Bedarf dort eintragen.`;
   }
 </script>
 
@@ -293,6 +283,18 @@
       />
     {/key}
   </section>
+  <section
+    hidden={ansicht !== "flurstuecke"}
+    aria-label="Grundstücksinformationen"
+  >
+    <h2>Flurstücke und Grundbuch</h2>
+    {#key projekt.id}<Grundstuecksinformationen
+        aktiv={aktiv && ansicht === "flurstuecke"}
+        {projekt}
+        darf={darf("bearbeitung")}
+        {onprojekt}
+      />{/key}
+  </section>
   <section hidden={!berechnungsAnsichten.includes(ansicht)}>
     <h2>
       {berechnungsTitel[
@@ -302,6 +304,7 @@
     {#key projekt.id}
       <MassDerNutzung
         bind:this={nutzungsEditor}
+        bezugsflaechenAktuell={grundstuecke.length > 0 && !flaechenFehler}
         {projekt}
         darf={darf("bearbeitung")}
         {onprojekt}

@@ -62,12 +62,12 @@ with sync_playwright() as p:
  assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
  page.evaluate('window.saveDelay=0')
  checks.append('Verzögertes Speichern nach Projektwechsel aktualisiert ausschließlich ursprüngliche Projektakte.')
- tab('Wohnbebauung Lindenweg');view('Baugrundstück')
+ tab('Wohnbebauung Lindenweg');view('Flurstücke und Grundbuch')
  active().get_by_label('Flurstücknummer',exact=True).first.fill('100/9')
  view('Abstandsflächen');active().locator('section:visible input[type=number]').fill('11')
  tab('Umbau Bürogebäude');view('Abstandsflächen');assert active().locator('section:visible input[type=number]').input_value()=='6.5'
  tab('Wohnbebauung Lindenweg');assert active().locator('section:visible input[type=number]').input_value()=='11'
- view('Baugrundstück');assert active().get_by_label('Flurstücknummer',exact=True).first.input_value()=='100/9'
+ view('Flurstücke und Grundbuch');assert active().get_by_label('Flurstücknummer',exact=True).first.input_value()=='100/9'
  checks.append('Flurstücke und Abstandsflächen-Eingaben bleiben unabhängig über Bereichs- und Projektwechsel erhalten.')
  for notice in page.locator('#app>.banner button').all(): notice.click()
  page.screenshot(path=str(out/'02-grundstuecke-projekttabs.png'))

@@ -37,6 +37,7 @@ pub use service::CoreServices;
 
 pub mod projektablage;
 
+pub mod grundstuecksinformationen;
 pub mod grundstueckskontext;
 
 pub mod commit;

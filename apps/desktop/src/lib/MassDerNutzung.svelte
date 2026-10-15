@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Flurstuecke from "./Flurstuecke.svelte";
+  import Baugrundstuecke from "./Baugrundstuecke.svelte";
   import type { Project } from "./api";
   import type { BerechnungsBereich } from "./projektSitzung";
   let {
@@ -7,13 +7,15 @@
     darf,
     onprojekt,
     bereich = "grundstueck",
+    bezugsflaechenAktuell = false,
   }: {
     projekt: Project;
     darf: boolean;
     onprojekt: (p: Project) => void;
     bereich?: BerechnungsBereich;
+    bezugsflaechenAktuell?: boolean;
   } = $props();
-  let editor = $state<Flurstuecke>();
+  let editor = $state<Baugrundstuecke>();
   export function hatAenderungen() {
     return !!editor?.hatAenderungen();
   }
@@ -25,4 +27,11 @@
   }
 </script>
 
-<Flurstuecke bind:this={editor} {projekt} {darf} {onprojekt} {bereich} />
+<Baugrundstuecke
+  bind:this={editor}
+  {projekt}
+  {darf}
+  {onprojekt}
+  {bereich}
+  {bezugsflaechenAktuell}
+/>
