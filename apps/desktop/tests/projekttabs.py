@@ -81,14 +81,20 @@ with sync_playwright() as p:
  page.evaluate('window.emitNative("tauri://close-requested")')
  page.get_by_role('heading',name='Anwendung schließen?',exact=True).wait_for()
  assert not page.evaluate('!!window.testDestroyed')
+ page.evaluate('window.previousCloseDialog=document.querySelector("dialog[open]")')
  page.keyboard.press('Escape')
+ expect(page.get_by_role('heading',name='Anwendung schließen?',exact=True)).not_to_be_visible()
  assert page.locator('.projekttab').count()==2
  page.evaluate('window.failSave=true;window.emitNative("tauri://close-requested")')
+ expect(page.get_by_role('button',name='Alle speichern und beenden',exact=True)).to_be_visible()
+ # Native close events are queued. A retired dialog must not dismiss its replacement.
+ page.evaluate('window.previousCloseDialog.dispatchEvent(new Event("close"))')
+ expect(page.get_by_role('button',name='Alle speichern und beenden',exact=True)).to_be_visible()
  page.get_by_role('button',name='Alle speichern und beenden',exact=True).click()
  expect(page.get_by_role('heading',name='Anwendung schließen?',exact=True)).not_to_be_visible()
  assert not page.evaluate('!!window.testDestroyed')
  assert page.locator('.projekttab').count()==2
- checks.append('Beenden berücksichtigt alle offenen Akten; Abbrechen und fehlgeschlagenes Speichern erhalten Fenster und Projektentwürfe.')
+ checks.append('Beenden berücksichtigt alle offenen Akten; verspätete close-Ereignisse geschlossener Dialoge beeinflussen den neuen Dialog nicht; Abbrechen und fehlgeschlagenes Speichern erhalten Fenster und Projektentwürfe.')
  page.evaluate('window.emitNative("menu","datei.importieren")')
  page.wait_for_function('window.calls.filter(c=>c.cmd==="plugin:dialog|open").length===1')
  page.evaluate('window.emitNative("menu","datei.xbau")')
