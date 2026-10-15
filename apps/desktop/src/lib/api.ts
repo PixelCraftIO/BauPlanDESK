@@ -611,6 +611,8 @@ export interface Planungsrecht {
   festgesetzte_werte: Festsetzungen;
   berechnung: NutzungsEingabe | null;
   baugrundstuecke: BaugrundstuecksPlan | null;
+  grundstuecksinformationen?: import('./generated/plattform').Grundstuecksinformationen | null;
+  baugrundstuecksermittlung?: import('./generated/plattform').BaugrundstuecksErmittlung | null;
   baugrenzen: BaugrenzenGeometrie | null;
 }
 
@@ -941,6 +943,7 @@ export const api = {
       | "grundlagen"
       | "festsetzungen"
       | "grundstuecke"
+      | "grundstuecksinformationen"
       | "projektdaten",
     aenderung: ProjectUpdate,
   ) =>

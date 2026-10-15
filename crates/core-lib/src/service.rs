@@ -405,6 +405,7 @@ impl CoreServices {
             created_at: now,
             updated_at: now,
         };
+        crate::grundstuecksinformationen::dokumente_pruefen(self, p.id, &p.planungsrecht).await?;
         let audit = Self::audit(
             wer,
             Aktion::ProjektAngelegt,
@@ -432,6 +433,7 @@ impl CoreServices {
         validate_project(&update.name, update.grundstuecksflaeche_m2)?;
         if let Some(p) = &update.planungsrecht {
             p.validate()?;
+            crate::grundstuecksinformationen::dokumente_pruefen(self, update.id, p).await?;
             if let Some(g) = &p.baugrenzen {
                 let vorher = self.repos.projects.get(update.id).await?;
                 if vorher.planungsrecht.baugrenzen.as_ref() != Some(g) {
@@ -1591,12 +1593,30 @@ impl CoreServices {
         eingabe: &crate::festsetzungen::NutzungsEingabe,
     ) -> CoreResult<crate::festsetzungen::NutzungsPruefung> {
         let p = self.repos.projects.get(id).await?;
-        if p.planungsrecht.baugrundstuecke.is_some() {
+        if p.planungsrecht.baugrundstuecke.is_some()
+            || p.planungsrecht.grundstuecksinformationen.is_some()
+        {
             return Err(CoreError::InvalidInput(
                 "Für dieses Projekt die getrennten Baugrundstücksnachweise verwenden".into(),
             ));
         }
         crate::festsetzungen::pruefe(eingabe, &p.planungsrecht, p.version)
+    }
+
+    pub async fn baugrundstuecke_ermitteln(
+        &self,
+        projekt_id: ProjectId,
+        eingabe: &crate::baugrundstuecke::BaugrundstuecksPlan,
+    ) -> CoreResult<Vec<crate::baugrundstuecke::BaugrundstueckGruppe>> {
+        let p = self.get_project(projekt_id).await?;
+        crate::grundstuecksinformationen::pruefe_quellen(&p.planungsrecht, eingabe)?;
+        let mit_plan = matches!(
+            p.planungsrecht.bebauungsplan_art,
+            crate::domain::BebauungsplanArt::Qualifiziert
+                | crate::domain::BebauungsplanArt::Einfach
+                | crate::domain::BebauungsplanArt::Vorhabenbezogen
+        );
+        eingabe.gruppen(mit_plan)
     }
 
     pub async fn projekt_baugrundstuecke_pruefen(
@@ -1605,6 +1625,7 @@ impl CoreServices {
         eingabe: &crate::baugrundstuecke::BaugrundstuecksPlan,
     ) -> CoreResult<crate::baugrundstuecke::BaugrundstuecksPruefung> {
         let p = self.get_project(projekt_id).await?;
+        crate::grundstuecksinformationen::pruefe_quellen(&p.planungsrecht, eingabe)?;
         self.geschosszuordnung(projekt_id, eingabe)
             .await?
             .pruefe(&p.planungsrecht, p.version)

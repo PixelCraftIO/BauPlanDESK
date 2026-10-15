@@ -1,5 +1,13 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
-import type { BaugrundstuecksPlan, Planungsrecht } from '../api';
+import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Grundstuecksinformationen = { flurstuecke: Array<FlurstuecksInfo>, };
+export type FlurstuecksInfo = { id: string, gemarkung: string, flur: string, nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null, eigentuemer: string, bemerkung: string, };
+export type FlurstuecksAnsatz = { flurstueck_id: string, abzuege: Array<FlaechenAbzug>, abweichende_zuordnung: { kennung: string; grundlage: string } | null, };
+export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, berechnungen: Array<BaugrundstueckBerechnung>,
+/**
+ * Bei Speicherung durch den Core gesetzt; keine zweite Kopie der Katasterflächen.
+ */
+quellen_hash: string | null, };
 export type Baugebiet = "WS" | "WR" | "WA" | "WB" | "MD" | "MDW" | "MI" | "MU" | "MK" | "GE" | "GI" | "SO";
 export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
 export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";

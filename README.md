@@ -508,3 +508,5 @@ mit den jeweiligen Nachweisen und der Projektversion.
 Aktueller Implementierungsstand: [Plattformumsetzung](docs/plattform-umsetzung/README.md).
 
 Berechnungen erweitern: [BauNVO-Regeln und Modulgrenzen](docs/baunvo-erweiterung.md).
+
+Die Trennung zwischen Flurstücksfakten, optionalen Grundbuchangaben und der Baugrundstücksermittlung ist in [Grundstücksinformationen](docs/grundstuecksinformationen.md) beschrieben.

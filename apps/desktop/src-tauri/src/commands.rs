@@ -777,14 +777,10 @@ pub async fn baugrundstuecke_ermitteln(
     projekt_id: ProjectId,
     plan: core_lib::baugrundstuecke::BaugrundstuecksPlan,
 ) -> CmdResult<Vec<core_lib::baugrundstuecke::BaugrundstueckGruppe>> {
-    let p = state.core.get_project(projekt_id).await?;
-    let mit_plan = matches!(
-        p.planungsrecht.bebauungsplan_art,
-        core_lib::domain::BebauungsplanArt::Qualifiziert
-            | core_lib::domain::BebauungsplanArt::Einfach
-            | core_lib::domain::BebauungsplanArt::Vorhabenbezogen
-    );
-    Ok(plan.gruppen(mit_plan)?)
+    Ok(state
+        .core
+        .baugrundstuecke_ermitteln(projekt_id, &plan)
+        .await?)
 }
 
 #[tauri::command]

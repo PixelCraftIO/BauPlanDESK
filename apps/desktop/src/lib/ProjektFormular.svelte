@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { LAENDER, kundenname, type Kunde, type Projektwerte as Werte } from "./api";
+  import {
+    LAENDER,
+    kundenname,
+    type Kunde,
+    type Projektwerte as Werte,
+  } from "./api";
 
   let {
     start,
@@ -25,11 +30,14 @@
     event.preventDefault();
     laeuft = true;
     try {
-      await absenden({
-        ...werte,
-        name: werte.name.trim(),
-        grundstuecksflaeche_m2: werte.grundstuecksflaeche_m2 || null,
-      }, bauherr);
+      await absenden(
+        {
+          ...werte,
+          name: werte.name.trim(),
+          grundstuecksflaeche_m2: werte.grundstuecksflaeche_m2 || null,
+        },
+        bauherr,
+      );
     } finally {
       laeuft = false;
     }
@@ -48,21 +56,28 @@
       {#each LAENDER as l}<option value={l.code}>{l.name}</option>{/each}
     </select>
   </label>
-  <label>
-    Grundstücksfläche (m²)
-    <input type="number" min="0.01" step="0.01" bind:value={werte.grundstuecksflaeche_m2} />
-  </label>
+  <p class="meta">
+    Flurstücke mit ihren Flächen und optionalen Grundbuchangaben werden in der
+    Projektakte unter Grundstücksinformationen erfasst. Die Baugrundstücksfläche
+    wird separat berechnet.
+  </p>
   {#if kunden}
     <label>
       Bauherr
       <select bind:value={bauherr}>
         <option value={null}>– später zuordnen –</option>
-        {#each kunden as k (k.id)}<option value={k.id}>{kundenname(k)}{k.kundennummer ? ` (${k.kundennummer})` : ""}</option>{/each}
+        {#each kunden as k (k.id)}<option value={k.id}
+            >{kundenname(k)}{k.kundennummer
+              ? ` (${k.kundennummer})`
+              : ""}</option
+          >{/each}
       </select>
     </label>
   {/if}
   <div class="knoepfe">
-    <button type="button" class="sekundaer" onclick={onabbrechen}>Abbrechen</button>
+    <button type="button" class="sekundaer" onclick={onabbrechen}
+      >Abbrechen</button
+    >
     <button type="submit" disabled={laeuft}>{knopf}</button>
   </div>
 </form>

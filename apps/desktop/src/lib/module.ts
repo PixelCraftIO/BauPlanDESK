@@ -3,6 +3,7 @@ import type { Project } from "./api";
 export type ModulGruppe =
   | "Grundlagen"
   | "Berechnungen"
+  | "Grundstücksinformationen"
   | "Unterlagen"
   | "Organisation";
 export interface FachModul {
@@ -20,7 +21,12 @@ const BASIS_MODULE = [
     gruppe: "Grundlagen",
     voraussetzung: "plan",
   },
-  { id: "grundstueck", titel: "Baugrundstück", gruppe: "Grundlagen" },
+  {
+    id: "flurstuecke",
+    titel: "Flurstücke und Grundbuch",
+    gruppe: "Grundstücksinformationen",
+  },
+  { id: "grundstueck", titel: "Baugrundstück", gruppe: "Berechnungen" },
   {
     id: "grz",
     titel: "GRZ",
@@ -55,6 +61,7 @@ const BASIS_MODULE = [
 ] as const satisfies readonly FachModul[];
 export const MODULGRUPPEN = [
   "Grundlagen",
+  "Grundstücksinformationen",
   "Berechnungen",
   "Organisation",
   "Unterlagen",

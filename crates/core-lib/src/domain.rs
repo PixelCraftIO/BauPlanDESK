@@ -178,13 +178,29 @@ pub struct Planungsrecht {
     pub begruendung: String,
     pub festgesetzte_werte: crate::festsetzungen::Festsetzungen,
     pub berechnung: Option<crate::festsetzungen::NutzungsEingabe>,
+    /// Bestandsformat, wird beim getrennten Speichern in Fakten und Ansätze überführt.
     pub baugrundstuecke: Option<crate::baugrundstuecke::BaugrundstuecksPlan>,
+    pub grundstuecksinformationen:
+        Option<crate::grundstuecksinformationen::Grundstuecksinformationen>,
+    pub baugrundstuecksermittlung:
+        Option<crate::grundstuecksinformationen::BaugrundstuecksErmittlung>,
     pub baugrenzen: Option<crate::cad::baugrenzen::BaugrenzenGeometrie>,
 }
 
 impl Planungsrecht {
     pub fn validate(&self) -> CoreResult<()> {
         self.festgesetzte_werte.validate()?;
+        if let Some(i) = &self.grundstuecksinformationen {
+            i.validate()?;
+        }
+        if let Some(e) = &self.baugrundstuecksermittlung
+            && crate::grundstuecksinformationen::quellen_aktuell(self)?
+        {
+            crate::grundstuecksinformationen::validiere_ansaetze(self, e)?;
+            if let Some(plan) = crate::grundstuecksinformationen::plan(self)? {
+                plan.pruefe(self, 0)?;
+            }
+        }
         if let Some(b) = &self.baugrundstuecke {
             b.pruefe(self, 0)?;
         }

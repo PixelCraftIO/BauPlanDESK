@@ -130,10 +130,15 @@ fn archiv(core: &CoreServices, p: &Project, e: &NachweisEingabe) -> CoreResult<V
     }
 }
 fn grundlagen(p: &Project, regeln: &[RegelArchiv]) -> CoreResult<ContentHash> {
-    hash(
-        &serde_json::json!({"land":p.bundesland,"bau_nvo":p.planungsrecht.bau_nvo,"recht":p.planungsrecht.rechtsgrundlage,"plan":p.planungsrecht.bebauungsplan_art,"ergaenzung":p.planungsrecht.ergaenzende_grundlage,"plan_bezeichnung":p.planungsrecht.plan_bezeichnung,"plan_nummer":p.planungsrecht.plan_nummer,"rechtskraft":p.planungsrecht.plan_rechtskraft,"festsetzungen":p.planungsrecht.festgesetzte_werte,"grundstuecke":p.planungsrecht.baugrundstuecke,"legacyflaeche":if p.planungsrecht.baugrundstuecke.is_none(){p.grundstuecksflaeche_m2}else{None},"regeln":regeln.iter().map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>() }),
-    )
+    // Semantisch gleicher Bestands-/Neuvertrag behält denselben Fingerprint.
+    let plan = crate::grundstuecksinformationen::plan(&p.planungsrecht)?;
+    let mut daten = serde_json::json!({"land":p.bundesland,"bau_nvo":p.planungsrecht.bau_nvo,"recht":p.planungsrecht.rechtsgrundlage,"plan":p.planungsrecht.bebauungsplan_art,"ergaenzung":p.planungsrecht.ergaenzende_grundlage,"plan_bezeichnung":p.planungsrecht.plan_bezeichnung,"plan_nummer":p.planungsrecht.plan_nummer,"rechtskraft":p.planungsrecht.plan_rechtskraft,"festsetzungen":p.planungsrecht.festgesetzte_werte,"grundstuecke":plan,"legacyflaeche":if plan.is_none(){p.grundstuecksflaeche_m2}else{None},"regeln":regeln.iter().map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>() });
+    if !crate::grundstuecksinformationen::quellen_aktuell(&p.planungsrecht)? {
+        daten["berechnungsgrundlage_unbestaetigt"] = serde_json::json!(true);
+    }
+    hash(&daten)
 }
+
 fn auswerten(
     core: &CoreServices,
     p: &Project,
@@ -211,6 +216,12 @@ impl CoreServices {
         };
         let gebaeude_hash = self.gebaeude_hash(pid, &eingabe).await?;
         let p = self.repos.projects.get(pid).await?;
+        if let NachweisEingabe::Nutzung { plan, .. } = &eingabe {
+            crate::grundstuecksinformationen::pruefe_bestaetigte_ermittlung(
+                &p.planungsrecht,
+                plan,
+            )?;
+        }
         let regeln = archiv(self, &p, &eingabe)?;
         let grundlagen_hash = grundlagen(&p, &regeln)?;
         let (ergebnis, vollstaendig) = auswerten(self, &p, &eingabe)?;

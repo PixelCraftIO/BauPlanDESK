@@ -138,15 +138,26 @@ impl BaugrundstuecksPlan {
             if !text_gueltig(&f.id)
                 || !text_gueltig(&f.gemarkung)
                 || !text_gueltig(&f.nummer)
-                || !text_gueltig(&f.grundbuchbezirk)
-                || !text_gueltig(&f.grundbuchblatt)
+                || f.grundbuchbezirk.len() > 500
+                || f.grundbuchblatt.len() > 500
                 || f.flur.len() > 500
-                || f.laufende_nummer == 0
                 || !f.flaeche_m2.is_finite()
                 || f.flaeche_m2 <= 0.0
                 || f.abzuege.len() > 1000
             {
-                return Err(CoreError::InvalidInput("Flurstück benötigt Katasterangaben, Grundbuchbezirk/-blatt, laufende Nummer und positive Fläche".into()));
+                return Err(CoreError::InvalidInput(
+                    "Flurstück benötigt gültige Katasterangaben und eine positive Fläche".into(),
+                ));
+            }
+            if f.abweichende_zuordnung.is_none()
+                && (f.grundbuchbezirk.trim().is_empty()
+                    || f.grundbuchblatt.trim().is_empty()
+                    || f.laufende_nummer == 0)
+            {
+                return Err(CoreError::InvalidInput(format!(
+                    "Baugrundstückszuordnung für Flurstück {} noch ungeklärt: Grundbuchangaben ergänzen oder eine begründete besondere Zuordnung erfassen",
+                    f.nummer
+                )));
             }
             if !ids.insert(&f.id)
                 || !kataster.insert((
