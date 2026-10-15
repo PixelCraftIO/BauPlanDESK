@@ -32,10 +32,11 @@ pub async fn einreichung_erstellen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
     paket: NeuesPaket,
+    vorgang: Option<Uuid>,
 ) -> Result<Einreichung, CmdError> {
     Ok(state
         .core
-        .einreichung_erstellen(projekt_id, paket, &state.benutzer())
+        .einreichung_erstellen_vorgang(projekt_id, paket, vorgang, &state.benutzer())
         .await?)
 }
 #[tauri::command]
@@ -62,4 +63,13 @@ pub async fn einreichung_exportieren(
         .await
         .map_err(|e| CoreError::Storage(e.to_string()))?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn paket_pruefstand(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    dokumente: Vec<core_lib::einreichung::DokumentAuswahl>,
+) -> Result<core_lib::einreichung::PaketPruefstand, CmdError> {
+    Ok(state.core.paket_pruefstand(projekt_id, &dokumente).await?)
 }

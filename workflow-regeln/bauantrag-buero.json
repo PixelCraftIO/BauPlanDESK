@@ -1,0 +1,14 @@
+{
+  "id":"bauantrag-buero",
+  "version":"1.0",
+  "titel":"Bauantrag – Bürovorbereitung",
+  "hinweis":"Interne Arbeitshilfe. Verfahrens- und landesspezifische Anforderungen sind durch die Projektleitung zu prüfen und zu ergänzen.",
+  "unterlagen":[
+    {"id":"formular","bezeichnung":"Antragsformular","erforderlich":true},
+    {"id":"lageplan","bezeichnung":"Lageplan","erforderlich":true},
+    {"id":"zeichnungen","bezeichnung":"Bauzeichnungen","erforderlich":true},
+    {"id":"beschreibung","bezeichnung":"Baubeschreibung","erforderlich":true},
+    {"id":"nutzung","bezeichnung":"Nutzungsnachweise prüfen","erforderlich":false},
+    {"id":"abstand","bezeichnung":"Abstandsflächennachweis prüfen","erforderlich":false}
+  ]
+}

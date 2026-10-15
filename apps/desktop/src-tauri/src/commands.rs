@@ -197,7 +197,7 @@ pub async fn dokument_importieren(
     dokument_id: Option<DocumentId>,
     basis: Option<i64>,
     pfad: PathBuf,
-) -> CmdResult<DocumentVersion> {
+) -> CmdResult<crate::projektordner::ProjektDokument> {
     let data = tokio::fs::read(&pfad).await.map_err(|e| CmdError {
         art: "datei",
         meldung: format!("{}: {e}", pfad.display()),
@@ -206,7 +206,7 @@ pub async fn dokument_importieren(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    Ok(state
+    let d = state
         .core
         .store_document(
             projekt_id,
@@ -216,15 +216,20 @@ pub async fn dokument_importieren(
             Bytes::from(data),
             &state.benutzer(),
         )
-        .await?)
+        .await?;
+    Ok(crate::projektordner::ablegen(&state, d).await)
 }
 
 #[tauri::command]
 pub async fn formular_analysieren(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
+    bezug: Option<core_lib::formular::instanz::FormularBezug>,
 ) -> CmdResult<FormularAnalyse> {
-    Ok(state.core.formular_analysieren(dokument_id).await?)
+    Ok(state
+        .core
+        .formular_analysieren_mit_bezug(dokument_id, bezug)
+        .await?)
 }
 
 #[derive(Serialize)]
@@ -658,7 +663,7 @@ pub struct AblageStatus {
     hinweis: String,
 }
 #[tauri::command]
-pub async fn ablage_status(app: AppHandle, state: State<'_, AppState>) -> CmdResult<AblageStatus> {
+pub async fn ablage_status(state: State<'_, AppState>) -> CmdResult<AblageStatus> {
     let root = if let Some(a) = &state.lokale_ablage {
         Some(a.root().await.to_string_lossy().into_owned())
     } else {
@@ -671,32 +676,22 @@ pub async fn ablage_status(app: AppHandle, state: State<'_, AppState>) -> CmdRes
             _ => None,
         }
     };
-    let lokale_db = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| CmdError {
-            art: "datei",
-            meldung: e.to_string(),
-        })?
-        .join("bauprojekt.db");
+    let lokale_db = state.data_dir.join("bauprojekt.db");
     Ok(AblageStatus{modus:state.config.name(),root,datenbank:if state.lokale_ablage.is_some(){lokale_db.display().to_string()}else{"Gemeinsame PostgreSQL-Datenbank (Zugang in der Büro-Konfiguration)".into()},wechsel_erlaubt:state.lokale_ablage.is_some()&&state.benutzer().rolle==core_lib::benutzer::Rolle::Administrator,hinweis:if state.lokale_ablage.is_some(){"Der Wechsel kopiert alle DMS-Dateiversionen mit Hash-Prüfung. Die bisherige Ablage bleibt als Sicherung erhalten. Die Projektdatenbank bleibt an ihrem bisherigen Ort. Eine Freigabe allein macht daraus noch keinen Mehrbenutzerbetrieb."}else{"Gemeinsame Ablage und Datenbank sind zentral in config.json konfiguriert. Ein abweichender Ordner je Arbeitsplatz würde gemeinsame Dokumente unerreichbar machen."}.into()})
 }
 #[tauri::command]
-pub async fn ablage_wechseln(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    pfad: PathBuf,
-) -> CmdResult<usize> {
+pub async fn ablage_wechseln(state: State<'_, AppState>, pfad: PathBuf) -> CmdResult<usize> {
     state
-        .benutzer()
-        .pruefe(core_lib::benutzer::Recht::BenutzerVerwalten)?;
+        .core
+        .berechtigung_pruefen(
+            &state.benutzer(),
+            core_lib::benutzer::Recht::BenutzerVerwalten,
+        )
+        .await?;
     let a = state.lokale_ablage.as_ref().ok_or_else(|| {
         CoreError::InvalidInput("Im Netzwerkmodus wird die Ablage zentral konfiguriert".into())
     })?;
-    let dir = app.path().app_config_dir().map_err(|e| CmdError {
-        art: "datei",
-        meldung: e.to_string(),
-    })?;
+    let dir = state.config_dir.clone();
     Ok(a.wechseln(&pfad, |root| {
         crate::config::DateiablageConfig {
             root: root.to_path_buf(),
@@ -759,4 +754,55 @@ pub async fn projektordner_exportieren(
         dateien: plan.dateien.len(),
         neu,
     })
+}
+
+#[tauri::command]
+pub async fn formular_im_projekt_speichern(
+    state: State<'_, AppState>,
+    datenstand: Option<core_lib::formular::instanz::FormularDatenstand>,
+    dokument_id: DocumentId,
+    basis: i64,
+    werte: BTreeMap<String, Feldwert>,
+) -> CmdResult<crate::projektordner::ProjektDokument> {
+    let d = state
+        .core
+        .formular_im_projekt_mit_quellen(dokument_id, basis, &werte, datenstand, &state.benutzer())
+        .await?;
+    Ok(crate::projektordner::ablegen(&state, d).await)
+}
+
+#[tauri::command]
+pub async fn baugrundstuecke_ermitteln(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    plan: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+) -> CmdResult<Vec<core_lib::baugrundstuecke::BaugrundstueckGruppe>> {
+    let p = state.core.get_project(projekt_id).await?;
+    let mit_plan = matches!(
+        p.planungsrecht.bebauungsplan_art,
+        core_lib::domain::BebauungsplanArt::Qualifiziert
+            | core_lib::domain::BebauungsplanArt::Einfach
+            | core_lib::domain::BebauungsplanArt::Vorhabenbezogen
+    );
+    Ok(plan.gruppen(mit_plan)?)
+}
+
+#[tauri::command]
+pub async fn projekt_bereich_speichern(
+    state: State<'_, AppState>,
+    basis: Project,
+    bereich: core_lib::projektbereiche::ProjektBereich,
+    aenderung: ProjectUpdate,
+) -> CmdResult<Project> {
+    Ok(state
+        .core
+        .projekt_bereich_speichern(basis, bereich, aenderung, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn grundstueckskontext(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<core_lib::grundstueckskontext::GrundstueckKontext>> {
+    Ok(state.core.grundstueckskontext(projekt_id).await?)
 }

@@ -40,7 +40,7 @@
     laeuft = true;
     try {
       const v = await api.arbeitskopieUebernehmen(k.stand.id);
-      hinweis = `${v.file_name} als Version ${v.version} übernommen.`;
+      hinweis = v.ablage_hinweis ?? `${v.file_name} als Version ${v.version} übernommen.`;
       await onaktualisiert();
     } catch (e) {
       onfehler(fehlertext(e));

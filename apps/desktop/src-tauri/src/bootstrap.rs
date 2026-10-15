@@ -19,6 +19,8 @@ use crate::lizenzdienst::{self, HttpLizenzdienst};
 
 pub struct AppState {
     pub core: CoreServices,
+    pub config_dir: std::path::PathBuf,
+    pub data_dir: std::path::PathBuf,
     /// Angemeldeter Benutzer (Betriebssystem-Anmeldung). Wird neu gelesen,
     /// wenn ein Administrator ihn ändert.
     pub benutzer: RwLock<Benutzer>,
@@ -27,6 +29,7 @@ pub struct AppState {
     pub config: AppConfig,
     /// Nur im Netzwerkmodus vorhanden.
     pub cache: Option<Arc<CachedStorage>>,
+    pub projektordner: tokio::sync::RwLock<std::path::PathBuf>,
     pub formularordner: tokio::sync::RwLock<std::path::PathBuf>,
     pub lokale_ablage: Option<Arc<storage::WechselbareAblage>>,
 }
@@ -45,8 +48,8 @@ type BoxError = Box<dyn std::error::Error>;
 
 pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     let paths = app.path();
-    let config_dir = paths.app_config_dir()?;
-    let data_dir = paths.app_data_dir()?;
+    let (config_dir, data_dir) =
+        crate::config::profil_pfade(&paths.app_config_dir()?, &paths.app_data_dir()?)?;
     let cache_dir = paths.app_cache_dir()?;
     std::fs::create_dir_all(&config_dir)?;
     std::fs::create_dir_all(&data_dir)?;
@@ -104,6 +107,12 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     )?
     .root;
 
+    let projektordner = crate::config::DateiablageConfig::load_named(
+        &config_dir,
+        data_dir.join("Projektordner"),
+        "projektordner.json",
+    )?
+    .root;
     let lbo = Arc::new(init_lbo(app, &data_dir)?);
 
     // Lizenz und belegte Arbeitsplätze liegen in der (gemeinsamen) Datenbank.
@@ -155,12 +164,15 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     tracing::info!(%arbeitsplatz, zustand = ?lizenz.zustand, "Lizenz geprüft");
     Ok(AppState {
         core,
+        config_dir,
+        data_dir,
         benutzer: RwLock::new(benutzer),
         arbeitsplatz,
         config,
         cache,
         lokale_ablage,
         formularordner: tokio::sync::RwLock::new(formularordner),
+        projektordner: tokio::sync::RwLock::new(projektordner),
     })
 }
 

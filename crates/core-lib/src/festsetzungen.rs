@@ -93,6 +93,7 @@ pub enum Quelle {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Nachweis {
+    pub gegenstand: Option<String>,
     pub art: &'static str,
     pub ist: Option<f64>,
     pub soll: Option<f64>,
@@ -121,6 +122,7 @@ fn nachweis(
         .zip(soll)
         .and_then(|(u, s)| (s > 0.0).then(|| u / s * 100.0).filter(|v| v.is_finite()));
     Nachweis {
+        gegenstand: None,
         art,
         ist,
         soll,
@@ -148,7 +150,15 @@ pub fn pruefe(
     p: &Planungsrecht,
     projekt_version: i64,
 ) -> CoreResult<NutzungsPruefung> {
-    let aufstellung = crate::flaechen::berechne_aufstellung(e, p)?;
+    pruefe_mit_regeln(e, p, projekt_version, crate::baunvo::regelwerke())
+}
+pub fn pruefe_mit_regeln(
+    e: &NutzungsEingabe,
+    p: &Planungsrecht,
+    projekt_version: i64,
+    regeln: &[crate::baunvo::Regelwerk],
+) -> CoreResult<NutzungsPruefung> {
+    let aufstellung = crate::flaechen::berechne_aufstellung_mit_regeln(e, p, regeln)?;
     let mut e = e.clone();
     if let Some(a) = &aufstellung {
         e.mass = a.mass.clone();
@@ -178,11 +188,14 @@ pub fn pruefe(
     };
     let o = f.baugebiet.unwrap_or(e.gebiet).orientierungswerte();
     // In einem Plan keine unbekannten Festsetzungen durch Orientierungswerte ersetzen.
-    let (grz, gfz, bmz, quelle) = if mit_plan {
-        (f.grz, f.gfz, f.bmz, Quelle::Festsetzung)
-    } else {
-        (Some(o.grz), o.gfz, o.bmz, Quelle::Orientierungswert)
-    };
+    let (grz, gfz, bmz, quelle) =
+        if !mit_plan && p.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par35) {
+            (None, None, None, Quelle::Keine)
+        } else if mit_plan {
+            (f.grz, f.gfz, f.bmz, Quelle::Festsetzung)
+        } else {
+            (Some(o.grz), o.gfz, o.bmz, Quelle::Orientierungswert)
+        };
     let basis_gesamt = match (
         grz,
         f.grundflaeche_m2
@@ -192,19 +205,17 @@ pub fn pruefe(
         (Some(a), None) | (None, Some(a)) => Some(a),
         _ => None,
     };
+    let regel = crate::baunvo::aus_katalog(
+        regeln,
+        p.bau_nvo
+            .or(e.aufstellung.as_ref().map(|a| a.bau_nvo))
+            .unwrap_or(crate::flaechen::BauNvo::V2017),
+    )?;
     let grz_gesamt = if historisch {
         None
     } else {
         f.grz_gesamt.or_else(|| {
-            basis_gesamt.map(|v| {
-                let regel = crate::baunvo::regelwerk(
-                    e.aufstellung
-                        .as_ref()
-                        .map(|a| a.bau_nvo)
-                        .unwrap_or(crate::flaechen::BauNvo::V2017),
-                );
-                (v * regel.grz_ii_faktor).min(regel.grz_ii_kappung).max(v)
-            })
+            basis_gesamt.map(|v| (v * regel.grz_ii_faktor).min(regel.grz_ii_kappung).max(v))
         })
     };
     let quelle_gesamt = if f.grz_gesamt.is_some() {
@@ -273,7 +284,40 @@ pub fn pruefe(
             ),
         ],
     };
+    if let Some(a) = &r.aufstellung
+        && a.vollgeschosse_je_gebaeude.len() > 1
+    {
+        r.nachweise.retain(|n| n.art != "vollgeschosse");
+        for (id, anzahl) in &a.vollgeschosse_je_gebaeude {
+            let mut n = nachweis(
+                "vollgeschosse",
+                Some(f64::from(*anzahl)),
+                f.vollgeschosse.map(f64::from),
+                Quelle::Festsetzung,
+                f.geschossigkeit == Geschossigkeit::Zwingend,
+            );
+            n.gegenstand = Some(id.clone());
+            r.nachweise.push(n);
+        }
+    }
+    let fehlende_bauteile = r
+        .aufstellung
+        .as_ref()
+        .is_some_and(|a| !a.bauteile_vorhanden);
+    let fehlende_geschosse = r
+        .aufstellung
+        .as_ref()
+        .is_some_and(|a| !a.geschosse_vorhanden);
     for n in &mut r.nachweise {
+        if (fehlende_bauteile
+            && matches!(
+                n.art,
+                "grz" | "grz_gesamt" | "grundflaeche" | "baufensterflaeche"
+            ))
+            || (fehlende_geschosse && matches!(n.art, "gfz" | "geschossflaeche" | "vollgeschosse"))
+        {
+            *n = nachweis(n.art, None, n.soll, n.quelle, n.zwingend);
+        }
         if matches!(n.art, "grz" | "grz_gesamt" | "gfz") {
             n.flaechenueberschreitung_m2 = n
                 .ueberschreitung
@@ -307,6 +351,32 @@ mod tests {
             festgesetzte_werte: f,
             ..Default::default()
         }
+    }
+    #[test]
+    fn grz_ii_grenze_stammt_aus_explizitem_katalog() {
+        let recht = plan(Festsetzungen {
+            grz: Some(0.4),
+            ..Default::default()
+        });
+        let mut regel = crate::baunvo::regelwerk(crate::flaechen::BauNvo::V2017).clone();
+        regel.grz_ii_faktor = 1.1;
+        regel.grz_ii_kappung = 0.42;
+        let r = pruefe_mit_regeln(&eingabe(), &recht, 1, &[regel]).unwrap();
+        let grz_ii = r.nachweise.iter().find(|n| n.art == "grz_gesamt").unwrap();
+        assert_eq!(grz_ii.soll, Some(0.42));
+        let live = pruefe(&eingabe(), &recht, 1).unwrap();
+        assert!(
+            (live
+                .nachweise
+                .iter()
+                .find(|n| n.art == "grz_gesamt")
+                .unwrap()
+                .soll
+                .unwrap()
+                - 0.6)
+                .abs()
+                < 1e-9
+        );
     }
     #[test]
     fn festsetzungen_haben_vorrang_und_abweichungen_sind_quantifiziert() {
@@ -429,5 +499,47 @@ mod tests {
             .validate()
             .is_err()
         );
+    }
+    #[test]
+    fn grundstueck_zuerst_flaechen_spaeter_keine_nullnachweise() {
+        let mut e = eingabe();
+        e.aufstellung = Some(crate::flaechen::FlaechenAufstellung {
+            bau_nvo: crate::flaechen::BauNvo::V2017,
+            bauteile: vec![],
+            geschosse: vec![],
+            nichtvollgeschoss_faktor: 0.0,
+            nichtvollgeschoss_festsetzung: String::new(),
+            grundstueck: None,
+        });
+        let r = pruefe(&e, &Planungsrecht::default(), 1).unwrap();
+        for art in ["grz", "gfz", "vollgeschosse"] {
+            assert!(
+                r.nachweise
+                    .iter()
+                    .find(|n| n.art == art)
+                    .unwrap()
+                    .ist
+                    .is_none()
+            );
+        }
+        assert!(!r.aufstellung.unwrap().geschosse_vorhanden);
+    }
+    #[test]
+    fn aussenbereich_erhaelt_keine_automatische_par17_vorgabe() {
+        let p = Planungsrecht {
+            rechtsgrundlage: Some(crate::domain::Rechtsgrundlage::Par35),
+            ..Default::default()
+        };
+        let r = pruefe(&eingabe(), &p, 1).unwrap();
+        for art in ["grz", "gfz", "bmz"] {
+            assert!(
+                r.nachweise
+                    .iter()
+                    .find(|n| n.art == art)
+                    .unwrap()
+                    .soll
+                    .is_none()
+            );
+        }
     }
 }

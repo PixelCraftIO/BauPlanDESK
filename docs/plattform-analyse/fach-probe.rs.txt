@@ -1,0 +1,14 @@
+use core_lib::{baugrundstuecke::*,calc::*,domain::*,festsetzungen::*,flaechen::*,formular::vorlage::Projektkontext};
+fn main() {
+ let parcel = Flurstueck {id:"flur-1".into(),gemarkung:"Musterort".into(),flur:"1".into(),nummer:"100".into(),grundbuchbezirk:"Musterort".into(),grundbuchblatt:"10".into(),laufende_nummer:1,flaeche_m2:800.,abzuege:vec![],abweichende_zuordnung:None};
+ let input=NutzungsEingabe{gebiet:Baugebiet::WA,mass:MassDerNutzung{grundstuecksflaeche_m2:800.,grundflaeche_m2:0.,grundflaeche_nebenanlagen_m2:0.,geschossflaeche_m2:0.,baumasse_m3:None},vollgeschosse:None,aufstellung:Some(FlaechenAufstellung{bau_nvo:BauNvo::V2017,grundstueck:None,bauteile:vec![],geschosse:vec![],nichtvollgeschoss_faktor:0.,nichtvollgeschoss_festsetzung:String::new()})};
+ let plan=BaugrundstuecksPlan{berechnungen:vec![BaugrundstueckBerechnung{schluessel:parcel.schluessel(),eingabe:input.clone(),eigene_festsetzungen:None}],flurstuecke:vec![parcel]};
+ let legal=Planungsrecht{rechtsgrundlage:Some(Rechtsgrundlage::Par35),bebauungsplan_art:BebauungsplanArt::Kein,bau_nvo:Some(BauNvo::V2017),baugrundstuecke:Some(plan.clone()),..Default::default()};
+ let direct=core_lib::festsetzungen::pruefe(&input,&legal,1).unwrap();
+ let grouped=plan.pruefe(&legal,1).unwrap();
+ println!("Par35 direct GRZ Soll: {:?}",direct.nachweise.iter().find(|n|n.art=="grz").unwrap().soll);
+ println!("Par35 grouped GRZ Soll: {:?}",grouped.baugrundstuecke[0].pruefung.nachweise.iter().find(|n|n.art=="grz").unwrap().soll);
+ let p=Project{id:ProjectId::new(),name:"Fachprobe".into(),bundesland:Bundesland::By,grundstuecksflaeche_m2:Some(640.),version:1,created_at:Default::default(),updated_at:Default::default(),planungsrecht:legal};
+ println!("PDF context grundstueck.flaeche_m2: {:?}",Projektkontext::aus_projekt(&p).wert("grundstueck.flaeche_m2"));
+ println!("Calculated parcel Bauland m2: {}",grouped.baugrundstuecke[0].grundstueck.bauland_m2);
+}

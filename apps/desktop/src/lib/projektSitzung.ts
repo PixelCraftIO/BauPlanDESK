@@ -1,21 +1,24 @@
-export type Ansicht =
-  | "rechtsgrundlagen"
-  | "uebersicht"
-  | "mass"
-  | "abstand"
-  | "dokumente"
-  | "plaene"
-  | "bauantrag"
-  | "protokoll"
-  | "einreichungen";
-export const reiter: { id: Ansicht; text: string }[] = [
-  { id: "uebersicht", text: "Stammblatt" },
-  { id: "rechtsgrundlagen", text: "Rechtsgrundlagen" },
-  { id: "mass", text: "Grundstücke / Nachweise" },
-  { id: "abstand", text: "Abstandsflächen" },
-  { id: "dokumente", text: "Dokumente" },
-  { id: "plaene", text: "Pläne / Aufmaß" },
-  { id: "bauantrag", text: "Bauantrag" },
-  { id: "einreichungen", text: "Einreichungen" },
-  { id: "protokoll", text: "Verlauf" },
+import { MODULE, type ModulId } from "./module";
+export type BerechnungsBereich =
+  | "grundstueck"
+  | "grz"
+  | "gfz"
+  | "geschosse"
+  | "volumen";
+export type Ansicht = ModulId | "mass";
+export const berechnungsAnsichten: Ansicht[] = [
+  "grundstueck",
+  "grz",
+  "gfz",
+  "geschosse",
+  "volumen",
+  "mass",
 ];
+export const berechnungsTitel: Record<BerechnungsBereich, string> = {
+  grundstueck: "Baugrundstück",
+  grz: "GRZ-Berechnung",
+  gfz: "GFZ-Berechnung",
+  geschosse: "Geschossigkeit",
+  volumen: "Bauvolumen / BMZ",
+};
+export const reiter = MODULE.map((m) => ({ id: m.id, text: m.titel }));

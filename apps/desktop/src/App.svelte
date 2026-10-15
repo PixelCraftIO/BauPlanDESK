@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { initialisieren as darstellungInitialisieren } from "./lib/darstellung";
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { listen } from "@tauri-apps/api/event";
@@ -18,10 +19,14 @@
     type ZuletztEintrag,
   } from "./lib/api";
   import Formularbibliothek from "./lib/Formularbibliothek.svelte";
+  import { MODULE, voraussetzung } from "./lib/module";
+  import Sidebar from "./lib/Sidebar.svelte";
+  import Darstellung from "./lib/Darstellung.svelte";
+  import Speicherorte from "./lib/Speicherorte.svelte";
   import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
-  import { reiter, type Ansicht } from "./lib/projektSitzung";
+  import { type Ansicht } from "./lib/projektSitzung";
   import BauherrenDialog from "./lib/Bauherren.svelte";
   import Benutzerverwaltung from "./lib/Benutzerverwaltung.svelte";
   import BueroDialog from "./lib/Buero.svelte";
@@ -51,6 +56,7 @@
     exportAusloeser: number;
     editor?: Projektakte;
   };
+  onMount(darstellungInitialisieren);
   let sitzungen = $state<Sitzung[]>([]);
   let aktiveId = $state<string | null>(null);
   let globalAnsicht = $state<
@@ -58,12 +64,20 @@
   >("projekte");
   const aktiv = $derived(sitzungen.find((s) => s.projekt.id === aktiveId));
   const projekt = $derived(aktiv?.projekt ?? null);
+  $effect(() => {
+    if (aktiv) {
+      const modul = MODULE.find((m) => m.id === aktiv.ansicht);
+      if (modul && voraussetzung(aktiv.projekt, modul))
+        aktiv.ansicht = "rechtsgrundlagen";
+    }
+  });
   let schliessZiel = $state<string | null>(null);
   let schliessLaeuft = $state(false);
   let beendenAngefragt = $state(false);
   let beendenLaeuft = $state(false);
   let kundenBesucht = $state(false);
   let kundenEditor = $state<Kunden>();
+  let speicherortEditor = $state<Speicherorte>();
   let ablageEditor = $state<AblageEinstellungen>();
   let bibliothekEditor = $state<Formularbibliothek>();
   let formulareBesucht = $state(false);
@@ -81,6 +95,8 @@
   const ansicht = $derived(aktiv?.ansicht ?? "uebersicht");
   function bereich(id: Ansicht) {
     if (aktiv) {
+      const modul = MODULE.find((m) => m.id === id);
+      if (modul && voraussetzung(aktiv.projekt, modul)) id = "rechtsgrundlagen";
       aktiv.ansicht = id;
       globalAnsicht = null;
     }
@@ -306,6 +322,12 @@
       return;
     }
     switch (id) {
+      case "anwendung.speichern":
+        void aktiveAkteSpeichern();
+        break;
+      case "anwendung.einstellungen":
+        globalAnsicht = "verwaltung";
+        break;
       case "datei.neu":
         neuesProjekt();
         break;
@@ -392,6 +414,7 @@
           sitzungen.some((s) => s.editor?.istBeschaeftigt()) ||
           kundenEditor?.istBeschaeftigt() ||
           ablageEditor?.istBeschaeftigt() ||
+          speicherortEditor?.istBeschaeftigt() ||
           bibliothekEditor?.istBeschaeftigt() ||
           speicherLaeuft ||
           schliessLaeuft
@@ -451,77 +474,20 @@
 {/if}
 
 <header class="app-kopf">
-  <strong>BauProjektIO</strong><span class="meta">Projektverwaltung</span><span
-    class="konto meta">{ich?.anzeigename ?? "Wird geladen …"}</span
+  <strong>BauProjektIO</strong><span class="konto meta"
+    >{ich?.anzeigename ?? "Wird geladen …"}</span
   >
 </header>
-<nav class="app-werkzeuge" aria-label="Werkzeugleiste">
-  <button class="sekundaer" onclick={() => (globalAnsicht = "projekte")}
-    >Projektverzeichnis</button
-  >
-  <button
-    class="sekundaer"
-    onclick={neuesProjekt}
-    disabled={!darf("projektleitung")}>Neues Projekt</button
-  >
-  <span class="werkzeug-trenner"></span>
-  <button
-    class="sekundaer"
-    onclick={aktiveAkteSpeichern}
-    disabled={!aktiv ||
-      !darf("bearbeitung") ||
-      speicherLaeuft ||
-      !!globalAnsicht}
-    >{speicherLaeuft ? "Wird gespeichert …" : "Speichern"}</button
-  >
-  <button class="sekundaer" onclick={() => bereich("mass")} disabled={!aktiv}
-    >Nachweise</button
-  >
-  <button
-    class="sekundaer"
-    onclick={() => menue("datei.xbau")}
-    disabled={!aktiv}>XBau exportieren</button
-  >
-</nav>
 <div class="arbeitsrahmen">
-  <aside class="aktennavigation" aria-label="Arbeitsbereiche">
-    <div class="nav-gruppe">Arbeitsbereich</div>
-    <button
-      class:aktiv={globalAnsicht === "projekte"}
-      onclick={() => (globalAnsicht = "projekte")}>Projektverzeichnis</button
-    >
-    <div class="nav-gruppe">{projekt?.name ?? "Projektakte"}</div>
-    {#each reiter as r}<button
-        disabled={!aktiv}
-        class:aktiv={!globalAnsicht && ansicht === r.id}
-        aria-current={!globalAnsicht && ansicht === r.id ? "page" : undefined}
-        onclick={() => bereich(r.id)}>{r.text}</button
-      >{/each}
-    <div class="nav-gruppe">Stammdaten und Verwaltung</div>
-    <button
-      class:aktiv={globalAnsicht === "formulare"}
-      onclick={() => (globalAnsicht = "formulare")}>Formularbibliothek</button
-    >
-    <button
-      class:aktiv={globalAnsicht === "kunden"}
-      onclick={() => (globalAnsicht = "kunden")}>Kunden / Bauherren</button
-    >
-    <button
-      class:aktiv={globalAnsicht === "verwaltung"}
-      onclick={() => (globalAnsicht = "verwaltung")}
-      >Büro / Benutzer / Lizenz</button
-    >
-    <div class="nav-fuss meta">
-      {sitzungen.length} offene Projektakte{sitzungen.length === 1 ? "" : "n"}
-    </div>
-  </aside>
+  <Sidebar
+    {projekt}
+    {ansicht}
+    {globalAnsicht}
+    onbereich={bereich}
+    onglobal={(a) => (globalAnsicht = a)}
+  />
   <div class="aktenbereich">
     <nav class="projekttabs" aria-label="Geöffnete Projekte">
-      <button
-        class="verzeichnis-tab"
-        class:aktiv={globalAnsicht === "projekte"}
-        onclick={() => (globalAnsicht = "projekte")}>Projektverzeichnis</button
-      >
       <div class="offene-projekte">
         {#each sitzungen as s (s.projekt.id)}
           <div
@@ -576,21 +542,15 @@
         class="globale-seite"
         hidden={globalAnsicht !== "formulare"}
       >
-        <Formularbibliothek
-          bind:this={bibliothekEditor}
-          {ich}
-          onprojektAenderung={(id) => {
-            void sitzungen
-              .find((s) => s.projekt.id === id)
-              ?.editor?.dokumenteAktualisieren();
-          }}
-        />
+        <Formularbibliothek bind:this={bibliothekEditor} {ich} />
       </div>{/if}
     {#if verwaltungBesucht}<div
         class="globale-seite"
         hidden={globalAnsicht !== "verwaltung"}
       >
-        <h1>Verwaltung</h1>
+        <h1>Einstellungen</h1>
+        <Darstellung />
+        <Speicherorte {ich} bind:this={speicherortEditor} />
         <AblageEinstellungen bind:this={ablageEditor} />
         <div class="verwaltungszeile">
           <div>
@@ -621,7 +581,7 @@
         </div>
         <div class="verwaltungszeile">
           <div>
-            <h2>Version und Ablage</h2>
+            <h2>Anwendung und Updates</h2>
             <p class="meta">
               {info?.version} · {info?.modus} · {info?.storage}
             </p>

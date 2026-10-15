@@ -2,13 +2,13 @@
 use crate::flaechen::{Anrechnung, BauNvo, Bauteiltyp};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::OnceLock};
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BauteilRegel {
     pub bezeichnung: String,
     pub anrechnung: Anrechnung,
 }
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Regelwerk {
     pub id: String,
@@ -45,6 +45,57 @@ pub fn regelwerk(v: BauNvo) -> &'static Regelwerk {
         .iter()
         .find(|r| r.fassung == v)
         .expect("BauNVO-Regelwerk fehlt")
+}
+/// Wählt ausschließlich aus dem übergebenen Katalog; kein Rückfall auf aktuelle Regeln.
+pub fn aus_katalog(werke: &[Regelwerk], fassung: BauNvo) -> crate::CoreResult<&Regelwerk> {
+    let mut passend = werke.iter().filter(|r| r.fassung == fassung);
+    let r = passend.next().ok_or_else(|| {
+        crate::CoreError::InvalidInput("Benötigtes BauNVO-Regelwerk fehlt im Katalog".into())
+    })?;
+    if passend.next().is_some() {
+        return Err(crate::CoreError::InvalidInput(
+            "Mehrdeutiger BauNVO-Katalog".into(),
+        ));
+    }
+    r.validate()?;
+    Ok(r)
+}
+impl Regelwerk {
+    /// Strukturprüfung; die fachliche Freigabe eines Regelpakets erfolgt gesondert.
+    pub fn validate(&self) -> crate::CoreResult<()> {
+        let typen = [
+            Bauteiltyp::Hauptanlage,
+            Bauteiltyp::TerrasseHauptanlage,
+            Bauteiltyp::Garage,
+            Bauteiltyp::Stellplatz,
+            Bauteiltyp::Zufahrt,
+            Bauteiltyp::Nebenanlage14,
+            Bauteiltyp::Unterirdisch,
+            Bauteiltyp::BalkonLoggia,
+            Bauteiltyp::TerrasseNebenanlage,
+        ];
+        if self.id.trim().is_empty()
+            || self.version.trim().is_empty()
+            || self.id.len() > 200
+            || self.version.len() > 100
+            || self.bauteile.len() != typen.len()
+            || typen.iter().any(|t| {
+                self.bauteile.get(t).is_none_or(|b| {
+                    b.bezeichnung.trim().is_empty()
+                        || (!self.grz_ii && b.anrechnung == Anrechnung::GrzIi)
+                })
+            })
+            || !(0.0..=1.0).contains(&self.nichtvollgeschoss_faktor)
+            || !self.grz_ii_faktor.is_finite()
+            || self.grz_ii_faktor < 1.0
+            || !(0.0..=1.0).contains(&self.grz_ii_kappung)
+        {
+            return Err(crate::CoreError::InvalidInput(
+                "Ungültiges oder unvollständiges BauNVO-Regelwerk".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests {

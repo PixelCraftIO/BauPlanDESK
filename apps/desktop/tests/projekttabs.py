@@ -6,11 +6,11 @@ import json, os
 from playwright.sync_api import sync_playwright, expect
 root=Path(__file__).resolve().parent
 out=Path(os.environ.get('BAUPROJEKT_UI_ARTEFAKTE',str(root.parents[2]/'docs/ui-umsetzung')))
-out.mkdir(exist_ok=True)
+out.mkdir(parents=True,exist_ok=True)
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='Wohnbebauung Lindenweg'
 errors=[];checks=[]
 with sync_playwright() as p:
- browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium')
+ browser=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
  page=browser.new_page(viewport={'width':1440,'height':1000})
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text())
@@ -19,7 +19,7 @@ with sync_playwright() as p:
  def view(name):page.locator('.aktennavigation').get_by_role('button',name=name,exact=True).click()
  def tab(name):page.locator('.tab-auswahl').filter(has_text=name).click()
  def close(name):page.get_by_role('button',name=name+' schließen',exact=True).click()
- def directory():page.locator('.verzeichnis-tab').click()
+ def directory():page.locator('.aktennavigation').get_by_role('button',name='Projekte',exact=True).click()
  def open_project(name):page.locator('.projekttabelle').get_by_role('button',name=name,exact=True).click()
  page.get_by_role('heading',name='Projektverzeichnis',exact=True).wait_for()
  page.screenshot(path=str(out/'01-projektverzeichnis.png'))
@@ -27,18 +27,18 @@ with sync_playwright() as p:
  assert page.locator('.projekttabelle').get_by_role('button',name='Öffnen',exact=True).count()==0
  page.get_by_placeholder('Projektname oder Bundesland').fill('')
  open_project('Wohnbebauung Lindenweg');view('Rechtsgrundlagen')
- active().get_by_label('Planbezeichnung',exact=True).fill('Entwurf A')
+ active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).fill('Entwurf A')
  directory();open_project('Umbau Bürogebäude');view('Rechtsgrundlagen')
- active().get_by_label('Planbezeichnung',exact=True).fill('Entwurf B')
- tab('Wohnbebauung Lindenweg');assert active().get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf A'
- tab('Umbau Bürogebäude');assert active().get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
+ active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).fill('Entwurf B')
+ tab('Wohnbebauung Lindenweg');assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf A'
+ tab('Umbau Bürogebäude');assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
  assert page.locator('.entwurf-punkt').count()==2
  directory();open_project('Umbau Bürogebäude');assert page.locator('.projekttab').count()==2
  checks.append('Getrennte Rechtsgrundlagen-Entwürfe, Dirty-Markierung, kein doppeltes Öffnen und keine Öffnen-Aktion bei leerem Filter.')
  close('Wohnbebauung Lindenweg');page.keyboard.press('Escape');assert page.locator('.projekttab').count()==2
  close('Wohnbebauung Lindenweg');page.get_by_role('button',name='Verwerfen und schließen',exact=True).click()
- assert active().get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
- directory();open_project('Wohnbebauung Lindenweg');view('Bauantrag')
+ assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
+ directory();open_project('Wohnbebauung Lindenweg');view('Bauantrag / XBau')
  active().locator('.bauantrag').get_by_label('Bezeichnung',exact=True).fill('Antragsentwurf A')
  tab('Umbau Bürogebäude');close('Wohnbebauung Lindenweg')
  page.evaluate('window.failSave=true')
@@ -50,28 +50,28 @@ with sync_playwright() as p:
  close('Wohnbebauung Lindenweg');page.get_by_role('button',name='Speichern und schließen',exact=True).click()
  page.wait_for_function('window.savedApplications[window.fixture.id]?.antrag.bezeichnung==="Antragsentwurf A"')
  expect(page.locator('.projekttab')).to_have_count(1)
- assert active().get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
+ assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
  checks.append('Schließen von Hintergrundakten schützt Bauantrag; fehlgeschlagenes Speichern erhält Entwürfe; Speichern/Verwerfen verändern nur Zielprojekt.')
  # A delayed save must not alter the tab selected while it is in flight.
  directory();open_project('Wohnbebauung Lindenweg');view('Rechtsgrundlagen')
- active().get_by_label('Planbezeichnung',exact=True).fill('Gespeichert A')
+ active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).fill('Gespeichert A')
  page.evaluate('window.saveDelay=450')
- page.locator('.app-werkzeuge').get_by_role('button',name='Speichern',exact=True).click()
+ page.evaluate('window.emitNative("menu","anwendung.speichern")')
  tab('Umbau Bürogebäude')
  page.wait_for_function('window.testProjects[0].planungsrecht.plan_bezeichnung==="Gespeichert A"')
- assert active().get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
+ assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Entwurf B'
  page.evaluate('window.saveDelay=0')
  checks.append('Verzögertes Speichern nach Projektwechsel aktualisiert ausschließlich ursprüngliche Projektakte.')
- tab('Wohnbebauung Lindenweg');view('Grundstücke / Nachweise')
- active().locator('[data-flurstueck]:visible').get_by_label('Flurstücksnummer',exact=True).fill('100/9')
+ tab('Wohnbebauung Lindenweg');view('Baugrundstück')
+ active().get_by_label('Flurstücknummer',exact=True).first.fill('100/9')
  view('Abstandsflächen');active().locator('section:visible input[type=number]').fill('11')
  tab('Umbau Bürogebäude');view('Abstandsflächen');assert active().locator('section:visible input[type=number]').input_value()=='6.5'
  tab('Wohnbebauung Lindenweg');assert active().locator('section:visible input[type=number]').input_value()=='11'
- view('Grundstücke / Nachweise');assert active().locator('[data-flurstueck]:visible').get_by_label('Flurstücksnummer',exact=True).input_value()=='100/9'
+ view('Baugrundstück');assert active().get_by_label('Flurstücknummer',exact=True).first.input_value()=='100/9'
  checks.append('Flurstücke und Abstandsflächen-Eingaben bleiben unabhängig über Bereichs- und Projektwechsel erhalten.')
  for notice in page.locator('#app>.banner button').all(): notice.click()
  page.screenshot(path=str(out/'02-grundstuecke-projekttabs.png'))
- for name,file in [('Dokumente','03-dokumente.png'),('Bauantrag','04-bauantrag.png'),('Stammblatt','05-stammblatt.png')]:
+ for name,file in [('Projektdateien','03-dokumente.png'),('Bauantrag / XBau','04-bauantrag.png'),('Stammdaten','05-stammblatt.png')]:
   view(name);page.screenshot(path=str(out/file))
  for width in [1024,768,600]:
   page.set_viewport_size({'width':width,'height':900});assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
@@ -93,7 +93,7 @@ with sync_playwright() as p:
  page.wait_for_function('window.calls.filter(c=>c.cmd==="plugin:dialog|open").length===1')
  page.evaluate('window.emitNative("menu","datei.xbau")')
  page.wait_for_function('window.calls.filter(c=>c.cmd==="plugin:dialog|save").length===1')
- checks.append('Native Import- und Export-Menüs lösen nur im aktiven Projekt genau eine Aktion aus.')
+ checks.append('Import- und Export-Adapter lösen nur im aktiven Projekt genau eine Aktion aus.')
  page.evaluate('window.failSave=false')
  for name in ['Wohnbebauung Lindenweg','Umbau Bürogebäude']:
   close(name)
@@ -102,7 +102,7 @@ with sync_playwright() as p:
  expect(page.locator('.projekttab')).to_have_count(0)
  expect(page.get_by_role('heading',name='Projektverzeichnis',exact=True)).to_be_visible()
  open_project('Wohnbebauung Lindenweg');view('Rechtsgrundlagen')
- assert active().get_by_label('Planbezeichnung',exact=True).input_value()=='Gespeichert A'
+ assert active().locator('section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).input_value()=='Gespeichert A'
  checks.append('Letzte Projektakte schließen führt zum Verzeichnis; erneutes Öffnen zeigt gespeicherte Daten.')
  assert not errors,errors
  checks.append('Schmale Fenster und dunkles Theme, keine Seitenüberläufe und keine JavaScript-Fehler.')
@@ -112,9 +112,9 @@ with sync_playwright() as p:
  reader.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1430'))
  reader.locator('.projekttabelle').get_by_role('button',name='Wohnbebauung Lindenweg',exact=True).click()
  reader.locator('.aktennavigation').get_by_role('button',name='Rechtsgrundlagen',exact=True).click()
- assert reader.locator('.projekt-sitzung:visible').get_by_label('Planbezeichnung',exact=True).is_disabled()
- assert reader.locator('.app-werkzeuge').get_by_role('button',name='Speichern',exact=True).is_disabled()
- assert reader.locator('.app-werkzeuge').get_by_role('button',name='Neues Projekt',exact=True).is_disabled()
+ assert reader.locator('.projekt-sitzung:visible section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).is_disabled()
+ assert reader.locator('.projekt-sitzung:visible section[aria-label="Rechtsgrundlagen"]').get_by_role('button',name='Speichern',exact=True).is_disabled()
+ assert reader.get_by_role('button',name='Neues Projekt',exact=True,include_hidden=True).is_disabled()
  assert not reader.evaluate('window.calls.some(c=>c.cmd==="projekt_aktualisieren")')
  checks.append('Leserrolle behält deaktivierte Schreibaktionen und sendet keine Projektänderungen.')
  assert not errors,errors

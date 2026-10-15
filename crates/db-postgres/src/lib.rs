@@ -1,5 +1,6 @@
 //! PostgreSQL-Backend für die NAS-/Büro- und Cloud-Variante.
 
+mod commit;
 mod einreichungen;
 
 use std::str::FromStr;
@@ -47,6 +48,7 @@ impl PostgresDatabase {
     pub fn repositories(&self) -> Repositories {
         let this = Arc::new(self.clone());
         Repositories {
+            commit: this.clone(),
             einreichungen: this.clone(),
             projects: this.clone(),
             documents: this.clone(),

@@ -1,0 +1,11 @@
+{
+  "checks": [
+    "Bibliothek unabhängig vom Projekt",
+    "Importabbruch ohne Änderung",
+    "Felder direkt an Bibliotheksquelle definieren",
+    "PDF.js rendert Original",
+    "Escape und Speicherfehler erhalten Definitionen",
+    "Neue ausfüllbare Vorlage ohne Projektdokument"
+  ],
+  "errors": []
+}

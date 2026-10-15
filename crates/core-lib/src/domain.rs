@@ -13,6 +13,7 @@ use crate::storage::ContentHash;
 /// Dateiname des LBO-Regelpakets (`by.rhai`, `bw.rhai`, …).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[derive(ts_rs::TS)]
 pub enum Bundesland {
     Bw,
     By,
@@ -108,6 +109,7 @@ impl std::str::FromStr for Bundesland {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
+#[derive(ts_rs::TS)]
 pub struct ProjectId(pub Uuid);
 
 impl ProjectId {
@@ -159,6 +161,7 @@ pub enum AussenbereichsVorhaben {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Planungsrecht {
+    pub bau_nvo: Option<crate::flaechen::BauNvo>,
     pub rechtsgrundlage: Option<Rechtsgrundlage>,
     pub bebauungsplan_art: BebauungsplanArt,
     pub ergaenzende_grundlage: Option<Rechtsgrundlage>,
@@ -268,6 +271,7 @@ pub struct ProjectUpdate {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
+#[derive(ts_rs::TS)]
 pub struct DocumentId(pub Uuid);
 
 impl DocumentId {
@@ -316,6 +320,7 @@ pub struct DocumentLock {
 #[serde(rename_all = "snake_case")]
 pub enum Aktion {
     ProjektAngelegt,
+    AusgabeauftragGeaendert,
     ProjektGeaendert,
     DokumentAbgelegt,
     DokumentGesperrt,
@@ -336,8 +341,9 @@ pub enum Aktion {
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 18] = [
+    const ALLE: [Aktion; 19] = [
         Self::ProjektAngelegt,
+        Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
         Self::DokumentAbgelegt,
         Self::DokumentGesperrt,
@@ -359,6 +365,7 @@ impl Aktion {
 
     pub fn code(self) -> &'static str {
         match self {
+            Self::AusgabeauftragGeaendert => "ausgabeauftrag_geaendert",
             Self::ProjektAngelegt => "projekt_angelegt",
             Self::ProjektGeaendert => "projekt_geaendert",
             Self::DokumentAbgelegt => "dokument_abgelegt",

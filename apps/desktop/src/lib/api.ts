@@ -1,3 +1,5 @@
+import type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
+export type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
 // Typisierte Hülle um die Tauri-Commands. Das Frontend rechnet nichts selbst;
 // alle Fachlogik liegt in core-lib (Rust).
 import { invoke } from "@tauri-apps/api/core";
@@ -109,6 +111,7 @@ export interface Protokolleintrag {
 
 export const AKTIONEN: Record<string, string> = {
   projekt_angelegt: "Projekt angelegt",
+  ausgabeauftrag_geaendert: "Ordnerausgabe aktualisiert",
   projekt_geaendert: "Projektdaten geändert",
   dokument_abgelegt: "Dokument abgelegt",
   dokument_gesperrt: "Dokument gesperrt",
@@ -436,18 +439,6 @@ export interface Festsetzungen {
   geschossigkeit: "maximal" | "zwingend";
 }
 
-export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
-export type Anrechnung = "grz" | "grz_ii" | "keine";
-export type Bauteiltyp =
-  | "hauptanlage"
-  | "terrasse_hauptanlage"
-  | "garage"
-  | "stellplatz"
-  | "zufahrt"
-  | "nebenanlage14"
-  | "unterirdisch"
-  | "balkon_loggia"
-  | "terrasse_nebenanlage";
 export interface Bauteil {
   bezeichnung: string;
   typ: Bauteiltyp;
@@ -456,6 +447,8 @@ export interface Bauteil {
   begruendung: string;
 }
 export interface Geschoss {
+  gebaeude_id?: string | null;
+  geschoss_id?: string | null;
   bezeichnung: string;
   vollgeschoss: boolean;
   aussenmass_m2: number;
@@ -493,11 +486,14 @@ export interface FlaechenAufstellung {
   nichtvollgeschoss_festsetzung: string;
 }
 export interface FlaechenErgebnis {
+  bauteile_vorhanden: boolean;
+  geschosse_vorhanden: boolean;
   regelwerk_id: string;
   regelwerk_version: string;
   grundstueck: GrundstueckErgebnis;
   mass: MassDerNutzung;
   vollgeschosse: number;
+  vollgeschosse_je_gebaeude: Record<string, number>;
   grz_ii: boolean;
   bauteile: { anrechnung: Anrechnung; flaeche_m2: number }[];
   geschosse: number[];
@@ -557,6 +553,7 @@ export interface NutzungsPruefung {
   bebauungsplan: boolean;
   nachweise: {
     art: string;
+    gegenstand?: string | null;
     ist: number | null;
     soll: number | null;
     quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "keine";
@@ -592,6 +589,7 @@ export interface BaugrenzenPruefung {
 }
 
 export interface Planungsrecht {
+  bau_nvo?: BauNvo | null;
   rechtsgrundlage: "par30" | "par34" | "par35" | null;
   bebauungsplan_art:
     | "ungeklaert"
@@ -660,6 +658,8 @@ export interface Projektwerte {
 }
 
 export interface DocumentVersion {
+  projektordner_pfad?: string | null;
+  ablage_hinweis?: string | null;
   document_id: string;
   project_id: string;
   version: number;
@@ -717,7 +717,25 @@ export interface Formularfeld {
   max_laenge: number | null;
 }
 
+export interface FormularBezug {
+  grundstueck_id: string | null;
+  bauherr_id: string | null;
+}
+export interface FormularDatenstand {
+  projekt_id: string;
+  projekt_version: number;
+  bezug: FormularBezug;
+  daten_hash: string;
+  werte: Record<string, string>;
+}
+export interface FormularQuellen {
+  datenstand: FormularDatenstand;
+  grundstuecke: { id: string; bezeichnung: string }[];
+  bauherren: { id: string; bezeichnung: string }[];
+  hinweise: string[];
+}
 export interface FormularAnalyse {
+  quellen?: FormularQuellen;
   dokument: DocumentVersion;
   felder: Formularfeld[];
   vorlage: { id: string; titel: string; version: string } | null;
@@ -817,6 +835,11 @@ export interface PdfVorschauDaten {
   seiten: PdfSeite[];
   felder: Formularfeld[];
 }
+export interface Sicherungsmanifest {
+  schema_version: number;
+  erstellt_unix: number;
+  dateien: { name: string; sha256: string; bytes: number }[];
+}
 export interface AblageStatus {
   modus: string;
   root: string | null;
@@ -831,6 +854,7 @@ export interface ProjektordnerExport {
 }
 
 export interface BibliotheksVorlage {
+  felder?: number | null;
   name: string;
   sha256: string;
   size: number;
@@ -849,8 +873,17 @@ export interface Arbeitskopie {
   pfad: string;
   geaendert: boolean;
 }
+export interface PaketPruefstand {
+  schema_version: number;
+  ermittelt_am: string;
+  nicht_enthaltene_pflichtunterlagen: string[];
+  ungepruefte_unterlagen: string[];
+  hinweise: string[];
+  nachweise: import("./generated/plattform").NachweisAnsicht[];
+}
 export interface Einreichung {
   stand: {
+    pruefstand?: PaketPruefstand | null;
     id: string;
     projekt_id: string;
     titel: string;
@@ -891,7 +924,96 @@ export interface DokumentVergleich {
     | "geaendert"
     | "aelter";
 }
+export interface BibliothekQuelle {
+  projektId: string;
+  vorlage: BibliotheksVorlage;
+}
+export interface BibliothekMaske {
+  schema: Omit<FormularAnalyse, "dokument">;
+  pdf_base64: string;
+  seiten: PdfSeite[];
+}
 export const api = {
+  projektBereichSpeichern: (
+    basis: Project,
+    bereich:
+      | "stammdaten"
+      | "grundlagen"
+      | "festsetzungen"
+      | "grundstuecke"
+      | "projektdaten",
+    aenderung: ProjectUpdate,
+  ) =>
+    invoke<Project>("projekt_bereich_speichern", { basis, bereich, aenderung }),
+  grundstueckskontext: (projektId: string) =>
+    invoke<GrundstueckKontext[]>("grundstueckskontext", { projektId }),
+  ausgabeauftraege: (projektId: string) =>
+    invoke<import("./generated/plattform").Ausgabeauftrag[]>(
+      "ausgabeauftraege",
+      { projektId },
+    ),
+  ausgabeWiederholen: (projektId: string, id: string) =>
+    invoke<DocumentVersion>("ausgabe_wiederholen", { projektId, id }),
+  sicherungsstatus: () =>
+    invoke<{ lokal: boolean; profil: string; hinweis: string }>(
+      "sicherungsstatus",
+    ),
+  sicherungErstellen: (ziel: string) =>
+    invoke<Sicherungsmanifest>("sicherung_erstellen", { ziel }),
+  sicherungPruefen: (pfad: string) =>
+    invoke<Sicherungsmanifest>("sicherung_pruefen", { pfad }),
+  sicherungWiederherstellen: (pfad: string, ziel: string) =>
+    invoke<string>("sicherung_wiederherstellen", { pfad, ziel }),
+  profilAktivieren: (pfad: string) =>
+    invoke<void>("profil_aktivieren", { pfad }),
+  standardprofilAktivieren: () => invoke<void>("standardprofil_aktivieren"),
+  projektordnerStatus: () => invoke<string>("projektordner_status"),
+  projektordnerWaehlen: (pfad: string) =>
+    invoke<void>("projektordner_waehlen", { pfad }),
+  baugrundstueckeErmitteln: (projektId: string, plan: BaugrundstuecksPlan) =>
+    invoke<BaugrundstueckGruppe[]>("baugrundstuecke_ermitteln", {
+      projektId,
+      plan,
+    }),
+  bibliothekFormular: (quelle: BibliothekQuelle, bezug?: FormularBezug) =>
+    invoke<BibliothekMaske>("bibliothek_formular", {
+      bezug,
+      projektId: quelle.projektId,
+      vorlage: quelle.vorlage,
+    }),
+  bibliothekFormularSpeichern: (
+    quelle: BibliothekQuelle,
+    werte: Record<string, Feldwert>,
+    vorgang?: string,
+    datenstand?: FormularDatenstand,
+  ) =>
+    invoke<DocumentVersion>("bibliothek_formular_speichern", {
+      projektId: quelle.projektId,
+      vorlage: quelle.vorlage,
+      werte,
+      vorgang,
+      datenstand,
+    }),
+  bibliothekFelderErstellen: (
+    vorlage: BibliotheksVorlage,
+    felder: EigenesPdfFeld[],
+  ) =>
+    invoke<BibliotheksVorlage>("bibliothek_felder_erstellen", {
+      vorlage,
+      felder,
+    }),
+  formularImProjektSpeichern: (
+    dokumentId: string,
+    basis: number,
+    werte: Record<string, Feldwert>,
+    datenstand?: FormularDatenstand,
+  ) =>
+    invoke<DocumentVersion>("formular_im_projekt_speichern", {
+      datenstand,
+      dokumentId,
+      basis,
+      werte,
+    }),
   dokumentExternOeffnen: (dokumentId: string, version: number) =>
     invoke<Arbeitskopie>("dokument_extern_oeffnen", { dokumentId, version }),
   arbeitskopien: (projektId: string) =>
@@ -907,8 +1029,14 @@ export const api = {
       projektId,
       empfaenger,
     }),
-  einreichungErstellen: (projektId: string, paket: NeuesPaket) =>
-    invoke<Einreichung>("einreichung_erstellen", { projektId, paket }),
+  paketPruefstand: (projektId: string, dokumente: NeuesPaket["dokumente"]) =>
+    invoke<PaketPruefstand>("paket_pruefstand", { projektId, dokumente }),
+  einreichungErstellen: (
+    projektId: string,
+    paket: NeuesPaket,
+    vorgang?: string,
+  ) =>
+    invoke<Einreichung>("einreichung_erstellen", { projektId, paket, vorgang }),
   einreichungBestaetigen: (
     id: string,
     basis: number,
@@ -1048,8 +1176,8 @@ export const api = {
       projektId,
       ziel,
     }),
-  formularAnalysieren: (dokumentId: string) =>
-    invoke<FormularAnalyse>("formular_analysieren", { dokumentId }),
+  formularAnalysieren: (dokumentId: string, bezug?: FormularBezug) =>
+    invoke<FormularAnalyse>("formular_analysieren", { dokumentId, bezug }),
   formularAusfuellen: (
     dokumentId: string,
     werte: Record<string, Feldwert>,
@@ -1145,3 +1273,23 @@ export function fehlertext(e: unknown): string {
     return (e as CmdError).meldung;
   return String(e);
 }
+
+export interface GrundstueckKontext {
+  id: string;
+  projekt_id: string;
+  projekt_version: number;
+  schluessel: string;
+  bezeichnung: string;
+  flurstueck_ids: string[];
+  eigentumsflaeche_m2: number;
+  abzug_m2: number;
+  zuschlag_m2: number;
+  bezugsflaeche_m2: number | null;
+  quelle: string;
+}
+
+export type ProjectUpdate = Projektwerte & {
+  id: string;
+  expected_version: number;
+  planungsrecht?: Planungsrecht;
+};

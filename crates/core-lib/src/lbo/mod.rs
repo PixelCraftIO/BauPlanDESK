@@ -37,7 +37,7 @@ use crate::calc::Baugebiet;
 use crate::domain::Bundesland;
 use crate::error::{CoreError, CoreResult};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AbstandsflaecheInput {
     /// Wandhöhe H in m (Geländeoberfläche bis Schnittpunkt Wand/Dachhaut)
     pub wandhoehe_m: f64,
@@ -61,6 +61,7 @@ pub struct Berechnung<T> {
 }
 
 struct LoadedRulePack {
+    script: String,
     info: RulePackInfo,
     ast: Arc<AST>,
 }
@@ -130,10 +131,20 @@ impl LboEngine {
             LoadedRulePack {
                 info: info.clone(),
                 ast: Arc::new(ast),
+                script: source.script.clone(),
             },
         );
         tracing::info!(land = ?info.land, version = %info.version, origin = %info.origin, "LBO-Regelpaket geladen");
         Ok(info)
+    }
+
+    pub fn quelltext(&self, land: Bundesland) -> CoreResult<String> {
+        self.packs
+            .read()
+            .expect("LBO-Lock vergiftet")
+            .get(&land)
+            .map(|p| p.script.clone())
+            .ok_or(CoreError::RulePackMissing(land))
     }
 
     /// Lädt alle `<land>.rhai`-Dateien eines Verzeichnisses (z. B. die mit der

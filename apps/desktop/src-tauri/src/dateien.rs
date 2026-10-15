@@ -3,18 +3,14 @@ use crate::{bootstrap::AppState, commands::CmdError};
 use core_lib::{
     CoreError,
     benutzer::Recht,
-    domain::{DocumentId, DocumentVersion, ProjectId},
+    domain::{DocumentId, ProjectId},
 };
 use std::path::{Path, PathBuf};
 use storage::arbeitskopie::{self, Arbeitskopie};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 fn root(app: &AppHandle) -> Result<PathBuf, CmdError> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .map_err(|e| CoreError::Storage(e.to_string()))?
-        .join("Arbeitskopien"))
+    Ok(app.state::<AppState>().data_dir.join("Arbeitskopien"))
 }
 fn starten(pfad: &Path) -> Result<(), CoreError> {
     #[cfg(target_os = "windows")]
@@ -134,8 +130,11 @@ pub async fn arbeitskopie_uebernehmen(
     app: AppHandle,
     state: State<'_, AppState>,
     id: Uuid,
-) -> Result<DocumentVersion, CmdError> {
-    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+) -> Result<crate::projektordner::ProjektDokument, CmdError> {
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
     let copy = arbeitskopie::laden(&root(&app)?, id).await?;
     if !copy.geaendert {
         return Err(CoreError::InvalidInput("Arbeitskopie ist unverändert".into()).into());
@@ -154,5 +153,5 @@ pub async fn arbeitskopie_uebernehmen(
         )
         .await?;
     arbeitskopie::basis_aktualisieren(&root(&app)?, id, gespeichert.clone()).await.map_err(|e|CoreError::Storage(format!("Dokument bereits als Version {} gespeichert, lokale Basis konnte nicht aktualisiert werden: {e}",gespeichert.version)))?;
-    Ok(gespeichert)
+    Ok(crate::projektordner::ablegen(&state, gespeichert).await)
 }

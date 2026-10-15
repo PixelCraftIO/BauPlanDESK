@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "Eine Sidebar, keine doppelte Projekt- oder Werkzeugnavigation",
+    "Rechtsgrundlagen schalten Bereiche frei; Festsetzungen separat",
+    "Tabellarische Grundstücksermittlung und gemeinsame Eingaben über GRZ/GFZ hinweg",
+    "Projektvorlage ohne leere Zwischenkopie; erneutes Ausfüllen erhält Dokumentidentität; kein Exportdialog",
+    "Hell/Dunkel/System und Ordnerauswahl mit Abbruch in Einstellungen"
+  ],
+  "page_errors": []
+}

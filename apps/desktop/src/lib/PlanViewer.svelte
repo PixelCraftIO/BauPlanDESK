@@ -6,7 +6,12 @@
   // Zeichnet einen Plan auf ein Canvas und nimmt Aufmaßpunkte entgegen.
   // Gemessen wird nicht hier, sondern in core-lib (onaufmass → api.aufmass).
   import { onMount, untrack } from "svelte";
-  import type { Plan, Punkt, BaugrenzenGeometrie, BaugrenzenPruefung } from "./api";
+  import type {
+    Plan,
+    Punkt,
+    BaugrenzenGeometrie,
+    BaugrenzenPruefung,
+  } from "./api";
 
   let {
     plan,
@@ -51,15 +56,20 @@
 
   // Ein Path2D je Ebene und Farbe, einmal pro Plan aufgebaut.
   const pfade = $derived.by(() => {
-    const m = new Map<string, { ebene: number; farbe: string | null; pfad: Path2D }>();
+    const m = new Map<
+      string,
+      { ebene: number; farbe: string | null; pfad: Path2D }
+    >();
     const [bx, by] = basis;
     for (const l of plan.linien) {
       const k = `${l.ebene}|${l.farbe ?? ""}`;
       let e = m.get(k);
-      if (!e) m.set(k, (e = { ebene: l.ebene, farbe: l.farbe, pfad: new Path2D() }));
+      if (!e)
+        m.set(k, (e = { ebene: l.ebene, farbe: l.farbe, pfad: new Path2D() }));
       const [x0, y0] = l.punkte[0];
       e.pfad.moveTo(x0 - bx, y0 - by);
-      for (let i = 1; i < l.punkte.length; i++) e.pfad.lineTo(l.punkte[i][0] - bx, l.punkte[i][1] - by);
+      for (let i = 1; i < l.punkte.length; i++)
+        e.pfad.lineTo(l.punkte[i][0] - bx, l.punkte[i][1] - by);
       if (l.geschlossen) e.pfad.closePath();
     }
     return [...m.values()];
@@ -68,7 +78,9 @@
   // Rasterindex aller Eckpunkte für den Punktfang.
   const raster = $derived.by(() => {
     const g = plan.grenzen;
-    const zelle = g ? Math.max(g.max[0] - g.min[0], g.max[1] - g.min[1], 1e-9) / 256 : 1;
+    const zelle = g
+      ? Math.max(g.max[0] - g.min[0], g.max[1] - g.min[1], 1e-9) / 256
+      : 1;
     const zellen = new Map<string, { p: Punkt; ebene: number }[]>();
     for (const l of plan.linien)
       for (const p of l.punkte) {
@@ -80,8 +92,14 @@
     return { zelle, zellen };
   });
 
-  const nachZeichnung = (sx: number, sy: number): Punkt => [(sx - ox) / s + basis[0], -(sy - oy) / s + basis[1]];
-  const nachBildschirm = (p: Punkt): [number, number] => [(p[0] - basis[0]) * s + ox, -(p[1] - basis[1]) * s + oy];
+  const nachZeichnung = (sx: number, sy: number): Punkt => [
+    (sx - ox) / s + basis[0],
+    -(sy - oy) / s + basis[1],
+  ];
+  const nachBildschirm = (p: Punkt): [number, number] => [
+    (p[0] - basis[0]) * s + ox,
+    -(p[1] - basis[1]) * s + oy,
+  ];
 
   export function einpassen() {
     const g = plan.grenzen;
@@ -134,8 +152,15 @@
       ctx.rotate((-t.drehung * Math.PI) / 180);
       ctx.fillStyle = t.farbe ?? plan.ebenen[t.ebene]?.farbe ?? vg;
       ctx.font = `${px}px system-ui, sans-serif`;
-      ctx.textAlign = t.ausrichtung === "mitte" ? "center" : t.ausrichtung === "rechts" ? "right" : "left";
-      t.inhalt.split("\n").forEach((zeile, i) => ctx.fillText(zeile, 0, i * t.zeilenabstand * s));
+      ctx.textAlign =
+        t.ausrichtung === "mitte"
+          ? "center"
+          : t.ausrichtung === "rechts"
+            ? "right"
+            : "left";
+      t.inhalt
+        .split("\n")
+        .forEach((zeile, i) => ctx.fillText(zeile, 0, i * t.zeilenabstand * s));
       ctx.restore();
     }
 
@@ -171,10 +196,17 @@
       for (const f of grenzpruefung.aussenflaechen) {
         ctx.beginPath();
         for (const ring of [f.aussenring, ...f.innenringe]) {
-          ring.forEach((p,i) => { const [x,y] = nachBildschirm(p); if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+          ring.forEach((p, i) => {
+            const [x, y] = nachBildschirm(p);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
           ctx.closePath();
         }
-        ctx.globalAlpha = 0.3; ctx.fill("evenodd"); ctx.globalAlpha = 1; ctx.stroke();
+        ctx.globalAlpha = 0.3;
+        ctx.fill("evenodd");
+        ctx.globalAlpha = 1;
+        ctx.stroke();
       }
     }
     ctx.strokeStyle = akzent;
@@ -200,7 +232,22 @@
 
   // Neu zeichnen, wenn sich etwas Sichtbares ändert.
   $effect(() => {
-    void [pfade, sichtbar.join(), s, ox, oy, breite, hoehe, punkte, cursor, fang, markiert, werkzeug, baugrenzen, grenzpruefung];
+    void [
+      pfade,
+      sichtbar.join(),
+      s,
+      ox,
+      oy,
+      breite,
+      hoehe,
+      punkte,
+      cursor,
+      fang,
+      markiert,
+      werkzeug,
+      baugrenzen,
+      grenzpruefung,
+    ];
     zeichnen();
   });
 
@@ -215,10 +262,11 @@
 
   // Werkzeugwechsel bricht die laufende Messung ab.
   $effect(() => {
-    if (werkzeug) untrack(() => {
-      punkte = [];
-      if (werkzeug !== "auswahl") markiert = null;
-    });
+    if (werkzeug)
+      untrack(() => {
+        punkte = [];
+        if (werkzeug !== "auswahl") markiert = null;
+      });
   });
 
   function fangpunkt(sx: number, sy: number): Punkt | null {
@@ -247,7 +295,11 @@
     for (let i = 0, j = ps.length - 1; i < ps.length; j = i++) {
       const [xi, yi] = ps[i];
       const [xj, yj] = ps[j];
-      if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) drin = !drin;
+      if (
+        yi > p[1] !== yj > p[1] &&
+        p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi
+      )
+        drin = !drin;
     }
     return drin;
   }
@@ -260,11 +312,15 @@
       if (!l.geschlossen || !sichtbar[l.ebene] || l.punkte.length < 3) return;
       let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
       for (const [x, y] of l.punkte) {
-        x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+        x0 = Math.min(x0, x);
+        y0 = Math.min(y0, y);
+        x1 = Math.max(x1, x);
+        y1 = Math.max(y1, y);
       }
       if (p[0] < x0 || p[0] > x1 || p[1] < y0 || p[1] > y1) return;
       const groesse = (x1 - x0) * (y1 - y0);
-      if (groesse < bestGroesse && innerhalb(p, l.punkte)) [best, bestGroesse] = [i, groesse];
+      if (groesse < bestGroesse && innerhalb(p, l.punkte))
+        [best, bestGroesse] = [i, groesse];
     });
     return best;
   }
@@ -278,7 +334,11 @@
 
   function druecken(e: PointerEvent) {
     canvas.setPointerCapture(e.pointerId);
-    if (e.button === 1 || e.button === 2 || (e.button === 0 && werkzeug === "verschieben")) {
+    if (
+      e.button === 1 ||
+      e.button === 2 ||
+      (e.button === 0 && werkzeug === "verschieben")
+    ) {
       ziehen = { x: e.clientX, y: e.clientY, ox, oy };
       e.preventDefault();
     }
@@ -292,13 +352,20 @@
     }
     const [sx, sy] = lokal(e);
     cursor = nachZeichnung(sx, sy);
-    fang = werkzeug === "laenge" || werkzeug === "flaeche" ? fangpunkt(sx, sy) : null;
+    fang =
+      werkzeug === "laenge" || werkzeug === "flaeche"
+        ? fangpunkt(sx, sy)
+        : null;
     oncursor(fang ?? cursor);
-    if (punkte.length) onaufmass([...punkte, fang ?? cursor], werkzeug === "flaeche");
+    if (punkte.length)
+      onaufmass([...punkte, fang ?? cursor], werkzeug === "flaeche");
   }
 
   function loslassen(e: PointerEvent) {
-    const warZiehen = ziehen && (Math.abs(e.clientX - ziehen.x) > 3 || Math.abs(e.clientY - ziehen.y) > 3);
+    const warZiehen =
+      ziehen &&
+      (Math.abs(e.clientX - ziehen.x) > 3 ||
+        Math.abs(e.clientY - ziehen.y) > 3);
     ziehen = null;
     if (warZiehen || e.button !== 0) return;
     const [sx, sy] = lokal(e);
@@ -306,7 +373,8 @@
     if (werkzeug === "laenge" || werkzeug === "flaeche") {
       // Doppelklick liefert zwei Klicks auf dieselbe Stelle: nur einmal zählen.
       const letzter = punkte.at(-1);
-      if (!letzter || letzter[0] !== p[0] || letzter[1] !== p[1]) punkte = [...punkte, p];
+      if (!letzter || letzter[0] !== p[0] || letzter[1] !== p[1])
+        punkte = [...punkte, p];
       onaufmass(punkte, werkzeug === "flaeche");
     } else if (werkzeug === "auswahl") {
       markiert = geschlosseneLinieBei(p);
@@ -349,10 +417,16 @@
       zeichnen();
     });
     ro.observe(huelle);
+    const theme = new MutationObserver(zeichnen);
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
     const dunkel = matchMedia("(prefers-color-scheme: dark)");
     dunkel.addEventListener("change", zeichnen);
     return () => {
       ro.disconnect();
+      theme.disconnect();
       dunkel.removeEventListener("change", zeichnen);
     };
   });
@@ -365,7 +439,11 @@
     onpointerdown={druecken}
     onpointermove={bewegen}
     onpointerup={loslassen}
-    onpointerleave={() => { cursor = null; fang = null; oncursor(null); }}
+    onpointerleave={() => {
+      cursor = null;
+      fang = null;
+      oncursor(null);
+    }}
     ondblclick={abschliessen}
     oncontextmenu={(e) => e.preventDefault()}
     onwheel={rad}

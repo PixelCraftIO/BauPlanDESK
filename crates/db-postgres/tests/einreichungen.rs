@@ -9,7 +9,13 @@ use core_lib::{
 use uuid::Uuid;
 #[tokio::test]
 async fn paket_persistenz_und_atomare_bestaetigung() {
-    let Ok(url) = std::env::var("BAUPROJEKT_TEST_POSTGRES_URL") else {
+    let Ok(url) = std::env::var("BAUPROJEKT_TEST_POSTGRES_URL")
+        .or_else(|_| std::env::var("BAUPROJEKT_TEST_POSTGRES"))
+    else {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "PostgreSQL-Testkonfiguration fehlt in CI"
+        );
         return;
     };
     let db = db_postgres::PostgresDatabase::connect(&url, 4)
@@ -28,6 +34,7 @@ async fn paket_persistenz_und_atomare_bestaetigung() {
         .unwrap();
     let e = Einreichung {
         stand: PaketStand {
+            pruefstand: None,
             id: Uuid::new_v4(),
             projekt_id: p.id,
             titel: "Bauantrag".into(),

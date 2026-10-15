@@ -1,4 +1,6 @@
 <script lang="ts">
+  import PaketPruefstand from "./PaketPruefstand.svelte";
+  import { editorAnmelden } from "./editoren";
   import { onMount } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
   import {
@@ -93,6 +95,37 @@
       laeuft = false;
     }
   }
+  let pruefvorschau = $state<import("./api").PaketPruefstand | null>(null),
+    pruefFingerprint = $state("");
+  const auswahlFingerprint = $derived(
+    JSON.stringify([
+      projektId,
+      vergleich
+        .filter((v) => auswahl.includes(v.aktuell.document_id))
+        .map((v) => [v.aktuell.document_id, v.aktuell.version]),
+    ]),
+  );
+  async function pruefen() {
+    laeuft = true;
+    try {
+      const fingerprint = auswahlFingerprint;
+      pruefvorschau = await api.paketPruefstand(
+        projektId,
+        vergleich
+          .filter((v) => auswahl.includes(v.aktuell.document_id))
+          .map((v) => ({
+            dokument_id: v.aktuell.document_id,
+            version: v.aktuell.version,
+          })),
+      );
+      pruefFingerprint = fingerprint;
+    } catch (e) {
+      onfehler(fehlertext(e));
+    } finally {
+      laeuft = false;
+    }
+  }
+  let paketVorgang: { fingerprint: string; id: string } | null = null;
   async function erstellen(event: SubmitEvent) {
     event.preventDefault();
     if (!auswahl.length || !vergleichAktuell) return;
@@ -114,7 +147,15 @@
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
       if (!ziel) return;
-      const e = await api.einreichungErstellen(projektId, paket);
+      const fingerprint = JSON.stringify([projektId, paket]);
+      if (paketVorgang?.fingerprint !== fingerprint)
+        paketVorgang = { fingerprint, id: crypto.randomUUID() };
+      const e = await api.einreichungErstellen(
+        projektId,
+        paket,
+        paketVorgang.id,
+      );
+      paketVorgang = null;
       chronik = [e, ...chronik];
       auswahl = [];
       titel = "Bauantrag";
@@ -155,6 +196,13 @@
       await laden();
     }
   }
+  editorAnmelden("einreichungen", {
+    hatAenderungen: hatAenderungen,
+    istBeschaeftigt: istBeschaeftigt,
+    speichern: async () => false,
+    hinweis:
+      "Einreichungsauswahl zuerst als Paket festhalten oder ausdrücklich verwerfen.",
+  });
 </script>
 
 <h2>Einreichungen und Nachreichungen</h2>
@@ -268,6 +316,18 @@
       </div>
     </fieldset>
   </form>{/if}
+<div class="knoepfe links">
+  <button
+    class="sekundaer"
+    disabled={laeuft || !auswahl.length || !vergleichAktuell}
+    onclick={pruefen}>Auswahl gegen Anforderungen prüfen</button
+  >
+</div>
+{#if pruefvorschau}{#if pruefFingerprint !== auswahlFingerprint}<p
+      class="hinweis"
+    >
+      Auswahl geändert. Die Vorschau bitte erneut prüfen.
+    </p>{/if}<PaketPruefstand stand={pruefvorschau} />{/if}
 <h3>Chronik der Paketstände</h3>
 {#if !chronik.length}<p class="meta">
     Noch keine Einreichungspakete erstellt.
@@ -286,6 +346,7 @@
     {#if e.einreichung}<p>
         Bestätigt von {e.einreichung.bestaetigt_von}. {e.einreichung.notiz}
       </p>{/if}
+    <PaketPruefstand stand={e.stand.pruefstand} />
     <table>
       <thead
         ><tr

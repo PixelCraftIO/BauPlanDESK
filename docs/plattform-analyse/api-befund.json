@@ -1,0 +1,7 @@
+{
+  "umgebung": "Isolierter lokaler Testserver, eigene SQLite-Datenbank",
+  "authentifizierungsheader": false,
+  "anonyme_projektliste_http": 200,
+  "anonyme_projektanlage_http": 201,
+  "protokollierter_akteur": "System"
+}

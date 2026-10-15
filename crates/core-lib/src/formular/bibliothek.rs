@@ -12,6 +12,8 @@ pub struct BibliotheksVorlage {
     pub name: String,
     pub sha256: ContentHash,
     pub size: u64,
+    #[serde(default)]
+    pub felder: Option<usize>,
 }
 
 /// Keine Formularfelder nötig: Auch unveränderte amtliche PDFs können später

@@ -9,6 +9,9 @@ mod dateien;
 mod einreichungen;
 mod lizenzdienst;
 mod menu;
+mod plattform;
+mod projektordner;
+mod sicherungen;
 mod updater;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -45,21 +48,49 @@ fn main() {
             app.manage(updater::PendingUpdate::default());
             menu::install(app.handle())?;
             updater::check_in_background(app.handle().clone());
+            projektordner::hintergrund(app.handle().clone());
             lizenz_melden(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            plattform::fachobjekte,
+            plattform::projektstatus,
+            plattform::standard_checkliste,
+            plattform::checkliste_anwenden,
+            plattform::fachverlauf,
+            plattform::fachobjekt_speichern,
+            plattform::nachweise,
+            plattform::nachweis_erstellen,
+            plattform::nachweis_freigeben,
+            plattform::nachweis_wiederholen,
+            plattform::raumbuch_summen,
+            projektordner::projektordner_status,
+            sicherungen::sicherungsstatus,
+            sicherungen::sicherung_erstellen,
+            sicherungen::sicherung_pruefen,
+            sicherungen::sicherung_wiederherstellen,
+            sicherungen::profil_aktivieren,
+            sicherungen::standardprofil_aktivieren,
+            projektordner::ausgabeauftraege,
+            projektordner::ausgabe_wiederholen,
+            projektordner::projektordner_waehlen,
+            commands::baugrundstuecke_ermitteln,
             dateien::dokument_extern_oeffnen,
             dateien::arbeitskopien,
             einreichungen::einreichungen,
             einreichungen::einreichungs_vergleich,
             einreichungen::einreichung_erstellen,
+            einreichungen::paket_pruefstand,
             einreichungen::einreichung_bestaetigen,
             einreichungen::einreichung_exportieren,
             dateien::arbeitskopie_oeffnen,
             dateien::arbeitskopie_uebernehmen,
             bibliothek::formularbibliothek,
+            bibliothek::bibliothek_formular,
+            bibliothek::bibliothek_formular_speichern,
+            bibliothek::bibliothek_felder_erstellen,
+            commands::formular_im_projekt_speichern,
             bibliothek::formularordner_waehlen,
             bibliothek::bibliothek_importieren,
             bibliothek::bibliothek_uebernehmen,
@@ -71,6 +102,8 @@ fn main() {
             commands::projekte_auflisten,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
+            commands::projekt_bereich_speichern,
+            commands::grundstueckskontext,
             commands::projekt_oeffnen,
             commands::projekt_laden,
             commands::projekt_schliessen,

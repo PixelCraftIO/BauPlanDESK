@@ -53,7 +53,7 @@
 </script>
 
 <section class="ablage-einstellungen">
-  <h2>Dateiablage und Projektordner</h2>
+  <h2>Verwaltete Dateiablage</h2>
   {#if fehler}<p class="fehlertext" role="alert">
       {fehler}
     </p>{/if}{#if hinweis}<p role="status">{hinweis}</p>{/if}

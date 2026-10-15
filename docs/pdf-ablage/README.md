@@ -2,34 +2,26 @@
 
 ## Formulare verwenden
 
-1. Projekt öffnen und unter **Dokumente → Dokumente importieren** die offizielle
-   oder eigene PDF-Datei hinzufügen.
-2. Bei vorhandenen PDF-Formularfeldern **Formular ausfüllen** wählen. Textfelder,
-   Checkboxen, Options- und Auswahlfelder werden als Eingabemaske angeboten.
-   Die gespeicherte PDF-Seite wird daneben als Vorschau angezeigt.
-3. Werte eingeben und **Ausfüllen und ablegen** wählen. Das Ergebnis wird als
-   eigenes Dokument gespeichert; anschließend öffnet sich die Dateiauswahl für
-   den PDF-Export. Ein abgebrochener Export löscht das bereits abgelegte Ergebnis
-   nicht. Das importierte Original bleibt unverändert.
+1. Projekt öffnen und **Unterlagen → Formulare** wählen.
+2. Eine ausfüllbare Vorlage auswählen. Die Eingabemaske verwendet Textfelder,
+   Checkboxen sowie unterstützte Options- und Auswahlfelder des PDFs.
+3. Werte eingeben und **Im Projekt speichern** wählen. Das Ergebnis wird einmal
+   in der Projektakte und automatisch im konfigurierten Projektordner gespeichert.
+   Es gibt keinen zusätzlichen Speicherdialog und keine leere Projektkopie.
+4. **Projektdateien → Formular bearbeiten** erzeugt eine neue Version desselben
+   Dokuments. Ein manueller Export ist unter **Weitere …** verfügbar.
 
 ## Eigene Platzhalter auf einer PDF-Vorlage
 
-**Eigene Felder / Vorlage** öffnet den Vorlageneditor auch für PDFs ohne
-Formularfelder. Textfelder oder Checkboxen hinzufügen, Namen und Beschriftung
-vergeben, dann durch Anklicken der PDF-Seite positionieren. Position und Größe
-lassen sich auch in Millimetern ab der linken oberen Ecke eingeben.
+PDF in der globalen **Formularbibliothek** importieren und dort den Feldeditor
+öffnen. Textfelder oder Checkboxen hinzufügen, Namen und Beschriftung vergeben und
+auf der PDF-Seite positionieren. Position und Größe sind auch in Millimetern ab
+der linken oberen Ecke einstellbar.
 
 Beispiele: `Vorname`, `<Vorname>` oder `< Platzhalter1 >`. Die äußeren Klammern
-werden beim Erstellen entfernt. Die resultierende Maske kann dann etwa
-**Vorname: Daniel** oder **Platzhalter1: Irgendein Text** enthalten.
-
-**Vorlage erstellen** legt eine neue PDF mit standardkonformen AcroForm-Feldern
-ab. Ihre Felder werden danach von derselben Ausfüllmaske erkannt wie native
-Formularfelder. Hintergrund, Seiteninhalt und bestehende Felder bleiben erhalten.
-Die eigene Vorlage bleibt als Dokument gespeichert und kann erneut ausgefüllt,
-exportiert oder über **In Formularbibliothek ablegen** für andere Projekte
-bereitgestellt werden. Die [zentrale Formularbibliothek](../formularbibliothek/README.md)
-hat einen eigenen, projektunabhängigen Speicherort.
+werden entfernt. Die spätere Maske enthält beispielsweise **Vorname: Daniel**.
+Der Editor legt eine zusätzliche ausfüllbare Vorlage in der Bibliothek an; er
+benötigt kein Projekt. Hintergrund und bestehende Felder bleiben erhalten.
 
 Für verfügbare automatische Vorschläge kann ein Feld beispielsweise
 `bauherr.vorname` oder `projekt.name` heißen. Solche Namen werden als echte
@@ -45,7 +37,7 @@ wird ein Feld an der gewünschten freien Stelle platziert.
 
 ## Speicherort und Projektordner
 
-Unter **Verwaltung → Dateiablage und Projektordner** zeigt die Anwendung den
+Unter **Einstellungen → Speicherorte → Verwaltete Dateiablage** zeigt die Anwendung den
 aktuellen Dateispeicher und den Ort der Projektdatenbank an. Im Einzelplatzmodus
 kann ein Administrator über **Speicherort auswählen** einen anderen lokalen
 Ordner oder ein eingebundenes Laufwerk bestimmen.
@@ -59,8 +51,9 @@ wieder verwendet. Die Projektdatenbank bleibt an ihrem bisherigen Ort; für eine
 vollständige Sicherung sind Datenbank und Dateispeicher zusammen zu berücksichtigen.
 
 Der verwaltete DMS-Speicher verwendet weiterhin unveränderliche Schlüssel und
-Metadaten für Versionen und Prüfsummen. Eine lesbare Ausgabe ist zusätzlich unter
-**Dokumente → Projektordner exportieren** verfügbar, optional mit Dokumenthistorie:
+Metadaten für Versionen und Prüfsummen. Eine lesbare Ausgabe erfolgt automatisch am eingestellten Projektordner.
+Zusätzlich ist sie unter
+**Projektdateien → Projektordner exportieren …** verfügbar, optional mit Dokumenthistorie:
 
 ```text
 C:\BauProjektIO\
@@ -119,22 +112,12 @@ wird erst nach erfolgreicher Ausgabe der gewählten Dateien erzeugt.
 
 ## Prüfung und Aufnahmen
 
-- Svelte-Check, Produktionsbuild, Desktop-/Server-Build und Clippy mit
-  `-D warnings` erfolgreich; npm-Lizenzprüfung ohne Verstöße.
-- Modulprüfungen: Feldnamen, Checkboxen, Unicode-Darstellung, Seitenmaße und CropBox,
-  ungültige Positionen, rotierte Seiten, XFA und Signaturbehandlung.
-- SQLite-/Dateisystem-Integration: importiertes Original → eigene Vorlage →
-  automatische Analyse → ausgefülltes Dokument → Projektordner → Ablagewechsel →
-  erneut lesbare Dokumentversion. Originalbytes und PDF-Seiteninhalt bleiben erhalten.
-- UI-Tests mit echter PDF.js-Vorschau und kontrolliertem Tauri-Testtransport:
-  Felddefinition, Maskenerzeugung, Abbrechen, Speicherfehler, versionsgebundene
-  Übergabe, Export sowie Auswahl und Fehler beim Ablagewechsel. Bestehende
-  Projekttab-/Leserrechte-Regressionen weiterhin erfolgreich.
-- Native Desktop-Probe in eigener Testinstallation ohne externe Netzwerkverbindung:
-  PDF importiert, Textfeld positioniert und als Vorlage gespeichert, Vorname=Daniel
-  eingegeben, abgeleitete PDF tatsächlich exportiert und den Feldwert wieder ausgelesen.
+Die aktuellen Prüfungen und Aufnahmen sind unter
+[Klare Projektstruktur](../klare-projektstruktur/README.md#prüfung) dokumentiert.
+Der Einstieg `apps/desktop/tests/pdf-ablage.py` führt Bibliothekseditor und den
+neuen Formularablauf im Projekt aus. `cargo test -p storage --test projekt_formulare`
+prüft die neuen Core-/DMS-Verträge mit echten PDF-Dateien und SQLite.
 
-[Vorlageneditor](01-vorlageneditor.png) · [Maske](02-eingabemaske.png) ·
-[Ablageeinstellungen](04-ablageeinstellungen.png) ·
-[Native Vorschau](06-native-vorlageneditor.png) ·
-[UI-Prüfprotokoll](ui-pruefung.json)
+Die hier vorhandenen älteren Aufnahmen und die Architektur-Notiz beschreiben den
+früheren Ablauf mit abgeleiteten Dokumenten. Diese Core-APIs bleiben verfügbar;
+die aktuelle Desktop-Oberfläche verwendet die oben beschriebenen Operationen.

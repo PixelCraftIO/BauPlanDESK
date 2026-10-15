@@ -117,7 +117,7 @@ verworfen werden; allgemeines Projektspeichern bestätigt keine Einreichung.
 Pakete werden in der bestehenden Storage-Ablage unter dem jeweiligen Projekt
 archiviert, unabhängig von den veränderlichen Arbeitskopien und von ZIP-Exporten
 auf dem Gerät. Datenbank und Dateispeicher müssen gemeinsam gesichert werden.
-Die bisherige Server-Anmeldung über ein technisches Konto bleibt unverändert.
+Dieser ursprüngliche Dateiverwaltungsstand verwendete noch ein technisches Serverkonto. Die [Plattformumsetzung](../plattform-umsetzung/README.md) ersetzt es durch verifizierte Benutzerzugänge und Projektmitgliedschaften.
 
 ## Nachweise
 

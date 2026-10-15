@@ -7,27 +7,36 @@
     type Feldwert,
     type FormularAnalyse,
     type PdfVorschauDaten,
+    type BibliothekQuelle,
+    type FormularBezug,
   } from "./api";
 
   import PdfVorschau from "./PdfVorschau.svelte";
+  const vorgang = crypto.randomUUID();
   let {
     dokumentId,
+    quelle,
     onfertig,
     onabbrechen,
     onstatus,
   }: {
-    dokumentId: string;
+    dokumentId?: string;
+    quelle?: BibliothekQuelle;
     onfertig: (ergebnis: DocumentVersion) => void;
     onabbrechen: () => void;
     onstatus?: (dirty: boolean, busy: boolean) => void;
   } = $props();
 
-  let analyse = $state<FormularAnalyse | null>(null);
+  let analyse = $state<
+    (Omit<FormularAnalyse, "dokument"> & { dokument?: DocumentVersion }) | null
+  >(null);
   let werte = $state<Record<string, Feldwert>>({});
   let fehler = $state<string | null>(null);
   let laeuft = $state(false);
   let nurLeere = $state(false);
-  let vorschau = $state<PdfVorschauDaten | null>(null);
+  let vorschau = $state<Pick<PdfVorschauDaten, "pdf_base64" | "seiten"> | null>(
+    null,
+  );
   let seite = $state(1);
   const dirty = $derived(
     !!analyse &&
@@ -40,9 +49,29 @@
   );
   $effect(() => onstatus?.(dirty, laeuft));
 
-  onMount(async () => {
+  let auswahl = $state<FormularBezug>({
+    grundstueck_id: null,
+    bauherr_id: null,
+  });
+  async function laden(auffrischen = false) {
+    laeuft = true;
+    fehler = null;
     try {
-      const a = await api.formularAnalysieren(dokumentId);
+      const bibliothek = quelle
+        ? await api.bibliothekFormular(
+            quelle,
+            auffrischen ? auswahl : undefined,
+          )
+        : null;
+      const a: Omit<FormularAnalyse, "dokument"> & {
+        dokument?: DocumentVersion;
+      } = bibliothek
+        ? bibliothek.schema
+        : await api.formularAnalysieren(
+            dokumentId!,
+            auffrischen ? auswahl : undefined,
+          );
+      if (bibliothek) vorschau = bibliothek;
       const start: Record<string, Feldwert> = {};
       for (const f of a.felder) {
         if (f.art === "sonstiges") continue;
@@ -51,15 +80,32 @@
           f.wert ??
           (f.art === "ankreuzfeld" ? false : "");
       }
+      if (auffrischen && analyse) {
+        // Nur unveränderte Vorschläge ersetzen; manuelle Eingaben bleiben bestehen.
+        for (const f of analyse.felder) {
+          const alt =
+            analyse.vorschlag[f.name] ??
+            f.wert ??
+            (f.art === "ankreuzfeld" ? false : "");
+          if (werte[f.name] !== alt) start[f.name] = werte[f.name];
+        }
+      }
       werte = start;
       analyse = a;
-      void api
-        .pdfVorschau(dokumentId, a.dokument.version)
-        .then((p) => (vorschau = p))
-        .catch(() => {});
+      if (a.quellen) auswahl = { ...a.quellen.datenstand.bezug };
+      if (a.dokument)
+        void api
+          .pdfVorschau(dokumentId!, a.dokument.version)
+          .then((p) => (vorschau = p))
+          .catch(() => {});
     } catch (e) {
       fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
     }
+  }
+  onMount(() => {
+    void laden();
   });
 
   const sichtbar = $derived(
@@ -73,6 +119,15 @@
   async function absenden(event: SubmitEvent) {
     event.preventDefault();
     if (!analyse) return;
+    if (
+      analyse.quellen &&
+      JSON.stringify(auswahl) !==
+        JSON.stringify(analyse.quellen.datenstand.bezug)
+    ) {
+      fehler =
+        "Bitte die gewählten Projektdaten zuerst laden und die Vorschläge prüfen.";
+      return;
+    }
     // Nur geänderte bzw. gesetzte Felder schicken; schreibgeschützte nie.
     const geaendert: Record<string, Feldwert> = {};
     for (const f of analyse.felder) {
@@ -84,11 +139,19 @@
     laeuft = true;
     try {
       onfertig(
-        await api.formularAusfuellen(
-          dokumentId,
-          geaendert,
-          analyse.dokument.version,
-        ),
+        quelle
+          ? await api.bibliothekFormularSpeichern(
+              quelle,
+              geaendert,
+              vorgang,
+              analyse.quellen?.datenstand,
+            )
+          : await api.formularImProjektSpeichern(
+              dokumentId!,
+              analyse.dokument!.version,
+              geaendert,
+              analyse.quellen?.datenstand,
+            ),
       );
     } catch (e) {
       fehler = fehlertext(e);
@@ -102,11 +165,45 @@
 
 {#if analyse}
   <p class="meta">
-    {analyse.dokument.file_name} · {analyse.felder.length} Felder
+    {analyse.dokument?.file_name ?? quelle?.vorlage.name} · {analyse.felder
+      .length} Felder
     {#if analyse.vorlage}· erkannt als <strong>{analyse.vorlage.titel}</strong>
       ({analyse.vorlage.version}){/if}
     · {Object.keys(analyse.vorschlag).length} Werte aus den Projektdaten übernommen
   </p>
+  {#if analyse.quellen}
+    <fieldset disabled={laeuft}>
+      <legend>Quellen für Formularvorschläge</legend>
+      <div class="zeile">
+        <label
+          >Baugrundstück<select bind:value={auswahl.grundstueck_id}
+            ><option value={null}>Keine Auswahl</option
+            >{#each analyse.quellen.grundstuecke as g}<option value={g.id}
+                >{g.bezeichnung}</option
+              >{/each}</select
+          ></label
+        >
+        <label
+          >Bauherr<select bind:value={auswahl.bauherr_id}
+            ><option value={null}>Keine Auswahl</option
+            >{#each analyse.quellen.bauherren as b}<option value={b.id}
+                >{b.bezeichnung}</option
+              >{/each}</select
+          ></label
+        >
+        <button type="button" onclick={() => laden(true)}
+          >Projektdaten neu laden</button
+        >
+      </div>
+      <p class="meta">
+        Manuell geänderte Werte bleiben beim Laden erhalten. Die verwendeten
+        Quellen werden mit der PDF-Version gespeichert.
+      </p>
+      {#each analyse.quellen.hinweise as hinweis}<p class="hinweis">
+          {hinweis}
+        </p>{/each}
+    </fieldset>
+  {/if}
   <label class="zeile"
     ><input type="checkbox" bind:checked={nurLeere} /> Nur leere Felder anzeigen</label
   >
@@ -165,8 +262,9 @@
         {/each}
       </div>
       <p class="meta">
-        Das leere Formular bleibt erhalten; das Ergebnis wird als neues Dokument
-        „… (ausgefüllt).pdf“ abgelegt.
+        {quelle
+          ? "Die Bibliotheksvorlage bleibt unverändert. Im Projekt wird nur die ausgefüllte Datei gespeichert."
+          : "Die Angaben werden als neue Version derselben Projektdatei gespeichert."}
       </p>
       <div class="knoepfe">
         <button type="button" class="sekundaer" onclick={onabbrechen}
@@ -177,7 +275,7 @@
           disabled={laeuft ||
             !analyse.felder.some(
               (f) => f.art !== "sonstiges" && !f.schreibgeschuetzt,
-            )}>{laeuft ? "Speichere …" : "Ausfüllen und ablegen"}</button
+            )}>{laeuft ? "Speichere …" : "Im Projekt speichern"}</button
         >
       </div>
     </form>
@@ -185,3 +283,7 @@
 {:else if !fehler}
   <p class="meta">Formular wird gelesen …</p>
 {/if}
+
+{#if fehler && !analyse}<button class="sekundaer" onclick={onabbrechen}
+    >Schließen</button
+  >{/if}

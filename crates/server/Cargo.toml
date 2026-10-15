@@ -12,6 +12,8 @@ name = "bauprojekt-server"
 path = "src/main.rs"
 
 [dependencies]
+base64.workspace = true
+getrandom.workspace = true
 chrono.workspace = true
 axum.workspace = true
 core-lib.workspace = true

@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use chrono::{Duration, NaiveDate, Utc};
-use core_lib::benutzer::{Benutzer, NeuerBenutzer, Rolle};
+use core_lib::benutzer::{Benutzer, BenutzerAenderung, NeuerBenutzer, Rolle};
 use core_lib::domain::{Bundesland, NewProject};
 use core_lib::lbo::LboEngine;
 use core_lib::license::datei::{ausstellen, testschluessel};
@@ -188,8 +188,18 @@ async fn arbeitsplaetze_werden_gezaehlt() {
         "{}",
         s2.meldung
     );
-    let mut ben_admin = ben.clone();
-    ben_admin.rolle = Rolle::Administrator;
+    let ben_admin = pc1
+        .benutzer_aendern(
+            BenutzerAenderung {
+                id: ben.id,
+                anzeigename: ben.anzeigename.clone(),
+                rolle: Rolle::Administrator,
+                aktiv: true,
+            },
+            &chefin,
+        )
+        .await
+        .unwrap();
     assert!(matches!(
         projekt_anlegen(&pc2, &ben_admin).await,
         Err(CoreError::License(_))

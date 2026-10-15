@@ -9,6 +9,7 @@
 
 pub mod bibliothek;
 pub mod editor;
+pub mod instanz;
 pub mod pdf;
 mod schrift;
 #[cfg(any(test, feature = "testdaten"))]

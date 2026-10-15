@@ -11,7 +11,8 @@
 //! | `BAUPROJEKT_CODELISTEN_DIR`| `/opt/bauprojekt/codelisten` (XBau, Genericode)   |
 //! | `BAUPROJEKT_BIND`          | `0.0.0.0:8080`                                    |
 
-mod api;
+use server::api;
+mod zugang_setup;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -93,8 +94,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .mit_formularen(formulare)
         .mit_codelisten(codelisten);
 
-    // Bis der Server eine eigene Anmeldung hat, handeln alle Anfragen als
-    // technisches Konto „system“ (siehe README, Abschnitt DMS).
+    if zugang_setup::ausfuehren(&core, &std::env::args().collect::<Vec<_>>()).await? {
+        return Ok(());
+    }
+    // Ohne verifizierte Zugänge wird kein Projektserver geöffnet.
+    let zugangspfad=std::env::var("BAUPROJEKT_ZUGANGSDATEI").map(PathBuf::from).map_err(|_|"BAUPROJEKT_ZUGANGSDATEI fehlt. Der Projektserver startet ohne konfigurierte Anmeldung nicht.")?;
+    let raw = tokio::fs::read(&zugangspfad).await?;
+    let z: api::zugang::Zugaenge = serde_json::from_slice(&raw)?;
+    z.pruefen()?;
+    if z.zugaenge.is_empty() {
+        return Err("Gültige Zugangsliste mit mindestens einem Benutzer erforderlich".into());
+    }
+    // Technisches Konto nur für interne Migration, niemals als HTTP-Identität.
     let akteur = core.systembenutzer().await?;
 
     // Bauherren aus Bauanträgen älterer Versionen in die Kundendatenbank.
@@ -107,10 +118,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!(%bind, "BauProjektIO-Server gestartet");
-    axum::serve(listener, api::router(core, akteur))
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
+    axum::serve(
+        listener,
+        api::zugang::gesichert(core, api::zugang::ZugangQuelle::Datei(zugangspfad)),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+    })
+    .await?;
     Ok(())
 }

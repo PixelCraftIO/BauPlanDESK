@@ -1,0 +1,33 @@
+{
+  "anwendungsstand": "31a195796e6515a4ca83bfc26d9c3a046fde08fc",
+  "pruefdatum": "2026-10-14",
+  "rust_workspace": {
+    "gemeldete_bestandene_tests": 168,
+    "fehlgeschlagen": 0,
+    "postgres_pruefungen_mit_beiden_testvariablen": true,
+    "s3": "InMemory-Test, kein realer S3-Dienst"
+  },
+  "clippy_workspace_all_targets": "bestanden, -D warnings",
+  "svelte_check": {
+    "fehler": 0,
+    "warnungen": 0
+  },
+  "npm_lizenzen": {
+    "pakete": 54,
+    "verstoesse": 0
+  },
+  "ui_pruefgruppen": {
+    "projekttabs": 9,
+    "formularbibliothek": 6,
+    "klare_projektstruktur": 5,
+    "dateiverwaltung_einreichungen": 15
+  },
+  "zusaetzliche_reproduzierte_befunde": [
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05"
+  ],
+  "anwendungslogik_geaendert": false
+}

@@ -5,6 +5,16 @@ use core_lib::{
 };
 use std::path::Path;
 
+fn ausfuellbare_felder(pdf: &[u8]) -> Option<usize> {
+    core_lib::formular::pdf::felder_lesen(pdf)
+        .ok()
+        .map(|felder| {
+            felder
+                .iter()
+                .filter(|f| !f.schreibgeschuetzt && f.art != core_lib::formular::Feldart::Sonstiges)
+                .count()
+        })
+}
 const MAX_BYTES: u64 = 100 * 1024 * 1024;
 fn fehler(e: std::io::Error) -> CoreError {
     CoreError::Storage(e.to_string())
@@ -64,6 +74,7 @@ pub async fn auflisten(root: &Path) -> CoreResult<Vec<BibliotheksVorlage>> {
             name,
             sha256: ContentHash::of(&pdf),
             size: pdf.len() as u64,
+            felder: ausfuellbare_felder(&pdf),
         });
     }
     result.sort_by_key(|a| a.name.to_lowercase());
@@ -91,5 +102,6 @@ pub async fn ablegen(root: &Path, name: &str, pdf: &[u8]) -> CoreResult<Biblioth
         name,
         sha256: hash,
         size: pdf.len() as u64,
+        felder: ausfuellbare_felder(pdf),
     })
 }
