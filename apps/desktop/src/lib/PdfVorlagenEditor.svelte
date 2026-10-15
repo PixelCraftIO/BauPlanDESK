@@ -62,6 +62,7 @@
       breite_mm: art === "text" ? 60 : 5,
       hoehe_mm: art === "text" ? 8 : 5,
       schriftgroesse_pt: 10,
+      mehrzeilig: false,
     });
     auswahl = felder.length - 1;
   }
@@ -115,7 +116,7 @@
     <div class="pdf-vorschau-spalte">
       <div class="knoepfe links">
         <label
-          >Seite<select bind:value={seite}
+          >Seite<select aria-label="Seite" bind:value={seite}
             >{#each daten.seiten as p}<option value={p.nummer}
                 >{p.nummer}</option
               >{/each}</select
@@ -222,6 +223,9 @@
               /></label
             >
             {#if aktiv.art === "text"}<label
+                ><input type="checkbox" bind:checked={aktiv.mehrzeilig} /> Mehrzeiliges
+                Textfeld</label
+              ><label
                 >Schriftgröße (pt)<input
                   type="number"
                   min="6"

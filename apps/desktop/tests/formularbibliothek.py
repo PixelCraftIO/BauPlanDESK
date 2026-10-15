@@ -43,6 +43,7 @@ with sync_playwright() as p:
  dialog=page.get_by_role('dialog')
  dialog.get_by_role('button',name='Textfeld hinzufügen',exact=True).click()
  dialog.get_by_label('Feldname / Platzhalter',exact=True).fill('<Vorname>')
+ dialog.get_by_label('Mehrzeiliges Textfeld',exact=True).check()
  dialog.get_by_role('button',name='Checkbox hinzufügen',exact=True).click()
  dialog.get_by_label('Feldname / Platzhalter',exact=True).fill('Zustimmung')
  expect(dialog.get_by_text('PDF-Seite wird geladen …',exact=True)).not_to_be_visible()
@@ -56,6 +57,7 @@ with sync_playwright() as p:
  dialog.get_by_role('button',name='Vorlage erstellen',exact=True).click()
  expect(page.get_by_role('dialog')).to_have_count(0)
  assert page.evaluate('window.sources.length')==2
+ assert page.evaluate('window.calls.filter(c=>c.cmd==="bibliothek_felder_erstellen").at(-1).args.felder[0].mehrzeilig') is True
  assert page.evaluate('window.calls.filter(c=>["bibliothek_uebernehmen","formular_vorlage_erstellen","projekt_oeffnen"].includes(c.cmd)).length')==0
  assert not errors,errors
  browser.close()

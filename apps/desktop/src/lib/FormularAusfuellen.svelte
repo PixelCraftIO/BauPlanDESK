@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import {
     api,
     fehlertext,
@@ -11,6 +11,7 @@
     type FormularBezug,
   } from "./api";
 
+  import { LivePdfVorschau } from "./LivePdfVorschau";
   import PdfVorschau from "./PdfVorschau.svelte";
   const vorgang = crypto.randomUUID();
   let {
@@ -38,6 +39,64 @@
     null,
   );
   let seite = $state(1);
+  let vorschauPdf = $state(""),
+    vorschauSoll = $state(""),
+    vorschauStand = $state(""),
+    gezeichnetStand = $state("");
+  let vorschauFehler = $state<string | null>(null),
+    pdfBereit = false,
+    quellstand = $state(0),
+    beendet = false,
+    ladeNummer = 0;
+  const live = new LivePdfVorschau(
+    api.formularLiveVorschau,
+    (pdf, stand) => {
+      if (pdf === vorschauPdf && pdfBereit) gezeichnetStand = stand;
+      else pdfBereit = false;
+      vorschauPdf = pdf;
+      vorschauStand = stand;
+    },
+    (e) => (vorschauFehler = fehlertext(e)),
+  );
+  onDestroy(() => {
+    beendet = true;
+    ladeNummer++;
+    live.beenden();
+  });
+  function geaenderteWerte(): Record<string, Feldwert> {
+    const result: Record<string, Feldwert> = {};
+    for (const f of analyse?.felder ?? []) {
+      const w = werte[f.name];
+      if (
+        !f.schreibgeschuetzt &&
+        f.art !== "sonstiges" &&
+        w !== undefined &&
+        w !== (f.wert ?? (f.art === "ankreuzfeld" ? false : ""))
+      )
+        result[f.name] = w;
+    }
+    return result;
+  }
+  $effect(() => {
+    if (!analyse || !vorschau) return;
+    const w = geaenderteWerte();
+    const stand = JSON.stringify([quellstand, w]);
+    vorschauSoll = stand;
+    vorschauFehler = null;
+    live.planen(
+      vorschau.pdf_base64,
+      structuredClone($state.snapshot(w)),
+      stand,
+    );
+  });
+  function quelleSetzen(p: Pick<PdfVorschauDaten, "pdf_base64" | "seiten">) {
+    vorschau = p;
+    vorschauPdf = p.pdf_base64;
+    vorschauStand = "";
+    pdfBereit = false;
+    quellstand++;
+  }
+
   const dirty = $derived(
     !!analyse &&
       analyse.felder.some(
@@ -54,6 +113,7 @@
     bauherr_id: null,
   });
   async function laden(auffrischen = false) {
+    const nummer = ++ladeNummer;
     laeuft = true;
     fehler = null;
     try {
@@ -71,7 +131,8 @@
             dokumentId!,
             auffrischen ? auswahl : undefined,
           );
-      if (bibliothek) vorschau = bibliothek;
+      if (beendet || nummer !== ladeNummer) return;
+      if (bibliothek) quelleSetzen(bibliothek);
       const start: Record<string, Feldwert> = {};
       for (const f of a.felder) {
         if (f.art === "sonstiges") continue;
@@ -93,15 +154,18 @@
       werte = start;
       analyse = a;
       if (a.quellen) auswahl = { ...a.quellen.datenstand.bezug };
-      if (a.dokument)
-        void api
-          .pdfVorschau(dokumentId!, a.dokument.version)
-          .then((p) => (vorschau = p))
-          .catch(() => {});
+      if (a.dokument) {
+        try {
+          const p = await api.pdfVorschau(dokumentId!, a.dokument.version);
+          if (!beendet && nummer === ladeNummer) quelleSetzen(p);
+        } catch (e) {
+          if (!beendet && nummer === ladeNummer) vorschauFehler = fehlertext(e);
+        }
+      }
     } catch (e) {
-      fehler = fehlertext(e);
+      if (!beendet && nummer === ladeNummer) fehler = fehlertext(e);
     } finally {
-      laeuft = false;
+      if (!beendet && nummer === ladeNummer) laeuft = false;
     }
   }
   onMount(() => {
@@ -128,14 +192,7 @@
         "Bitte die gewählten Projektdaten zuerst laden und die Vorschläge prüfen.";
       return;
     }
-    // Nur geänderte bzw. gesetzte Felder schicken; schreibgeschützte nie.
-    const geaendert: Record<string, Feldwert> = {};
-    for (const f of analyse.felder) {
-      const w = werte[f.name];
-      if (f.schreibgeschuetzt || w === undefined) continue;
-      const alt = f.wert ?? (f.art === "ankreuzfeld" ? false : "");
-      if (w !== alt) geaendert[f.name] = w;
-    }
+    const geaendert = geaenderteWerte();
     laeuft = true;
     try {
       onfertig(
@@ -210,23 +267,38 @@
 
   <div class="pdf-arbeitsplatz">
     <div class="pdf-vorschau-spalte">
-      {#if vorschau}<label
-          >Seite<select bind:value={seite}
+      {#if vorschau && vorschauPdf}<label
+          >Seite<select aria-label="Seite" bind:value={seite}
             >{#each vorschau.seiten as p}<option value={p.nummer}
                 >{p.nummer}</option
               >{/each}</select
           ></label
         ><PdfVorschau
-          pdfBase64={vorschau.pdf_base64}
+          pdfBase64={vorschauPdf}
           {seite}
-          onfehler={(m) => (fehler = m)}
+          onbereit={(pdf) => {
+            if (pdf === vorschauPdf) {
+              pdfBereit = true;
+              gezeichnetStand = vorschauStand;
+            }
+          }}
+          onfehler={(m) => {
+            pdfBereit = false;
+            vorschauFehler = m;
+          }}
         />
         <p class="meta">
-          Vorschau der gespeicherten Vorlage. Ihre neuen Angaben werden beim
-          Ausfüllen in die PDF übernommen.
+          {vorschauFehler
+            ? "Die letzte Vorschau konnte nicht aktualisiert werden."
+            : vorschauSoll === gezeichnetStand
+              ? "Vorschau mit Ihren aktuellen Eingaben."
+              : "Vorschau wird aktualisiert …"}
         </p>{:else}<p class="meta">
           PDF-Vorschau wird geladen. Die Eingabemaske kann bereits verwendet
           werden.
+        </p>{/if}
+      {#if vorschauFehler}<p class="hinweisbox" role="status">
+          {vorschauFehler} Ihre Eingaben bleiben erhalten.
         </p>{/if}
     </div>
     <form class="spalte pdf-eingabemaske" onsubmit={absenden}>
@@ -249,6 +321,13 @@
                 <option value="">–</option>
                 {#each f.optionen as o}<option value={o}>{o}</option>{/each}
               </select>
+            {:else if f.mehrzeilig}
+              <textarea
+                rows="4"
+                bind:value={werte[f.name] as string}
+                maxlength={f.max_laenge ?? undefined}
+                disabled={f.schreibgeschuetzt}
+              ></textarea>
             {:else}
               <input
                 bind:value={werte[f.name]}

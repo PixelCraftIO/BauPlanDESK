@@ -77,6 +77,7 @@ jobs:
       BAUPROJEKT_UI_URL: http://127.0.0.1:1430
       BAUPROJEKT_PDF_ARTEFAKTE: /tmp/bauprojekt-pdf
       BAUPROJEKT_EINREICHUNG_ARTEFAKTE: /tmp/bauprojekt-einreichungen
+      BAUPROJEKT_PDF_LIVE_ARTEFAKTE: /tmp/bauprojekt-pdf-live
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -96,7 +97,7 @@ jobs:
               print('BAUPROJEKT_CHROMIUM=' + p.chromium.executable_path)
           PYCODE
       - name: Echte PDF- und Paket-Testdaten erzeugen
-        run: cargo test -p storage --test formular_workflow --test einreichungen --locked
+        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --locked
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
       - name: Produktionsoberfläche prüfen
@@ -115,10 +116,12 @@ jobs:
           else:
               raise RuntimeError('UI-Testserver nicht erreichbar')
           PYCODE
+          node --test apps/desktop/tests/live-pdf-vorschau.test.mjs
           python apps/desktop/tests/projekttabs.py
           python apps/desktop/tests/pdf-ablage.py
           python apps/desktop/tests/dateiverwaltung-einreichungen.py
           python apps/desktop/tests/plattform.py
+          python apps/desktop/tests/pdf-livevorschau.py
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -127,4 +130,5 @@ jobs:
             docs/ui-umsetzung
             docs/klare-projektstruktur
             docs/dateiverwaltung-einreichungen
+            docs/pdf-livevorschau
             /tmp/bauprojekt-ui.log

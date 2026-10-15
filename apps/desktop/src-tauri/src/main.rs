@@ -141,6 +141,7 @@ fn main() {
             commands::xbau_exportieren,
             commands::formular_analysieren,
             commands::pdf_vorschau,
+            commands::formular_livevorschau,
             commands::formular_vorlage_erstellen,
             commands::formular_ausfuellen,
             commands::cad_plan,

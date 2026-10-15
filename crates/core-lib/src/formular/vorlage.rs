@@ -278,6 +278,7 @@ mod tests {
             optionen: vec![],
             schreibgeschuetzt: false,
             max_laenge: None,
+            mehrzeilig: false,
         }];
         let werte = vorschlag(&felder, None, &Projektkontext::aus_projekt(&projekt()));
         assert_eq!(werte["projekt.name"], Feldwert::Text("EFH Muster".into()));

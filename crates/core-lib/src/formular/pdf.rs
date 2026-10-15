@@ -31,6 +31,8 @@ pub struct Formularfeld {
     pub optionen: Vec<String>,
     pub schreibgeschuetzt: bool,
     pub max_laenge: Option<u32>,
+    #[serde(default)]
+    pub mehrzeilig: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -41,6 +43,7 @@ pub enum Feldwert {
 }
 
 const FF_READ_ONLY: i64 = 1;
+pub(crate) const FF_MULTILINE: i64 = 1 << 12;
 pub(crate) const FF_RADIO: i64 = 1 << 15;
 const FF_PUSHBUTTON: i64 = 1 << 16;
 
@@ -311,6 +314,7 @@ pub fn felder_lesen(pdf: &[u8]) -> CoreResult<Vec<Formularfeld>> {
                 .ok()
                 .and_then(|t| t.as_str().ok())
                 .map(text_dekodieren),
+            mehrzeilig: art == Feldart::Text && k.ff & FF_MULTILINE != 0,
             art,
             wert,
             optionen,
@@ -402,6 +406,11 @@ pub fn befuellen(pdf: &[u8], werte: &BTreeMap<String, Feldwert>) -> CoreResult<V
         }
         match (feldart(k), wert) {
             (Feldart::Text | Feldart::Auswahl, Feldwert::Text(t)) => {
+                if k.ff & FF_MULTILINE == 0 && t.contains(['\r', '\n']) {
+                    return Err(CoreError::InvalidInput(format!(
+                        "Formularfeld {name:?} ist einzeilig; Zeilenumbrüche sind hier nicht zulässig"
+                    )));
+                }
                 let max = dict(&doc, k.id)?
                     .get(b"MaxLen")
                     .ok()
@@ -449,6 +458,7 @@ pub fn befuellen(pdf: &[u8], werte: &BTreeMap<String, Feldwert>) -> CoreResult<V
                             values[3] - values[1],
                             size,
                             font,
+                            k.ff & FF_MULTILINE != 0,
                         )?;
                         doc.get_dictionary_mut(*w)
                             .map_err(pdf_err)?
@@ -548,6 +558,40 @@ mod tests {
         felder.iter().find(|f| f.name == name).unwrap()
     }
 
+    #[test]
+    fn mehrzeiliges_merkmal_wird_geerbt_und_zeilen_bleiben_erhalten() {
+        let mut d = Document::load_mem(&musterformular()).unwrap();
+        let parent = d
+            .objects
+            .iter()
+            .find(|(_, o)| {
+                o.as_dict()
+                    .ok()
+                    .and_then(|v| v.get(b"T").ok())
+                    .and_then(|v| v.as_str().ok())
+                    == Some(b"Grundstueck".as_slice())
+            })
+            .map(|(id, _)| *id)
+            .unwrap();
+        d.get_dictionary_mut(parent)
+            .unwrap()
+            .set("Ff", FF_MULTILINE);
+        let mut pdf = Vec::new();
+        d.save_to(&mut pdf).unwrap();
+        assert!(feld(&felder_lesen(&pdf).unwrap(), "Grundstueck.Flaeche").mehrzeilig);
+        let werte = BTreeMap::from([(
+            "Grundstueck.Flaeche".into(),
+            Feldwert::Text("Zeile eins\nZeile zwei".into()),
+        )]);
+        let neu = befuellen(&pdf, &werte).unwrap();
+        assert_eq!(
+            feld(&felder_lesen(&neu).unwrap(), "Grundstueck.Flaeche")
+                .wert
+                .as_ref(),
+            werte.get("Grundstueck.Flaeche")
+        );
+        assert!(befuellen(&musterformular(), &werte).is_err());
+    }
     #[test]
     fn liest_felder() {
         let felder = felder_lesen(&musterformular()).unwrap();

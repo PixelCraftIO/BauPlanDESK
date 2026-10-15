@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import type {
     PDFDocumentProxy,
     RenderTask,
@@ -13,6 +13,7 @@
     unrotiert = false,
     felder = [],
     onposition,
+    onbereit,
     onfehler,
   }: {
     pdfBase64: string;
@@ -20,6 +21,7 @@
     unrotiert?: boolean;
     felder?: EigenesPdfFeld[];
     onposition?: (x: number, y: number) => void;
+    onbereit?: (pdfBase64: string) => void;
     onfehler: (text: string) => void;
   } = $props();
   let canvas = $state<HTMLCanvasElement>(),
@@ -29,17 +31,26 @@
     loading = $state(true);
   let pageWidth = $state(210),
     pageHeight = $state(297);
-  let task: RenderTask | undefined;
+  let pdfStand = $state("");
   onMount(() => {
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) breite = entry.contentRect.width;
+    });
+    ro.observe(huelle);
+    return () => ro.disconnect();
+  });
+  $effect(() => {
+    const quelle = pdfBase64;
     let gone = false;
     let loader: PDFDocumentLoadingTask | undefined;
+    pdf = null;
+    loading = true;
     void (async () => {
       const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
       if (gone) return;
       GlobalWorkerOptions.workerSrc = workerUrl;
-      const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
       loader = getDocument({
-        data: bytes,
+        data: Uint8Array.from(atob(quelle), (c) => c.charCodeAt(0)),
         isEvalSupported: false,
         cMapUrl: new URL("./pdfjs/cmaps/", document.baseURI).href,
         cMapPacked: true,
@@ -49,52 +60,59 @@
         ).href,
       });
       const doc = await loader.promise;
-      if (!gone) pdf = doc;
+      if (!gone) {
+        pdf = doc;
+        pdfStand = quelle;
+      }
     })().catch((e) => {
       if (!gone) {
         loading = false;
-        onfehler(String(e));
+        onfehler(`PDF-Vorschau: ${String(e)}`);
       }
     });
-    const ro = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width > 0) breite = entry.contentRect.width;
-    });
-    ro.observe(huelle);
     return () => {
       gone = true;
-      ro.disconnect();
       void loader?.destroy();
     };
   });
   $effect(() => {
-    const document = pdf;
-    const page = seite;
-    const target = canvas;
-    const width = breite;
-    if (!document || !target) return;
+    const doc = pdf,
+      stand = pdfStand,
+      page = seite,
+      target = canvas,
+      width = breite,
+      ohneRotation = unrotiert;
+    if (!doc || !target) return;
     let cancelled = false;
+    let task: RenderTask | undefined;
     loading = true;
     void (async () => {
       try {
-        const p = await document.getPage(page);
+        const p = await doc.getPage(page);
         if (cancelled) return;
-        // Positions for custom fields use the unrotated, visible PDF page box.
-        const rotation=unrotiert?0:p.rotate;
+        const rotation = ohneRotation ? 0 : p.rotate;
         const base = p.getViewport({ scale: 1, rotation });
-        pageWidth = (base.width * 25.4) / 72;
-        pageHeight = (base.height * 25.4) / 72;
         const scale = Math.min(width, 1000) / base.width;
         const pixel = Math.min(devicePixelRatio || 1, 2);
         const viewport = p.getViewport({ scale: scale * pixel, rotation });
-        target.width = viewport.width;
-        target.height = viewport.height;
-        target.style.width = `${base.width * scale}px`;
-        target.style.height = `${base.height * scale}px`;
-        const ctx = target.getContext("2d");
+        // Erst vollständig im Hintergrund rendern. Das letzte Bild bleibt bis dahin erhalten.
+        const puffer = document.createElement("canvas");
+        puffer.width = Math.ceil(viewport.width);
+        puffer.height = Math.ceil(viewport.height);
+        const ctx = puffer.getContext("2d");
         if (!ctx) throw Error("PDF-Zeichenfläche nicht verfügbar");
         task = p.render({ canvasContext: ctx, viewport });
         await task.promise;
-        if (!cancelled) loading = false;
+        if (cancelled) return;
+        target.width = puffer.width;
+        target.height = puffer.height;
+        target.style.width = `${base.width * scale}px`;
+        target.style.height = `${base.height * scale}px`;
+        target.getContext("2d")!.drawImage(puffer, 0, 0);
+        pageWidth = (base.width * 25.4) / 72;
+        pageHeight = (base.height * 25.4) / 72;
+        loading = false;
+        onbereit?.(stand);
       } catch (e) {
         if (!cancelled) {
           loading = false;
@@ -107,7 +125,6 @@
       task?.cancel();
     };
   });
-  onDestroy(() => task?.cancel());
   function position(e: MouseEvent) {
     if (!onposition || loading) return;
     const r =
@@ -127,7 +144,9 @@
 </script>
 
 <div class="pdf-render-area" bind:this={huelle}>
-  {#if loading}<p class="meta" role="status">PDF-Seite wird geladen …</p>{/if}
+  <p class="meta pdf-render-status" role="status">
+    {loading ? "PDF-Seite wird geladen …" : ""}
+  </p>
   <button
     class="pdf-seite"
     type="button"
@@ -150,3 +169,10 @@
       >{/each}
   </button>
 </div>
+
+<style>
+  .pdf-render-status {
+    min-height: 1.3em;
+    margin: 0 0 0.35rem;
+  }
+</style>
