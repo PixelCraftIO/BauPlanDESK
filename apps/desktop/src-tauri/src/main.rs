@@ -6,6 +6,7 @@ mod bootstrap;
 mod commands;
 mod config;
 mod dateien;
+mod druckausgabe;
 mod einreichungen;
 mod emails;
 mod kategorien;
@@ -56,6 +57,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            druckausgabe::druckkatalog,
+            druckausgabe::druckausgabe_erstellen,
+            druckausgabe::druckausgabe_exportieren,
             plattform::fachobjekte,
             plattform::projektstatus,
             plattform::standard_checkliste,

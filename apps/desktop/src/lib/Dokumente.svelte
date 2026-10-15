@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Druckknopf from "./Druckknopf.svelte";
   import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
   import { ask, open, save } from "@tauri-apps/plugin-dialog";
@@ -667,6 +668,18 @@
                 >Weitere …</summary
               >
               <div>
+                <Druckknopf
+                  {projektId}
+                  quelle={{
+                    art: "dokument",
+                    dokument_id: doc.document_id,
+                    version: doc.version,
+                    seiten: [],
+                  }}
+                  disabled={!/\.(pdf|eml|msg|png|jpg|jpeg)$/i.test(
+                    doc.file_name,
+                  )}
+                />
                 <button class="link" onclick={() => exportieren(doc)}
                   >Exportieren …</button
                 >

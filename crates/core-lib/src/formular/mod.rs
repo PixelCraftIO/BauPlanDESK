@@ -11,7 +11,7 @@ pub mod bibliothek;
 pub mod editor;
 pub mod instanz;
 pub mod pdf;
-mod schrift;
+pub(crate) mod schrift;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;
 pub mod vorlage;

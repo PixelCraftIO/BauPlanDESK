@@ -28,7 +28,7 @@ fn glyph(f: &FontRef<'_>, c: char) -> CoreResult<u16> {
         })
         .and_then(|id| u16::try_from(id.to_u32()).map_err(fehler))
 }
-pub(super) fn einbetten(doc: &mut Document, texte: &[&str]) -> CoreResult<ObjectId> {
+pub(crate) fn einbetten(doc: &mut Document, texte: &[&str]) -> CoreResult<ObjectId> {
     let f = face()?;
     let metrics = f.metrics(Size::unscaled(), LocationRef::default());
     let units = metrics.units_per_em as f32;
@@ -87,7 +87,7 @@ pub(super) fn einbetten(doc: &mut Document, texte: &[&str]) -> CoreResult<Object
     let unicode = doc.add_object(Stream::new(dictionary! {}, cmap.into_bytes()));
     Ok(doc.add_object(dictionary!{"Type"=>"Font","Subtype"=>"Type0","BaseFont"=>"DejaVuSans","Encoding"=>"Identity-H","DescendantFonts"=>vec![cid.into()],"ToUnicode"=>unicode}))
 }
-pub(super) fn darstellung(
+pub(crate) fn darstellung(
     doc: &mut Document,
     text: &str,
     width: f32,
@@ -271,6 +271,23 @@ fn mehrzeilige_darstellung(
     ops.extend([Operation::new("ET", vec![]), Operation::new("Q", vec![])]);
     let data = Content { operations: ops }.encode().map_err(fehler)?;
     Ok(doc.add_object(Stream::new(dictionary!{"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),width.into(),height.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"BauUnicode"=>font}}},data)))
+}
+
+/// Breite in PDF-Punkten für die gemeinsame Berichtsausgabe.
+pub(crate) fn textbreite(text: &str, size: f32) -> CoreResult<f32> {
+    let f = face()?;
+    let gm = f.glyph_metrics(Size::unscaled(), LocationRef::default());
+    let units = f
+        .metrics(Size::unscaled(), LocationRef::default())
+        .units_per_em as f32;
+    text.chars().try_fold(0., |sum, c| {
+        let id = glyph(&f, c)?;
+        Ok(sum
+            + gm.advance_width(GlyphId::new(id as u32))
+                .ok_or_else(|| fehler("Zeichenbreite fehlt"))?
+                / units
+                * size)
+    })
 }
 
 #[cfg(test)]

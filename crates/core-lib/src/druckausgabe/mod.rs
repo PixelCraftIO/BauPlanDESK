@@ -1,0 +1,257 @@
+//! Lesende Ausgabe: genaue Quellversionen, archivierte Nachweise und getrennte
+//! Fachberichte. Erzeugt keine DMS-Version und bestätigt keine Einreichung.
+mod berichte;
+mod pdf;
+use crate::{
+    CoreError, CoreResult, CoreServices,
+    domain::{DocumentId, ProjectId},
+    plattform::ObjektArt,
+};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Druckquelle {
+    Dokument {
+        dokument_id: DocumentId,
+        #[ts(type = "number")]
+        version: i64,
+        #[serde(default)]
+        seiten: Vec<u32>,
+    },
+    Nachweis {
+        id: Uuid,
+    },
+    Baugrundstueck,
+    Baugrenzen,
+    Raumbuch {
+        id: Uuid,
+        #[ts(type = "number")]
+        revision: i64,
+    },
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Druckauftrag {
+    pub titel: String,
+    pub absender: String,
+    pub empfaenger: String,
+    pub anschreiben: String,
+    pub mit_anschreiben: bool,
+    pub inhaltsverzeichnis: bool,
+    /// Schützt aktuelle Fachberichte vor Änderungen während der Zusammenstellung.
+    #[ts(type = "number")]
+    pub projekt_version: i64,
+    pub quellen: Vec<Druckquelle>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+pub struct Druckeintrag {
+    pub titel: String,
+    pub quelle: Druckquelle,
+    pub hinweis: Option<String>,
+    pub verfuegbar: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+pub struct Druckkatalog {
+    #[ts(type = "number")]
+    pub projekt_version: i64,
+    pub absender: String,
+    pub eintraege: Vec<Druckeintrag>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+pub struct Druckposition {
+    pub titel: String,
+    pub erste_seite: u32,
+    pub seiten: u32,
+}
+pub struct Druckergebnis {
+    pub pdf: Vec<u8>,
+    pub positionen: Vec<Druckposition>,
+    pub seiten: u32,
+}
+pub(super) fn fehler(e: impl std::fmt::Display) -> CoreError {
+    CoreError::InvalidInput(format!("Druckausgabe: {e}"))
+}
+pub(super) fn dokumenttyp(name: &str) -> bool {
+    name.rsplit('.').next().is_some_and(|e| {
+        ["pdf", "eml", "msg", "png", "jpg", "jpeg"].contains(&e.to_ascii_lowercase().as_str())
+    })
+}
+impl CoreServices {
+    pub async fn druckkatalog(&self, p: ProjectId) -> CoreResult<Druckkatalog> {
+        let projekt = self.get_project(p).await?;
+        let mut eintraege = Vec::new();
+        let grund = crate::grundstueckskontext::ermitteln(&projekt);
+        eintraege.push(Druckeintrag {
+            titel: "Baugrundstücksermittlung".into(),
+            quelle: Druckquelle::Baugrundstueck,
+            verfuegbar: grund.as_ref().is_ok_and(|g| !g.is_empty()),
+            hinweis: grund.err().map(|e| e.to_string()),
+        });
+        if projekt.planungsrecht.baugrenzen.is_some() {
+            eintraege.push(Druckeintrag {
+                titel: "Baugrenzenprüfung".into(),
+                quelle: Druckquelle::Baugrenzen,
+                verfuegbar: true,
+                hinweis: None,
+            });
+        }
+        for n in self.nachweise(p).await? {
+            let status = berichte::nachweisstatus(&n);
+            eintraege.push(Druckeintrag {
+                titel: format!(
+                    "{} · {}",
+                    n.stand.bezeichnung,
+                    n.stand.erstellt_am.format("%d.%m.%Y %H:%M UTC")
+                ),
+                quelle: Druckquelle::Nachweis { id: n.stand.id },
+                verfuegbar: true,
+                hinweis: Some(status),
+            });
+        }
+        for r in self.fachobjekte(p, ObjektArt::Raumbuch).await? {
+            let rb: crate::plattform::objekte::Raumbuch =
+                serde_json::from_value(r.daten).map_err(fehler)?;
+            eintraege.push(Druckeintrag {
+                titel: format!("Raumbuch: {}", rb.bezeichnung),
+                quelle: Druckquelle::Raumbuch {
+                    id: Uuid::parse_str(&r.objekt).map_err(fehler)?,
+                    revision: r.revision,
+                },
+                verfuegbar: true,
+                hinweis: None,
+            });
+        }
+        for d in crate::projektablage::versionen(self.list_documents(p).await?, false) {
+            let verfuegbar = dokumenttyp(&d.file_name);
+            eintraege.push(Druckeintrag {titel:format!("{} · Version {}",d.file_name,d.version),
+                quelle:Druckquelle::Dokument{dokument_id:d.document_id,version:d.version,seiten:vec![]},verfuegbar,
+                hinweis:(!verfuegbar).then(||"Im zugeordneten Programm drucken oder als PDF ins Projekt übernehmen. Originaldatei kann einzeln exportiert werden.".into())});
+        }
+        let b = self.buero().await?;
+        let absender = format!(
+            "{}\n{} {}\n{} {}",
+            b.name,
+            b.anschrift.strasse,
+            b.anschrift.hausnummer,
+            b.anschrift.postleitzahl,
+            b.anschrift.ort
+        )
+        .trim()
+        .to_owned();
+        Ok(Druckkatalog {
+            projekt_version: projekt.version,
+            absender,
+            eintraege,
+        })
+    }
+    pub async fn druckausgabe(&self, p: ProjectId, a: Druckauftrag) -> CoreResult<Druckergebnis> {
+        if a.quellen.is_empty()
+            || a.quellen.len() > 100
+            || a.titel.trim().is_empty()
+            || a.titel.len() > 500
+            || a.absender.len() > 4000
+            || a.empfaenger.len() > 4000
+            || a.anschreiben.len() > 16000
+        {
+            return Err(fehler(
+                "Titel und 1 bis 100 Unterlagen erforderlich; Textgrenzen beachten",
+            ));
+        }
+        let projekt = self.get_project(p).await?;
+        if projekt.version != a.projekt_version {
+            return Err(fehler(
+                "Projekt wurde geändert. Auswahl aktualisieren und erneut erstellen.",
+            ));
+        }
+        let jetzt = chrono::Utc::now();
+        let nachweise = self.nachweise(p).await?;
+        let mut quellen = Vec::new();
+        let mut bytes = 0usize;
+        let mut druckdaten = 0usize;
+        for q in &a.quellen {
+            let (titel, mut doc) = match q {
+                Druckquelle::Dokument {
+                    dokument_id,
+                    version,
+                    seiten,
+                } => {
+                    let meta = self
+                        .document_history(*dokument_id)
+                        .await?
+                        .into_iter()
+                        .find(|d| d.version == *version && d.project_id == p)
+                        .ok_or_else(|| fehler("Dokumentversion gehört nicht zu diesem Projekt"))?;
+                    if !dokumenttyp(&meta.file_name) {
+                        return Err(fehler(format!(
+                            "{} zuerst als PDF bereitstellen",
+                            meta.file_name
+                        )));
+                    }
+                    if meta.size_bytes > 64 * 1024 * 1024 {
+                        return Err(fehler("Quelldatei größer als 64 MB"));
+                    }
+                    let (_, daten) = self.load_version(*dokument_id, *version).await?;
+                    bytes = bytes
+                        .checked_add(daten.len())
+                        .ok_or_else(|| fehler("Druckpaket zu groß"))?;
+                    if bytes > 128 * 1024 * 1024 {
+                        return Err(fehler("Druckpaket größer als 128 MB; bitte aufteilen"));
+                    }
+                    let name = meta.file_name.to_ascii_lowercase();
+                    let doc = if name.ends_with(".pdf") {
+                        pdf::auswahl(&daten, seiten)?
+                    } else if [".png", ".jpg", ".jpeg"].iter().any(|e| name.ends_with(e)) {
+                        if !seiten.is_empty() {
+                            return Err(fehler("Seitenauswahl nur bei PDF-Dateien"));
+                        }
+                        pdf::bild(&daten)?
+                    } else {
+                        if !seiten.is_empty() {
+                            return Err(fehler("Seitenauswahl nur bei PDF-Dateien"));
+                        }
+                        let mail = crate::email::lesen(&meta.file_name, &daten)?;
+                        pdf::bericht(
+                            &projekt.name,
+                            &meta.file_name,
+                            &berichte::email(&mail),
+                            jetzt,
+                        )?
+                    };
+                    (format!("{} · Version {}", meta.file_name, version), doc)
+                }
+                _ => {
+                    let (titel, zeilen) =
+                        berichte::erstellen(self, &projekt, q, &nachweise).await?;
+                    let doc = pdf::bericht(&projekt.name, &titel, &zeilen, jetzt)?;
+                    (titel, doc)
+                }
+            };
+            if doc.get_pages().is_empty() {
+                return Err(fehler("PDF enthält keine Seiten"));
+            }
+            pdf::formulare_einfrieren(&mut doc)?;
+            druckdaten = druckdaten.saturating_add(
+                doc.objects
+                    .values()
+                    .filter_map(|o| o.as_stream().ok())
+                    .map(|s| s.content.len())
+                    .sum::<usize>(),
+            );
+            if druckdaten > 128 * 1024 * 1024 {
+                return Err(fehler(
+                    "Aufbereitete Druckdaten über 128 MB; bitte aufteilen",
+                ));
+            }
+            quellen.push((titel, doc));
+        }
+        // Erneuter Vergleich verhindert vermischte aktuelle Projektgrundlagen.
+        if self.get_project(p).await?.version != a.projekt_version {
+            return Err(fehler(
+                "Projekt während der Ausgabe geändert. Erneut erstellen.",
+            ));
+        }
+        pdf::paket(&projekt.name, a, quellen, jetzt)
+    }
+}

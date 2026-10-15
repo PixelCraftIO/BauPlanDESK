@@ -62,6 +62,13 @@ with sync_playwright() as p:
  expect(dialog().get_by_label('Seite',exact=True)).to_have_value('2')
  assert not page.evaluate('window.docs.length')
  assert not page.evaluate('window.calls.some(c=>["bibliothek_formular_speichern","formular_im_projekt_speichern","plugin:dialog|save"].includes(c.cmd))')
+ page.evaluate("window.print=()=>window.formularDruckseiten=document.querySelectorAll('#bau-druckbereich .druckseite img').length")
+ dialog().get_by_role('button',name='Aktuelle Eingaben drucken …',exact=True).click()
+ page.wait_for_function('window.formularDruckseiten===2')
+ page.evaluate("window.dispatchEvent(new Event('afterprint'))")
+ assert not page.evaluate('window.docs.length')
+ expect(dialog().get_by_label('Anschrift',exact=True)).to_have_value(wf['daniel']['Anschrift'])
+ aktuell()
  page.screenshot(path=str(out/'01-adresse-live.png'))
  # Eine alte laufende Anfrage darf den danach eingegebenen Stand nicht anzeigen.
  page.evaluate('window.holdNextPreview=true')
@@ -90,5 +97,5 @@ with sync_playwright() as p:
  assert page.evaluate('window.savedValues.Anschrift')==wf['anna']['Anschrift']
  assert not errors,errors
  browser.close()
-(out/'pruefung.json').write_text(json.dumps({'checks':['Mehrzeilige Maske aus PDF-Merkmal','Echte PDF-Pixel aktualisiert und gewählte Seite erhalten','Keine DMS-Version durch Vorschau','Veraltete Antwort verworfen und höchstens eine Anfrage gleichzeitig','Vorschaufehler und anschließende Erholung','Bibliotheks- und bestehendes Projektformular mit demselben PDF-Weg'], 'errors':errors},ensure_ascii=False,indent=2)+'\n')
+(out/'pruefung.json').write_text(json.dumps({'checks':['Mehrzeilige Maske aus PDF-Merkmal','Echte PDF-Pixel aktualisiert und gewählte Seite erhalten','Keine DMS-Version durch Vorschau und direkten Druck','Veraltete Antwort verworfen und höchstens eine Anfrage gleichzeitig','Vorschaufehler und anschließende Erholung','Bibliotheks- und bestehendes Projektformular mit demselben PDF-Weg'], 'errors':errors},ensure_ascii=False,indent=2)+'\n')
 print('PDF-Livevorschau: 6 Prüfgruppen mit echten PDF-Renderings erfolgreich')
