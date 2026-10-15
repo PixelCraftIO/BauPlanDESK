@@ -8,12 +8,14 @@
     quelle,
     vorbereiten,
     disabled = false,
+    darfAblegen = false,
     text = "Drucken / PDF",
   }: {
     projektId: string;
     quelle?: Druckquelle;
     vorbereiten?: () => Promise<Druckquelle | null>;
     disabled?: boolean;
+    darfAblegen?: boolean;
     text?: string;
   } = $props();
   let offen = $state(false),
@@ -47,6 +49,7 @@
     onclose={() => (offen = false)}
     ><Druckausgabe
       {projektId}
+      {darfAblegen}
       vorauswahl={startquelle}
       onbusy={(b) => (busy = b)}
     /><button class="sekundaer" disabled={busy} onclick={() => (offen = false)}

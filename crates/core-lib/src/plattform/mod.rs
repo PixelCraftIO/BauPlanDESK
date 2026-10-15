@@ -14,6 +14,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjektArt {
+    Abstandsflaechen,
     Verfahren,
     Projektorganisation,
     Gebaeude,
@@ -25,6 +26,7 @@ pub enum ObjektArt {
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
         match self {
+            Self::Abstandsflaechen => "abstandsflaechen",
             Self::Verfahren => "verfahren",
             Self::Projektorganisation => "projektorganisation",
             Self::Gebaeude => "gebaeude",
@@ -73,6 +75,12 @@ impl CoreServices {
         if serde_json::to_vec(&daten).map_err(json_err)?.len() > 2 * 1024 * 1024 {
             return Err(CoreError::InvalidInput("Fachdatensatz ist zu groß".into()));
         }
+        let daten = if art == ObjektArt::Abstandsflaechen {
+            self.abstandsplan_vorbereiten(p, id, basis, daten, wer)
+                .await?
+        } else {
+            daten
+        };
         let daten = objekte::validieren(self, &projekt, art, daten, wer).await?;
         if art == ObjektArt::Projektorganisation && id != p.0 {
             return Err(CoreError::InvalidInput(

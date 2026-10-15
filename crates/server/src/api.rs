@@ -189,6 +189,13 @@ fn routen(core: CoreServices) -> Router {
         .route("/xbau/codelisten", get(codelisten))
         .route("/lbo/regelpakete", get(rule_packs))
         .route("/berechnung/abstandsflaeche", post(abstandsflaeche))
+        .route("/projekte/{id}/abstandsregeln", get(abstandsregeln))
+        .route("/projekte/{id}/abstandsplan", post(abstandsplan))
+        .route("/projekte/{id}/abstandscad", post(abstandscad))
+        .route(
+            "/projekte/{id}/abstandsnachweise/{nachweis}/{format}",
+            get(abstandsexport),
+        )
         .route("/berechnung/mass-der-nutzung", post(mass_der_nutzung))
         .route("/berechnung/aufmass", post(aufmass))
         .route(
@@ -1108,4 +1115,54 @@ async fn verfahren_aktenexport(
         core.verfahren_aktenexport(ProjectId(p)).await?,
     )
         .into_response())
+}
+
+async fn abstandsregeln() -> ApiResult<Vec<core_lib::abstandsflaechen::AbstandsRegeln>> {
+    Ok(Json(core_lib::abstandsflaechen::katalog()?))
+}
+async fn abstandsplan(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>,
+) -> ApiResult<core_lib::abstandsflaechen::AbstandsErgebnis> {
+    Ok(Json(core.abstandsplan_pruefen(ProjectId(id), &plan).await?))
+}
+async fn abstandsexport(
+    State(ApiState { core }): State<ApiState>,
+    Path((p, n, format)): Path<(Uuid, Uuid, String)>,
+) -> Result<axum::response::Response, ApiError> {
+    let (_, b) = core
+        .abstandsnachweis_export(ProjectId(p), n, &format)
+        .await?;
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                if format == "json" {
+                    "application/json"
+                } else {
+                    "application/dxf"
+                },
+            ),
+            (axum::http::header::CONTENT_DISPOSITION, "attachment"),
+        ],
+        b,
+    )
+        .into_response())
+}
+
+#[derive(Deserialize)]
+struct AbstandscadWunsch {
+    dokument: core_lib::plattform::objekte::Dokumentbezug,
+    einheit: core_lib::cad::Laengeneinheit,
+}
+async fn abstandscad(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<AbstandscadWunsch>,
+) -> ApiResult<Vec<core_lib::abstandsflaechen::CadKontur>> {
+    Ok(Json(
+        core.abstandscad_konturen(ProjectId(id), w.dokument, w.einheit)
+            .await?,
+    ))
 }

@@ -104,6 +104,10 @@ pub(super) async fn erstellen(
                 .find(|n| n.stand.id == *id)
                 .ok_or_else(|| fehler("Nachweis nicht im Projekt gefunden"))?;
             z.push(titel(nachweisstatus(n)));
+            z.push(text(format!(
+                "Berechnung erfasst von Benutzer {}",
+                n.stand.erstellt_von
+            )));
             z[0] = text(format!(
                 "Berechnet: {} · Bundesland: {} · Projektstand bei Berechnung: {}",
                 n.stand.erstellt_am.format("%d.%m.%Y %H:%M UTC"),
@@ -112,12 +116,22 @@ pub(super) async fn erstellen(
             ));
             if let Some(f) = &n.freigabe {
                 z.push(text(format!(
-                    "Freigabe: {} · {}",
+                    "Freigabe: {} · {} · Benutzer {}",
                     f.freigegeben_am.format("%d.%m.%Y %H:%M UTC"),
-                    f.bemerkung
+                    f.bemerkung,
+                    f.freigegeben_von
                 )));
             }
             match &n.stand.eingabe {
+                NachweisEingabe::AbstandProjekt { plan, .. } => {
+                    let r: crate::abstandsflaechen::AbstandsErgebnis =
+                        serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
+                    z.extend(
+                        crate::abstandsflaechen::bericht::zeilen(plan, &r)
+                            .into_iter()
+                            .map(text),
+                    );
+                }
                 NachweisEingabe::Abstand {
                     gegenstand,
                     eingabe,
@@ -125,6 +139,7 @@ pub(super) async fn erstellen(
                     let r: crate::lbo::Berechnung<crate::lbo::AbstandsflaecheErgebnis> =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
                     z.push(titel(gegenstand));
+                    z.push(text("Leistungsumfang: einfache Tiefenvorprüfung. Grundstücksgeometrie, Dach-/Geländeherleitung und besondere Verhältnisse sind hier nicht umfassend geprüft."));
                     z.push(text(format!(
                         "Wandhöhe H: {} m · Baugebiet: {:?}",
                         zahl(eingabe.wandhoehe_m),
@@ -339,6 +354,16 @@ pub(super) async fn erstellen(
                 n.stand.grundlagen_hash
             )));
             for r in &n.stand.regeln {
+                if r.format == "abstandsquellen-json-1" {
+                    let docs: Vec<crate::domain::DocumentVersion> =
+                        serde_json::from_str(&r.inhalt).map_err(fehler)?;
+                    for d in docs {
+                        z.push(text(format!(
+                            "Originalquelle: {} · Version {} · Dokument {} · SHA-256 {}",
+                            d.file_name, d.version, d.document_id.0, d.sha256
+                        )));
+                    }
+                }
                 z.push(text(format!(
                     "{} · Ausgabe {} · {}",
                     r.id, r.version, r.pruefstatus

@@ -1,6 +1,8 @@
 # Ausbauplan: prüfbare Abstandsflächennachweise
 
-Status: Planung, keine Implementierung und keine juristische Freigabe.
+Status: Fachlicher Ausbauplan. Implementierten Funktionsumfang, manuelle
+Sondernachweise und ausstehende externe Rechts-/Praxisabnahmen beschreibt die
+[Bedienungsdokumentation](README.md).
 Technischer Ausgangsstand: Main `a5c6fbb`. Nordrhein-Westfalen wird als erstes
 Pilotland vorgeschlagen, entsprechend dem zuletzt gezeigten Projekt.
 

@@ -512,3 +512,5 @@ Aktueller Implementierungsstand: [Plattformumsetzung](docs/plattform-umsetzung/R
 Berechnungen erweitern: [BauNVO-Regeln und Modulgrenzen](docs/baunvo-erweiterung.md).
 
 Die Trennung zwischen Flurstücksfakten, optionalen Grundbuchangaben und der Baugrundstücksermittlung ist in [Grundstücksinformationen](docs/grundstuecksinformationen.md) beschrieben.
+
+Projektbezogene Abstandsflächen mit Wandherleitung, Vektorplan und archiviertem PDF-Nachweis: [Bedienung und fachliche Grenzen](docs/abstandsflaechen/README.md).

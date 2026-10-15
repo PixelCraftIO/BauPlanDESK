@@ -1,0 +1,151 @@
+[
+  {
+    "id": "abstand-nw",
+    "version": "pilot-1",
+    "land": "NW",
+    "rechtsstand": "§ 6 BauO NRW 2018 – Beispielansatz, konkrete Fassung und Sonderregeln projektbezogen prüfen",
+    "hinweis": "Ungeprüfter Pilotkatalog. Landesfassung, Übergangsrecht, lokale Satzungen und alle Anwendungsbedingungen vor fachlicher Freigabe anhand amtlicher Quellen prüfen. Keine automatische rechtliche Vollständigkeitszusage. Dachregeln nur für Dachflächen; Giebel gesondert erfassen.",
+    "tiefen": [
+      {
+        "gebiete": [
+          "WA",
+          "WR",
+          "WB",
+          "WS",
+          "MI",
+          "MD",
+          "MDW",
+          "MU",
+          "MK",
+          "SO"
+        ],
+        "faktor": 0.4,
+        "mindesttiefe_m": 3,
+        "quelle": "§ 6 BauO NRW 2018"
+      },
+      {
+        "gebiete": [
+          "GE",
+          "GI"
+        ],
+        "faktor": 0.2,
+        "mindesttiefe_m": 3,
+        "quelle": "§ 6 BauO NRW 2018"
+      }
+    ],
+    "dach": [
+      {
+        "ueber_grad": 45,
+        "faktor": 0.3333333333333333,
+        "quelle": "§ 6 BauO NRW 2018; Dachflächenansatz fachlich prüfen"
+      },
+      {
+        "ueber_grad": 70,
+        "faktor": 1,
+        "quelle": "§ 6 BauO NRW 2018; Dachflächenansatz fachlich prüfen"
+      }
+    ],
+    "grenzanlagen": {
+      "typen": [
+        "garage",
+        "carport"
+      ],
+      "hoehe_m": 3,
+      "laenge_je_grenze_m": 9,
+      "laenge_gesamt_m": 18,
+      "quelle": "§ 6 BauO NRW 2018; Grenzanlagenprivileg: gesamte Anlage einschließlich Nutzungs-/Höhen-/Längenbedingungen fachlich prüfen"
+    }
+  },
+  {
+    "id": "abstand-by",
+    "version": "pilot-1",
+    "land": "BY",
+    "rechtsstand": "Art. 6 BayBO – Beispielansatz, konkrete Fassung und Sonderregeln projektbezogen prüfen",
+    "hinweis": "Ungeprüfter Pilotkatalog. Landesfassung, Übergangsrecht, lokale Satzungen und alle Anwendungsbedingungen vor fachlicher Freigabe anhand amtlicher Quellen prüfen. Keine automatische rechtliche Vollständigkeitszusage. Dachregeln nur für Dachflächen; Giebel gesondert erfassen.",
+    "tiefen": [
+      {
+        "gebiete": [
+          "WA",
+          "WR",
+          "WB",
+          "WS",
+          "MI",
+          "MD",
+          "MDW",
+          "MU",
+          "MK",
+          "SO"
+        ],
+        "faktor": 0.4,
+        "mindesttiefe_m": 3,
+        "quelle": "Art. 6 BayBO"
+      },
+      {
+        "gebiete": [
+          "GE",
+          "GI"
+        ],
+        "faktor": 0.2,
+        "mindesttiefe_m": 3,
+        "quelle": "Art. 6 BayBO"
+      }
+    ],
+    "dach": [
+      {
+        "ueber_grad": 45,
+        "faktor": 0.3333333333333333,
+        "quelle": "Art. 6 BayBO; Dachflächenansatz fachlich prüfen"
+      },
+      {
+        "ueber_grad": 70,
+        "faktor": 1,
+        "quelle": "Art. 6 BayBO; Dachflächenansatz fachlich prüfen"
+      }
+    ],
+    "grenzanlagen": null
+  },
+  {
+    "id": "abstand-bw",
+    "version": "pilot-1",
+    "land": "BW",
+    "rechtsstand": "§§ 5, 6 LBO BW – Beispielansatz, konkrete Fassung und Sonderregeln projektbezogen prüfen",
+    "hinweis": "Ungeprüfter Pilotkatalog. Landesfassung, Übergangsrecht, lokale Satzungen und alle Anwendungsbedingungen vor fachlicher Freigabe anhand amtlicher Quellen prüfen. Keine automatische rechtliche Vollständigkeitszusage. Dachregeln nur für Dachflächen; Giebel gesondert erfassen.",
+    "tiefen": [
+      {
+        "gebiete": [
+          "WA",
+          "WR",
+          "WB",
+          "WS",
+          "MI",
+          "SO"
+        ],
+        "faktor": 0.4,
+        "mindesttiefe_m": 2.5,
+        "quelle": "§§ 5, 6 LBO BW"
+      },
+      {
+        "gebiete": [
+          "MD",
+          "MDW",
+          "MU",
+          "MK"
+        ],
+        "faktor": 0.2,
+        "mindesttiefe_m": 2.5,
+        "quelle": "§§ 5, 6 LBO BW"
+      },
+      {
+        "gebiete": [
+          "GE",
+          "GI"
+        ],
+        "faktor": 0.125,
+        "mindesttiefe_m": 2.5,
+        "quelle": "§§ 5, 6 LBO BW"
+      }
+    ],
+    "dach": [],
+    "grenzanlagen": null
+  }
+]

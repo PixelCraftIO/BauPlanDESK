@@ -25,6 +25,7 @@
     type Ansicht,
   } from "./projektSitzung";
   import Abstandsflaeche from "./Abstandsflaeche.svelte";
+  import AbstandsProjekt from "./abstandsflaechen/AbstandsProjekt.svelte";
   import Bauantrag from "./Bauantrag.svelte";
   import ProjektFormulare from "./ProjektFormulare.svelte";
   import Einreichungen from "./Einreichungen.svelte";
@@ -265,13 +266,14 @@
   <section hidden={ansicht !== "abstand"}>
     <h2>Abstandsflächen</h2>
     {#key projekt.id}
-      <Abstandsflaeche
+      <AbstandsProjekt {projekt} benutzerId={ich?.id??""} darf={darf("bearbeitung")} darfFreigeben={darf("projektleitung")} />
+      <details><summary>Einfache Tiefenvorprüfung (bisheriger Rechner)</summary><Abstandsflaeche
         startLand={projekt.bundesland}
         projektId={projekt.id}
         darfSpeichern={darf("bearbeitung")}
         regelpakete={info?.regelpakete ?? []}
         onfehler={melde}
-      />
+      /></details>
     {/key}
   </section>
   <section hidden={ansicht !== "plaene"}>

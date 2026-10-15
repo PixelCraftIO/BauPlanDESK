@@ -64,8 +64,8 @@ with sync_playwright() as p:
  checks.append('Verzögertes Speichern nach Projektwechsel aktualisiert ausschließlich ursprüngliche Projektakte.')
  tab('Wohnbebauung Lindenweg');view('Flurstücke und Grundbuch')
  active().get_by_label('Flurstücknummer',exact=True).first.fill('100/9')
- view('Abstandsflächen');active().locator('section:visible input[type=number]').fill('11')
- tab('Umbau Bürogebäude');view('Abstandsflächen');assert active().locator('section:visible input[type=number]').input_value()=='6.5'
+ view('Abstandsflächen');active().get_by_text('Einfache Tiefenvorprüfung (bisheriger Rechner)',exact=True).click();active().locator('section:visible input[type=number]').fill('11')
+ tab('Umbau Bürogebäude');view('Abstandsflächen');active().get_by_text('Einfache Tiefenvorprüfung (bisheriger Rechner)',exact=True).click();assert active().locator('section:visible input[type=number]').input_value()=='6.5'
  tab('Wohnbebauung Lindenweg');assert active().locator('section:visible input[type=number]').input_value()=='11'
  view('Flurstücke und Grundbuch');assert active().get_by_label('Flurstücknummer',exact=True).first.input_value()=='100/9'
  checks.append('Flurstücke und Abstandsflächen-Eingaben bleiben unabhängig über Bereichs- und Projektwechsel erhalten.')

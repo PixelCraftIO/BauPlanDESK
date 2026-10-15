@@ -1,6 +1,7 @@
 // Unter Windows kein zusätzliches Konsolenfenster im Release-Build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod abstandsflaechen;
 mod bibliothek;
 mod bootstrap;
 mod commands;
@@ -177,6 +178,10 @@ fn main() {
             commands::projekt_baugrundstuecke_pruefen,
             commands::baugrenzen_pruefen,
             commands::abstandsflaeche,
+            abstandsflaechen::abstandsregeln,
+            abstandsflaechen::abstandscad_konturen,
+            abstandsflaechen::abstandsplan_pruefen,
+            abstandsflaechen::abstandsnachweis_export,
             commands::mass_der_nutzung,
             updater::update_pruefen,
             updater::update_installieren,

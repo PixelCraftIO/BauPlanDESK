@@ -232,6 +232,7 @@ impl CoreServices {
             "nachweise",
             "freigaben",
             "verfahren",
+            "abstandsflaechen",
             "suchtexte",
             "dokumentkategorie",
         ] {
