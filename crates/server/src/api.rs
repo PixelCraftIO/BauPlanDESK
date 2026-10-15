@@ -69,6 +69,7 @@ pub struct ApiState {
 fn routen(core: CoreServices) -> Router {
     let api = Router::new()
         .route("/sitzung", get(sitzung))
+        .route("/dokumente/{id}/email/{version}", get(email_laden))
         .route(
             "/dokumentkategorien",
             get(kategorienkatalog).put(kategorienkatalog_speichern),
@@ -908,5 +909,14 @@ async fn vorlagenkategorie_speichern(
 ) -> ApiResult<core_lib::dokumentkategorien::KategorieZuordnung> {
     Ok(Json(
         s.core.vorlagenkategorie_speichern(&hash, k, &wer).await?,
+    ))
+}
+
+async fn email_laden(
+    State(s): State<ApiState>,
+    Path((id, version)): Path<(Uuid, i64)>,
+) -> ApiResult<core_lib::email::ArchivierteEmail> {
+    Ok(Json(
+        s.core.archivierte_email(DocumentId(id), version).await?,
     ))
 }

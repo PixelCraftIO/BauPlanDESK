@@ -211,4 +211,54 @@ async fn kategorien_http_vertrag_konflikte_und_projektzugriff() {
             .1["kategorie"],
         "baubeschreibung"
     );
+    let eml = core
+        .store_document_kategorisiert(
+            p.id,
+            "Bauamt.eml",
+            bytes::Bytes::from(core_lib::email::testdaten::muster_eml()),
+            Some("email".into()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let url = format!("/api/dokumente/{}/email/1", eml.document_id.0);
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &url,
+            serde_json::Value::Null,
+            Some(fremd_token)
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, mail) = call(&router, "GET", &url, serde_json::Value::Null, Some(TOKEN)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(mail["inhalt"]["betreff"], "Bauantrag Musterstrasse");
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!("/api/dokumente/{}/email/2", eml.document_id.0),
+            serde_json::Value::Null,
+            Some(TOKEN)
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!("/api/dokumente/{}/email/1", doc.document_id.0),
+            serde_json::Value::Null,
+            Some(TOKEN)
+        )
+        .await
+        .0,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
 }

@@ -32,9 +32,20 @@ export function kategoriePasst(
 ) {
   return (
     !filter ||
-    (filter === "__ohne"
+    (filter === ":ohne"
       ? !id
       : id === filter ||
         kategorien.find((k) => k.id === id)?.eltern_id === filter)
+  );
+}
+
+export function kategorieGeaendert(
+  a?: KategorieStand | null,
+  b?: KategorieStand | null,
+) {
+  return (
+    a?.id !== b?.id ||
+    a?.name !== b?.name ||
+    a?.hauptkategorie !== b?.hauptkategorie
   );
 }

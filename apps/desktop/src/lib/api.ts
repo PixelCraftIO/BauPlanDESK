@@ -874,6 +874,10 @@ export type {
   DokumentKategorie,
   KategorieStand,
 } from "./generated/plattform";
+export interface ArchivierteEmail {
+  dokument: DocumentVersion;
+  inhalt: import("./generated/plattform").EmailInhalt;
+}
 export interface BibliothekVorschau {
   pdf_base64: string;
   seiten: PdfSeite[];
@@ -926,6 +930,7 @@ export interface NeuesPaket {
 }
 export interface DokumentVergleich {
   kategorie?: import("./generated/plattform").KategorieStand | null;
+  eingereichte_kategorie_erfasst?: boolean;
   eingereichte_kategorie?: import("./generated/plattform").KategorieStand | null;
   aktuell: DocumentVersion;
   zuletzt_eingereicht: DocumentVersion | null;
@@ -948,6 +953,7 @@ export interface BibliothekMaske {
   seiten: PdfSeite[];
 }
 export const api = {
+  emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
   kategorienkatalog: () =>
     invoke<import("./generated/plattform").KategorienKatalog>("kategorienkatalog"),
   kategorienkatalogSpeichern: (

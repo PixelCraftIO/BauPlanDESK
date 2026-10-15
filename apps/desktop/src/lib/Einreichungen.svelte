@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { kategorieStandText } from "./kategorien";
+  import { kategorieStandText, kategorieGeaendert } from "./kategorien";
   import PaketPruefstand from "./PaketPruefstand.svelte";
   import { editorAnmelden } from "./editoren";
   import { onMount } from "svelte";
@@ -58,7 +58,7 @@
     vergleich.filter(
       (v) =>
         !kategorieFilter ||
-        (kategorieFilter === "__ohne"
+        (kategorieFilter === ":ohne"
           ? !v.kategorie
           : v.kategorie?.id === kategorieFilter),
     ),
@@ -278,7 +278,7 @@
       >Kategorie filtern<select
         aria-label="Kategorie filtern"
         bind:value={kategorieFilter}
-        ><option value="">Alle Kategorien</option><option value="__ohne"
+        ><option value="">Alle Kategorien</option><option value=":ohne"
           >Ohne Kategorie</option
         >{#each kategorien as k}<option value={k.id}
             >{kategorieStandText(k)}</option
@@ -306,12 +306,16 @@
   <table>
     <thead
       ><tr
-        ><th>Auswahl</th><th>Unterlage</th><th>Kategorie</th><th
-          >Aktuelle Version</th
-        ><th>Zuletzt eingereicht</th><th>Vergleich</th></tr
+        ><th>Auswahl</th><th>Unterlage</th><th>Kategorie aktuell</th><th
+          >Kategorie zuletzt eingereicht</th
+        ><th>Aktuelle Version</th><th>Zuletzt eingereicht</th><th>Vergleich</th
+        ></tr
       ></thead
     ><tbody>
-      {#each gefiltert as v (v.aktuell.document_id)}<tr
+      {#each gefiltert as v (v.aktuell.document_id)}
+        {@const kategorieErfasst =
+          v.eingereichte_kategorie_erfasst ?? v.eingereichte_kategorie != null}
+        <tr
           ><td
             ><input
               type="checkbox"
@@ -322,7 +326,19 @@
                 umschalten(v.aktuell.document_id, e.currentTarget.checked)}
             /></td
           ><td>{v.aktuell.file_name}</td><td
-            >{kategorieStandText(v.kategorie)}</td
+            >{kategorieStandText(
+              v.kategorie,
+            )}{#if kategorieErfasst && kategorieGeaendert(v.kategorie, v.eingereichte_kategorie)}<span
+                class="meta"
+              >
+                · Kategorie geändert</span
+              >{/if}</td
+          ><td
+            >{!v.zuletzt_eingereicht
+              ? "—"
+              : kategorieErfasst
+                ? kategorieStandText(v.eingereichte_kategorie)
+                : "Damals nicht erfasst"}</td
           ><td>v{v.aktuell.version}</td><td
             >{#if v.zuletzt_eingereicht}v{v.zuletzt_eingereicht.version} · {v.eingereicht_am}{:else}—{/if}</td
           ><td>{statusText[v.status]}</td></tr

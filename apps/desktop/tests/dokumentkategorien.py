@@ -58,6 +58,7 @@ with sync_playwright() as p:
     view('Projektdateien')
     table = page.get_by_role('table', name='Projektdateien')
     expect(table.get_by_role('row').filter(has=page.get_by_role('cell',name=wf['dokumente'][0]['file_name'],exact=True)).locator('td').nth(2)).to_contain_text('Lageplan')
+    expect(page.get_by_role('combobox', name='Kategorie filtern', exact=True).locator('option[value="berechnung"]')).to_have_text('Berechnung (1)')
     page.get_by_role('combobox', name='Kategorie filtern', exact=True).select_option('berechnung')
     expect(table.get_by_role('cell', name=wf['dokumente'][1]['file_name'], exact=True)).to_be_visible()
     expect(table.get_by_role('cell', name=wf['dokumente'][0]['file_name'], exact=True)).to_have_count(0)

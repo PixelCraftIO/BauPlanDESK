@@ -137,7 +137,7 @@
   >Kategorie filtern<select
     aria-label="Kategorie filtern"
     bind:value={kategorieFilter}
-    ><option value="">Alle Kategorien</option><option value="__ohne"
+    ><option value="">Alle Kategorien</option><option value=":ohne"
       >Ohne Kategorie</option
     >{#each kategorienOptionen(kategorien) as k}<option value={k.id}
         >{k.bezeichnung}</option

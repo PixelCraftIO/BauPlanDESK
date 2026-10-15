@@ -19,6 +19,7 @@ pub mod dateiverwaltung;
 pub mod dokumentkategorien;
 pub mod domain;
 pub mod einreichung;
+pub mod email;
 pub mod error;
 pub mod festsetzungen;
 pub mod flaechen;

@@ -32,6 +32,13 @@ export type KategorienKatalog = { revision: number, kategorien: Array<Dokumentka
 export type KategorieStand = { id: string, name: string, hauptkategorie: string | null, };
 export type KategorieZuordnung = { revision: number, kategorie: string | null, };
 export type DokumentKategorie = { dokument_id: DocumentId, revision: number, kategorie: string | null, };
+export type MailAdresse = { name: string, adresse: string, };
+export type MailAnhang = { name: string, medientyp: string | null, groesse_bytes: number | null, eingebettete_nachricht: boolean, };
+export type EmailInhalt = { format: string, betreff: string, absender: Array<MailAdresse>, empfaenger: Array<MailAdresse>, cc: Array<MailAdresse>, bcc: Array<MailAdresse>,
+/**
+ * RFC3339, soweit ein Datum in der Originaldatei vorhanden und lesbar ist.
+ */
+datum: string | null, nachrichten_id: string | null, text: string, anhaenge: Array<MailAnhang>, hinweise: Array<string>, };
 export type ObjektArt = "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };

@@ -64,6 +64,10 @@ dxf = "0.6"
 # Lizenzdateien: Ed25519-Signaturen (BSD-3-Clause), Base64 (MIT/Apache-2.0)
 ed25519-dalek = { version = "2.2", default-features = false, features = ["std", "zeroize"] }
 base64 = "0.22"
+# EML/MIME (Apache-2.0/MIT), Outlook-MSG-Container (MIT), Windows-Codepages.
+mail-parser = { version = "0.11.9", features = ["full_encoding"] }
+cfb = "0.14"
+encoding_rs = "0.8"
 getrandom = "0.3"
 # XBau: Genericode-Codelisten lesen (MIT), ZIP-Pakete (MIT, Deflate über zlib-rs, Zlib)
 quick-xml = "0.42"

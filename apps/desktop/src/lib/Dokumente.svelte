@@ -14,6 +14,7 @@
     type DocumentLock,
     type DocumentVersion,
   } from "./api";
+  import EmailAnsicht from "./EmailAnsicht.svelte";
   import KategorieAuswahl from "./KategorieAuswahl.svelte";
   import {
     kategorieText,
@@ -74,6 +75,25 @@
     kategorieDialog = $state(false),
     neueKategorie = $state(""),
     kategorieFehler = $state("");
+  const kategorieAnzahlen = $derived.by(() => {
+    const zaehler = { alle: 0, ohne: 0, kategorien: new Map<string, number>() };
+    for (const id of new Set(versionen.map((d) => d.document_id))) {
+      zaehler.alle++;
+      const kat = zuordnungen.find((d) => d.dokument_id === id)?.kategorie;
+      if (!kat) {
+        zaehler.ohne++;
+        continue;
+      }
+      zaehler.kategorien.set(kat, (zaehler.kategorien.get(kat) ?? 0) + 1);
+      const parent = kategorien.find((k) => k.id === kat)?.eltern_id;
+      if (parent)
+        zaehler.kategorien.set(
+          parent,
+          (zaehler.kategorien.get(parent) ?? 0) + 1,
+        );
+    }
+    return zaehler;
+  });
   const zuordnung = (id: string) =>
     zuordnungen.find((k) => k.dokument_id === id);
   function kategorieBearbeiten(ids: string[]) {
@@ -115,6 +135,7 @@
   let versionen = $state<DocumentVersion[]>([]);
   let laeuft = $state(false);
   let formular = $state<DocumentVersion | null>(null);
+  let email = $state<DocumentVersion | null>(null);
   let hinweis = $state<string | null>(null);
   let sperren = $state<Map<string, DocumentLock>>(new Map());
   let historie = $state<DocumentVersion | null>(null);
@@ -430,6 +451,7 @@
       laeuft ||
       ordnerLaeuft ||
       !!formular ||
+      !!email ||
       !!historie ||
       !!metadaten ||
       kategorieDialog
@@ -487,15 +509,30 @@
   /></label
 >
 
+<div class="knoepfe links" aria-label="Schnellfilter für Unterlagen">
+  <button
+    class="sekundaer"
+    aria-pressed={kategorieFilter === ""}
+    onclick={() => (kategorieFilter = "")}
+    >Alle Unterlagen ({kategorieAnzahlen.alle})</button
+  >
+  <button
+    class="sekundaer"
+    aria-pressed={kategorieFilter === ":ohne"}
+    onclick={() => (kategorieFilter = ":ohne")}
+    >Ohne Kategorie ({kategorieAnzahlen.ohne})</button
+  >
+</div>
 <div class="knoepfe links">
   <label
     >Kategorie filtern<select
       aria-label="Kategorie filtern"
       bind:value={kategorieFilter}
-      ><option value="">Alle Kategorien</option><option value="__ohne"
-        >Ohne Kategorie</option
+      ><option value="">Alle Kategorien ({kategorieAnzahlen.alle})</option
+      ><option value=":ohne">Ohne Kategorie ({kategorieAnzahlen.ohne})</option
       >{#each kategorienOptionen(kategorien) as k}<option value={k.id}
-          >{k.bezeichnung}{k.aktiv ? "" : " (archiviert)"}</option
+          >{k.bezeichnung} ({kategorieAnzahlen.kategorien.get(k.id) ??
+            0}){k.aktiv ? "" : " (archiviert)"}</option
         >{/each}</select
     ></label
   >
@@ -613,6 +650,11 @@
               title="Im zugeordneten Programm öffnen"
               onclick={() => externOeffnen(doc)}>Öffnen</button
             >
+            {#if /\.(eml|msg)$/i.test(doc.file_name)}<button
+                class="link"
+                disabled={laeuft}
+                onclick={() => (email = doc)}>E-Mail lesen</button
+              >{/if}
             {#if istPdf(doc) && darfAblegen && !fremdGesperrt(doc.document_id)}<button
                 class="link"
                 onclick={() => {
@@ -707,6 +749,16 @@
     </form>
   </Dialog>{/if}
 
+{#if email}<Dialog
+    titel="Archivierte E-Mail"
+    breit
+    onclose={() => (email = null)}
+    ><EmailAnsicht
+      dokument={email}
+      onschliessen={() => (email = null)}
+    /></Dialog
+  >{/if}
+
 {#if metadaten}<Dialog
     titel="Dokumentangaben"
     schliessenErlaubt={!metaBusy}
@@ -717,6 +769,7 @@
       benutzerId={benutzer.id}
       darf={darfAblegen}
       onschliessen={metaAbbrechen}
+      ongeaendert={laden}
       onstatus={(dirty, busy) => {
         metaDirty = dirty;
         metaBusy = busy;

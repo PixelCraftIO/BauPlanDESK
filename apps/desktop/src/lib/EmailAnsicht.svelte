@@ -1,0 +1,174 @@
+<script lang="ts">
+  import { onMount, onDestroy } from "svelte";
+  import {
+    api,
+    fehlertext,
+    type DocumentVersion,
+    type ArchivierteEmail,
+  } from "./api";
+  import type { MailAdresse } from "./generated/plattform";
+  let {
+    dokument,
+    onschliessen,
+  }: { dokument: DocumentVersion; onschliessen: () => void } = $props();
+  let mail = $state<ArchivierteEmail | null>(null),
+    fehler = $state(""),
+    laeuft = $state(false),
+    version = $state(0),
+    versionen = $state<DocumentVersion[]>([]);
+  let generation = 0,
+    beendet = false;
+  const adressen = (liste: MailAdresse[]) =>
+    liste
+      .map((a) =>
+        a.name && a.adresse ? `${a.name} <${a.adresse}>` : a.name || a.adresse,
+      )
+      .filter(Boolean)
+      .join("; ") || "Nicht angegeben";
+  async function laden(stand: number) {
+    const id = ++generation;
+    version = stand;
+    laeuft = true;
+    fehler = "";
+    mail = null;
+    try {
+      const daten = await api.emailLaden(dokument.document_id, stand);
+      if (!beendet && id === generation) mail = daten;
+    } catch (e) {
+      if (!beendet && id === generation) fehler = fehlertext(e);
+    } finally {
+      if (!beendet && id === generation) laeuft = false;
+    }
+  }
+  onMount(() => {
+    void laden(dokument.version);
+    void api
+      .historie(dokument.document_id)
+      .then((v) => {
+        if (!beendet) versionen = v;
+      })
+      .catch(() => {});
+  });
+  onDestroy(() => {
+    beendet = true;
+    generation++;
+  });
+  async function externOeffnen() {
+    try {
+      await api.dokumentExternOeffnen(dokument.document_id, version);
+    } catch (e) {
+      fehler = fehlertext(e);
+    }
+  }
+</script>
+
+<div class="knoepfe links">
+  <label
+    >Dateiversion<select
+      aria-label="E-Mail-Version"
+      value={version}
+      onchange={(e) => laden(Number(e.currentTarget.value))}
+    >
+      {#if versionen.length}{#each versionen as v}<option value={v.version}
+            >Version {v.version} · {v.file_name}</option
+          >{/each}{:else}<option value={version}
+          >Version {version} · {dokument.file_name}</option
+        >{/if}
+    </select></label
+  >
+  <button class="sekundaer" disabled={!version} onclick={externOeffnen}
+    >Im Mailprogramm öffnen</button
+  >
+  <button class="sekundaer" onclick={onschliessen}>Schließen</button>
+</div>
+{#if laeuft}<p role="status">E-Mail wird gelesen …</p>{/if}
+{#if fehler}<p class="fehlertext" role="alert">{fehler}</p>
+  <button class="sekundaer" onclick={() => laden(version)}>Erneut lesen</button
+  >{/if}
+{#if mail}
+  <h2>{mail.inhalt.betreff || "Ohne Betreff"}</h2>
+  <dl>
+    <dt>Von</dt>
+    <dd>{adressen(mail.inhalt.absender)}</dd>
+    <dt>An</dt>
+    <dd>{adressen(mail.inhalt.empfaenger)}</dd>
+    {#if mail.inhalt.cc.length}<dt>Cc</dt>
+      <dd>{adressen(mail.inhalt.cc)}</dd>{/if}
+    {#if mail.inhalt.bcc.length}<dt>Bcc</dt>
+      <dd>{adressen(mail.inhalt.bcc)}</dd>{/if}
+    <dt>Datum</dt>
+    <dd>
+      {mail.inhalt.datum
+        ? new Date(mail.inhalt.datum).toLocaleString("de-DE")
+        : "Nicht angegeben"}
+    </dd>
+    {#if mail.inhalt.nachrichten_id}<dt>Nachrichten-ID</dt>
+      <dd>{mail.inhalt.nachrichten_id}</dd>{/if}
+    <dt>Original</dt>
+    <dd>
+      {mail.dokument.file_name} · {mail.inhalt.format} · Version {mail.dokument
+        .version}
+    </dd>
+  </dl>
+  {#each mail.inhalt.hinweise as h}<p class="hinweisbox">{h}</p>{/each}
+  <section aria-label="Nachrichtentext">
+    <h3>Nachricht</h3>
+    <pre>{mail.inhalt.text || "Kein lesbarer Nachrichtentext vorhanden."}</pre>
+  </section>
+  <h3>Anhänge ({mail.inhalt.anhaenge.length})</h3>
+  {#if mail.inhalt.anhaenge.length}<table aria-label="E-Mail-Anhänge">
+      <thead><tr><th>Datei</th><th>Typ</th><th>Größe</th></tr></thead><tbody
+        >{#each mail.inhalt.anhaenge as a}<tr
+            ><td
+              >{a.name}{a.eingebettete_nachricht
+                ? " (eingebettete Nachricht)"
+                : ""}</td
+            ><td>{a.medientyp ?? "Nicht angegeben"}</td><td
+              >{a.groesse_bytes === null
+                ? "Nicht angegeben"
+                : `${a.groesse_bytes} Bytes`}</td
+            ></tr
+          >{/each}</tbody
+      >
+    </table>
+    <p class="meta">
+      Die Anhänge sind Teil der archivierten Nachricht. Zum Öffnen das Original
+      im Mailprogramm verwenden.
+    </p>{:else}<p class="meta">Keine Anhänge erfasst.</p>{/if}
+{/if}
+
+<style>
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  h2,
+  td {
+    overflow-wrap: anywhere;
+  }
+  dl {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+  dt {
+    font-weight: 600;
+  }
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    max-height: 24rem;
+    overflow: auto;
+    border: 1px solid var(--border);
+    padding: 1rem;
+  }
+  table {
+    width: 100%;
+  }
+</style>

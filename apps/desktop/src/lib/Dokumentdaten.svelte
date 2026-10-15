@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import type { DocumentVersion } from "./api";
+  import {
+    api,
+    fehlertext,
+    type DocumentVersion,
+    type Dokumentkategorie,
+  } from "./api";
+  import KategorieAuswahl from "./KategorieAuswahl.svelte";
   import type { Dokumentdaten } from "./generated/plattform";
   import { FachSitzung } from "./FachSitzung.svelte";
   import { editorAnmelden } from "./editoren";
@@ -10,13 +16,71 @@
     darf,
     onschliessen,
     onstatus,
+    ongeaendert,
   }: {
     dokument: DocumentVersion;
     benutzerId: string;
     darf: boolean;
     onschliessen: () => void;
     onstatus: (dirty: boolean, busy: boolean) => void;
+    ongeaendert: () => Promise<void>;
   } = $props();
+  let kategorien = $state<Dokumentkategorie[]>([]),
+    kategorie = $state(""),
+    originalKategorie = $state(""),
+    kategorieRevision = $state(0);
+  let kategorieBereit = $state(false),
+    kategorieBusy = $state(false),
+    kategorieFehler = $state(""),
+    kategorieMeldung = $state("");
+  const kategorieDirty = $derived(
+    kategorieBereit && kategorie !== originalKategorie,
+  );
+  async function kategorieLaden() {
+    kategorieBusy = true;
+    try {
+      const [k, z] = await Promise.all([
+        api.kategorienkatalog(),
+        api.dokumentkategorien(dokument.project_id),
+      ]);
+      kategorien = k.kategorien;
+      const stand = z.find((d) => d.dokument_id === dokument.document_id);
+      kategorie = stand?.kategorie ?? "";
+      originalKategorie = kategorie;
+      kategorieRevision = stand?.revision ?? 0;
+      kategorieBereit = true;
+      kategorieFehler = "";
+    } catch (e) {
+      kategorieFehler = fehlertext(e);
+    } finally {
+      kategorieBusy = false;
+    }
+  }
+  async function speichern() {
+    if (kategorieBusy || s.laeuft) return false;
+    if (kategorieDirty) {
+      kategorieBusy = true;
+      kategorieFehler = "";
+      kategorieMeldung = "";
+      try {
+        const stand = await api.dokumentkategorieSpeichern(
+          dokument.document_id,
+          { revision: kategorieRevision, kategorie: kategorie || null },
+        );
+        kategorieRevision = stand.revision;
+        originalKategorie = stand.kategorie ?? "";
+        kategorie = originalKategorie;
+        kategorieMeldung = "Kategorie gespeichert.";
+        await ongeaendert();
+      } catch (e) {
+        kategorieFehler = fehlertext(e);
+        return false;
+      } finally {
+        kategorieBusy = false;
+      }
+    }
+    return !s.hatAenderungen() || (await s.speichern());
+  }
   const s = untrack(
     () =>
       new FachSitzung<Dokumentdaten>(
@@ -40,7 +104,7 @@
       ),
   );
   onMount(async () => {
-    await s.laden();
+    await Promise.all([s.laden(), kategorieLaden()]);
     if (s.gerettet) return;
     const f = s.liste.find((f) => f.objekt === dokument.document_id);
     if (f) {
@@ -58,12 +122,12 @@
   });
   $effect(() => {
     s.entwurfSichern();
-    onstatus(s.hatAenderungen(), s.laeuft);
+    onstatus(s.hatAenderungen() || kategorieDirty, s.laeuft || kategorieBusy);
   });
   editorAnmelden("dokumente", {
-    hatAenderungen: () => s.hatAenderungen(),
-    istBeschaeftigt: () => s.laeuft,
-    speichern: () => s.speichern(),
+    hatAenderungen: () => s.hatAenderungen() || kategorieDirty,
+    istBeschaeftigt: () => s.laeuft || kategorieBusy,
+    speichern,
   });
 </script>
 
@@ -82,16 +146,34 @@
 {#if s.eingabe}<form
     onsubmit={async (e) => {
       e.preventDefault();
-      await s.speichern();
+      await speichern();
     }}
   >
-    <fieldset disabled={!darf || s.laeuft}>
+    <fieldset disabled={!darf || s.laeuft || kategorieBusy || !kategorieBereit}>
+      <legend>Fachliche Kategorie</legend>
+      <KategorieAuswahl {kategorien} bind:wert={kategorie} />
+      <p class="meta">
+        Gilt für das Dokument und seine Folgeversionen. Änderungen erzeugen
+        keine neue Dateiversion.
+      </p>
+    </fieldset>
+    {#if kategorieFehler}<p role="alert" class="fehlertext">
+        {kategorieFehler}
+      </p>
+      <button
+        type="button"
+        class="sekundaer"
+        disabled={kategorieBusy}
+        onclick={kategorieLaden}>Kategorie neu laden</button
+      >{/if}
+    {#if kategorieMeldung}<p role="status">{kategorieMeldung}</p>{/if}
+    <fieldset disabled={!darf || s.laeuft || kategorieBusy}>
       <legend>Dokumentangaben</legend>
       <div class="raster">
         <label
           >Dokumentart<input
             bind:value={s.eingabe.dokumentart}
-            required
+            required={s.hatAenderungen()}
             maxlength="120"
           /></label
         ><label
@@ -126,12 +208,15 @@
       </div>
     </fieldset>
     <div class="knoepfe">
-      <button disabled={!darf || s.laeuft || !s.hatAenderungen()}
-        >Speichern</button
+      <button
+        disabled={!darf ||
+          s.laeuft ||
+          kategorieBusy ||
+          (!s.hatAenderungen() && !kategorieDirty)}>Speichern</button
       ><button
         type="button"
         class="sekundaer"
-        disabled={s.laeuft}
+        disabled={s.laeuft || kategorieBusy}
         onclick={onschliessen}>Schließen</button
       >
     </div>

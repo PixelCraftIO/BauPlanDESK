@@ -94,6 +94,8 @@ pub struct DokumentVergleich {
     pub kategorie: Option<crate::dokumentkategorien::KategorieStand>,
     #[serde(default)]
     pub eingereichte_kategorie: Option<crate::dokumentkategorien::KategorieStand>,
+    #[serde(default)]
+    pub eingereichte_kategorie_erfasst: bool,
     pub aktuell: DocumentVersion,
     pub zuletzt_eingereicht: Option<DocumentVersion>,
     pub paket_id: Option<Uuid>,
@@ -143,6 +145,11 @@ pub fn vergleichen(
             };
             DokumentVergleich {
                 kategorie: None,
+                eingereichte_kategorie_erfasst: alt.is_some_and(|(_, e)| {
+                    e.stand
+                        .kategorien
+                        .contains_key(&aktuell.document_id.0.to_string())
+                }),
                 eingereichte_kategorie: alt.and_then(|(_, e)| {
                     e.stand
                         .kategorien

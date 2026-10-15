@@ -7,6 +7,7 @@ mod commands;
 mod config;
 mod dateien;
 mod einreichungen;
+mod emails;
 mod kategorien;
 mod lizenzdienst;
 mod menu;
@@ -136,6 +137,7 @@ fn main() {
             commands::bauherren_setzen,
             commands::bauantrag,
             commands::bauantrag_speichern,
+            emails::email_laden,
             kategorien::kategorienkatalog,
             kategorien::kategorienkatalog_speichern,
             kategorien::dokumentkategorien,

@@ -89,3 +89,7 @@ dieselben Verträge einschließlich unzulässiger Projektzugriffe. Der produktiv
 Browser-Test nutzt reale Core-Vertragsdaten mit ersetztem Tauri-Transport.
 Seine Daten werden durch `storage/tests/dokumentkategorien.rs` bei gesetztem
 `BAUPROJEKT_KATEGORIEN_ARTEFAKTE` erzeugt. Die Prüfungen laufen auch in CI.
+
+Die E-Mail-Inhaltsansicht sowie Kategorieänderungen in den Dokumentangaben,
+Kategorieanzahlen und der historische Vergleich sind in
+[email-archiv.md](email-archiv.md) beschrieben.
