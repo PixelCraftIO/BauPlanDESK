@@ -197,6 +197,7 @@ pub async fn dokument_importieren(
     dokument_id: Option<DocumentId>,
     basis: Option<i64>,
     pfad: PathBuf,
+    kategorie: Option<String>,
 ) -> CmdResult<crate::projektordner::ProjektDokument> {
     let data = tokio::fs::read(&pfad).await.map_err(|e| CmdError {
         art: "datei",
@@ -206,17 +207,30 @@ pub async fn dokument_importieren(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let d = state
-        .core
-        .store_document(
-            projekt_id,
-            dokument_id,
-            basis,
-            &name,
-            Bytes::from(data),
-            &state.benutzer(),
-        )
-        .await?;
+    let d = if dokument_id.is_none() && kategorie.is_some() {
+        state
+            .core
+            .store_document_kategorisiert(
+                projekt_id,
+                &name,
+                Bytes::from(data),
+                kategorie,
+                &state.benutzer(),
+            )
+            .await?
+    } else {
+        state
+            .core
+            .store_document(
+                projekt_id,
+                dokument_id,
+                basis,
+                &name,
+                Bytes::from(data),
+                &state.benutzer(),
+            )
+            .await?
+    };
     Ok(crate::projektordner::ablegen(&state, d).await)
 }
 

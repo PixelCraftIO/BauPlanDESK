@@ -10,6 +10,9 @@
     type BibliotheksVorlage,
     type BibliothekVorschau,
   } from "./api";
+  import KategorieAuswahl from "./KategorieAuswahl.svelte";
+  import { kategorieText } from "./kategorien";
+  import type { Dokumentkategorie, KategorieZuordnung } from "./api";
   import Dialog from "./Dialog.svelte";
   import PdfVorschau from "./PdfVorschau.svelte";
   import PdfVorlagenEditor from "./PdfVorlagenEditor.svelte";
@@ -24,14 +27,50 @@
     dirty = $state(false),
     pdfBusy = $state(false),
     seite = $state(1);
+  let kategorien = $state<Dokumentkategorie[]>([]),
+    zuordnungen = $state<Record<string, KategorieZuordnung>>({});
+  let kategorieVorlage = $state<BibliotheksVorlage | null>(null),
+    kategorieWert = $state("");
+  async function kategorieSpeichern(e: SubmitEvent) {
+    e.preventDefault();
+    if (!kategorieVorlage) return;
+    laeuft = true;
+    fehler = null;
+    const hash = kategorieVorlage.sha256;
+    try {
+      const v = await api.vorlagenkategorieSpeichern(hash, {
+        revision: zuordnungen[hash]?.revision ?? 0,
+        kategorie: kategorieWert || null,
+      });
+      zuordnungen = { ...zuordnungen, [hash]: v };
+      kategorieVorlage = null;
+      hinweis =
+        "Standardkategorie der Vorlage gespeichert. Bereits erstellte Projektdokumente bleiben unverändert.";
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
+    }
+  }
   const darf = $derived(mindestens(ich.rolle, "bearbeitung"));
   export function istBeschaeftigt() {
-    return laeuft || !!editor;
+    return laeuft || !!editor || !!kategorieVorlage;
   }
   async function laden() {
     laeuft = true;
     try {
-      katalog = await api.formularbibliothek();
+      const [b, k] = await Promise.all([
+        api.formularbibliothek(),
+        api.kategorienkatalog(),
+      ]);
+      const z = await Promise.all(
+        [...new Set(b.vorlagen.map((v) => v.sha256))].map(
+          async (hash) => [hash, await api.vorlagenkategorie(hash)] as const,
+        ),
+      );
+      katalog = b;
+      kategorien = k.kategorien;
+      zuordnungen = Object.fromEntries(z);
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -104,11 +143,23 @@
     Formularordner: {katalog.root} · Speicherort unter Einstellungen ändern.
   </p>
   <table class="ergebnistabelle">
-    <thead><tr><th>Vorlage</th><th></th></tr></thead><tbody
+    <thead><tr><th>Vorlage</th><th>Standardkategorie</th><th></th></tr></thead
+    ><tbody
       >{#each katalog.vorlagen as v}<tr
           ><td
             >{v.name}<span class="meta">
               · {v.felder ?? "?"} Eingabefelder</span
+            ></td
+          ><td
+            >{kategorieText(kategorien, zuordnungen[v.sha256]?.kategorie)}
+            <button
+              class="link"
+              disabled={!darf || laeuft}
+              aria-label={`Kategorie ändern: ${v.name}`}
+              onclick={() => {
+                kategorieVorlage = v;
+                kategorieWert = zuordnungen[v.sha256]?.kategorie ?? "";
+              }}>Ändern</button
             ></td
           ><td class="aktionen"
             ><button class="link" disabled={laeuft} onclick={() => ansehen(v)}
@@ -160,3 +211,30 @@
       }}
     /></Dialog
   >{/if}
+
+{#if kategorieVorlage}<Dialog
+    titel="Standardkategorie der Vorlage"
+    schliessenErlaubt={!laeuft}
+    onclose={() => (kategorieVorlage = null)}
+  >
+    <form onsubmit={kategorieSpeichern}>
+      <p>
+        {kategorieVorlage.name}. Neue Projektdokumente übernehmen diese
+        Zuordnung. Inhaltsgleiche Vorlagen teilen dieselbe Standardkategorie.
+      </p>
+      {#if fehler}<p role="alert" class="fehlertext">{fehler}</p>{/if}
+      <KategorieAuswahl
+        {kategorien}
+        bind:wert={kategorieWert}
+        disabled={laeuft}
+      />
+      <div class="knoepfe">
+        <button disabled={laeuft}>Standardkategorie speichern</button><button
+          type="button"
+          class="sekundaer"
+          disabled={laeuft}
+          onclick={() => (kategorieVorlage = null)}>Abbrechen</button
+        >
+      </div>
+    </form>
+  </Dialog>{/if}

@@ -69,6 +69,20 @@ pub struct ApiState {
 fn routen(core: CoreServices) -> Router {
     let api = Router::new()
         .route("/sitzung", get(sitzung))
+        .route("/dokumente/{id}/email/{version}", get(email_laden))
+        .route(
+            "/dokumentkategorien",
+            get(kategorienkatalog).put(kategorienkatalog_speichern),
+        )
+        .route("/projekte/{id}/dokumentkategorien", get(dokumentkategorien))
+        .route(
+            "/dokumente/{id}/kategorie",
+            axum::routing::put(dokumentkategorie_speichern),
+        )
+        .route(
+            "/vorlagen/{hash}/kategorie",
+            get(vorlagenkategorie).put(vorlagenkategorie_speichern),
+        )
         .route("/projekte/{id}/status", get(projektstatus))
         .route(
             "/projekte/{id}/paketpruefung",
@@ -847,5 +861,62 @@ async fn paket_pruefstand(
 ) -> ApiResult<core_lib::einreichung::PaketPruefstand> {
     Ok(Json(
         core.paket_pruefstand(ProjectId(id), &dokumente).await?,
+    ))
+}
+
+// Dokumentkategorien verwenden denselben Core wie der Desktop.
+async fn kategorienkatalog(
+    State(s): State<ApiState>,
+) -> ApiResult<core_lib::dokumentkategorien::KategorienKatalog> {
+    Ok(Json(s.core.kategorienkatalog().await?))
+}
+async fn kategorienkatalog_speichern(
+    State(s): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Json(k): Json<core_lib::dokumentkategorien::KategorienKatalog>,
+) -> ApiResult<core_lib::dokumentkategorien::KategorienKatalog> {
+    Ok(Json(s.core.kategorienkatalog_speichern(k, &wer).await?))
+}
+async fn dokumentkategorien(
+    State(s): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::dokumentkategorien::DokumentKategorie>> {
+    Ok(Json(s.core.dokumentkategorien(ProjectId(id)).await?))
+}
+async fn dokumentkategorie_speichern(
+    State(s): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+    Json(k): Json<core_lib::dokumentkategorien::KategorieZuordnung>,
+) -> ApiResult<core_lib::dokumentkategorien::DokumentKategorie> {
+    Ok(Json(
+        s.core
+            .dokumentkategorie_speichern(DocumentId(id), k, &wer)
+            .await?,
+    ))
+}
+async fn vorlagenkategorie(
+    State(s): State<ApiState>,
+    Path(hash): Path<core_lib::storage::ContentHash>,
+) -> ApiResult<core_lib::dokumentkategorien::KategorieZuordnung> {
+    Ok(Json(s.core.vorlagenkategorie(&hash).await?))
+}
+async fn vorlagenkategorie_speichern(
+    State(s): State<ApiState>,
+    Path(hash): Path<core_lib::storage::ContentHash>,
+    Extension(wer): Extension<Benutzer>,
+    Json(k): Json<core_lib::dokumentkategorien::KategorieZuordnung>,
+) -> ApiResult<core_lib::dokumentkategorien::KategorieZuordnung> {
+    Ok(Json(
+        s.core.vorlagenkategorie_speichern(&hash, k, &wer).await?,
+    ))
+}
+
+async fn email_laden(
+    State(s): State<ApiState>,
+    Path((id, version)): Path<(Uuid, i64)>,
+) -> ApiResult<core_lib::email::ArchivierteEmail> {
+    Ok(Json(
+        s.core.archivierte_email(DocumentId(id), version).await?,
     ))
 }

@@ -989,6 +989,39 @@ impl CoreServices {
         .await
     }
 
+    /// Explizite fachliche Zuordnung bei Neuanlage, atomar mit Datei und Audit.
+    /// Erzeuger wie Nachweis- oder Berichtsmodule verwenden stabile Katalogkennungen.
+    pub async fn store_document_kategorisiert(
+        &self,
+        projekt: ProjectId,
+        name: &str,
+        daten: Bytes,
+        kategorie: Option<String>,
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        self.berechtigung_pruefen(wer, Recht::DokumentAblegen)
+            .await?;
+        self.kategorie_pruefen(kategorie.as_deref()).await?;
+        self.ablegen_vorgang(
+            projekt,
+            None,
+            None,
+            name,
+            daten,
+            wer,
+            Aktion::DokumentAbgelegt,
+            "",
+            None,
+            vec![crate::commit::DokumentZusatz {
+                modul: "dokumentkategorie".into(),
+                schema_version: 1,
+                daten: serde_json::to_value(kategorie)
+                    .map_err(|e| CoreError::InvalidInput(e.to_string()))?,
+            }],
+        )
+        .await
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn ablegen(
         &self,
@@ -1033,6 +1066,13 @@ impl CoreServices {
         let file_name = sanitize_file_name(file_name)?;
         let neuanlage = document_id.is_none();
         let daten_hash = ContentHash::of(&data);
+        if neuanlage && !zusaetze.iter().any(|z| z.modul == "dokumentkategorie") {
+            zusaetze.push(crate::commit::DokumentZusatz {
+                modul: "dokumentkategorie".into(),
+                schema_version: 1,
+                daten: serde_json::Value::Null,
+            });
+        }
         zusaetze.push(crate::commit::DokumentZusatz {
             modul: "ausgabeereignis".into(),
             schema_version: 1,
@@ -1378,6 +1418,31 @@ impl CoreServices {
         })
     }
 
+    /// Unveränderte Bibliotheksvorlage übernehmen; Kategorie stammt von der Quelle.
+    pub async fn formular_vorlage_uebernehmen(
+        &self,
+        projekt: ProjectId,
+        name: &str,
+        pdf: &[u8],
+        wer: &Benutzer,
+    ) -> CoreResult<DocumentVersion> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        formular::bibliothek::import_pruefen(pdf, wer)?;
+        self.ablegen_vorgang(
+            projekt,
+            None,
+            None,
+            name,
+            Bytes::copy_from_slice(pdf),
+            wer,
+            Aktion::DokumentAbgelegt,
+            " aus Formularbibliothek",
+            None,
+            vec![self.kategorie_zusatz(&ContentHash::of(pdf)).await?],
+        )
+        .await
+    }
+
     /// Eine ausgefüllte Bibliotheksvorlage erzeugt genau ein Projektdokument.
     pub async fn formular_aus_bibliothek(
         &self,
@@ -1440,7 +1505,7 @@ impl CoreServices {
             Aktion::FormularAusgefuellt,
             " aus Formularbibliothek",
             vorgang,
-            vec![instanz],
+            vec![instanz, self.kategorie_zusatz(&ContentHash::of(pdf)).await?],
         )
         .await
     }

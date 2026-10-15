@@ -867,6 +867,17 @@ export interface Formularbibliothek {
   root: string;
   vorlagen: BibliotheksVorlage[];
 }
+export type {
+  Dokumentkategorie,
+  KategorienKatalog,
+  KategorieZuordnung,
+  DokumentKategorie,
+  KategorieStand,
+} from "./generated/plattform";
+export interface ArchivierteEmail {
+  dokument: DocumentVersion;
+  inhalt: import("./generated/plattform").EmailInhalt;
+}
 export interface BibliothekVorschau {
   pdf_base64: string;
   seiten: PdfSeite[];
@@ -888,6 +899,7 @@ export interface PaketPruefstand {
 export interface Einreichung {
   stand: {
     pruefstand?: PaketPruefstand | null;
+    kategorien?: Record<string, import("./generated/plattform").KategorieStand | null>;
     id: string;
     projekt_id: string;
     titel: string;
@@ -917,6 +929,9 @@ export interface NeuesPaket {
   dokumente: DokumentAuswahl[];
 }
 export interface DokumentVergleich {
+  kategorie?: import("./generated/plattform").KategorieStand | null;
+  eingereichte_kategorie_erfasst?: boolean;
+  eingereichte_kategorie?: import("./generated/plattform").KategorieStand | null;
   aktuell: DocumentVersion;
   zuletzt_eingereicht: DocumentVersion | null;
   paket_id: string | null;
@@ -938,6 +953,34 @@ export interface BibliothekMaske {
   seiten: PdfSeite[];
 }
 export const api = {
+  emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
+  kategorienkatalog: () =>
+    invoke<import("./generated/plattform").KategorienKatalog>("kategorienkatalog"),
+  kategorienkatalogSpeichern: (
+    katalog: import("./generated/plattform").KategorienKatalog,
+  ) => invoke<import("./generated/plattform").KategorienKatalog>(
+    "kategorienkatalog_speichern", { katalog },
+  ),
+  dokumentkategorien: (projektId: string) =>
+    invoke<import("./generated/plattform").DokumentKategorie[]>(
+      "dokumentkategorien", { projektId },
+    ),
+  dokumentkategorieSpeichern: (
+    dokumentId: string,
+    zuordnung: import("./generated/plattform").KategorieZuordnung,
+  ) => invoke<import("./generated/plattform").DokumentKategorie>(
+    "dokumentkategorie_speichern", { dokumentId, zuordnung },
+  ),
+  vorlagenkategorie: (hash: string) =>
+    invoke<import("./generated/plattform").KategorieZuordnung>(
+      "vorlagenkategorie", { hash },
+    ),
+  vorlagenkategorieSpeichern: (
+    hash: string,
+    zuordnung: import("./generated/plattform").KategorieZuordnung,
+  ) => invoke<import("./generated/plattform").KategorieZuordnung>(
+    "vorlagenkategorie_speichern", { hash, zuordnung },
+  ),
   projektBereichSpeichern: (
     basis: Project,
     bereich:
@@ -1113,11 +1156,13 @@ export const api = {
     pfad: string,
     dokumentId: string | null = null,
     basis: number | null = null,
+    kategorie: string | null = null,
   ) =>
     invoke<DocumentVersion>("dokument_importieren", {
       projektId,
       dokumentId,
       basis,
+      kategorie,
       pfad,
     }),
   historie: (dokumentId: string) =>

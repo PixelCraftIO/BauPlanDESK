@@ -1,7 +1,6 @@
 //! Desktop-Adapter für den projektunabhängigen Formularordner.
 use crate::{bootstrap::AppState, commands::CmdError};
 use base64::Engine;
-use bytes::Bytes;
 use core_lib::{
     CoreError,
     benutzer::Recht,
@@ -79,14 +78,7 @@ pub async fn bibliothek_uebernehmen(
     import_pruefen(&pdf, &state.benutzer())?;
     Ok(state
         .core
-        .store_document(
-            projekt_id,
-            None,
-            None,
-            &vorlage.name,
-            Bytes::from(pdf),
-            &state.benutzer(),
-        )
+        .formular_vorlage_uebernehmen(projekt_id, &vorlage.name, &pdf, &state.benutzer())
         .await?)
 }
 #[derive(Serialize)]
@@ -121,7 +113,12 @@ pub async fn bibliothek_veroeffentlichen(
     let (dokument, pdf) = state.core.load_version(dokument_id, version).await?;
     import_pruefen(&pdf, &state.benutzer())?;
     let root = state.formularordner.read().await;
-    Ok(ordner::ablegen(&root, &dokument.file_name, &pdf).await?)
+    let v = ordner::ablegen(&root, &dokument.file_name, &pdf).await?;
+    state
+        .core
+        .dokumentkategorie_als_vorlage(dokument_id, &v.sha256, &state.benutzer())
+        .await?;
+    Ok(v)
 }
 
 #[derive(Serialize)]
@@ -192,5 +189,10 @@ pub async fn bibliothek_felder_erstellen(
         .name
         .get(..vorlage.name.len().saturating_sub(4))
         .unwrap_or("Formular");
-    Ok(ordner::ablegen(&root, &format!("{stem} (ausfüllbar).pdf"), &neu).await?)
+    let neue_vorlage = ordner::ablegen(&root, &format!("{stem} (ausfüllbar).pdf"), &neu).await?;
+    state
+        .core
+        .vorlagenkategorie_kopieren(&vorlage.sha256, &neue_vorlage.sha256, &state.benutzer())
+        .await?;
+    Ok(neue_vorlage)
 }

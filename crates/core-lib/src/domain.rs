@@ -339,6 +339,7 @@ pub enum Aktion {
     AusgabeauftragGeaendert,
     ProjektGeaendert,
     DokumentAbgelegt,
+    DokumentKategorieGeaendert,
     DokumentGesperrt,
     DokumentEntsperrt,
     SperreAufgehoben,
@@ -357,11 +358,12 @@ pub enum Aktion {
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 19] = [
+    const ALLE: [Aktion; 20] = [
         Self::ProjektAngelegt,
         Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
         Self::DokumentAbgelegt,
+        Self::DokumentKategorieGeaendert,
         Self::DokumentGesperrt,
         Self::DokumentEntsperrt,
         Self::SperreAufgehoben,
@@ -384,6 +386,7 @@ impl Aktion {
             Self::AusgabeauftragGeaendert => "ausgabeauftrag_geaendert",
             Self::ProjektAngelegt => "projekt_angelegt",
             Self::ProjektGeaendert => "projekt_geaendert",
+            Self::DokumentKategorieGeaendert => "dokument_kategorie_geaendert",
             Self::DokumentAbgelegt => "dokument_abgelegt",
             Self::DokumentGesperrt => "dokument_gesperrt",
             Self::DokumentEntsperrt => "dokument_entsperrt",

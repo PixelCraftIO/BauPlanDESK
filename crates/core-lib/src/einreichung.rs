@@ -26,6 +26,10 @@ pub struct NeuesPaket {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaketStand {
+    /// Kategorien zum Zeitpunkt der Paketerstellung, unabhängig von späteren Änderungen.
+    /// Fehlend bei älteren Paketen: damaliger Stand nicht erfasst.
+    #[serde(default)]
+    pub kategorien: BTreeMap<String, Option<crate::dokumentkategorien::KategorieStand>>,
     #[serde(default)]
     pub pruefstand: Option<PaketPruefstand>,
     pub id: Uuid,
@@ -86,6 +90,12 @@ pub enum VergleichsStatus {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DokumentVergleich {
+    #[serde(default)]
+    pub kategorie: Option<crate::dokumentkategorien::KategorieStand>,
+    #[serde(default)]
+    pub eingereichte_kategorie: Option<crate::dokumentkategorien::KategorieStand>,
+    #[serde(default)]
+    pub eingereichte_kategorie_erfasst: bool,
     pub aktuell: DocumentVersion,
     pub zuletzt_eingereicht: Option<DocumentVersion>,
     pub paket_id: Option<Uuid>,
@@ -134,6 +144,19 @@ pub fn vergleichen(
                 Some(_) => VergleichsStatus::Geaendert,
             };
             DokumentVergleich {
+                kategorie: None,
+                eingereichte_kategorie_erfasst: alt.is_some_and(|(_, e)| {
+                    e.stand
+                        .kategorien
+                        .contains_key(&aktuell.document_id.0.to_string())
+                }),
+                eingereichte_kategorie: alt.and_then(|(_, e)| {
+                    e.stand
+                        .kategorien
+                        .get(&aktuell.document_id.0.to_string())
+                        .cloned()
+                        .flatten()
+                }),
                 zuletzt_eingereicht: alt.map(|(d, _)| (*d).clone()),
                 paket_id: alt.map(|(_, e)| e.stand.id),
                 eingereicht_am: alt.map(|(_, e)| e.einreichung.as_ref().unwrap().datum),

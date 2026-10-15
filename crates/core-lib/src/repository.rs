@@ -115,6 +115,15 @@ pub trait LizenzRepository: Send + Sync {
 
     async fn einstellung_setzen(&self, schluessel: &str, wert: &str) -> CoreResult<()>;
 
+    /// Atomarer Vergleich des vollständigen bisherigen Werts; verhindert verlorene
+    /// Änderungen an gemeinsamen Katalogen. `None` legt nur einen neuen Schlüssel an.
+    async fn einstellung_vergleichen(
+        &self,
+        schluessel: &str,
+        bisher: Option<&str>,
+        wert: &str,
+    ) -> CoreResult<bool>;
+
     /// Setzt den Wert nur, wenn noch keiner gespeichert ist, und liefert den
     /// gespeicherten Wert (z. B. Beginn der Testversion).
     async fn einstellung_vorbelegen(&self, schluessel: &str, wert: &str) -> CoreResult<String>;

@@ -78,6 +78,8 @@ jobs:
       BAUPROJEKT_PDF_ARTEFAKTE: /tmp/bauprojekt-pdf
       BAUPROJEKT_EINREICHUNG_ARTEFAKTE: /tmp/bauprojekt-einreichungen
       BAUPROJEKT_PDF_LIVE_ARTEFAKTE: /tmp/bauprojekt-pdf-live
+      BAUPROJEKT_KATEGORIEN_ARTEFAKTE: /tmp/bauprojekt-kategorien
+      BAUPROJEKT_EMAIL_ARTEFAKTE: /tmp/bauprojekt-emails
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -97,7 +99,7 @@ jobs:
               print('BAUPROJEKT_CHROMIUM=' + p.chromium.executable_path)
           PYCODE
       - name: Echte PDF- und Paket-Testdaten erzeugen
-        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --locked
+        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --locked
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
       - name: Produktionsoberfläche prüfen
@@ -122,6 +124,8 @@ jobs:
           python apps/desktop/tests/dateiverwaltung-einreichungen.py
           python apps/desktop/tests/plattform.py
           python apps/desktop/tests/pdf-livevorschau.py
+          python apps/desktop/tests/dokumentkategorien.py
+          python apps/desktop/tests/emails.py
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -131,4 +135,6 @@ jobs:
             docs/klare-projektstruktur
             docs/dateiverwaltung-einreichungen
             docs/pdf-livevorschau
+            docs/dokumentkategorien
+            docs/email-archiv
             /tmp/bauprojekt-ui.log

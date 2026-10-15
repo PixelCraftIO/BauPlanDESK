@@ -12,7 +12,7 @@ pub fn extern_oeffnen_erlaubt(name: &str) -> CoreResult<()> {
     if [
         "pdf", "dwg", "dxf", "xls", "xlsx", "xlsm", "xlsb", "doc", "docx", "docm", "odt", "ods",
         "ppt", "pptx", "odp", "txt", "csv", "rtf", "jpg", "jpeg", "png", "gif", "tif", "tiff",
-        "bmp", "webp", "heic", "zip", "7z", "svg", "xml",
+        "bmp", "webp", "heic", "zip", "7z", "svg", "xml", "eml", "msg",
     ]
     .contains(&ext.as_str())
     {
@@ -58,6 +58,8 @@ mod tests {
             "Brief.docx",
             "Foto.jpg",
             "Datei.odt",
+            "Bauamt.eml",
+            "Nachforderung.MSG",
         ] {
             assert!(extern_oeffnen_erlaubt(name).is_ok());
         }
