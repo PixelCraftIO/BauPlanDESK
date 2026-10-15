@@ -16,6 +16,7 @@ mod plattform;
 mod projektordner;
 mod sicherungen;
 mod updater;
+mod verfahren;
 
 use tauri::{Emitter, Manager, RunEvent};
 
@@ -57,6 +58,16 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            verfahren::verfahrensprofil,
+            verfahren::verfahren_profil_anwenden,
+            verfahren::verfahren_abgabe,
+            verfahren::verfahren_export,
+            verfahren::verfahren_erinnerungen,
+            verfahren::verfahren_suche,
+            verfahren::suchtext_speichern,
+            verfahren::verfahren_aktenexport,
+            verfahren::verfahren_ocr,
+            druckausgabe::druckausgabe_ablegen,
             druckausgabe::druckkatalog,
             druckausgabe::druckausgabe_erstellen,
             druckausgabe::druckausgabe_exportieren,
@@ -72,6 +83,8 @@ fn main() {
             plattform::nachweis_wiederholen,
             plattform::raumbuch_summen,
             projektordner::projektordner_status,
+            sicherungen::buero_sicherung_erstellen,
+            sicherungen::buero_sicherung_wiederherstellen,
             sicherungen::sicherungsstatus,
             sicherungen::sicherung_erstellen,
             sicherungen::sicherung_pruefen,
@@ -142,6 +155,7 @@ fn main() {
             commands::bauantrag,
             commands::bauantrag_speichern,
             emails::email_laden,
+            emails::email_anhang_ablegen,
             kategorien::kategorienkatalog,
             kategorien::kategorienkatalog_speichern,
             kategorien::dokumentkategorien,

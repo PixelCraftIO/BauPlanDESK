@@ -5,6 +5,23 @@ use std::{
     path::{Path, PathBuf},
 };
 type Container<'a> = cfb::CompoundFile<Cursor<&'a [u8]>>;
+pub(super) fn anhang(daten: &[u8], index: usize) -> CoreResult<Vec<u8>> {
+    let mut c = cfb::CompoundFile::open(Cursor::new(daten)).map_err(io)?;
+    let pfad = c
+        .walk()
+        .filter(|e| {
+            e.is_storage()
+                && e.path().parent() == Some(Path::new("/"))
+                && e.path()
+                    .to_string_lossy()
+                    .starts_with("/__attach_version1.0_#")
+        })
+        .nth(index)
+        .map(|e| e.path().to_string_lossy().into_owned())
+        .ok_or_else(|| fehler("MSG-Anhang fehlt"))?;
+    stream_mit_limit(&mut c, &format!("{pfad}/__substg1.0_37010102"), MAX_BYTES)?
+        .ok_or_else(|| fehler("MSG-Anhang enthält keine unterstützten Dateidaten"))
+}
 fn io(e: std::io::Error) -> CoreError {
     fehler(format!("MSG-Datei konnte nicht gelesen werden: {e}"))
 }

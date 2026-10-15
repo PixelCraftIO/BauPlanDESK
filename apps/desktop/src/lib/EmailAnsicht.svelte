@@ -10,7 +10,33 @@
   let {
     dokument,
     onschliessen,
-  }: { dokument: DocumentVersion; onschliessen: () => void } = $props();
+    darf = false,
+    onimport = () => {},
+  }: {
+    dokument: DocumentVersion;
+    onschliessen: () => void;
+    darf?: boolean;
+    onimport?: () => void;
+  } = $props();
+  let importiert = $state<string[]>([]),
+    importBusy = $state(false);
+  async function anhangAblegen(index: number) {
+    importBusy = true;
+    fehler = "";
+    try {
+      const d = await api.emailAnhangAblegen(
+        dokument.document_id,
+        version,
+        index,
+      );
+      importiert = [...importiert, `${d.file_name} im Projekt gespeichert.`];
+      onimport();
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      importBusy = false;
+    }
+  }
   let mail = $state<ArchivierteEmail | null>(null),
     fehler = $state(""),
     laeuft = $state(false),
@@ -67,6 +93,7 @@
     >Dateiversion<select
       aria-label="E-Mail-Version"
       value={version}
+      disabled={importBusy}
       onchange={(e) => laden(Number(e.currentTarget.value))}
     >
       {#if versionen.length}{#each versionen as v}<option value={v.version}
@@ -117,8 +144,10 @@
   </section>
   <h3>Anhänge ({mail.inhalt.anhaenge.length})</h3>
   {#if mail.inhalt.anhaenge.length}<table aria-label="E-Mail-Anhänge">
-      <thead><tr><th>Datei</th><th>Typ</th><th>Größe</th></tr></thead><tbody
-        >{#each mail.inhalt.anhaenge as a}<tr
+      <thead
+        ><tr><th>Datei</th><th>Typ</th><th>Größe</th><th>Aktion</th></tr></thead
+      ><tbody
+        >{#each mail.inhalt.anhaenge as a, i}<tr
             ><td
               >{a.name}{a.eingebettete_nachricht
                 ? " (eingebettete Nachricht)"
@@ -127,15 +156,26 @@
               >{a.groesse_bytes === null
                 ? "Nicht angegeben"
                 : `${a.groesse_bytes} Bytes`}</td
+            ><td
+              ><button
+                class="sekundaer"
+                disabled={!darf ||
+                  importBusy ||
+                  a.eingebettete_nachricht ||
+                  !a.groesse_bytes}
+                onclick={() => anhangAblegen(i)}
+                >Als Projektunterlage übernehmen</button
+              ></td
             ></tr
           >{/each}</tbody
       >
     </table>
     <p class="meta">
-      Die Anhänge sind Teil der archivierten Nachricht. Zum Öffnen das Original
-      im Mailprogramm verwenden.
+      Übernommene Anhänge erhalten eine eigene Dokumentidentität mit Bezug zur
+      Nachrichtenversion. Erneutes Übernehmen erzeugt kein Duplikat.
     </p>{:else}<p class="meta">Keine Anhänge erfasst.</p>{/if}
 {/if}
+{#each importiert as text}<p role="status">{text}</p>{/each}
 
 <style>
   label {

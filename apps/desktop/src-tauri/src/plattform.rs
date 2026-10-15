@@ -17,6 +17,14 @@ pub async fn fachobjekte(
     projekt_id: ProjectId,
     art: ObjektArt,
 ) -> Result<Vec<Fachstand>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.fachobjekte(projekt_id, art).await?)
 }
 #[tauri::command]
@@ -89,6 +97,14 @@ pub async fn fachverlauf(
     art: ObjektArt,
     id: Uuid,
 ) -> Result<Vec<Fachstand>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.fachverlauf(projekt_id, art, id).await?)
 }
 

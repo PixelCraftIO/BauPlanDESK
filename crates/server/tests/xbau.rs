@@ -199,6 +199,87 @@ async fn bauantrag_erfassen_und_exportieren() {
             .iter()
             .any(|e| e.eintrag.aktion == Aktion::BauantragGeaendert)
     );
+    // Gemeinsamer Abgabestand friert auch XBau ein: spätere Büro- und
+    // Planänderungen dürfen weder XML noch Anlagenbytes neu erzeugen.
+    let vid = uuid::Uuid::new_v4();
+    let a = serde_json::json!({"bezeichnung":"Erstantrag","art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:test","kontakt":""},"aktenzeichen":"2026/42","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
+    core.fachobjekt_speichern(
+        p.id,
+        core_lib::plattform::ObjektArt::Verfahren,
+        vid,
+        0,
+        a,
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let aid = uuid::Uuid::new_v4();
+    core.verfahren_abgabe_festhalten(
+        p.id,
+        vid,
+        1,
+        core_lib::verfahren::abgabe::Abgabewunsch {
+            id: aid,
+            titel: "Antragspaket".into(),
+            dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: plan.document_id,
+                version: 1,
+            }],
+            xbau: true,
+            druck: false,
+            anschreiben: String::new(),
+        },
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let vorher = core
+        .verfahren_artefakt(p.id, vid, aid, "xbau")
+        .await
+        .unwrap()
+        .1;
+    let mut archiv = zip::ZipArchive::new(Cursor::new(&vorher)).unwrap();
+    let mut xml = String::new();
+    archiv
+        .by_name(NACHRICHT_DATEI)
+        .unwrap()
+        .read_to_string(&mut xml)
+        .unwrap();
+    assert!(xml.contains("Architekturbüro Muster"));
+    let mut altplan = Vec::new();
+    archiv
+        .by_name("Lageplan.pdf")
+        .unwrap()
+        .read_to_end(&mut altplan)
+        .unwrap();
+    assert_eq!(altplan, b"%PDF-1.7 Lageplan");
+    core.buero_speichern(
+        Buero {
+            name: "Neuer Büroname".into(),
+            anschrift: Anschrift::default(),
+            kennung: "arc:4711".into(),
+        },
+        &chefin,
+    )
+    .await
+    .unwrap();
+    core.store_document(
+        p.id,
+        Some(plan.document_id),
+        Some(1),
+        "Lageplan.pdf",
+        Bytes::from_static(b"%PDF-1.7 Neuer Entwurf"),
+        &chefin,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        core.verfahren_artefakt(p.id, vid, aid, "xbau")
+            .await
+            .unwrap()
+            .1,
+        vorher
+    );
 }
 
 #[tokio::test]

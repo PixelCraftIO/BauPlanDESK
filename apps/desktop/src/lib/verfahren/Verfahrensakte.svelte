@@ -1,0 +1,372 @@
+<script lang="ts">
+  import { onMount, untrack } from "svelte";
+  import {
+    api,
+    fehlertext,
+    type Project,
+    type DocumentVersion,
+    type Benutzer,
+  } from "../api";
+  import type {
+    Verfahrensakte,
+    Abgabewunsch,
+    Vorhabenprofil,
+    Anforderungskatalog,
+    Fachstand,
+    Dokumentbezug,
+  } from "../generated/plattform";
+  import { FachSitzung } from "../FachSitzung.svelte";
+  import Fachliste from "../Fachliste.svelte";
+  import { leer, verfahrenApi, heute } from "./api";
+  import Kommunikation from "./Kommunikation.svelte";
+  import Nachforderungen from "./Nachforderungen.svelte";
+  import Bescheide from "./Bescheide.svelte";
+  import Anforderungen from "./Anforderungen.svelte";
+  import Abgaben from "./Abgaben.svelte";
+  import Profil from "./Profil.svelte";
+  import Zustaendigkeit from "./Zustaendigkeit.svelte";
+  import Dokumentfeld from "./Dokumentfeld.svelte";
+  import Dokumentliste from "./Dokumentliste.svelte";
+  let {
+    projekt,
+    benutzerId,
+    darf,
+    darfFreigeben = false,
+  }: {
+    projekt: Project;
+    benutzerId: string;
+    darf: boolean;
+    darfFreigeben?: boolean;
+  } = $props();
+  const s = untrack(
+    () =>
+      new FachSitzung<Verfahrensakte>(
+        projekt.id,
+        "verfahren",
+        benutzerId,
+        leer,
+        (a) =>
+          `${a.bezeichnung} · ${a.aktenzeichen || "ohne Aktenzeichen"} · ${a.status}`,
+      ),
+  );
+  let dateien = $state<DocumentVersion[]>([]),
+    benutzer = $state<Benutzer[]>([]),
+    tab = $state("stamm"),
+    ersatzVor = $state<Dokumentbezug | null>(null),
+    ersatzNach = $state<Dokumentbezug | null>(null),
+    ersatzGrund = $state(""),
+    notiz = $state(""),
+    notizDatum = $state(heute()),
+    notizBeleg = $state<Dokumentbezug | null>(null),
+    notizBerichtigt = $state<string | null>(null);
+  async function dateienLaden() {
+    try {
+      [dateien, benutzer] = await Promise.all([
+        api.dokumente(projekt.id),
+        api.benutzerAuflisten(),
+      ]);
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    }
+  }
+  onMount(dateienLaden);
+  function uebernehmen(f: Fachstand) {
+    const a = f.daten as unknown as Verfahrensakte;
+    s.revision = f.revision;
+    s.original = structuredClone(a);
+    s.eingabe = structuredClone(a);
+    s.liste = [
+      ...s.liste.filter((n) => n.objekt !== f.objekt),
+      { ...f, daten: a },
+    ];
+    s.meldung = "Gespeichert.";
+  }
+  async function aktion(fn: (basis: number) => Promise<Fachstand>) {
+    if (!(await s.speichern())) return;
+    s.laeuft = true;
+    s.fehler = null;
+    try {
+      uebernehmen(await fn(s.revision));
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    } finally {
+      s.laeuft = false;
+    }
+  }
+  const festhalten = (w: Abgabewunsch) =>
+    aktion((b) => verfahrenApi.abgabe(projekt.id, s.id!, b, w));
+  const profil = (p: Vorhabenprofil, k: Anforderungskatalog) =>
+    aktion((b) => verfahrenApi.profilAnwenden(projekt.id, s.id!, b, p, k));
+  const tabs = [
+    ["stamm", "Verfahren"],
+    ["profil", "Vorhabenprofil"],
+    ["anforderungen", "Anforderungen"],
+    ["kommunikation", "Kommunikation"],
+    ["nachforderungen", "Nachforderungen"],
+    ["abgaben", "Abgabestände"],
+    ["bescheide", "Bescheide / Auflagen"],
+    ["beziehungen", "Korrekturen"],
+    ["chronik", "Verfahrenschronik"],
+  ];
+</script>
+
+<Fachliste
+  titel="Verfahrensakte"
+  {s}
+  bereich="verfahren"
+  {darf}
+  lesendBedienbar
+>
+  {#snippet children(a)}
+    {#key s.id}
+      <nav class="verfahren-tabs" aria-label="Verfahrensbereiche">
+        {#each tabs as [id, titel]}<button
+            type="button"
+            class="sekundaer"
+            class:aktiv={tab === id}
+            aria-pressed={tab === id}
+            onclick={() => (tab = id)}>{titel}</button
+          >{/each}
+      </nav>
+      <button type="button" class="link" onclick={dateienLaden}
+        >Dokumentversionen aktualisieren</button
+      >
+      {#if tab === "stamm"}<fieldset disabled={!darf}>
+          <div class="raster">
+            <label
+              >Verfahrensbezeichnung<input
+                required
+                maxlength="500"
+                bind:value={a.bezeichnung}
+              /></label
+            ><label
+              >Verfahrensart<select bind:value={a.art}
+                ><option value="bauantrag">Bauantrag</option><option
+                  value="vorbescheid">Vorbescheid</option
+                ><option value="aenderungsantrag">Änderungsantrag</option
+                ><option value="teilbaugenehmigung">Teilbaugenehmigung</option
+                ><option value="freistellung">Freistellung</option><option
+                  value="sonstiges">Sonstiges</option
+                ></select
+              ></label
+            ><label
+              >Bearbeitungsstand<select bind:value={a.status}
+                ><option value="vorbereitung">Vorbereitung</option><option
+                  value="in_pruefung">In behördlicher Prüfung</option
+                ><option value="ruhend">Ruhend</option><option
+                  value="entschieden">Entschieden</option
+                ><option value="zurueckgenommen">Zurückgenommen</option></select
+              ></label
+            ><label
+              >Aktenzeichen<input
+                maxlength="500"
+                bind:value={a.aktenzeichen}
+              /></label
+            ><label
+              >Behörde<input
+                required
+                maxlength="500"
+                bind:value={a.behoerde.name}
+              /></label
+            ><label
+              >Behördenkennung<input bind:value={a.behoerde.kennung} /></label
+            ><label>Kontakt<input bind:value={a.behoerde.kontakt} /></label
+            ><Zustaendigkeit {benutzer} bind:wert={a.verantwortlich} /><label
+              >Vorgängerverfahren<select bind:value={a.vorgaenger}
+                ><option value={null}>Keines</option
+                >{#each s.liste.filter((v) => v.objekt !== s.id) as v}<option
+                    value={v.objekt}>{v.daten.bezeichnung}</option
+                  >{/each}</select
+              ></label
+            ><label
+              >Bereits erfasste Behörde übernehmen<select
+                value=""
+                onchange={(e) => {
+                  const b = s.liste.find(
+                    (v) => v.daten.behoerde.id === e.currentTarget.value,
+                  )?.daten.behoerde;
+                  if (b) a.behoerde = structuredClone($state.snapshot(b));
+                }}
+                ><option value="">Behörde auswählen</option
+                >{#each [...new Map(s.liste.map( (v) => [v.daten.behoerde.id, v.daten.behoerde], )).values()] as b}<option
+                    value={b.id}>{b.name}</option
+                  >{/each}</select
+              ></label
+            >
+          </div>
+        </fieldset>
+      {:else if tab === "profil"}<fieldset disabled={!darf}>
+          <Profil
+            {projekt}
+            art={a.art}
+            stand={a.profil}
+            onprofil={profil}
+          />{#if a.profil}<label
+              ><input
+                type="checkbox"
+                checked={!!a.profil.bestaetigt_von}
+                disabled={!darfFreigeben}
+                onchange={(e) => {
+                  a.profil!.bestaetigt_von = e.currentTarget.checked
+                    ? benutzerId
+                    : null;
+                  a.profil!.bestaetigt_am = null;
+                }}
+              />Vorhabenprofil fachlich bestätigt</label
+            >{/if}
+        </fieldset>
+      {:else if tab === "anforderungen"}<fieldset disabled={!darf}>
+          <Anforderungen
+            bind:eintraege={a.anforderungen}
+            {dateien}
+            {benutzer}
+            {darfFreigeben}
+          />
+        </fieldset>
+      {:else if tab === "kommunikation"}<fieldset disabled={!darf}>
+          <Kommunikation
+            bind:eintraege={a.kommunikation}
+            akte={a}
+            {dateien}
+            alt={s.original?.kommunikation.map((v) => v.id) ?? []}
+          />
+        </fieldset>
+      {:else if tab === "nachforderungen"}<fieldset disabled={!darf}>
+          <Nachforderungen
+            bind:eintraege={a.nachforderungen}
+            akte={a}
+            {dateien}
+            {benutzer}
+          />
+        </fieldset>
+      {:else if tab === "abgaben"}<Abgaben
+          bind:eintraege={a.abgaben}
+          {dateien}
+          projektId={projekt.id}
+          verfahrenId={s.id!}
+          {darf}
+          gespeichert={s.original?.abgaben ?? []}
+          onfesthalten={festhalten}
+          onbusy={(b) => (s.laeuft = b)}
+        />
+      {:else if tab === "bescheide"}<fieldset disabled={!darf}>
+          <Bescheide
+            bind:eintraege={a.bescheide}
+            {dateien}
+            {benutzer}
+            alt={s.original?.bescheide.map((v) => v.id) ?? []}
+          />
+        </fieldset>
+      {:else if tab === "beziehungen"}<h3>Korrektur- und Ersatzbeziehungen</h3>
+        <fieldset disabled={!darf}>
+          <Dokumentfeld
+            {dateien}
+            bind:wert={ersatzVor}
+            label="Bisherige Unterlage"
+          /><Dokumentfeld
+            {dateien}
+            bind:wert={ersatzNach}
+            label="Ersetzende Unterlage"
+          /><label
+            >Änderungsgrund<input
+              maxlength="4000"
+              bind:value={ersatzGrund}
+            /></label
+          ><button
+            type="button"
+            class="sekundaer"
+            disabled={!ersatzVor || !ersatzNach || !ersatzGrund.trim()}
+            onclick={() => {
+              a.dokumentbeziehungen.push({
+                id: crypto.randomUUID(),
+                vorher: ersatzVor!,
+                nachher: ersatzNach!,
+                grund: ersatzGrund,
+                bezug: null,
+              });
+              ersatzGrund = "";
+            }}>Ersatzbeziehung erfassen</button
+          >
+        </fieldset>
+        <ul>
+          {#each a.dokumentbeziehungen as b}<li>
+              Version {b.vorher.version} → Version {b.nachher.version}: {b.grund}
+            </li>{/each}
+        </ul>
+      {:else if tab === "chronik"}<h3>Verfahrenschronik</h3>
+        <fieldset disabled={!darf}>
+          <label
+            >Ereignisdatum<input type="date" bind:value={notizDatum} /></label
+          ><label
+            >Ereignis / Berichtigung<textarea
+              maxlength="4000"
+              bind:value={notiz}
+            ></textarea></label
+          ><Dokumentfeld
+            {dateien}
+            bind:wert={notizBeleg}
+            label="Ereignisbeleg"
+          /><label
+            >Berichtigt früheren Eintrag<select bind:value={notizBerichtigt}
+              ><option value={null}>Keinen</option
+              >{#each a.ereignisse as e}<option value={e.id}
+                  >{e.datum} · {e.text}</option
+                >{/each}</select
+            ></label
+          ><button
+            type="button"
+            class="sekundaer"
+            disabled={!notiz.trim()}
+            onclick={() => {
+              a.ereignisse.push({
+                id: crypto.randomUUID(),
+                datum: notizDatum,
+                erfasst_am: new Date().toISOString(),
+                erfasst_von: benutzerId,
+                text: notiz,
+                beleg: notizBeleg,
+                berichtigt: notizBerichtigt,
+              });
+              notiz = "";
+            }}>Ereignis erfassen</button
+          >
+        </fieldset>
+        <table class="ergebnistabelle">
+          <thead
+            ><tr><th>Ereignisdatum</th><th>Erfasst</th><th>Ereignis</th></tr
+            ></thead
+          ><tbody
+            >{#each a.ereignisse as e}<tr
+                ><td>{e.datum}</td><td
+                  >{new Date(e.erfasst_am).toLocaleString("de-DE")}</td
+                ><td
+                  >{e.text}{a.ereignisse.some((n) => n.berichtigt === e.id)
+                    ? " (berichtigt)"
+                    : ""}</td
+                ></tr
+              >{/each}</tbody
+          >
+        </table>{/if}
+    {/key}
+  {/snippet}
+</Fachliste>
+
+<style>
+  .verfahren-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+  }
+  .verfahren-tabs .aktiv {
+    background: var(--accent);
+    color: white;
+  }
+  fieldset {
+    border: 0;
+    padding: 0.6rem 0;
+  }
+  nav + button {
+    margin-bottom: 1rem;
+  }
+</style>

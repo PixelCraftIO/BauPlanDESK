@@ -66,6 +66,8 @@ lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
 
 ## Projektdateien und Einreichungen
 
+[Verfahrensakte, Nachforderungen, genehmigte Stände und Bürosicherung](docs/verfahrensakte/README.md)
+
 [Dateiverwaltung und Einreichungschronik](docs/dateiverwaltung-einreichungen/README.md)
 ermöglichen das Öffnen von Projektdateien im zugeordneten Programm, die Übernahme
 externer Änderungen als neue Version und ZIP-Pakete mit festgehaltenen

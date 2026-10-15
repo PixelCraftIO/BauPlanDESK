@@ -351,7 +351,7 @@
     />
   </section>
   {#if druckBesucht}<section hidden={ansicht !== "druck"}>
-      <Druckausgabe projektId={projekt.id} />
+      <Druckausgabe projektId={projekt.id} darfAblegen={darf("bearbeitung")} />
     </section>{/if}
   {#if formulareBesucht}<section hidden={ansicht !== "formulare"}>
       <ProjektFormulare

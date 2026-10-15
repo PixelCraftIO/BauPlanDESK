@@ -14,6 +14,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjektArt {
+    Verfahren,
     Projektorganisation,
     Gebaeude,
     Aufgaben,
@@ -24,6 +25,7 @@ pub enum ObjektArt {
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
         match self {
+            Self::Verfahren => "verfahren",
             Self::Projektorganisation => "projektorganisation",
             Self::Gebaeude => "gebaeude",
             Self::Aufgaben => "aufgaben",
@@ -59,6 +61,10 @@ impl CoreServices {
         daten: serde_json::Value,
         wer: &Benutzer,
     ) -> CoreResult<Fachstand> {
+        if art == ObjektArt::Verfahren {
+            let a = serde_json::from_value(daten).map_err(json_err)?;
+            return self.verfahren_commit(p, id, basis, a, wer, false).await;
+        }
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         if basis < 0 {
             return Err(CoreError::InvalidInput("Ungültige Basisrevision".into()));

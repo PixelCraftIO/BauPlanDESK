@@ -12,8 +12,9 @@ const original=window.__TAURI_INTERNALS__.invoke,clone=v=>JSON.parse(JSON.string
 window.druckFail=false;window.druckDialoge=[];window.druckMode='stapel';window.saveTarget=null;
 window.print=()=>{window.druckDialoge.push([...document.querySelectorAll('#bau-druckbereich .druckseite')].map(s=>({breite:s.style.width,hoehe:s.style.height,bild:s.querySelector('img')?.complete})));};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
- if(!['druckkatalog','druckausgabe_erstellen','druckausgabe_exportieren','plugin:dialog|save'].includes(cmd))return original(cmd,args);
+ if(!['druckkatalog','druckausgabe_erstellen','druckausgabe_exportieren','druckausgabe_ablegen','plugin:dialog|save'].includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:clone(args)});
+ if(cmd==='druckausgabe_ablegen')return {file_name:'Berechnungen.pdf'};
  if(cmd==='druckkatalog')return clone(window.druckWorkflow.katalog);
  if(cmd==='druckausgabe_erstellen'){
    if(window.druckFail)throw {art:'konflikt',meldung:'Projekt wurde geändert. Auswahl aktualisieren.'};
@@ -44,6 +45,12 @@ with sync_playwright() as p:
     page.get_by_role('button',name='Druckausgabe erstellen',exact=False).click()
     expect(page.get_by_role('heading',name=f'Druckvorschau · {wf["seiten"]} Seiten')).to_be_visible(timeout=30000)
     page.wait_for_function("document.querySelector('canvas')?.width>0")
+    page.get_by_role('button',name='Als Projektunterlage ablegen',exact=True).click()
+    expect(page.get_by_role('status').filter(has_text='Im Projekt abgelegt: Berechnungen.pdf.')).to_be_visible()
+    page.get_by_role('button',name='Als Projektunterlage ablegen',exact=True).click()
+    stored=page.evaluate("window.calls.filter(c=>c.cmd==='druckausgabe_ablegen').map(c=>c.args)")
+    assert len(stored)==2 and stored[0]['vorgang']==stored[1]['vorgang']
+    assert stored[0]['pdfBase64']==wf['stapel']
     page.get_by_role('button',name='PDF speichern …',exact=True).click()
     assert not page.evaluate("window.calls.some(c=>c.cmd==='druckausgabe_exportieren')")
     page.evaluate("window.saveTarget='C:/Export/Bauantrag.pdf'")

@@ -18,6 +18,38 @@ async fn audit(c: &mut PgConnection, e: NeuerProtokolleintrag) -> CoreResult<()>
 }
 #[async_trait]
 impl CommitRepository for PostgresDatabase {
+    async fn bauantrag(
+        &self,
+        p: ProjectId,
+        daten: String,
+        basis: i64,
+        e: NeuerProtokolleintrag,
+    ) -> CoreResult<i64> {
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        let neu: Option<i64> = if basis == 0 {
+            sqlx::query_scalar("INSERT INTO bauantraege (project_id,daten,version,geaendert_von,geaendert_am) VALUES ($1,$2::jsonb,1,$3,$4) ON CONFLICT(project_id) DO NOTHING RETURNING version")
+            .bind(p.0).bind(&daten).bind(&e.benutzer_name).bind(e.zeit).fetch_optional(&mut *tx).await.map_err(db_err)?
+        } else {
+            sqlx::query_scalar("UPDATE bauantraege SET daten=$1::jsonb,version=version+1,geaendert_von=$2,geaendert_am=$3 WHERE project_id=$4 AND version=$5 RETURNING version")
+            .bind(&daten).bind(&e.benutzer_name).bind(e.zeit).bind(p.0).bind(basis).fetch_optional(&mut *tx).await.map_err(db_err)?
+        };
+        let Some(neu) = neu else {
+            let actual: Option<i64> =
+                sqlx::query_scalar("SELECT version FROM bauantraege WHERE project_id=$1")
+                    .bind(p.0)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+            return Err(CoreError::VersionConflict {
+                expected: basis,
+                actual: actual.unwrap_or(0),
+            });
+        };
+        audit(&mut tx, e).await?;
+        tx.commit().await.map_err(db_err)?;
+        Ok(neu)
+    }
+
     async fn projekt(
         &self,
         mut p: Project,

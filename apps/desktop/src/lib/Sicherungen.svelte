@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BueroSicherung from "./verfahren/BueroSicherung.svelte";
   import { onMount } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, type Benutzer } from "./api";
@@ -129,6 +130,7 @@
         onclick={wiederherstellen}>In neues Profil wiederherstellen …</button
       >
     </div>{/if}
+  {#if status && !status.lokal}<BueroSicherung darf={!!darf} />{/if}
   {#if wiederhergestellt}<button disabled={!darf || laeuft} onclick={aktivieren}
       >Wiederhergestelltes Profil nach Neustart verwenden</button
     >{/if}

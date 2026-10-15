@@ -11,11 +11,13 @@
     bereich,
     darf,
     children,
+    lesendBedienbar = false,
   }: {
     titel: string;
     s: FachSitzung<T>;
     bereich: Ansicht;
     darf: boolean;
+    lesendBedienbar?: boolean;
     children: Snippet<[T]>;
   } = $props();
   let verlauf = $state<Datensatz<T>[]>([]);
@@ -76,12 +78,13 @@
   >
 </table>
 {#if s.eingabe}<form
+    class:aktenformular={lesendBedienbar}
     onsubmit={async (e) => {
       e.preventDefault();
       await s.speichern();
     }}
   >
-    <fieldset disabled={!darf || s.laeuft}>
+    <fieldset disabled={(!darf && !lesendBedienbar) || s.laeuft}>
       <legend
         >{s.revision === 0 ? "Neuer Eintrag" : "Eintrag bearbeiten"}</legend
       >{@render children(s.eingabe)}
@@ -109,3 +112,23 @@
       >Verlauf schließen</button
     >
   </details>{/if}
+
+<style>
+  .aktenformular {
+    display: block;
+  }
+  .aktenformular > fieldset {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .aktenformular > .knoepfe {
+    margin-top: 1rem;
+  }
+  td > .link + .link {
+    margin-left: 0.75rem;
+  }
+</style>

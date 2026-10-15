@@ -61,3 +61,29 @@ pub async fn druckausgabe_exportieren(pdf_base64: String, ziel: PathBuf) -> Resu
         .map_err(|e| CoreError::Storage(e.to_string()))?;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn druckausgabe_ablegen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    name: String,
+    pdf_base64: String,
+    vorgang: uuid::Uuid,
+) -> Result<core_lib::domain::DocumentVersion, CmdError> {
+    if pdf_base64.len() > 180 * 1024 * 1024 {
+        return Err(CoreError::InvalidInput("PDF-Ausgabe zu groß".into()).into());
+    }
+    let b = STANDARD
+        .decode(pdf_base64)
+        .map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+    Ok(state
+        .core
+        .druckpdf_ablegen(
+            projekt_id,
+            &name,
+            bytes::Bytes::from(b),
+            vorgang,
+            &state.benutzer(),
+        )
+        .await?)
+}

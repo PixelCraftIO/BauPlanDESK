@@ -32,7 +32,7 @@ pub fn sicherungsstatus(state: State<'_, AppState>) -> Sicherungsstatus {
         hinweis: if matches!(state.config, AppConfig::Einzelplatz) {
             "Sichert Datenbank, sämtliche DMS-Versionen, Formularbibliothek und lokale Regeln/Einstellungen. Projektordner sind wiedererzeugbare Ausgaben. Lokale Arbeitskopien zuerst übernehmen."
         } else {
-            "Im Büro-/Servermodus müssen Datenbank und zentrale Dateiablage gemeinsam durch den Betreiber gesichert werden. Die lokale Cachekopie ist keine vollständige Bürosicherung."
+            "Im Büro-/Servermodus können PostgreSQL und eingebundene NAS-/Dateiablage gemeinsam gesichert und getrennt wiederhergestellt werden. S3 benötigt die zentrale Betreiber-Sicherung. Lokale Arbeitskopien zuvor übernehmen."
         },
     }
 }
@@ -153,11 +153,24 @@ pub async fn profil_aktivieren(
     pfad: PathBuf,
 ) -> Result<(), CmdError> {
     verwalten(&state).await?;
-    db_sqlite::SqliteDatabase::datei_pruefen(&pfad.join("bauprojekt.db")).await?;
     if !pfad.is_absolute() || !Path::new(&pfad).join("einstellungen/config.json").is_file() {
         return Err(
             CoreError::InvalidInput("Gültiges wiederhergestelltes Profil wählen".into()).into(),
         );
+    }
+    match AppConfig::load(&pfad.join("einstellungen")).map_err(CoreError::Storage)? {
+        AppConfig::Einzelplatz => {
+            db_sqlite::SqliteDatabase::datei_pruefen(&pfad.join("bauprojekt.db")).await?
+        }
+        AppConfig::Netzwerk { database_url, .. } => {
+            if !pfad.join("postgres.dump").is_file() {
+                return Err(
+                    CoreError::InvalidInput("Kein wiederhergestelltes Büroprofil".into()).into(),
+                );
+            }
+            let db = db_postgres::PostgresDatabase::connect(&database_url, 1).await?;
+            let _ = db.repositories().projects.list().await?;
+        }
     }
     let global = app
         .path()
@@ -183,4 +196,36 @@ pub async fn standardprofil_aktivieren(app: AppHandle) -> Result<(), CmdError> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(CoreError::Storage(e.to_string()).into()),
     }
+}
+
+#[tauri::command]
+pub async fn buero_sicherung_erstellen(
+    state: State<'_, AppState>,
+    ziel: PathBuf,
+) -> Result<Sicherungsmanifest, CmdError> {
+    verwalten(&state).await?;
+    let (url,root)=match &state.config {AppConfig::Netzwerk{database_url,storage:storage::StorageConfig::Nas{root}|storage::StorageConfig::Local{root},..}=>(database_url.clone(),root.clone()),_=>return Err(CoreError::InvalidInput("Bürosicherung benötigt PostgreSQL und eine eingebundene NAS-/Dateiablage. S3-Ablagen über die zentrale Betreiber-Sicherung sichern.".into()).into())};
+    let config = state.config_dir.clone();
+    let vorlagen = state.formularordner.read().await.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        storage::buero_sicherung::erstellen(&url, &root, &config, Some(&vorlagen), &ziel)
+    })
+    .await
+    .map_err(|e| CoreError::Storage(e.to_string()))?
+    .map_err(Into::into)
+}
+#[tauri::command]
+pub async fn buero_sicherung_wiederherstellen(
+    state: State<'_, AppState>,
+    pfad: PathBuf,
+    ziel: PathBuf,
+    database_url: String,
+) -> Result<PathBuf, CmdError> {
+    verwalten(&state).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        storage::buero_sicherung::wiederherstellen(&pfad, &ziel, &database_url)
+    })
+    .await
+    .map_err(|e| CoreError::Storage(e.to_string()))?
+    .map_err(Into::into)
 }

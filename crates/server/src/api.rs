@@ -71,6 +71,10 @@ fn routen(core: CoreServices) -> Router {
         .route("/sitzung", get(sitzung))
         .route("/dokumente/{id}/email/{version}", get(email_laden))
         .route(
+            "/dokumente/{id}/email/{version}/anhaenge/{index}",
+            post(email_anhang_ablegen),
+        )
+        .route(
             "/dokumentkategorien",
             get(kategorienkatalog).put(kategorienkatalog_speichern),
         )
@@ -117,6 +121,23 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/nachweise/{nachweis}/wiederholung",
             get(nachweis_wiederholen),
         )
+        .route("/projekte/{id}/verfahrensprofil", get(verfahrensprofil))
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/profil",
+            post(verfahren_profil),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/abgabe",
+            post(verfahren_abgabe),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/abgaben/{abgabe}/{format}",
+            get(verfahren_artefakt),
+        )
+        .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
+        .route("/projekte/{id}/aktensuche", get(verfahren_suche))
+        .route("/projekte/{id}/suchtext", post(suchtext_speichern))
+        .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
         .route("/projekte", get(list_projects).post(create_project))
         .route("/projekte/{id}", get(get_project).put(update_project))
         .route(
@@ -139,6 +160,10 @@ fn routen(core: CoreServices) -> Router {
         .route("/einreichungen/{id}/zip", get(einreichung_zip))
         .route("/projekte/{id}/druckkatalog", get(druckkatalog))
         .route("/projekte/{id}/druckausgabe", post(druckausgabe))
+        .route(
+            "/projekte/{id}/druckausgabe/unterlage",
+            post(druckausgabe_ablegen),
+        )
         .route("/projekte/{id}/projektordner", get(projektordner_plan))
         .route("/projekte/{id}/protokoll", get(protokoll))
         .route(
@@ -922,12 +947,40 @@ async fn email_laden(
         s.core.archivierte_email(DocumentId(id), version).await?,
     ))
 }
+async fn email_anhang_ablegen(
+    State(s): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((id, version, index)): Path<(Uuid, i64, usize)>,
+) -> ApiResult<core_lib::domain::DocumentVersion> {
+    Ok(Json(
+        s.core
+            .email_anhang_ablegen(DocumentId(id), version, index, &wer)
+            .await?,
+    ))
+}
 
 async fn druckkatalog(
     State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<core_lib::druckausgabe::Druckkatalog> {
     Ok(Json(core.druckkatalog(ProjectId(id)).await?))
+}
+#[derive(Deserialize)]
+struct Druckablage {
+    name: String,
+    vorgang: Uuid,
+}
+async fn druckausgabe_ablegen(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path(id): Path<Uuid>,
+    Query(w): Query<Druckablage>,
+    pdf: axum::body::Bytes,
+) -> ApiResult<core_lib::domain::DocumentVersion> {
+    Ok(Json(
+        core.druckpdf_ablegen(ProjectId(id), &w.name, pdf, w.vorgang, &wer)
+            .await?,
+    ))
 }
 async fn druckausgabe(
     State(ApiState { core }): State<ApiState>,
@@ -944,6 +997,115 @@ async fn druckausgabe(
             ),
         ],
         d.pdf,
+    )
+        .into_response())
+}
+
+async fn verfahrensprofil() -> ApiResult<core_lib::verfahren::profile::Anforderungskatalog> {
+    Ok(Json(
+        core_lib::verfahren::profile::Anforderungskatalog::standard()?,
+    ))
+}
+#[derive(Deserialize)]
+struct Profilwunsch {
+    basis: i64,
+    profil: core_lib::verfahren::profile::Vorhabenprofil,
+    katalog: core_lib::verfahren::profile::Anforderungskatalog,
+}
+async fn verfahren_profil(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<Profilwunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.verfahren_profil_anwenden(ProjectId(p), id, w.basis, w.profil, w.katalog, &wer)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct Abgabewunsch {
+    basis: i64,
+    wunsch: core_lib::verfahren::abgabe::Abgabewunsch,
+}
+async fn verfahren_abgabe(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<Abgabewunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.verfahren_abgabe_festhalten(ProjectId(p), id, w.basis, w.wunsch, &wer)
+            .await?,
+    ))
+}
+async fn verfahren_artefakt(
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id, abgabe, format)): Path<(Uuid, Uuid, Uuid, String)>,
+) -> Result<Response, ApiError> {
+    let (_, b) = core
+        .verfahren_artefakt(ProjectId(p), id, abgabe, &format)
+        .await?;
+    let typ = if format == "pdf" {
+        "application/pdf"
+    } else {
+        "application/zip"
+    };
+    Ok(([(axum::http::header::CONTENT_TYPE, typ)], b).into_response())
+}
+#[derive(Deserialize)]
+struct Erinnerungsfrage {
+    heute: chrono::NaiveDate,
+}
+async fn verfahren_erinnerungen(
+    State(ApiState { core }): State<ApiState>,
+    Path(p): Path<Uuid>,
+    Query(q): Query<Erinnerungsfrage>,
+) -> ApiResult<Vec<core_lib::verfahren::Erinnerung>> {
+    Ok(Json(
+        core.verfahren_erinnerungen(ProjectId(p), q.heute).await?,
+    ))
+}
+#[derive(Deserialize)]
+struct Aktenfrage {
+    suche: String,
+}
+async fn verfahren_suche(
+    State(ApiState { core }): State<ApiState>,
+    Path(p): Path<Uuid>,
+    Query(q): Query<Aktenfrage>,
+) -> ApiResult<Vec<core_lib::verfahren::suche::Suchtreffer>> {
+    Ok(Json(core.verfahren_suche(ProjectId(p), &q.suche).await?))
+}
+#[derive(Deserialize)]
+struct Indexwunsch {
+    dokument: core_lib::plattform::objekte::Dokumentbezug,
+    quelle: core_lib::verfahren::suche::Textquelle,
+    text: String,
+}
+async fn suchtext_speichern(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path(p): Path<Uuid>,
+    Json(w): Json<Indexwunsch>,
+) -> Result<StatusCode, ApiError> {
+    core.suchtext_speichern(ProjectId(p), w.dokument, w.quelle, w.text, &wer)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+async fn verfahren_aktenexport(
+    State(ApiState { core }): State<ApiState>,
+    Path(p): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "application/zip"),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=Projektakte.zip",
+            ),
+        ],
+        core.verfahren_aktenexport(ProjectId(p)).await?,
     )
         .into_response())
 }

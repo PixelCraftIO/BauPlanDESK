@@ -255,3 +255,50 @@ impl CoreServices {
         pdf::paket(&projekt.name, a, quellen, jetzt)
     }
 }
+
+impl CoreServices {
+    /// Übernimmt exakt die geprüfte Druckkopie als versionierte Projektunterlage.
+    /// Die Vorgangskennung verhindert eine zweite Datei nach einem Antwortverlust.
+    pub async fn druckpdf_ablegen(
+        &self,
+        p: ProjectId,
+        name: &str,
+        pdf: bytes::Bytes,
+        vorgang: uuid::Uuid,
+        wer: &crate::benutzer::Benutzer,
+    ) -> CoreResult<crate::domain::DocumentVersion> {
+        self.projekt_zugriff(p, wer, crate::zugriff::ProjektRecht::Bearbeiten)
+            .await?;
+        if pdf.len() > 128 * 1024 * 1024 || !pdf.starts_with(b"%PDF-") || name.len() > 400 {
+            return Err(fehler("Ungültige PDF-Ausgabe"));
+        }
+        let d = lopdf::Document::load_mem(&pdf).map_err(fehler)?;
+        if d.get_pages().is_empty() {
+            return Err(fehler("PDF-Ausgabe enthält keine Seiten"));
+        }
+        let k = self
+            .kategorienkatalog()
+            .await?
+            .kategorien
+            .iter()
+            .any(|k| k.id == "berechnung" && k.aktiv)
+            .then_some("berechnung");
+        self.ablegen_vorgang(
+            p,
+            None,
+            None,
+            &format!("{}.pdf", name.trim_end_matches(".pdf")),
+            pdf,
+            wer,
+            crate::domain::Aktion::DokumentAbgelegt,
+            "Druckkopie für Verfahrensunterlagen",
+            Some(vorgang),
+            vec![crate::commit::DokumentZusatz {
+                modul: "dokumentkategorie".into(),
+                schema_version: 1,
+                daten: serde_json::to_value(k).map_err(fehler)?,
+            }],
+        )
+        .await
+    }
+}

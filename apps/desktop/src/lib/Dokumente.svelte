@@ -768,6 +768,8 @@
     onclose={() => (email = null)}
     ><EmailAnsicht
       dokument={email}
+      darf={darfAblegen}
+      onimport={() => void laden()}
       onschliessen={() => (email = null)}
     /></Dialog
   >{/if}

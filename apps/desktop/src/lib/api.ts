@@ -954,6 +954,7 @@ export interface BibliothekMaske {
 }
 export const api = {
   emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
+  emailAnhangAblegen: (dokumentId: string, version: number, index: number) => invoke<DocumentVersion>("email_anhang_ablegen", { dokumentId, version, index }),
   kategorienkatalog: () =>
     invoke<import("./generated/plattform").KategorienKatalog>("kategorienkatalog"),
   kategorienkatalogSpeichern: (

@@ -14,10 +14,12 @@
   let {
     projektId,
     vorauswahl,
+    darfAblegen = false,
     onbusy,
   }: {
     projektId: string;
     vorauswahl?: Druckquelle;
+    darfAblegen?: boolean;
     onbusy?: (b: boolean) => void;
   } = $props();
   let katalog = $state<Druckkatalog | null>(null),
@@ -38,6 +40,7 @@
     seite = $state(1),
     fortschritt = $state("");
   let signatur = $state("");
+  let ablageVorgang = crypto.randomUUID();
   $effect(() => {
     onbusy?.(busy);
   });
@@ -161,9 +164,28 @@
       const a = auftrag();
       const p = await druckApi.erstellen(projektId, a);
       pdf = p;
+      ablageVorgang = crypto.randomUUID();
       signatur = JSON.stringify(a);
       seite = 1;
       meldung = `${p.seiten} Seiten zur Ausgabe bereit.`;
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      busy = false;
+    }
+  }
+  async function ablegen() {
+    if (!pdf || geaendert) return;
+    busy = true;
+    fehler = "";
+    try {
+      const d = await druckApi.ablegen(
+        projektId,
+        titel,
+        pdf.pdf_base64,
+        ablageVorgang,
+      );
+      meldung = `Im Projekt abgelegt: ${d.file_name}. In der Verfahrensakte können Sie diese Version dem Abgabestand zuordnen.`;
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -316,6 +338,11 @@
         Auswahl oder Texte geändert. Druckausgabe erneut erstellen.
       </p>{/if}
     <div class="aktionen">
+      {#if darfAblegen}<button
+          class="sekundaer"
+          disabled={busy || geaendert}
+          onclick={ablegen}>Als Projektunterlage ablegen</button
+        >{/if}
       <button disabled={busy || geaendert} onclick={drucken}>Drucken …</button
       ><button
         class="sekundaer"

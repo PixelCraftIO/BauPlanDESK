@@ -11,7 +11,7 @@ const wf=window.mailWorkflow;
 window.mailDocs=[clone(wf.eml1.dokument),clone(wf.eml2.dokument),clone(wf.msg.dokument)];
 window.mailKategorien=clone(wf.zuordnungen);window.mailFailKategorie=false;window.mailFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
- const handled=['kategorienkatalog','dokumentkategorien','dokumentkategorie_speichern','dokumente_auflisten','dokument_historie','email_laden','einreichungs_vergleich','fachobjekt_speichern'];
+ const handled=['kategorienkatalog','dokumentkategorien','dokumentkategorie_speichern','dokumente_auflisten','dokument_historie','email_laden','email_anhang_ablegen','einreichungs_vergleich','fachobjekt_speichern'];
  if(!handled.includes(cmd))return base(cmd,args);
  window.calls.push({cmd,args:clone(args)});
  switch(cmd){
@@ -26,6 +26,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  case 'fachobjekt_speichern':if(window.mailMetaFail)throw {art:'eingabe',meldung:'Dokumentangaben konnten nicht gespeichert werden'};return {projekt_id:args.projektId,modul:args.art,objekt:args.id,schema_version:1,revision:args.basis+1,daten:clone(args.daten)};
  case 'dokumente_auflisten':return clone(window.mailDocs);
  case 'dokument_historie':return clone(window.mailDocs.filter(d=>d.document_id===args.dokumentId));
+ case 'email_anhang_ablegen':return clone(wf.anhaenge[args.dokumentId===wf.msg.dokument.document_id?1:0]);
  case 'email_laden':{
    if(window.mailFail)throw {art:'eingabe',meldung:'Die E-Mail konnte nicht gelesen werden. Das Original bleibt erhalten.'};
    const data=args.dokumentId===wf.msg.dokument.document_id?wf.msg:args.version===1?wf.eml1:wf.eml2;
@@ -100,6 +101,10 @@ with sync_playwright() as p:
     expect(mail.get_by_role('table',name='E-Mail-Anhänge').get_by_role('cell',name='Lageplan.pdf',exact=True)).to_be_visible()
     mail.get_by_label('E-Mail-Version',exact=True).select_option('1')
     expect(mail.get_by_role('heading',name='Bauantrag Musterstrasse',exact=True)).to_be_visible()
+    mail.get_by_role('button',name='Als Projektunterlage übernehmen',exact=True).click()
+    expect(mail.get_by_role('status').filter(has_text='Lageplan.pdf im Projekt gespeichert.')).to_be_visible()
+    imported=page.evaluate("window.calls.find(c=>c.cmd==='email_anhang_ablegen').args")
+    assert imported['dokumentId']==wf['eml1']['dokument']['document_id'] and imported['version']==1 and imported['index']==0
     page.screenshot(path=str(out/'01-eml.png'))
     # Eine ältere Anfrage darf die danach ausgewählte Version nicht ersetzen.
     mail.get_by_label('E-Mail-Version',exact=True).select_option('2')

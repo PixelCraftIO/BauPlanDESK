@@ -35,7 +35,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["time", "process", "io-util"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 whoami = "1.6"
