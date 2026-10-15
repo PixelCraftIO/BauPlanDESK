@@ -101,17 +101,19 @@ async fn fakten_ohne_grundbuch_berechnung_getrennt_und_aenderungen_sperren_alte_
     assert!(p.planungsrecht.baugrundstuecke.is_none());
     assert!(p.planungsrecht.baugrundstuecksermittlung.is_none());
     assert!(core.grundstueckskontext(p.id).await.is_err()); // Keine alte Gesamtfläche als Ersatz.
-    assert!(
+    assert_eq!(
         plan(&p.planungsrecht)
             .unwrap()
             .unwrap()
             .gruppen(true)
-            .unwrap_err()
-            .to_string()
-            .contains("ungeklärt")
+            .unwrap()
+            .len(),
+        1
     );
     let mut recht = p.planungsrecht.clone();
-    recht.baugrundstuecksermittlung = Some(ansatz());
+    let mut ohne_grundbuch = ansatz();
+    ohne_grundbuch.ansaetze[0].abweichende_zuordnung = None;
+    recht.baugrundstuecksermittlung = Some(ohne_grundbuch);
     let p = core
         .projekt_bereich_speichern(
             p.clone(),

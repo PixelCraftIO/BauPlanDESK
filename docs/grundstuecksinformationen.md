@@ -18,11 +18,17 @@ und zugeordnete Gemeinschaftsanteile angesetzt. Die Flurstücksfläche wird dabe
 nicht verändert. GRZ, GFZ und Formulare erhalten die maßgebenden Bezugsflächen je
 Baugrundstück, niemals eine stillschweigend zusammengezählte Katasterfläche.
 
-Fehlende Grundbuchangaben werden bei der Erfassung zugelassen. Die Ermittlung
-verlangt entweder die vollständige Grundbuchzuordnung oder eine ausdrücklich
-begründete besondere Zuordnung. Eine gleiche laufende Nummer genügt nicht ohne
-Bezirk und Grundbuchblatt. Unbekannte Zuordnungen werden nicht automatisch zu
-einem gemeinsamen Baugrundstück zusammengefasst.
+Grundbuchangaben sind auch für die Berechnung optional. Ohne vollständige
+Grundbuchzuordnung wird jedes Flurstück als eigene Berechnungseinheit angesetzt.
+Ein einzelnes Flurstück kann damit unmittelbar berechnet werden. Mehrere
+Flurstücke werden niemals allein wegen gleicher fehlender Angaben summiert.
+Vollständige Angaben mit gleichem Bezirk, Blatt und laufender Nummer bilden eine
+gemeinsame Einheit; unterschiedliche Zuordnungen ergeben getrennte Einheiten.
+Eine ausdrückliche gemeinsame Zuordnung ist über dieselbe besondere Kennung mit
+Grundlage möglich. Die Grundbuchzuordnung beeinflusst damit die Gruppierung und
+die Anzahl der nachgelagerten Nutzungsberechnungen, nicht die grundsätzliche
+Berechenbarkeit. Ein einzelner Ansatz ohne Grundbuch ist keine Bestätigung einer
+grundbuchrechtlichen Einheit.
 
 Nach Änderungen an Grundstücksinformationen muss die Ermittlung erneut geprüft
 und mit **Eingaben speichern** bestätigt werden. Bis dahin wird keine alte

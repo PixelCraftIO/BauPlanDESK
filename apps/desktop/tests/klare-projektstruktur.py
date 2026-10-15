@@ -30,7 +30,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  case 'formular_analysieren':return {dokument:window.projectDocs.at(-1),felder:fields,vorlage:null,vorschlag:{}};
  case 'pdf_vorschau':return {dokument:window.projectDocs.at(-1),pdf_base64:window.sourcePdf,seiten,felder:fields};
  case 'formular_im_projekt_speichern':{const d={...window.projectDocs.at(-1),version:args.basis+1};window.projectDocs.push(d);return structuredClone(d);}
- case 'baugrundstuecke_ermitteln':if(args.plan.flurstuecke.some(f=>!f.abweichende_zuordnung&&(!f.grundbuchbezirk||!f.grundbuchblatt||!f.laufende_nummer)))throw {art:'validierung',meldung:'Baugrundstückszuordnung noch ungeklärt'};return args.plan.flurstuecke.length?[{schluessel:'grundbuch-unit',bezeichnung:'Zuordnung A',flurstueck_ids:args.plan.flurstuecke.map(f=>f.id),eigentumsflaeche_m2:900,abzuege_m2:0,bauland_m2:900}]:[];
+ case 'baugrundstuecke_ermitteln':return args.plan.flurstuecke.length?[{schluessel:'grundbuch-unit',bezeichnung:'Flurstück einzeln angesetzt',flurstueck_ids:args.plan.flurstuecke.map(f=>f.id),eigentumsflaeche_m2:900,abzuege_m2:0,bauland_m2:900}]:[];
  case 'plugin:dialog|save':throw {art:'test',meldung:'Unexpected save dialog'};
  case 'plugin:dialog|open':return window.cancelFolder?null:'C:\\\\BauProjektIO\\\\NeueProjekte';
  case 'plugin:dialog|message':return args.buttons?.OkCancelCustom?.[0]??'Yes';
@@ -85,13 +85,8 @@ with sync_playwright() as p:
  expect(section().get_by_role('button',name='Flurstück hinzufügen',exact=True)).to_have_count(0)
  expect(section().get_by_label('Flurstücknummer',exact=True)).to_have_count(0)
  section().get_by_role('button',name='Baugrundstücke ermitteln',exact=True).click()
- expect(section().get_by_role('alert')).to_contain_text('noch ungeklärt')
- section().locator('details > summary').first.click()
- section().get_by_text('Abweichende rechtliche Grundstückszuordnung',exact=True).click()
- section().get_by_role('button',name='Besondere Zuordnung erfassen',exact=True).click()
- section().get_by_label('Zuordnungskennung',exact=True).fill('A')
- section().get_by_label('Rechtliche Grundlage',exact=True).fill('Geprüfte rechtliche Zuordnung')
- section().get_by_role('button',name='Baugrundstücke ermitteln',exact=True).click()
+ expect(section().get_by_role('alert')).to_have_count(0)
+ assert all(f['abweichende_zuordnung'] is None and not f['grundbuchblatt'] for f in page.evaluate("window.calls.filter(c=>c.cmd==='baugrundstuecke_ermitteln').at(-1).args.plan.flurstuecke"))
  expect(section().get_by_role('cell',name='900 m²',exact=True)).to_have_count(4)
  page.screenshot(path=str(out/'01-baugrundstueck.png'))
  section().get_by_role('button',name='Eingaben speichern',exact=True).click()
@@ -109,7 +104,7 @@ with sync_playwright() as p:
  section().get_by_label('Bezeichnung',exact=True).fill('Erdgeschoss')
  view('GRZ');expect(section().get_by_label('Bezeichnung',exact=True)).to_have_value('Wohnhaus')
  view('Flurstücke und Grundbuch');expect(section().get_by_label('Flurstücknummer',exact=True)).to_have_value('123/4')
- checks.append('Flurstücksfakten ohne Grundbuch speichern; getrennte Ermittlung mit expliziter Zuordnung; gemeinsame Eingaben für GRZ/GFZ')
+ checks.append('Flurstücksfakten ohne Grundbuch speichern; getrennte Ermittlung ohne Grundbuchpflicht; gemeinsame Eingaben für GRZ/GFZ')
  view('Formulare')
  section().get_by_role('button',name='Ausfüllen',exact=True).click()
  dialog=page.get_by_role('dialog')

@@ -326,15 +326,9 @@ mod tests {
             f.laufende_nummer = None;
         }
         infos.validate().unwrap();
-        assert!(
-            plan(&p)
-                .unwrap()
-                .unwrap()
-                .gruppen(true)
-                .unwrap_err()
-                .to_string()
-                .contains("ungeklärt")
-        );
+        let gruppen = plan(&p).unwrap().unwrap().gruppen(true).unwrap();
+        assert_eq!(gruppen.len(), 3);
+        assert!(gruppen.iter().all(|g| g.flurstueck_ids.len() == 1));
         for a in &mut p.baugrundstuecksermittlung.as_mut().unwrap().ansaetze {
             a.abweichende_zuordnung = Some(AbweichendeZuordnung {
                 kennung: a.flurstueck_id.clone(),
