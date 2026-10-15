@@ -74,6 +74,16 @@
   }
   function ergebniszeilen(wert: JsonValue): { name: string; wert: string }[] {
     if (!wert || Array.isArray(wert) || typeof wert !== "object") return [];
+    if (typeof wert.rechenstand === "string" && Array.isArray(wert.waende))
+      return wert.waende
+        .filter((w) => w && typeof w === "object" && !Array.isArray(w))
+        .map((w) => {
+          const a = w as Record<string, JsonValue>;
+          return {
+            name: String(a.bezeichnung ?? "Wand"),
+            wert: `H ${String(a.h_m ?? "—")} m · Tiefe ${String(a.tiefe_m ?? "—")} m · ${String(a.status ?? "offen")}`,
+          };
+        });
     const ergebnis = wert.ergebnis;
     if (
       ergebnis &&
