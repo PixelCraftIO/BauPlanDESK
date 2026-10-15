@@ -1,3 +1,5 @@
+import type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
+export type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
 // Typisierte Hülle um die Tauri-Commands. Das Frontend rechnet nichts selbst;
 // alle Fachlogik liegt in core-lib (Rust).
 import { invoke } from "@tauri-apps/api/core";
@@ -109,6 +111,7 @@ export interface Protokolleintrag {
 
 export const AKTIONEN: Record<string, string> = {
   projekt_angelegt: "Projekt angelegt",
+  ausgabeauftrag_geaendert: "Ordnerausgabe aktualisiert",
   projekt_geaendert: "Projektdaten geändert",
   dokument_abgelegt: "Dokument abgelegt",
   dokument_gesperrt: "Dokument gesperrt",
@@ -436,18 +439,6 @@ export interface Festsetzungen {
   geschossigkeit: "maximal" | "zwingend";
 }
 
-export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
-export type Anrechnung = "grz" | "grz_ii" | "keine";
-export type Bauteiltyp =
-  | "hauptanlage"
-  | "terrasse_hauptanlage"
-  | "garage"
-  | "stellplatz"
-  | "zufahrt"
-  | "nebenanlage14"
-  | "unterirdisch"
-  | "balkon_loggia"
-  | "terrasse_nebenanlage";
 export interface Bauteil {
   bezeichnung: string;
   typ: Bauteiltyp;
@@ -844,6 +835,11 @@ export interface PdfVorschauDaten {
   seiten: PdfSeite[];
   felder: Formularfeld[];
 }
+export interface Sicherungsmanifest {
+  schema_version: number;
+  erstellt_unix: number;
+  dateien: { name: string; sha256: string; bytes: number }[];
+}
 export interface AblageStatus {
   modus: string;
   root: string | null;
@@ -877,8 +873,17 @@ export interface Arbeitskopie {
   pfad: string;
   geaendert: boolean;
 }
+export interface PaketPruefstand {
+  schema_version: number;
+  ermittelt_am: string;
+  nicht_enthaltene_pflichtunterlagen: string[];
+  ungepruefte_unterlagen: string[];
+  hinweise: string[];
+  nachweise: import("./generated/plattform").NachweisAnsicht[];
+}
 export interface Einreichung {
   stand: {
+    pruefstand?: PaketPruefstand | null;
     id: string;
     projekt_id: string;
     titel: string;
@@ -942,6 +947,26 @@ export const api = {
     invoke<Project>("projekt_bereich_speichern", { basis, bereich, aenderung }),
   grundstueckskontext: (projektId: string) =>
     invoke<GrundstueckKontext[]>("grundstueckskontext", { projektId }),
+  ausgabeauftraege: (projektId: string) =>
+    invoke<import("./generated/plattform").Ausgabeauftrag[]>(
+      "ausgabeauftraege",
+      { projektId },
+    ),
+  ausgabeWiederholen: (projektId: string, id: string) =>
+    invoke<DocumentVersion>("ausgabe_wiederholen", { projektId, id }),
+  sicherungsstatus: () =>
+    invoke<{ lokal: boolean; profil: string; hinweis: string }>(
+      "sicherungsstatus",
+    ),
+  sicherungErstellen: (ziel: string) =>
+    invoke<Sicherungsmanifest>("sicherung_erstellen", { ziel }),
+  sicherungPruefen: (pfad: string) =>
+    invoke<Sicherungsmanifest>("sicherung_pruefen", { pfad }),
+  sicherungWiederherstellen: (pfad: string, ziel: string) =>
+    invoke<string>("sicherung_wiederherstellen", { pfad, ziel }),
+  profilAktivieren: (pfad: string) =>
+    invoke<void>("profil_aktivieren", { pfad }),
+  standardprofilAktivieren: () => invoke<void>("standardprofil_aktivieren"),
   projektordnerStatus: () => invoke<string>("projektordner_status"),
   projektordnerWaehlen: (pfad: string) =>
     invoke<void>("projektordner_waehlen", { pfad }),
@@ -1004,8 +1029,14 @@ export const api = {
       projektId,
       empfaenger,
     }),
-  einreichungErstellen: (projektId: string, paket: NeuesPaket) =>
-    invoke<Einreichung>("einreichung_erstellen", { projektId, paket }),
+  paketPruefstand: (projektId: string, dokumente: NeuesPaket["dokumente"]) =>
+    invoke<PaketPruefstand>("paket_pruefstand", { projektId, dokumente }),
+  einreichungErstellen: (
+    projektId: string,
+    paket: NeuesPaket,
+    vorgang?: string,
+  ) =>
+    invoke<Einreichung>("einreichung_erstellen", { projektId, paket, vorgang }),
   einreichungBestaetigen: (
     id: string,
     basis: number,

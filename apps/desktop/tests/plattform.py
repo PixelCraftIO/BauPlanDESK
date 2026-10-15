@@ -7,8 +7,16 @@ fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='
 out=Path(os.environ.get('BAUPROJEKT_UI_ARTEFAKTE',str(root.parents[2]/'docs/plattform-umsetzung/screenshots')));out.mkdir(parents=True,exist_ok=True)
 custom=r'''
 const original=window.__TAURI_INTERNALS__.invoke;
-window.failFeature=false;
+window.failFeature=false;window.cancelBackup=true;
+window.sicherungsManifest={schema_version:1,erstellt_unix:0,dateien:[{name:'bauprojekt.db',sha256:'a'.repeat(64),bytes:100}]};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ if(cmd==='formularbibliothek')return {root:'/tmp/Formulare',vorlagen:[]};
+ if(cmd==='projektordner_status')return '/tmp/Projekte';
+ if(cmd==='plugin:dialog|save'){window.calls.push({cmd,args});return window.cancelBackup?null:'/tmp/sicherung.zip';}
+ if(cmd==='plugin:dialog|open'){window.calls.push({cmd,args});return args.options?.directory?'/tmp/Profile':'/tmp/sicherung.zip';}
+ if(['sicherung_erstellen','sicherung_pruefen'].includes(cmd)){window.calls.push({cmd,args});return window.sicherungsManifest;}
+ if(cmd==='sicherung_wiederherstellen'){window.calls.push({cmd,args});return args.ziel;}
+ if(['profil_aktivieren','standardprofil_aktivieren'].includes(cmd)){window.calls.push({cmd,args});return;}
  if(cmd==='dokumente_auflisten')return [{document_id:'43216955-c69e-4373-87eb-b3251f26964c',project_id:args.projektId,version:1,file_name:'Grundriss.pdf',storage_key:'test/grundriss.pdf',sha256:'a'.repeat(64),size_bytes:100,created_by:'Test',created_at:window.fixture.created_at}];
  if(!['fachobjekte','fachverlauf','fachobjekt_speichern','raumbuch_summen'].includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:JSON.parse(JSON.stringify(args))});
@@ -74,6 +82,18 @@ with sync_playwright() as p:
     dialog.get_by_role('button',name='Schließen',exact=True).click()
     page.wait_for_function("window.calls.some(c=>c.cmd==='fachobjekt_speichern'&&c.args.art==='dokumentdaten'&&c.args.daten.plannummer==='A-101')")
     assert not page.evaluate("window.calls.some(c=>c.cmd==='projekt_aktualisieren')")
+    page.get_by_role('complementary',name='Arbeitsbereiche').get_by_role('button',name='Einstellungen',exact=True).click()
+    page.get_by_role('button',name='Sicherung erstellen …',exact=True).click()
+    assert not page.evaluate("window.calls.some(c=>c.cmd==='sicherung_erstellen')")
+    page.evaluate('window.cancelBackup=false')
+    page.get_by_role('button',name='Sicherung erstellen …',exact=True).click()
+    expect(page.get_by_role('status').filter(has_text='Sicherung erstellt und geprüft')).to_be_visible()
+    page.get_by_role('button',name='In neues Profil wiederherstellen …',exact=True).click()
+    expect(page.get_by_role('status').filter(has_text='Wiederhergestellt und geprüft')).to_be_visible()
+    assert not page.evaluate("window.calls.some(c=>c.cmd==='profil_aktivieren')")
+    page.get_by_role('button',name='Wiederhergestelltes Profil nach Neustart verwenden',exact=True).click()
+    page.wait_for_function("window.calls.some(c=>c.cmd==='profil_aktivieren')")
+    page.screenshot(path=str(out/'sicherungen.png'))
     assert not errors,errors
     browser.close()
-print('Plattform: Gebäude, Geschosse, Entwurfsrettung, Konflikterhalt und Raumbuch geprüft.')
+print('Plattform: Fachmodule, Entwurfsrettung, Dokumentangaben und getrennte Sicherungs-/Profilabläufe geprüft.')

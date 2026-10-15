@@ -11,6 +11,7 @@ mod lizenzdienst;
 mod menu;
 mod plattform;
 mod projektordner;
+mod sicherungen;
 mod updater;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -47,6 +48,7 @@ fn main() {
             app.manage(updater::PendingUpdate::default());
             menu::install(app.handle())?;
             updater::check_in_background(app.handle().clone());
+            projektordner::hintergrund(app.handle().clone());
             lizenz_melden(app.handle().clone());
             Ok(())
         })
@@ -64,6 +66,14 @@ fn main() {
             plattform::nachweis_wiederholen,
             plattform::raumbuch_summen,
             projektordner::projektordner_status,
+            sicherungen::sicherungsstatus,
+            sicherungen::sicherung_erstellen,
+            sicherungen::sicherung_pruefen,
+            sicherungen::sicherung_wiederherstellen,
+            sicherungen::profil_aktivieren,
+            sicherungen::standardprofil_aktivieren,
+            projektordner::ausgabeauftraege,
+            projektordner::ausgabe_wiederholen,
             projektordner::projektordner_waehlen,
             commands::baugrundstuecke_ermitteln,
             dateien::dokument_extern_oeffnen,
@@ -71,6 +81,7 @@ fn main() {
             einreichungen::einreichungen,
             einreichungen::einreichungs_vergleich,
             einreichungen::einreichung_erstellen,
+            einreichungen::paket_pruefstand,
             einreichungen::einreichung_bestaetigen,
             einreichungen::einreichung_exportieren,
             dateien::arbeitskopie_oeffnen,

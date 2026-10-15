@@ -101,7 +101,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let zugangspfad=std::env::var("BAUPROJEKT_ZUGANGSDATEI").map(PathBuf::from).map_err(|_|"BAUPROJEKT_ZUGANGSDATEI fehlt. Der Projektserver startet ohne konfigurierte Anmeldung nicht.")?;
     let raw = tokio::fs::read(&zugangspfad).await?;
     let z: api::zugang::Zugaenge = serde_json::from_slice(&raw)?;
-    if z.schema_version != 1 || z.zugaenge.is_empty() {
+    z.pruefen()?;
+    if z.zugaenge.is_empty() {
         return Err("Gültige Zugangsliste mit mindestens einem Benutzer erforderlich".into());
     }
     // Technisches Konto nur für interne Migration, niemals als HTTP-Identität.

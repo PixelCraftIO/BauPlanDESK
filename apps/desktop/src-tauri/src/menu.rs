@@ -312,7 +312,10 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     }
     app.set_menu(menu)?;
 
-    let zuletzt_pfad = app.path().app_config_dir()?.join("zuletzt.json");
+    let zuletzt_pfad = app
+        .state::<crate::bootstrap::AppState>()
+        .config_dir
+        .join("zuletzt.json");
     let zuletzt = ZuletztListe::laden(&zuletzt_pfad);
     fuelle_zuletzt(app, &zuletzt_menu, &zuletzt)?;
 

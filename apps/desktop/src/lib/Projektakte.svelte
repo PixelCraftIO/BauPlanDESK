@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Projektorganisation from "./Projektorganisation.svelte";
   import Projektstatus from "./Projektstatus.svelte";
   import { FACHMODULE } from "./fachmodule/register";
   import { projektEditoren } from "./editoren";
@@ -252,6 +253,11 @@
         >Rechtsgrundlagen …</button
       >
     </div>
+    <Projektorganisation
+      projektId={projekt.id}
+      benutzerId={ich?.id ?? ""}
+      darf={darf("bearbeitung")}
+    />
     <Rechtsgrundlagen
       bind:this={stammdatenEditor}
       {projekt}

@@ -19,6 +19,8 @@ use crate::lizenzdienst::{self, HttpLizenzdienst};
 
 pub struct AppState {
     pub core: CoreServices,
+    pub config_dir: std::path::PathBuf,
+    pub data_dir: std::path::PathBuf,
     /// Angemeldeter Benutzer (Betriebssystem-Anmeldung). Wird neu gelesen,
     /// wenn ein Administrator ihn ändert.
     pub benutzer: RwLock<Benutzer>,
@@ -46,8 +48,8 @@ type BoxError = Box<dyn std::error::Error>;
 
 pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     let paths = app.path();
-    let config_dir = paths.app_config_dir()?;
-    let data_dir = paths.app_data_dir()?;
+    let (config_dir, data_dir) =
+        crate::config::profil_pfade(&paths.app_config_dir()?, &paths.app_data_dir()?)?;
     let cache_dir = paths.app_cache_dir()?;
     std::fs::create_dir_all(&config_dir)?;
     std::fs::create_dir_all(&data_dir)?;
@@ -162,6 +164,8 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     tracing::info!(%arbeitsplatz, zustand = ?lizenz.zustand, "Lizenz geprüft");
     Ok(AppState {
         core,
+        config_dir,
+        data_dir,
         benutzer: RwLock::new(benutzer),
         arbeitsplatz,
         config,

@@ -136,8 +136,12 @@ impl CoreServices {
     /// Rolle prüfen und, für Änderungen an Projekten und Dokumenten, ob die
     /// Lizenz Schreiben erlaubt. Benutzerverwaltung und Lizenz einspielen
     /// bleiben auch ohne gültige Lizenz möglich, sonst käme man nie heraus.
-    pub(crate) async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
+    pub async fn berechtigung_pruefen(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
         wer.pruefe(recht)?;
+        self.repos.benutzer.get(wer.id).await?.pruefe(recht)
+    }
+    pub(crate) async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
+        self.berechtigung_pruefen(wer, recht).await?;
         let status = self.license.status().await?;
         if !status.schreiben_erlaubt {
             return Err(CoreError::License(status.meldung));
@@ -156,7 +160,8 @@ impl CoreServices {
         datei: &[u8],
         wer: &Benutzer,
     ) -> CoreResult<Lizenzstatus> {
-        wer.pruefe(Recht::LizenzVerwalten)?;
+        self.berechtigung_pruefen(wer, Recht::LizenzVerwalten)
+            .await?;
         let status = self.license.einspielen(datei).await?;
         self.lizenz_protokollieren(wer, &status, "").await?;
         Ok(status)
@@ -170,7 +175,8 @@ impl CoreServices {
         lizenzschluessel: &str,
         wer: &Benutzer,
     ) -> CoreResult<Lizenzstatus> {
-        wer.pruefe(Recht::LizenzVerwalten)?;
+        self.berechtigung_pruefen(wer, Recht::LizenzVerwalten)
+            .await?;
         let status = self.license.abo_aktivieren(lizenzschluessel).await?;
         self.lizenz_protokollieren(wer, &status, "Abo, ").await?;
         Ok(status)
@@ -185,7 +191,8 @@ impl CoreServices {
     /// Gibt den Platz dieses Rechners beim Lizenzserver frei (nur
     /// Administratoren), z. B. vor einem Rechnerwechsel.
     pub async fn abo_abmelden(&self, wer: &Benutzer) -> CoreResult<Lizenzstatus> {
-        wer.pruefe(Recht::LizenzVerwalten)?;
+        self.berechtigung_pruefen(wer, Recht::LizenzVerwalten)
+            .await?;
         self.license.abo_abmelden().await
     }
 
@@ -270,8 +277,8 @@ impl CoreServices {
         Ok(neu)
     }
 
-    /// Technisches Konto für Server-Prozesse, bis der Server eine eigene
-    /// Anmeldung hat. Zählt nicht als Administrator für [`Self::anmelden`].
+    /// Technisches Konto ausschließlich für interne Migrationen und Wartung.
+    /// Keine HTTP-Identität; zählt nicht als Administrator für [`Self::anmelden`].
     pub async fn systembenutzer(&self) -> CoreResult<Benutzer> {
         if let Some(b) = self.repos.benutzer.by_anmeldename(SYSTEM).await? {
             return Ok(b);
@@ -295,7 +302,8 @@ impl CoreServices {
         neu: NeuerBenutzer,
         wer: &Benutzer,
     ) -> CoreResult<Benutzer> {
-        wer.pruefe(Recht::BenutzerVerwalten)?;
+        self.berechtigung_pruefen(wer, Recht::BenutzerVerwalten)
+            .await?;
         let neu = NeuerBenutzer {
             anmeldename: benutzer::anmeldename_normalisieren(&neu.anmeldename)?,
             anzeigename: neu.anzeigename.trim().to_string(),
@@ -326,7 +334,8 @@ impl CoreServices {
         aenderung: BenutzerAenderung,
         wer: &Benutzer,
     ) -> CoreResult<Benutzer> {
-        wer.pruefe(Recht::BenutzerVerwalten)?;
+        self.berechtigung_pruefen(wer, Recht::BenutzerVerwalten)
+            .await?;
         if aenderung.anzeigename.trim().is_empty() {
             return Err(CoreError::InvalidInput("Anzeigename fehlt".into()));
         }

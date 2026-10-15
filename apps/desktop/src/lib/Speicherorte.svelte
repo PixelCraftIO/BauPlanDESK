@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Sicherungen from "./Sicherungen.svelte";
+  let sicherungen = $state<Sicherungen>();
   import { onMount } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, type Benutzer } from "./api";
@@ -9,7 +11,7 @@
     fehler = $state<string | null>(null),
     hinweis = $state<string | null>(null);
   export function istBeschaeftigt() {
-    return laeuft;
+    return laeuft || !!sicherungen?.istBeschaeftigt();
   }
   async function laden() {
     try {
@@ -92,6 +94,8 @@
     als neue Version importiert.
   </p>
 </section>
+
+<Sicherungen bind:this={sicherungen} {ich} />
 
 <style>
   .speicherort {

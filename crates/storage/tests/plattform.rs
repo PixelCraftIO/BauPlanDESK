@@ -198,6 +198,20 @@ async fn nachweisarchiv_bleibt_bei_regelupdate_reproduzierbar() {
             .await
             .is_err()
     );
+    assert!(
+        core.nachweis_erstellen(
+            p.id,
+            uuid::Uuid::new_v4(),
+            "GRZ ohne Flurstücke".into(),
+            core_lib::plattform::nachweise::NachweisEingabe::Nutzung {
+                fach: core_lib::plattform::nachweise::NutzungsArt::Grz,
+                plan: Default::default()
+            },
+            &user
+        )
+        .await
+        .is_err()
+    );
 }
 #[tokio::test]
 async fn gebaeude_raumbuch_und_historie_verwenden_dieselbe_identitaet() {
@@ -367,4 +381,209 @@ async fn checkliste_ist_wiederholbar_und_status_erkennt_neue_dokumentversion() {
         .unwrap();
     assert_eq!(stand.daten["vorlage"]["version"], "1.0");
     assert_eq!(stand.daten["dokument"]["version"], 1);
+}
+
+#[tokio::test]
+async fn ausgabeauftrag_ueberlebt_neustart_und_verwirft_veraltete_bestaetigung() {
+    use core_lib::{
+        domain::{Aktion, NeuerProtokolleintrag},
+        plattform::ausgabe::AusgabeStatus,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let dbpath = dir.path().join("projekt.db");
+    let db = db_sqlite::SqliteDatabase::open(&dbpath).await.unwrap();
+    let ablage = Arc::new(storage::LocalStorage::new(dir.path().join("DMS"), "test").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        ablage.clone(),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("ausgabe", "Planer").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Ausgabe".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let d = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Antrag.pdf",
+            bytes::Bytes::from_static(b"Original"),
+            &user,
+        )
+        .await
+        .unwrap();
+    assert!(
+        core.repos
+            .commit
+            .dokumentzusatz(d.document_id, 1, "ausgabeereignis")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let (f, a) = core
+        .ausgabe_beanspruchen(
+            &d,
+            "Ziel".into(),
+            "Projekt/Dokumente/Antrag.pdf".into(),
+            false,
+            &user,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        core.ausgabe_beanspruchen(&d, "Ziel".into(), a.relativer_pfad.clone(), true, &user)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    // Simuliert eine abgelaufene Bearbeitungsfrist nach Prozessabbruch, ohne reale Wartezeit.
+    let mut abgelaufen = a.clone();
+    abgelaufen.beansprucht_bis =
+        (std::time::SystemTime::now() - std::time::Duration::from_secs(60)).into();
+    let mut neu = f.clone();
+    neu.daten = serde_json::to_value(abgelaufen).unwrap();
+    core.repos
+        .commit
+        .fachstand(
+            neu,
+            f.revision,
+            NeuerProtokolleintrag {
+                zeit: d.created_at,
+                benutzer_id: user.id,
+                benutzer_name: user.anzeigename.clone(),
+                aktion: Aktion::AusgabeauftragGeaendert,
+                project_id: Some(p.id),
+                document_id: Some(d.document_id),
+                details: "Test: Prozessabbruch".into(),
+            },
+        )
+        .await
+        .unwrap();
+    drop(core);
+    drop(db);
+    let db = db_sqlite::SqliteDatabase::open(&dbpath).await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        ablage,
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let (f2, a2) = core
+        .ausgabe_beanspruchen(&d, "Ziel".into(), a.relativer_pfad.clone(), false, &user)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(a2.versuche, 2);
+    assert!(matches!(
+        core.ausgabe_abschliessen(f, a.clone(), None, &user).await,
+        Err(CoreError::VersionConflict { .. })
+    ));
+    core.ausgabe_abschliessen(
+        f2,
+        a2,
+        Some("Freigabe vorübergehend nicht erreichbar".into()),
+        &user,
+    )
+    .await
+    .unwrap();
+    assert!(
+        core.ausgabe_beanspruchen(&d, "Ziel".into(), a.relativer_pfad.clone(), false, &user)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let (f3, a3) = core
+        .ausgabe_beanspruchen(&d, "Ziel".into(), a.relativer_pfad, true, &user)
+        .await
+        .unwrap()
+        .unwrap();
+    core.ausgabe_abschliessen(f3, a3, None, &user)
+        .await
+        .unwrap();
+    let liste = core.ausgabeauftraege(p.id).await.unwrap();
+    assert_eq!(liste.len(), 1);
+    assert_eq!(liste[0].1.status, AusgabeStatus::Fertig);
+    assert_eq!(liste[0].1.versuche, 3);
+    assert_eq!(core.list_documents(p.id).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn geoeffneter_arbeitsplatz_kann_entzogene_adminrechte_nicht_weiterverwenden() {
+    use core_lib::benutzer::{BenutzerAenderung, NeuerBenutzer, Rolle};
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().to_path_buf(), "test").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let alt = core.anmelden("erster", "Erster Admin").await.unwrap();
+    let admin = core
+        .benutzer_anlegen(
+            NeuerBenutzer {
+                anmeldename: "zweiter".into(),
+                anzeigename: "Zweiter Admin".into(),
+                rolle: Rolle::Administrator,
+            },
+            &alt,
+        )
+        .await
+        .unwrap();
+    core.benutzer_aendern(
+        BenutzerAenderung {
+            id: alt.id,
+            anzeigename: alt.anzeigename.clone(),
+            rolle: Rolle::Lesen,
+            aktiv: true,
+        },
+        &admin,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(
+        core.create_project(
+            NewProject {
+                name: "Nicht erlaubt".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default()
+            },
+            &alt
+        )
+        .await,
+        Err(CoreError::Forbidden(_))
+    ));
+    assert!(matches!(
+        core.benutzer_anlegen(
+            NeuerBenutzer {
+                anmeldename: "unberechtigt".into(),
+                anzeigename: "Nicht erlaubt".into(),
+                rolle: Rolle::Administrator
+            },
+            &alt
+        )
+        .await,
+        Err(CoreError::Forbidden(_))
+    ));
+    assert!(
+        core.repos
+            .benutzer
+            .by_anmeldename("unberechtigt")
+            .await
+            .unwrap()
+            .is_none()
+    );
 }

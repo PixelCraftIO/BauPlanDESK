@@ -4,6 +4,24 @@ use crate::{
     domain::{DocumentId, Project},
 };
 use chrono::NaiveDate;
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Projektphase {
+    Vorbereitung,
+    Vorplanung,
+    Entwurf,
+    Genehmigung,
+    Ausfuehrung,
+    Abgeschlossen,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Projektorganisation {
+    pub kennzeichen: String,
+    pub phase: Projektphase,
+    pub verantwortlich: Option<BenutzerId>,
+    pub beschreibung: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Dokumentbezug {
@@ -157,6 +175,22 @@ pub(super) async fn validieren(
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
+        ObjektArt::Projektorganisation => {
+            let o: Projektorganisation = serde_json::from_value(daten).map_err(json_err)?;
+            if o.kennzeichen.len() > 120 || o.beschreibung.len() > 10000 {
+                return Err(CoreError::InvalidInput(
+                    "Projektorganisation: Texte sind zu lang".into(),
+                ));
+            }
+            if let Some(id) = o.verantwortlich
+                && !core.repos.benutzer.get(id).await?.aktiv
+            {
+                return Err(CoreError::InvalidInput(
+                    "Projektverantwortlicher ist inaktiv".into(),
+                ));
+            }
+            serde_json::to_value(o)
+        }
         ObjektArt::Gebaeude => {
             let g: Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
             text(&g.bezeichnung, 500)?;
@@ -222,7 +256,8 @@ pub(super) async fn validieren(
                 ));
             }
             if u.status == UnterlagenStatus::Freigegeben {
-                wer.pruefe(Recht::ProjektAnlegen)?;
+                core.berechtigung_pruefen(wer, Recht::ProjektAnlegen)
+                    .await?;
             }
             serde_json::to_value(u)
         }

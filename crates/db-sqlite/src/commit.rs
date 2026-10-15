@@ -152,8 +152,23 @@ impl CommitRepository for SqliteDatabase {
                 .map_err(db_err)?
                 .rows_affected()
         } else {
-            sqlx::query("INSERT INTO einreichungen (id,project_id,version,created_at,payload) VALUES (?,?,?,?,?)").bind(uid(p.stand.id)).bind(uid(p.stand.projekt_id.0)).bind(p.version).bind(p.stand.erstellt_am.to_rfc3339()).bind(&payload).execute(&mut *tx).await.map_err(db_err)?.rows_affected()
+            sqlx::query("INSERT INTO einreichungen (id,project_id,version,created_at,payload) VALUES (?,?,?,?,?) ON CONFLICT (id) DO NOTHING").bind(uid(p.stand.id)).bind(uid(p.stand.projekt_id.0)).bind(p.version).bind(p.stand.erstellt_am.to_rfc3339()).bind(&payload).execute(&mut *tx).await.map_err(db_err)?.rows_affected()
         };
+        if count == 0 && basis.is_none() {
+            let raw: String = sqlx::query_scalar("SELECT payload FROM einreichungen WHERE id=?")
+                .bind(uid(p.stand.id))
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db_err)?;
+            let alt: Einreichung = serde_json::from_str(&raw).map_err(json_err)?;
+            if core_lib::einreichung::gleicher_auftrag(&alt.stand, &p.stand) {
+                tx.commit().await.map_err(db_err)?;
+                return Ok(alt);
+            }
+            return Err(CoreError::InvalidInput(
+                "Vorgangskennung wurde für ein anderes Paket verwendet".into(),
+            ));
+        }
         if count != 1 {
             let actual: Option<i64> =
                 sqlx::query_scalar("SELECT version FROM einreichungen WHERE id=?")

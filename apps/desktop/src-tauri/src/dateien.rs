@@ -10,11 +10,7 @@ use storage::arbeitskopie::{self, Arbeitskopie};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 fn root(app: &AppHandle) -> Result<PathBuf, CmdError> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .map_err(|e| CoreError::Storage(e.to_string()))?
-        .join("Arbeitskopien"))
+    Ok(app.state::<AppState>().data_dir.join("Arbeitskopien"))
 }
 fn starten(pfad: &Path) -> Result<(), CoreError> {
     #[cfg(target_os = "windows")]
@@ -135,7 +131,10 @@ pub async fn arbeitskopie_uebernehmen(
     state: State<'_, AppState>,
     id: Uuid,
 ) -> Result<crate::projektordner::ProjektDokument, CmdError> {
-    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
     let copy = arbeitskopie::laden(&root(&app)?, id).await?;
     if !copy.geaendert {
         return Err(CoreError::InvalidInput("Arbeitskopie ist unverändert".into()).into());

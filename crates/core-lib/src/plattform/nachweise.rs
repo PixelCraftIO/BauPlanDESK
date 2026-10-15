@@ -70,7 +70,7 @@ pub struct Freigabe {
     pub freigegeben_von: Uuid,
     pub bemerkung: String,
 }
-#[derive(Debug, Serialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct NachweisAnsicht {
     pub stand: Nachweisstand,
     pub aktuell: bool,
@@ -150,19 +150,20 @@ fn auswerten(
         }
         NachweisEingabe::Nutzung { fach, plan } => {
             let r = plan.pruefe(&p.planungsrecht, p.version)?;
-            let voll = r.baugrundstuecke.iter().all(|g| match fach {
-                NutzungsArt::Grz => g
-                    .pruefung
-                    .aufstellung
-                    .as_ref()
-                    .is_some_and(|a| a.bauteile_vorhanden),
-                NutzungsArt::Gfz | NutzungsArt::Geschossigkeit => g
-                    .pruefung
-                    .aufstellung
-                    .as_ref()
-                    .is_some_and(|a| a.geschosse_vorhanden),
-                NutzungsArt::Bmz => g.pruefung.kennzahlen.bmz.is_some(),
-            });
+            let voll = !r.baugrundstuecke.is_empty()
+                && r.baugrundstuecke.iter().all(|g| match fach {
+                    NutzungsArt::Grz => g
+                        .pruefung
+                        .aufstellung
+                        .as_ref()
+                        .is_some_and(|a| a.bauteile_vorhanden),
+                    NutzungsArt::Gfz | NutzungsArt::Geschossigkeit => g
+                        .pruefung
+                        .aufstellung
+                        .as_ref()
+                        .is_some_and(|a| a.geschosse_vorhanden),
+                    NutzungsArt::Bmz => g.pruefung.kennzahlen.bmz.is_some(),
+                });
             Ok((serde_json::to_value(r).map_err(json_err)?, voll))
         }
     }

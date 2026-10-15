@@ -31,6 +31,20 @@ pub struct Zugaenge {
     pub schema_version: u32,
     pub zugaenge: Vec<Zugang>,
 }
+impl Zugaenge {
+    pub fn pruefen(&self) -> Result<(), String> {
+        if self.schema_version != 1 || self.zugaenge.len() > 100000 {
+            return Err("Unbekanntes oder zu großes Zugangsformat".into());
+        }
+        let mut hashes = std::collections::HashSet::new();
+        for z in &self.zugaenge {
+            if !hashes.insert(&z.token_sha256) {
+                return Err("Ein Zugangstoken darf nur einmal zugeordnet sein".into());
+            }
+        }
+        Ok(())
+    }
+}
 #[derive(Clone)]
 pub enum ZugangQuelle {
     Datei(PathBuf),
@@ -50,9 +64,7 @@ impl ZugangQuelle {
                 }
                 let raw = tokio::fs::read(p).await.map_err(|_| ())?;
                 let z: Zugaenge = serde_json::from_slice(&raw).map_err(|_| ())?;
-                if z.schema_version != 1 {
-                    return Err(());
-                }
+                z.pruefen().map_err(|_| ())?;
                 Ok(z)
             }
         }
@@ -92,13 +104,16 @@ async fn anmelden(s: &ZugangState, header: Option<String>) -> Result<Benutzer, S
         .get(z.benutzer_id)
         .await
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
-    if !b.aktiv {
+    if !b.aktiv || b.anmeldename == "system" {
         return Err(StatusCode::UNAUTHORIZED);
     }
     Ok(b)
 }
 async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Response {
     if r.uri().path() == "/health" {
+        if s.quelle.laden().await.is_err() {
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
         return next.run(r).await;
     }
     let header = r

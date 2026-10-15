@@ -1,5 +1,6 @@
 //! Fachmodule mit eigenen Schemas, Revisionen und öffentlichen Anwendungsfällen.
 pub mod ablauf;
+pub mod ausgabe;
 pub mod nachweise;
 pub mod objekte;
 use crate::{
@@ -13,6 +14,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjektArt {
+    Projektorganisation,
     Gebaeude,
     Aufgaben,
     Unterlagen,
@@ -22,6 +24,7 @@ pub enum ObjektArt {
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
         match self {
+            Self::Projektorganisation => "projektorganisation",
             Self::Gebaeude => "gebaeude",
             Self::Aufgaben => "aufgaben",
             Self::Unterlagen => "unterlagen",
@@ -65,6 +68,11 @@ impl CoreServices {
             return Err(CoreError::InvalidInput("Fachdatensatz ist zu groß".into()));
         }
         let daten = objekte::validieren(self, &projekt, art, daten, wer).await?;
+        if art == ObjektArt::Projektorganisation && id != p.0 {
+            return Err(CoreError::InvalidInput(
+                "Projektorganisation benötigt die Identität des Projekts".into(),
+            ));
+        }
         if art == ObjektArt::Dokumentdaten {
             let d: objekte::Dokumentdaten =
                 serde_json::from_value(daten.clone()).map_err(json_err)?;

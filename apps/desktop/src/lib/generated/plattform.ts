@@ -1,6 +1,9 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, Planungsrecht } from '../api';
 export type Baugebiet = "WS" | "WR" | "WA" | "WB" | "MD" | "MDW" | "MI" | "MU" | "MK" | "GE" | "GI" | "SO";
+export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
+export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";
+export type Anrechnung = "grz" | "grz_ii" | "keine";
 export type AbstandsflaecheInput = {
 /**
  * Wandhöhe H in m (Geländeoberfläche bis Schnittpunkt Wand/Dachhaut)
@@ -14,7 +17,11 @@ export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in
 export type Fachstand = { projekt_id: ProjectId, modul: string, objekt: string, schema_version: number, revision: number, daten: JsonValue, };
 export type ProjektRecht = "kein" | "lesen" | "bearbeiten" | "leitung";
 export type ProjektMitglied = { benutzer_id: BenutzerId, recht: ProjektRecht, };
-export type ObjektArt = "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch";
+export type AusgabeStatus = "laeuft" | "fertig" | "fehler";
+export type Ausgabeauftrag = { id: string, dokument_id: DocumentId, dokument_version: number, ziel_root: string, relativer_pfad: string, sha256: string, status: AusgabeStatus, versuche: number, beansprucht_bis: string, versuch_id: string, naechster_versuch: string, fehler: string | null, aktualisiert_am: string, };
+export type ObjektArt = "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch";
+export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
+export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
 export type Gebaeude = { bezeichnung: string, grundstueck_ids: Array<string>, geschosse: Array<GebaeudeGeschoss>, quelle: Dokumentbezug | null, };
 export type GebaeudeGeschoss = { id: string, bezeichnung: string, vollgeschoss: boolean | null, grundlage: string, };

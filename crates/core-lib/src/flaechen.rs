@@ -2,7 +2,7 @@
 use crate::{CoreError, CoreResult, calc::MassDerNutzung};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub enum BauNvo {
     #[serde(rename = "1962")]
     V1962,
@@ -22,6 +22,7 @@ impl BauNvo {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(ts_rs::TS)]
 pub enum Bauteiltyp {
     Hauptanlage,
     TerrasseHauptanlage,
@@ -35,6 +36,7 @@ pub enum Bauteiltyp {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(ts_rs::TS)]
 pub enum Anrechnung {
     Grz,
     GrzIi,
@@ -324,7 +326,16 @@ impl FlaechenAufstellung {
                 "Bei mehreren Gebäuden alle Geschosse einem Gebäude zuordnen".into(),
             ));
         }
+        let mut geschoss_ids = std::collections::HashSet::new();
         for g in &self.geschosse {
+            if let Some(id) = &g.geschoss_id
+                && (g.gebaeude_id.is_none() || !geschoss_ids.insert((g.gebaeude_id.as_deref(), id)))
+            {
+                return Err(CoreError::InvalidInput(
+                    "Ein zugeordnetes Geschoss darf je Baugrundstück nur einmal erfasst werden"
+                        .into(),
+                ));
+            }
             let gebaeude = g.gebaeude_id.as_deref().unwrap_or("Bestandsgebäude");
             if gebaeude.trim().is_empty() || gebaeude.len() > 120 {
                 return Err(CoreError::InvalidInput(
@@ -450,6 +461,9 @@ mod tests {
         assert_eq!(r.vollgeschosse, 2);
         assert_eq!(r.vollgeschosse_je_gebaeude.len(), 2);
         assert_eq!(r.mass.geschossflaeche_m2, 400.);
+        let mut doppelt = a.clone();
+        doppelt.geschosse.push(doppelt.geschosse[0].clone());
+        assert!(doppelt.berechne(500., None).is_err());
         // Teilweise Gebäudezuordnung verschleiert keine weitere Einheit.
         a.geschosse[0].gebaeude_id = None;
         assert!(a.berechne(500., None).is_err());

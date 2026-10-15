@@ -34,6 +34,7 @@ async fn paket_persistenz_und_atomare_bestaetigung() {
         .unwrap();
     let e = Einreichung {
         stand: PaketStand {
+            pruefstand: None,
             id: Uuid::new_v4(),
             projekt_id: p.id,
             titel: "Bauantrag".into(),

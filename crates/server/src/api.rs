@@ -71,6 +71,10 @@ fn routen(core: CoreServices) -> Router {
         .route("/sitzung", get(sitzung))
         .route("/projekte/{id}/status", get(projektstatus))
         .route(
+            "/projekte/{id}/paketpruefung",
+            axum::routing::post(paket_pruefstand),
+        )
+        .route(
             "/projekte/{id}/checkliste",
             axum::routing::post(checkliste_anwenden),
         )
@@ -156,7 +160,12 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/berechnung/baugrenzen", post(baugrenzen_pruefen));
     Router::new()
-        .route("/health", get(bereitschaft))
+        .route(
+            "/health",
+            get(bereitschaft).layer(Extension(std::sync::Arc::new(tokio::sync::Mutex::new(
+                None::<(std::time::Instant, bool, bool)>,
+            )))),
+        )
         .nest("/api", api.clone())
         .nest("/api/v1", api)
         .with_state(ApiState { core })
@@ -589,16 +598,22 @@ async fn einreichungsvergleich(
             .await?,
     ))
 }
+#[derive(Deserialize)]
+struct PaketRequest {
+    #[serde(flatten)]
+    paket: core_lib::einreichung::NeuesPaket,
+    vorgang: Option<Uuid>,
+}
 async fn einreichung_erstellen(
     Extension(akteur): Extension<Benutzer>,
     State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
-    Json(p): Json<core_lib::einreichung::NeuesPaket>,
+    Json(p): Json<PaketRequest>,
 ) -> Result<(StatusCode, Json<core_lib::einreichung::Einreichung>), ApiError> {
     Ok((
         StatusCode::CREATED,
         Json(
-            core.einreichung_erstellen(ProjectId(id), p, &akteur)
+            core.einreichung_erstellen_vorgang(ProjectId(id), p.paket, p.vorgang, &akteur)
                 .await?,
         ),
     ))
@@ -750,15 +765,38 @@ async fn nachweis_wiederholen(
 async fn sitzung(Extension(b): Extension<Benutzer>) -> Json<Benutzer> {
     Json(b)
 }
-async fn bereitschaft(State(ApiState { core }): State<ApiState>) -> Response {
-    match core.repos.lizenz.einstellung("bereitschaft").await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(serde_json::json!({"datenbank":"bereit","speicher":"separat zu prüfen"})),
-        )
-            .into_response(),
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+type GesundheitsCache =
+    std::sync::Arc<tokio::sync::Mutex<Option<(std::time::Instant, bool, bool)>>>;
+async fn bereitschaft(
+    State(ApiState { core }): State<ApiState>,
+    Extension(cache): Extension<GesundheitsCache>,
+) -> Response {
+    let mut stand = cache.lock().await;
+    if stand
+        .as_ref()
+        .is_none_or(|(zeit, _, _)| zeit.elapsed() > std::time::Duration::from_secs(30))
+    {
+        let datenbank = core.repos.lizenz.einstellung("bereitschaft").await.is_ok();
+        let speicher = async {
+            let key = core_lib::storage::StorageKey::new(format!(
+                "system/gesundheit/{}",
+                Uuid::new_v4()
+            ))?;
+            let data = axum::body::Bytes::from_static(b"BauProjektIO Speicherpruefung");
+            let hash = core_lib::storage::ContentHash::of(&data);
+            core.storage.save(&key, data).await?;
+            let pruefung = core.storage.load_verified(&key, &hash).await;
+            let loeschen = core.storage.delete(&key).await;
+            pruefung?;
+            loeschen?;
+            Ok::<_, core_lib::CoreError>(())
+        }
+        .await
+        .is_ok();
+        *stand = Some((std::time::Instant::now(), datenbank, speicher));
     }
+    let (_, db, speicher) = stand.as_ref().expect("Gesundheitsprüfung wurde ausgeführt");
+    (if *db&&*speicher {StatusCode::OK}else{StatusCode::SERVICE_UNAVAILABLE},Json(serde_json::json!({"datenbank":if *db{"bereit"}else{"nicht_bereit"},"speicher":if *speicher{"bereit"}else{"nicht_bereit"},"pruefung":"Lesen und Schreiben, Cache höchstens 30 Sekunden"}))).into_response()
 }
 async fn mitglieder(
     Extension(b): Extension<Benutzer>,
@@ -799,5 +837,15 @@ async fn checkliste_anwenden(
     Ok(Json(
         core.checkliste_anwenden(ProjectId(id), vorlage, &wer)
             .await?,
+    ))
+}
+
+async fn paket_pruefstand(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(dokumente): Json<Vec<core_lib::einreichung::DokumentAuswahl>>,
+) -> ApiResult<core_lib::einreichung::PaketPruefstand> {
+    Ok(Json(
+        core.paket_pruefstand(ProjectId(id), &dokumente).await?,
     ))
 }

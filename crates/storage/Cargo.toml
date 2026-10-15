@@ -12,6 +12,8 @@ default = ["s3"]
 s3 = ["dep:object_store", "dep:futures"]
 
 [dependencies]
+sha2.workspace = true
+zip.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
 core-lib.workspace = true
@@ -24,7 +26,6 @@ uuid.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-zip.workspace = true
 lopdf.workspace = true
 db-sqlite.workspace = true
 core-lib = { workspace = true, features = ["testdaten"] }

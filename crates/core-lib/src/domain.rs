@@ -320,6 +320,7 @@ pub struct DocumentLock {
 #[serde(rename_all = "snake_case")]
 pub enum Aktion {
     ProjektAngelegt,
+    AusgabeauftragGeaendert,
     ProjektGeaendert,
     DokumentAbgelegt,
     DokumentGesperrt,
@@ -340,8 +341,9 @@ pub enum Aktion {
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 18] = [
+    const ALLE: [Aktion; 19] = [
         Self::ProjektAngelegt,
+        Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
         Self::DokumentAbgelegt,
         Self::DokumentGesperrt,
@@ -363,6 +365,7 @@ impl Aktion {
 
     pub fn code(self) -> &'static str {
         match self {
+            Self::AusgabeauftragGeaendert => "ausgabeauftrag_geaendert",
             Self::ProjektAngelegt => "projekt_angelegt",
             Self::ProjektGeaendert => "projekt_geaendert",
             Self::DokumentAbgelegt => "dokument_abgelegt",

@@ -69,6 +69,7 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
     let path = dir.path().join("zugaenge.json");
     std::fs::write(&path, serde_json::to_vec(&zugang).unwrap()).unwrap();
     let app = api::zugang::gesichert(core.clone(), api::zugang::ZugangQuelle::Datei(path.clone()));
+    assert_eq!(status(&app, "/health", false).await, StatusCode::OK);
     assert_eq!(
         status(&app, "/api/projekte", false).await,
         StatusCode::UNAUTHORIZED
@@ -148,5 +149,12 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
     assert_eq!(
         status(&app, "/api/projekte", true).await,
         StatusCode::UNAUTHORIZED
+    );
+    std::fs::remove_dir_all(dir.path().join("dateien")).unwrap();
+    std::fs::write(dir.path().join("dateien"), b"Ausfall").unwrap();
+    let unbereit = api::zugang::gesichert(core, api::zugang::ZugangQuelle::Datei(path));
+    assert_eq!(
+        status(&unbereit, "/health", false).await,
+        StatusCode::SERVICE_UNAVAILABLE
     );
 }

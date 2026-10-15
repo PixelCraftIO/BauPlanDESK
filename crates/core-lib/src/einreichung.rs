@@ -26,6 +26,8 @@ pub struct NeuesPaket {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaketStand {
+    #[serde(default)]
+    pub pruefstand: Option<PaketPruefstand>,
     pub id: Uuid,
     pub projekt_id: ProjectId,
     pub titel: String,
@@ -33,6 +35,29 @@ pub struct PaketStand {
     pub erstellt_am: DateTime<Utc>,
     pub erstellt_von: String,
     pub dokumente: Vec<DocumentVersion>,
+}
+/// Der Paketstand enthält die tatsächlich gelesenen Fachrevisionen. Er wird nie aus Live-Daten nachgebaut.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaketPruefstand {
+    pub schema_version: u32,
+    pub ermittelt_am: DateTime<Utc>,
+    pub unterlagen: Vec<crate::commit::Fachstand>,
+    pub nachweise: Vec<crate::plattform::nachweise::NachweisAnsicht>,
+    pub nicht_enthaltene_pflichtunterlagen: Vec<String>,
+    pub ungepruefte_unterlagen: Vec<String>,
+    pub hinweise: Vec<String>,
+}
+/// Technische Wiederholung desselben Pakets: Zeitstempel und ZIP-Dateiname sind kein neuer Auftrag.
+pub fn gleicher_auftrag(a: &PaketStand, b: &PaketStand) -> bool {
+    a.projekt_id == b.projekt_id
+        && a.titel == b.titel
+        && a.empfaenger == b.empfaenger
+        && a.erstellt_von == b.erstellt_von
+        && a.dokumente.len() == b.dokumente.len()
+        && a.dokumente
+            .iter()
+            .zip(&b.dokumente)
+            .all(|(a, b)| a.document_id == b.document_id && a.version == b.version)
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EinreichungsBestaetigung {

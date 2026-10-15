@@ -13,6 +13,9 @@ fn main() {
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
         core_lib::calc::Baugebiet,
+        core_lib::flaechen::BauNvo,
+        core_lib::flaechen::Bauteiltyp,
+        core_lib::flaechen::Anrechnung,
         core_lib::lbo::AbstandsflaecheInput,
         ProjectId,
         DocumentId,
@@ -22,7 +25,11 @@ fn main() {
         Fachstand,
         core_lib::zugriff::ProjektRecht,
         core_lib::zugriff::ProjektMitglied,
+        core_lib::plattform::ausgabe::AusgabeStatus,
+        core_lib::plattform::ausgabe::Ausgabeauftrag,
         ObjektArt,
+        Projektphase,
+        Projektorganisation,
         Dokumentbezug,
         Gebaeude,
         GebaeudeGeschoss,

@@ -7,6 +7,7 @@ pub mod arbeitskopie;
 pub mod formularbibliothek;
 mod local;
 pub mod projekt_export;
+pub mod sicherung;
 mod wechselbar;
 pub use wechselbar::WechselbareAblage;
 #[cfg(feature = "s3")]

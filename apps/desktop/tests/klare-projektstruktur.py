@@ -100,12 +100,12 @@ with sync_playwright() as p:
  assert page.evaluate('window.calls.filter(c=>c.cmd==="plugin:dialog|save").length')==0
  assert page.evaluate('window.calls.find(c=>c.cmd==="bibliothek_formular_speichern").args.projektId')==fixture['id']
  view('Projektdateien')
- expect(section().locator('.ergebnistabelle tbody tr')).to_have_count(1)
+ expect(section().get_by_role('table',name='Projektdateien',exact=True).locator('tbody tr')).to_have_count(1)
  section().get_by_role('button',name='Formular bearbeiten',exact=True).click()
  page.get_by_role('dialog').get_by_label('Vorname',exact=True).fill('Daniel korrigiert')
  page.get_by_role('dialog').get_by_role('button',name='Im Projekt speichern',exact=True).click()
  expect(page.get_by_role('dialog')).to_have_count(0)
- expect(section().locator('.ergebnistabelle tbody tr')).to_have_count(1)
+ expect(section().get_by_role('table',name='Projektdateien',exact=True).locator('tbody tr')).to_have_count(1)
  assert page.evaluate('window.projectDocs.at(-1).version')==2
  checks.append('Projektvorlage ohne leere Zwischenkopie; erneutes Ausfüllen erhält Dokumentidentität; kein Exportdialog')
  nav.get_by_role('button',name='Einstellungen',exact=True).click()

@@ -26,9 +26,44 @@ impl CoreServices {
         input: NeuesPaket,
         wer: &Benutzer,
     ) -> CoreResult<Einreichung> {
+        self.einreichung_erstellen_vorgang(projekt, input, None, wer)
+            .await
+    }
+    pub async fn einreichung_erstellen_vorgang(
+        &self,
+        projekt: ProjectId,
+        input: NeuesPaket,
+        vorgang: Option<Uuid>,
+        wer: &Benutzer,
+    ) -> CoreResult<Einreichung> {
         self.pruefe(wer, Recht::DokumentAblegen).await?;
         self.repos.projects.get(projekt).await?;
         pruefen(&input)?;
+        let id = vorgang
+            .map(|v| Uuid::new_v5(&projekt.0, format!("einreichung/{v}").as_bytes()))
+            .unwrap_or_else(Uuid::new_v4);
+        match self.repos.einreichungen.laden(id).await {
+            Ok(e) => {
+                if e.stand.projekt_id == projekt
+                    && e.stand.titel == input.titel.trim()
+                    && e.stand.empfaenger == input.empfaenger.trim()
+                    && e.stand.erstellt_von == wer.anzeigename
+                    && e.stand.dokumente.len() == input.dokumente.len()
+                    && e.stand
+                        .dokumente
+                        .iter()
+                        .zip(&input.dokumente)
+                        .all(|(a, b)| a.document_id == b.dokument_id && a.version == b.version)
+                {
+                    return Ok(e);
+                }
+                return Err(CoreError::InvalidInput(
+                    "Vorgangskennung gehört bereits zu einem anderen Paket".into(),
+                ));
+            }
+            Err(CoreError::NotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
         let mut dokumente = Vec::new();
         let mut inhalte = Vec::new();
         let mut bytes = 0u64;
@@ -57,7 +92,8 @@ impl CoreServices {
             inhalte.push(data.to_vec());
         }
         let stand = PaketStand {
-            id: Uuid::new_v4(),
+            id,
+            pruefstand: Some(self.paket_pruefstand(projekt, &input.dokumente).await?),
             projekt_id: projekt,
             titel: input.titel.trim().into(),
             empfaenger: input.empfaenger.trim().into(),
@@ -66,7 +102,11 @@ impl CoreServices {
             dokumente,
         };
         let zip = packen(&stand, &inhalte)?;
-        let key = StorageKey::new(format!("projekte/{projekt}/einreichungen/{}.zip", stand.id))?;
+        let key = StorageKey::new(format!(
+            "projekte/{projekt}/einreichungen/{}/{}.zip",
+            stand.id,
+            Uuid::new_v4()
+        ))?;
         let meta = self.storage.save(&key, Bytes::from(zip)).await?;
         let paket = Einreichung {
             stand,
@@ -89,12 +129,70 @@ impl CoreServices {
             ),
         );
         match self.repos.commit.einreichung(paket, None, audit).await {
-            Ok(p) => Ok(p),
+            Ok(p) => {
+                if p.zip_key != key.to_string() {
+                    let _ = self.storage.delete(&key).await;
+                }
+                Ok(p)
+            }
             Err(e) => {
                 let _ = self.storage.delete(&key).await;
                 Err(e)
             }
         }
+    }
+
+    pub async fn paket_pruefstand(
+        &self,
+        p: ProjectId,
+        auswahl: &[DokumentAuswahl],
+    ) -> CoreResult<PaketPruefstand> {
+        use crate::plattform::{
+            ObjektArt,
+            objekte::{Unterlage, UnterlagenStatus},
+        };
+        let unterlagen = self.fachobjekte(p, ObjektArt::Unterlagen).await?;
+        let mut s = PaketPruefstand {
+            schema_version: 1,
+            ermittelt_am: Utc::now(),
+            unterlagen: unterlagen.clone(),
+            nachweise: vec![],
+            nicht_enthaltene_pflichtunterlagen: vec![],
+            ungepruefte_unterlagen: vec![],
+            hinweise: vec![],
+        };
+        if unterlagen.is_empty() {
+            s.hinweise.push("Keine Unterlagenanforderungen erfasst. Die Vollständigkeit ist damit nicht geprüft.".into());
+        }
+        for f in &unterlagen {
+            match serde_json::from_value::<Unterlage>(f.daten.clone()) {
+                Ok(u) => {
+                    let enthalten = u.dokument.as_ref().is_some_and(|d| {
+                        auswahl
+                            .iter()
+                            .any(|a| a.dokument_id == d.dokument_id && a.version == d.version)
+                    });
+                    if u.erforderlich && !enthalten {
+                        s.nicht_enthaltene_pflichtunterlagen
+                            .push(u.bezeichnung.clone());
+                    }
+                    if enthalten && u.status != UnterlagenStatus::Freigegeben {
+                        s.ungepruefte_unterlagen.push(u.bezeichnung);
+                    }
+                }
+                Err(e) => s.hinweise.push(format!(
+                    "Unterlagenstand {} konnte nicht bewertet werden: {e}",
+                    f.objekt
+                )),
+            }
+        }
+        match self.nachweise(p).await {
+            Ok(n) => s.nachweise = n,
+            Err(e) => s.hinweise.push(format!(
+                "Nachweisaktualität konnte nicht ermittelt werden: {e}"
+            )),
+        }
+        Ok(s)
     }
 
     pub async fn einreichung_bestaetigen(

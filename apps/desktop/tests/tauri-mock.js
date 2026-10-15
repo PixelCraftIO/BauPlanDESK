@@ -59,6 +59,8 @@ window.__TAURI_INTERNALS__ = {
       return null;
     if (["fachobjekte","fachverlauf","nachweise"].includes(cmd)) return [];
     if (cmd === "projektstatus") return {ermittelt_am:initial.created_at,offene_aufgaben:0,ueberfaellige_aufgaben:0,erforderliche_unterlagen:0,fehlende_unterlagen:0,ungepruefte_unterlagen:0,nachweise:0,veraltete_nachweise:0,offene_freigaben:0,exportierte_pakete:0,bestaetigte_einreichungen:0,hinweise:[]};
+    if (cmd === "ausgabeauftraege") return [];
+    if(cmd==='sicherungsstatus')return {lokal:true,profil:'Testprofil',hinweis:'Lokale Sicherung'};
     if (cmd === "grundstueckskontext") return [];
     if (cmd === "projekt_bereich_speichern") {
       const a=args.aenderung,p=window.testProjects.find(p=>p.id===a.id);

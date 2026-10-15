@@ -663,7 +663,7 @@ pub struct AblageStatus {
     hinweis: String,
 }
 #[tauri::command]
-pub async fn ablage_status(app: AppHandle, state: State<'_, AppState>) -> CmdResult<AblageStatus> {
+pub async fn ablage_status(state: State<'_, AppState>) -> CmdResult<AblageStatus> {
     let root = if let Some(a) = &state.lokale_ablage {
         Some(a.root().await.to_string_lossy().into_owned())
     } else {
@@ -676,32 +676,22 @@ pub async fn ablage_status(app: AppHandle, state: State<'_, AppState>) -> CmdRes
             _ => None,
         }
     };
-    let lokale_db = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| CmdError {
-            art: "datei",
-            meldung: e.to_string(),
-        })?
-        .join("bauprojekt.db");
+    let lokale_db = state.data_dir.join("bauprojekt.db");
     Ok(AblageStatus{modus:state.config.name(),root,datenbank:if state.lokale_ablage.is_some(){lokale_db.display().to_string()}else{"Gemeinsame PostgreSQL-Datenbank (Zugang in der Büro-Konfiguration)".into()},wechsel_erlaubt:state.lokale_ablage.is_some()&&state.benutzer().rolle==core_lib::benutzer::Rolle::Administrator,hinweis:if state.lokale_ablage.is_some(){"Der Wechsel kopiert alle DMS-Dateiversionen mit Hash-Prüfung. Die bisherige Ablage bleibt als Sicherung erhalten. Die Projektdatenbank bleibt an ihrem bisherigen Ort. Eine Freigabe allein macht daraus noch keinen Mehrbenutzerbetrieb."}else{"Gemeinsame Ablage und Datenbank sind zentral in config.json konfiguriert. Ein abweichender Ordner je Arbeitsplatz würde gemeinsame Dokumente unerreichbar machen."}.into()})
 }
 #[tauri::command]
-pub async fn ablage_wechseln(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    pfad: PathBuf,
-) -> CmdResult<usize> {
+pub async fn ablage_wechseln(state: State<'_, AppState>, pfad: PathBuf) -> CmdResult<usize> {
     state
-        .benutzer()
-        .pruefe(core_lib::benutzer::Recht::BenutzerVerwalten)?;
+        .core
+        .berechtigung_pruefen(
+            &state.benutzer(),
+            core_lib::benutzer::Recht::BenutzerVerwalten,
+        )
+        .await?;
     let a = state.lokale_ablage.as_ref().ok_or_else(|| {
         CoreError::InvalidInput("Im Netzwerkmodus wird die Ablage zentral konfiguriert".into())
     })?;
-    let dir = app.path().app_config_dir().map_err(|e| CmdError {
-        art: "datei",
-        meldung: e.to_string(),
-    })?;
+    let dir = state.config_dir.clone();
     Ok(a.wechseln(&pfad, |root| {
         crate::config::DateiablageConfig {
             root: root.to_path_buf(),

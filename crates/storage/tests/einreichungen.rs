@@ -92,10 +92,66 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
             .await
             .is_err()
     );
-    let erster = core
-        .einreichung_erstellen(p.id, paket("Bauantrag", vec![&plan, &excel]), &user)
+    core.checkliste_anwenden(
+        p.id,
+        core_lib::plattform::ablauf::Checkliste::standard().unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+    let vorgang = uuid::Uuid::new_v4();
+    let (a, b) = tokio::join!(
+        core.einreichung_erstellen_vorgang(
+            p.id,
+            paket("Bauantrag", vec![&plan, &excel]),
+            Some(vorgang),
+            &user
+        ),
+        core.einreichung_erstellen_vorgang(
+            p.id,
+            paket("Bauantrag", vec![&plan, &excel]),
+            Some(vorgang),
+            &user
+        )
+    );
+    let erster = a.unwrap();
+    let parallel = b.unwrap();
+    assert_eq!(erster.zip_key, parallel.zip_key);
+    let wiederholt = core
+        .einreichung_erstellen_vorgang(
+            p.id,
+            paket("Bauantrag", vec![&plan, &excel]),
+            Some(vorgang),
+            &user,
+        )
         .await
         .unwrap();
+    assert_eq!(erster.stand.id, wiederholt.stand.id);
+    assert_eq!(core.einreichungen(p.id).await.unwrap().len(), 1);
+    assert!(
+        core.einreichung_erstellen_vorgang(
+            p.id,
+            paket("Anderer Titel", vec![&plan]),
+            Some(vorgang),
+            &user
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(
+        erster.stand.pruefstand.as_ref().unwrap().unterlagen.len(),
+        6
+    );
+    assert_eq!(
+        erster
+            .stand
+            .pruefstand
+            .as_ref()
+            .unwrap()
+            .nicht_enthaltene_pflichtunterlagen
+            .len(),
+        4
+    );
     let originalzip = core.einreichung_zip(erster.stand.id).await.unwrap().1;
     assert!(
         core.einreichungs_vergleich(p.id, "Bauamt")

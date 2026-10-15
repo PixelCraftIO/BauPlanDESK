@@ -14,6 +14,7 @@
     type DocumentLock,
     type DocumentVersion,
   } from "./api";
+  import Ausgabeauftraege from "./Ausgabeauftraege.svelte";
   import Arbeitskopien from "./Arbeitskopien.svelte";
   import Dialog from "./Dialog.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
@@ -398,7 +399,7 @@
 {/if}
 
 <div class="tabellen-scroll">
-  <table class="ergebnistabelle">
+  <table class="ergebnistabelle" aria-label="Projektdateien">
     <thead
       ><tr
         ><th>Datei</th><th>Version</th><th>Größe</th><th>Geändert</th><th
@@ -553,6 +554,7 @@
   </Dialog>
 {/if}
 
+<Ausgabeauftraege {projektId} darf={darfAblegen} stand={versionen.length} />
 <Arbeitskopien
   bind:this={arbeitsEditor}
   {projektId}

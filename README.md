@@ -235,11 +235,7 @@ Desktop-App und Server gleich.
 - **Protokoll** (*Ansicht → Protokoll*, Strg+Umschalt+L): wer wann was im
   Projekt geändert hat.
 
-Der Server hat noch keine eigene Anmeldung und handelt bis dahin als
-Benutzer `system` (Administrator-Rechte, zählt aber nicht als Administrator
-für die Benutzerverwaltung). Beide Datenbank-Backends prüft dieselbe
-Testsuite (`core_lib::testsuite`); für PostgreSQL mit
-`BAUPROJEKT_TEST_POSTGRES=postgres://… cargo test -p db-postgres`.
+Der Projektserver benötigt eine Zugangsliste (`BAUPROJEKT_ZUGANGSDATEI`) und prüft Benutzer sowie Projektmitgliedschaft bei jeder Anfrage. Einrichtung und Widerruf: [Plattformumsetzung](docs/plattform-umsetzung/README.md#serverzugänge). Der Netzwerkdesktop verwendet derzeit weiterhin seine bisherigen Datenbankadapter.
 
 ## Lizenzverwaltung
 
@@ -510,3 +506,5 @@ besonderer Grundstücksverhältnisse.
 mit den jeweiligen Nachweisen und der Projektversion.
 
 Aktueller Implementierungsstand: [Plattformumsetzung](docs/plattform-umsetzung/README.md).
+
+Berechnungen erweitern: [BauNVO-Regeln und Modulgrenzen](docs/baunvo-erweiterung.md).

@@ -43,6 +43,60 @@ impl SqliteDatabase {
         Self::connect(options, 4).await
     }
 
+    /// Konsistente SQLite-Kopie einschließlich bestätigter WAL-Transaktionen.
+    /// SQLite selbst erzeugt die Zieldatei; vorhandene Sicherungen werden nicht überschrieben.
+    pub async fn sichern(&self, ziel: &Path) -> CoreResult<()> {
+        if ziel.exists() {
+            return Err(CoreError::InvalidInput(
+                "Sicherungsdatenbank existiert bereits".into(),
+            ));
+        }
+        let path = ziel
+            .to_str()
+            .ok_or_else(|| CoreError::InvalidInput("Sicherungspfad ist nicht UTF-8".into()))?;
+        sqlx::query("VACUUM INTO ?")
+            .bind(path)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
+    }
+    pub async fn datei_pruefen(pfad: &Path) -> CoreResult<()> {
+        if !pfad.is_file() {
+            return Err(CoreError::NotFound("Profildatenbank".into()));
+        }
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(SqliteConnectOptions::new().filename(pfad).read_only(true))
+            .await
+            .map_err(db_err)?;
+        let db = Self { pool };
+        db.integritaet_pruefen().await?;
+        let version: Option<i64> =
+            sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations WHERE success=1")
+                .fetch_one(&db.pool)
+                .await
+                .map_err(db_err)?;
+        let migrationen = sqlx::migrate!("./migrations");
+        if version.is_none() || version.is_some_and(|v| migrationen.iter().all(|m| m.version < v)) {
+            return Err(CoreError::InvalidInput(
+                "Profil verwendet eine unbekannte Datenbankversion".into(),
+            ));
+        }
+        Ok(())
+    }
+    pub async fn integritaet_pruefen(&self) -> CoreResult<()> {
+        let result: String = sqlx::query_scalar("PRAGMA quick_check")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db_err)?;
+        if result != "ok" {
+            return Err(CoreError::Database(format!(
+                "Datenbankintegrität: {result}"
+            )));
+        }
+        Ok(())
+    }
     /// In-Memory-Datenbank für Tests.
     pub async fn in_memory() -> CoreResult<Self> {
         let options = SqliteConnectOptions::from_str("sqlite::memory:")
@@ -65,6 +119,9 @@ impl SqliteDatabase {
         Ok(Self { pool })
     }
 
+    pub async fn schliessen(&self) {
+        self.pool.close().await;
+    }
     /// Repositories zur Injektion in [`core_lib::CoreServices`].
     pub fn repositories(&self) -> Repositories {
         let this = Arc::new(self.clone());

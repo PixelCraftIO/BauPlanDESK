@@ -21,7 +21,16 @@ pub async fn ausfuehren(
     if args.len() != 5 {
         return Err("Aufruf: bauprojekt-server zugang-anlegen BENUTZER ROLLE TOKEN-DATEI".into());
     }
-    let name = &args[2];
+    let raw_name = &args[2];
+    if raw_name.contains(['\\', '/', '@']) {
+        return Err(
+            "Eigenständigen Server-Anmeldenamen ohne Domänen-/UPN-Kürzung verwenden".into(),
+        );
+    }
+    let name = core_lib::benutzer::anmeldename_normalisieren(raw_name)?;
+    if name == "system" {
+        return Err("system ist ausschließlich für interne Prozesse reserviert".into());
+    }
     let rolle: Rolle = args[3].parse()?;
     let tokenpfad = PathBuf::from(&args[4]);
     if !tokenpfad.is_absolute() {
@@ -38,9 +47,7 @@ pub async fn ausfuehren(
         },
         Err(e) => return Err(e.into()),
     };
-    if liste.schema_version != 1 {
-        return Err("Unbekannte Zugangsschemaversion".into());
-    }
+    liste.pruefen()?;
     if tokenpfad.exists() {
         return Err(
             "Token-Datei existiert bereits; vorhandene Schlüssel werden nicht überschrieben".into(),
@@ -49,18 +56,18 @@ pub async fn ausfuehren(
     let benutzer = core.repos.benutzer.list().await?;
     let administratoren: Vec<_> = benutzer
         .iter()
-        .filter(|b| b.aktiv && b.rolle == Rolle::Administrator)
+        .filter(|b| b.aktiv && b.rolle == Rolle::Administrator && b.anmeldename != "system")
         .collect();
     if administratoren.is_empty() && rolle != Rolle::Administrator {
         return Err("Der erste Serverzugang muss ein Administrator sein".into());
     }
     if rolle != Rolle::Administrator
         && administratoren.len() == 1
-        && administratoren[0].anmeldename.eq_ignore_ascii_case(name)
+        && administratoren[0].anmeldename.eq_ignore_ascii_case(&name)
     {
         return Err("Der letzte aktive Administrator darf nicht herabgestuft werden".into());
     }
-    let b = core.anmelden(name, name).await?;
+    let b = core.anmelden(&name, &name).await?;
     let b = core
         .repos
         .benutzer

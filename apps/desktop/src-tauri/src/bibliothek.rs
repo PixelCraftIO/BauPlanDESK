@@ -11,7 +11,7 @@ use core_lib::{
 use serde::Serialize;
 use std::path::PathBuf;
 use storage::formularbibliothek as ordner;
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 type Resultat<T> = Result<T, CmdError>;
 
 #[derive(Serialize)]
@@ -29,18 +29,14 @@ pub async fn formularbibliothek(state: State<'_, AppState>) -> Resultat<Biblioth
 }
 /// Ordner verbinden, ohne bestehende Vorlagen zu verschieben oder zu löschen.
 #[tauri::command]
-pub async fn formularordner_waehlen(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    pfad: PathBuf,
-) -> Resultat<()> {
-    state.benutzer().pruefe(Recht::BenutzerVerwalten)?;
+pub async fn formularordner_waehlen(state: State<'_, AppState>, pfad: PathBuf) -> Resultat<()> {
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::BenutzerVerwalten)
+        .await?;
     let mut root = state.formularordner.write().await;
     ordner::ordner_pruefen(&pfad).await?;
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| CoreError::Storage(e.to_string()))?;
+    let config_dir = state.config_dir.clone();
     crate::config::DateiablageConfig { root: pfad.clone() }
         .save_named(&config_dir, "formularbibliothek.json")
         .map_err(CoreError::Storage)?;
@@ -52,7 +48,10 @@ pub async fn bibliothek_importieren(
     state: State<'_, AppState>,
     pfad: PathBuf,
 ) -> Resultat<BibliotheksVorlage> {
-    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
     let name = pfad
         .file_name()
         .and_then(|n| n.to_str())
@@ -71,7 +70,10 @@ pub async fn bibliothek_uebernehmen(
     vorlage: BibliotheksVorlage,
     projekt_id: ProjectId,
 ) -> Resultat<DocumentVersion> {
-    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
     let root = state.formularordner.read().await;
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     import_pruefen(&pdf, &state.benutzer())?;
@@ -112,7 +114,10 @@ pub async fn bibliothek_veroeffentlichen(
     dokument_id: DocumentId,
     version: i64,
 ) -> Resultat<BibliotheksVorlage> {
-    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
     let (dokument, pdf) = state.core.load_version(dokument_id, version).await?;
     import_pruefen(&pdf, &state.benutzer())?;
     let root = state.formularordner.read().await;
@@ -176,7 +181,10 @@ pub async fn bibliothek_felder_erstellen(
     vorlage: BibliotheksVorlage,
     felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
 ) -> Resultat<BibliotheksVorlage> {
-    state.benutzer().pruefe(Recht::DokumentAblegen)?;
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
     let root = state.formularordner.read().await;
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     let neu = core_lib::formular::editor::felder_hinzufuegen(&pdf, &felder)?;
