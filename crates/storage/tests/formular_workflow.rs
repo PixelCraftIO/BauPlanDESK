@@ -44,6 +44,7 @@ fn fields() -> Vec<EigenesPdfFeld> {
             breite_mm: 110.0,
             hoehe_mm: 8.0,
             schriftgroesse_pt: 11.0,
+            mehrzeilig: false,
         },
         EigenesPdfFeld {
             name: "Zustimmung".into(),
@@ -55,6 +56,7 @@ fn fields() -> Vec<EigenesPdfFeld> {
             breite_mm: 5.0,
             hoehe_mm: 5.0,
             schriftgroesse_pt: 10.0,
+            mehrzeilig: false,
         },
     ]
 }

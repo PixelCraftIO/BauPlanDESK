@@ -51,6 +51,8 @@ window.__TAURI_INTERNALS__ = {
       return args.handler;
     }
     if (cmd.startsWith("plugin:event|")) return;
+    // Live-Pixeländerungen werden separat mit echten PDF-Fixtures geprüft.
+    if (cmd === "formular_livevorschau") return args.pdfBase64;
     if (cmd === "plugin:window|destroy") {
       window.testDestroyed = true;
       return;

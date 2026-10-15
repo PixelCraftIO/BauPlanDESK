@@ -717,6 +717,7 @@ export interface Formularfeld {
   optionen: string[];
   schreibgeschuetzt: boolean;
   max_laenge: number | null;
+  mehrzeilig?: boolean;
 }
 
 export interface FormularBezug {
@@ -830,6 +831,7 @@ export interface EigenesPdfFeld {
   breite_mm: number;
   hoehe_mm: number;
   schriftgroesse_pt: number;
+  mehrzeilig?: boolean;
 }
 export interface PdfVorschauDaten {
   dokument: DocumentVersion;
@@ -1063,6 +1065,8 @@ export const api = {
       dokumentId,
       version,
     }),
+  formularLiveVorschau: (pdfBase64: string, werte: Record<string,Feldwert>) =>
+    invoke<string>("formular_livevorschau", {pdfBase64,werte}),
   pdfVorschau: (dokumentId: string, version: number | null = null) =>
     invoke<PdfVorschauDaten>("pdf_vorschau", { dokumentId, version }),
   formularVorlageErstellen: (

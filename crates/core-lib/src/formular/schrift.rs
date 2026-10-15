@@ -38,9 +38,12 @@ pub(super) fn einbetten(doc: &mut Document, texte: &[&str]) -> CoreResult<Object
     let glyph_metrics = f.glyph_metrics(Size::unscaled(), LocationRef::default());
     let mut chars = BTreeMap::new();
     for c in texte.iter().flat_map(|t| t.chars()) {
+        if matches!(c, '\r' | '\n') {
+            continue;
+        }
         if c.is_control() {
             return Err(fehler(
-                "Eigene Textfelder sind einzeilig; Steuerzeichen sind nicht zulässig",
+                "Steuerzeichen außer Zeilenumbrüchen sind nicht zulässig",
             ));
         }
         chars.insert(glyph(&f, c)?, c);
@@ -91,7 +94,20 @@ pub(super) fn darstellung(
     height: f32,
     size: f32,
     font: ObjectId,
+    mehrzeilig: bool,
 ) -> CoreResult<ObjectId> {
+    if [width, height, size]
+        .iter()
+        .any(|v| !v.is_finite() || *v <= 0.)
+    {
+        return Err(fehler("Ungültige Feld- oder Schriftgröße"));
+    }
+    if mehrzeilig {
+        return mehrzeilige_darstellung(doc, text, width, height, size, font);
+    }
+    if text.contains(['\r', '\n']) {
+        return Err(fehler("Einzeiliges Feld erlaubt keine Zeilenumbrüche"));
+    }
     let f = face()?;
     let metrics = f.metrics(Size::unscaled(), LocationRef::default());
     let glyph_metrics = f.glyph_metrics(Size::unscaled(), LocationRef::default());
@@ -139,10 +155,168 @@ pub(super) fn darstellung(
     Ok(doc.add_object(Stream::new(dictionary!{"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),width.into(),height.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"BauUnicode"=>font}}},data)))
 }
 
+/// Explizite Umbrüche und automatische Wortumbrüche; Text bleibt unverändert im Feldwert.
+fn mehrzeilige_darstellung(
+    doc: &mut Document,
+    text: &str,
+    width: f32,
+    height: f32,
+    size: f32,
+    font: ObjectId,
+) -> CoreResult<ObjectId> {
+    let f = face()?;
+    let metrics = f.metrics(Size::unscaled(), LocationRef::default());
+    let gm = f.glyph_metrics(Size::unscaled(), LocationRef::default());
+    let units = metrics.units_per_em as f32;
+    let text = text.replace("\r\n", "\n").replace('\r', "\n");
+    let mut zeichen = BTreeMap::new();
+    for c in text.chars().filter(|c| *c != '\n') {
+        let id = glyph(&f, c)?;
+        zeichen.insert(
+            c,
+            (
+                id,
+                gm.advance_width(GlyphId::new(id as u32))
+                    .ok_or_else(|| fehler("Zeichenbreite fehlt"))?
+                    / units,
+            ),
+        );
+    }
+    let umbruch = |size: f32| -> Option<Vec<String>> {
+        let mut zeilen = Vec::new();
+        for absatz in text.split('\n') {
+            let mut rest = absatz;
+            while !rest.is_empty() {
+                let mut breite = 0.;
+                let mut ende = 0;
+                let mut wortgrenze = None;
+                for (pos, c) in rest.char_indices() {
+                    if breite + zeichen[&c].1 * size > width - 4. {
+                        break;
+                    }
+                    breite += zeichen[&c].1 * size;
+                    ende = pos + c.len_utf8();
+                    if c == ' ' && pos > 0 {
+                        wortgrenze = Some(pos);
+                    }
+                }
+                if ende == rest.len() {
+                    zeilen.push(rest.into());
+                    rest = "";
+                } else if ende == 0 {
+                    return None;
+                } else {
+                    let ende = wortgrenze.unwrap_or(ende);
+                    zeilen.push(rest[..ende].into());
+                    rest = rest[ende..].trim_start_matches(' ');
+                }
+            }
+            if absatz.is_empty() {
+                zeilen.push(String::new());
+            }
+        }
+        Some(zeilen)
+    };
+    let mut size = size.min((height - 4.) / 1.2);
+    let zeilen = loop {
+        if size < 4. {
+            return Err(fehler(
+                "Text passt nicht in das mehrzeilige Feld. Feld vergrößern oder Text kürzen.",
+            ));
+        }
+        if let Some(zeilen) = umbruch(size)
+            && zeilen.len() as f32 * size * 1.2 <= height - 4.
+        {
+            break zeilen;
+        }
+        if size <= 4. {
+            return Err(fehler(
+                "Text passt nicht in das mehrzeilige Feld. Feld vergrößern oder Text kürzen.",
+            ));
+        }
+        size = (size - 0.25).max(4.);
+    };
+    let mut ops = vec![
+        Operation::new("q", vec![]),
+        Operation::new("re", vec![0.into(), 0.into(), width.into(), height.into()]),
+        Operation::new("W", vec![]),
+        Operation::new("n", vec![]),
+        Operation::new("BT", vec![]),
+        Operation::new(
+            "Tf",
+            vec![Object::Name(b"BauUnicode".to_vec()), size.into()],
+        ),
+        Operation::new("g", vec![0.into()]),
+        Operation::new(
+            "Td",
+            vec![
+                2.into(),
+                (height - 2. - size * metrics.ascent / units).into(),
+            ],
+        ),
+    ];
+    for (i, zeile) in zeilen.iter().enumerate() {
+        if i > 0 {
+            ops.push(Operation::new("Td", vec![0.into(), (-size * 1.2).into()]));
+        }
+        let codes = zeile
+            .chars()
+            .flat_map(|c| zeichen[&c].0.to_be_bytes())
+            .collect();
+        ops.push(Operation::new(
+            "Tj",
+            vec![Object::String(codes, lopdf::StringFormat::Hexadecimal)],
+        ));
+    }
+    ops.extend([Operation::new("ET", vec![]), Operation::new("Q", vec![])]);
+    let data = Content { operations: ops }.encode().map_err(fehler)?;
+    Ok(doc.add_object(Stream::new(dictionary!{"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),width.into(),height.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"BauUnicode"=>font}}},data)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn mehrzeilige_darstellung_erhaelt_absatzumbrueche_und_bricht_lange_woerter_um() {
+        let mut doc = Document::with_version("1.7");
+        let text = "Daniel Müller\r\nMusterstraße 10\r10115 Berlin";
+        let font = einbetten(&mut doc, &[text]).unwrap();
+        let ap = darstellung(&mut doc, text, 200., 70., 11., font, true).unwrap();
+        let ops = Content::decode(&doc.get_object(ap).unwrap().as_stream().unwrap().content)
+            .unwrap()
+            .operations;
+        assert_eq!(ops.iter().filter(|o| o.operator == "Tj").count(), 3);
+        let y = ops
+            .iter()
+            .filter(|o| o.operator == "Td")
+            .map(|o| o.operands[1].as_float().unwrap())
+            .collect::<Vec<_>>();
+        assert!(y[0] > 50. && y[0] < 70.);
+        assert!(y[1] < 0. && y[2] < 0.);
+        assert!(darstellung(&mut doc, text, 200., 70., 11., font, false).is_err());
+        let text = "W".repeat(80);
+        let font = einbetten(&mut doc, &[&text]).unwrap();
+        let ap = darstellung(&mut doc, &text, 100., 120., 10., font, true).unwrap();
+        let ops = Content::decode(&doc.get_object(ap).unwrap().as_stream().unwrap().content)
+            .unwrap()
+            .operations;
+        let zeilen = ops
+            .iter()
+            .filter(|o| o.operator == "Tj")
+            .collect::<Vec<_>>();
+        assert!(zeilen.len() > 1);
+        assert_eq!(
+            zeilen
+                .iter()
+                .map(|o| o.operands[0].as_str().unwrap().len())
+                .sum::<usize>(),
+            160
+        );
+        assert!(darstellung(&mut doc, &text, 8., 10., 10., font, true).is_err());
+        assert!(darstellung(&mut doc, "W", 8., 14., 10., font, true).is_ok());
+        assert!(darstellung(&mut doc, &text, f32::NAN, 10., 10., font, true).is_err());
+    }
     #[test]
     fn unicode_und_schriftmetriken_bleiben_im_pdf_erhalten() {
         let mut doc = Document::with_version("1.7");
@@ -191,7 +365,7 @@ mod tests {
             (descriptor.get(b"Descent").unwrap().as_float().unwrap() + 235.83984).abs() < 0.001
         );
 
-        let appearance = darstellung(&mut doc, "Aä€😀", 100.0, 20.0, 10.0, font).unwrap();
+        let appearance = darstellung(&mut doc, "Aä€😀", 100.0, 20.0, 10.0, font, false).unwrap();
         let stream = doc.get_object(appearance).unwrap().as_stream().unwrap();
         let content = Content::decode(&stream.content).unwrap();
         let text = content
@@ -211,7 +385,7 @@ mod tests {
         assert!((position.operands[1].as_float().unwrap() - 7.3583984).abs() < 0.001);
 
         // Gleiche Zeichenbreiten müssen die automatische Verkleinerung steuern.
-        let appearance = darstellung(&mut doc, "AA", 10.0, 20.0, 10.0, font).unwrap();
+        let appearance = darstellung(&mut doc, "AA", 10.0, 20.0, 10.0, font, false).unwrap();
         let content = Content::decode(
             &doc.get_object(appearance)
                 .unwrap()
@@ -226,12 +400,12 @@ mod tests {
             .find(|op| op.operator == "Tf")
             .unwrap();
         assert!((size.operands[1].as_float().unwrap() - 4.385439).abs() < 0.001);
-        assert!(darstellung(&mut doc, "AA", 9.0, 20.0, 10.0, font).is_err());
+        assert!(darstellung(&mut doc, "AA", 9.0, 20.0, 10.0, font, false).is_err());
     }
 
     #[test]
     fn nicht_darstellbare_zeichen_und_steuerzeichen_werden_abgewiesen() {
-        for text in ["\u{10FFFF}", "Zeile\nZwei", "Tab\tText"] {
+        for text in ["\u{10FFFF}", "Tab\tText"] {
             assert!(matches!(
                 einbetten(&mut Document::with_version("1.7"), &[text]),
                 Err(CoreError::InvalidInput(_))

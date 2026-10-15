@@ -259,6 +259,43 @@ pub async fn pdf_vorschau(
         felder,
     })
 }
+/// Temporäre Füllung derselben PDF-Quelle; kein DMS-, Versions- oder Ordnerschreibvorgang.
+#[tauri::command]
+pub async fn formular_livevorschau(
+    pdf_base64: String,
+    werte: BTreeMap<String, core_lib::formular::Feldwert>,
+) -> CmdResult<String> {
+    use base64::Engine;
+    if pdf_base64.len() > 44_739_244
+        || werte.len() > 5000
+        || werte
+            .iter()
+            .map(|(k, v)| {
+                k.len()
+                    + match v {
+                        core_lib::formular::Feldwert::Text(t) => t.len(),
+                        _ => 1,
+                    }
+            })
+            .sum::<usize>()
+            > 1_048_576
+    {
+        return Err(CoreError::InvalidInput(
+            "PDF-Vorschau ist zu groß (maximal 32 MiB PDF und 1 MiB Eingaben)".into(),
+        )
+        .into());
+    }
+    let pdf = base64::engine::general_purpose::STANDARD
+        .decode(pdf_base64)
+        .map_err(|_| CoreError::InvalidInput("Ungültige PDF-Daten für die Vorschau".into()))?;
+    let neu = tauri::async_runtime::spawn_blocking(move || {
+        core_lib::formular::pdf::befuellen(&pdf, &werte)
+    })
+    .await
+    .map_err(|e| CoreError::InvalidInput(format!("PDF-Vorschau: {e}")))??;
+    Ok(base64::engine::general_purpose::STANDARD.encode(neu))
+}
+
 #[tauri::command]
 pub async fn formular_vorlage_erstellen(
     state: State<'_, AppState>,

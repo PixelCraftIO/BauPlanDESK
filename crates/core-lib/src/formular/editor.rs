@@ -27,6 +27,8 @@ pub struct EigenesPdfFeld {
     pub hoehe_mm: f32,
     #[serde(default = "standard_schrift")]
     pub schriftgroesse_pt: f32,
+    #[serde(default)]
+    pub mehrzeilig: bool,
 }
 fn standard_schrift() -> f32 {
     10.0
@@ -231,6 +233,9 @@ pub fn felder_hinzufuegen(pdf: &[u8], felder: &[EigenesPdfFeld]) -> CoreResult<V
                 "Neue Felder benötigen eine Seite ohne gespeicherte Rotation und mit normalem Maßstab. PDF vor dem Vorlagenimport entsprechend ausrichten.",
             ));
         }
+        if f.mehrzeilig && f.art != Feldart::Text {
+            return Err(err("Nur Textfelder können mehrzeilig sein"));
+        }
         let values = [f.x_mm, f.y_mm, f.breite_mm, f.hoehe_mm, f.schriftgroesse_pt];
         if !values.iter().all(|v| v.is_finite())
             || f.x_mm < 0.0
@@ -301,6 +306,9 @@ pub fn felder_hinzufuegen(pdf: &[u8], felder: &[EigenesPdfFeld]) -> CoreResult<V
         let mut d = dictionary! {"Type"=>"Annot","Subtype"=>"Widget","P"=>page,"Rect"=>vec![x.into(),(top-h).into(),(x+w).into(),top.into()],"T"=>pdf::text_kodieren(&name),"TU"=>pdf::text_kodieren(if f.beschriftung.trim().is_empty(){&name}else{f.beschriftung.trim()}),"F"=>4,"BauProjektIOFeld"=>true,"BauProjektIOSchrift"=>f.schriftgroesse_pt,"BS"=>dictionary!{"W"=>0},"MK"=>dictionary!{}};
         if f.art == Feldart::Text {
             d.set("FT", "Tx");
+            if f.mehrzeilig {
+                d.set("Ff", pdf::FF_MULTILINE);
+            }
             d.set("MaxLen", 4000);
             d.set(
                 "DA",
@@ -370,6 +378,7 @@ mod tests {
             breite_mm: 70.0,
             hoehe_mm: 8.0,
             schriftgroesse_pt: 10.0,
+            mehrzeilig: false,
         }
     }
     #[test]
