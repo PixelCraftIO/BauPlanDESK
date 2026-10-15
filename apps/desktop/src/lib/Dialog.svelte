@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { onMount, type Snippet } from "svelte";
 
   let {
     titel,
@@ -19,10 +19,20 @@
 
   let dialog: HTMLDialogElement;
 
-  $effect(() => {
+  // close() stellt ein späteres natives close-Ereignis in die Browser-Warteschlange.
+  // Nach dem Abbau darf es keinen inzwischen neu geöffneten Dialog schließen.
+  let eingebunden = false;
+  onMount(() => {
+    eingebunden = true;
     dialog.showModal();
-    return () => dialog.close();
+    return () => {
+      eingebunden = false;
+      dialog.close();
+    };
   });
+  function geschlossen() {
+    if (eingebunden) onclose();
+  }
   function cancel(event: Event) {
     if (!schliessenErlaubt) {
       event.preventDefault();
@@ -31,7 +41,7 @@
     event.preventDefault();
     if (onrequestclose) {
       void onrequestclose().then((ok) => {
-        if (ok) onclose();
+        if (ok && eingebunden) onclose();
       });
     } else {
       onclose();
@@ -43,7 +53,7 @@
 <dialog
   bind:this={dialog}
   class:breit
-  {onclose}
+  onclose={geschlossen}
   oncancel={cancel}
   aria-labelledby="dialog-titel"
 >
