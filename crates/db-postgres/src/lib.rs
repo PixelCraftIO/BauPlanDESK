@@ -563,6 +563,35 @@ impl LizenzRepository for PostgresDatabase {
         Ok(())
     }
 
+    async fn einstellung_vergleichen(
+        &self,
+        schluessel: &str,
+        bisher: Option<&str>,
+        wert: &str,
+    ) -> CoreResult<bool> {
+        let count = if let Some(alt) = bisher {
+            sqlx::query("UPDATE einstellungen SET wert=$1 WHERE schluessel=$2 AND wert=$3")
+                .bind(wert)
+                .bind(schluessel)
+                .bind(alt)
+                .execute(&self.pool)
+                .await
+                .map_err(db_err)?
+                .rows_affected()
+        } else {
+            sqlx::query(
+                "INSERT INTO einstellungen (schluessel,wert) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+            )
+            .bind(schluessel)
+            .bind(wert)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?
+            .rows_affected()
+        };
+        Ok(count == 1)
+    }
+
     async fn einstellung_vorbelegen(&self, schluessel: &str, wert: &str) -> CoreResult<String> {
         sqlx::query(
             "INSERT INTO einstellungen (schluessel, wert) VALUES ($1, $2) ON CONFLICT DO NOTHING",

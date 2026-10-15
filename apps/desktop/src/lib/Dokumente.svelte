@@ -14,6 +14,13 @@
     type DocumentLock,
     type DocumentVersion,
   } from "./api";
+  import KategorieAuswahl from "./KategorieAuswahl.svelte";
+  import {
+    kategorieText,
+    kategoriePasst,
+    kategorienOptionen,
+  } from "./kategorien";
+  import type { DokumentKategorie, Dokumentkategorie } from "./api";
   import Ausgabeauftraege from "./Ausgabeauftraege.svelte";
   import Arbeitskopien from "./Arbeitskopien.svelte";
   import Dialog from "./Dialog.svelte";
@@ -58,6 +65,53 @@
 
   let arbeitsEditor = $state<Arbeitskopien>();
   let suche = $state("");
+  let kategorien = $state<Dokumentkategorie[]>([]);
+  let zuordnungen = $state<DokumentKategorie[]>([]);
+  let kategorieFilter = $state(""),
+    sortierung = $state("datei"),
+    importKategorie = $state("");
+  let auswahl = $state<string[]>([]),
+    kategorieDialog = $state(false),
+    neueKategorie = $state(""),
+    kategorieFehler = $state("");
+  const zuordnung = (id: string) =>
+    zuordnungen.find((k) => k.dokument_id === id);
+  function kategorieBearbeiten(ids: string[]) {
+    auswahl = ids;
+    neueKategorie =
+      ids.length === 1 ? (zuordnung(ids[0])?.kategorie ?? "") : "";
+    kategorieFehler = "";
+    kategorieDialog = true;
+  }
+  async function kategorisieren(e: SubmitEvent) {
+    e.preventDefault();
+    kategorieFehler = "";
+    laeuft = true;
+    const auftraege = auswahl.map((id) => ({
+      id,
+      revision: zuordnung(id)?.revision ?? 0,
+    }));
+    const ziel = neueKategorie || null;
+    let anzahl = 0;
+    try {
+      for (const a of auftraege) {
+        await api.dokumentkategorieSpeichern(a.id, {
+          revision: a.revision,
+          kategorie: ziel,
+        });
+        auswahl = auswahl.filter((id) => id !== a.id);
+        anzahl++;
+      }
+      kategorieDialog = false;
+      hinweis = `Kategorie für ${anzahl} Unterlage(n) gespeichert.`;
+    } catch (e) {
+      kategorieFehler = `${anzahl} Zuordnung(en) gespeichert. Die übrigen Unterlagen bleiben ausgewählt. ${fehlertext(e)}`;
+    } finally {
+      laeuft = false;
+      await laden();
+    }
+  }
+
   let versionen = $state<DocumentVersion[]>([]);
   let laeuft = $state(false);
   let formular = $state<DocumentVersion | null>(null);
@@ -195,12 +249,33 @@
       }
     }
     return [...neueste.values()]
-      .filter(({ doc }) =>
-        doc.file_name
-          .toLocaleLowerCase("de")
-          .includes(suche.toLocaleLowerCase("de")),
+      .filter(
+        ({ doc }) =>
+          kategoriePasst(
+            kategorien,
+            zuordnung(doc.document_id)?.kategorie,
+            kategorieFilter,
+          ) &&
+          doc.file_name
+            .toLocaleLowerCase("de")
+            .includes(suche.toLocaleLowerCase("de")),
       )
-      .sort((a, b) => a.doc.file_name.localeCompare(b.doc.file_name, "de"));
+      .sort((a, b) => {
+        const kat =
+          sortierung === "kategorie"
+            ? kategorieText(
+                kategorien,
+                zuordnung(a.doc.document_id)?.kategorie,
+              ).localeCompare(
+                kategorieText(
+                  kategorien,
+                  zuordnung(b.doc.document_id)?.kategorie,
+                ),
+                "de",
+              )
+            : 0;
+        return kat || a.doc.file_name.localeCompare(b.doc.file_name, "de");
+      });
   });
 
   export async function aktualisieren() {
@@ -208,11 +283,16 @@
   }
   async function laden() {
     try {
-      const [v, s] = await Promise.all([
+      const [v, s, k, z] = await Promise.all([
         api.dokumente(projektId),
         api.sperrenAuflisten(projektId),
+        api.kategorienkatalog(),
+        api.dokumentkategorien(projektId),
       ]);
       versionen = v;
+      kategorien = k.kategorien;
+      zuordnungen = z;
+      auswahl = auswahl.filter((id) => v.some((d) => d.document_id === id));
       sperren = new Map(s.map((x) => [x.document_id, x]));
     } catch (e) {
       onfehler(fehlertext(e));
@@ -310,6 +390,7 @@
           pfad,
           dokumentId,
           bisher?.version ?? null,
+          dokumentId ? null : importKategorie || null,
         );
         hinweis =
           v.ablage_hinweis ??
@@ -348,7 +429,8 @@
       ordnerLaeuft ||
       !!formular ||
       !!historie ||
-      !!metadaten
+      !!metadaten ||
+      kategorieDialog
     );
   }
   editorAnmelden("dokumente", {
@@ -361,6 +443,15 @@
 </script>
 
 <div class="knoepfe links">
+  <button class="sekundaer" disabled={laeuft} onclick={laden}
+    >Dateiliste aktualisieren</button
+  >
+  <KategorieAuswahl
+    {kategorien}
+    bind:wert={importKategorie}
+    label="Kategorie für neue Importe"
+    disabled={laeuft || !darfAblegen}
+  />
   <button
     onclick={() => importieren()}
     disabled={laeuft || !darfAblegen}
@@ -394,6 +485,53 @@
   /></label
 >
 
+<div class="knoepfe links">
+  <label
+    >Kategorie filtern<select
+      aria-label="Kategorie filtern"
+      bind:value={kategorieFilter}
+      ><option value="">Alle Kategorien</option><option value="__ohne"
+        >Ohne Kategorie</option
+      >{#each kategorienOptionen(kategorien) as k}<option value={k.id}
+          >{k.bezeichnung}{k.aktiv ? "" : " (archiviert)"}</option
+        >{/each}</select
+    ></label
+  >
+  <label
+    >Sortierung<select aria-label="Sortierung" bind:value={sortierung}
+      ><option value="datei">Dateiname</option><option value="kategorie"
+        >Nach Kategorie gruppieren</option
+      ></select
+    ></label
+  >
+  <button
+    class="sekundaer"
+    disabled={laeuft ||
+      !darfAblegen ||
+      !dokumente.some(({ doc }) => !fremdGesperrt(doc.document_id))}
+    onclick={() =>
+      (auswahl = [
+        ...new Set([
+          ...auswahl,
+          ...dokumente
+            .filter(({ doc }) => !fremdGesperrt(doc.document_id))
+            .map(({ doc }) => doc.document_id),
+        ]),
+      ])}>Sichtbare auswählen</button
+  >
+  <button
+    class="sekundaer"
+    disabled={laeuft || !darfAblegen || !auswahl.length}
+    onclick={() => kategorieBearbeiten(auswahl)}
+    >Kategorie zuordnen ({auswahl.length})</button
+  >
+  {#if auswahl.length}<button
+      class="link"
+      disabled={laeuft}
+      onclick={() => (auswahl = [])}>Auswahl aufheben</button
+    >{/if}
+</div>
+
 {#if hinweis}
   <p class="meta" role="status">{hinweis}</p>
 {/if}
@@ -402,15 +540,51 @@
   <table class="ergebnistabelle" aria-label="Projektdateien">
     <thead
       ><tr
-        ><th>Datei</th><th>Version</th><th>Größe</th><th>Geändert</th><th
-          >Sperre</th
-        ><th></th></tr
+        ><th>Auswahl</th><th>Datei</th><th>Kategorie</th><th>Version</th><th
+          >Größe</th
+        ><th>Geändert</th><th>Sperre</th><th></th></tr
       ></thead
     >
     <tbody>
-      {#each dokumente as { doc, anzahl } (doc.document_id)}
+      {#each dokumente as { doc, anzahl }, index (doc.document_id)}
+        {#if sortierung === "kategorie" && (index === 0 || zuordnung(doc.document_id)?.kategorie !== zuordnung(dokumente[index - 1].doc.document_id)?.kategorie)}
+          <tr class="kategoriegruppe"
+            ><th colspan="8" scope="rowgroup"
+              >{kategorieText(
+                kategorien,
+                zuordnung(doc.document_id)?.kategorie,
+              )}</th
+            ></tr
+          >
+        {/if}
         <tr>
+          <td
+            ><input
+              type="checkbox"
+              aria-label={`${doc.file_name} auswählen`}
+              disabled={laeuft ||
+                !darfAblegen ||
+                fremdGesperrt(doc.document_id)}
+              checked={auswahl.includes(doc.document_id)}
+              onchange={(e) =>
+                (auswahl = e.currentTarget.checked
+                  ? [...auswahl, doc.document_id]
+                  : auswahl.filter((id) => id !== doc.document_id))}
+            /></td
+          >
           <td>{doc.file_name}</td>
+          <td class="kategoriespalte"
+            >{kategorieText(
+              kategorien,
+              zuordnung(doc.document_id)?.kategorie,
+            )}{#if darfAblegen && !fremdGesperrt(doc.document_id)}<button
+                class="link"
+                aria-label={`Kategorie ändern: ${doc.file_name}`}
+                disabled={laeuft}
+                onclick={() => kategorieBearbeiten([doc.document_id])}
+                >Ändern</button
+              >{/if}</td
+          >
           <td>{doc.version}{anzahl > 1 ? ` (${anzahl} Versionen)` : ""}</td>
           <td>{groesse(doc.size_bytes)}</td>
           <td
@@ -490,14 +664,46 @@
         </tr>
       {:else}
         <tr
-          ><td colspan="6" class="meta"
-            >Noch keine Projektdateien. Über „Dateien importieren“ hinzufügen.</td
+          ><td colspan="8" class="meta"
+            >{versionen.length
+              ? "Keine Dateien für die gewählte Suche oder Kategorie."
+              : "Noch keine Projektdateien. Über „Dateien importieren“ hinzufügen."}</td
           ></tr
         >
       {/each}
     </tbody>
   </table>
 </div>
+
+{#if kategorieDialog}<Dialog
+    titel="Kategorie zuordnen"
+    schliessenErlaubt={!laeuft}
+    onclose={() => (kategorieDialog = false)}
+  >
+    <form onsubmit={kategorisieren}>
+      {#if kategorieFehler}<p class="fehlertext" role="alert">
+          {kategorieFehler}
+        </p>{/if}
+      <p>
+        {auswahl.length} ausgewählte Unterlage(n). Die Zuordnung gilt auch für künftige
+        Dateiversionen.
+      </p>
+      <KategorieAuswahl
+        {kategorien}
+        bind:wert={neueKategorie}
+        disabled={laeuft}
+      />
+      <div class="knoepfe">
+        <button disabled={laeuft || !auswahl.length}>Zuordnung speichern</button
+        ><button
+          type="button"
+          class="sekundaer"
+          disabled={laeuft}
+          onclick={() => (kategorieDialog = false)}>Abbrechen</button
+        >
+      </div>
+    </form>
+  </Dialog>{/if}
 
 {#if metadaten}<Dialog
     titel="Dokumentangaben"
@@ -564,6 +770,13 @@
 />
 
 <style>
+  .kategoriespalte .link {
+    margin-inline-start: 0.5rem;
+  }
+  .kategoriegruppe th {
+    background: var(--panel);
+    padding-top: 1rem;
+  }
   .dateisuche {
     display: flex;
     gap: 0.6rem;

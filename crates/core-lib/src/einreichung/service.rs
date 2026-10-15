@@ -18,7 +18,15 @@ impl CoreServices {
     ) -> CoreResult<Vec<DokumentVergleich>> {
         let chronik = self.einreichungen(projekt).await?;
         let docs = crate::projektablage::versionen(self.list_documents(projekt).await?, false);
-        Ok(vergleichen(projekt, empfaenger, docs, &chronik))
+        let kategorien = self.kategoriesnapshots(projekt).await?;
+        let mut vergleich = vergleichen(projekt, empfaenger, docs, &chronik);
+        for v in &mut vergleich {
+            v.kategorie = kategorien
+                .get(&v.aktuell.document_id.0.to_string())
+                .cloned()
+                .flatten();
+        }
+        Ok(vergleich)
     }
     pub async fn einreichung_erstellen(
         &self,
@@ -91,7 +99,15 @@ impl CoreServices {
             dokumente.push(meta);
             inhalte.push(data.to_vec());
         }
+        let mut kategorien = self.kategoriesnapshots(projekt).await?;
+        kategorien.retain(|id, _| {
+            input
+                .dokumente
+                .iter()
+                .any(|d| d.dokument_id.0.to_string() == *id)
+        });
         let stand = PaketStand {
+            kategorien,
             id,
             pruefstand: Some(self.paket_pruefstand(projekt, &input.dokumente).await?),
             projekt_id: projekt,

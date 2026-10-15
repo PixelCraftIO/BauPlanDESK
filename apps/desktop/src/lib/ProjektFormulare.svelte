@@ -9,6 +9,12 @@
     type DocumentVersion,
     type Project,
   } from "./api";
+  import {
+    kategorieText,
+    kategoriePasst,
+    kategorienOptionen,
+  } from "./kategorien";
+  import type { Dokumentkategorie, KategorieZuordnung } from "./api";
   import Dialog from "./Dialog.svelte";
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
   let {
@@ -30,9 +36,18 @@
     pdfBusy = $state(false),
     fehler = $state<string | null>(null),
     gespeichert = $state<DocumentVersion | null>(null);
+  let kategorien = $state<Dokumentkategorie[]>([]),
+    zuordnungen = $state<Record<string, KategorieZuordnung>>({}),
+    kategorieFilter = $state("");
   const gefiltert = $derived(
-    vorlagen.filter((v) =>
-      v.name.toLocaleLowerCase("de").includes(suche.toLocaleLowerCase("de")),
+    vorlagen.filter(
+      (v) =>
+        kategoriePasst(
+          kategorien,
+          zuordnungen[v.sha256]?.kategorie,
+          kategorieFilter,
+        ) &&
+        v.name.toLocaleLowerCase("de").includes(suche.toLocaleLowerCase("de")),
     ),
   );
   export function istBeschaeftigt() {
@@ -41,7 +56,18 @@
   async function laden() {
     laeuft = true;
     try {
-      vorlagen = (await api.formularbibliothek()).vorlagen;
+      const [b, k] = await Promise.all([
+        api.formularbibliothek(),
+        api.kategorienkatalog(),
+      ]);
+      const z = await Promise.all(
+        [...new Set(b.vorlagen.map((v) => v.sha256))].map(
+          async (hash) => [hash, await api.vorlagenkategorie(hash)] as const,
+        ),
+      );
+      vorlagen = b.vorlagen;
+      kategorien = k.kategorien;
+      zuordnungen = Object.fromEntries(z);
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -107,13 +133,26 @@
     >Bibliothek aktualisieren</button
   >
 </div>
+<label
+  >Kategorie filtern<select
+    aria-label="Kategorie filtern"
+    bind:value={kategorieFilter}
+    ><option value="">Alle Kategorien</option><option value="__ohne"
+      >Ohne Kategorie</option
+    >{#each kategorienOptionen(kategorien) as k}<option value={k.id}
+        >{k.bezeichnung}</option
+      >{/each}</select
+  ></label
+>
 <table class="ergebnistabelle">
-  <thead><tr><th>Formularvorlage</th><th></th></tr></thead><tbody
+  <thead><tr><th>Formularvorlage</th><th>Kategorie</th><th></th></tr></thead
+  ><tbody
     >{#each gefiltert as v (v.name)}<tr
         ><td
           >{v.name}{#if v.felder === 0}<span class="meta">
               · Noch keine Eingabefelder</span
             >{/if}</td
+        ><td>{kategorieText(kategorien, zuordnungen[v.sha256]?.kategorie)}</td
         ><td
           ><button
             disabled={!darf || laeuft || v.felder === 0 || v.felder === null}

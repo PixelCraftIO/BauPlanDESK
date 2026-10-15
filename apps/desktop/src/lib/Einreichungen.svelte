@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { kategorieStandText } from "./kategorien";
   import PaketPruefstand from "./PaketPruefstand.svelte";
   import { editorAnmelden } from "./editoren";
   import { onMount } from "svelte";
@@ -25,6 +26,7 @@
   let titel = $state("Bauantrag"),
     empfaenger = $state("Bauamt"),
     vergleichEmpfaenger = $state(""),
+    kategorieFilter = $state(""),
     laeuft = $state(false),
     hinweis = $state<string | null>(null);
   let bestaetigung = $state<Einreichung | null>(null),
@@ -40,6 +42,26 @@
   const vergleichAktuell = $derived(
     vergleichEmpfaenger.trim().toLowerCase() ===
       empfaenger.trim().toLowerCase(),
+  );
+  const kategorien = $derived(
+    [
+      ...new Map(
+        vergleich
+          .filter((v) => v.kategorie)
+          .map((v) => [v.kategorie!.id, v.kategorie!]),
+      ).values(),
+    ].sort((a, b) =>
+      kategorieStandText(a).localeCompare(kategorieStandText(b), "de"),
+    ),
+  );
+  const gefiltert = $derived(
+    vergleich.filter(
+      (v) =>
+        !kategorieFilter ||
+        (kategorieFilter === "__ohne"
+          ? !v.kategorie
+          : v.kategorie?.id === kategorieFilter),
+    ),
   );
   export function istBeschaeftigt() {
     return laeuft;
@@ -251,15 +273,45 @@
       Empfänger geändert. Vergleich aktualisieren, bevor ein Paket erstellt
       wird.
     </p>{/if}
+  <div class="knoepfe links">
+    <label
+      >Kategorie filtern<select
+        aria-label="Kategorie filtern"
+        bind:value={kategorieFilter}
+        ><option value="">Alle Kategorien</option><option value="__ohne"
+          >Ohne Kategorie</option
+        >{#each kategorien as k}<option value={k.id}
+            >{kategorieStandText(k)}</option
+          >{/each}</select
+      ></label
+    >
+    <button
+      type="button"
+      class="sekundaer"
+      disabled={laeuft ||
+        !darfAblegen ||
+        !vergleichAktuell ||
+        !gefiltert.length}
+      onclick={() =>
+        (auswahl = [
+          ...new Set([
+            ...auswahl,
+            ...gefiltert.map((v) => v.aktuell.document_id),
+          ]),
+        ])}>Gefilterte Unterlagen auswählen</button
+    ><span class="meta"
+      >{auswahl.length} Unterlage(n) ausgewählt, auch außerhalb des Filters</span
+    >
+  </div>
   <table>
     <thead
       ><tr
-        ><th>Auswahl</th><th>Unterlage</th><th>Aktuelle Version</th><th
-          >Zuletzt eingereicht</th
-        ><th>Vergleich</th></tr
+        ><th>Auswahl</th><th>Unterlage</th><th>Kategorie</th><th
+          >Aktuelle Version</th
+        ><th>Zuletzt eingereicht</th><th>Vergleich</th></tr
       ></thead
     ><tbody>
-      {#each vergleich as v (v.aktuell.document_id)}<tr
+      {#each gefiltert as v (v.aktuell.document_id)}<tr
           ><td
             ><input
               type="checkbox"
@@ -269,7 +321,9 @@
               onchange={(e) =>
                 umschalten(v.aktuell.document_id, e.currentTarget.checked)}
             /></td
-          ><td>{v.aktuell.file_name}</td><td>v{v.aktuell.version}</td><td
+          ><td>{v.aktuell.file_name}</td><td
+            >{kategorieStandText(v.kategorie)}</td
+          ><td>v{v.aktuell.version}</td><td
             >{#if v.zuletzt_eingereicht}v{v.zuletzt_eingereicht.version} · {v.eingereicht_am}{:else}—{/if}</td
           ><td>{statusText[v.status]}</td></tr
         >{/each}
@@ -350,13 +404,17 @@
     <table>
       <thead
         ><tr
-          ><th>Unterlage</th><th>Festgehaltene Version</th><th>SHA-256</th></tr
+          ><th>Unterlage</th><th>Kategorie im Paket</th><th
+            >Festgehaltene Version</th
+          ><th>SHA-256</th></tr
         ></thead
       ><tbody
         >{#each e.stand.dokumente as d}<tr
-            ><td>{d.file_name}</td><td>v{d.version}</td><td class="hash"
-              >{d.sha256}</td
-            ></tr
+            ><td>{d.file_name}</td><td
+              >{e.stand.kategorien && d.document_id in e.stand.kategorien
+                ? kategorieStandText(e.stand.kategorien[d.document_id])
+                : "Damals nicht erfasst"}</td
+            ><td>v{d.version}</td><td class="hash">{d.sha256}</td></tr
           >{/each}</tbody
       >
     </table>

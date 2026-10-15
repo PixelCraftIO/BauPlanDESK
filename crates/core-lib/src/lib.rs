@@ -16,6 +16,7 @@ pub mod benutzer;
 pub mod cad;
 pub mod calc;
 pub mod dateiverwaltung;
+pub mod dokumentkategorien;
 pub mod domain;
 pub mod einreichung;
 pub mod error;
