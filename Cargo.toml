@@ -58,7 +58,7 @@ futures = "0.3"
 geo = { version = "0.31.0", default-features = false }
 axum = "0.8"
 tempfile = "3"
-ttf-parser = "0.25"
+skrifa = { version = "0.48", default-features = false, features = ["std"] }
 lopdf = { version = "0.45", default-features = false }
 dxf = "0.6"
 # Lizenzdateien: Ed25519-Signaturen (BSD-3-Clause), Base64 (MIT/Apache-2.0)
