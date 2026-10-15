@@ -3,6 +3,8 @@ import Gebaeude from "./Gebaeude.svelte";
 import Aufgaben from "./Aufgaben.svelte";
 import Unterlagen from "./Unterlagen.svelte";
 import Raumbuch from "./Raumbuch.svelte";
+import Verfahrensakte from "../verfahren/Verfahrensakte.svelte";
+import AktenSuche from "../verfahren/AktenSuche.svelte";
 import Nachweise from "./Nachweise.svelte";
 export interface FachProps {
   projekt: Project;
@@ -11,6 +13,18 @@ export interface FachProps {
   darfFreigeben?: boolean;
 }
 export const FACHMODULE = [
+  {
+    id: "verfahren",
+    titel: "Verfahrensakte",
+    gruppe: "Organisation",
+    komponente: Verfahrensakte,
+  },
+  {
+    id: "aktensuche",
+    titel: "Suche / Wiedervorlagen",
+    gruppe: "Organisation",
+    komponente: AktenSuche,
+  },
   {
     id: "gebaeude",
     titel: "Gebäude / Geschosse",

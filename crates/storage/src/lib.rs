@@ -52,3 +52,5 @@ pub fn build(config: &StorageConfig) -> CoreResult<Arc<dyn Storage>> {
         StorageConfig::S3(cfg) => Arc::new(S3Storage::new(cfg)?),
     })
 }
+
+pub mod buero_sicherung;

@@ -1,5 +1,6 @@
 //! Nur lesender Vertrag für archivierte Nachrichten. Parserdetails bleiben intern;
 //! HTML wird als Text ausgegeben, Anhänge werden beschrieben, nicht ausgeführt.
+mod anhaenge;
 mod msg;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;

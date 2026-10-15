@@ -309,6 +309,43 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
         std::fs::write(ziel.join("original.pdf"), &original).unwrap();
         std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"katalog":katalog,"auftrag":a,"positionen":out.positionen,"seiten":out.seiten})).unwrap()).unwrap();
     }
+    let vorgang = Uuid::new_v4();
+    let gespeichert = core
+        .druckpdf_ablegen(
+            p.id,
+            "Berechnungen.pdf",
+            Bytes::copy_from_slice(&out.pdf),
+            vorgang,
+            &user,
+        )
+        .await
+        .unwrap();
+    let wiederholt = core
+        .druckpdf_ablegen(
+            p.id,
+            "Berechnungen.pdf",
+            Bytes::copy_from_slice(&out.pdf),
+            vorgang,
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(gespeichert.document_id, wiederholt.document_id);
+    assert_eq!(
+        core.document_history(gespeichert.document_id)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        core.load_version(gespeichert.document_id, 1)
+            .await
+            .unwrap()
+            .1
+            .as_ref(),
+        out.pdf.as_slice()
+    );
 }
 
 #[tokio::test]

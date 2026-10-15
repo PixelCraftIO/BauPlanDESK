@@ -175,6 +175,11 @@ pub(super) async fn validieren(
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
+        ObjektArt::Verfahren => {
+            return Err(CoreError::InvalidInput(
+                "Verfahren benötigen ihren eigenen Commit".into(),
+            ));
+        }
         ObjektArt::Projektorganisation => {
             let o: Projektorganisation = serde_json::from_value(daten).map_err(json_err)?;
             if o.kennzeichen.len() > 120 || o.beschreibung.len() > 10000 {

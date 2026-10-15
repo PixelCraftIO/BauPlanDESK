@@ -82,6 +82,43 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/projekte/{}", fremd.id), true).await,
         StatusCode::FORBIDDEN
     );
+    // Neue Akten-Lesewege sind projektgebunden; Schreibwege sperren Leser
+    // bereits vor dem Parsen oder Ausführen eines Auftrags.
+    for suffix in [
+        "erinnerungen?heute=2026-10-15",
+        "aktensuche?suche=Plan",
+        "aktenexport",
+        "verfahrensprofil",
+    ] {
+        assert_eq!(
+            status(&app, &format!("/api/projekte/{}/{suffix}", p.id), true).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            status(&app, &format!("/api/projekte/{}/{suffix}", fremd.id), true).await,
+            StatusCode::FORBIDDEN
+        );
+    }
+    for suffix in [
+        "suchtext".to_owned(),
+        format!("verfahren/{}/profil", uuid::Uuid::new_v4()),
+        format!("verfahren/{}/abgabe", uuid::Uuid::new_v4()),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projekte/{}/{suffix}", p.id))
+                    .header("authorization", format!("Bearer {TOKEN}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
     let r = app
         .clone()
         .oneshot(

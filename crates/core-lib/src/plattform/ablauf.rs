@@ -229,6 +229,59 @@ impl CoreServices {
                 ),
             );
         }
+        let akten = self.fachobjekte(p, ObjektArt::Verfahren).await?;
+        for f in akten {
+            let a: crate::verfahren::Verfahrensakte =
+                serde_json::from_value(f.daten).map_err(json_err)?;
+            if a.status == crate::verfahren::Verfahrensstatus::Zurueckgenommen {
+                continue;
+            }
+            let punkte = a
+                .nachforderungen
+                .iter()
+                .flat_map(|n| &n.punkte)
+                .filter(|p| {
+                    !matches!(
+                        p.status,
+                        crate::verfahren::Punktstatus::Bestaetigt
+                            | crate::verfahren::Punktstatus::Entfallen
+                    )
+                })
+                .count();
+            let pflichten = a
+                .bescheide
+                .iter()
+                .filter(|b| !a.bescheide.iter().any(|n| n.ersetzt == Some(b.id)))
+                .flat_map(|b| &b.auflagen)
+                .filter(|a| !a.erledigt)
+                .count();
+            let unklar = a
+                .anforderungen
+                .iter()
+                .filter(|r| r.erforderlich == crate::verfahren::Erforderlichkeit::Ungeklaert)
+                .count();
+            if punkte + pflichten + unklar > 0 {
+                hinweis(
+                    "verfahren",
+                    format!(
+                        "{}: {} Forderungspunkte offen, {} Nebenbestimmungen offen, {} Anforderungen ungeklärt",
+                        a.bezeichnung, punkte, pflichten, unklar
+                    ),
+                );
+            }
+        }
+        let ueberfaellig = self
+            .verfahren_erinnerungen(p, Utc::now().date_naive())
+            .await?
+            .iter()
+            .filter(|e| e.ueberfaellig)
+            .count();
+        if ueberfaellig > 0 {
+            hinweis(
+                "aktensuche",
+                format!("{ueberfaellig} Verfahrensfristen überfällig – Wiedervorlagen öffnen"),
+            );
+        }
         Ok(s)
     }
 }

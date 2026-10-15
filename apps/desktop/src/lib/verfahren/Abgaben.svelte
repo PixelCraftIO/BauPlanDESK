@@ -1,0 +1,221 @@
+<script lang="ts">
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { fehlertext, type DocumentVersion } from "../api";
+  import type {
+    Abgabestand,
+    Abgabewunsch,
+    Dokumentbezug,
+  } from "../generated/plattform";
+  import Dokumentliste from "./Dokumentliste.svelte";
+  import Dokumentfeld from "./Dokumentfeld.svelte";
+  import { verfahrenApi, heute } from "./api";
+  let {
+    eintraege = $bindable(),
+    dateien,
+    projektId,
+    verfahrenId,
+    darf,
+    onfesthalten,
+    onbusy,
+    gespeichert = [],
+  }: {
+    eintraege: Abgabestand[];
+    dateien: DocumentVersion[];
+    projektId: string;
+    verfahrenId: string;
+    darf: boolean;
+    onfesthalten: (w: Abgabewunsch) => Promise<void>;
+    onbusy: (b: boolean) => void;
+    gespeichert?: Abgabestand[];
+  } = $props();
+  let titel = $state("Bauantragsunterlagen"),
+    dokumente = $state<Dokumentbezug[]>([]),
+    xbau = $state(false),
+    druck = $state(false),
+    anschreiben = $state(""),
+    fehler = $state("");
+  let fingerprint = "",
+    vorgang = "";
+  async function festhalten() {
+    const q = JSON.stringify([titel, dokumente, xbau, druck, anschreiben]);
+    if (q !== fingerprint) {
+      fingerprint = q;
+      vorgang = crypto.randomUUID();
+    }
+    await onfesthalten({
+      id: vorgang,
+      titel,
+      dokumente: structuredClone($state.snapshot(dokumente)),
+      xbau,
+      druck,
+      anschreiben,
+    });
+  }
+  async function exportieren(
+    b: Abgabestand,
+    format: string,
+    dateiname: string,
+  ) {
+    onbusy(true);
+    fehler = "";
+    try {
+      const ziel = await save({
+        title: "Festgehaltene Ausgabe exportieren",
+        defaultPath: dateiname,
+      });
+      if (ziel)
+        await verfahrenApi.export(projektId, verfahrenId, b.id, format, ziel);
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      onbusy(false);
+    }
+  }
+  const status = (b: Abgabestand) => b.versandstatus ?? "Vorbereitet";
+</script>
+
+<h3>Abgabestände und Übermittlungsbelege</h3>
+<p class="meta">
+  Alle Ausgaben verwenden dieselben festgehaltenen Dokumentversionen. Eine
+  Ausgabe bestätigt weder Versand noch Eingang. Fehlerhafte Einträge werden
+  durch begründete Folgeeinträge berichtigt.
+</p>
+{#if fehler}<p role="alert" class="fehlertext">{fehler}</p>{/if}
+<fieldset disabled={!darf}>
+  <legend>Neuen Stand zusammenstellen</legend><label
+    >Abgabebezeichnung<input bind:value={titel} maxlength="500" /></label
+  ><Dokumentliste {dateien} bind:werte={dokumente} /><label
+    ><input type="checkbox" bind:checked={xbau} />XBau-Ausgabe zusätzlich
+    erzeugen (Antragsdaten und Anlagenarten erforderlich)</label
+  ><label
+    ><input type="checkbox" bind:checked={druck} />Druck-PDF mit
+    Inhaltsverzeichnis zusätzlich erzeugen (druckbare Dateien)</label
+  ><label
+    >Anschreiben für Druck-PDF<textarea
+      rows="4"
+      maxlength="16000"
+      bind:value={anschreiben}
+    ></textarea></label
+  ><button
+    type="button"
+    disabled={!titel.trim() || !dokumente.length}
+    onclick={festhalten}>Abgabestand verbindlich festhalten</button
+  >
+</fieldset>
+{#each eintraege as b (b.id)}<details open>
+    <summary
+      >{b.titel} · {status(b)} · {new Date(b.erstellt_am).toLocaleString(
+        "de-DE",
+      )}</summary
+    >
+    <ul>
+      {#each b.dokumente as d}<li>
+          {d.name} · Version {d.dokument.version}
+        </li>{/each}
+    </ul>
+    {#if b.hinweise.length}<aside class="hinweisbox">
+        <strong>Prüfhinweise des damaligen Stands</strong>
+        <ul>
+          {#each b.hinweise as h}<li>{h}</li>{/each}
+        </ul>
+      </aside>{/if}
+    <div class="knoepfe links">
+      {#each b.artefakte as f}<button
+          type="button"
+          class="sekundaer"
+          onclick={() => exportieren(b, f.format, f.dateiname)}
+          >{f.format.toLocaleUpperCase()} exportieren</button
+        >{/each}
+    </div>
+    <table class="ergebnistabelle">
+      <thead
+        ><tr
+          ><th>Ereignisdatum</th><th>Status</th><th>Weg / Referenz</th><th
+            >Notiz</th
+          ><th>Beleg</th></tr
+        ></thead
+      ><tbody
+        >{#each b.versand as e}<tr
+            ><td>{e.datum}</td><td
+              >{e.status}{b.versand.some((n) => n.berichtigt === e.id)
+                ? " (berichtigt)"
+                : ""}</td
+            ><td>{e.weg} · {e.referenz}</td><td>{e.notiz}</td><td
+              >{e.beleg
+                ? dateien.find(
+                    (d) =>
+                      d.document_id === e.beleg?.dokument_id &&
+                      d.version === e.beleg?.version,
+                  )?.file_name
+                : "Kein Beleg"}</td
+            ></tr
+          >{/each}</tbody
+      >
+    </table>
+    <fieldset disabled={!darf}>
+      <legend>Neues Versand-/Eingangsereignis (mit Akte speichern)</legend
+      ><button
+        type="button"
+        class="sekundaer"
+        onclick={() =>
+          b.versand.push({
+            id: crypto.randomUUID(),
+            status: "versendet",
+            datum: heute(),
+            weg: "",
+            referenz: "",
+            notiz: "",
+            beleg: null,
+            berichtigt: null,
+          })}>Ereignis ergänzen</button
+      >
+      {#each b.versand.filter((e) => !e.notiz) as e (e.id)}<p class="meta">
+          Ereignis benötigt eine Notiz / Begründung.
+        </p>{/each}
+      <!-- Bereits gespeicherte Einträge werden im Elternobjekt anhand ihrer Kennung geschützt. -->
+      {#each b.versand as e (e.id)}<details
+          open={!gespeichert.some((b) => b.versand.some((v) => v.id === e.id))}
+        >
+          <summary
+            >{e.datum} · {e.status} · Ereignis bearbeiten / ansehen</summary
+          >
+          <fieldset
+            disabled={gespeichert.some((b) =>
+              b.versand.some((v) => v.id === e.id),
+            )}
+          >
+            <div class="raster">
+              <label
+                >Status<select bind:value={e.status}
+                  ><option value="versendet">Versendet</option><option
+                    value="eingegangen">Eingang belegt</option
+                  ><option value="zurueckgewiesen">Zurückgewiesen</option
+                  ></select
+                ></label
+              ><label
+                >Ereignisdatum<input type="date" bind:value={e.datum} /></label
+              ><label>Übermittlungsweg<input bind:value={e.weg} /></label><label
+                >Übermittlungsreferenz<input bind:value={e.referenz} /></label
+              ><label
+                >Notiz / Begründung<input
+                  required
+                  maxlength="4000"
+                  bind:value={e.notiz}
+                /></label
+              ><Dokumentfeld
+                {dateien}
+                bind:wert={e.beleg}
+                label="Quittung / Eingangsbeleg"
+              /><label
+                >Berichtigt früheres Ereignis<select bind:value={e.berichtigt}
+                  ><option value={null}>Keines</option
+                  >{#each b.versand.slice(0, b.versand.indexOf(e)) as alt}<option
+                      value={alt.id}>{alt.datum} · {alt.status}</option
+                    >{/each}</select
+                ></label
+              >
+            </div>
+          </fieldset>
+        </details>{/each}
+    </fieldset>
+  </details>{/each}

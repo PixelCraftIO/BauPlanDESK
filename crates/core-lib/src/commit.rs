@@ -33,6 +33,13 @@ pub struct DokumentCommit {
 }
 #[async_trait]
 pub trait CommitRepository: Send + Sync {
+    async fn bauantrag(
+        &self,
+        projekt: ProjectId,
+        daten: String,
+        basis: i64,
+        audit: NeuerProtokolleintrag,
+    ) -> CoreResult<i64>;
     async fn projekt(
         &self,
         p: Project,

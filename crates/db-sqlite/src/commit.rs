@@ -17,6 +17,38 @@ async fn audit(c: &mut SqliteConnection, e: NeuerProtokolleintrag) -> CoreResult
 }
 #[async_trait]
 impl CommitRepository for SqliteDatabase {
+    async fn bauantrag(
+        &self,
+        p: ProjectId,
+        daten: String,
+        basis: i64,
+        e: NeuerProtokolleintrag,
+    ) -> CoreResult<i64> {
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        let neu: Option<i64> = if basis == 0 {
+            sqlx::query_scalar("INSERT INTO bauantraege (project_id,daten,version,geaendert_von,geaendert_am) VALUES (?,?,1,?,?) ON CONFLICT(project_id) DO NOTHING RETURNING version")
+            .bind(p.to_string()).bind(&daten).bind(&e.benutzer_name).bind(e.zeit).fetch_optional(&mut *tx).await.map_err(db_err)?
+        } else {
+            sqlx::query_scalar("UPDATE bauantraege SET daten=?,version=version+1,geaendert_von=?,geaendert_am=? WHERE project_id=? AND version=? RETURNING version")
+            .bind(&daten).bind(&e.benutzer_name).bind(e.zeit).bind(p.to_string()).bind(basis).fetch_optional(&mut *tx).await.map_err(db_err)?
+        };
+        let Some(neu) = neu else {
+            let actual: Option<i64> =
+                sqlx::query_scalar("SELECT version FROM bauantraege WHERE project_id=?")
+                    .bind(p.to_string())
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+            return Err(CoreError::VersionConflict {
+                expected: basis,
+                actual: actual.unwrap_or(0),
+            });
+        };
+        audit(&mut tx, e).await?;
+        tx.commit().await.map_err(db_err)?;
+        Ok(neu)
+    }
+
     async fn projekt(
         &self,
         mut p: Project,
@@ -298,6 +330,17 @@ mod tests {
         .await
         .unwrap();
         sqlx::query("CREATE TRIGGER audit_ausfall BEFORE INSERT ON protokoll BEGIN SELECT RAISE(ABORT, 'Simulierter Audit-Ausfall'); END").execute(&db.pool).await.unwrap();
+        assert!(
+            CommitRepository::bauantrag(&db, p.id, "{}".into(), 0, eintrag(p.id))
+                .await
+                .is_err()
+        );
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM bauantraege WHERE project_id=?")
+            .bind(p.id.to_string())
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0, "Bauantrag und Audit bilden eine Transaktion");
         let mut neu = p.clone();
         neu.name = "Nicht bestätigt".into();
         assert!(

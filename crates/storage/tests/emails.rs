@@ -118,6 +118,39 @@ async fn archivierte_nachrichten_lesen_ohne_neue_datei_oder_version() {
         core.load_version(kaputt.document_id, 1).await.unwrap().1,
         b"kein MSG".as_slice()
     );
+    let mut anhaenge = Vec::new();
+    // Anhänge werden bewusst übernommen; Wiederholung erzeugt keine zweite Datei.
+    for (quelle, erwartet) in [
+        (d.document_id, "Lageplan.pdf"),
+        (m.document_id, "Anmerkungen.pdf"),
+    ] {
+        let anhang = core
+            .email_anhang_ablegen(quelle, 1, 0, &user)
+            .await
+            .unwrap();
+        let erneut = core
+            .email_anhang_ablegen(quelle, 1, 0, &user)
+            .await
+            .unwrap();
+        assert_eq!(anhang.document_id, erneut.document_id);
+        assert_eq!(anhang.file_name, erwartet);
+        assert_eq!(
+            core.document_history(anhang.document_id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        let z = core
+            .repos
+            .commit
+            .dokumentzusatz(anhang.document_id, 1, "emailquelle")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(z.daten["dokument_id"], quelle.0.to_string());
+        anhaenge.push(anhang);
+    }
     // Reale Vergleichsdaten: dieselbe Dateiversion, später eine andere Kategorie.
     core.dokumentkategorie_speichern(
         d.document_id,
@@ -181,7 +214,7 @@ async fn archivierte_nachrichten_lesen_ohne_neue_datei_oder_version() {
     if let Ok(root) = std::env::var("BAUPROJEKT_EMAIL_ARTEFAKTE") {
         let root = std::path::PathBuf::from(root);
         std::fs::create_dir_all(&root).unwrap();
-        let wf = serde_json::json!({"projekt":p,"eml1":gelesen1,"eml2":gelesen2,"msg":gelesen_msg,"versionen":[d,v2],"kaputt":kaputt,"katalog":core.kategorienkatalog().await.unwrap(),"zuordnungen":core.dokumentkategorien(p.id).await.unwrap(),"vergleich":vergleich});
+        let wf = serde_json::json!({"projekt":p,"eml1":gelesen1,"eml2":gelesen2,"msg":gelesen_msg,"versionen":[d,v2],"kaputt":kaputt,"anhaenge":anhaenge,"katalog":core.kategorienkatalog().await.unwrap(),"zuordnungen":core.dokumentkategorien(p.id).await.unwrap(),"vergleich":vergleich});
         std::fs::write(
             root.join("workflow.json"),
             serde_json::to_vec_pretty(&wf).unwrap(),

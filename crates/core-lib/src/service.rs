@@ -650,7 +650,7 @@ impl CoreServices {
     /// Bauherren für Bauantrag und Export. Hat ein alter Bauantrag noch
     /// eigene Bauherren und das Projekt keine, gelten bis zur Übernahme
     /// ([`Self::bauherren_uebernehmen`]) die alten.
-    async fn bauherren_fuer_antrag(
+    pub(crate) async fn bauherren_fuer_antrag(
         &self,
         project: ProjectId,
         antrag: &Bauantrag,
@@ -846,18 +846,17 @@ impl CoreServices {
         }
         let daten =
             serde_json::to_string(&antrag).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
-        self.repos
-            .bauantraege
-            .bauantrag_speichern(project, &daten, expected_version, &wer.anzeigename)
-            .await?;
-        self.protokollieren(
+        let audit = Self::audit(
             wer,
             Aktion::BauantragGeaendert,
             Some(project),
             None,
             "Angaben zum Bauantrag".into(),
-        )
-        .await?;
+        );
+        self.repos
+            .commit
+            .bauantrag(project, daten, expected_version, audit)
+            .await?;
         self.bauantrag(project).await
     }
 
@@ -1049,7 +1048,7 @@ impl CoreServices {
         .await
     }
     #[allow(clippy::too_many_arguments)]
-    async fn ablegen_vorgang(
+    pub(crate) async fn ablegen_vorgang(
         &self,
         project_id: ProjectId,
         document_id: Option<DocumentId>,
