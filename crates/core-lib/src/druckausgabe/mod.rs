@@ -224,7 +224,17 @@ impl CoreServices {
                 _ => {
                     let (titel, zeilen) =
                         berichte::erstellen(self, &projekt, q, &nachweise).await?;
-                    let doc = pdf::bericht(&projekt.name, &titel, &zeilen, jetzt)?;
+                    let mut doc = pdf::bericht(&projekt.name, &titel, &zeilen, jetzt)?;
+                    if let Druckquelle::Nachweis { id } = q
+                        && let Some(n) = nachweise.iter().find(|n| n.stand.id == *id)
+                        && let crate::plattform::nachweise::NachweisEingabe::AbstandProjekt {
+                            plan,
+                            ..
+                        } = &n.stand.eingabe
+                    {
+                        let r = serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
+                        crate::abstandsflaechen::bericht::planseite(&mut doc, plan, &r)?;
+                    }
                     (titel, doc)
                 }
             };

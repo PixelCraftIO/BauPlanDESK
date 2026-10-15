@@ -18,6 +18,11 @@ pub enum NutzungsArt {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case")]
 pub enum NachweisEingabe {
+    AbstandProjekt {
+        objekt: Uuid,
+        #[ts(type = "AbstandsPlan")]
+        plan: Box<crate::abstandsflaechen::AbstandsPlan>,
+    },
     Nutzung {
         fach: NutzungsArt,
         #[ts(type = "BaugrundstuecksPlan")]
@@ -81,6 +86,22 @@ fn hash(v: &serde_json::Value) -> CoreResult<ContentHash> {
 }
 fn archiv(core: &CoreServices, p: &Project, e: &NachweisEingabe) -> CoreResult<Vec<RegelArchiv>> {
     match e {
+        NachweisEingabe::AbstandProjekt { plan, .. } => {
+            let inhalt = serde_json::to_string(&plan.regeln).map_err(json_err)?;
+            Ok(vec![RegelArchiv {
+                id: plan.regeln.id.clone(),
+                version: plan.regeln.version.clone(),
+                sha256: ContentHash::of(inhalt.as_bytes()),
+                format: "abstand-json-1".into(),
+                inhalt,
+                pruefstatus: if plan.recht.geprueft {
+                    "Projektbezogene Rechtsprüfung bestätigt"
+                } else {
+                    "Rechtsprüfung offen"
+                }
+                .into(),
+            }])
+        }
         NachweisEingabe::Abstand { .. } => {
             let inhalt = core.lbo.quelltext(p.bundesland)?;
             let info = core
@@ -132,19 +153,49 @@ fn archiv(core: &CoreServices, p: &Project, e: &NachweisEingabe) -> CoreResult<V
 fn grundlagen(p: &Project, regeln: &[RegelArchiv]) -> CoreResult<ContentHash> {
     // Semantisch gleicher Bestands-/Neuvertrag behält denselben Fingerprint.
     let plan = crate::grundstuecksinformationen::plan(&p.planungsrecht)?;
-    let mut daten = serde_json::json!({"land":p.bundesland,"bau_nvo":p.planungsrecht.bau_nvo,"recht":p.planungsrecht.rechtsgrundlage,"plan":p.planungsrecht.bebauungsplan_art,"ergaenzung":p.planungsrecht.ergaenzende_grundlage,"plan_bezeichnung":p.planungsrecht.plan_bezeichnung,"plan_nummer":p.planungsrecht.plan_nummer,"rechtskraft":p.planungsrecht.plan_rechtskraft,"festsetzungen":p.planungsrecht.festgesetzte_werte,"grundstuecke":plan,"legacyflaeche":if plan.is_none(){p.grundstuecksflaeche_m2}else{None},"regeln":regeln.iter().map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>() });
+    let mut daten = serde_json::json!({"land":p.bundesland,"bau_nvo":p.planungsrecht.bau_nvo,"recht":p.planungsrecht.rechtsgrundlage,"plan":p.planungsrecht.bebauungsplan_art,"ergaenzung":p.planungsrecht.ergaenzende_grundlage,"plan_bezeichnung":p.planungsrecht.plan_bezeichnung,"plan_nummer":p.planungsrecht.plan_nummer,"rechtskraft":p.planungsrecht.plan_rechtskraft,"festsetzungen":p.planungsrecht.festgesetzte_werte,"grundstuecke":plan,"legacyflaeche":if plan.is_none(){p.grundstuecksflaeche_m2}else{None},"regeln":regeln.iter().filter(|r|r.format!="abstandsquellen-json-1").map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>() });
     if !crate::grundstuecksinformationen::quellen_aktuell(&p.planungsrecht)? {
         daten["berechnungsgrundlage_unbestaetigt"] = serde_json::json!(true);
     }
     hash(&daten)
 }
 
+fn grundlagen_fuer(
+    p: &Project,
+    regeln: &[RegelArchiv],
+    e: &NachweisEingabe,
+) -> CoreResult<ContentHash> {
+    if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
+        let ids = plan
+            .grundstuecke
+            .iter()
+            .flat_map(|g| &g.flurstueck_ids)
+            .collect::<std::collections::HashSet<_>>();
+        let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+        let mut infos = infos
+            .flurstuecke
+            .iter()
+            .filter(|f| ids.contains(&f.id))
+            .collect::<Vec<_>>();
+        infos.sort_by(|a, b| a.id.cmp(&b.id));
+        hash(
+            &serde_json::json!({"land":p.bundesland,"flurstuecke":infos,"planrechtskontext":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft,&p.planungsrecht.ergaenzende_grundlage),"regeln":regeln.iter().filter(|r|r.format!="abstandsquellen-json-1").map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>()}),
+        )
+    } else {
+        grundlagen(p, regeln)
+    }
+}
 fn auswerten(
     core: &CoreServices,
     p: &Project,
     e: &NachweisEingabe,
 ) -> CoreResult<(serde_json::Value, bool)> {
     match e {
+        NachweisEingabe::AbstandProjekt { plan, .. } => {
+            let r = crate::abstandsflaechen::berechnen(plan)?;
+            let voll = r.vollstaendig && r.konfliktfrei;
+            Ok((serde_json::to_value(r).map_err(json_err)?, voll))
+        }
         NachweisEingabe::Abstand {
             gegenstand,
             eingabe,
@@ -175,6 +226,9 @@ fn auswerten(
 }
 impl CoreServices {
     async fn gebaeude_hash(&self, pid: ProjectId, e: &NachweisEingabe) -> CoreResult<ContentHash> {
+        if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
+            return hash(&serde_json::to_value(plan).map_err(json_err)?);
+        }
         gebaeude_fingerprint(e, &self.repos.commit.fachstaende(pid, "gebaeude").await?)
     }
     pub async fn nachweis_erstellen(
@@ -214,6 +268,26 @@ impl CoreServices {
             },
             e => e,
         };
+        if let NachweisEingabe::AbstandProjekt { objekt, plan } = &eingabe {
+            self.projekt_zugriff(pid, wer, crate::zugriff::ProjektRecht::Bearbeiten)
+                .await?;
+            self.abstandsplan_pruefen(pid, plan).await?;
+            let gespeichert = self
+                .repos
+                .commit
+                .fachstaende(pid, "abstandsflaechen")
+                .await?
+                .into_iter()
+                .find(|f| f.objekt == objekt.to_string())
+                .ok_or_else(|| {
+                    CoreError::InvalidInput("Abstandsplan zuerst im Projekt speichern".into())
+                })?;
+            if gespeichert.daten != serde_json::to_value(plan).map_err(json_err)? {
+                return Err(CoreError::InvalidInput(
+                    "Abstandsplan wurde geändert; aktuellen Entwurf zuerst speichern".into(),
+                ));
+            }
+        }
         let gebaeude_hash = self.gebaeude_hash(pid, &eingabe).await?;
         let p = self.repos.projects.get(pid).await?;
         if let NachweisEingabe::Nutzung { plan, .. } = &eingabe {
@@ -222,8 +296,29 @@ impl CoreServices {
                 plan,
             )?;
         }
-        let regeln = archiv(self, &p, &eingabe)?;
-        let grundlagen_hash = grundlagen(&p, &regeln)?;
+        let mut regeln = archiv(self, &p, &eingabe)?;
+        if let NachweisEingabe::AbstandProjekt { plan, .. } = &eingabe {
+            let mut docs = Vec::new();
+            for d in plan.dokumente() {
+                docs.push(
+                    self.document_history(d.dokument_id)
+                        .await?
+                        .into_iter()
+                        .find(|v| v.version == d.version && v.project_id == pid)
+                        .ok_or_else(|| CoreError::InvalidInput("Quelldokument fehlt".into()))?,
+                );
+            }
+            let inhalt = serde_json::to_string(&docs).map_err(json_err)?;
+            regeln.push(RegelArchiv {
+                id: "abstandsquellen".into(),
+                version: "1".into(),
+                sha256: ContentHash::of(inhalt.as_bytes()),
+                format: "abstandsquellen-json-1".into(),
+                inhalt,
+                pruefstatus: "Originalquellen mit konkreten Dateiversionen und SHA-256".into(),
+            });
+        }
+        let grundlagen_hash = grundlagen_fuer(&p, &regeln, &eingabe)?;
         let (ergebnis, vollstaendig) = auswerten(self, &p, &eingabe)?;
         let n = Nachweisstand {
             id,
@@ -287,6 +382,12 @@ impl CoreServices {
         let p = self.repos.projects.get(pid).await?;
         let freigaben = self.repos.commit.fachstaende(pid, "freigaben").await?;
         let gebaeude = self.repos.commit.fachstaende(pid, "gebaeude").await?;
+        let dateien = self.list_documents(pid).await?;
+        let abstandsplaene = self
+            .repos
+            .commit
+            .fachstaende(pid, "abstandsflaechen")
+            .await?;
         self.repos
             .commit
             .fachstaende(pid, "nachweise")
@@ -295,10 +396,28 @@ impl CoreServices {
             .map(|f| {
                 let stand: Nachweisstand = serde_json::from_value(f.daten).map_err(json_err)?;
                 let aktuell = archiv(self, &p, &stand.eingabe)
-                    .and_then(|r| grundlagen(&p, &r))
+                    .and_then(|r| grundlagen_fuer(&p, &r, &stand.eingabe))
                     .is_ok_and(|h| h == stand.grundlagen_hash)
-                    && gebaeude_fingerprint(&stand.eingabe, &gebaeude)
-                        .is_ok_and(|h| h == stand.gebaeude_hash);
+                    && match &stand.eingabe {
+                        NachweisEingabe::AbstandProjekt { objekt, plan } => {
+                            abstandsplaene
+                                .iter()
+                                .find(|f| f.objekt == objekt.to_string())
+                                .is_some_and(|f| {
+                                    hash(&f.daten).is_ok_and(|h| h == stand.gebaeude_hash)
+                                })
+                                && plan.dokumente().iter().all(|d| {
+                                    dateien
+                                        .iter()
+                                        .filter(|v| v.document_id == d.dokument_id)
+                                        .map(|v| v.version)
+                                        .max()
+                                        == Some(d.version)
+                                })
+                        }
+                        _ => gebaeude_fingerprint(&stand.eingabe, &gebaeude)
+                            .is_ok_and(|h| h == stand.gebaeude_hash),
+                    };
                 let freigabe = freigaben
                     .iter()
                     .find(|f| f.objekt == stand.id.to_string())
@@ -418,6 +537,25 @@ impl CoreServices {
             planungsrecht: n.rechtskontext,
         };
         match &n.eingabe {
+            NachweisEingabe::AbstandProjekt { plan, .. } => {
+                let r = n
+                    .regeln
+                    .iter()
+                    .find(|r| r.format == "abstand-json-1")
+                    .ok_or_else(|| {
+                        CoreError::InvalidInput("Archivierte Abstandsregeln fehlen".into())
+                    })?;
+                let regel: crate::abstandsflaechen::AbstandsRegeln =
+                    serde_json::from_str(&r.inhalt).map_err(json_err)?;
+                if regel != plan.regeln
+                    || n.ergebnis["rechenstand"] != crate::abstandsflaechen::RECHENSTAND
+                {
+                    return Err(CoreError::InvalidInput(
+                        "Archivierter Rechen-/Regelstand passt nicht zum verfügbaren Kern".into(),
+                    ));
+                }
+                serde_json::to_value(crate::abstandsflaechen::berechnen(plan)?).map_err(json_err)
+            }
             NachweisEingabe::Abstand { eingabe, .. } => {
                 let engine = LboEngine::new();
                 let r = n

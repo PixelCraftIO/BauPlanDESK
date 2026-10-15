@@ -175,6 +175,10 @@ pub(super) async fn validieren(
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
+        ObjektArt::Abstandsflaechen => {
+            let plan = serde_json::from_value(daten).map_err(json_err)?;
+            return core.abstandsplan_validieren(p.id, plan, wer).await;
+        }
         ObjektArt::Verfahren => {
             return Err(CoreError::InvalidInput(
                 "Verfahren benötigen ihren eigenen Commit".into(),

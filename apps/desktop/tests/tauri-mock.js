@@ -51,6 +51,7 @@ window.__TAURI_INTERNALS__ = {
       return args.handler;
     }
     if (cmd.startsWith("plugin:event|")) return;
+    if(cmd==="abstandsregeln")return [];
     // Live-Pixeländerungen werden separat mit echten PDF-Fixtures geprüft.
     if (cmd === "kategorienkatalog") return {revision:0,kategorien:[]};
     if (cmd === "dokumentkategorien") return [];
