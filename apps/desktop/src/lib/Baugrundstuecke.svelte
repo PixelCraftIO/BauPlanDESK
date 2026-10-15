@@ -416,7 +416,7 @@
             ><td
               >{f.grundbuchbezirk && f.grundbuchblatt && f.laufende_nummer
                 ? `${f.grundbuchbezirk} · Blatt ${f.grundbuchblatt} · lfd. Nr. ${f.laufende_nummer}`
-                : "Noch ungeklärt"}</td
+                : "Optional – Flurstück wird einzeln angesetzt"}</td
             ></tr
           >{/each}
       </tbody>
@@ -424,8 +424,10 @@
   </div>
   <p class="meta">
     Kataster- und Grundbuchangaben werden unter Grundstücksinformationen →
-    Flurstücke und Grundbuch gepflegt. Fehlende Grundbuchangaben benötigen hier
-    eine begründete Zuordnung.
+    Flurstücke und Grundbuch gepflegt. Ohne vollständige Grundbuchangaben wird jedes
+    Flurstück einzeln berechnet. Für ein gemeinsames Baugrundstück können Sie
+    vollständige Grundbuchangaben ergänzen oder den Flurstücken dieselbe
+    besondere Zuordnungskennung mit Grundlage geben.
   </p>
   <fieldset disabled={!darf || laeuft}>
     <legend>1 · Flächenabzüge und Zuordnungen</legend>

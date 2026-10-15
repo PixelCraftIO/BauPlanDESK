@@ -33,9 +33,17 @@ pub struct Flurstueck {
     pub abweichende_zuordnung: Option<AbweichendeZuordnung>,
 }
 impl Flurstueck {
+    pub fn hat_grundbuchzuordnung(&self) -> bool {
+        !self.grundbuchbezirk.trim().is_empty()
+            && !self.grundbuchblatt.trim().is_empty()
+            && self.laufende_nummer > 0
+    }
     pub fn schluessel(&self) -> String {
         if let Some(a) = &self.abweichende_zuordnung {
             return format!("zuordnung:{}", a.kennung.trim().to_lowercase());
+        }
+        if !self.hat_grundbuchzuordnung() {
+            return format!("flurstueck:{}", self.id);
         }
         serde_json::to_string(&(
             self.grundbuchbezirk.trim().to_lowercase(),
@@ -149,16 +157,6 @@ impl BaugrundstuecksPlan {
                     "Flurstück benötigt gültige Katasterangaben und eine positive Fläche".into(),
                 ));
             }
-            if f.abweichende_zuordnung.is_none()
-                && (f.grundbuchbezirk.trim().is_empty()
-                    || f.grundbuchblatt.trim().is_empty()
-                    || f.laufende_nummer == 0)
-            {
-                return Err(CoreError::InvalidInput(format!(
-                    "Baugrundstückszuordnung für Flurstück {} noch ungeklärt: Grundbuchangaben ergänzen oder eine begründete besondere Zuordnung erfassen",
-                    f.nummer
-                )));
-            }
             if !ids.insert(&f.id)
                 || !kataster.insert((
                     f.gemarkung.trim().to_lowercase(),
@@ -210,10 +208,19 @@ impl BaugrundstuecksPlan {
                         .as_ref()
                         .map(|a| format!("Zuordnung {}", a.kennung))
                         .unwrap_or_else(|| {
-                            format!(
-                                "{} · Blatt {} · lfd. Nr. {}",
-                                f.grundbuchbezirk, f.grundbuchblatt, f.laufende_nummer
-                            )
+                            if f.hat_grundbuchzuordnung() {
+                                format!(
+                                    "{} · Blatt {} · lfd. Nr. {}",
+                                    f.grundbuchbezirk, f.grundbuchblatt, f.laufende_nummer
+                                )
+                            } else {
+                                format!(
+                                    "{} · Flur {} · Flurstück {} (einzeln angesetzt)",
+                                    f.gemarkung,
+                                    if f.flur.is_empty() { "—" } else { &f.flur },
+                                    f.nummer
+                                )
+                            }
                         }),
                     flurstueck_ids: vec![],
                     eigentumsflaeche_m2: 0.0,
@@ -492,10 +499,57 @@ mod tests {
         assert_eq!(p.gruppen(true).unwrap().len(), 3);
     }
     #[test]
-    fn fehlende_und_doppelte_daten_werden_abgelehnt() {
+    fn ohne_grundbuch_einzeln_teilangaben_nicht_zusammenfassen() {
+        let mut p = musterplan();
+        for f in &mut p.flurstuecke {
+            f.grundbuchbezirk.clear();
+            f.grundbuchblatt.clear();
+            f.laufende_nummer = 0;
+        }
+        let einzeln = p.gruppen(true).unwrap();
+        assert_eq!(einzeln.len(), 3);
+        assert!(einzeln.iter().all(|g| g.flurstueck_ids.len() == 1));
+        assert_eq!(einzeln.iter().map(|g| g.bauland_m2).sum::<f64>(), 830.);
+        let vorlage = p.berechnungen[0].clone();
+        p.berechnungen = einzeln
+            .iter()
+            .map(|g| BaugrundstueckBerechnung {
+                schluessel: g.schluessel.clone(),
+                ..vorlage.clone()
+            })
+            .collect();
+        let nutzung = p.pruefe(&planrecht(), 1).unwrap();
+        assert_eq!(nutzung.baugrundstuecke.len(), 3);
+        assert!(
+            nutzung
+                .baugrundstuecke
+                .iter()
+                .all(|n| n.grundstueck.flurstueck_ids.len() == 1)
+        );
+        for f in &mut p.flurstuecke {
+            f.laufende_nummer = 1;
+        }
+        assert_eq!(p.gruppen(true).unwrap().len(), 3);
+        for f in &mut p.flurstuecke {
+            f.grundbuchbezirk = "Bezirk".into();
+            f.grundbuchblatt = "42".into();
+        }
+        assert_eq!(p.gruppen(true).unwrap().len(), 1);
+        p.flurstuecke[2].laufende_nummer = 2;
+        assert_eq!(p.gruppen(true).unwrap().len(), 2);
+        for f in &mut p.flurstuecke {
+            f.abweichende_zuordnung = Some(AbweichendeZuordnung {
+                kennung: "gemeinsam".into(),
+                grundlage: "Dokumentierte gemeinsame Einheit".into(),
+            });
+        }
+        assert_eq!(p.gruppen(true).unwrap().len(), 1);
+    }
+    #[test]
+    fn optionale_grundbuchdaten_und_ungueltige_flaechen() {
         let mut p = musterplan();
         p.flurstuecke[0].grundbuchblatt.clear();
-        assert!(p.gruppen(true).is_err());
+        assert_eq!(p.gruppen(true).unwrap().len(), 3);
         p = musterplan();
         p.flurstuecke.push(p.flurstuecke[0].clone());
         assert!(p.gruppen(true).is_err());
