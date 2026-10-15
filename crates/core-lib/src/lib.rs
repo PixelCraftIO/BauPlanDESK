@@ -49,3 +49,5 @@ pub mod projektbereiche;
 pub mod plattform;
 
 pub mod zugriff;
+
+pub mod druckausgabe;

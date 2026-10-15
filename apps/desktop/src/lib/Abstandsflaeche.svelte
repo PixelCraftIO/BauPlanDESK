@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Druckknopf from "./Druckknopf.svelte";
   import { plattformApi } from "./plattformApi";
   import { editorAnmelden } from "./editoren";
   import {
@@ -48,7 +49,7 @@
         vorgang = crypto.randomUUID();
         vorgangStand = stand;
       }
-      await plattformApi.nachweisErstellen(
+      const nachweis = await plattformApi.nachweisErstellen(
         projektId,
         vorgang,
         `Abstandsfläche – H ${wandhoehe} m`,
@@ -60,6 +61,7 @@
       );
       speicherHinweis =
         "Nachweisstand mit Eingaben und Regelpaket gespeichert.";
+      return nachweis;
     } catch (e) {
       onfehler(fehlertext(e));
     } finally {
@@ -136,7 +138,15 @@
   {#if projektId}<button
       disabled={!darfSpeichern || !aktuell || speichert}
       onclick={nachweisSpeichern}>Nachweisstand speichern</button
-    >{/if}
+    ><Druckknopf
+      {projektId}
+      disabled={!darfSpeichern || !aktuell || speichert}
+      text="Speichern und drucken …"
+      vorbereiten={async () => {
+        const n = await nachweisSpeichern();
+        return n ? { art: "nachweis", id: n.id } : null;
+      }}
+    />{/if}
 {/if}
 {#if speicherHinweis}<p role="status">{speicherHinweis}</p>{/if}
 <p class="meta">

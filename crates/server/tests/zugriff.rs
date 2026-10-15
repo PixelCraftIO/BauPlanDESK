@@ -115,6 +115,72 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/v1/projekte/{}", p.id), true).await,
         StatusCode::OK
     );
+    // PDF-Ausgabe ist auch als POST eine lesende Operation. Fremde Quellen
+    // werden zusätzlich zum Projektpfad im Core überprüft.
+    let mail=bytes::Bytes::from_static(b"From: buero@example.org\r\nTo: bauamt@example.org\r\nSubject: Unterlagen\r\n\r\nAnbei die Unterlagen.");
+    let d = core
+        .store_document(p.id, None, None, "Anschreiben.eml", mail.clone(), &admin)
+        .await
+        .unwrap();
+    let fremdes_dokument = core
+        .store_document(fremd.id, None, None, "Fremd.eml", mail, &admin)
+        .await
+        .unwrap();
+    let mut auftrag = core_lib::druckausgabe::Druckauftrag {
+        titel: "Druckpaket".into(),
+        absender: String::new(),
+        empfaenger: String::new(),
+        anschreiben: String::new(),
+        mit_anschreiben: false,
+        inhaltsverzeichnis: false,
+        projekt_version: p.version,
+        quellen: vec![core_lib::druckausgabe::Druckquelle::Dokument {
+            dokument_id: d.document_id,
+            version: 1,
+            seiten: vec![],
+        }],
+    };
+    assert_eq!(
+        status(
+            &app,
+            &format!("/api/v1/projekte/{}/druckkatalog", p.id),
+            true
+        )
+        .await,
+        StatusCode::OK
+    );
+    let request = |a: &core_lib::druckausgabe::Druckauftrag| {
+        Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/projekte/{}/druckausgabe", p.id))
+            .header("authorization", format!("Bearer {TOKEN}"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(a).unwrap()))
+            .unwrap()
+    };
+    let antwort = app.clone().oneshot(request(&auftrag)).await.unwrap();
+    assert_eq!(antwort.status(), StatusCode::OK);
+    assert_eq!(antwort.headers()["content-type"], "application/pdf");
+    assert!(
+        to_bytes(antwort.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap()
+            .starts_with(b"%PDF-")
+    );
+    assert_eq!(core.document_history(d.document_id).await.unwrap().len(), 1);
+    auftrag.quellen = vec![core_lib::druckausgabe::Druckquelle::Dokument {
+        dokument_id: fremdes_dokument.document_id,
+        version: 1,
+        seiten: vec![],
+    }];
+    assert_eq!(
+        app.clone()
+            .oneshot(request(&auftrag))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
     core.projektmitglied_setzen(
         p.id,
         ProjektMitglied {

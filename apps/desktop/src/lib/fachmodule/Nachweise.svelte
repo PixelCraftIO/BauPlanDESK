@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Druckknopf from "../Druckknopf.svelte";
   import { onMount } from "svelte";
   import type { BaugrundstuecksPruefung, Project } from "../api";
   import { fehlertext } from "../api";
@@ -58,8 +59,19 @@
       laeuft = false;
     }
   }
-  function nutzung(wert:JsonValue):BaugrundstuecksPruefung|null {return wert&&typeof wert==='object'&&!Array.isArray(wert)&&Array.isArray(wert.baugrundstuecke)?wert as unknown as BaugrundstuecksPruefung:null;}
-  function zahl(n:number|null|undefined){return n===null||n===undefined?'—':n.toLocaleString('de-DE',{maximumFractionDigits:3});}
+  function nutzung(wert: JsonValue): BaugrundstuecksPruefung | null {
+    return wert &&
+      typeof wert === "object" &&
+      !Array.isArray(wert) &&
+      Array.isArray(wert.baugrundstuecke)
+      ? (wert as unknown as BaugrundstuecksPruefung)
+      : null;
+  }
+  function zahl(n: number | null | undefined) {
+    return n === null || n === undefined
+      ? "—"
+      : n.toLocaleString("de-DE", { maximumFractionDigits: 3 });
+  }
   function ergebniszeilen(wert: JsonValue): { name: string; wert: string }[] {
     if (!wert || Array.isArray(wert) || typeof wert !== "object") return [];
     const ergebnis = wert.ergebnis;
@@ -124,7 +136,10 @@
             class="link"
             disabled={laeuft}
             onclick={() => wiederholen(n)}>Archivstand wiederholen</button
-          ></td
+          ><Druckknopf
+            projektId={projekt.id}
+            quelle={{ art: "nachweis", id: n.stand.id }}
+          /></td
         ></tr
       ><tr
         ><td colspan="6"
@@ -133,8 +148,37 @@
             >{#each ergebniszeilen(n.stand.ergebnis) as z}<p>
                 {z.name}: <strong>{z.wert}</strong>
               </p>{/each}
-            {#if nutzung(n.stand.ergebnis)}{#each nutzung(n.stand.ergebnis)!.baugrundstuecke as g}<h4>{g.grundstueck.bezeichnung}</h4><p>GRZ {zahl(g.pruefung.kennzahlen.grz)} · GFZ {zahl(g.pruefung.kennzahlen.gfz)} · BMZ {zahl(g.pruefung.kennzahlen.bmz)}</p><table class="ergebnistabelle"><thead><tr><th>Prüfung</th><th>Ermittelt</th><th>Vorgabe</th><th>Bewertung</th></tr></thead><tbody>{#each g.pruefung.nachweise as e}<tr><td>{e.art}{e.gegenstand?' · '+e.gegenstand:''}</td><td>{zahl(e.ist)}</td><td>{zahl(e.soll)}</td><td>{e.eingehalten===null?'Nicht abschließend prüfbar':e.eingehalten?'Eingehalten':'Abweichung – prüfen'}</td></tr>{/each}</tbody></table>{/each}{/if}
-<ul>
+            {#if nutzung(n.stand.ergebnis)}{#each nutzung(n.stand.ergebnis)!.baugrundstuecke as g}<h4
+                >
+                  {g.grundstueck.bezeichnung}
+                </h4>
+                <p>
+                  GRZ {zahl(g.pruefung.kennzahlen.grz)} · GFZ {zahl(
+                    g.pruefung.kennzahlen.gfz,
+                  )} · BMZ {zahl(g.pruefung.kennzahlen.bmz)}
+                </p>
+                <table class="ergebnistabelle">
+                  <thead
+                    ><tr
+                      ><th>Prüfung</th><th>Ermittelt</th><th>Vorgabe</th><th
+                        >Bewertung</th
+                      ></tr
+                    ></thead
+                  ><tbody
+                    >{#each g.pruefung.nachweise as e}<tr
+                        ><td
+                          >{e.art}{e.gegenstand ? " · " + e.gegenstand : ""}</td
+                        ><td>{zahl(e.ist)}</td><td>{zahl(e.soll)}</td><td
+                          >{e.eingehalten === null
+                            ? "Nicht abschließend prüfbar"
+                            : e.eingehalten
+                              ? "Eingehalten"
+                              : "Abweichung – prüfen"}</td
+                        ></tr
+                      >{/each}</tbody
+                  >
+                </table>{/each}{/if}
+            <ul>
               {#each n.stand.regeln as r}<li>
                   {r.id} · Ausgabe {r.version} · {r.pruefstatus}
                 </li>{/each}

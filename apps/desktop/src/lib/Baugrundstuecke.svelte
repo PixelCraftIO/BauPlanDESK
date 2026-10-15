@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Druckknopf from "./Druckknopf.svelte";
   import { berechnungsplan, berechnungsansaetze } from "./grundstuecksdaten";
   import type { Gebaeude } from "./generated/plattform";
   import type { Datensatz } from "./plattformApi";
@@ -274,7 +275,7 @@
             : bereich === "gfz"
               ? "gfz"
               : "grz";
-      await plattformApi.nachweisErstellen(
+      const nachweis = await plattformApi.nachweisErstellen(
         projekt.id,
         nachweisVorgang,
         `${fach.toLocaleUpperCase("de-DE")} – ${projekt.name}`,
@@ -282,6 +283,7 @@
       );
       nachweisHinweis =
         "Nachweisstand mit Eingaben und Regelpaketen gespeichert.";
+      return nachweis;
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -621,7 +623,15 @@
 {#if ergebnis}<button
     disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}
     onclick={nachweisSpeichern}>Nachweisstand speichern</button
-  >{/if}
+  ><Druckknopf
+    projektId={projekt.id}
+    disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}
+    text="Speichern und drucken …"
+    vorbereiten={async () => {
+      const n = await nachweisSpeichern();
+      return n ? { art: "nachweis", id: n.id } : null;
+    }}
+  />{/if}
 {#if nachweisHinweis}<p role="status">{nachweisHinweis}</p>{/if}
 
 <style>

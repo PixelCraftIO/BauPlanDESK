@@ -74,7 +74,7 @@ pub struct FlaechenAufstellung {
     pub nichtvollgeschoss_faktor: f64,
     pub nichtvollgeschoss_festsetzung: String,
 }
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FlaechenErgebnis {
     pub regelwerk_id: String,
     pub regelwerk_version: String,
@@ -88,7 +88,7 @@ pub struct FlaechenErgebnis {
     pub bauteile: Vec<BauteilAnsatz>,
     pub geschosse: Vec<f64>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BauteilAnsatz {
     pub anrechnung: Anrechnung,
     pub flaeche_m2: f64,
@@ -109,7 +109,7 @@ pub struct GrundstueckAufstellung {
     pub abzug_begruendung: String,
     pub gemeinschaftsanteile: Vec<Gemeinschaftsanteil>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GrundstueckErgebnis {
     pub basis_m2: f64,
     pub abzug_m2: f64,

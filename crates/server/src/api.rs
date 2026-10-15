@@ -137,6 +137,8 @@ fn routen(core: CoreServices) -> Router {
             post(einreichung_bestaetigen),
         )
         .route("/einreichungen/{id}/zip", get(einreichung_zip))
+        .route("/projekte/{id}/druckkatalog", get(druckkatalog))
+        .route("/projekte/{id}/druckausgabe", post(druckausgabe))
         .route("/projekte/{id}/projektordner", get(projektordner_plan))
         .route("/projekte/{id}/protokoll", get(protokoll))
         .route(
@@ -919,4 +921,29 @@ async fn email_laden(
     Ok(Json(
         s.core.archivierte_email(DocumentId(id), version).await?,
     ))
+}
+
+async fn druckkatalog(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<core_lib::druckausgabe::Druckkatalog> {
+    Ok(Json(core.druckkatalog(ProjectId(id)).await?))
+}
+async fn druckausgabe(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(auftrag): Json<core_lib::druckausgabe::Druckauftrag>,
+) -> Result<Response, ApiError> {
+    let d = core.druckausgabe(ProjectId(id), auftrag).await?;
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "application/pdf"),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=\"Druckausgabe.pdf\"",
+            ),
+        ],
+        d.pdf,
+    )
+        .into_response())
 }

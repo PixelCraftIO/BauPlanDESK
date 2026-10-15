@@ -28,6 +28,8 @@
   import Bauantrag from "./Bauantrag.svelte";
   import ProjektFormulare from "./ProjektFormulare.svelte";
   import Einreichungen from "./Einreichungen.svelte";
+  import Druckausgabe from "./Druckausgabe.svelte";
+  import Druckknopf from "./Druckknopf.svelte";
   import Dokumente from "./Dokumente.svelte";
   import Grundstuecksinformationen from "./Grundstuecksinformationen.svelte";
   import MassDerNutzung from "./MassDerNutzung.svelte";
@@ -69,6 +71,10 @@
   let formularEditor = $state<ProjektFormulare>();
   let festsetzungsEditor = $state<Rechtsgrundlagen>();
   let stammdatenEditor = $state<Rechtsgrundlagen>();
+  let druckBesucht = $state(false);
+  $effect(() => {
+    if (ansicht === "druck") druckBesucht = true;
+  });
   let formulareBesucht = $state(false);
   $effect(() => {
     if (ansicht === "formulare") formulareBesucht = true;
@@ -296,6 +302,12 @@
       />{/key}
   </section>
   <section hidden={!berechnungsAnsichten.includes(ansicht)}>
+    <Druckknopf
+      projektId={projekt.id}
+      quelle={ansicht === "grundstueck" ? { art: "baugrundstueck" } : undefined}
+      disabled={!!nutzungsEditor?.hatAenderungen()}
+      text="Druckausgabe zusammenstellen"
+    />
     <h2>
       {berechnungsTitel[
         (ansicht === "mass" ? "grundstueck" : ansicht) as BerechnungsBereich
@@ -338,6 +350,9 @@
       bereich="festsetzungen"
     />
   </section>
+  {#if druckBesucht}<section hidden={ansicht !== "druck"}>
+      <Druckausgabe projektId={projekt.id} />
+    </section>{/if}
   {#if formulareBesucht}<section hidden={ansicht !== "formulare"}>
       <ProjektFormulare
         bind:this={formularEditor}

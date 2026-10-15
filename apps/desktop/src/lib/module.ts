@@ -56,6 +56,7 @@ const BASIS_MODULE = [
   { id: "dokumente", titel: "Projektdateien", gruppe: "Unterlagen" },
   { id: "plaene", titel: "Pläne / Aufmaß", gruppe: "Unterlagen" },
   { id: "bauantrag", titel: "Bauantrag / XBau", gruppe: "Unterlagen" },
+  { id: "druck", titel: "Drucken / PDF-Ausgabe", gruppe: "Unterlagen" },
   { id: "einreichungen", titel: "Einreichungen", gruppe: "Unterlagen" },
   { id: "protokoll", titel: "Chronik", gruppe: "Unterlagen" },
 ] as const satisfies readonly FachModul[];

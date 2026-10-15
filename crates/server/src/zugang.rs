@@ -152,7 +152,12 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
     if let Some(p) = projekt {
         let min = if teile.contains(&"mitglieder") {
             ProjektRecht::Leitung
-        } else if r.method() == axum::http::Method::GET {
+        } else if r.method() == axum::http::Method::GET
+            || (r.method() == axum::http::Method::POST
+                && teile.len() == 3
+                && teile[0] == "projekte"
+                && teile[2] == "druckausgabe")
+        {
             ProjektRecht::Lesen
         } else {
             ProjektRecht::Bearbeiten

@@ -11,6 +11,7 @@
     type FormularBezug,
   } from "./api";
 
+  import { druckPdf } from "./druckPdf";
   import { LivePdfVorschau } from "./LivePdfVorschau";
   import PdfVorschau from "./PdfVorschau.svelte";
   const vorgang = crypto.randomUUID();
@@ -44,7 +45,7 @@
     vorschauStand = $state(""),
     gezeichnetStand = $state("");
   let vorschauFehler = $state<string | null>(null),
-    pdfBereit = false,
+    pdfBereit = $state(false),
     quellstand = $state(0),
     beendet = false,
     ladeNummer = 0;
@@ -63,6 +64,17 @@
     ladeNummer++;
     live.beenden();
   });
+  async function vorschauDrucken() {
+    if (!vorschauPdf || vorschauSoll !== gezeichnetStand || laeuft) return;
+    laeuft = true;
+    try {
+      await druckPdf(vorschauPdf);
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
+    }
+  }
   function geaenderteWerte(): Record<string, Feldwert> {
     const result: Record<string, Feldwert> = {};
     for (const f of analyse?.felder ?? []) {
@@ -267,6 +279,15 @@
 
   <div class="pdf-arbeitsplatz">
     <div class="pdf-vorschau-spalte">
+      <button
+        type="button"
+        class="sekundaer"
+        disabled={laeuft ||
+          !pdfBereit ||
+          !!vorschauFehler ||
+          vorschauSoll !== gezeichnetStand}
+        onclick={vorschauDrucken}>Aktuelle Eingaben drucken …</button
+      >
       {#if vorschau && vorschauPdf}<label
           >Seite<select aria-label="Seite" bind:value={seite}
             >{#each vorschau.seiten as p}<option value={p.nummer}

@@ -89,7 +89,7 @@ impl<'de> Deserialize<'de> for BaugrundstuecksPlan {
         })
     }
 }
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BaugrundstueckGruppe {
     pub schluessel: String,
     pub bezeichnung: String,
