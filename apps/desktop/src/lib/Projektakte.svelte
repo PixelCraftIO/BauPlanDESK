@@ -1,6 +1,9 @@
 <script lang="ts">
   import Projektorganisation from "./Projektorganisation.svelte";
-  import Projektstatus from "./Projektstatus.svelte";
+  import Projektuebersicht from "./Projektuebersicht.svelte";
+  import { projektNavigationAnlegen } from "./projektNavigation.svelte";
+  import { MODULE } from "./module";
+  import type { UebersichtsZiel } from "./generated/plattform";
   import { FACHMODULE } from "./fachmodule/register";
   import { projektEditoren } from "./editoren";
   import { untrack } from "svelte";
@@ -39,7 +42,7 @@
   import Rechtsgrundlagen from "./Rechtsgrundlagen.svelte";
   let {
     projekt,
-    ansicht = $bindable("uebersicht"),
+    ansicht = $bindable("projektuebersicht"),
     planDokument = $bindable(null),
     aktiv,
     info,
@@ -63,6 +66,12 @@
     ondialog: (art: "projektdaten" | "bauherren" | "buero") => void;
   } = $props();
   const editoren = projektEditoren();
+  const navigation = projektNavigationAnlegen();
+  function oeffnen(ziel: UebersichtsZiel) {
+    if (!MODULE.some((m) => m.id === ziel.bereich)) return;
+    navigation.springen(ziel);
+    ansicht = ziel.bereich as Ansicht;
+  }
   let fachBesucht = $state<Record<string, boolean>>({});
   $effect(() => {
     if (FACHMODULE.some((m) => m.id === ansicht)) fachBesucht[ansicht] = true;
@@ -181,14 +190,15 @@
         />
       </section>{/if}
   {/each}
-  <section hidden={ansicht !== "uebersicht"}>
-    <h2>Stammdaten</h2>
-    <Projektstatus
+  {#if ansicht === "projektuebersicht"}<Projektuebersicht
       projektId={projekt.id}
       version={projekt.version}
-      sichtbar={aktiv && ansicht === "uebersicht"}
-      onbereich={(id) => (ansicht = id)}
-    />
+      sichtbar={aktiv}
+      entwuerfe={editoren.hatAenderungen()}
+      onoeffnen={oeffnen}
+    />{/if}
+  <section hidden={ansicht !== "uebersicht"}>
+    <h2>Stammdaten</h2>
     <dl class="daten">
       <dt>Name</dt>
       <dd>{projekt.name}</dd>
@@ -266,14 +276,22 @@
   <section hidden={ansicht !== "abstand"}>
     <h2>Abstandsflächen</h2>
     {#key projekt.id}
-      <AbstandsProjekt {projekt} benutzerId={ich?.id??""} darf={darf("bearbeitung")} darfFreigeben={darf("projektleitung")} />
-      <details><summary>Einfache Tiefenvorprüfung (bisheriger Rechner)</summary><Abstandsflaeche
-        startLand={projekt.bundesland}
-        projektId={projekt.id}
-        darfSpeichern={darf("bearbeitung")}
-        regelpakete={info?.regelpakete ?? []}
-        onfehler={melde}
-      /></details>
+      <AbstandsProjekt
+        {projekt}
+        benutzerId={ich?.id ?? ""}
+        darf={darf("bearbeitung")}
+        darfFreigeben={darf("projektleitung")}
+      />
+      <details>
+        <summary>Einfache Tiefenvorprüfung (bisheriger Rechner)</summary
+        ><Abstandsflaeche
+          startLand={projekt.bundesland}
+          projektId={projekt.id}
+          darfSpeichern={darf("bearbeitung")}
+          regelpakete={info?.regelpakete ?? []}
+          onfehler={melde}
+        />
+      </details>
     {/key}
   </section>
   <section hidden={ansicht !== "plaene"}>

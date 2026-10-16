@@ -13,6 +13,7 @@ export interface FachModul {
   voraussetzung?: "flaechen" | "plan";
 }
 const BASIS_MODULE = [
+  { id: "projektuebersicht", titel: "Projektübersicht", gruppe: "Grundlagen" },
   { id: "uebersicht", titel: "Stammdaten", gruppe: "Grundlagen" },
   { id: "rechtsgrundlagen", titel: "Rechtsgrundlagen", gruppe: "Grundlagen" },
   {

@@ -75,6 +75,7 @@ fn main() {
             druckausgabe::druckausgabe_exportieren,
             plattform::fachobjekte,
             plattform::projektstatus,
+            plattform::projektuebersicht,
             plattform::standard_checkliste,
             plattform::checkliste_anwenden,
             plattform::fachverlauf,

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Druckknopf from "../Druckknopf.svelte";
-  import { onMount } from "svelte";
+  import { projektNavigation } from "../projektNavigation.svelte";
+  import { onMount, tick } from "svelte";
   import type { BaugrundstuecksPruefung, Project } from "../api";
   import { fehlertext } from "../api";
   import type { NachweisAnsicht, JsonValue } from "../generated/plattform";
@@ -29,7 +30,31 @@
       laeuft = false;
     }
   }
-  onMount(laden);
+  const navigation = projektNavigation();
+  let letzterSprung = 0;
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (
+      !a ||
+      a.nummer === letzterSprung ||
+      a.ziel.bereich !== "nachweise" ||
+      !a.ziel.eintrag
+    )
+      return;
+    letzterSprung = a.nummer;
+    void laden()
+      .then(() => tick())
+      .then(() =>
+        document
+          .querySelector(
+            `[data-projekt-id="${projekt.id}"] [data-nachweis="${a.ziel.eintrag}"]`,
+          )
+          ?.scrollIntoView({ block: "center" }),
+      );
+  });
+  onMount(() => {
+    if (navigation?.auftrag?.ziel.bereich !== "nachweise") void laden();
+  });
   async function freigeben(n: NachweisAnsicht) {
     laeuft = true;
     try {
@@ -135,7 +160,7 @@
       ><th>Freigabe</th><th></th></tr
     ></thead
   ><tbody
-    >{#each liste as n (n.stand.id)}<tr
+    >{#each liste as n (n.stand.id)}<tr data-nachweis={n.stand.id}
         ><td>{n.stand.bezeichnung}</td><td
           >{new Date(n.stand.erstellt_am).toLocaleString("de-DE")}</td
         ><td

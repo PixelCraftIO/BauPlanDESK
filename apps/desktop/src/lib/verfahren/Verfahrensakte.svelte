@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { projektNavigation } from "../projektNavigation.svelte";
+  import { onMount, untrack, tick } from "svelte";
   import {
     api,
     fehlertext,
@@ -59,6 +60,28 @@
     notizDatum = $state(heute()),
     notizBeleg = $state<Dokumentbezug | null>(null),
     notizBerichtigt = $state<string | null>(null);
+  const navigation = projektNavigation();
+  let letzterSprung = 0;
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (
+      !a ||
+      a.nummer === letzterSprung ||
+      a.ziel.bereich !== "verfahren" ||
+      s.id !== a.ziel.objekt
+    )
+      return;
+    letzterSprung = a.nummer;
+    if (a.ziel.register) tab = a.ziel.register;
+    if (a.ziel.eintrag)
+      void tick().then(() => {
+        const e = document.querySelector(
+          `[data-projekt-id="${projekt.id}"] [data-uebersicht-eintrag="${a.ziel.eintrag}"]`,
+        );
+        if (e instanceof HTMLDetailsElement) e.open = true;
+        e?.scrollIntoView({ block: "center" });
+      });
+  });
   async function dateienLaden() {
     try {
       [dateien, benutzer] = await Promise.all([

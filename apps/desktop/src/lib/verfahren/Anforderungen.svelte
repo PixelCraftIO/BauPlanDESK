@@ -36,7 +36,10 @@
       verantwortlich: null,
     })}>Anforderung ergänzen</button
 >
-{#each eintraege as a (a.id)}<details open={!a.freigegeben}>
+{#each eintraege as a (a.id)}<details
+    data-uebersicht-eintrag={a.id}
+    open={!a.freigegeben}
+  >
     <summary
       >{a.titel || "Neue Anforderung"} · {a.erforderlich} · {a.freigegeben
         ? "Freigegeben"

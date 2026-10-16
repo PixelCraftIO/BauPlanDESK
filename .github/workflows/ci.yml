@@ -88,6 +88,7 @@ jobs:
       BAUPROJEKT_VERFAHREN_ARTEFAKTE: /tmp/bauprojekt-verfahren
       BAUPROJEKT_ABSTAND_ARTEFAKTE: /tmp/bauprojekt-abstand
       BAUPROJEKT_FACH_ARTEFAKTE: /tmp/bauprojekt-fach
+      BAUPROJEKT_UEBERSICHT_ARTEFAKTE: /tmp/bauprojekt-uebersicht
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,7 +108,7 @@ jobs:
               print('BAUPROJEKT_CHROMIUM=' + p.chromium.executable_path)
           PYCODE
       - name: Echte PDF- und Paket-Testdaten erzeugen
-        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --test druckausgabe --test verfahren --test abstandsflaechen --test fachberechnungen --locked
+        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --test druckausgabe --test verfahren --test abstandsflaechen --test fachberechnungen --test projektuebersicht --locked
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
       - name: Produktionsoberfläche prüfen
@@ -138,6 +139,7 @@ jobs:
           python apps/desktop/tests/verfahren.py
           python apps/desktop/tests/abstandsflaechen.py
           python apps/desktop/tests/fachberechnungen.py
+          python apps/desktop/tests/projektuebersicht.py
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -154,4 +156,6 @@ jobs:
             docs/abstandsflaechen/screenshots
             /tmp/bauprojekt-fach
             /tmp/bauprojekt-fach-ui
+            docs/projektuebersicht/screenshots
+            /tmp/bauprojekt-uebersicht
             /tmp/bauprojekt-ui.log

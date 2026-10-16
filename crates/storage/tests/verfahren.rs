@@ -547,10 +547,39 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         .is_err()
     );
     assert_eq!(folgestand.revision, 3);
+    let uebersicht = core.projektuebersicht(p.id, &user).await.unwrap();
+    let akte = uebersicht.verfahren.iter().find(|v| v.id == vid).unwrap();
+    assert_eq!(akte.entscheidung, Some(Entscheidung::Genehmigt));
+    assert_eq!(akte.offene_auflagen, 1);
+    assert_eq!(akte.offene_punkte, 3); // Zwei Antworten warten auf Bestätigung, ein Punkt ist wieder offen.
+    assert!(uebersicht.punkte.iter().any(
+        |p| p.ziel.objekt == Some(vid) && p.ziel.register.as_deref() == Some("nachforderungen")
+    ));
+    assert!(
+        uebersicht
+            .empfaenger
+            .iter()
+            .any(|e| e.dokumente.iter().any(|d| d.eingereichte_version == 2))
+    );
+    for p in a.nachforderungen[0].punkte.iter().take(2) {
+        let wartend = uebersicht
+            .punkte
+            .iter()
+            .find(|h| h.ziel.eintrag == Some(p.id) && h.ziel.objekt == Some(vid))
+            .unwrap();
+        assert_eq!(
+            wartend.dringlichkeit,
+            core_lib::projektuebersicht::Dringlichkeit::Warten
+        );
+        assert!(
+            wartend.faellig.is_none(),
+            "Eingereichte Antwort ist keine unbeantwortete überfällige Nachforderung"
+        );
+    }
     if let Ok(ziel) = std::env::var("BAUPROJEKT_VERFAHREN_ARTEFAKTE") {
         let ziel = std::path::Path::new(&ziel);
         std::fs::create_dir_all(ziel).unwrap();
-        std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"verfahren":f,"akte":a,"dateien":core.list_documents(p.id).await.unwrap(),"benutzer":user,"erinnerungen":core.verfahren_erinnerungen(p.id,heute).await.unwrap(),"treffer":treffer})).unwrap()).unwrap();
+        std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"verfahren":f,"akte":a,"dateien":core.list_documents(p.id).await.unwrap(),"benutzer":user,"erinnerungen":core.verfahren_erinnerungen(p.id,heute).await.unwrap(),"treffer":treffer,"uebersicht":uebersicht})).unwrap()).unwrap();
         std::fs::write(ziel.join("akte.zip"), export).unwrap();
     }
     drop(core);

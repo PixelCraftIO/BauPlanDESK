@@ -101,6 +101,7 @@ fn routen(core: CoreServices) -> Router {
             get(vorlagenkategorie).put(vorlagenkategorie_speichern),
         )
         .route("/projekte/{id}/status", get(projektstatus))
+        .route("/projekte/{id}/uebersicht", get(projektuebersicht))
         .route(
             "/projekte/{id}/paketpruefung",
             axum::routing::post(paket_pruefstand),
@@ -1219,4 +1220,12 @@ async fn berechnung_aus_raumbuch(
             .berechnung_aus_raumbuch(ProjectId(id), w.id, w.modul)
             .await?,
     ))
+}
+
+async fn projektuebersicht(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::projektuebersicht::Projektuebersicht> {
+    Ok(Json(core.projektuebersicht(ProjectId(id), &wer).await?))
 }

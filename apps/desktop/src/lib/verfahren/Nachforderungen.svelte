@@ -62,7 +62,10 @@
     <button type="button" class="sekundaer" onclick={() => punkt(n)}
       >Forderungspunkt hinzufügen</button
     >
-    {#each n.punkte as p (p.id)}<details open={p.status !== "bestaetigt"}>
+    {#each n.punkte as p (p.id)}<details
+        data-uebersicht-eintrag={p.id}
+        open={p.status !== "bestaetigt"}
+      >
         <summary>{p.titel || "Neuer Punkt"} · {p.status}</summary>
         <div class="raster">
           <label

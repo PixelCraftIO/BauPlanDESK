@@ -2,7 +2,8 @@
   import { kategorieStandText, kategorieGeaendert } from "./kategorien";
   import PaketPruefstand from "./PaketPruefstand.svelte";
   import { editorAnmelden } from "./editoren";
-  import { onMount } from "svelte";
+  import { projektNavigation } from "./projektNavigation.svelte";
+  import { onMount, tick } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
   import {
     api,
@@ -95,6 +96,27 @@
       laeuft = false;
     }
   }
+  const navigation = projektNavigation();
+  let letzterSprung = 0;
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (
+      !a ||
+      a.nummer === letzterSprung ||
+      a.ziel.bereich !== "einreichungen" ||
+      !a.ziel.eintrag ||
+      !chronik.length
+    )
+      return;
+    letzterSprung = a.nummer;
+    void tick().then(() => {
+      const e = document.querySelector(
+        `[data-projekt-id="${projektId}"] [data-paket="${a.ziel.eintrag}"]`,
+      );
+      if (e instanceof HTMLDetailsElement) e.open = true;
+      e?.scrollIntoView({ block: "center" });
+    });
+  });
   onMount(laden);
   function umschalten(id: string, checked: boolean) {
     auswahl = checked ? [...auswahl, id] : auswahl.filter((x) => x !== id);
@@ -402,7 +424,7 @@
 {#if !chronik.length}<p class="meta">
     Noch keine Einreichungspakete erstellt.
   </p>{/if}
-{#each chronik as e (e.stand.id)}<details class="paket">
+{#each chronik as e (e.stand.id)}<details class="paket" data-paket={e.stand.id}>
     <summary
       >{e.stand.titel} · {e.stand.empfaenger} · {e.einreichung
         ? `Eingereicht am ${e.einreichung.datum}`
