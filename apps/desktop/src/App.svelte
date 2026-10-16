@@ -23,6 +23,7 @@
   import Sidebar from "./lib/Sidebar.svelte";
   import Darstellung from "./lib/Darstellung.svelte";
   import Speicherorte from "./lib/Speicherorte.svelte";
+  import DruckEinstellungen from "./lib/DruckEinstellungen.svelte";
   import KategorienEinstellungen from "./lib/KategorienEinstellungen.svelte";
   import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
@@ -79,6 +80,7 @@
   let kundenBesucht = $state(false);
   let kundenEditor = $state<Kunden>();
   let speicherortEditor = $state<Speicherorte>();
+  let druckEditor = $state<DruckEinstellungen>();
   let kategorienEditor = $state<KategorienEinstellungen>();
   let ablageEditor = $state<AblageEinstellungen>();
   let bibliothekEditor = $state<Formularbibliothek>();
@@ -416,6 +418,7 @@
           sitzungen.some((s) => s.editor?.istBeschaeftigt()) ||
           kundenEditor?.istBeschaeftigt() ||
           ablageEditor?.istBeschaeftigt() ||
+          druckEditor?.istBeschaeftigt() ||
           kategorienEditor?.istBeschaeftigt() ||
           speicherortEditor?.istBeschaeftigt() ||
           bibliothekEditor?.istBeschaeftigt() ||
@@ -556,6 +559,7 @@
         <Speicherorte {ich} bind:this={speicherortEditor} />
         <AblageEinstellungen bind:this={ablageEditor} />
         <KategorienEinstellungen {ich} bind:this={kategorienEditor} />
+        <DruckEinstellungen {ich} bind:this={druckEditor} />
         <div class="verwaltungszeile">
           <div>
             <h2>Büroangaben</h2>

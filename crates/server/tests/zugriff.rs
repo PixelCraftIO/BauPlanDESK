@@ -175,6 +175,28 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/v1/projekte/{}", p.id), true).await,
         StatusCode::OK
     );
+    // Leser dürfen Vorlagen ansehen, aber den gemeinsamen Bürostandard nicht ändern.
+    assert_eq!(
+        status(&app, "/api/druckgestaltung", true).await,
+        StatusCode::OK
+    );
+    let r = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/druckgestaltung")
+                .header("authorization", format!("Bearer {TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&core_lib::druckausgabe::Druckgestaltung::default())
+                        .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
     // PDF-Ausgabe ist auch als POST eine lesende Operation. Fremde Quellen
     // werden zusätzlich zum Projektpfad im Core überprüft.
     let mail=bytes::Bytes::from_static(b"From: buero@example.org\r\nTo: bauamt@example.org\r\nSubject: Unterlagen\r\n\r\nAnbei die Unterlagen.");
@@ -187,6 +209,9 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         .await
         .unwrap();
     let mut auftrag = core_lib::druckausgabe::Druckauftrag {
+        gestaltung: None,
+        aktenzeichen: String::new(),
+        datum: None,
         titel: "Druckpaket".into(),
         absender: String::new(),
         empfaenger: String::new(),

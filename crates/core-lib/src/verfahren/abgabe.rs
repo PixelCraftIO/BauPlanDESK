@@ -277,6 +277,9 @@ impl CoreServices {
                 .druckausgabe(
                     p,
                     crate::druckausgabe::Druckauftrag {
+                        gestaltung: None,
+                        aktenzeichen: String::new(),
+                        datum: None,
                         titel: stand.titel.clone(),
                         absender: stand.grundlagen.buero.name.clone(),
                         empfaenger: a.behoerde.name.clone(),

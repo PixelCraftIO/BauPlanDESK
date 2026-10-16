@@ -62,7 +62,9 @@ with sync_playwright() as p:
  page.screenshot(path=str(out/'vektorplan-pdf.png'))
  texts=page.evaluate('''async()=>{const pdfjs=await import('/abstand-pdf-test.mjs');pdfjs.GlobalWorkerOptions.workerSrc=[...performance.getEntriesByType('resource')].find(e=>/pdf.worker.*mjs/.test(e.name)).name;const d=await pdfjs.getDocument({data:Uint8Array.from(atob(window.abstand.pdf),c=>c.charCodeAt(0)),isEvalSupported:false}).promise;const ts=[];for(let n=1;n<=d.numPages;n++){const p=await d.getPage(n);ts.push((await p.getTextContent()).items.map(i=>i.str??'').join(' '));}await d.destroy();return ts;}''')
  assert 'Vektorplanskizze' in texts[-1] and 'W1' in texts[-1]
- assert 'SHA-256' in ' '.join(texts) and 'Südwand' in ' '.join(texts)
+ assert 'SHA-256' not in ' '.join(texts) and 'Südwand' in ' '.join(texts)
+ assert 'Ergebnisübersicht der Wände' in ' '.join(texts)
+ assert f'Seite {len(texts)} von {len(texts)}' in texts[-1]
  dialog.get_by_role('button',name='Als Projektunterlage ablegen',exact=True).click()
  expect(dialog.get_by_role('status').filter(has_text='Im Projekt abgelegt: Abstandsflächen.pdf.')).to_be_visible()
  assert page.evaluate("window.calls.find(c=>c.cmd==='druckausgabe_ablegen').args.pdfBase64===window.abstand.pdf")

@@ -42,6 +42,10 @@ with sync_playwright() as p:
     page.get_by_label('Absender',exact=True).fill(wf['auftrag']['absender'])
     page.get_by_label('Empfänger',exact=True).fill(wf['auftrag']['empfaenger'])
     page.get_by_label('Anschreiben',exact=True).fill(wf['auftrag']['anschreiben'])
+    page.get_by_label('Kopfzeile',exact=True).fill(wf['auftrag']['gestaltung']['kopfzeile'])
+    page.get_by_label('Fußzeile',exact=True).fill(wf['auftrag']['gestaltung']['fusszeile'])
+    page.get_by_label('Aktenzeichen / Bezug',exact=True).fill(wf['auftrag']['aktenzeichen'])
+    page.get_by_label('Ausgabedatum',exact=True).fill(wf['auftrag']['datum'])
     page.get_by_role('button',name='Druckausgabe erstellen',exact=False).click()
     expect(page.get_by_role('heading',name=f'Druckvorschau · {wf["seiten"]} Seiten')).to_be_visible(timeout=30000)
     page.wait_for_function("document.querySelector('canvas')?.width>0")
@@ -93,6 +97,17 @@ with sync_playwright() as p:
     expect(dialog.get_by_role('checkbox',name='Anschreiben voranstellen',exact=True)).not_to_be_checked()
     expect(dialog.get_by_role('checkbox',name='Inhaltsverzeichnis mit Seitenzahlen',exact=True)).not_to_be_checked()
     dialog.get_by_role('button',name='Schließen',exact=True).click()
+    # Bürostandard speichern und später wieder lesen; Bearbeitung bleibt bei Fehler erhalten.
+    page.get_by_role('button',name='Einstellungen',exact=True).click()
+    page.get_by_text('Briefbogen und Druckvorlagen',exact=True).click()
+    settings=page.locator('details').filter(has=page.get_by_text('Briefbogen und Druckvorlagen',exact=True))
+    settings.get_by_label('Kopfzeile',exact=True).fill('Architekturbüro Test\n{Projekt}')
+    settings.get_by_label('Fußzeile',exact=True).fill('Ausgabe {Datum}')
+    settings.get_by_label('Vorlage für das Anschreiben',exact=True).fill('Sehr geehrte Damen und Herren,\n\nhiermit reichen wir die Unterlagen ein.')
+    settings.get_by_role('button',name='Druckvorlage speichern',exact=True).click()
+    expect(settings.get_by_role('status')).to_contain_text('Bürostandard')
+    assert page.evaluate("window.calls.filter(c=>c.cmd==='druckgestaltung_speichern').at(-1).args.gestaltung.kopfzeile")== 'Architekturbüro Test\n{Projekt}'
+
     # Archiviertes Original und alle Berichte wirklich auslesen, nicht nur Mockwerte prüfen.
     texts=page.evaluate('''async()=>{
       const pdfjs=await import('/druck-pdf-test.mjs');
@@ -101,12 +116,19 @@ with sync_playwright() as p:
       const result=[];for(let n=1;n<=d.numPages;n++){const p=await d.getPage(n);result.push((await p.getTextContent()).items.map(i=>i.str??'').join(' '));}await d.destroy();return result;
     }''')
     assert 'Anschreiben' in texts[0] and 'Bauamt Musterstadt' in texts[0]
-    assert 'Inhaltsverzeichnis' in texts[1] and 'Seite 3–4' in texts[1]
+    assert 'Inhaltsverzeichnis' in texts[1] and '3–4' in texts[1]
     assert 'Anlage Lageplan' in texts[2]
     assert 'Daniel Müller' in texts[3] and 'Musterstraße 7' in texts[3] and '12345 Musterstadt' in texts[3]
     assert not any('Neuere Eingabe' in t for t in texts)
     alltext=' '.join(texts)
-    for t in ['GRZ I','GRZ II','GFZ','BMZ','Abstandsflächentiefe: 4 m','BauNVO: 2017','SHA-256','Nicht freigegeben']:assert t in alltext,t
+    for t in ['GRZ I','GRZ II','GFZ','BMZ','Abstandsflächentiefe: 4 m','BauNVO: 2017','Rechenansatz','Prüfergebnis','Nicht freigegeben']:assert t in alltext,t
+    assert 'SHA-256' not in alltext
+    import re
+    assert not re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b',alltext)
+    for i,t in enumerate(texts):
+        if i not in [2,3]: assert f'Seite {i+1} von {len(texts)}' in t
+    assert 'Planungsbüro Müller' in texts[0] and 'BA-2026-042' in texts[0]
+    assert 'Stand 16.10.2026' in texts[0]
     assert not page.evaluate("window.calls.some(c=>['dokument_importieren','formular_im_projekt_speichern','einreichung_erstellen'].includes(c.cmd))")
     assert not errors,errors
     browser.close()

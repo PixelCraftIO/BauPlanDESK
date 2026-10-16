@@ -69,6 +69,10 @@ pub struct ApiState {
 fn routen(core: CoreServices) -> Router {
     let api = Router::new()
         .route("/sitzung", get(sitzung))
+        .route(
+            "/druckgestaltung",
+            get(druckgestaltung).put(druckgestaltung_speichern),
+        )
         .route("/dokumente/{id}/email/{version}", get(email_laden))
         .route(
             "/dokumente/{id}/email/{version}/anhaenge/{index}",
@@ -1165,4 +1169,17 @@ async fn abstandscad(
         core.abstandscad_konturen(ProjectId(id), w.dokument, w.einheit)
             .await?,
     ))
+}
+
+async fn druckgestaltung(
+    State(s): State<ApiState>,
+) -> ApiResult<core_lib::druckausgabe::Druckgestaltung> {
+    Ok(Json(s.core.druckgestaltung().await?))
+}
+async fn druckgestaltung_speichern(
+    State(s): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Json(g): Json<core_lib::druckausgabe::Druckgestaltung>,
+) -> ApiResult<core_lib::druckausgabe::Druckgestaltung> {
+    Ok(Json(s.core.druckgestaltung_speichern(g, &wer).await?))
 }
