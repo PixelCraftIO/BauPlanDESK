@@ -9,6 +9,7 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri",
+    "version:app": "node scripts/app-version.mjs",
     "licenses": "node scripts/check-licenses.mjs",
     "prebuild": "node scripts/pdf-assets.mjs",
     "predev": "node scripts/pdf-assets.mjs"

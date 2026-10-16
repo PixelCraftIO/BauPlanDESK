@@ -1275,8 +1275,9 @@ export const api = {
       land,
       eingabe,
     }),
+  updateStatus: () => invoke<{eingerichtet:boolean;quelle:string;hinweis:string;verfuegbar?:UpdateInfo|null}>("update_status"),
   updatePruefen: () => invoke<UpdateInfo | null>("update_pruefen"),
-  updateInstallieren: () => invoke<void>("update_installieren"),
+  updateInstallieren: (version: string) => invoke<void>("update_installieren", {version}),
 };
 
 export const LAENDER: { code: Bundesland; name: string }[] = [

@@ -21,6 +21,7 @@ permissions:
 
 jobs:
   hochladen:
+    if: ${{ vars.BAUPROJEKT_LIZENZSERVER != '' }}
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
