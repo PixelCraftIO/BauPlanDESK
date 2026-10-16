@@ -409,7 +409,7 @@ pub(super) fn formulare_einfrieren(d: &mut Document) -> CoreResult<()> {
 pub(super) fn paket(
     projekt: &str,
     a: Druckauftrag,
-    mut quellen: Vec<(String, Document)>,
+    mut quellen: Vec<(Inhaltsangabe, Document)>,
     datum: DateTime<Utc>,
 ) -> CoreResult<Druckergebnis> {
     let mut vorlauf = Vec::new();
@@ -450,7 +450,9 @@ pub(super) fn paket(
             let n = d.get_pages().len() as u32;
             rows.push(vec![
                 (i + 1).to_string(),
-                titel.clone(),
+                titel.kategorie.clone(),
+                titel.name.clone(),
+                titel.version.clone(),
                 if n == 1 {
                     seite.to_string()
                 } else {
@@ -462,8 +464,14 @@ pub(super) fn paket(
         let z = vec![
             text(format!("Bauvorhaben: {projekt}")),
             super::berichte::tabelle(
-                &["Anlage", "Unterlage / Berechnung", "Seite"],
-                &[0.6, 4., 0.8],
+                &[
+                    "Nr.",
+                    "Dokumentkategorie",
+                    "Dateiname / Bezeichnung",
+                    "Version / Stand",
+                    "Seite",
+                ],
+                &[0.45, 1.4, 2.6, 1.3, 0.7],
                 rows,
             ),
         ];
@@ -484,7 +492,7 @@ pub(super) fn paket(
     for (titel, d) in &quellen {
         let seiten = d.get_pages().len() as u32;
         positionen.push(Druckposition {
-            titel: titel.clone(),
+            titel: titel.titel.clone(),
             erste_seite: erste,
             seiten,
         });
@@ -549,11 +557,11 @@ mod tests {
             projekt_version: 1,
             quellen: vec![],
         };
-        let quellen=(0..80).map(|i|(format!("Unterlage {i} mit einer ausführlichen Bezeichnung zur Kontrolle des Umbruchs und der Seitenzahlen"),bericht.clone())).collect();
+        let quellen=(0..80).map(|i|(format!("Unterlage {i} mit einer ausführlichen Bezeichnung zur Kontrolle des Umbruchs und der Seitenzahlen").into(),bericht.clone())).collect();
         // 80 * vierseitige Berichte überschreiten die Stapelgrenze ausdrücklich.
         assert!(paket("Projekt", auftrag.clone(), quellen, datum).is_err());
         let leer = super::bericht("Projekt", "Einzelblatt", &[text("Müller")], datum).unwrap();
-        let quellen=(0..80).map(|i|(format!("Unterlage {i} mit ausführlicher Bezeichnung zur Kontrolle des Umbruchs und der Seitenzahlen"),leer.clone())).collect();
+        let quellen=(0..80).map(|i|(format!("Unterlage {i} mit ausführlicher Bezeichnung zur Kontrolle des Umbruchs und der Seitenzahlen").into(),leer.clone())).collect();
         let out = paket("Projekt", auftrag, quellen, datum).unwrap();
         assert_eq!(out.positionen.len(), 80);
         assert!(out.positionen[0].erste_seite > 7);

@@ -77,6 +77,23 @@ pub struct Druckposition {
     pub erste_seite: u32,
     pub seiten: u32,
 }
+/// Interne Ausgabebeschriftung; keine Ableitung aus formatierten Dateititeln.
+struct Inhaltsangabe {
+    titel: String,
+    kategorie: String,
+    name: String,
+    version: String,
+}
+impl From<String> for Inhaltsangabe {
+    fn from(titel: String) -> Self {
+        Self {
+            name: titel.clone(),
+            titel,
+            kategorie: "Berechnung".into(),
+            version: "Aktueller Stand".into(),
+        }
+    }
+}
 pub struct Druckergebnis {
     pub pdf: Vec<u8>,
     pub positionen: Vec<Druckposition>,
@@ -191,6 +208,7 @@ impl CoreServices {
         }
         let jetzt = chrono::Utc::now();
         let nachweise = self.nachweise(p).await?;
+        let kategorien = self.kategoriesnapshots(p).await?;
         let mut quellen = Vec::new();
         let mut bytes = 0usize;
         let mut druckdaten = 0usize;
@@ -243,7 +261,25 @@ impl CoreServices {
                             jetzt,
                         )?
                     };
-                    (format!("{} · Version {}", meta.file_name, version), doc)
+                    let kategorie = kategorien
+                        .get(&dokument_id.0.to_string())
+                        .and_then(|k| k.as_ref())
+                        .map(|k| {
+                            k.hauptkategorie
+                                .as_ref()
+                                .map(|h| format!("{h} / {}", k.name))
+                                .unwrap_or_else(|| k.name.clone())
+                        })
+                        .unwrap_or_else(|| "Ohne Kategorie".into());
+                    (
+                        Inhaltsangabe {
+                            titel: format!("{} · Version {}", meta.file_name, version),
+                            kategorie,
+                            name: meta.file_name,
+                            version: version.to_string(),
+                        },
+                        doc,
+                    )
                 }
                 _ => {
                     let (titel, zeilen) =
@@ -259,7 +295,53 @@ impl CoreServices {
                         let r = serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
                         crate::abstandsflaechen::bericht::planseite(&mut doc, plan, &r)?;
                     }
-                    (titel, doc)
+                    let version = match q {
+                        Druckquelle::Nachweis { id } => nachweise
+                            .iter()
+                            .find(|n| n.stand.id == *id)
+                            .map(|n| {
+                                format!(
+                                    "Nachweis vom {}",
+                                    n.stand.erstellt_am.format("%d.%m.%Y %H:%M UTC")
+                                )
+                            })
+                            .unwrap_or_else(|| "Nachweisstand".into()),
+                        Druckquelle::Raumbuch { revision, .. } => format!("Revision {revision}"),
+                        _ => format!("Projektstand {}", projekt.version),
+                    };
+                    let kategorie = match q {
+                        Druckquelle::Baugrundstueck => "Berechnung / Baugrundstück",
+                        Druckquelle::Baugrenzen => "Berechnung / Baugrenzen",
+                        Druckquelle::Raumbuch { .. } => "Berechnung / Raumbuch",
+                        Druckquelle::Nachweis { id } => match nachweise
+                            .iter()
+                            .find(|n| n.stand.id == *id)
+                            .map(|n| &n.stand.eingabe)
+                        {
+                            Some(crate::plattform::nachweise::NachweisEingabe::Nutzung {
+                                fach,
+                                ..
+                            }) => match fach {
+                                crate::plattform::nachweise::NutzungsArt::Grz => "Berechnung / GRZ",
+                                crate::plattform::nachweise::NutzungsArt::Gfz => "Berechnung / GFZ",
+                                crate::plattform::nachweise::NutzungsArt::Bmz => "Berechnung / BMZ",
+                                crate::plattform::nachweise::NutzungsArt::Geschossigkeit => {
+                                    "Berechnung / Geschossigkeit"
+                                }
+                            },
+                            _ => "Berechnung / Abstandsflächen",
+                        },
+                        Druckquelle::Dokument { .. } => unreachable!(),
+                    };
+                    (
+                        Inhaltsangabe {
+                            name: titel.clone(),
+                            titel,
+                            kategorie: kategorie.into(),
+                            version,
+                        },
+                        doc,
+                    )
                 }
             };
             if doc.get_pages().is_empty() {

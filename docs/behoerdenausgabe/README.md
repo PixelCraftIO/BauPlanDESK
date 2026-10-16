@@ -21,6 +21,15 @@ Zusätzlich steht auf erzeugten Seiten die Position **Seite n von gesamt** im
 zusammengestellten Paket. Das Inhaltsverzeichnis enthält die tatsächlichen
 Seitenbereiche einschließlich aller Vorblätter und mehrseitigen Nachweise.
 
+Das Inhaltsverzeichnis führt getrennte Spalten für **Dokumentkategorie**, **Dateiname /
+Bezeichnung**, **Version / Stand** und **Seite**. Die Dokumentkategorie wird zum
+Erstellungszeitpunkt aus der Zuordnung übernommen, einschließlich einer
+vorhandenen Hauptkategorie. Nicht zugeordnete Dokumente erscheinen ausdrücklich
+als „Ohne Kategorie“. Dateiname und Versionsnummer stammen aus der konkret
+gewählten Dokumentversion. Erzeugte Berechnungen erhalten eine fachliche
+Kategorie und ihren Nachweis-/Projektstand statt einer erfundenen Dateiversion.
+Die fertige PDF hält diese Angaben fest; spätere Umbenennungen verändern sie nicht.
+
 ## Gestaltung und fachliche Lesbarkeit
 
 - A4-Seiten mit festen Rändern, Briefbogen, vollständigen mehrzeiligen Titeln,
@@ -89,9 +98,11 @@ Druckausgabe anpassen, aber den gemeinsamen Bürostandard nicht überschreiben.
 ## Beispiel und Prüfung
 
 [Beispiel-PDF mit Anschreiben, Inhaltsverzeichnis, Grundstücken und GRZ](beispiel.pdf)
-verwendet ausschließlich fiktive Testdaten. Die nicht vorhandenen Festsetzungen
+enthält auch ein synthetisches PDF-Formular und verwendet ausschließlich fiktive Testdaten. Die nicht vorhandenen Festsetzungen
 und die fehlende Bürofreigabe sind absichtlich sichtbar; es handelt sich um ein
 Gestaltungsbeispiel, keinen einreichungsfertigen Musternachweis.
+
+![Inhaltsverzeichnis mit Kategorie, Dateiname, Version und Seitenbereich](inhaltsverzeichnis.png)
 
 ![Grundstücksermittlung](baugrundstueck.png)
 
@@ -106,3 +117,5 @@ wiederholte Köpfe und den freigehaltenen Briefbogenbereich. Browser lesen echte
 Core-PDFs mit PDF.js: Rechenwerte, keine internen Kennungen, Paketnummern,
 Originalfelder und Vektorplan. Die Beispielseiten wurden zusätzlich gerendert
 und visuell geprüft.
+
+Weitere Fachmodule: [Ausbauplan für Stellplätze, Wohnflächen und ergänzende Nachweise](../berechnungen-ausbau.md).
