@@ -141,3 +141,21 @@ pub async fn projektuebersicht(
         .projektuebersicht(projekt_id, &state.benutzer())
         .await?)
 }
+
+#[tauri::command]
+pub async fn gebaeude_auswerten(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    gebaeude: core_lib::plattform::objekte::Gebaeude,
+) -> Result<core_lib::plattform::gebaeude::GebaeudeGrundlagen, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(gebaeude.grundlagen(id)?)
+}

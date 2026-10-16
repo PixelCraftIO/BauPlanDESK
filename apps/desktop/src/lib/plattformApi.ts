@@ -11,6 +11,8 @@ import type {
 } from "./generated/plattform";
 export type Datensatz<T> = Omit<Fachstand, "daten"> & { daten: T };
 export const plattformApi = {
+  gebaeudeAuswerten: (projektId: string, id: string, gebaeude: import("./generated/plattform").Gebaeude) =>
+    invoke<import("./generated/plattform").GebaeudeGrundlagen>("gebaeude_auswerten", { projektId, id, gebaeude }),
   uebersicht: (projektId: string) =>
     invoke<import("./generated/plattform").Projektuebersicht>(
       "projektuebersicht",

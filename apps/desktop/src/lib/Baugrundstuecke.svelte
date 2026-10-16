@@ -250,6 +250,8 @@
     nachweisVorgang = "",
     nachweisStand = "";
   let gebaeude = $state<Datensatz<Gebaeude>[]>([]);
+  let grundkontexte = $state<import("./api").GrundstueckKontext[]>([]);
+  onMount(() => { api.grundstueckskontext(projekt.id).then((g) => { grundkontexte = g; }).catch((e) => { fehler = fehlertext(e); }); });
   $effect(() => {
     void bereich;
     untrack(() => {
@@ -565,6 +567,8 @@
       >
     {:else}<FlaechenFormular
         {gebaeude}
+        projektId={projekt.id}
+        grundstueckId={grundkontexte.find((g) => g.schluessel === gruppe.schluessel)?.id}
         bereich={bereich === "grz" ? "grz" : "gfz"}
         aufstellung={berechnung.eingabe.aufstellung}
         festsetzungen={projekt.planungsrecht.festgesetzte_werte}

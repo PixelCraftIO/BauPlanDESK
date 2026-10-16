@@ -173,6 +173,7 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
                     "abstandscad",
                     "fachberechnung",
                     "raumbuchimport",
+                    "gebaeudegrundlagen",
                 ]
                 .contains(&teile[2]))
         {

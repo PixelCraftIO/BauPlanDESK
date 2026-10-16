@@ -440,6 +440,7 @@ export interface Festsetzungen {
 }
 
 export interface Bauteil {
+  gebaeude_id?: string;
   bezeichnung: string;
   typ: Bauteiltyp;
   flaeche_m2: number;
@@ -447,6 +448,8 @@ export interface Bauteil {
   begruendung: string;
 }
 export interface Geschoss {
+  flaeche_aus_grundlagen?: boolean;
+  teilflaechen_geprueft?: boolean;
   gebaeude_id?: string | null;
   geschoss_id?: string | null;
   bezeichnung: string;

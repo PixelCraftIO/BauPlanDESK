@@ -1,5 +1,5 @@
 //! Parametrisierte LBO-Prüfung: keine pauschale Definition für alle Bundesländer.
-pub const RECHENSTAND: &str = "vollgeschosse-1";
+pub const RECHENSTAND: &str = "vollgeschosse-2";
 use super::*;
 use std::collections::BTreeMap;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -104,6 +104,7 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
         teile,
     );
     let mut anzahl = 0.;
+    let mut alle_eingestuft = !e.geschosse.is_empty();
     let mut rows = vec![];
     for g in &e.geschosse {
         text(&g.bezeichnung)?;
@@ -129,7 +130,9 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
         } else {
             Some(g.grundflaeche_m2)
         };
-        let anteil = bezug.filter(|v| *v > 0.).map(|v| f.1 / v);
+        let anteil = bezug
+            .filter(|v| *v > 0. && (f.0 - g.grundflaeche_m2).abs() <= 0.01)
+            .map(|v| f.1 / v);
         let oberirdisch = if a.oberirdisch_pruefen {
             g.decke_ueber_gelaende_m.map(|v| {
                 if a.oberirdisch_streng {
@@ -170,6 +173,9 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
         } else {
             fach
         };
+        if ergebnis.is_none() {
+            alle_eingestuft = false;
+        }
         if ergebnis == Some(true) {
             anzahl += 1.;
         }
@@ -243,7 +249,7 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
     r.kennzahl(
         "vollgeschosse",
         "Anzahl Vollgeschosse",
-        Some(anzahl),
+        alle_eingestuft.then_some(anzahl),
         Einheit::Anzahl,
         Messgroesse::Sonstiges,
     );

@@ -205,6 +205,15 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
             StatusCode::FORBIDDEN
         );
     }
+    // Die Geometrievorschau ist lesend, bleibt aber an die Projektberechtigung gebunden.
+    for (projekt, expected) in [(p.id, StatusCode::OK), (fremd.id, StatusCode::FORBIDDEN)] {
+        let response = app.clone().oneshot(Request::builder().method("POST")
+            .uri(format!("/api/projekte/{}/gebaeudegrundlagen", projekt))
+            .header("authorization", format!("Bearer {TOKEN}"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::json!({"id":uuid::Uuid::new_v4(),"gebaeude":{"bezeichnung":"Garage","grundstueck_ids":[],"geschosse":[],"quelle":null,"geometrie":{"grundflaeche_m2":20}}}).to_string())).unwrap()).await.unwrap();
+        assert_eq!(response.status(), expected);
+    }
     // Ein fremdes Raumbuch darf auch über den neuen Importweg nicht gelesen werden.
     let response = app
         .clone()

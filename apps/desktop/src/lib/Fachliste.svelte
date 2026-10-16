@@ -12,6 +12,7 @@
     bereich,
     darf,
     children,
+    zusatz,
     lesendBedienbar = false,
     zusatzBeschaeftigt,
   }: {
@@ -22,6 +23,7 @@
     lesendBedienbar?: boolean;
     zusatzBeschaeftigt?: () => boolean;
     children: Snippet<[T]>;
+    zusatz?: Snippet<[T]>;
   } = $props();
   const gesperrt = $derived(s.laeuft || (zusatzBeschaeftigt?.() ?? false));
   let verlauf = $state<Datensatz<T>[]>([]);
@@ -99,9 +101,9 @@
   >
 </div>
 <table class="ergebnistabelle">
-  <thead><tr><th>Bezeichnung</th><th>Stand</th><th></th></tr></thead><tbody
+  <thead><tr><th>Bezeichnung</th>{#if zusatz}<th>Grundlagen</th>{/if}<th>Stand</th><th></th></tr></thead><tbody
     >{#each s.liste as f (f.objekt)}<tr
-        ><td>{s.titel(f.daten)}</td><td>{f.revision}</td><td
+        ><td>{s.titel(f.daten)}</td>{#if zusatz}<td>{@render zusatz(f.daten)}</td>{/if}<td>{f.revision}</td><td
           ><button
             class="link"
             disabled={gesperrt || s.hatAenderungen() || s.gerettet}
@@ -111,7 +113,7 @@
           ></td
         ></tr
       >{:else}<tr
-        ><td colspan="3"
+        ><td colspan={zusatz ? 4 : 3}
           >{s.laeuft ? "Wird geladen …" : "Noch keine Einträge vorhanden."}</td
         ></tr
       >{/each}</tbody

@@ -107,6 +107,7 @@ fn main() {
             plattform::nachweis_freigeben,
             plattform::nachweis_wiederholen,
             plattform::raumbuch_summen,
+            plattform::gebaeude_auswerten,
             projektordner::projektordner_status,
             sicherungen::buero_sicherung_erstellen,
             sicherungen::buero_sicherung_wiederherstellen,

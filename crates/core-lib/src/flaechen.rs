@@ -44,6 +44,8 @@ pub enum Anrechnung {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bauteil {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gebaeude_id: Option<uuid::Uuid>,
     pub bezeichnung: String,
     pub typ: Bauteiltyp,
     pub flaeche_m2: f64,
@@ -52,6 +54,10 @@ pub struct Bauteil {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Geschoss {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flaeche_aus_grundlagen: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub teilflaechen_geprueft: Option<bool>,
     #[serde(default)]
     pub gebaeude_id: Option<String>,
     #[serde(default)]
@@ -374,6 +380,12 @@ impl FlaechenAufstellung {
             ] {
                 wert(v)?;
             }
+            if !g.vollgeschoss
+                && nichtvollgeschoss_faktor > 0.
+                && g.teilflaechen_geprueft == Some(false)
+            {
+                return Err(CoreError::InvalidInput("Übernommenes Nichtvollgeschoss: Aufenthaltsräume, Wände und Erschließung ergänzen und ihre Vollständigkeit bestätigen".into()));
+            }
             let teil = g.aufenthalt_m2 + g.waende_m2 + g.erschliessung_m2;
             if !g.vollgeschoss
                 && nichtvollgeschoss_faktor > 0.0
@@ -424,6 +436,7 @@ mod tests {
             ]
             .into_iter()
             .map(|(typ, flaeche_m2)| Bauteil {
+                gebaeude_id: None,
                 bezeichnung: "Teil".into(),
                 typ,
                 flaeche_m2,
@@ -433,6 +446,8 @@ mod tests {
             .collect(),
             geschosse: vec![
                 Geschoss {
+                    flaeche_aus_grundlagen: None,
+                    teilflaechen_geprueft: None,
                     gebaeude_id: None,
                     geschoss_id: None,
                     bezeichnung: "EG".into(),
@@ -443,6 +458,8 @@ mod tests {
                     erschliessung_m2: 0.0,
                 },
                 Geschoss {
+                    flaeche_aus_grundlagen: None,
+                    teilflaechen_geprueft: None,
                     gebaeude_id: None,
                     geschoss_id: None,
                     bezeichnung: "DG".into(),
@@ -604,6 +621,23 @@ mod tests {
             );
             assert_eq!(r.vollgeschosse, 1);
         }
+    }
+    #[test]
+    fn uebernommene_nichtvollgeschoss_teilflaechen_muessen_geprueft_sein() {
+        let mut a = aufstellung(BauNvo::V2017);
+        a.geschosse[1].teilflaechen_geprueft = Some(false);
+        assert_eq!(
+            a.berechne(500., None).unwrap().mass.geschossflaeche_m2,
+            100.
+        );
+        a.nichtvollgeschoss_faktor = 1.;
+        a.nichtvollgeschoss_festsetzung = "Fiktiver Kontrollansatz".into();
+        assert!(a.berechne(500., None).is_err());
+        a.geschosse[1].teilflaechen_geprueft = Some(true);
+        assert_eq!(
+            a.berechne(500., None).unwrap().mass.geschossflaeche_m2,
+            145.
+        );
     }
     #[test]
     fn planfestsetzung_teilanrechnung() {

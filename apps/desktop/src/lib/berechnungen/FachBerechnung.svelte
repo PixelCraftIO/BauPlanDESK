@@ -98,11 +98,11 @@
   }
   function optionen(f: Feld): Auswahl[] {
     if (!f.referenz) return f.optionen;
-    if (f.referenz === "$gebaeudegeschosse")
-      return (
-        gebaeude.find((g) => g.objekt === s.eingabe?.gebaeude_id)?.daten
-          .geschosse ?? []
-      ).map((s) => ({ wert: s.id, titel: s.bezeichnung }));
+    if (f.referenz === "$gebaeudegeschosse") {
+      const g = gebaeude.find((g) => g.objekt === s.eingabe?.gebaeude_id);
+      if (!g) return [];
+      return g.daten.geschosse.length ? g.daten.geschosse.map((s) => ({wert:s.id,titel:s.bezeichnung})) : [{wert:g.objekt,titel:"Einzelgeschoss (aus Gebäudegrundfläche)"}];
+    }
     const [path, wertfeld] = f.referenz.split(":");
     const a = lesen(s.eingabe?.eingaben, path);
     if (!Array.isArray(a)) return [];
@@ -365,6 +365,12 @@
               ></label
             >
           </div>
+          {#if modul === "vollgeschosse"}<section class="positionszeile">
+            <h3>Bekannte Gebäudeangaben verwenden</h3>
+            <label><input type="checkbox" checked={p.gebaeudedaten_uebernehmen === true} onchange={(e) => { p.gebaeudedaten_uebernehmen = e.currentTarget.checked; result = null; }} />Geschosse, Flächen und bekannte Höhen aus Gebäude/Geschosse übernehmen</label>
+            <p class="meta">Beim Prüfen und Speichern werden die Geschoss- und Höhenzonenlisten aus dem ausgewählten Gebäude befüllt und aktualisiert. Eine Höhenzone über die gesamte Fläche entsteht nur bei bestätigter einheitlicher Raumhöhe. Für eigene Höhenzonen diese Übernahme lösen. Änderungen an den Grundlagen setzen die Aufmaßprüfung zurück.</p>
+            {#if p.gebaeudedaten_uebernehmen}<button type="button" class="sekundaer" disabled={!p.gebaeude_id} onclick={pruefen}>Gebäudeangaben laden und prüfen</button>{/if}
+          </section>{/if}
           {#if ["wohnflaechen", "din277"].includes(modul)}<details>
               <summary>Raumfakten aus dem Raumbuch übernehmen</summary>
               <p class="meta">
@@ -472,7 +478,7 @@
             >
               <header>
                 <h3>{t.titel}</h3>
-                <button type="button" class="sekundaer" onclick={() => neu(t)}
+                <button type="button" class="sekundaer" disabled={modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten"} onclick={() => neu(t)}
                   >Position hinzufügen</button
                 >
               </header>
@@ -484,7 +490,7 @@
                           feld={f}
                           wert={row[f.name]}
                           optionen={optionen(f)}
-                          disabled={!!quelleFuer(ziel(t, row, f))}
+                          disabled={!!quelleFuer(ziel(t, row, f)) || (modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten" && !["sonderentscheidung", "sondergrundlage"].includes(f.name))}
                           onwert={(v) => (row[f.name] = v)}
                         />{#if f.groesse}{@render uebernahme(
                             ziel(t, row, f),
@@ -496,7 +502,7 @@
                   <button
                     type="button"
                     class="link"
-                    onclick={() => entfernen(t, i)}>Position entfernen</button
+                    disabled={modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten"} onclick={() => entfernen(t, i)}>Position entfernen</button
                   >
                 </details>{:else}<p class="meta">
                   Noch keine Positionen.

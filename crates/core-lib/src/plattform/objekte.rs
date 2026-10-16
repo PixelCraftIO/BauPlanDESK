@@ -32,6 +32,9 @@ pub struct Dokumentbezug {
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Gebaeude {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub geometrie: Option<super::gebaeude::GebaeudeGeometrie>,
     pub bezeichnung: String,
     pub grundstueck_ids: Vec<Uuid>,
     pub geschosse: Vec<GebaeudeGeschoss>,
@@ -40,6 +43,9 @@ pub struct Gebaeude {
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct GebaeudeGeschoss {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub geometrie: Option<super::gebaeude::GeschossGeometrie>,
     pub id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -224,6 +230,7 @@ pub(super) async fn validieren(
         ObjektArt::Gebaeude => {
             let g: Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
             text(&g.bezeichnung, 500)?;
+            g.grundlagen(Uuid::nil())?;
             if g.geschosse.len() > 200 || g.grundstueck_ids.len() > 100 {
                 return Err(CoreError::InvalidInput(
                     "Zu viele Gebäudezuordnungen oder Geschosse".into(),
@@ -338,10 +345,57 @@ impl CoreServices {
         plan: &crate::baugrundstuecke::BaugrundstuecksPlan,
     ) -> CoreResult<crate::baugrundstuecke::BaugrundstuecksPlan> {
         let gebaeude = self.repos.commit.fachstaende(p, "gebaeude").await?;
+        let projekt = self.get_project(p).await?;
+        let grund = crate::grundstueckskontext::ermitteln(&projekt)?;
         let mut neu = plan.clone();
         for b in &mut neu.berechnungen {
+            let grund_id = grund
+                .iter()
+                .find(|g| g.schluessel == b.schluessel)
+                .map(|g| g.id);
             if let Some(a) = &mut b.eingabe.aufstellung {
+                let mut bauteil_ids = std::collections::HashSet::new();
+                for teil in &mut a.bauteile {
+                    if let Some(id) = teil.gebaeude_id {
+                        if !bauteil_ids.insert(id) {
+                            return Err(CoreError::InvalidInput(
+                                "Gebäudegrundfläche je Baugrundstück nur einmal übernehmen".into(),
+                            ));
+                        }
+                        let f = gebaeude
+                            .iter()
+                            .find(|f| f.objekt == id.to_string())
+                            .ok_or_else(|| {
+                                CoreError::InvalidInput("Gebäudequelle für GRZ fehlt".into())
+                            })?;
+                        let g: Gebaeude =
+                            serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+                        if g.grundstueck_ids.len() != 1
+                            || g.grundstueck_ids.first().copied() != grund_id
+                        {
+                            return Err(CoreError::InvalidInput("Flächenübernahme benötigt ein Gebäude mit eindeutiger Zuordnung zu diesem Baugrundstück; bei mehreren Grundstücken Flächen getrennt manuell aufteilen".into()));
+                        }
+                        let basis = g.grundlagen(id)?;
+                        teil.flaeche_m2 = basis.grundflaeche_m2.ok_or_else(|| {
+                            CoreError::InvalidInput(
+                                "Gebäudegrundfläche in den Grundlagen ergänzen".into(),
+                            )
+                        })?;
+                        teil.typ = basis.typ.ok_or_else(|| {
+                            CoreError::InvalidInput("Gebäudetyp in den Grundlagen ergänzen".into())
+                        })?;
+                        teil.bezeichnung = g.bezeichnung;
+                    }
+                }
+                let mut quellgeschosse = std::collections::HashSet::new();
                 for g in &mut a.geschosse {
+                    if g.flaeche_aus_grundlagen == Some(true)
+                        && (g.gebaeude_id.is_none()
+                            || !quellgeschosse
+                                .insert((g.gebaeude_id.clone(), g.geschoss_id.clone())))
+                    {
+                        return Err(CoreError::InvalidInput("Übernommene Geschossfläche benötigt eine eindeutige Gebäude-/Geschosszuordnung".into()));
+                    }
                     if let Some(id) = &g.gebaeude_id {
                         let f = gebaeude.iter().find(|f| &f.objekt == id).ok_or_else(|| {
                             CoreError::InvalidInput(
@@ -350,6 +404,42 @@ impl CoreServices {
                         })?;
                         let geb: Gebaeude =
                             serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+                        if !geb.grundstueck_ids.is_empty()
+                            && !grund_id.is_some_and(|id| geb.grundstueck_ids.contains(&id))
+                        {
+                            return Err(CoreError::InvalidInput(
+                                "Geschoss gehört zu einem anderen Baugrundstück".into(),
+                            ));
+                        }
+                        if g.flaeche_aus_grundlagen == Some(true) {
+                            if geb.grundstueck_ids.len() != 1 {
+                                return Err(CoreError::InvalidInput(
+                                    "Geschossfläche für mehrere Grundstücke getrennt aufteilen"
+                                        .into(),
+                                ));
+                            }
+                            let basis = geb.grundlagen(f.objekt.parse().map_err(|_| {
+                                CoreError::InvalidInput("Gebäude-ID ungültig".into())
+                            })?)?;
+                            let quelle = basis
+                                .geschosse
+                                .iter()
+                                .find(|s| {
+                                    g.geschoss_id.as_deref() == Some(s.id.to_string().as_str())
+                                        || (s.implizit && g.geschoss_id.is_none())
+                                })
+                                .ok_or_else(|| {
+                                    CoreError::InvalidInput(
+                                        "Quellgeschoss wurde geändert. Geschosse erneut übernehmen"
+                                            .into(),
+                                    )
+                                })?;
+                            g.aussenmass_m2 = quelle.flaeche_m2.ok_or_else(|| {
+                                CoreError::InvalidInput(
+                                    "Geschossfläche in den Grundlagen ergänzen".into(),
+                                )
+                            })?;
+                        }
                         if let Some(id) = &g.geschoss_id {
                             let quelle = geb
                                 .geschosse

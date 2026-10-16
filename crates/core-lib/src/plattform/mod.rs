@@ -1,6 +1,7 @@
 //! Fachmodule mit eigenen Schemas, Revisionen und öffentlichen Anwendungsfällen.
 pub mod ablauf;
 pub mod ausgabe;
+pub mod gebaeude;
 pub mod nachweise;
 pub mod objekte;
 use crate::{

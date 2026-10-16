@@ -108,6 +108,10 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/berechnungsvorlagen", get(berechnungsvorlagen))
         .route(
+            "/projekte/{id}/gebaeudegrundlagen",
+            post(gebaeude_auswerten),
+        )
+        .route(
             "/projekte/{id}/raumbuchimport",
             post(berechnung_aus_raumbuch),
         )
@@ -1544,4 +1548,16 @@ async fn portal_xbau(
         core.portal_xbau_archivieren(ProjectId(p), v, g, b, &wer)
             .await?,
     ))
+}
+
+#[derive(serde::Deserialize)]
+struct GebaeudeAuswertung {
+    id: Uuid,
+    gebaeude: core_lib::plattform::objekte::Gebaeude,
+}
+async fn gebaeude_auswerten(
+    Path(_id): Path<Uuid>,
+    Json(w): Json<GebaeudeAuswertung>,
+) -> ApiResult<core_lib::plattform::gebaeude::GebaeudeGrundlagen> {
+    Ok(Json(w.gebaeude.grundlagen(w.id)?))
 }

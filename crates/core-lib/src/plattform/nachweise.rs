@@ -749,6 +749,11 @@ fn gebaeude_fingerprint(e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResu
     if let NachweisEingabe::Nutzung { plan, .. } = e {
         for b in &plan.berechnungen {
             if let Some(a) = &b.eingabe.aufstellung {
+                for b in &a.bauteile {
+                    if let Some(id) = b.gebaeude_id {
+                        ids.insert(id.to_string());
+                    }
+                }
                 for g in &a.geschosse {
                     if let Some(id) = &g.gebaeude_id {
                         ids.insert(id.clone());

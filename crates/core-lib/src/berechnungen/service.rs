@@ -11,6 +11,7 @@ impl CoreServices {
         pid: ProjectId,
         mut plan: FachPlan,
     ) -> CoreResult<(FachPlan, FachErgebnis)> {
+        self.gebaeudedaten_einsetzen(pid, &mut plan).await?;
         self.berechnung_quellen(pid, &plan).await?;
         if let Some(id) = plan.grundstueck_id {
             let p = self.get_project(pid).await?;
@@ -92,6 +93,104 @@ impl CoreServices {
         let r = berechnen(&plan)?;
         Ok((plan, r))
     }
+    async fn gebaeudedaten_einsetzen(&self, pid: ProjectId, plan: &mut FachPlan) -> CoreResult<()> {
+        if plan.gebaeudedaten_uebernehmen != Some(true) {
+            return Ok(());
+        }
+        if plan.modul != BerechnungsArt::Vollgeschosse {
+            return Err(err(
+                "Gebäudeübernahme wird für dieses Fachmodul nicht unterstützt",
+            ));
+        }
+        let id = plan
+            .gebaeude_id
+            .ok_or_else(|| err("Für die Übernahme ein Gebäude auswählen"))?;
+        let stand = self
+            .fachobjekte(pid, ObjektArt::Gebaeude)
+            .await?
+            .into_iter()
+            .find(|f| f.objekt == id.to_string())
+            .ok_or_else(|| err("Gebäude gehört nicht zum Projekt"))?;
+        let g: crate::plattform::objekte::Gebaeude = decode(&stand.daten)?;
+        let basis = g.grundlagen(id)?;
+        let mut e: vollgeschosse::Eingabe = decode(&plan.eingaben)?;
+        let vorher = (e.geschosse.clone(), e.teilflaechen.clone());
+        let mut geschosse = Vec::new();
+        let mut zonen = Vec::new();
+        for s in basis.geschosse {
+            let flaeche = s.flaeche_m2.ok_or_else(|| {
+                err(format!(
+                    "{}: Geschossfläche in den Grundlagen ergänzen",
+                    s.bezeichnung
+                ))
+            })?;
+            let herkunft = g
+                .geometrie
+                .as_ref()
+                .and_then(|g| g.herkunft.as_deref())
+                .filter(|h| !h.trim().is_empty())
+                .map(str::to_owned)
+                .or_else(|| {
+                    g.quelle
+                        .as_ref()
+                        .map(|d| format!("Dokument {} · Version {}", d.dokument_id.0, d.version))
+                });
+            let quelle = herkunft
+                .map(|h| {
+                    format!(
+                        "Gebäude {} · {} · {} · {}",
+                        g.bezeichnung,
+                        h,
+                        crate::plattform::gebaeude::RECHENSTAND,
+                        s.herleitung
+                    )
+                })
+                .unwrap_or_default();
+            let alt = e
+                .geschosse
+                .iter()
+                .find(|a| a.gebaeude_geschoss_id == Some(s.id));
+            geschosse.push(vollgeschosse::Geschoss {
+                id: s.id.to_string(),
+                gebaeude_geschoss_id: Some(s.id),
+                bezeichnung: s.bezeichnung,
+                grundflaeche_m2: flaeche,
+                unterliegend_m2: s.unterliegend_m2,
+                decke_ueber_gelaende_m: s.decke_ueber_gelaende_m,
+                hoehenquelle: quelle,
+                sonderentscheidung: alt.and_then(|a| a.sonderentscheidung),
+                sondergrundlage: alt.map(|a| a.sondergrundlage.clone()).unwrap_or_default(),
+            });
+            let masse = if s.implizit {
+                g.geometrie.as_ref().and_then(|g| g.einzelgeschoss.as_ref())
+            } else {
+                g.geschosse
+                    .iter()
+                    .find(|a| a.id == s.id)
+                    .and_then(|a| a.geometrie.as_ref())
+            };
+            if masse.and_then(|m| m.lichte_hoehe_einheitlich) == Some(true)
+                && let Some(h) = s.lichte_hoehe_m
+            {
+                zonen.push(vollgeschosse::Hoehenflaeche {
+                    id: format!("zone-{}", s.id),
+                    geschoss_id: s.id.to_string(),
+                    bezeichnung: "Einheitliche lichte Raumhöhe laut Grundlagen".into(),
+                    flaeche_m2: flaeche,
+                    lichte_hoehe_m: h,
+                });
+            }
+        }
+        e.geschosse = geschosse;
+        e.teilflaechen = zonen;
+        if vorher != (e.geschosse.clone(), e.teilflaechen.clone()) {
+            e.aufmass_geprueft = false;
+            e.sonderfaelle_geprueft = false;
+            plan.regelkontext.anwendbarkeit_bestaetigt = false;
+        }
+        plan.eingaben = serde_json::to_value(e).map_err(|e| err(e.to_string()))?;
+        Ok(())
+    }
     pub(crate) async fn berechnung_quellen(
         &self,
         pid: ProjectId,
@@ -127,7 +226,7 @@ impl CoreServices {
                 let e: vollgeschosse::Eingabe = decode(&plan.eingaben)?;
                 for s in e.geschosse {
                     if let Some(sid) = s.gebaeude_geschoss_id
-                        && !g.geschosse.iter().any(|a| a.id == sid)
+                        && !g.grundlagen(id)?.geschosse.iter().any(|a| a.id == sid)
                     {
                         return Err(err("Prüfgeschoss gehört nicht zum ausgewählten Gebäude"));
                     }

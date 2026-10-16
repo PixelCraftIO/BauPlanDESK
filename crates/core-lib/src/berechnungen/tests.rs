@@ -237,3 +237,29 @@ fn baulinie_zuruecktreten_und_baugrenze_vorbau_benoetigen_belegte_entscheidung()
     p.eingaben["positionen"][0]["abstand_min_m"] = json!(1.);
     assert!(berechnen(&p).is_err());
 }
+
+#[test]
+fn vollgeschoss_unvollstaendige_hoehenzone_ist_keine_negative_einstufung() {
+    let mut p = plan(BerechnungsArt::Vollgeschosse);
+    p.eingaben["regeln"]["vergleich_unterliegend"] = json!(false);
+    p.eingaben["geschosse"][0]["grundflaeche_m2"] = json!(100);
+    p.eingaben["geschosse"][0]["hoehenquelle"] = json!("Kontrollaufmaß");
+    let r = berechnen(&p).unwrap();
+    assert_eq!(
+        r.kennzahlen
+            .iter()
+            .find(|k| k.id == "geschoss:eg")
+            .unwrap()
+            .wert,
+        None
+    );
+    assert_eq!(
+        r.kennzahlen
+            .iter()
+            .find(|k| k.id == "vollgeschosse")
+            .unwrap()
+            .wert,
+        None
+    );
+    assert!(!r.vollstaendig);
+}
