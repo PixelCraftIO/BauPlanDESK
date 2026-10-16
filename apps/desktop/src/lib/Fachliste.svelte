@@ -12,14 +12,17 @@
     darf,
     children,
     lesendBedienbar = false,
+    zusatzBeschaeftigt,
   }: {
     titel: string;
     s: FachSitzung<T>;
     bereich: Ansicht;
     darf: boolean;
     lesendBedienbar?: boolean;
+    zusatzBeschaeftigt?: () => boolean;
     children: Snippet<[T]>;
   } = $props();
+  const gesperrt = $derived(s.laeuft || (zusatzBeschaeftigt?.() ?? false));
   let verlauf = $state<Datensatz<T>[]>([]);
   async function historie(id: string) {
     try {
@@ -34,8 +37,10 @@
   // svelte-ignore state_referenced_locally
   editorAnmelden(bereich, {
     hatAenderungen: () => s.hatAenderungen(),
-    istBeschaeftigt: () => s.istBeschaeftigt(),
-    speichern: () => s.speichern(),
+    istBeschaeftigt: () =>
+      s.istBeschaeftigt() || (zusatzBeschaeftigt?.() ?? false),
+    speichern: () =>
+      zusatzBeschaeftigt?.() ? Promise.resolve(false) : s.speichern(),
   });
 </script>
 
@@ -52,9 +57,9 @@
   </div>{/if}
 <div class="knoepfe links">
   <button
-    disabled={!darf || s.laeuft || s.hatAenderungen() || s.gerettet}
+    disabled={!darf || gesperrt || s.hatAenderungen() || s.gerettet}
     onclick={() => s.neu()}>Neu anlegen</button
-  ><button class="sekundaer" disabled={s.laeuft} onclick={() => s.laden()}
+  ><button class="sekundaer" disabled={gesperrt} onclick={() => s.laden()}
     >Liste aktualisieren</button
   >
 </div>
@@ -64,7 +69,7 @@
         ><td>{s.titel(f.daten)}</td><td>{f.revision}</td><td
           ><button
             class="link"
-            disabled={s.laeuft || s.hatAenderungen() || s.gerettet}
+            disabled={gesperrt || s.hatAenderungen() || s.gerettet}
             onclick={() => s.bearbeiten(f)}>Öffnen</button
           ><button class="link" onclick={() => historie(f.objekt)}
             >Verlauf</button
@@ -81,19 +86,23 @@
     class:aktenformular={lesendBedienbar}
     onsubmit={async (e) => {
       e.preventDefault();
-      await s.speichern();
+      if (!gesperrt) await s.speichern();
     }}
   >
-    <fieldset disabled={(!darf && !lesendBedienbar) || s.laeuft}>
+    <fieldset disabled={(!darf && !lesendBedienbar) || gesperrt}>
       <legend
         >{s.revision === 0 ? "Neuer Eintrag" : "Eintrag bearbeiten"}</legend
       >{@render children(s.eingabe)}
     </fieldset>
     <div class="knoepfe links">
       <button
-        disabled={!darf || s.laeuft || !(s.hatAenderungen() || s.gerettet)}
+        disabled={!darf || gesperrt || !(s.hatAenderungen() || s.gerettet)}
         >Speichern</button
-      ><button type="button" class="sekundaer" onclick={() => s.verwerfen()}
+      ><button
+        type="button"
+        class="sekundaer"
+        disabled={gesperrt}
+        onclick={() => s.verwerfen()}
         >{s.hatAenderungen() ? "Entwurf verwerfen" : "Schließen"}</button
       >
     </div>

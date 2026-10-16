@@ -18,6 +18,10 @@ pub enum NutzungsArt {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case")]
 pub enum NachweisEingabe {
+    Fach {
+        objekt: Uuid,
+        plan: Box<crate::berechnungen::FachPlan>,
+    },
     AbstandProjekt {
         objekt: Uuid,
         #[ts(type = "AbstandsPlan")]
@@ -86,6 +90,22 @@ fn hash(v: &serde_json::Value) -> CoreResult<ContentHash> {
 }
 fn archiv(core: &CoreServices, p: &Project, e: &NachweisEingabe) -> CoreResult<Vec<RegelArchiv>> {
     match e {
+        NachweisEingabe::Fach { plan, .. } => {
+            let inhalt=serde_json::to_string(&serde_json::json!({"kontext":plan.regelkontext,"regeln":plan.eingaben.get("regeln")})).map_err(json_err)?;
+            Ok(vec![RegelArchiv {
+                id: plan.modul.objekt().modul().into(),
+                version: plan.regelkontext.version.clone(),
+                sha256: ContentHash::of(inhalt.as_bytes()),
+                format: "fachregeln-json-1".into(),
+                inhalt,
+                pruefstatus: if plan.regelkontext.anwendbarkeit_bestaetigt {
+                    "Projektbezogene Methodenanwendung bestätigt"
+                } else {
+                    "Anwendbarkeit offen"
+                }
+                .into(),
+            }])
+        }
         NachweisEingabe::AbstandProjekt { plan, .. } => {
             let inhalt = serde_json::to_string(&plan.regeln).map_err(json_err)?;
             Ok(vec![RegelArchiv {
@@ -165,6 +185,11 @@ fn grundlagen_fuer(
     regeln: &[RegelArchiv],
     e: &NachweisEingabe,
 ) -> CoreResult<ContentHash> {
+    if let NachweisEingabe::Fach { .. } = e {
+        return hash(
+            &serde_json::json!({"land":p.bundesland,"regeln":regeln.iter().map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>()}),
+        );
+    }
     if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
         let ids = plan
             .grundstuecke
@@ -191,6 +216,11 @@ fn auswerten(
     e: &NachweisEingabe,
 ) -> CoreResult<(serde_json::Value, bool)> {
     match e {
+        NachweisEingabe::Fach { plan, .. } => {
+            let r = crate::berechnungen::berechnen(plan)?;
+            let voll = r.vollstaendig;
+            Ok((serde_json::to_value(r).map_err(json_err)?, voll))
+        }
         NachweisEingabe::AbstandProjekt { plan, .. } => {
             let r = crate::abstandsflaechen::berechnen(plan)?;
             let voll = r.vollstaendig && r.konfliktfrei;
@@ -226,6 +256,9 @@ fn auswerten(
 }
 impl CoreServices {
     async fn gebaeude_hash(&self, pid: ProjectId, e: &NachweisEingabe) -> CoreResult<ContentHash> {
+        if let NachweisEingabe::Fach { objekt, plan } = e {
+            return self.berechnungs_fingerprint(pid, *objekt, plan).await;
+        }
         if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
             return hash(&serde_json::to_value(plan).map_err(json_err)?);
         }
@@ -241,6 +274,10 @@ impl CoreServices {
     ) -> CoreResult<Nachweisstand> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         text(&bezeichnung, 500)?;
+        let mut eingabe = eingabe;
+        if let NachweisEingabe::Fach { plan, .. } = &mut eingabe {
+            crate::berechnungen::normalisieren(plan)?;
+        }
         let anfrage_hash = hash(&serde_json::to_value(&eingabe).map_err(json_err)?)?;
         if let Some(f) = self
             .repos
@@ -268,6 +305,28 @@ impl CoreServices {
             },
             e => e,
         };
+        if let NachweisEingabe::Fach { objekt, plan } = &eingabe {
+            self.projekt_zugriff(pid, wer, crate::zugriff::ProjektRecht::Bearbeiten)
+                .await?;
+            let (kanonisch, _) = self.berechnung_pruefen(pid, *plan.clone()).await?;
+            let f = self
+                .fachobjekte(pid, plan.modul.objekt())
+                .await?
+                .into_iter()
+                .find(|f| f.objekt == objekt.to_string())
+                .ok_or_else(|| {
+                    CoreError::InvalidInput("Berechnungsentwurf zuerst speichern".into())
+                })?;
+            if f.schema_version != 1
+                || f.daten != serde_json::to_value(&kanonisch).map_err(json_err)?
+                || kanonisch != **plan
+            {
+                return Err(CoreError::InvalidInput(
+                    "Berechnungsentwurf / Quellen geändert. Aktuellen Stand prüfen und speichern."
+                        .into(),
+                ));
+            }
+        }
         if let NachweisEingabe::AbstandProjekt { objekt, plan } = &eingabe {
             self.projekt_zugriff(pid, wer, crate::zugriff::ProjektRecht::Bearbeiten)
                 .await?;
@@ -388,10 +447,18 @@ impl CoreServices {
             .commit
             .fachstaende(pid, "abstandsflaechen")
             .await?;
-        self.repos
-            .commit
-            .fachstaende(pid, "nachweise")
-            .await?
+        let staende = self.repos.commit.fachstaende(pid, "nachweise").await?;
+        let mut fach_fingerprints = std::collections::BTreeMap::new();
+        for f in &staende {
+            let n: Nachweisstand = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+            if let NachweisEingabe::Fach { objekt, plan } = &n.eingabe {
+                fach_fingerprints.insert(
+                    n.id,
+                    self.berechnungs_fingerprint(pid, *objekt, plan).await.ok(),
+                );
+            }
+        }
+        let mut ergebnisse = staende
             .into_iter()
             .map(|f| {
                 let stand: Nachweisstand = serde_json::from_value(f.daten).map_err(json_err)?;
@@ -399,6 +466,21 @@ impl CoreServices {
                     .and_then(|r| grundlagen_fuer(&p, &r, &stand.eingabe))
                     .is_ok_and(|h| h == stand.grundlagen_hash)
                     && match &stand.eingabe {
+                        NachweisEingabe::Fach { plan, .. } => {
+                            stand.ergebnis["rechenstand"] == plan.modul.rechenstand()
+                                && fach_fingerprints
+                                    .get(&stand.id)
+                                    .and_then(|v| v.as_ref())
+                                    .is_some_and(|h| *h == stand.gebaeude_hash)
+                                && plan.quellen.iter().all(|q| {
+                                    dateien
+                                        .iter()
+                                        .filter(|d| d.document_id == q.dokument_id)
+                                        .map(|d| d.version)
+                                        .max()
+                                        == Some(q.version)
+                                })
+                        }
                         NachweisEingabe::AbstandProjekt { objekt, plan } => {
                             abstandsplaene
                                 .iter()
@@ -429,7 +511,60 @@ impl CoreServices {
                     freigabe,
                 })
             })
-            .collect()
+            .collect::<CoreResult<Vec<_>>>()?;
+        // Abhängigkeiten sind unveränderliche frühere Nachweise. Veraltete Quellen
+        // propagieren transitiv; Freigaben ersetzen diese Aktualitätsprüfung nicht.
+        for _ in 0..ergebnisse.len() {
+            let status = ergebnisse
+                .iter()
+                .map(|n| (n.stand.id, n.aktuell))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let mut geaendert = false;
+            for n in &mut ergebnisse {
+                let mut quellen = Vec::new();
+                match &n.stand.eingabe {
+                    NachweisEingabe::Fach { plan, .. } => {
+                        quellen.extend(plan.uebernahmen.iter().map(|u| u.nachweis_id))
+                    }
+                    NachweisEingabe::Nutzung { plan, .. } => {
+                        for b in &plan.berechnungen {
+                            if let Some(a) = &b.eingabe.aufstellung {
+                                for s in &a.geschosse {
+                                    if let (Some(gid), Some(sid)) = (&s.gebaeude_id, &s.geschoss_id)
+                                        && let Some(g) = gebaeude.iter().find(|g| g.objekt == *gid)
+                                    {
+                                        let g: objekte::Gebaeude =
+                                            serde_json::from_value(g.daten.clone())
+                                                .map_err(json_err)?;
+                                        if let Some(q) = g
+                                            .geschosse
+                                            .iter()
+                                            .find(|s| s.id.to_string() == *sid)
+                                            .and_then(|s| s.einstufungsquelle.as_ref())
+                                        {
+                                            quellen.push(q.nachweis_id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                if n.aktuell
+                    && quellen
+                        .iter()
+                        .any(|id| !status.get(id).copied().unwrap_or(false))
+                {
+                    n.aktuell = false;
+                    geaendert = true;
+                }
+            }
+            if !geaendert {
+                break;
+            }
+        }
+        Ok(ergebnisse)
     }
     pub async fn nachweis_freigeben(
         &self,
@@ -537,6 +672,24 @@ impl CoreServices {
             planungsrecht: n.rechtskontext,
         };
         match &n.eingabe {
+            NachweisEingabe::Fach { plan, .. } => {
+                let r = n
+                    .regeln
+                    .iter()
+                    .find(|r| r.format == "fachregeln-json-1")
+                    .ok_or_else(|| {
+                        CoreError::InvalidInput("Archivierte Fachregeln fehlen".into())
+                    })?;
+                let inhalt = serde_json::json!({"kontext":plan.regelkontext,"regeln":plan.eingaben.get("regeln")});
+                if serde_json::from_str::<serde_json::Value>(&r.inhalt).map_err(json_err)? != inhalt
+                    || n.ergebnis["rechenstand"] != plan.modul.rechenstand()
+                {
+                    return Err(CoreError::InvalidInput(
+                        "Archivierter Rechen-/Regelstand passt nicht".into(),
+                    ));
+                }
+                serde_json::to_value(crate::berechnungen::berechnen(plan)?).map_err(json_err)
+            }
             NachweisEingabe::AbstandProjekt { plan, .. } => {
                 let r = n
                     .regeln

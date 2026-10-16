@@ -318,6 +318,10 @@ impl CoreServices {
                             .find(|n| n.stand.id == *id)
                             .map(|n| &n.stand.eingabe)
                         {
+                            Some(crate::plattform::nachweise::NachweisEingabe::Fach {
+                                plan,
+                                ..
+                            }) => plan.modul.titel(),
                             Some(crate::plattform::nachweise::NachweisEingabe::Nutzung {
                                 fach,
                                 ..

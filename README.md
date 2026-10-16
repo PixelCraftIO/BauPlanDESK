@@ -81,6 +81,12 @@ die automatische Eingabemaske, den PDF-Export und auswählbare Dateispeicher.
 Die [zentrale Formularbibliothek](docs/formularbibliothek/README.md) verwaltet
 PDF-Vorlagen projektunabhängig in einem eigenen lokalen oder freigegebenen Ordner.
 
+## Fachberechnungen
+
+[Acht modulare Nachweise: Stellplätze, Wohnflächen, DIN 277, Vollgeschosse, Höhen,
+überbaubare Fläche, Freiflächen und Regenwasser](docs/fachberechnungen/README.md)
+mit versionierten Regeln, typisierten Quellübernahmen und tabellarischer PDF-Ausgabe.
+
 ## Entwicklung
 
 Voraussetzungen: Rust (stable, ≥ 1.90), Node.js 22, unter Linux zusätzlich

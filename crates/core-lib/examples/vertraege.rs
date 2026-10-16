@@ -12,6 +12,21 @@ fn main() {
     );
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
+        core_lib::berechnungen::BerechnungsArt,
+        core_lib::berechnungen::Regelkontext,
+        core_lib::berechnungen::Einheit,
+        core_lib::berechnungen::Messgroesse,
+        core_lib::berechnungen::Uebernahme,
+        core_lib::berechnungen::Einstufungsquelle,
+        core_lib::berechnungen::Fachquelle,
+        core_lib::berechnungen::FachPlan,
+        core_lib::berechnungen::Kennzahl,
+        core_lib::berechnungen::Nachweistabelle,
+        core_lib::berechnungen::FachErgebnis,
+        core_lib::berechnungen::Auswahl,
+        core_lib::berechnungen::Feld,
+        core_lib::berechnungen::FormTabelle,
+        core_lib::berechnungen::BerechnungsVorlage,
         core_lib::abstandsflaechen::APunkt,
         core_lib::abstandsflaechen::CadKontur,
         core_lib::abstandsflaechen::Tiefenregel,

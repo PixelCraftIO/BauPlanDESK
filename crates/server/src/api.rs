@@ -69,6 +69,15 @@ pub struct ApiState {
 fn routen(core: CoreServices) -> Router {
     let api = Router::new()
         .route("/sitzung", get(sitzung))
+        .route("/berechnungsvorlagen", get(berechnungsvorlagen))
+        .route(
+            "/projekte/{id}/raumbuchimport",
+            post(berechnung_aus_raumbuch),
+        )
+        .route(
+            "/projekte/{id}/fachberechnung",
+            post(fachberechnung_pruefen),
+        )
         .route(
             "/druckgestaltung",
             get(druckgestaltung).put(druckgestaltung_speichern),
@@ -1182,4 +1191,32 @@ async fn druckgestaltung_speichern(
     Json(g): Json<core_lib::druckausgabe::Druckgestaltung>,
 ) -> ApiResult<core_lib::druckausgabe::Druckgestaltung> {
     Ok(Json(s.core.druckgestaltung_speichern(g, &wer).await?))
+}
+
+async fn berechnungsvorlagen() -> ApiResult<Vec<core_lib::berechnungen::BerechnungsVorlage>> {
+    Ok(Json(core_lib::berechnungen::vorlagen()?))
+}
+async fn fachberechnung_pruefen(
+    State(s): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(plan): Json<core_lib::berechnungen::FachPlan>,
+) -> ApiResult<serde_json::Value> {
+    let (plan, ergebnis) = s.core.berechnung_pruefen(ProjectId(id), plan).await?;
+    Ok(Json(serde_json::json!({"plan":plan,"ergebnis":ergebnis})))
+}
+#[derive(serde::Deserialize)]
+struct RaumbuchImport {
+    id: Uuid,
+    modul: core_lib::berechnungen::BerechnungsArt,
+}
+async fn berechnung_aus_raumbuch(
+    State(s): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<RaumbuchImport>,
+) -> ApiResult<core_lib::berechnungen::FachPlan> {
+    Ok(Json(
+        s.core
+            .berechnung_aus_raumbuch(ProjectId(id), w.id, w.modul)
+            .await?,
+    ))
 }

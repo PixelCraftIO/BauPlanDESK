@@ -84,6 +84,19 @@
             wert: `H ${String(a.h_m ?? "—")} m · Tiefe ${String(a.tiefe_m ?? "—")} m · ${String(a.status ?? "offen")}`,
           };
         });
+    if (Array.isArray(wert.kennzahlen))
+      return wert.kennzahlen
+        .filter((k) => k && typeof k === "object" && !Array.isArray(k))
+        .map((k) => {
+          const a = k as Record<string, JsonValue>;
+          return {
+            name: String(a.bezeichnung ?? "Kennzahl"),
+            wert:
+              a.wert === null
+                ? "Nicht ermittelt"
+                : `${Number(a.wert).toLocaleString("de-DE", { maximumFractionDigits: 4 })} ${{ m2: "m²", m3: "m³", grad: "°", prozent: "%", l_pro_s: "l/s", anzahl: "Stück" }[String(a.einheit)] ?? String(a.einheit)}`,
+          };
+        });
     const ergebnis = wert.ergebnis;
     if (
       ergebnis &&

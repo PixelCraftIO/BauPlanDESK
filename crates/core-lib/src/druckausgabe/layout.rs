@@ -153,6 +153,9 @@ impl Satz {
         {
             return Err(fehler("Ungültiger Tabellenvertrag"));
         }
+        if rows.is_empty() {
+            return self.absatz("Keine Positionen erfasst.", false);
+        }
         let sum: f32 = breiten.iter().sum();
         let widths: Vec<f32> = breiten.iter().map(|w| w / sum * BREITE).collect();
         let wrap = |r: &[String]| -> CoreResult<Vec<Vec<String>>> {
@@ -171,9 +174,6 @@ impl Satz {
             self.seite()?;
         }
         self.zeile(&header, &widths, 0, hn, true, false);
-        if rows.is_empty() {
-            self.absatz("Keine Positionen erfasst.", false)?;
-        }
         for (i, row) in rows.iter().enumerate() {
             let cells = wrap(row)?;
             let n = cells.iter().map(Vec::len).max().unwrap_or(1).max(1);

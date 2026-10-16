@@ -1,0 +1,587 @@
+{
+  "id": "wohnflaechen-1",
+  "titel": "Wohnflächenberechnung",
+  "hinweis": "WoFlV-Anrechnungsansätze vorbelegt. Anwendbarkeit, Raumzuordnung und Sonderansätze prüfen.",
+  "plan": {
+    "modul": "wohnflaechen",
+    "bezeichnung": "Wohnflächenberechnung",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "WoFlV – Raum- und Höhenanrechnung",
+      "version": "1",
+      "quelle": "https://www.gesetze-im-internet.de/woflv/ · §§ 2–4",
+      "geltungsbereich": "Projektbezogen",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "regeln": {
+        "niedrige_hoehe_m": 1,
+        "volle_hoehe_m": 2,
+        "faktor_niedrig": 0,
+        "faktor_mittel": 0.5,
+        "faktor_hoch": 1,
+        "raumregeln": [
+          {
+            "typ": "wohnraum",
+            "bezeichnung": "Wohnraum",
+            "faktor": 1,
+            "maximaler_faktor": 1,
+            "hoehenabhaengig": true,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "keller",
+            "bezeichnung": "Keller / Zubehörraum außerhalb Wohnung",
+            "faktor": 0,
+            "maximaler_faktor": 0,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "garage",
+            "bezeichnung": "Garage",
+            "faktor": 0,
+            "maximaler_faktor": 0,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "gemeinschaft",
+            "bezeichnung": "Gemeinschaftsraum außerhalb Wohnung",
+            "faktor": 0,
+            "maximaler_faktor": 0,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "balkon",
+            "bezeichnung": "Balkon / Loggia / Dachgarten / Terrasse",
+            "faktor": 0.25,
+            "maximaler_faktor": 0.5,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "wintergarten_unbeheizt",
+            "bezeichnung": "Unbeheizter Wintergarten",
+            "faktor": 0.5,
+            "maximaler_faktor": 0.5,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "wintergarten_beheizt",
+            "bezeichnung": "Beheizter Wintergarten",
+            "faktor": 1,
+            "maximaler_faktor": 1,
+            "hoehenabhaengig": true,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "geschaeft",
+            "bezeichnung": "Geschäftsraum",
+            "faktor": 0,
+            "maximaler_faktor": 0,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+          },
+          {
+            "typ": "schwimmbad",
+            "bezeichnung": "Schwimmbad / ähnlicher nach allen Seiten geschlossener Raum",
+            "faktor": 0.5,
+            "maximaler_faktor": 0.5,
+            "hoehenabhaengig": false,
+            "quelle": "WoFlV § 4 Nr. 3; Anwendungsfall prüfen"
+          }
+        ],
+        "treppe_ab_stufen": 4,
+        "pfeiler_hoehe_ueber_m": 1.5,
+        "pfeiler_flaeche_ueber_m2": 0.1
+      },
+      "positionen": [
+        {
+          "id": "flaeche1",
+          "wohnung": "Wohnung 1",
+          "raum": "Raum 1",
+          "typ": "wohnraum",
+          "form": "aufmass",
+          "laenge_m": 0,
+          "breite_m": 0,
+          "breite2_m": 0,
+          "aufmass_m2": 0,
+          "lichte_hoehe_m": null,
+          "sonderfaktor": null,
+          "begruendung": "",
+          "quelle": ""
+        }
+      ],
+      "abzuege": [],
+      "aufmass_vollstaendig": false,
+      "wohneinheiten_bestaetigt": false
+    }
+  },
+  "felder": [
+    {
+      "name": "regeln.niedrige_hoehe_m",
+      "titel": "Untere Höhengrenze (m)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.volle_hoehe_m",
+      "titel": "Volle Anrechnung ab (m)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.faktor_niedrig",
+      "titel": "Faktor unter unterer Grenze",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.faktor_mittel",
+      "titel": "Faktor in mittlerer Zone",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.faktor_hoch",
+      "titel": "Faktor ab voller Höhe",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "aufmass_vollstaendig",
+      "titel": "Aufmaß einschließlich Abzügen vollständig geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.treppe_ab_stufen",
+      "titel": "Treppenabzug ab Anzahl Steigungen",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.pfeiler_hoehe_ueber_m",
+      "titel": "Pfeilerabzug bei Höhe über (m)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.pfeiler_flaeche_ueber_m2",
+      "titel": "Pfeilerabzug bei Fläche über (m²)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "wohneinheiten_bestaetigt",
+      "titel": "Wohnungsgruppen entsprechen den tatsächlich vorhandenen Wohneinheiten (geprüft)",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "regeln.raumregeln",
+      "titel": "Raumarten und Anrechnung",
+      "gruppe": "regeln",
+      "felder": [
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "faktor",
+          "titel": "Faktor",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "maximaler_faktor",
+          "titel": "Maximal zulässiger Raumfaktor",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "hoehenabhaengig",
+          "titel": "Höhenzonen anwenden",
+          "typ": "checkbox",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "typ": "wohnraum",
+        "bezeichnung": "Wohnraum",
+        "faktor": 1,
+        "maximaler_faktor": 1,
+        "hoehenabhaengig": true,
+        "quelle": "WoFlV §§ 2–4; Anwendungsfall und Fassung prüfen"
+      }
+    },
+    {
+      "pfad": "positionen",
+      "titel": "Nutzungen / Teilflächen",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "wohnung",
+          "titel": "Wohnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "raum",
+          "titel": "Raum / Teilfläche",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "regeln.raumregeln:typ",
+          "groesse": null
+        },
+        {
+          "name": "form",
+          "titel": "Aufmaßform",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "rechteck",
+              "titel": "Rechteck"
+            },
+            {
+              "wert": "dreieck",
+              "titel": "Dreieck"
+            },
+            {
+              "wert": "trapez",
+              "titel": "Trapez"
+            },
+            {
+              "wert": "aufmass",
+              "titel": "Direktes Aufmaß"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "laenge_m",
+          "titel": "Länge / Höhe Trapez (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "breite_m",
+          "titel": "Breite (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "breite2_m",
+          "titel": "Zweite parallele Breite (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "aufmass_m2",
+          "titel": "Direkte Aufmaßfläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "lichte_hoehe_m",
+          "titel": "Lichte Höhe (m)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "sonderfaktor",
+          "titel": "Abweichender Raumfaktor",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "begruendung",
+          "titel": "Begründung des Sonderansatzes",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "wohnung": "Wohnung 1",
+        "raum": "Raum 1",
+        "typ": "wohnraum",
+        "form": "aufmass",
+        "laenge_m": 0,
+        "breite_m": 0,
+        "breite2_m": 0,
+        "aufmass_m2": 0,
+        "lichte_hoehe_m": null,
+        "sonderfaktor": null,
+        "begruendung": "",
+        "quelle": ""
+      }
+    },
+    {
+      "pfad": "abzuege",
+      "titel": "Abzüge und Bauteile",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "teilflaeche",
+          "titel": "Zugehörige Teilfläche",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "positionen",
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "flaeche_m2",
+          "titel": "Fläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "treppe",
+              "titel": "Treppe mit mehr als drei Steigungen"
+            },
+            {
+              "wert": "pfeiler_schornstein",
+              "titel": "Pfeiler / Schornstein / Vormauerung"
+            },
+            {
+              "wert": "sonstiges",
+              "titel": "Gesondert begründeter Abzug"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "hoehe_m",
+          "titel": "Höhe (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "stufen",
+          "titel": "Anzahl Stufen",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "grundlage",
+          "titel": "Rechtsgrundlage / Beleg",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "teilflaeche": "",
+        "bezeichnung": "Abzug",
+        "flaeche_m2": 0,
+        "typ": "sonstiges",
+        "hoehe_m": 0,
+        "stufen": 0,
+        "grundlage": ""
+      }
+    }
+  ]
+}

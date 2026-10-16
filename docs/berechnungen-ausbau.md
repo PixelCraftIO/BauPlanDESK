@@ -1,10 +1,11 @@
 # Fachlicher Ausbau der Bauantragsberechnungen
 
-Planungsstand, keine Implementierung der nachfolgend vorgeschlagenen neuen Module.
-Das vorhandene Raumbuch ist eine Flächen-/Volumensammlung, keine vollständige
-Wohnflächenberechnung nach WoFlV. GRZ, GFZ, Geschossigkeit, BMZ, Grundstücks-,
-Baugrenzen- und Abstandsflächennachweise sind bereits angebunden; ihre fachlichen
-Regelansätze und Prüfgrenzen gelten weiterhin.
+Umgesetzt sind acht zusätzliche eigenständige Fachmodule einschließlich
+Projektmasken, versionierter Regeln, Quellübernahmen, Nachweisarchiv und PDF.
+[Bedienung, Modulverträge, fachliche Grenzen und Prüfungen](fachberechnungen/README.md)
+beschreibt den aktuellen Stand. Die folgenden Abschnitte halten die fachlichen
+Ausbauziele fest; spezielle kommunale Sonderfälle, vollständige Hydraulik und
+automatische CAD-Baulinienableitung bleiben zusätzliche Erweiterungen.
 
 ## Priorität 1: Stellplatznachweis
 

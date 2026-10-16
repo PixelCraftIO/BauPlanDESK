@@ -1,0 +1,341 @@
+{
+  "id": "entwaesserung-1",
+  "titel": "Regenwasser und Rückhaltung",
+  "hinweis": "Keine vollständige DWA-/DIN-Hydraulik. Lokale Regenspenden, Wiederkehrzeit und technische Ansätze belegen.",
+  "plan": {
+    "modul": "entwaesserung",
+    "bezeichnung": "Regenwasser und Rückhaltung",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "Vereinfachte Regenblock-Speicherbilanz",
+      "version": "1",
+      "quelle": "",
+      "geltungsbereich": "Standort und technische Vorgaben",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "regeln": {
+        "klassen": [
+          {
+            "typ": "dach",
+            "bezeichnung": "Dach",
+            "beiwert": 1,
+            "quelle": "Beispielansatz – technische Vorgabe projektbezogen prüfen"
+          },
+          {
+            "typ": "befestigt",
+            "bezeichnung": "Befestigte Fläche",
+            "beiwert": 0.9,
+            "quelle": "Beispielansatz – technische Vorgabe projektbezogen prüfen"
+          },
+          {
+            "typ": "gruen",
+            "bezeichnung": "Grünfläche",
+            "beiwert": 0.1,
+            "quelle": "Beispielansatz – technische Vorgabe projektbezogen prüfen"
+          }
+        ],
+        "regen": [],
+        "sicherheitsfaktor": 1,
+        "drossel_l_s": 0,
+        "kf_m_s": 0,
+        "sickerflaeche_m2": 0,
+        "versickerungsfaktor": 0.5,
+        "versickerung_geprueft": false,
+        "boden_grundwasser_vermerk": "",
+        "vorhandenes_volumen_m3": null
+      },
+      "positionen": [
+        {
+          "id": "flaeche1",
+          "bezeichnung": "Dachfläche",
+          "typ": "dach",
+          "flaeche_m2": 0,
+          "quelle": ""
+        }
+      ],
+      "flaechen_geprueft": false,
+      "regendaten_geprueft": false
+    }
+  },
+  "felder": [
+    {
+      "name": "regeln.sicherheitsfaktor",
+      "titel": "Volumenzuschlag / Sicherheitsfaktor",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.drossel_l_s",
+      "titel": "Zulässiger konstanter Drosselabfluss (l/s)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.kf_m_s",
+      "titel": "Durchlässigkeit kf (m/s)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.sickerflaeche_m2",
+      "titel": "Wirksame Sickerfläche (m²)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.versickerungsfaktor",
+      "titel": "Faktor im vereinfachten Versickerungsansatz",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.versickerung_geprueft",
+      "titel": "Boden-/Grundwasser-/Zulässigkeitsprüfung bestätigt",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.boden_grundwasser_vermerk",
+      "titel": "Boden-/Grundwasserprüfung und Beleg",
+      "typ": "text",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.vorhandenes_volumen_m3",
+      "titel": "Vorhandenes Rückhaltevolumen (m³)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "flaechen_geprueft",
+      "titel": "Entwässerte Flächen vollständig geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regendaten_geprueft",
+      "titel": "Standort, Wiederkehrzeit und Dauerstufen geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "regeln.klassen",
+      "titel": "Flächen-/Abflussklassen",
+      "gruppe": "regeln",
+      "felder": [
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "beiwert",
+          "titel": "Abflussbeiwert (0–1)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "typ": "dach",
+        "bezeichnung": "Dach",
+        "beiwert": 1,
+        "quelle": "Beispielansatz – technische Vorgabe projektbezogen prüfen"
+      }
+    },
+    {
+      "pfad": "regeln.regen",
+      "titel": "Regendauerstufen",
+      "gruppe": "regeln",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "dauer_min",
+          "titel": "Regendauer (min)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "intensitaet_l_s_ha",
+          "titel": "Regenspende l/(s·ha)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "dauer_min": 0,
+        "intensitaet_l_s_ha": 0,
+        "quelle": ""
+      }
+    },
+    {
+      "pfad": "positionen",
+      "titel": "Nutzungen / Teilflächen",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "regeln.klassen:typ",
+          "groesse": null
+        },
+        {
+          "name": "flaeche_m2",
+          "titel": "Fläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "grundflaeche"
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Dachfläche",
+        "typ": "dach",
+        "flaeche_m2": 0,
+        "quelle": ""
+      }
+    }
+  ]
+}

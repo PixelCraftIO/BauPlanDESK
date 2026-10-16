@@ -1,0 +1,387 @@
+{
+  "id": "din277-1",
+  "titel": "DIN-277-Flächen und Rauminhalte",
+  "hinweis": "Explizite Flächenklassifikation und äußere Volumenkörper. Keine automatische Wohnflächen-/GFZ-Umrechnung.",
+  "plan": {
+    "modul": "din277",
+    "bezeichnung": "DIN-277-Flächen und Rauminhalte",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "DIN 277:2021-08 – Flächen-/Volumenerfassung",
+      "version": "1",
+      "quelle": "DIN 277:2021-08; verbindliche Normfassung im Büro prüfen",
+      "geltungsbereich": "Projektbezogen",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "positionen": [
+        {
+          "id": "raum1",
+          "geschoss": "EG",
+          "raum": "Raum 1",
+          "art": "nuf",
+          "bereich": "R",
+          "form": "aufmass",
+          "laenge_m": 0,
+          "breite_m": 0,
+          "breite2_m": 0,
+          "aufmass_m2": 0,
+          "quelle": ""
+        }
+      ],
+      "volumen": [],
+      "klassifikation_geprueft": false,
+      "kgf_vollstaendig": false,
+      "volumen_vollstaendig": false,
+      "rauminhalt_erforderlich": false
+    }
+  },
+  "felder": [
+    {
+      "name": "klassifikation_geprueft",
+      "titel": "Flächenklassifikation / R-S-Zuordnung geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "kgf_vollstaendig",
+      "titel": "Konstruktionsflächen vollständig",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "volumen_vollstaendig",
+      "titel": "Äußere Volumenkörper vollständig",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "rauminhalt_erforderlich",
+      "titel": "Brutto-Rauminhalt ist Teil dieses Nachweisumfangs",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "positionen",
+      "titel": "Nutzungen / Teilflächen",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "geschoss",
+          "titel": "Geschoss",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "raum",
+          "titel": "Raum / Teilfläche",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "art",
+          "titel": "Art",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "nuf",
+              "titel": "NUF – Nutzungsfläche"
+            },
+            {
+              "wert": "tf",
+              "titel": "TF – Technikfläche"
+            },
+            {
+              "wert": "vf",
+              "titel": "VF – Verkehrsfläche"
+            },
+            {
+              "wert": "kgf",
+              "titel": "KGF – Konstruktionsfläche"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bereich",
+          "titel": "Bereich nach DIN 277",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "R",
+              "titel": "Regelfall R"
+            },
+            {
+              "wert": "S",
+              "titel": "Sonderfall S"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "form",
+          "titel": "Aufmaßform",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "rechteck",
+              "titel": "Rechteck"
+            },
+            {
+              "wert": "dreieck",
+              "titel": "Dreieck"
+            },
+            {
+              "wert": "trapez",
+              "titel": "Trapez"
+            },
+            {
+              "wert": "aufmass",
+              "titel": "Direktes Aufmaß"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "laenge_m",
+          "titel": "Länge / Höhe Trapez (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "breite_m",
+          "titel": "Breite (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "breite2_m",
+          "titel": "Zweite parallele Breite (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "aufmass_m2",
+          "titel": "Direkte Aufmaßfläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "geschoss": "EG",
+        "raum": "Raum 1",
+        "art": "nuf",
+        "bereich": "R",
+        "form": "aufmass",
+        "laenge_m": 0,
+        "breite_m": 0,
+        "breite2_m": 0,
+        "aufmass_m2": 0,
+        "quelle": ""
+      }
+    },
+    {
+      "pfad": "volumen",
+      "titel": "Äußere Volumenkörper",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "form",
+          "titel": "Aufmaßform",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "rechteck",
+              "titel": "Rechteck"
+            },
+            {
+              "wert": "dreieck",
+              "titel": "Dreieck"
+            },
+            {
+              "wert": "trapez",
+              "titel": "Trapez"
+            },
+            {
+              "wert": "aufmass",
+              "titel": "Direktes Aufmaß"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "laenge_m",
+          "titel": "Länge / Höhe Trapez (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "breite_m",
+          "titel": "Breite (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "breite2_m",
+          "titel": "Zweite parallele Breite (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "aufmass_m2",
+          "titel": "Direkte Aufmaßfläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "hoehe_m",
+          "titel": "Höhe (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Volumenkörper",
+        "form": "rechteck",
+        "laenge_m": 0,
+        "breite_m": 0,
+        "breite2_m": 0,
+        "aufmass_m2": 0,
+        "hoehe_m": 0,
+        "quelle": ""
+      }
+    }
+  ]
+}

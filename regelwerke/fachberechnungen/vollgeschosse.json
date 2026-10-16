@@ -1,0 +1,338 @@
+{
+  "id": "vollgeschosse-1",
+  "titel": "Vollgeschossprüfung",
+  "hinweis": "Beispielschwellen sind keine pauschale Landesregel. Alle Kriterien nach geltender LBO konfigurieren und bestätigen.",
+  "plan": {
+    "modul": "vollgeschosse",
+    "bezeichnung": "Vollgeschossprüfung",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "Projektbezogene LBO-Vollgeschossdefinition",
+      "version": "1",
+      "quelle": "",
+      "geltungsbereich": "Bundesland, Fassung und Übergangsrecht angeben",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "regeln": {
+        "mindesthoehe_m": 2.3,
+        "hoehe_streng": false,
+        "mindestanteil": 0.75,
+        "anteil_streng": true,
+        "vergleich_unterliegend": true,
+        "oberirdisch_pruefen": false,
+        "decke_ueber_gelaende_m": 1.6,
+        "oberirdisch_streng": true
+      },
+      "geschosse": [
+        {
+          "id": "eg",
+          "bezeichnung": "Erdgeschoss",
+          "grundflaeche_m2": 0,
+          "unterliegend_m2": null,
+          "decke_ueber_gelaende_m": null,
+          "hoehenquelle": "",
+          "sonderentscheidung": null,
+          "sondergrundlage": "",
+          "gebaeude_geschoss_id": null
+        }
+      ],
+      "teilflaechen": [],
+      "aufmass_geprueft": false,
+      "sonderfaelle_geprueft": false,
+      "maximal_vollgeschosse": null
+    }
+  },
+  "felder": [
+    {
+      "name": "regeln.mindesthoehe_m",
+      "titel": "Maßgebliche Mindesthöhe (m)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.hoehe_streng",
+      "titel": "Höhe muss strikt größer sein",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.mindestanteil",
+      "titel": "Erforderlicher Flächenanteil (0–1)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.anteil_streng",
+      "titel": "Flächenanteil muss strikt größer sein",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.vergleich_unterliegend",
+      "titel": "Fläche des darunterliegenden Geschosses als Bezug",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.oberirdisch_pruefen",
+      "titel": "Oberirdisch-Kriterium anwenden",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.decke_ueber_gelaende_m",
+      "titel": "Decke über maßgeblichem Gelände (m)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.oberirdisch_streng",
+      "titel": "Geländeschwelle strikt überschreiten",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "aufmass_geprueft",
+      "titel": "Aufmaß und Gelände geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "sonderfaelle_geprueft",
+      "titel": "LBO-Sonderfälle vollständig geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "maximal_vollgeschosse",
+      "titel": "Maximale Vollgeschosszahl laut Festsetzung",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "geschosse",
+      "titel": "Zu prüfende Geschosse",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "gebaeude_geschoss_id",
+          "titel": "Zugeordnetes Gebäudegeschoss (für Weitergabe)",
+          "typ": "optional_select",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "$gebaeudegeschosse",
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "grundflaeche_m2",
+          "titel": "Geschossgrundfläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "unterliegend_m2",
+          "titel": "Grundfläche darunterliegendes Geschoss (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "decke_ueber_gelaende_m",
+          "titel": "Decke über maßgeblichem Gelände (m)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "hoehenquelle",
+          "titel": "Schnitt-/Geländequelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "sonderentscheidung",
+          "titel": "Begründete besondere Einordnung",
+          "typ": "optional_bool",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "sondergrundlage",
+          "titel": "Grundlage der besonderen Einordnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Erdgeschoss",
+        "grundflaeche_m2": 0,
+        "unterliegend_m2": null,
+        "decke_ueber_gelaende_m": null,
+        "hoehenquelle": "",
+        "sonderentscheidung": null,
+        "sondergrundlage": "",
+        "gebaeude_geschoss_id": null
+      }
+    },
+    {
+      "pfad": "teilflaechen",
+      "titel": "Höhenzonen je Geschoss",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "geschoss_id",
+          "titel": "Zugehöriges Geschoss",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "geschosse",
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "flaeche_m2",
+          "titel": "Fläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "lichte_hoehe_m",
+          "titel": "Lichte Höhe (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "geschoss_id": "",
+        "bezeichnung": "Höhenzone",
+        "flaeche_m2": 0,
+        "lichte_hoehe_m": 0
+      }
+    }
+  ]
+}

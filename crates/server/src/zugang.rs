@@ -156,7 +156,14 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
             || (r.method() == axum::http::Method::POST
                 && teile.len() == 3
                 && teile[0] == "projekte"
-                && ["druckausgabe", "abstandsplan", "abstandscad"].contains(&teile[2]))
+                && [
+                    "druckausgabe",
+                    "abstandsplan",
+                    "abstandscad",
+                    "fachberechnung",
+                    "raumbuchimport",
+                ]
+                .contains(&teile[2]))
         {
             ProjektRecht::Lesen
         } else {
