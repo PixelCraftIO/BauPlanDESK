@@ -152,6 +152,7 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         "aktenexport",
         "verfahrensprofil",
         "abstandsregeln",
+        "uebersicht",
     ] {
         assert_eq!(
             status(&app, &format!("/api/projekte/{}/{suffix}", p.id), true).await,

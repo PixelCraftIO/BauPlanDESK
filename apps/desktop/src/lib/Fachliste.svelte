@@ -1,7 +1,8 @@
 <script lang="ts" generics="T">
   import { plattformApi, type Datensatz } from "./plattformApi";
   import { fehlertext } from "./api";
-  import { onMount, type Snippet } from "svelte";
+  import { projektNavigation } from "./projektNavigation.svelte";
+  import { onMount, untrack, type Snippet } from "svelte";
   import { editorAnmelden } from "./editoren";
   import type { Ansicht } from "./projektSitzung";
   import type { FachSitzung } from "./FachSitzung.svelte";
@@ -31,6 +32,40 @@
       s.fehler = fehlertext(e);
     }
   }
+  const navigation = projektNavigation();
+  let sprung = 0;
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (
+      !a ||
+      a.nummer === sprung ||
+      a.ziel.bereich !== bereich ||
+      !a.ziel.objekt ||
+      !s.bereit ||
+      gesperrt
+    )
+      return;
+    untrack(() => {
+      sprung = a.nummer;
+      if (s.hatAenderungen() || s.gerettet) {
+        if (s.id !== a.ziel.objekt)
+          s.meldung =
+            "Ein anderer Entwurf ist noch offen. Bitte zuerst speichern oder verwerfen; anschließend den Eintrag erneut aus der Projektübersicht öffnen.";
+        return;
+      }
+      void s.laden().then((ok) => {
+        if (!ok || navigation?.auftrag?.nummer !== a.nummer) return;
+        if (s.hatAenderungen() || s.gerettet) return;
+        const f = s.liste.find((f) => f.objekt === a.ziel.objekt);
+        if (f) {
+          s.meldung = null;
+          s.bearbeiten(f);
+        } else
+          s.fehler =
+            "Der verknüpfte Eintrag ist nicht mehr in dieser Projektliste vorhanden. Liste aktualisieren.";
+      });
+    });
+  });
   onMount(() => s.laden());
   $effect(() => s.entwurfSichern());
   // Komponenten besitzen eine feste Route innerhalb ihrer Projektakte.

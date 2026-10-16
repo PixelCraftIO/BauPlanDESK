@@ -130,3 +130,14 @@ pub async fn checkliste_anwenden(
         .checkliste_anwenden(projekt_id, vorlage, &state.benutzer())
         .await?)
 }
+
+#[tauri::command]
+pub async fn projektuebersicht(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> Result<core_lib::projektuebersicht::Projektuebersicht, CmdError> {
+    Ok(state
+        .core
+        .projektuebersicht(projekt_id, &state.benutzer())
+        .await?)
+}

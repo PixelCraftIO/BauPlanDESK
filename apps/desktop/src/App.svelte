@@ -96,7 +96,7 @@
     if (globalAnsicht === "kunden") kundenBesucht = true;
   });
   let speicherLaeuft = $state(false);
-  const ansicht = $derived(aktiv?.ansicht ?? "uebersicht");
+  const ansicht = $derived(aktiv?.ansicht ?? "projektuebersicht");
   function bereich(id: Ansicht) {
     if (aktiv) {
       const modul = MODULE.find((m) => m.id === id);
@@ -160,7 +160,7 @@
       if (!sitzungen.some((s) => s.projekt.id === id))
         sitzungen.push({
           projekt: p,
-          ansicht: "uebersicht",
+          ansicht: "projektuebersicht",
           planDokument: null,
           importAusloeser: 0,
           exportAusloeser: 0,
@@ -602,6 +602,7 @@
     {#each sitzungen as s (s.projekt.id)}
       <div
         class="projekt-sitzung"
+        data-projekt-id={s.projekt.id}
         hidden={!!globalAnsicht || aktiveId !== s.projekt.id}
       >
         <Projektakte

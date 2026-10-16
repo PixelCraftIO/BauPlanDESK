@@ -79,6 +79,10 @@ pub struct Abgabewunsch {
     pub anschreiben: String,
 }
 pub fn versandstand(b: &Abgabestand) -> Option<Versandstatus> {
+    letztes_versandereignis(b).map(|e| e.status.clone())
+}
+/// Maßgebendes Ereignis nach Berichtigungen; Datum und Status stammen aus derselben Entscheidung.
+pub fn letztes_versandereignis(b: &Abgabestand) -> Option<&Versandereignis> {
     b.versand
         .iter()
         .enumerate()
@@ -92,10 +96,10 @@ pub fn versandstand(b: &Abgabestand) -> Option<Versandstatus> {
                     break;
                 }
             }
-            (e.datum, index, e.status.clone())
+            (e.datum, index, e)
         })
         .max_by_key(|(datum, index, _)| (*datum, *index))
-        .map(|(_, _, status)| status)
+        .map(|(_, _, ereignis)| ereignis)
 }
 impl CoreServices {
     pub async fn verfahren_abgabe_festhalten(

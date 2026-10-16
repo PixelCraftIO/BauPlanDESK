@@ -46,7 +46,7 @@
 /><button type="button" class="sekundaer" disabled={!original} onclick={neu}
   >Bescheid erfassen</button
 >
-{#each eintraege as b (b.id)}<details open>
+{#each eintraege as b (b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
       >{b.datum} · {b.entscheidung}{eintraege.some((n) => n.ersetzt === b.id)
         ? " · durch Folgebescheid ersetzt"
@@ -103,7 +103,7 @@
           erledigt: false,
           nachweise: [],
         })}>Auflage hinzufügen</button
-    >{#each b.auflagen as p (p.id)}<fieldset>
+    >{#each b.auflagen as p (p.id)}<fieldset data-uebersicht-eintrag={p.id}>
         <legend>{p.titel || "Neue Auflage"}</legend>
         <div class="raster">
           <label

@@ -41,8 +41,11 @@ export class FachSitzung<T> {
         this.gerettet = !!localStorage.getItem(this.schluessel);
       }
       this.bereit = true;
+      this.fehler = null;
+      return true;
     } catch (e) {
       this.fehler = fehlertext(e);
+      return false;
     } finally {
       this.laeuft = false;
     }

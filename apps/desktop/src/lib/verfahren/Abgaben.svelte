@@ -102,7 +102,7 @@
     onclick={festhalten}>Abgabestand verbindlich festhalten</button
   >
 </fieldset>
-{#each eintraege as b (b.id)}<details open>
+{#each eintraege as b (b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
       >{b.titel} · {status(b)} · {new Date(b.erstellt_am).toLocaleString(
         "de-DE",

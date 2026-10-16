@@ -12,6 +12,9 @@ beschreibt den aktuellen Ablauf mit Screenshots und Prüfprotokollen.
 [Dark Mode, Formularabstände und weitere Prüfschwerpunkte](docs/ui-qualitaet/README.md)
 mit sichtbaren Vorher-/Nachher-Beispielen.
 
+[Zentrale Projektübersicht: Arbeitsschritte, Fristen und Behördenstand](docs/projektuebersicht/README.md)
+führt direkt zu den betroffenen Aufgaben, Nachweisen und Verfahrensregistern.
+
 ## Plattformstrategie
 
 [Analyse der Anwendung, Zielarchitektur und priorisierter Maßnahmenplan](docs/plattform-analyse/README.md)
