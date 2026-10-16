@@ -655,8 +655,8 @@
     margin-block: 1rem;
   }
   .fach-tabs button {
-    background: var(--surface);
-    color: var(--text);
+    background: var(--panel);
+    color: var(--fg);
     border: 1px solid var(--border);
   }
   .fach-tabs button.aktiv {

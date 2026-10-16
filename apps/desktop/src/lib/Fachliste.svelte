@@ -83,6 +83,7 @@
   >
 </table>
 {#if s.eingabe}<form
+    class="fachformular"
     class:aktenformular={lesendBedienbar}
     onsubmit={async (e) => {
       e.preventDefault();
@@ -123,8 +124,12 @@
   </details>{/if}
 
 <style>
-  .aktenformular {
+  .fachformular {
     display: block;
+  }
+  .fachformular > fieldset {
+    width: 100%;
+    margin-block: 1.5rem;
   }
   .aktenformular > fieldset {
     width: 100%;
