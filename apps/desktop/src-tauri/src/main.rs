@@ -212,6 +212,7 @@ fn main() {
             berechnungen::berechnung_aus_raumbuch,
             berechnungen::fachberechnung_pruefen,
             commands::mass_der_nutzung,
+            updater::update_status,
             updater::update_pruefen,
             updater::update_installieren,
         ])

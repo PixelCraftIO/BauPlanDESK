@@ -131,6 +131,38 @@
   let hinweis = $state<string | null>(null);
   let update = $state<UpdateInfo | null>(null);
   let installiere = $state(false);
+  let updatePrueft = $state(false);
+  let updateMeldung = $state("");
+  let updateStatus = $state<{
+    eingerichtet: boolean;
+    quelle: string;
+    hinweis: string;
+  } | null>(null);
+  let updateFortschritt = $state<{
+    geladen: number;
+    gesamt: number | null;
+    phase: string;
+  } | null>(null);
+  function updateBlockiert() {
+    return !!(
+      dialog ||
+      beendenAngefragt ||
+      schliessZiel ||
+      speicherLaeuft ||
+      schliessLaeuft ||
+      beendenLaeuft ||
+      sitzungen.some(
+        (s) => s.editor?.hatAenderungen() || s.editor?.istBeschaeftigt(),
+      ) ||
+      kundenEditor?.hatAenderungen() ||
+      kundenEditor?.istBeschaeftigt() ||
+      ablageEditor?.istBeschaeftigt() ||
+      druckEditor?.istBeschaeftigt() ||
+      kategorienEditor?.istBeschaeftigt() ||
+      speicherortEditor?.istBeschaeftigt() ||
+      bibliothekEditor?.istBeschaeftigt()
+    );
+  }
 
   let lizenz = $state<Lizenzstatus | null>(null);
   /** Kunden zur Auswahl im Dialog „Neues Projekt“. */
@@ -302,25 +334,48 @@
   }
 
   async function updatePruefen() {
+    if (updatePrueft || installiere) return;
+    updatePrueft = true;
+    updateMeldung = "Updatequelle wird geprüft …";
     try {
+      updateStatus = await api.updateStatus();
+      if (!updateStatus.eingerichtet) {
+        updateMeldung = updateStatus.hinweis;
+        return;
+      }
       update = await api.updatePruefen();
-      if (!update) hinweis = "BauProjektIO ist auf dem neuesten Stand.";
+      updateMeldung = update
+        ? `Version ${update.version} steht bereit.`
+        : "BauProjektIO ist auf dem neuesten Stand.";
     } catch (e) {
-      melde(e);
+      updateMeldung = fehlertext(e);
+    } finally {
+      updatePrueft = false;
+      if (globalAnsicht !== "verwaltung" && !update) hinweis = updateMeldung;
     }
   }
-
   async function updateInstallieren() {
+    if (!update || installiere || updatePrueft) return;
+    if (updateBlockiert()) {
+      hinweis =
+        "Vor der Aktualisierung alle Projekt- und Kundeneingaben speichern oder verwerfen und laufende Aktionen sowie Dialoge abschließen. Ihre Eingaben bleiben geöffnet.";
+      return;
+    }
     installiere = true;
+    updateFortschritt = null;
     try {
-      await api.updateInstallieren(); // startet die App neu
+      await api.updateInstallieren(update.version);
     } catch (e) {
       melde(e);
+      updateMeldung =
+        "Installation fehlgeschlagen. Erneut versuchen oder die Updatequelle prüfen.";
+    } finally {
       installiere = false;
     }
   }
 
   function menue(id: string) {
+    if (installiere) return;
     if (id.startsWith("zuletzt:")) {
       oeffnen(id.slice("zuletzt:".length));
       return;
@@ -409,6 +464,10 @@
     })();
     const ab = [
       getCurrentWindow().onCloseRequested((event) => {
+        if (installiere) {
+          event.preventDefault();
+          return;
+        }
         if (dialog) {
           event.preventDefault();
           hinweis = "Bitte den geöffneten Dialog zuerst abschließen.";
@@ -438,21 +497,68 @@
         }
       }),
       listen<string>("menu", (e) => menue(e.payload)),
-      listen<UpdateInfo>("update-verfuegbar", (e) => (update = e.payload)),
+      listen<UpdateInfo>("update-verfuegbar", (e) => {
+        if (!installiere) update = e.payload;
+      }),
+      listen<{ geladen: number; gesamt: number | null; phase: string }>(
+        "update-fortschritt",
+        (e) => (updateFortschritt = e.payload),
+      ),
       // Regelmäßige Meldung des Arbeitsplatzes (siehe main.rs).
       listen<Lizenzstatus>("lizenz", (e) => (lizenz = e.payload)),
     ];
+    void Promise.all(ab)
+      .then(async () => {
+        const status = await api.updateStatus();
+        updateStatus = status;
+        if (!installiere && !updatePrueft && !update && status.verfuegbar)
+          update = status.verfuegbar;
+      })
+      .catch(() => {});
     return () => ab.forEach((p) => p.then((f) => f()));
   });
 </script>
 
 {#if update}
   <div class="banner">
-    Version {update.version} ist verfügbar.
-    <button onclick={updateInstallieren} disabled={installiere}>
-      {installiere ? "Wird installiert …" : "Jetzt aktualisieren"}
+    <div>
+      <strong>Version {update.version} ist verfügbar.</strong>
+      {#if update.notizen}<details>
+          <summary>Änderungen anzeigen</summary>
+          <p style="white-space: pre-wrap">{update.notizen}</p>
+        </details>{/if}
+      {#if installiere}<p role="status">
+          {updateFortschritt?.phase === "installation"
+            ? "Update wird installiert …"
+            : "Signiertes Update wird heruntergeladen …"}
+        </p>
+        {#if updateFortschritt?.phase === "download"}<progress
+            aria-label="Update herunterladen"
+            value={updateFortschritt.gesamt
+              ? updateFortschritt.geladen
+              : undefined}
+            max={updateFortschritt.gesamt ?? undefined}
+          ></progress>
+          <span
+            >{(updateFortschritt.geladen / 1048576).toFixed(1)} MB{updateFortschritt.gesamt
+              ? ` von ${(updateFortschritt.gesamt / 1048576).toFixed(1)} MB`
+              : ""}</span
+          >{/if}
+      {:else}<p class="meta">
+          Die Anwendung wird neu gestartet. Vorher alle Eingaben speichern und
+          Dialoge schließen.
+        </p>{/if}
+    </div>
+    <button onclick={updateInstallieren} disabled={installiere || updatePrueft}>
+      {installiere
+        ? "Wird installiert …"
+        : "Update installieren und neu starten"}
     </button>
-    <button class="sekundaer" onclick={() => (update = null)}>Später</button>
+    <button
+      class="sekundaer"
+      onclick={() => (update = null)}
+      disabled={installiere}>Später</button
+    >
   </div>
 {/if}
 
@@ -484,7 +590,7 @@
     >{ich?.anzeigename ?? "Wird geladen …"}</span
   >
 </header>
-<div class="arbeitsrahmen">
+<div class="arbeitsrahmen" inert={installiere}>
   <Sidebar
     {projekt}
     {ansicht}
@@ -594,9 +700,22 @@
               {info?.version} · {info?.modus} · {info?.storage}
             </p>
           </div>
-          <button class="sekundaer" onclick={updatePruefen}
-            >Updates prüfen</button
-          >
+          <div>
+            {#if updateStatus}<p class="meta">{updateStatus.hinweis}</p>
+              {#if updateStatus.quelle}<p
+                  class="meta"
+                  style="overflow-wrap:anywhere"
+                >
+                  {updateStatus.quelle}
+                </p>{/if}{/if}
+            {#if updateMeldung}<p role="status">{updateMeldung}</p>{/if}
+            <button
+              class="sekundaer"
+              onclick={updatePruefen}
+              disabled={updatePrueft || installiere}
+              >{updatePrueft ? "Wird geprüft …" : "Updates prüfen"}</button
+            >
+          </div>
         </div>
       </div>{/if}
     {#each sitzungen as s (s.projekt.id)}

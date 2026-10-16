@@ -51,6 +51,7 @@ window.__TAURI_INTERNALS__ = {
       return args.handler;
     }
     if (cmd.startsWith("plugin:event|")) return;
+    if(cmd==="update_status")return {eingerichtet:false,quelle:"",hinweis:"Updates sind in diesem Testbuild nicht eingerichtet.",verfuegbar:null};
     if(cmd==="abstandsregeln")return [];
     if(cmd==="druckgestaltung")return window.druckGestaltung??{kopfzeile:"{Projekt}",fusszeile:"Stand: {Datum}",anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen"};
     if(cmd==="druckgestaltung_speichern"){window.druckGestaltung=JSON.parse(JSON.stringify(args.gestaltung));return window.druckGestaltung;}

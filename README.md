@@ -405,17 +405,11 @@ gilt also sofort in allen Projekten.
   nur bei geöffnetem Projekt aktiv; unter macOS gibt es zusätzlich das App-Menü.
 * **Fenster:** native Dekorationen, Mindestgröße, gespeicherte Fensterposition
   (`tauri-plugin-window-state`), nur eine Instanz (`tauri-plugin-single-instance`).
-* **Auto-Update:** `tauri-plugin-updater`. Die App prüft beim Start im
-  Hintergrund und installiert erst nach Bestätigung. Vor dem ersten Release:
-  1. Schlüsselpaar erzeugen: `npm run tauri signer generate -- -w ~/.tauri/bauprojektio.key`
-  2. Inhalt der `.pub`-Datei als Repository-Variable `BAUPROJEKT_UPDATER_PUBKEY`
-     hinterlegen (ersetzt `plugins.updater.pubkey` aus `tauri.conf.json`).
-  3. Repository-Variable `BAUPROJEKT_LIZENZSERVER` setzen; die App fragt
-     `<Lizenzserver>/updates/latest.json` ab.
-  4. Privaten Schlüssel als Secret `TAURI_SIGNING_PRIVATE_KEY` hinterlegen; der
-     Workflow [`release.yml`](.github/workflows/release.yml) baut und signiert,
-     [`updates.yml`](.github/workflows/updates.yml) lädt nach dem
-     Veröffentlichen auf den Server hoch.
+* **Auto-Update:** Signierte Tauri-Updates mit Prüfung beim Start und in den
+  Einstellungen, Releasehinweisen, Downloadfortschritt und Schutz offener
+  Eingaben. Updatequelle: explizites HTTPS-Manifest, eigener Lizenzserver oder
+  öffentliche GitHub-Releases. Einrichtung der Signierschlüssel und Test mit
+  zwei Versionen: [Update-Anleitung](docs/updates/README.md).
 * **Icons:** Platzhalter in `apps/desktop/src-tauri/icons/`; mit
   `npm run tauri icon <logo.png>` durch das finale Logo ersetzen.
 

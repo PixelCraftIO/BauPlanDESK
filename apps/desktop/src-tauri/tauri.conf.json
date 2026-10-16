@@ -67,9 +67,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "ERSETZEN: Inhalt der von `npm run tauri signer generate` erzeugten .pub-Datei",
+      "pubkey": "",
       "endpoints": [
-        "https://updates.example.invalid/bauprojektio/{{target}}/{{arch}}/{{current_version}}"
+        "https://github.com/PixelCraftIO/BauProjektIO/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

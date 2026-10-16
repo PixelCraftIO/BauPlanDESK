@@ -303,7 +303,12 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             .hide_others()
             .show_all()
             .separator()
-            .quit()
+            .item(&item(
+                id::BEENDEN,
+                "BauProjektIO beenden",
+                Some("CmdOrCtrl+Q"),
+                true,
+            )?)
             .build()?;
         menu.append(&app_menu)?;
     }
@@ -337,7 +342,13 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         id::ZOOM_MINUS => state.zoom_aendern(app, Some(-0.1)),
         id::ZOOM_RESET => state.zoom_aendern(app, None),
         id::ZULETZT_LEEREN => state.zuletzt_leeren(app),
-        id::BEENDEN => app.exit(0),
+        id::BEENDEN => {
+            // Auch Menü/Shortcut müssen den Entwurfs- und Installationsschutz
+            // des Hauptfensters durchlaufen; kein unbedingtes app.exit().
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.close();
+            }
+        }
         // Alles andere entscheidet das Frontend (Dialoge, Ansichten).
         other => {
             let _ = app.emit_to("main", "menu", other.to_owned());
