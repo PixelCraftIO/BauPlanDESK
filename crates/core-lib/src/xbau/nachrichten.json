@@ -1,0 +1,824 @@
+[
+  {
+    "element": "prozessnachrichten.aenderungProjektraumdaten.0100",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderung von Daten zum Bauvorhaben im Projektraum",
+    "schema": "xbau-bauordnungsrechtlicheProzessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.aktenraum.anlegen.0150",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anforderung Aktenraum",
+    "schema": "xbau-bauordnungsrechtlicheProzessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.aktenraum.angelegt.0151",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Übermittlung der Informationen zum Aktenraum",
+    "schema": "xbau-bauordnungsrechtlicheProzessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.aktenraum.zugriffVerweigern.0152",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Zugriff auf Aktenraum verweigern",
+    "schema": "xbau-bauordnungsrechtlicheProzessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.rueckweisung.G2G.1100",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Rückweisungsnachricht G2G",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.eingangsbestaetigung.1120",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Bestätigung Eingang von Antrag oder Anzeige",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.aktenzeichen.1121",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Mitteilung des zugewiesenen Aktenzeichens",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.ruecknahme.1130",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Rücknahme eines Antrags",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.quittierungRuecknahme.1131",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Quittierung der Rücknahme eines Antrags",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.formellePruefungBefundliste.1140",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Befundliste als Ergebnis einer formellen Prüfung",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.zustellungSchreiben.1141",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Zustellung eines Schreibens der Fachbehörde an Bauherrn oder Entwurfsverfasser",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.fachlicheKommunikation.1142",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Fachliche Kommunikation im Verfahren",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.einstellenDokumente.1150",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Einstellen von Dokumenten in einen Projektraum",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.gebuehrenbescheid.1160",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Zustellung eines Gebührenbescheids",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.statusFuerAntragsportal.1170",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Statusnachricht ans Antragsportal",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.generischeQuittierungEingang.1180",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Quittierung des Eingangs einer Nachricht",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.generischeRueckmeldungAbruf.1181",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Rückmeldung über den Abruf eines Bescheids",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.vorgangsraum.anlegen.1300",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Anforderung Vorgangsraum",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.vorgangsraum.angelegt.1301",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Übermittlung der Informationen zum Vorgangsraum",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.vorgangsraum.schliessen.1302",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Aufforderung zur Schließung des Vorgangsraums",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "prozessnachrichten.vorgangsraum.geschlossen.1303",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Bestätigung der Schließung des Vorgangsraums",
+    "schema": "xbau-kernmodul-prozessnachrichten.xsd"
+  },
+  {
+    "element": "universellerAntrag.antrag.1200",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Antrag zu einem Vorgang",
+    "schema": "xbau-kernmodul-universellerAntrag.xsd"
+  },
+  {
+    "element": "universellerAntrag.angepassterAntrag.1202",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Angepasster Antrag",
+    "schema": "xbau-kernmodul-universellerAntrag.xsd"
+  },
+  {
+    "element": "universellerAntrag.materiellePruefungBefundliste.1203",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Hinweis auf Anhörung",
+    "schema": "xbau-kernmodul-universellerAntrag.xsd"
+  },
+  {
+    "element": "universellerAntrag.stellungnahme.1204",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-kernmodul-universellerAntrag.xsd"
+  },
+  {
+    "element": "universellerAntrag.bescheid.1205",
+    "namensraum": "http://www.xleitstelle.de/xbau/kernmodul/1/4/0",
+    "titel": "Bescheid",
+    "schema": "xbau-kernmodul-universellerAntrag.xsd"
+  },
+  {
+    "element": "abgeschlossenheit.antrag.0250",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Antragstellung gemäß WoEigG",
+    "schema": "xbau-nachrichten-abgeschlossenheitsbescheinigung.xsd"
+  },
+  {
+    "element": "abgeschlossenheit.antragGeaendert.0252",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Korrekturen / Modifikationen zum Antrag",
+    "schema": "xbau-nachrichten-abgeschlossenheitsbescheinigung.xsd"
+  },
+  {
+    "element": "abgeschlossenheit.anhoerung.0253",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Anhörung",
+    "schema": "xbau-nachrichten-abgeschlossenheitsbescheinigung.xsd"
+  },
+  {
+    "element": "abgeschlossenheit.stellungnahme.0254",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-abgeschlossenheitsbescheinigung.xsd"
+  },
+  {
+    "element": "abgeschlossenheit.bescheid.0255",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-abgeschlossenheitsbescheinigung.xsd"
+  },
+  {
+    "element": "abweichung.antrag.0220",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Beantragung einer Abweichung",
+    "schema": "xbau-nachrichten-abweichung.xsd"
+  },
+  {
+    "element": "abweichung.antragGeaendert.0222",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zum Antrag",
+    "schema": "xbau-nachrichten-abweichung.xsd"
+  },
+  {
+    "element": "abweichung.anhoerung.0223",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Gelegenheit zur Anhörung",
+    "schema": "xbau-nachrichten-abweichung.xsd"
+  },
+  {
+    "element": "abweichung.stellungnahme.0224",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-abweichung.xsd"
+  },
+  {
+    "element": "abweichung.bescheid.0225",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-abweichung.xsd"
+  },
+  {
+    "element": "akteneinsicht.antrag.0120",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Antrag auf Akteneinsicht",
+    "schema": "xbau-nachrichten-akteneinsicht.xsd"
+  },
+  {
+    "element": "akteneinsicht.formellePruefung.0121",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Ergebnis der formellen Prüfung",
+    "schema": "xbau-nachrichten-akteneinsicht.xsd"
+  },
+  {
+    "element": "akteneinsicht.antragGeaendert.0122",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zum Antrag",
+    "schema": "xbau-nachrichten-akteneinsicht.xsd"
+  },
+  {
+    "element": "akteneinsicht.ergebnis.0123",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Ergebnis",
+    "schema": "xbau-nachrichten-akteneinsicht.xsd"
+  },
+  {
+    "element": "akteneinsicht.anforderungGrundbuchauszug.0125",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anforderung des Grundbuchauszugs",
+    "schema": "xbau-nachrichten-akteneinsicht.xsd"
+  },
+  {
+    "element": "akteneinsicht.uebermittlungGrundbuchauszug.0126",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Übermittlung des Grundbuchauszugs",
+    "schema": "xbau-nachrichten-akteneinsicht.xsd"
+  },
+  {
+    "element": "angrenzer.stellungnahme.0310",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme Angrenzer",
+    "schema": "xbau-nachrichten-angrenzer.xsd"
+  },
+  {
+    "element": "anzeige.baubeginn.0900",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige des Baubeginns",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.baubeginnUntersagung.0901",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Untersagung des Baubeginns",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.baubeginnBaufreigabe.0902",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Erteilung der Baufreigabe",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.erklaerungGEG.0903",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Erfüllungserklärung nach GEG",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.baubeginnAeusserung.0904",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Äußerung zum untersagten Baubeginn",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.nutzungsaufnahme.0910",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige der Nutzungsaufnahme",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.nutzungsaufnahmeUntersagung.0911",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Untersagung der Nutzungsaufnahme",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.nutzungsaufnahmeBauabnahme.0912",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Abnahmeschein zur Nutzungsaufnahme",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.nutzungsaufnahmeAeusserung.0913",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Äußerung zur untersagten Nutzungsaufnahme",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.beseitigungAbsicht.0950",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige der Absicht einer Beseitigung",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.beseitigungGeaendert.0952",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Geänderte Anzeige der Absicht einer Beseitigung",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.beseitigungUntersagung.0953",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Untersagung der geplanten Beseitigung",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "anzeige.beseitigungBestaetigung.0955",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bestätigung der geplanten Beseitigung",
+    "schema": "xbau-nachrichten-anzeige.xsd"
+  },
+  {
+    "element": "bauberatung.anfrage.0110",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bauberatung Anfrage",
+    "schema": "xbau-nachrichten-bauberatung.xsd"
+  },
+  {
+    "element": "bauberatung.auskunft.0111",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bauberatung Auskunft",
+    "schema": "xbau-nachrichten-bauberatung.xsd"
+  },
+  {
+    "element": "baugenehmigung.antrag.0200",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Beantragung einer Baugenehmigung",
+    "schema": "xbau-nachrichten-baugenehmigung.xsd"
+  },
+  {
+    "element": "baugenehmigung.antragGeaendert.0202",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zum Antrag",
+    "schema": "xbau-nachrichten-baugenehmigung.xsd"
+  },
+  {
+    "element": "baugenehmigung.anhoerung.0203",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Anhörung",
+    "schema": "xbau-nachrichten-baugenehmigung.xsd"
+  },
+  {
+    "element": "baugenehmigung.stellungnahme.0204",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-baugenehmigung.xsd"
+  },
+  {
+    "element": "baugenehmigung.bescheid.0205",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-baugenehmigung.xsd"
+  },
+  {
+    "element": "baulastaenderung.fortschreibungEintrag.0730",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Aktualisierung des Baulasteintrags",
+    "schema": "xbau-nachrichten-baulastaenderung.xsd"
+  },
+  {
+    "element": "baulasten.vorlageErklaerung.0700",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Baulasterklärung",
+    "schema": "xbau-nachrichten-baulasten.xsd"
+  },
+  {
+    "element": "baulasten.nachforderung.0701",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Nachforderung",
+    "schema": "xbau-nachrichten-baulasten.xsd"
+  },
+  {
+    "element": "baulasten.information.0702",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Information",
+    "schema": "xbau-nachrichten-baulasten.xsd"
+  },
+  {
+    "element": "baulasten.eintragung.0703",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Baulasteintragung",
+    "schema": "xbau-nachrichten-baulasten.xsd"
+  },
+  {
+    "element": "baulasten.korrekturErklaerung.0704",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Korrektur zur Baulasterklärung",
+    "schema": "xbau-nachrichten-baulasten.xsd"
+  },
+  {
+    "element": "baulastenverzeichnis.anfrage.0710",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anfrage an die Baulastverzeichnis führende Stelle",
+    "schema": "xbau-nachrichten-baulastenverzeichnis.xsd"
+  },
+  {
+    "element": "baulastenverzeichnis.formellePruefung.0711",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Ergebnis der formellen Prüfung",
+    "schema": "xbau-nachrichten-baulastenverzeichnis.xsd"
+  },
+  {
+    "element": "baulastenverzeichnis.anfrageGeaendert.0712",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zur Anfrage",
+    "schema": "xbau-nachrichten-baulastenverzeichnis.xsd"
+  },
+  {
+    "element": "baulastenverzeichnis.auskunft.0713",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Auskunft aus dem Baulastenverzeichnis",
+    "schema": "xbau-nachrichten-baulastenverzeichnis.xsd"
+  },
+  {
+    "element": "baulastloeschung.antrag.0720",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Antrag zur Baulastlöschung",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "baulastloeschung.nachforderung.0721",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Nachforderung",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "baulastloeschung.korrekturAntrag.0722",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Korrektur zum Antrag Baulastlöschung",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "baulastloeschung.stellungnahmeAufforderung.0723",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Aufforderung zur Stellungnahme",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "baulastloeschung.stellungnahme.0724",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "baulastloeschung.loeschungEintrag.0725",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Löschung des Baulasteintrags",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "baulastloeschung.information.0726",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Information",
+    "schema": "xbau-nachrichten-baulastloeschung.xsd"
+  },
+  {
+    "element": "bauzustand.anzeige.0920",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige des Bauzustands",
+    "schema": "xbau-nachrichten-bauzustand.xsd"
+  },
+  {
+    "element": "bauzustand.befundliste.0921",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Befundliste",
+    "schema": "xbau-nachrichten-bauzustand.xsd"
+  },
+  {
+    "element": "bauzustand.freigabe.0922",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Freigabe",
+    "schema": "xbau-nachrichten-bauzustand.xsd"
+  },
+  {
+    "element": "bauzustand.aeusserung.0923",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Äußerung zu Ausführungsmängeln",
+    "schema": "xbau-nachrichten-bauzustand.xsd"
+  },
+  {
+    "element": "beteiligung.aufforderung.0300",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Aufforderung zu Prüfung und Stellungnahme",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "beteiligung.formellePruefung.0301",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Ergebnis der formellen Prüfung",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "beteiligung.aufforderungKorrektur.0302",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Angepasste Beteiligungsaufforderung",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "beteiligung.stellungnahme.0303",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "beteiligung.ruecknahme.0304",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Rücknahme einer Aufforderung zur Beteiligung",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "beteiligung.zwischennachricht.0305",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Zwischennachricht",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "beteiligung.reaktionZwischennachricht.0306",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Reaktion auf Zwischennachricht",
+    "schema": "xbau-nachrichten-beteiligung.xsd"
+  },
+  {
+    "element": "genehmigungsfreistellung.anzeige.0600",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige des Bauvorhabens (Gemeinde)",
+    "schema": "xbau-nachrichten-genehmigungsfreistellung.xsd"
+  },
+  {
+    "element": "genehmigungsfreistellung.anzeigeBAB.0601",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige des Bauvorhabens (Baubehörde)",
+    "schema": "xbau-nachrichten-genehmigungsfreistellung.xsd"
+  },
+  {
+    "element": "genehmigungsfreistellung.ergebnis.0602",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Ergebnis der Prüfung",
+    "schema": "xbau-nachrichten-genehmigungsfreistellung.xsd"
+  },
+  {
+    "element": "genehmigungsfreistellung.ergebnisBAB.0603",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anzeige des Prüfergebnisses (Baubehörde)",
+    "schema": "xbau-nachrichten-genehmigungsfreistellung.xsd"
+  },
+  {
+    "element": "grundstuecksteilung.antrag.0240",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Antrag auf Grundstücksteilung",
+    "schema": "xbau-nachrichten-grundstuecksteilung.xsd"
+  },
+  {
+    "element": "grundstuecksteilung.antragGeaendert.0242",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Korrekturen / Modifikationen zum Antrag",
+    "schema": "xbau-nachrichten-grundstuecksteilung.xsd"
+  },
+  {
+    "element": "grundstuecksteilung.anhoerung.0243",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Anhörung",
+    "schema": "xbau-nachrichten-grundstuecksteilung.xsd"
+  },
+  {
+    "element": "grundstuecksteilung.stellungnahme.0244",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-grundstuecksteilung.xsd"
+  },
+  {
+    "element": "grundstuecksteilung.bescheid.0245",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-grundstuecksteilung.xsd"
+  },
+  {
+    "element": "informationsempfaenger.benachrichtigung.0400",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Benachrichtigung von Informationsempfängern",
+    "schema": "xbau-nachrichten-informationsempfaenger.xsd"
+  },
+  {
+    "element": "informationsempfaenger.benachrichtigungUV.0401",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Benachrichtigung der Unfallversicherungsträger",
+    "schema": "xbau-nachrichten-informationsempfaenger.xsd"
+  },
+  {
+    "element": "kammernverzeichnis.anfrage.0930",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Anfrage zur Mitgliedschaft einer Person in einer Kammer",
+    "schema": "xbau-nachrichten-kammernverzeichnis.xsd"
+  },
+  {
+    "element": "kammernverzeichnis.auskunft.0931",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Auskunft zur Mitgliedschaft einer Person in einer Kammer",
+    "schema": "xbau-nachrichten-kammernverzeichnis.xsd"
+  },
+  {
+    "element": "pruefingenieure.pruefauftrag.0500",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Beauftragung des Prüfingenieurs",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.auftragsbestaetigung.0501",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Antwort zur Beauftragung",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.formellePruefung.0502",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Ergebnis der formellen Prüfung",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.pruefauftragKorrektur.0503",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Angepasster Prüfauftrag",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.nachforderungUnterlagen.0504",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Nachforderung von Unterlagen",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.angepassteUnterlagen.0505",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Angepasste Unterlagen",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.pruefbericht.0506",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Prüfbericht des Auftragnehmers",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "pruefingenieure.mitteilungBaubeginnsanzeige.0508",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Mitteilung über Baubeginnsanzeige",
+    "schema": "xbau-nachrichten-pruefingenieure.xsd"
+  },
+  {
+    "element": "statistik.datenBauvorhaben.0420",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistiknachricht vom Bauvorhaben an die Bauaufsichtsbehörde",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.baugenehmigung.0421",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistikmeldung anlässlich einer erteilten Baugenehmigung",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.erloscheneBaugenehmigung.0422",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistikmeldung anlässlich einer erloschenen oder annullierten Baugenehmigung",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.baubeginn.0423",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistikmeldung anlässlich des Baubeginns",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.fertigstellungRohbau.0424",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistikmeldung anlässlich der Fertigstellung des Rohbaus",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.baufertigstellung.0425",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistikmeldung anlässlich der Baufertigstellung",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.bauabgang.0426",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Statistikmeldung anlässlich eines Bauabgangs",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "statistik.bauueberhang.0427",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Datenübermittlung mit Informationen zum Bauüberhang",
+    "schema": "xbau-nachrichten-statistik.xsd"
+  },
+  {
+    "element": "teilbaugenehmigung.antrag.0230",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Beantragung einer Teilbaugenehmigung",
+    "schema": "xbau-nachrichten-teilbaugenehmigung.xsd"
+  },
+  {
+    "element": "teilbaugenehmigung.antragGeaendert.0232",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zum Antrag",
+    "schema": "xbau-nachrichten-teilbaugenehmigung.xsd"
+  },
+  {
+    "element": "teilbaugenehmigung.anhoerung.0233",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Anhörung",
+    "schema": "xbau-nachrichten-teilbaugenehmigung.xsd"
+  },
+  {
+    "element": "teilbaugenehmigung.stellungnahme.0234",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-teilbaugenehmigung.xsd"
+  },
+  {
+    "element": "teilbaugenehmigung.bescheid.0235",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-teilbaugenehmigung.xsd"
+  },
+  {
+    "element": "ueberwachungspflichtigeAnlagen.pruefbescheinigung.0800",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Prüfbescheinigung",
+    "schema": "xbau-nachrichten-ueberwachungspflichtigeAnlagen.xsd"
+  },
+  {
+    "element": "ueberwachungspflichtigeAnlagen.erinnerung.0801",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Erinnerung",
+    "schema": "xbau-nachrichten-ueberwachungspflichtigeAnlagen.xsd"
+  },
+  {
+    "element": "verlaengerung.antrag.0260",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Beantragung einer Verlängerung einer Baugenehmigung, Teilbaugenehmigung oder eines Vorbescheids",
+    "schema": "xbau-nachrichten-verlaengerung.xsd"
+  },
+  {
+    "element": "verlaengerung.antragGeaendert.0262",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zum Antrag",
+    "schema": "xbau-nachrichten-verlaengerung.xsd"
+  },
+  {
+    "element": "verlaengerung.anhoerung.0263",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Gelegenheit zur Anhörung",
+    "schema": "xbau-nachrichten-verlaengerung.xsd"
+  },
+  {
+    "element": "verlaengerung.stellungnahme.0264",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-verlaengerung.xsd"
+  },
+  {
+    "element": "verlaengerung.bescheid.0265",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-verlaengerung.xsd"
+  },
+  {
+    "element": "vorbescheid.antrag.0210",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Beantragung des Vorbescheids",
+    "schema": "xbau-nachrichten-vorbescheid.xsd"
+  },
+  {
+    "element": "vorbescheid.antragGeaendert.0212",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Änderungen zum Antrag",
+    "schema": "xbau-nachrichten-vorbescheid.xsd"
+  },
+  {
+    "element": "vorbescheid.anhoerung.0213",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Hinweis auf Anhörung",
+    "schema": "xbau-nachrichten-vorbescheid.xsd"
+  },
+  {
+    "element": "vorbescheid.stellungnahme.0214",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Stellungnahme oder Nachbesserung",
+    "schema": "xbau-nachrichten-vorbescheid.xsd"
+  },
+  {
+    "element": "vorbescheid.bescheid.0215",
+    "namensraum": "http://www.xleitstelle.de/xbau/2/7",
+    "titel": "Bescheid",
+    "schema": "xbau-nachrichten-vorbescheid.xsd"
+  }
+]

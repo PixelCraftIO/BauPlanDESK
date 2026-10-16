@@ -1,0 +1,18 @@
+[
+  {
+    "id": "allgemein-manuell", "version": "1", "titel": "Allgemeine Portalunterstützung",
+    "bundesland": null, "verfahren": [], "freigabe": "allgemein",
+    "quelle": "BauProjektIO: allgemeine Dateibereitstellung, kein amtliches Annahmeprofil", "stand": "2026-10-16",
+    "portal_url": null, "max_datei_bytes": null, "max_gesamt_bytes": null,
+    "erlaubte_endungen": [], "unterlagenarten": [],
+    "hinweise": ["Dateiformate, Größen und Unterlagenarten anhand des tatsächlich zuständigen Portals prüfen.", "Die Bereitstellungs-ZIP dient der lokalen Dateiübergabe. Eine ZIP- oder XBau-Importfunktion des Portals ist damit nicht bestätigt."]
+  },
+  {
+    "id": "nrw-manuell", "version": "1", "titel": "NRW – Portalprofil in Prüfung",
+    "bundesland": "NW", "verfahren": [], "freigabe": "entwurf",
+    "quelle": "Prüfziel https://bauportal.nrw/; Schnittstelle und Annahmeregeln noch nicht bestätigt", "stand": "2026-10-16",
+    "portal_url": "https://bauportal.nrw/", "max_datei_bytes": null, "max_gesamt_bytes": null,
+    "erlaubte_endungen": [], "unterlagenarten": [],
+    "hinweise": ["Zuständigkeit und Antragszugang für die konkrete Kommune und Verfahrensart selbst bestätigen.", "Keine bestätigte NRW-API, kein nachgewiesenes XBau-Importprofil. Nur allgemeine Datei- und Belegunterstützung."]
+  }
+]

@@ -12,7 +12,7 @@ use uuid::Uuid;
 fn root(app: &AppHandle) -> Result<PathBuf, CmdError> {
     Ok(app.state::<AppState>().data_dir.join("Arbeitskopien"))
 }
-fn starten(pfad: &Path) -> Result<(), CoreError> {
+pub(crate) fn starten(pfad: &Path) -> Result<(), CoreError> {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::ffi::OsStrExt;

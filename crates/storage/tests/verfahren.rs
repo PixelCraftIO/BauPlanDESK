@@ -15,6 +15,7 @@ use std::{io::Read, sync::Arc};
 use uuid::Uuid;
 fn leer() -> Verfahrensakte {
     Verfahrensakte {
+        portal: None,
         bezeichnung: "Neubau Musterstraße".into(),
         art: Verfahrensart::Bauantrag,
         status: Verfahrensstatus::Vorbereitung,
@@ -215,6 +216,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         version: 2,
     };
     let w = Abgabewunsch {
+        xbau_bezug: None,
         id: Uuid::new_v4(),
         titel: "Nachreichung zwei Punkte".into(),
         dokumente: vec![ref2.clone()],

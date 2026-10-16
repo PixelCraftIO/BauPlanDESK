@@ -45,6 +45,42 @@ pub struct Nachrichtendaten<'a> {
 /// Erzeugt die Antragsnachricht. Prüft vorher die Pflichtangaben und die
 /// Codes gegen die Codelisten.
 pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
+    schreiben(d, None)
+}
+
+/// Geänderte Bauvorhabendaten und ausgewählte Anlagen als vollständiger Datensatz.
+pub fn baugenehmigung_aenderung(
+    d: &Nachrichtendaten<'_>,
+    bezug: &super::austausch::Nachrichtenkopf,
+) -> CoreResult<String> {
+    let erwartet = match bezug.element.as_str() {
+        "baugenehmigung.antrag.0200" if bezug.namensraum == super::austausch::HOCHBAU => {
+            &bezug.empfaenger
+        }
+        "prozessnachrichten.formellePruefungBefundliste.1140"
+            if bezug.namensraum == super::austausch::KERN =>
+        {
+            &bezug.absender
+        }
+        _ => {
+            return Err(super::austausch::fehler(
+                "Ungeeignete Bezugsnachricht für eine Nachreichung",
+            ));
+        }
+    };
+    if bezug.antragsreferenz != Some(d.antrag.vorgang)
+        || erwartet != d.antrag.bauaufsicht.kennung.trim()
+    {
+        return Err(super::austausch::fehler(
+            "Antragsreferenz oder Behörde der Nachreichung passen nicht zum gespeicherten Bauantrag",
+        ));
+    }
+    schreiben(d, Some(bezug))
+}
+fn schreiben(
+    d: &Nachrichtendaten<'_>,
+    bezug: Option<&super::austausch::Nachrichtenkopf>,
+) -> CoreResult<String> {
     let fehlt = d.antrag.fehlende_angaben(d.buero, d.bauherren);
     if !fehlt.is_empty() {
         return Err(CoreError::InvalidInput(format!(
@@ -69,9 +105,14 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
 
     let mut x = XmlSchreiber::new();
     x.auf(
-        "xbau:baugenehmigung.antrag.0200",
+        if bezug.is_some() {
+            "xbau:baugenehmigung.antragGeaendert.0202"
+        } else {
+            "xbau:baugenehmigung.antrag.0200"
+        },
         &[
             ("xmlns:xbau", NAMENSRAUM),
+            ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
             ("produkt", "BauProjektIO"),
             ("produkthersteller", "PixelCraft"),
             ("produktversion", env!("CARGO_PKG_VERSION")),
@@ -92,7 +133,7 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
                 ("listVersionID", "5.0"),
             ],
         )
-        .text("code", "0200")
+        .text("code", if bezug.is_some() { "0202" } else { "0200" })
         .zu()
         .text("erstellungszeitpunkt", &zeit)
         .zu();
@@ -113,14 +154,43 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
         .zu();
     x.zu();
 
-    x.auf("xbau:referenzAntragsservice", &[])
-        .text("referenzAntragsservice", &d.antrag.vorgang.to_string())
-        .zu();
-
-    for b in d.bauherren {
-        x.auf("xbau:antragsteller", &[]);
-        akteur(&mut x, b);
+    if let Some(k) = bezug {
+        x.auf("xbau:bezug", &[])
+            .text("referenz", &d.antrag.vorgang.to_string());
+        if let Some(az) = &k.aktenzeichen {
+            x.text("vorgang", az);
+        }
+        if k.element == "prozessnachrichten.formellePruefungBefundliste.1140" {
+            x.auf("bezugNachricht", &[])
+                .text("bn:nachrichtenUUID", &k.id.to_string())
+                .auf(
+                    "bn:nachrichtentyp",
+                    &[
+                        (
+                            "listURI",
+                            "urn:xoev-de:xbau-kernmodul:codeliste:xbau-kernmodul-nachrichten",
+                        ),
+                        ("listVersionID", "3.0"),
+                    ],
+                )
+                .text("code", "1140")
+                .zu()
+                .text(
+                    "bn:erstellungszeitpunkt",
+                    &k.erstellt.to_rfc3339_opts(SecondsFormat::Secs, true),
+                )
+                .zu();
+        }
         x.zu();
+    } else {
+        x.auf("xbau:referenzAntragsservice", &[])
+            .text("referenzAntragsservice", &d.antrag.vorgang.to_string())
+            .zu();
+        for b in d.bauherren {
+            x.auf("xbau:antragsteller", &[]);
+            akteur(&mut x, b);
+            x.zu();
+        }
     }
 
     // Bauvorhaben
@@ -128,8 +198,15 @@ pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
         "" => d.projekt.name.trim(),
         b => b,
     };
-    x.auf("xbau:bauvorhaben", &[])
-        .text("xbau:bezeichnungDesBauvorhabens", bezeichnung);
+    x.auf(
+        if bezug.is_some() {
+            "xbau:bauvorhabenAenderungsdaten"
+        } else {
+            "xbau:bauvorhaben"
+        },
+        &[],
+    )
+    .text("xbau:bezeichnungDesBauvorhabens", bezeichnung);
     x.auf("xbau:beteiligte", &[]);
     for b in d.bauherren {
         x.auf("xbau:bauherr", &[]).auf("xbau:bauherr", &[]);

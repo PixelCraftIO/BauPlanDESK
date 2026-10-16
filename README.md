@@ -327,7 +327,16 @@ Installer für den Auto-Updater aus. Der Workflow
 [`updates.yml`](.github/workflows/updates.yml) lädt sie nach dem
 Veröffentlichen eines Releases hoch.
 
-## XBau-Export
+## XBau-Austausch
+
+Der Bereich **XBau-Nachrichten** prüft und archiviert Nachrichten und Anlagen,
+übernimmt sie in die Verfahrensakte und dokumentiert Übermittlungsbelege.
+Bauanträge 0200 und Nachreichungen 0202 können vorbereitet werden.
+Ein direkter Behördenversand ist noch nicht angebunden.
+Umfang, Installation des erforderlichen XSD-Prüfers und Grenzen:
+[XBau-Nachrichten und Behördenanschluss](docs/xbau/README.md).
+
+### Bauantrag als XBau exportieren
 
 Aus einem Projekt entsteht die Nachricht *Beantragung einer Baugenehmigung*
 (`baugenehmigung.antrag.0200`) nach **XBau-Hochbau 2.7** (Kernmodul 1.4.0),
@@ -343,15 +352,17 @@ exportieren …* (Strg+Umschalt+E).
   Antragsteller), Gebührenpflichtiger, Art der
   Maßnahme, Grundstück mit Flurstücken und die Anlagen aus den Dokumenten.
   Was für den Export fehlt, zeigt die Ansicht vorher an.
-- **Codelisten:** Typ-3/4-Codelisten werden nicht mitgeliefert, weil sie sich
-  ändern. Die Genericode-Dateien vom [XRepository](https://www.xrepository.de)
-  gehören in den Ordner [`codelisten/`](codelisten) (wird mit der App
-  ausgeliefert) oder in `<App-Daten>/codelisten`; der Server liest
+- **Codelisten:** Die mitgelieferten Typ-3/4-Listen stehen unter
+  [`codelisten/`](codelisten). Deren Version muss zum Profil der empfangenden
+  Behörde passen; die Anlagenliste ist derzeit als Entwurf gekennzeichnet.
+  Bestätigte Genericode-Dateien vom [XRepository](https://www.xrepository.de)
+  lassen sich unter `<App-Daten>/codelisten` ergänzen; der Server liest
   `BAUPROJEKT_CODELISTEN_DIR`. Nötig sind *Anlagen*
   (`urn:xoev-de:xbau:codeliste:anlagen`) und *MIME-Types*
   (`urn:xoev-de:xbau:codeliste:xbau-mimetypes`).
 - **Schemas:** [`crates/core-lib/xbau/2.7`](crates/core-lib/xbau/2.7). Die
-  Tests prüfen jede erzeugte Nachricht mit `xmllint` dagegen (in CI Pflicht).
+  Tests und Laufzeit prüfen erzeugte Nachrichten mit `xmllint` dagegen.
+  Installation siehe [XBau](docs/xbau/README.md).
 - Code: [`crates/core-lib/src/xbau`](crates/core-lib/src/xbau).
 
 ## Kundendatenbank

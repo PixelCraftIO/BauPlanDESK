@@ -240,6 +240,7 @@ impl CoreServices {
             "nachweise",
             "freigaben",
             "verfahren",
+            "xbau_nachrichten",
             "abstandsflaechen",
             "suchtexte",
             "dokumentkategorie",
@@ -248,6 +249,9 @@ impl CoreServices {
                 if modul == "verfahren" {
                     let a: Verfahrensakte = serde_json::from_value(f.daten.clone())
                         .map_err(|e| fehler(e.to_string()))?;
+                    for v in a.portal.iter().flat_map(|p| &p.vorgaenge) {
+                        artefakte.extend(v.abgaben.iter().map(|b| b.bereitstellung.clone()));
+                    }
                     for b in a.abgaben {
                         for art in b.artefakte {
                             artefakte.push(art);
@@ -263,6 +267,7 @@ impl CoreServices {
             for modul in [
                 "formularinstanz",
                 "emailquelle",
+                "xbau_anlagenquelle",
                 "dokumentkategorie",
                 "ausgabeauftrag",
                 "ausgabeereignis",

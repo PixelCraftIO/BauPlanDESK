@@ -1,5 +1,38 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
+export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
+export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
+export type Portalziel = { kommune: string, stelle: string, behoerdenkennung: string, url: string, zuordnung_bestaetigt: boolean, };
+export type Portalvorgang = { id: string, profil: Portalprofil, ziel: Portalziel, erstellt_am: string, erstellt_von: string, abgaben: Array<Portalabgabe>, rueckmeldungen: Array<Portalrueckmeldung>, };
+export type Portalakte = { vorgaenge: Array<Portalvorgang>, };
+export type Portalabgabeart = "erstantrag" | "nachreichung";
+export type PortalForderungsbezug = { nachforderung: string, punkt: string, };
+export type DateiZuordnung = { dokument: Dokumentbezug, unterlagenart: string | null, uploadname: string, ersetzt: Dokumentbezug | null, };
+export type Dateivergleich = "neu" | "identisch" | "geaendert" | "aelter" | "anderes_dokument";
+export type Portaldatei = { original: Abgabedokument, uploadname: string, unterlagenart: string | null, vergleich: Dateivergleich, ersetzt: Dokumentbezug | null, };
+export type Portalpruefbericht = { fehler: Array<string>, hinweise: Array<string>, profil_fachlich_geprueft: boolean, };
+export type Portalabgabe = { id: string, abgabe: string, auftrag_hash: string, art: Portalabgabeart, vorgaenger: string | null, forderungen: Array<PortalForderungsbezug>, dateien: Array<Portaldatei>, pruefung: Portalpruefbericht, erstellt_am: string, bereitstellung: Artefakt, ereignisse: Array<Portalereignis>, };
+export type Portalereignisart = "abgabe_belegt" | "eingang_belegt" | "zurueckgewiesen" | "ausgang_unklar";
+export type Dateiabgleich = "ungeklaert" | "vollstaendig" | "abweichend";
+export type Portalereignis = { id: string, art: Portalereignisart, datum: string, referenz: string, notiz: string, beleg: Dokumentbezug | null, dateiabgleich: Dateiabgleich, bestaetigte_dateien: Array<Dokumentbezug>, berichtigt: string | null, erfasst_am: string, erfasst_von: string, };
+export type Portalereigniswunsch = { id: string, art: Portalereignisart, datum: string, referenz: string, notiz: string, beleg: Dokumentbezug | null, dateiabgleich: Dateiabgleich, bestaetigte_dateien: Array<Dokumentbezug>, berichtigt: string | null, };
+export type Portalrueckmeldung = { id: string, betreff: string, datum: string, referenz: string, original: Dokumentbezug, inhalt: string, abgabe: string | null, xbau_nachricht: string | null, erfasst_am: string, erfasst_von: string, };
+export type Portalrueckmeldungswunsch = { id: string, betreff: string, datum: string, referenz: string, original: Dokumentbezug, inhalt: string, abgabe: string | null, xbau_nachricht: string | null, };
+export type Portalvorgangswunsch = { id: string, profil_id: string, profil_version: string, ziel: Portalziel, };
+export type Portalabgabewunsch = { abgabe: string, art: Portalabgabeart, vorgaenger: string | null, dateien: Array<DateiZuordnung>, forderungen: Array<PortalForderungsbezug>, };
+export type Portalvorbereitung = { referenzdateien: Array<Portaldatei>, dateien: Array<Portaldatei>, pruefung: Portalpruefbericht, };
+export type Portalbedarf = { vorgang: string, abgabe: string | null, titel: string, hinweis: string, };
+export type Nachrichtentyp = { element: string, namensraum: string, titel: string, schema: string, };
+export type Nachrichtenkopf = { id: string, element: string, namensraum: string, titel: string, erstellt: string, absender: string, empfaenger: string, antragsreferenz: string | null, aktenzeichen: string | null, bezugsnachricht: string | null, };
+export type AnlagePruefung = { dateiname: string, dokumentid: string, bytes: number, sha256: string, hash_in_nachricht: boolean, };
+export type Pruefbericht = { kopf: Nachrichtenkopf, sha256: string, anlagen: Array<AnlagePruefung>, schemapruefer: string, geprueft_am: string, hinweise: Array<string>, };
+export type Richtung = "eingang" | "ausgang";
+export type Belegart = "versand" | "transportquittung" | "fachliche_annahme" | "rueckweisung";
+export type Nachrichtenbeleg = { id: string, art: Belegart, datum: string, kanal: string, referenz: string, dokument: Dokumentbezug, notiz: string, berichtigt: string | null, };
+export type XbauNachricht = { original: Dokumentbezug, richtung: Richtung, pruefung: Pruefbericht, erfasst_am: string, erfasst_von: string, belege: Array<Nachrichtenbeleg>, };
+export type Nachrichtenstand = { id: string, revision: number, nachricht: XbauNachricht, };
+export type Nachrichtenaufnahme = { original: Dokumentbezug, richtung: Richtung, zuordnung_bestaetigt: boolean, };
 export type BerechnungsArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit";
 export type Regelkontext = { bezeichnung: string, version: string, quelle: string, geltungsbereich: string, gueltig_ab: string, gueltig_bis: string, anwendbarkeit_bestaetigt: boolean, pruefvermerk: string, };
 export type Einheit = "m" | "m2" | "m3" | "anzahl" | "grad" | "prozent" | "l_pro_s";
@@ -93,21 +126,21 @@ export type Anforderung = { id: string, titel: string, erforderlich: Erforderlic
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
 export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null, };
 export type Erinnerung = { verfahren: string, objekt: string, titel: string, datum: string, ueberfaellig: boolean, verantwortlich: string | null, };
-export type Verfahrensakte = { bezeichnung: string, art: Verfahrensart, status: Verfahrensstatus, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart, status: Verfahrensstatus, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };
 export type Profilstand = { vorhaben: Vorhabenprofil, katalog: Anforderungskatalog, bestaetigt_von: string | null, bestaetigt_am: string | null, };
-export type Versandstatus = "versendet" | "eingegangen" | "zurueckgewiesen";
+export type Versandstatus = "versendet" | "eingegangen" | "zurueckgewiesen" | "ungeklaert";
 export type Versandereignis = { id: string, status: Versandstatus, datum: string, weg: string, referenz: string, notiz: string, beleg: Dokumentbezug | null, berichtigt: string | null, };
-export type Abgabedokument = { dokument: Dokumentbezug, name: string, sha256: string, bytes: number, };
+export type Abgabedokument = { kategorie?: KategorieStand, dokument: Dokumentbezug, name: string, sha256: string, bytes: number, };
 export type Artefakt = { format: string, dateiname: string, storage_key: string, sha256: string, bytes: number, };
 export type Abgabestand = { id: string, auftrag_hash: string, titel: string, erstellt_am: string, erstellt_von: string, grundlagen: JsonValue, dokumente: Array<Abgabedokument>, anforderungen: Array<Anforderung>, hinweise: Array<string>, artefakte: Array<Artefakt>, versand: Array<Versandereignis>,
 /**
  * Vom Core aus Originalereignissen und Berichtigungen abgeleitet.
  */
 versandstatus: Versandstatus | null, };
-export type Abgabewunsch = { id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
+export type Abgabewunsch = { xbau_bezug?: string, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };

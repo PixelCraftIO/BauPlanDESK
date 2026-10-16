@@ -10,6 +10,7 @@ publish.workspace = true
 # Bewusst KEINE Abhängigkeit auf sqlx, tauri, axum oder einen konkreten
 # Storage-Client: core-lib kennt nur ihre eigenen Traits.
 [dependencies]
+url = "2"
 async-trait.workspace = true
 base64.workspace = true
 mail-parser.workspace = true

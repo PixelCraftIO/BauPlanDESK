@@ -42,6 +42,7 @@ pub struct CoreServices {
     pub license: Arc<dyn LicenseProvider>,
     pub formulare: Arc<Formularkatalog>,
     pub codelisten: Arc<Codelisten>,
+    pub xbau_pruefer: Arc<dyn xbau::austausch::SchemaPruefer>,
 }
 
 /// Einstellungsschlüssel der Büroangaben.
@@ -116,6 +117,7 @@ impl CoreServices {
             license,
             formulare: Arc::new(Formularkatalog::default()),
             codelisten: Arc::new(Codelisten::eingebaut()),
+            xbau_pruefer: xbau::austausch::kein_pruefer(),
         }
     }
 
@@ -128,6 +130,11 @@ impl CoreServices {
     /// XBau-Codelisten injizieren (siehe [`crate::xbau::codeliste`]).
     pub fn mit_codelisten(mut self, codelisten: Codelisten) -> Self {
         self.codelisten = Arc::new(codelisten);
+        self
+    }
+
+    pub fn mit_xbau_pruefer(mut self, pruefer: Arc<dyn xbau::austausch::SchemaPruefer>) -> Self {
+        self.xbau_pruefer = pruefer;
         self
     }
 
@@ -885,13 +892,43 @@ impl CoreServices {
         project: ProjectId,
         wer: &Benutzer,
     ) -> CoreResult<XbauExport> {
+        self.xbau_paket(project, wer, None).await
+    }
+    pub(crate) async fn xbau_paket(
+        &self,
+        project: ProjectId,
+        wer: &Benutzer,
+        bezug: Option<&xbau::austausch::Nachrichtenkopf>,
+    ) -> CoreResult<XbauExport> {
+        self.projekt_zugriff(project, wer, crate::zugriff::ProjektRecht::Lesen)
+            .await?;
         let projekt = self.repos.projects.get(project).await?;
         let antrag = self.bauantrag(project).await?.antrag;
         let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
         let buero = self.buero().await?;
+        if antrag.anlagen.len() > 255 {
+            return Err(xbau::austausch::fehler(
+                "Höchstens 255 Anlagen je Nachricht",
+            ));
+        }
         let mut versionen = Vec::new();
+        let mut gesamt = 0u64;
         for a in &antrag.anlagen {
-            let (v, inhalt) = self.load_document(a.dokument).await?;
+            let meta = self.repos.documents.latest(a.dokument).await?;
+            if meta.project_id != project {
+                return Err(xbau::austausch::fehler(
+                    "Anlage gehört zu einem anderen Projekt",
+                ));
+            }
+            gesamt = gesamt.saturating_add(meta.size_bytes);
+            if meta.size_bytes > xbau::austausch::MAX_PAKET
+                || gesamt > xbau::austausch::MAX_ENTPACKT - xbau::austausch::MAX_XML
+            {
+                return Err(xbau::austausch::fehler(
+                    "XBau-Anlagen überschreiten die zulässige Paketgröße",
+                ));
+            }
+            let (v, inhalt) = self.load_version(a.dokument, meta.version).await?;
             if v.project_id != project {
                 return Err(CoreError::InvalidInput(format!(
                     "{} gehört zu einem anderen Projekt",
@@ -918,7 +955,7 @@ impl CoreServices {
             })
             .collect();
         let jetzt = Utc::now();
-        let xml = xbau::baugenehmigung_antrag(&Nachrichtendaten {
+        let daten = Nachrichtendaten {
             projekt: &projekt,
             antrag: &antrag,
             bauherren: &bauherren,
@@ -927,13 +964,24 @@ impl CoreServices {
             codelisten: &self.codelisten,
             nachricht_id: uuid::Uuid::new_v4(),
             zeitpunkt: jetzt,
-        })?;
+        };
+        let xml = if let Some(k) = bezug {
+            xbau::baugenehmigung_aenderung(&daten, k)?
+        } else {
+            xbau::baugenehmigung_antrag(&daten)?
+        };
         let dateien: Vec<(String, &[u8])> = namen
             .iter()
             .zip(&versionen)
             .map(|(n, (_, _, inhalt))| (n.clone(), inhalt.as_ref()))
             .collect();
-        let zip = xbau::paket::packen(&xml, &dateien)?;
+        let nachrichten_datei = if bezug.is_some() {
+            "baugenehmigung.antragGeaendert.0202.xml"
+        } else {
+            xbau::paket::NACHRICHT_DATEI
+        };
+        let zip = xbau::paket::packen_nachricht(nachrichten_datei, &xml, &dateien)?;
+        xbau::austausch::pruefen("XBau.zip", &zip, self.xbau_pruefer.as_ref()).await?;
         self.protokollieren(
             wer,
             Aktion::XbauExportiert,
@@ -948,7 +996,12 @@ impl CoreServices {
         .await?;
         Ok(XbauExport {
             dateiname: format!(
-                "Bauantrag {} {}.zip",
+                "{} {} {}.zip",
+                if bezug.is_some() {
+                    "Nachreichung"
+                } else {
+                    "Bauantrag"
+                },
                 dateiname_sicher(&projekt.name),
                 jetzt.with_timezone(&chrono::Local).format("%Y-%m-%d")
             ),

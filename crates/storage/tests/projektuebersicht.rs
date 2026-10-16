@@ -142,6 +142,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
     let kommunikation = Uuid::new_v4();
     let punkt = Uuid::new_v4();
     let mut akte = Verfahrensakte {
+        portal: None,
         bezeichnung: "Bauantrag Wohnhaus".into(),
         art: Verfahrensart::Bauantrag,
         status: Verfahrensstatus::InPruefung,

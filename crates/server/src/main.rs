@@ -91,6 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!("Kein Lizenzschlüssel eingebaut: nur die Testversion ist möglich.");
     }
     let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
+        .mit_xbau_pruefer(storage::xbau::XmlLintPruefer::standard())
         .mit_formularen(formulare)
         .mit_codelisten(codelisten);
 

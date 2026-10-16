@@ -352,6 +352,28 @@ impl CoreServices {
             let a: Verfahrensakte = decode(f.daten)?;
             let vid = id(&f.objekt)?;
             let zurueck = a.status == Verfahrensstatus::Zurueckgenommen;
+            if !zurueck {
+                for h in crate::portale::arbeitsbedarf(&a) {
+                    let mut portalziel = UebersichtsZiel::neu("portale")
+                        .objekt(vid)
+                        .register(&h.vorgang.to_string());
+                    if let Some(abgabe) = h.abgabe {
+                        portalziel = portalziel.eintrag(abgabe);
+                    }
+                    s.punkt(
+                        format!(
+                            "portal:{vid}:{}:{}",
+                            h.vorgang,
+                            h.abgabe.map(|id| id.to_string()).unwrap_or_default()
+                        ),
+                        Einreichungen,
+                        Pruefen,
+                        h.titel,
+                        h.hinweis,
+                        portalziel,
+                    );
+                }
+            }
             let mut offen = 0;
             let mut auflagen = 0;
             let ziel = |register: &str| {
@@ -518,6 +540,7 @@ impl CoreServices {
                     Some(Versandstatus::Versendet) => "Versendet",
                     Some(Versandstatus::Eingegangen) => "Eingang bestätigt",
                     Some(Versandstatus::Zurueckgewiesen) => "Zurückgewiesen",
+                    Some(Versandstatus::Ungeklaert) => "Übergabe / Dateiabgleich ungeklärt",
                 };
                 s.abgaben.push(AbgabeUeberblick {
                     id: b.id,
@@ -529,7 +552,12 @@ impl CoreServices {
                     dokumente: b.dokumente.len(),
                     ziel: ziel("abgaben").eintrag(b.id),
                 });
-                if !zurueck && matches!(stand, None | Some(Versandstatus::Zurueckgewiesen)) {
+                if !zurueck
+                    && matches!(
+                        stand,
+                        None | Some(Versandstatus::Zurueckgewiesen | Versandstatus::Ungeklaert)
+                    )
+                {
                     s.punkt(
                         format!("versand:{vid}:{}", b.id),
                         Einreichungen,

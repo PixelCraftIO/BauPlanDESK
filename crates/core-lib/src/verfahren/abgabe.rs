@@ -15,6 +15,7 @@ pub enum Versandstatus {
     Versendet,
     Eingegangen,
     Zurueckgewiesen,
+    Ungeklaert,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -30,6 +31,9 @@ pub struct Versandereignis {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Abgabedokument {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub kategorie: Option<crate::dokumentkategorien::KategorieStand>,
     pub dokument: Dokumentbezug,
     pub name: String,
     pub sha256: String,
@@ -71,6 +75,9 @@ pub struct Abgabestand {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Abgabewunsch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub xbau_bezug: Option<Uuid>,
     pub id: Uuid,
     pub titel: String,
     pub dokumente: Vec<Dokumentbezug>,
@@ -132,6 +139,9 @@ impl CoreServices {
             });
         }
         crate::plattform::text(&w.titel, 500)?;
+        if !w.xbau && w.xbau_bezug.is_some() {
+            return Err(fehler("XBau-Bezug erfordert eine XBau-Ausgabe"));
+        }
         if w.dokumente.is_empty() || w.dokumente.len() > 100 || w.anschreiben.len() > 16000 {
             return Err(fehler(
                 "1 bis 100 Unterlagen und höchstens 16000 Zeichen Anschreiben",
@@ -206,6 +216,7 @@ impl CoreServices {
                 ));
             }
         }
+        let kategorien = self.kategoriesnapshots(p).await?;
         let mut stand = Abgabestand {
             id: w.id,
             auftrag_hash,
@@ -216,6 +227,10 @@ impl CoreServices {
             dokumente: docs
                 .iter()
                 .map(|d| Abgabedokument {
+                    kategorie: kategorien
+                        .get(&d.document_id.0.to_string())
+                        .cloned()
+                        .flatten(),
                     dokument: Dokumentbezug {
                         dokument_id: d.document_id,
                         version: d.version,
@@ -256,7 +271,7 @@ impl CoreServices {
                     dateiname: name.clone(),
                 })
                 .collect::<Vec<_>>();
-            let xml = crate::xbau::baugenehmigung_antrag(&crate::xbau::Nachrichtendaten {
+            let daten = crate::xbau::Nachrichtendaten {
                 projekt: &projekt,
                 antrag: &stand.grundlagen.antrag,
                 bauherren: &stand.grundlagen.bauherren,
@@ -265,8 +280,24 @@ impl CoreServices {
                 codelisten: &self.codelisten,
                 nachricht_id: w.id,
                 zeitpunkt: stand.erstellt_am,
-            })?;
-            let bytes = crate::xbau::paket::packen(
+            };
+            let xml = if let Some(id) = w.xbau_bezug {
+                let n = self
+                    .xbau_nachrichten(p, wer)
+                    .await?
+                    .into_iter()
+                    .find(|n| n.id == id)
+                    .ok_or_else(|| fehler("XBau-Bezug nicht in diesem Projekt"))?;
+                crate::xbau::baugenehmigung_aenderung(&daten, &n.nachricht.pruefung.kopf)?
+            } else {
+                crate::xbau::baugenehmigung_antrag(&daten)?
+            };
+            let bytes = crate::xbau::paket::packen_nachricht(
+                if w.xbau_bezug.is_some() {
+                    "baugenehmigung.antragGeaendert.0202.xml"
+                } else {
+                    crate::xbau::paket::NACHRICHT_DATEI
+                },
                 &xml,
                 &namen
                     .iter()
@@ -274,6 +305,7 @@ impl CoreServices {
                     .map(|(n, b)| (n.clone(), b.as_ref()))
                     .collect::<Vec<_>>(),
             )?;
+            crate::xbau::austausch::pruefen("XBau.zip", &bytes, self.xbau_pruefer.as_ref()).await?;
             ausgaben.push(("xbau", "XBau.zip", bytes));
         }
         if w.druck {

@@ -30,6 +30,8 @@
   import Abstandsflaeche from "./Abstandsflaeche.svelte";
   import AbstandsProjekt from "./abstandsflaechen/AbstandsProjekt.svelte";
   import Bauantrag from "./Bauantrag.svelte";
+  import XbauPostfach from "./xbau/Postfach.svelte";
+  import Portalbereich from "./portale/Portalbereich.svelte";
   import ProjektFormulare from "./ProjektFormulare.svelte";
   import Einreichungen from "./Einreichungen.svelte";
   import Druckausgabe from "./Druckausgabe.svelte";
@@ -74,7 +76,12 @@
   }
   let fachBesucht = $state<Record<string, boolean>>({});
   $effect(() => {
-    if (FACHMODULE.some((m) => m.id === ansicht)) fachBesucht[ansicht] = true;
+    if (
+      ansicht === "xbau" ||
+      ansicht === "portale" ||
+      FACHMODULE.some((m) => m.id === ansicht)
+    )
+      fachBesucht[ansicht] = true;
   });
   let planEditor = $state<Plaene>();
   let nutzungsEditor = $state<MassDerNutzung>();
@@ -381,6 +388,14 @@
         ongespeichert={dokumenteAktualisieren}
         ondateien={() => (ansicht = "dokumente")}
       />
+    </section>{/if}
+  {#if fachBesucht.portale && ich}<section hidden={ansicht !== "portale"}>
+      <h2>Einreichen / Portal</h2>
+      <Portalbereich {projekt} benutzer={ich} />
+    </section>{/if}
+  {#if fachBesucht.xbau && ich}<section hidden={ansicht !== "xbau"}>
+      <h2>XBau-Nachrichten</h2>
+      <XbauPostfach {projekt} benutzer={ich} />
     </section>{/if}
   <!-- Bleibt eingehängt, damit "Datei → Bauantrag als XBau exportieren" aus jeder Ansicht funktioniert. -->
   <section hidden={ansicht !== "bauantrag"}>

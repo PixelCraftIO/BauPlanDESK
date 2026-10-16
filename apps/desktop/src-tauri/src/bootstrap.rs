@@ -141,6 +141,7 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         _ => tracing::info!("Kein Lizenzserver eingebaut: nur Lizenzdateien möglich."),
     }
     let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
+        .mit_xbau_pruefer(storage::xbau::XmlLintPruefer::standard())
         .mit_formularen(init_formulare(app, &data_dir)?)
         .mit_codelisten(init_codelisten(app, &data_dir)?);
     // Anmeldung über das Betriebssystem. Im Netzwerkmodus teilen sich alle
