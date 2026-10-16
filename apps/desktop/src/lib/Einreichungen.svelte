@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { heuteDeutsch } from "./kalender";
   import { kategorieStandText, kategorieGeaendert } from "./kategorien";
   import PaketPruefstand from "./PaketPruefstand.svelte";
   import { editorAnmelden } from "./editoren";
@@ -214,7 +215,7 @@
   }
   function zurBestaetigung(e: Einreichung) {
     bestaetigung = e;
-    datum = new Date().toLocaleDateString("sv-SE");
+    datum = heuteDeutsch();
     notiz = "";
   }
   async function bestaetigen(event: SubmitEvent) {
@@ -389,7 +390,7 @@
             type="date"
             bind:value={datum}
             required
-            max={new Date().toLocaleDateString("sv-SE")}
+            max={heuteDeutsch()}
           /></label
         ><label
           >Übermittlungsweg / Aktenzeichen / Notiz<input

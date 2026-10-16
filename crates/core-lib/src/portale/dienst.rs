@@ -256,7 +256,7 @@ impl CoreServices {
         }
         basis_pruefen(f.revision, basis)?;
         crate::plattform::text(&w.notiz, 3500)?;
-        if w.referenz.len() > 500 || w.id.is_nil() || w.datum > Utc::now().date_naive() {
+        if w.referenz.len() > 500 || w.id.is_nil() || w.datum > crate::kalender::heute() {
             return Err(fehler("Ungültiges Datum, Referenz oder Ereignis-ID"));
         }
         if w.art != Portalereignisart::AusgangUnklar
@@ -354,7 +354,7 @@ impl CoreServices {
         basis_pruefen(f.revision, basis)?;
         crate::plattform::text(&w.betreff, 500)?;
         if w.id.is_nil()
-            || w.datum > Utc::now().date_naive()
+            || w.datum > crate::kalender::heute()
             || w.inhalt.len() > 60000
             || w.referenz.len() > 500
         {

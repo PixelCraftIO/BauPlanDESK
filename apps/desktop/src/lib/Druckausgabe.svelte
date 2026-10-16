@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { heuteDeutsch } from "./kalender";
   import { onMount, untrack } from "svelte";
   import { editorAnmelden } from "./editoren";
   import { save } from "@tauri-apps/plugin-dialog";
@@ -29,7 +30,7 @@
     anschreiben: "",
   });
   let aktenzeichen = $state("");
-  let datum = $state(new Date().toLocaleDateString("sv-SE"));
+  let datum = $state(heuteDeutsch());
   let katalog = $state<Druckkatalog | null>(null),
     auswahl = $state<number[]>([]);
   let titel = $state("Projektunterlagen"),

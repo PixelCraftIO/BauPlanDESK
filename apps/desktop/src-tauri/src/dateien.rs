@@ -101,6 +101,14 @@ pub async fn dokument_extern_oeffnen(
     dokument_id: DocumentId,
     version: i64,
 ) -> Result<Arbeitskopie, CmdError> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     let (doc, bytes) = state.core.externe_datei(dokument_id, version).await?;
     let copy = arbeitskopie::erstellen(&root(&app)?, doc, &bytes).await?;
     let pfad = copy.pfad.clone();
@@ -112,13 +120,34 @@ pub async fn dokument_extern_oeffnen(
 #[tauri::command]
 pub async fn arbeitskopien(
     app: AppHandle,
+    state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> Result<Vec<Arbeitskopie>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(arbeitskopie::auflisten(&root(&app)?, projekt_id).await?)
 }
 #[tauri::command]
-pub async fn arbeitskopie_oeffnen(app: AppHandle, id: Uuid) -> Result<(), CmdError> {
+pub async fn arbeitskopie_oeffnen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: Uuid,
+) -> Result<(), CmdError> {
     let copy = arbeitskopie::laden(&root(&app)?, id).await?;
+    state
+        .core
+        .dokument_zugriff(
+            copy.stand.dokument.document_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     core_lib::dateiverwaltung::extern_oeffnen_erlaubt(&copy.stand.dokument.file_name)?;
     tauri::async_runtime::spawn_blocking(move || starten(&copy.pfad))
         .await
@@ -136,6 +165,14 @@ pub async fn arbeitskopie_uebernehmen(
         .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
         .await?;
     let copy = arbeitskopie::laden(&root(&app)?, id).await?;
+    state
+        .core
+        .dokument_zugriff(
+            copy.stand.dokument.document_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     if !copy.geaendert {
         return Err(CoreError::InvalidInput("Arbeitskopie ist unverändert".into()).into());
     }

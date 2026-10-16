@@ -9,6 +9,7 @@
   let {
     start,
     kunden = null,
+    kundenLadefehler = null,
     absenden,
     knopf,
     onabbrechen,
@@ -16,6 +17,7 @@
     start: Werte;
     /** Kunden zur Auswahl des Bauherrn (nur beim Anlegen). */
     kunden?: Kunde[] | null;
+    kundenLadefehler?: string | null;
     absenden: (w: Werte, bauherr: string | null) => Promise<void>;
     knopf: string;
     onabbrechen: () => void;
@@ -28,6 +30,7 @@
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
+    if (laeuft) return;
     laeuft = true;
     try {
       await absenden(
@@ -61,6 +64,9 @@
     Projektakte unter Grundstücksinformationen erfasst. Die Baugrundstücksfläche
     wird separat berechnet.
   </p>
+  {#if kundenLadefehler}
+    <p class="fehlertext" role="alert">Bauherren konnten nicht geladen werden: {kundenLadefehler} Sie können das Projekt anlegen und den Bauherrn später zuordnen.</p>
+  {/if}
   {#if kunden}
     <label>
       Bauherr

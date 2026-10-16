@@ -25,6 +25,14 @@ pub async fn dokumentkategorien(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> Result<Vec<DokumentKategorie>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.dokumentkategorien(projekt_id).await?)
 }
 #[tauri::command]
@@ -33,6 +41,14 @@ pub async fn dokumentkategorie_speichern(
     dokument_id: DocumentId,
     zuordnung: KategorieZuordnung,
 ) -> Result<DokumentKategorie, CmdError> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .dokumentkategorie_speichern(dokument_id, zuordnung, &state.benutzer())

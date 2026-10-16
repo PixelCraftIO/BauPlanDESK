@@ -187,7 +187,7 @@ impl CoreServices {
         p: ProjectId,
         wer: &Benutzer,
     ) -> CoreResult<Projektuebersicht> {
-        self.projektuebersicht_am(p, Utc::now().date_naive(), wer)
+        self.projektuebersicht_am(p, crate::kalender::heute(), wer)
             .await
     }
     /// Interner Stichtag für deterministische Vertrags-/Integrationsprüfungen.

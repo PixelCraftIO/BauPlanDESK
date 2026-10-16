@@ -1003,7 +1003,7 @@ impl CoreServices {
                     "Bauantrag"
                 },
                 dateiname_sicher(&projekt.name),
-                jetzt.with_timezone(&chrono::Local).format("%Y-%m-%d")
+                crate::kalender::datum_deutsch(jetzt).format("%Y-%m-%d")
             ),
             zip,
         })

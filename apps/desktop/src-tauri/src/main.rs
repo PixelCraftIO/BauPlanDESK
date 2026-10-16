@@ -5,6 +5,8 @@ mod abstandsflaechen;
 mod berechnungen;
 mod bibliothek;
 mod bootstrap;
+#[cfg(test)]
+mod command_zugriff_tests;
 mod commands;
 mod config;
 mod dateien;
@@ -62,6 +64,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            commands::projektmitglieder,
+            commands::projektmitglied_setzen,
             portale::portalprofile,
             portale::portalprofil_hinzufuegen,
             portale::portal_vorgang_anlegen,

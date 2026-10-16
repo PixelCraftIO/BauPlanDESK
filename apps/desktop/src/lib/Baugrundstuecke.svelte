@@ -33,8 +33,23 @@
     bereich?: BerechnungsBereich;
     bezugsflaechenAktuell?: boolean;
   } = $props();
-  const initial = (): BaugrundstuecksPlan =>
-    structuredClone(berechnungsplan($state.snapshot(projekt.planungsrecht)));
+  function initial(): BaugrundstuecksPlan {
+    const plan = structuredClone(
+      berechnungsplan($state.snapshot(projekt.planungsrecht)),
+    );
+    const f = projekt.planungsrecht.bau_nvo;
+    if (f) {
+      for (const b of plan.berechnungen) {
+        const a = b.eingabe.aufstellung;
+        if (a && a.bau_nvo !== f) {
+          a.bau_nvo = f;
+          if (!a.nichtvollgeschoss_festsetzung.trim())
+            a.nichtvollgeschoss_faktor = regelwerk(f).nichtvollgeschoss_faktor;
+        }
+      }
+    }
+    return plan;
+  }
   let basisProjekt = $state(
     untrack(() => structuredClone($state.snapshot(projekt))),
   );
@@ -151,26 +166,12 @@
     const p = projekt;
     untrack(() => {
       if (!geaendert) {
-        eingabe = structuredClone(
-          berechnungsplan($state.snapshot(p.planungsrecht)),
-        );
+        eingabe = initial();
         basisProjekt = structuredClone($state.snapshot(p));
         gespeichert = structuredClone($state.snapshot(eingabe));
         basis = p.version;
       }
     });
-  });
-  $effect(() => {
-    const f = projekt.planungsrecht.bau_nvo;
-    if (f)
-      for (const b of eingabe.berechnungen) {
-        const a = b.eingabe.aufstellung;
-        if (a && a.bau_nvo !== f) {
-          a.bau_nvo = f;
-          if (!a.nichtvollgeschoss_festsetzung.trim())
-            a.nichtvollgeschoss_faktor = regelwerk(f).nichtvollgeschoss_faktor;
-        }
-      }
   });
   function anlegen(g: BaugrundstueckGruppe): BaugrundstueckBerechnung {
     const f = projekt.planungsrecht.bau_nvo ?? "2017";
@@ -203,8 +204,9 @@
       },
     };
   }
-  async function ermitteln() {
+  async function ermitteln(initialisierung = false) {
     const stand = gruppenFingerprint;
+    const eingabestand = fingerprint;
     fehler = null;
     try {
       const g = await api.baugrundstueckeErmitteln(
@@ -212,6 +214,8 @@
         structuredClone($state.snapshot(eingabe)),
       );
       if (stand !== gruppenFingerprint) return false;
+      const nurVorgaben =
+        initialisierung && !geaendert && eingabestand === fingerprint;
       gruppen = g;
       gruppenStand = stand;
       if (!g.some((x) => x.schluessel === auswahl))
@@ -221,6 +225,7 @@
           !eingabe.berechnungen.some((b) => b.schluessel === gruppe.schluessel)
         )
           eingabe.berechnungen.push(anlegen(gruppe));
+      if (nurVorgaben) gespeichert = structuredClone($state.snapshot(eingabe));
       return true;
     } catch (e) {
       fehler = fehlertext(e);
@@ -228,7 +233,7 @@
     }
   }
   onMount(async () => {
-    if (eingabe.flurstuecke.length) await ermitteln();
+    if (eingabe.flurstuecke.length) await ermitteln(true);
   });
   async function neuErmitteln() {
     laeuft = true;

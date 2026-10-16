@@ -164,7 +164,6 @@ pub fn pruefe_mit_regeln(
         e.mass = a.mass.clone();
         e.vollgeschosse = Some(a.vollgeschosse);
     }
-    let historisch = aufstellung.as_ref().is_some_and(|a| !a.grz_ii);
     p.festgesetzte_werte.validate()?;
     let k = calc::kennzahlen(&e.mass)?;
     if [k.grz, k.grz_gesamt, k.gfz, k.bmz.unwrap_or(0.0)]
@@ -211,6 +210,7 @@ pub fn pruefe_mit_regeln(
             .or(e.aufstellung.as_ref().map(|a| a.bau_nvo))
             .unwrap_or(crate::flaechen::BauNvo::V2017),
     )?;
+    let historisch = !regel.grz_ii || aufstellung.as_ref().is_some_and(|a| !a.grz_ii);
     let grz_gesamt = if historisch {
         None
     } else {
@@ -331,6 +331,34 @@ pub fn pruefe_mit_regeln(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn alte_baunvo_ohne_aufstellung_erzeugt_keinen_grz_ii_vergleich() {
+        use crate::flaechen::BauNvo;
+        for fassung in [BauNvo::V1962, BauNvo::V1968, BauNvo::V1977] {
+            let mut recht = plan(Festsetzungen {
+                grz: Some(0.4),
+                ..Default::default()
+            });
+            recht.bau_nvo = Some(fassung);
+            let r = pruefe(&eingabe(), &recht, 1).unwrap();
+            let grz = r.nachweise.iter().find(|n| n.art == "grz").unwrap();
+            assert_eq!(grz.eingehalten, Some(true));
+            let ii = r.nachweise.iter().find(|n| n.art == "grz_gesamt").unwrap();
+            assert_eq!((ii.ist, ii.soll, ii.eingehalten), (None, None, None));
+            assert_eq!(ii.quelle, Quelle::Keine);
+        }
+        for fassung in [BauNvo::V1990, BauNvo::V2017] {
+            let mut recht = plan(Festsetzungen {
+                grz: Some(0.4),
+                ..Default::default()
+            });
+            recht.bau_nvo = Some(fassung);
+            let r = pruefe(&eingabe(), &recht, 1).unwrap();
+            let ii = r.nachweise.iter().find(|n| n.art == "grz_gesamt").unwrap();
+            assert_eq!(ii.ist, Some(0.525));
+            assert_eq!(ii.eingehalten, Some(true));
+        }
+    }
     fn eingabe() -> NutzungsEingabe {
         NutzungsEingabe {
             aufstellung: None,

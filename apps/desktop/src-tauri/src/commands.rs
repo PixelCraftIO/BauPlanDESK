@@ -53,6 +53,30 @@ impl From<CoreError> for CmdError {
 
 type CmdResult<T> = Result<T, CmdError>;
 
+#[tauri::command]
+pub async fn projektmitglieder(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<core_lib::commit::Fachstand>> {
+    Ok(state
+        .core
+        .projektmitglieder(projekt_id, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn projektmitglied_setzen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    mitglied: core_lib::zugriff::ProjektMitglied,
+    basis: i64,
+) -> CmdResult<core_lib::commit::Fachstand> {
+    Ok(state
+        .core
+        .projektmitglied_setzen(projekt_id, mitglied, basis, &state.benutzer())
+        .await?)
+}
+
 #[derive(Serialize)]
 pub struct AppInfo {
     version: String,
@@ -97,7 +121,7 @@ pub async fn app_info(app: tauri::AppHandle, state: State<'_, AppState>) -> CmdR
 
 #[tauri::command]
 pub async fn projekte_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Project>> {
-    Ok(state.core.list_projects().await?)
+    Ok(state.core.projekte_fuer_benutzer(&state.benutzer()).await?)
 }
 
 #[tauri::command]
@@ -116,6 +140,14 @@ pub async fn projekt_aktualisieren(
     state: State<'_, AppState>,
     aenderung: ProjectUpdate,
 ) -> CmdResult<Project> {
+    state
+        .core
+        .projekt_zugriff(
+            aenderung.id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .update_project(aenderung, &state.benutzer())
@@ -125,6 +157,14 @@ pub async fn projekt_aktualisieren(
 /// Liest eine Projektakte ohne den aktiven Fenster-/Menükontext zu ändern.
 #[tauri::command]
 pub async fn projekt_laden(state: State<'_, AppState>, id: ProjectId) -> CmdResult<Project> {
+    state
+        .core
+        .projekt_zugriff(
+            id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.get_project(id).await?)
 }
 
@@ -137,6 +177,14 @@ pub async fn projekt_oeffnen(
     menu: State<'_, MenuState>,
     id: ProjectId,
 ) -> CmdResult<Project> {
+    state
+        .core
+        .projekt_zugriff(
+            id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     let projekt = match state.core.get_project(id).await {
         Ok(p) => p,
         Err(e) => {
@@ -165,8 +213,16 @@ pub fn projekt_schliessen(app: AppHandle, menu: State<'_, MenuState>) {
 }
 
 #[tauri::command]
-pub fn zuletzt_geoeffnet(menu: State<'_, MenuState>) -> Vec<ZuletztEintrag> {
-    menu.zuletzt.lock().expect("Menü-Lock vergiftet").0.clone()
+pub async fn zuletzt_geoeffnet(
+    state: State<'_, AppState>,
+    menu: State<'_, MenuState>,
+) -> CmdResult<Vec<ZuletztEintrag>> {
+    let sichtbar = state.core.projekte_fuer_benutzer(&state.benutzer()).await?;
+    let zuletzt = menu.zuletzt.lock().expect("Menü-Lock vergiftet").0.clone();
+    Ok(zuletzt
+        .into_iter()
+        .filter(|e| sichtbar.iter().any(|p| p.id.to_string() == e.id))
+        .collect())
 }
 
 fn set_titel(app: &AppHandle, projekt: Option<&str>) {
@@ -184,6 +240,14 @@ pub async fn dokumente_auflisten(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> CmdResult<Vec<DocumentVersion>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.list_documents(projekt_id).await?)
 }
 
@@ -199,6 +263,14 @@ pub async fn dokument_importieren(
     pfad: PathBuf,
     kategorie: Option<String>,
 ) -> CmdResult<crate::projektordner::ProjektDokument> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     let data = tokio::fs::read(&pfad).await.map_err(|e| CmdError {
         art: "datei",
         meldung: format!("{}: {e}", pfad.display()),
@@ -240,6 +312,14 @@ pub async fn formular_analysieren(
     dokument_id: DocumentId,
     bezug: Option<core_lib::formular::instanz::FormularBezug>,
 ) -> CmdResult<FormularAnalyse> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state
         .core
         .formular_analysieren_mit_bezug(dokument_id, bezug)
@@ -259,6 +339,14 @@ pub async fn pdf_vorschau(
     dokument_id: DocumentId,
     version: Option<i64>,
 ) -> CmdResult<PdfVorschau> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     use base64::Engine;
     let (dokument, pdf) = match version {
         Some(v) => state.core.load_version(dokument_id, v).await?,
@@ -317,6 +405,14 @@ pub async fn formular_vorlage_erstellen(
     basis: i64,
     felder: Vec<core_lib::formular::editor::EigenesPdfFeld>,
 ) -> CmdResult<DocumentVersion> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .formular_vorlage_erstellen(dokument_id, basis, &felder, &state.benutzer())
@@ -331,6 +427,14 @@ pub async fn formular_ausfuellen(
     werte: BTreeMap<String, Feldwert>,
     basis: Option<i64>,
 ) -> CmdResult<DocumentVersion> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .formular_ausfuellen_version(dokument_id, &werte, basis, &state.benutzer())
@@ -347,6 +451,14 @@ pub async fn dokument_exportieren(
     version: Option<i64>,
     ziel: PathBuf,
 ) -> CmdResult<()> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     let (_, data) = match version {
         Some(v) => state.core.load_version(dokument_id, v).await?,
         None => state.core.load_document(dokument_id).await?,
@@ -362,6 +474,14 @@ pub async fn dokument_historie(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
 ) -> CmdResult<Vec<DocumentVersion>> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.document_history(dokument_id).await?)
 }
 
@@ -389,6 +509,14 @@ pub fn mass_der_nutzung(
 /// Lädt einen DXF-Plan aus dem DMS für den Plan-Viewer.
 #[tauri::command]
 pub async fn cad_plan(state: State<'_, AppState>, dokument_id: DocumentId) -> CmdResult<CadPlan> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.cad_plan(dokument_id).await?)
 }
 
@@ -408,6 +536,14 @@ pub async fn version_wiederherstellen(
     dokument_id: DocumentId,
     version: i64,
 ) -> CmdResult<DocumentVersion> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .version_wiederherstellen(dokument_id, version, &state.benutzer())
@@ -419,6 +555,14 @@ pub async fn dokument_sperren(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
 ) -> CmdResult<DocumentLock> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .dokument_sperren(dokument_id, &state.benutzer())
@@ -430,6 +574,14 @@ pub async fn dokument_entsperren(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
 ) -> CmdResult<()> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .dokument_entsperren(dokument_id, &state.benutzer())
@@ -441,6 +593,14 @@ pub async fn sperren_auflisten(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> CmdResult<Vec<DocumentLock>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.sperren_im_projekt(projekt_id).await?)
 }
 
@@ -449,6 +609,14 @@ pub async fn protokoll(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> CmdResult<Vec<Protokolleintrag>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.protokoll(projekt_id, 500).await?)
 }
 
@@ -584,11 +752,26 @@ pub async fn kunde_projekte(
     state: State<'_, AppState>,
     kunde_id: KundeId,
 ) -> CmdResult<Vec<Project>> {
-    Ok(state.core.kunde_projekte(kunde_id).await?)
+    let sichtbar = state.core.projekte_fuer_benutzer(&state.benutzer()).await?;
+    Ok(state
+        .core
+        .kunde_projekte(kunde_id)
+        .await?
+        .into_iter()
+        .filter(|p| sichtbar.iter().any(|s| s.id == p.id))
+        .collect())
 }
 
 #[tauri::command]
 pub async fn bauherren(state: State<'_, AppState>, projekt_id: ProjectId) -> CmdResult<Vec<Kunde>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.bauherren(projekt_id).await?)
 }
 
@@ -599,6 +782,14 @@ pub async fn bauherren_setzen(
     kunden: Vec<KundeId>,
     version: i64,
 ) -> CmdResult<Project> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .bauherren_setzen(projekt_id, kunden, version, &state.benutzer())
@@ -612,6 +803,14 @@ pub async fn bauantrag(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> CmdResult<GespeicherterBauantrag> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.bauantrag(projekt_id).await?)
 }
 
@@ -622,6 +821,14 @@ pub async fn bauantrag_speichern(
     antrag: Bauantrag,
     version: i64,
 ) -> CmdResult<GespeicherterBauantrag> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .bauantrag_speichern(projekt_id, antrag, version, &state.benutzer())
@@ -657,6 +864,14 @@ pub async fn xbau_exportieren(
     projekt_id: ProjectId,
     ziel: PathBuf,
 ) -> CmdResult<XbauErgebnis> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     let export = state
         .core
         .xbau_exportieren(projekt_id, &state.benutzer())
@@ -679,6 +894,14 @@ pub async fn projekt_nutzung_pruefen(
     projekt_id: ProjectId,
     eingabe: core_lib::festsetzungen::NutzungsEingabe,
 ) -> CmdResult<core_lib::festsetzungen::NutzungsPruefung> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state
         .core
         .projekt_nutzung_pruefen(projekt_id, &eingabe)
@@ -691,6 +914,14 @@ pub async fn projekt_baugrundstuecke_pruefen(
     projekt_id: ProjectId,
     eingabe: core_lib::baugrundstuecke::BaugrundstuecksPlan,
 ) -> CmdResult<core_lib::baugrundstuecke::BaugrundstuecksPruefung> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state
         .core
         .projekt_baugrundstuecke_pruefen(projekt_id, &eingabe)
@@ -765,6 +996,14 @@ pub async fn projektordner_exportieren(
     ziel: PathBuf,
     historie: bool,
 ) -> CmdResult<ProjektordnerExport> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     if !ziel.is_absolute() {
         return Err(CoreError::InvalidInput("Absoluten Zielordner wählen".into()).into());
     }
@@ -815,6 +1054,14 @@ pub async fn formular_im_projekt_speichern(
     basis: i64,
     werte: BTreeMap<String, Feldwert>,
 ) -> CmdResult<crate::projektordner::ProjektDokument> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     let d = state
         .core
         .formular_im_projekt_mit_quellen(dokument_id, basis, &werte, datenstand, &state.benutzer())
@@ -828,6 +1075,14 @@ pub async fn baugrundstuecke_ermitteln(
     projekt_id: ProjectId,
     plan: core_lib::baugrundstuecke::BaugrundstuecksPlan,
 ) -> CmdResult<Vec<core_lib::baugrundstuecke::BaugrundstueckGruppe>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state
         .core
         .baugrundstuecke_ermitteln(projekt_id, &plan)
@@ -841,6 +1096,14 @@ pub async fn projekt_bereich_speichern(
     bereich: core_lib::projektbereiche::ProjektBereich,
     aenderung: ProjectUpdate,
 ) -> CmdResult<Project> {
+    state
+        .core
+        .projekt_zugriff(
+            aenderung.id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .projekt_bereich_speichern(basis, bereich, aenderung, &state.benutzer())
@@ -851,5 +1114,13 @@ pub async fn grundstueckskontext(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> CmdResult<Vec<core_lib::grundstueckskontext::GrundstueckKontext>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.grundstueckskontext(projekt_id).await?)
 }

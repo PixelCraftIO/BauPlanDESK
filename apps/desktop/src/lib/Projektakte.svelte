@@ -65,7 +65,7 @@
     importAusloeser: number;
     exportAusloeser: number;
     onprojekt: (p: Project) => void;
-    ondialog: (art: "projektdaten" | "bauherren" | "buero") => void;
+    ondialog: (art: "projektdaten" | "bauherren" | "buero" | "mitglieder") => void;
   } = $props();
   const editoren = projektEditoren();
   const navigation = projektNavigationAnlegen();
@@ -263,6 +263,9 @@
       <button class="sekundaer" onclick={() => ondialog("bauherren")}
         >Bauherren …</button
       >
+      {#if darf("projektleitung")}
+        <button class="sekundaer" onclick={() => ondialog("mitglieder")}>Projektmitglieder …</button>
+      {/if}
       <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}
         >Rechtsgrundlagen …</button
       >

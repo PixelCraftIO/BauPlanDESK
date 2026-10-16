@@ -345,14 +345,11 @@ impl CoreServices {
         plan: &crate::baugrundstuecke::BaugrundstuecksPlan,
     ) -> CoreResult<crate::baugrundstuecke::BaugrundstuecksPlan> {
         let gebaeude = self.repos.commit.fachstaende(p, "gebaeude").await?;
-        let projekt = self.get_project(p).await?;
-        let grund = crate::grundstueckskontext::ermitteln(&projekt)?;
         let mut neu = plan.clone();
         for b in &mut neu.berechnungen {
-            let grund_id = grund
-                .iter()
-                .find(|g| g.schluessel == b.schluessel)
-                .map(|g| g.id);
+            // Auch bei veralteten Quellen muss der neue Plan speicherbar bleiben.
+            // Dieselbe stabile Identität wie im öffentlichen Grundstückskontext.
+            let grund_id = Some(Uuid::new_v5(&p.0, b.schluessel.as_bytes()));
             if let Some(a) = &mut b.eingabe.aufstellung {
                 let mut bauteil_ids = std::collections::HashSet::new();
                 for teil in &mut a.bauteile {

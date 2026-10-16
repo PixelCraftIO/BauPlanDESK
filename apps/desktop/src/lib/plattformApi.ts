@@ -11,6 +11,10 @@ import type {
 } from "./generated/plattform";
 export type Datensatz<T> = Omit<Fachstand, "daten"> & { daten: T };
 export const plattformApi = {
+  mitglieder: (projektId: string) =>
+    invoke<Datensatz<import("./generated/plattform").ProjektMitglied>[]>("projektmitglieder", { projektId }),
+  mitgliedSetzen: (projektId: string, mitglied: import("./generated/plattform").ProjektMitglied, basis: number) =>
+    invoke<Datensatz<import("./generated/plattform").ProjektMitglied>>("projektmitglied_setzen", { projektId, mitglied, basis }),
   gebaeudeAuswerten: (projektId: string, id: string, gebaeude: import("./generated/plattform").Gebaeude) =>
     invoke<import("./generated/plattform").GebaeudeGrundlagen>("gebaeude_auswerten", { projektId, id, gebaeude }),
   uebersicht: (projektId: string) =>

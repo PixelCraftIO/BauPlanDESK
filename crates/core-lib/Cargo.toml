@@ -18,6 +18,7 @@ cfb.workspace = true
 encoding_rs.workspace = true
 bytes.workspace = true
 chrono.workspace = true
+chrono-tz.workspace = true
 hex.workspace = true
 geo.workspace = true
 dxf.workspace = true

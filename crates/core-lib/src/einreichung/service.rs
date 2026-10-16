@@ -220,7 +220,7 @@ impl CoreServices {
         wer: &Benutzer,
     ) -> CoreResult<Einreichung> {
         self.pruefe(wer, Recht::DokumentAblegen).await?;
-        if datum > Utc::now().date_naive() || notiz.len() > 4000 {
+        if datum > crate::kalender::heute() || notiz.len() > 4000 {
             return Err(CoreError::InvalidInput(
                 "Einreichungsdatum darf nicht in der Zukunft liegen; Notiz maximal 4000 Zeichen"
                     .into(),

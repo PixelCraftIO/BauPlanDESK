@@ -21,6 +21,28 @@ pub struct ProjektMitglied {
     pub recht: ProjektRecht,
 }
 impl CoreServices {
+    pub async fn einreichung_zugriff(
+        &self,
+        id: uuid::Uuid,
+        wer: &Benutzer,
+        min: ProjektRecht,
+    ) -> CoreResult<()> {
+        let e = self.repos.einreichungen.laden(id).await?;
+        self.projekt_zugriff(e.stand.projekt_id, wer, min).await
+    }
+
+    /// Prüft den Projektzugriff anhand der tatsächlichen DMS-Zuordnung.
+    /// Adapter dürfen eine vom Aufrufer genannte Projekt-ID hierfür nicht verwenden.
+    pub async fn dokument_zugriff(
+        &self,
+        id: crate::domain::DocumentId,
+        wer: &Benutzer,
+        min: ProjektRecht,
+    ) -> CoreResult<()> {
+        let d = self.repos.documents.latest(id).await?;
+        self.projekt_zugriff(d.project_id, wer, min).await
+    }
+
     pub async fn projekt_zugriff(
         &self,
         p: ProjectId,

@@ -46,6 +46,14 @@ Protokolle liegen unter `docs/klare-projektstruktur` und dessen Unterordner `pdf
 `BAUPROJEKT_UI_ARTEFAKTE` legt dort einen alternativen Ausgabeordner fest, damit
 frühere Dokumentationsaufnahmen beim erneuten Testen erhalten bleiben.
 
+`python apps/desktop/tests/fehler-regressionen.py` prüft Neuanlage mit fehlgeschlagener
+Bauherrnzuordnung, Kundenladefehler, Konflikt mit fehlgeschlagenem Neuladen,
+wirksame Lizenzrolle, Projektmitglieder samt Versionskonflikt und das Öffnen eines
+Altprojekts mit abweichender BauNVO ohne unbeabsichtigten Entwurf. Der Test nutzt
+ebenfalls `BAUPROJEKT_UI_URL` und optional `BAUPROJEKT_CHROMIUM`.
+`node --test apps/desktop/tests/kalender.test.mjs` prüft die Datumsgrenzen für
+Einreichungsfelder und Exportnamen ohne Abhängigkeit von der Rechnerzeitzone.
+
 ## Zentrale Formularbibliothek
 
 Nach Erstellung der PDF-Testartefakte und `npm run build` gegen die lokal

@@ -24,6 +24,7 @@ pub mod error;
 pub mod festsetzungen;
 pub mod flaechen;
 pub mod formular;
+pub mod kalender;
 pub mod kunden;
 pub mod lbo;
 pub mod license;

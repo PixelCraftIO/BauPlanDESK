@@ -35,6 +35,7 @@
   import Dialog from "./lib/Dialog.svelte";
   import Kunden from "./lib/Kunden.svelte";
   import ProjektFormular from "./lib/ProjektFormular.svelte";
+  import Projektmitglieder from "./lib/Projektmitglieder.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import LizenzDialog from "./lib/Lizenz.svelte";
 
@@ -45,8 +46,8 @@
     | "benutzer"
     | "buero"
     | "lizenz"
-    | "kunden"
     | "bauherren"
+    | "mitglieder"
     | null;
 
   let info = $state<AppInfo | null>(null);
@@ -79,6 +80,7 @@
   let beendenLaeuft = $state(false);
   let kundenBesucht = $state(false);
   let kundenEditor = $state<Kunden>();
+  let mitgliederEditor = $state<Projektmitglieder>();
   let speicherortEditor = $state<Speicherorte>();
   let druckEditor = $state<DruckEinstellungen>();
   let kategorienEditor = $state<KategorienEinstellungen>();
@@ -167,6 +169,7 @@
   let lizenz = $state<Lizenzstatus | null>(null);
   /** Kunden zur Auswahl im Dialog „Neues Projekt“. */
   let kundenAuswahl = $state<Kunde[] | null>(null);
+  let kundenLadefehler = $state<string | null>(null);
 
   /** Angemeldeter Benutzer; ohne Schreibrecht der Lizenz wie „Lesen“. */
   const ich = $derived.by((): Benutzer | null => {
@@ -292,18 +295,37 @@
   async function neuesProjekt() {
     dialog = "neu";
     kundenAuswahl = null;
+    kundenLadefehler = null;
     try {
       kundenAuswahl = await api.kunden();
     } catch (e) {
-      melde(e);
+      kundenLadefehler = fehlertext(e);
     }
   }
 
   async function anlegen(werte: Werte, bauherr: string | null) {
     try {
       const neu = await api.projektAnlegen(werte);
-      if (bauherr) await api.bauherrenSetzen(neu.id, [bauherr], neu.version);
-      await oeffnen(neu.id);
+      // Die Neuanlage ist bereits gespeichert. Auch bei Folgefehlern schließen
+      // und öffnen wir genau dieses Projekt, damit kein Duplikat entsteht.
+      dialog = null;
+      let angelegt = neu;
+      if (bauherr) {
+        try {
+          angelegt = await api.bauherrenSetzen(neu.id, [bauherr], neu.version);
+        } catch (e) {
+          fehler = `Projekt „${neu.name}“ wurde angelegt. Der Bauherr konnte nicht zugeordnet werden: ${fehlertext(e)} Bitte unter Bauherren zuordnen.`;
+        }
+      }
+      sitzungen.push({
+        projekt: angelegt,
+        ansicht: "projektuebersicht",
+        planDokument: null,
+        importAusloeser: 0,
+        exportAusloeser: 0,
+      });
+      aktiveId = neu.id;
+      globalAnsicht = null;
     } catch (e) {
       melde(e);
     }
@@ -324,9 +346,12 @@
     } catch (e) {
       if (istKonflikt(e)) {
         // Optimistic Locking: jemand anderes hat das Projekt geändert.
-        fehler =
-          "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
-        projektSetzen(await api.projektOeffnen(ziel.id));
+        try {
+          projektSetzen(await api.projektOeffnen(ziel.id));
+          fehler = "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
+        } catch (ladenFehler) {
+          fehler = `Versionskonflikt. Die aktuelle Fassung konnte nicht geladen werden: ${fehlertext(ladenFehler)} Ihre Eingaben bleiben erhalten.`;
+        }
       } else {
         melde(e);
       }
@@ -391,7 +416,8 @@
         neuesProjekt();
         break;
       case "bearbeiten.kunden":
-        dialog = "kunden";
+        dialog = null;
+        globalAnsicht = "kunden";
         break;
       case "bearbeiten.benutzer":
         dialog = "benutzer";
@@ -815,7 +841,7 @@
       class="link"
       onclick={() => (dialog = "benutzer")}
       title="Benutzerverwaltung"
-      >{info.benutzer.anzeigename} ({rollenName(info.benutzer.rolle)})</button
+      >{info.benutzer.anzeigename} ({rollenName(ich?.rolle ?? "lesen")})</button
     >
     ·
     {#if lizenz?.zustand.art === "testversion"}
@@ -849,15 +875,18 @@
   <Dialog titel="Büroangaben" onclose={() => (dialog = null)}>
     <BueroDialog {ich} onschliessen={() => (dialog = null)} />
   </Dialog>
-{:else if dialog === "kunden" && ich}
-  <Dialog titel="Kunden" breit onclose={() => (dialog = null)}>
-    <Kunden
-      {ich}
-      onoeffnen={oeffnen}
-      onschliessen={async () => {
-        dialog = null;
-        // Geänderte Kundendaten in der Übersicht zeigen.
-      }}
+{:else if dialog === "mitglieder" && projekt}
+  <Dialog
+    titel="Projektmitglieder"
+    breit
+    schliessenErlaubt={!mitgliederEditor?.istBeschaeftigt()}
+    onrequestclose={async () => mitgliederEditor?.schliessenErlaubt() ?? true}
+    onclose={() => (dialog = null)}
+  >
+    <Projektmitglieder
+      bind:this={mitgliederEditor}
+      projektId={projekt.id}
+      onschliessen={() => (dialog = null)}
     />
   </Dialog>
 {:else if dialog === "bauherren" && ich && projekt}
@@ -878,6 +907,7 @@
         grundstuecksflaeche_m2: null,
       }}
       kunden={kundenAuswahl}
+      kundenLadefehler={kundenLadefehler}
       knopf="Anlegen"
       absenden={anlegen}
       onabbrechen={() => (dialog = null)}

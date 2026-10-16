@@ -9,6 +9,14 @@ pub async fn email_anhang_ablegen(
     version: i64,
     index: usize,
 ) -> Result<core_lib::domain::DocumentVersion, CmdError> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .email_anhang_ablegen(dokument_id, version, index, &state.benutzer())

@@ -14,6 +14,14 @@ pub async fn einreichungen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
 ) -> Result<Vec<Einreichung>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.einreichungen(projekt_id).await?)
 }
 #[tauri::command]
@@ -22,6 +30,14 @@ pub async fn einreichungs_vergleich(
     projekt_id: ProjectId,
     empfaenger: String,
 ) -> Result<Vec<DokumentVergleich>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state
         .core
         .einreichungs_vergleich(projekt_id, &empfaenger)
@@ -34,6 +50,14 @@ pub async fn einreichung_erstellen(
     paket: NeuesPaket,
     vorgang: Option<Uuid>,
 ) -> Result<Einreichung, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .einreichung_erstellen_vorgang(projekt_id, paket, vorgang, &state.benutzer())
@@ -47,6 +71,14 @@ pub async fn einreichung_bestaetigen(
     datum: NaiveDate,
     notiz: String,
 ) -> Result<Einreichung, CmdError> {
+    state
+        .core
+        .einreichung_zugriff(
+            id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     Ok(state
         .core
         .einreichung_bestaetigen(id, basis, datum, notiz, &state.benutzer())
@@ -58,6 +90,14 @@ pub async fn einreichung_exportieren(
     id: Uuid,
     ziel: PathBuf,
 ) -> Result<(), CmdError> {
+    state
+        .core
+        .einreichung_zugriff(
+            id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     let (_, zip) = state.core.einreichung_zip(id).await?;
     tokio::fs::write(ziel, zip)
         .await
@@ -71,5 +111,13 @@ pub async fn paket_pruefstand(
     projekt_id: ProjectId,
     dokumente: Vec<core_lib::einreichung::DokumentAuswahl>,
 ) -> Result<core_lib::einreichung::PaketPruefstand, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state.core.paket_pruefstand(projekt_id, &dokumente).await?)
 }

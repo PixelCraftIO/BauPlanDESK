@@ -71,6 +71,14 @@ pub async fn bibliothek_uebernehmen(
 ) -> Resultat<DocumentVersion> {
     state
         .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
+    state
+        .core
         .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
         .await?;
     let root = state.formularordner.read().await;
@@ -108,6 +116,14 @@ pub async fn bibliothek_veroeffentlichen(
 ) -> Resultat<BibliotheksVorlage> {
     state
         .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    state
+        .core
         .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
         .await?;
     let (dokument, pdf) = state.core.load_version(dokument_id, version).await?;
@@ -134,6 +150,14 @@ pub async fn bibliothek_formular(
     vorlage: BibliotheksVorlage,
     projekt_id: ProjectId,
 ) -> Resultat<BibliothekMaske> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     let root = state.formularordner.read().await;
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     Ok(BibliothekMaske {
@@ -154,6 +178,14 @@ pub async fn bibliothek_formular_speichern(
     datenstand: Option<core_lib::formular::instanz::FormularDatenstand>,
     werte: std::collections::BTreeMap<String, core_lib::formular::Feldwert>,
 ) -> Resultat<crate::projektordner::ProjektDokument> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     let root = state.formularordner.read().await;
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     let d = state

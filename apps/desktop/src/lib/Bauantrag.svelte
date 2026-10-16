@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { heuteDeutsch } from "./kalender";
   import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
   import { save, ask } from "@tauri-apps/plugin-dialog";
@@ -190,7 +191,7 @@
       );
       return;
     }
-    const datum = new Date().toISOString().slice(0, 10);
+    const datum = heuteDeutsch();
     const ziel = await save({
       title: "Bauantrag als XBau exportieren",
       defaultPath: `Bauantrag ${projekt.name.replace(/[\\/:*?"<>|]/g, "_")} ${datum}.zip`,

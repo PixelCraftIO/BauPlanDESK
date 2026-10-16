@@ -39,6 +39,14 @@ async fn ausgeben(
     d: &DocumentVersion,
     erzwingen: bool,
 ) -> Result<Option<String>, CoreError> {
+    state
+        .core
+        .projekt_zugriff(
+            d.project_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     let root = state.projektordner.read().await;
     let p = state.core.get_project(d.project_id).await?;
     let plan = core_lib::projektablage::planen(&p, std::slice::from_ref(d))?;
@@ -79,12 +87,28 @@ pub fn hintergrund(app: AppHandle) {
                 .await
                 .is_ok()
             {
-                match state.core.list_projects().await {
+                match state.core.projekte_fuer_benutzer(&state.benutzer()).await {
                     Ok(projekte) => {
                         let mut behandelt = 0;
                         for p in projekte {
                             if behandelt >= 50 {
                                 break;
+                            }
+                            match state
+                                .core
+                                .projekt_zugriff(
+                                    p.id,
+                                    &state.benutzer(),
+                                    core_lib::zugriff::ProjektRecht::Bearbeiten,
+                                )
+                                .await
+                            {
+                                Ok(()) => {}
+                                Err(CoreError::Forbidden(_)) => continue,
+                                Err(e) => {
+                                    tracing::warn!(fehler=%e,"Projektzugriff für Ordnerausgabe nicht prüfbar");
+                                    continue;
+                                }
                             }
                             let root = state.projektordner.read().await.display().to_string();
                             let auftraege = match state.core.ausgabeauftraege(p.id).await {
@@ -149,6 +173,14 @@ pub async fn ausgabeauftraege(
     state: State<'_, AppState>,
     projekt_id: core_lib::domain::ProjectId,
 ) -> Result<Vec<core_lib::plattform::ausgabe::Ausgabeauftrag>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
     Ok(state
         .core
         .ausgabeauftraege(projekt_id)
@@ -163,6 +195,14 @@ pub async fn ausgabe_wiederholen(
     projekt_id: core_lib::domain::ProjectId,
     id: uuid::Uuid,
 ) -> Result<ProjektDokument, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
     let a = state
         .core
         .ausgabeauftraege(projekt_id)
@@ -272,6 +312,25 @@ mod tests {
         assert!(path.contains("Dokumente"));
         let repeat = ablegen(&state, d.clone()).await;
         assert!(repeat.ablage_hinweis.is_none());
+        let admin = state.benutzer();
+        let fremder = state
+            .core
+            .benutzer_anlegen(
+                core_lib::benutzer::NeuerBenutzer {
+                    anmeldename: "fremder".into(),
+                    anzeigename: "Ohne Projektmitgliedschaft".into(),
+                    rolle: core_lib::benutzer::Rolle::Bearbeitung,
+                },
+                &admin,
+            )
+            .await
+            .unwrap();
+        *state.benutzer.write().unwrap() = fremder;
+        assert!(matches!(
+            ausgeben(&state, &d, true).await,
+            Err(CoreError::Forbidden(_))
+        ));
+        *state.benutzer.write().unwrap() = admin;
         let blocked = root.join("keine-map");
         std::fs::write(&blocked, b"datei").unwrap();
         *state.projektordner.write().await = blocked;

@@ -157,7 +157,7 @@ impl CoreServices {
         for a in aufgaben {
             if a.status != AufgabenStatus::Erledigt {
                 s.offene_aufgaben += 1;
-                if a.faellig.is_some_and(|d| d < Utc::now().date_naive()) {
+                if a.faellig.is_some_and(|d| d < crate::kalender::heute()) {
                     s.ueberfaellige_aufgaben += 1;
                 }
             }
@@ -271,7 +271,7 @@ impl CoreServices {
             }
         }
         let ueberfaellig = self
-            .verfahren_erinnerungen(p, Utc::now().date_naive())
+            .verfahren_erinnerungen(p, crate::kalender::heute())
             .await?
             .iter()
             .filter(|e| e.ueberfaellig)
