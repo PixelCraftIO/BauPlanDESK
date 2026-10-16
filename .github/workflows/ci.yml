@@ -46,6 +46,8 @@ jobs:
       - name: Frontend bauen (wird von generate_context! eingebettet)
         working-directory: apps/desktop
         run: npm ci && npm run build
+      - name: XBau-Katalog mit offiziellen Schemas abgleichen
+        run: python3 scripts/xbau-katalog.py --check
       - name: Generierte Plattformverträge prüfen
         run: |
           cargo run -p core-lib --example vertraege --locked > /tmp/plattform.ts
@@ -89,6 +91,7 @@ jobs:
       BAUPROJEKT_ABSTAND_ARTEFAKTE: /tmp/bauprojekt-abstand
       BAUPROJEKT_FACH_ARTEFAKTE: /tmp/bauprojekt-fach
       BAUPROJEKT_UEBERSICHT_ARTEFAKTE: /tmp/bauprojekt-uebersicht
+      BAUPROJEKT_XBAU_ARTEFAKTE: /tmp/bauprojekt-xbau
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,8 +110,10 @@ jobs:
           with sync_playwright() as p:
               print('BAUPROJEKT_CHROMIUM=' + p.chromium.executable_path)
           PYCODE
+      - name: XBau-Laufzeitvalidator installieren
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
       - name: Echte PDF- und Paket-Testdaten erzeugen
-        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --test druckausgabe --test verfahren --test abstandsflaechen --test fachberechnungen --test projektuebersicht --locked
+        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --test druckausgabe --test verfahren --test abstandsflaechen --test fachberechnungen --test projektuebersicht --test xbau --locked
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
       - name: Produktionsoberfläche prüfen
@@ -140,6 +145,7 @@ jobs:
           python apps/desktop/tests/abstandsflaechen.py
           python apps/desktop/tests/fachberechnungen.py
           python apps/desktop/tests/projektuebersicht.py
+          python apps/desktop/tests/xbau.py
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -156,6 +162,8 @@ jobs:
             docs/abstandsflaechen/screenshots
             /tmp/bauprojekt-fach
             /tmp/bauprojekt-fach-ui
+            /tmp/bauprojekt-xbau
+            /tmp/bauprojekt-xbau-ui
             docs/projektuebersicht/screenshots
             /tmp/bauprojekt-uebersicht
             /tmp/bauprojekt-ui.log

@@ -104,6 +104,38 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
             assert_eq!(response.status(), expected, "{:?}", vorlage.plan.modul);
         }
     }
+    for (projekt, expected) in [(p.id, StatusCode::OK), (fremd.id, StatusCode::FORBIDDEN)] {
+        assert_eq!(
+            status(
+                &app,
+                &format!("/api/projekte/{projekt}/xbau/nachrichten"),
+                true
+            )
+            .await,
+            expected
+        );
+    }
+    // Vorschau ist lesend, Aufnahme bleibt schreibgeschützt; fremde Projekte verboten.
+    for (projekt, operation, expected) in [
+        (p.id, "pruefen", StatusCode::UNPROCESSABLE_ENTITY),
+        (p.id, "nachrichten", StatusCode::FORBIDDEN),
+        (fremd.id, "pruefen", StatusCode::FORBIDDEN),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projekte/{projekt}/xbau/{operation}"))
+                    .header("authorization", format!("Bearer {TOKEN}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+    }
     // Ein fremdes Raumbuch darf auch über den neuen Importweg nicht gelesen werden.
     let response = app
         .clone()

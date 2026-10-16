@@ -54,3 +54,5 @@ pub fn build(config: &StorageConfig) -> CoreResult<Arc<dyn Storage>> {
 }
 
 pub mod buero_sicherung;
+
+pub mod xbau;

@@ -1,5 +1,15 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Nachrichtentyp = { element: string, namensraum: string, titel: string, schema: string, };
+export type Nachrichtenkopf = { id: string, element: string, namensraum: string, titel: string, erstellt: string, absender: string, empfaenger: string, antragsreferenz: string | null, aktenzeichen: string | null, bezugsnachricht: string | null, };
+export type AnlagePruefung = { dateiname: string, dokumentid: string, bytes: number, sha256: string, hash_in_nachricht: boolean, };
+export type Pruefbericht = { kopf: Nachrichtenkopf, sha256: string, anlagen: Array<AnlagePruefung>, schemapruefer: string, geprueft_am: string, hinweise: Array<string>, };
+export type Richtung = "eingang" | "ausgang";
+export type Belegart = "versand" | "transportquittung" | "fachliche_annahme" | "rueckweisung";
+export type Nachrichtenbeleg = { id: string, art: Belegart, datum: string, kanal: string, referenz: string, dokument: Dokumentbezug, notiz: string, berichtigt: string | null, };
+export type XbauNachricht = { original: Dokumentbezug, richtung: Richtung, pruefung: Pruefbericht, erfasst_am: string, erfasst_von: string, belege: Array<Nachrichtenbeleg>, };
+export type Nachrichtenstand = { id: string, revision: number, nachricht: XbauNachricht, };
+export type Nachrichtenaufnahme = { original: Dokumentbezug, richtung: Richtung, zuordnung_bestaetigt: boolean, };
 export type BerechnungsArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit";
 export type Regelkontext = { bezeichnung: string, version: string, quelle: string, geltungsbereich: string, gueltig_ab: string, gueltig_bis: string, anwendbarkeit_bestaetigt: boolean, pruefvermerk: string, };
 export type Einheit = "m" | "m2" | "m3" | "anzahl" | "grad" | "prozent" | "l_pro_s";

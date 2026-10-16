@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:bauprojektio:xbau-pruefung">
+  <xs:import namespace="http://www.xleitstelle.de/xbau/kernmodul/1/4/0" schemaLocation="kernmodul.xsd"/>
+  <xs:import namespace="http://www.xleitstelle.de/xbau/2/7" schemaLocation="hochbau.xsd"/>
+</xs:schema>

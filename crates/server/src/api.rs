@@ -201,6 +201,29 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/xbau", get(xbau_exportieren))
         .route("/buero", get(buero).put(buero_speichern))
         .route("/xbau/codelisten", get(codelisten))
+        .route("/xbau/nachrichtentypen", get(xbau_typen))
+        .route(
+            "/projekte/{p}/xbau/nachrichten/{quelle}/nachreichung",
+            post(xbau_nachreichung),
+        )
+        .route(
+            "/projekte/{p}/xbau/nachrichten/{id}/anlagen",
+            post(xbau_anlage),
+        )
+        .route(
+            "/projekte/{id}/xbau/nachrichten",
+            get(xbau_nachrichten).post(xbau_aufnehmen),
+        )
+        .route("/projekte/{id}/xbau/pruefen", post(xbau_pruefen))
+        .route("/projekte/{id}/xbau/ausgang", post(xbau_ausgang))
+        .route(
+            "/projekte/{p}/xbau/nachrichten/{id}/belege",
+            post(xbau_beleg),
+        )
+        .route(
+            "/projekte/{p}/xbau/nachrichten/{id}/verfahren",
+            post(xbau_verfahren),
+        )
         .route("/lbo/regelpakete", get(rule_packs))
         .route("/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/projekte/{id}/abstandsregeln", get(abstandsregeln))
@@ -1228,4 +1251,107 @@ async fn projektuebersicht(
     Extension(wer): Extension<Benutzer>,
 ) -> ApiResult<core_lib::projektuebersicht::Projektuebersicht> {
     Ok(Json(core.projektuebersicht(ProjectId(id), &wer).await?))
+}
+
+// XBau-Dateiaustausch. Diese Endpunkte versenden nichts an eine Behörde.
+async fn xbau_typen() -> ApiResult<Vec<core_lib::xbau::austausch::Nachrichtentyp>> {
+    Ok(Json(core_lib::xbau::austausch::katalog()))
+}
+async fn xbau_nachrichten(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::xbau::postfach::Nachrichtenstand>> {
+    Ok(Json(core.xbau_nachrichten(ProjectId(id), &wer).await?))
+}
+async fn xbau_pruefen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(original): Json<core_lib::plattform::objekte::Dokumentbezug>,
+) -> ApiResult<core_lib::xbau::austausch::Pruefbericht> {
+    Ok(Json(
+        core.xbau_pruefen(ProjectId(id), &original, &wer).await?,
+    ))
+}
+async fn xbau_aufnehmen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(wunsch): Json<core_lib::xbau::postfach::Nachrichtenaufnahme>,
+) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
+    Ok(Json(
+        core.xbau_aufnehmen(ProjectId(id), wunsch, &wer).await?,
+    ))
+}
+async fn xbau_ausgang(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
+    Ok(Json(
+        core.xbau_ausgang_vorbereiten(ProjectId(id), &wer).await?,
+    ))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XbauBelegwunsch {
+    basis: i64,
+    beleg: core_lib::xbau::postfach::Nachrichtenbeleg,
+}
+async fn xbau_beleg(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<XbauBelegwunsch>,
+) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
+    Ok(Json(
+        core.xbau_beleg(ProjectId(p), id, w.basis, w.beleg, &wer)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XbauVerfahrenswunsch {
+    basis: i64,
+    verfahren: Uuid,
+}
+async fn xbau_verfahren(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<XbauVerfahrenswunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.xbau_in_verfahren(ProjectId(p), id, w.verfahren, w.basis, &wer)
+            .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XbauAnlagenwunsch {
+    dateiname: String,
+}
+async fn xbau_anlage(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<XbauAnlagenwunsch>,
+) -> ApiResult<DocumentVersion> {
+    Ok(Json(
+        core.xbau_anlage_ablegen(ProjectId(p), id, &w.dateiname, &wer)
+            .await?,
+    ))
+}
+
+async fn xbau_nachreichung(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, quelle)): Path<(Uuid, Uuid)>,
+) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
+    Ok(Json(
+        core.xbau_nachreichung_vorbereiten(ProjectId(p), quelle, &wer)
+            .await?,
+    ))
 }

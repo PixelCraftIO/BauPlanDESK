@@ -45,7 +45,8 @@ async fn core(dir: &std::path::Path, mit_codelisten: bool) -> CoreServices {
         storage,
         Arc::new(LboEngine::new()),
         Arc::new(DevelopmentLicense),
-    );
+    )
+    .mit_xbau_pruefer(storage::xbau::XmlLintPruefer::standard());
     if mit_codelisten {
         core.mit_codelisten(codelisten())
     } else {
@@ -157,12 +158,80 @@ async fn bauantrag_erfassen_und_exportieren() {
         core.bauantrag_speichern(p.id, antrag, 1, &leser).await,
         Err(CoreError::Forbidden(_))
     ));
+    core.projektmitglied_setzen(
+        p.id,
+        core_lib::zugriff::ProjektMitglied {
+            benutzer_id: leser.id,
+            recht: core_lib::zugriff::ProjektRecht::Lesen,
+        },
+        0,
+        &chefin,
+    )
+    .await
+    .unwrap();
     let export = core.xbau_exportieren(p.id, &leser).await.unwrap();
     assert!(
         export.dateiname.starts_with("Bauantrag MFH Lindenweg "),
         "{}",
         export.dateiname
     );
+    let ausgang = core.xbau_ausgang_vorbereiten(p.id, &chefin).await.unwrap();
+    let eingang_id = uuid::Uuid::new_v4();
+    let eingang = format!(
+        r#"<k:prozessnachrichten.formellePruefungBefundliste.1140 xmlns:k="http://www.xleitstelle.de/xbau/kernmodul/1/4/0" produkt="Test" produkthersteller="Test" standard="XBau-Kernmodul" version="1.4.0"><nachrichtenkopf.g2g><identifikation.nachricht><nachrichtenUUID>{eingang_id}</nachrichtenUUID><nachrichtentyp listURI="urn:xoev-de:xbau-kernmodul:codeliste:xbau-kernmodul-nachrichten" listVersionID="3.0"><code>1140</code></nachrichtentyp><erstellungszeitpunkt>2026-01-02T12:00:00Z</erstellungszeitpunkt></identifikation.nachricht><leser><verzeichnisdienst listVersionID="1.0"><code>DVDV</code></verzeichnisdienst><kennung>planer:test</kennung><name>Planer</name></leser><autor><verzeichnisdienst listVersionID="1.0"><code>DVDV</code></verzeichnisdienst><kennung>{}</kennung><name>Behörde</name></autor></nachrichtenkopf.g2g><bezug><referenz>{}</referenz><vorgang>BA-42</vorgang></bezug><dokumentationVollstaendig>false</dokumentationVollstaendig></k:prozessnachrichten.formellePruefungBefundliste.1140>"#,
+        ausgang.nachricht.pruefung.kopf.empfaenger,
+        ausgang.nachricht.pruefung.kopf.antragsreferenz.unwrap()
+    );
+    let eingang_doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Befundliste.xml",
+            Bytes::from(eingang),
+            &chefin,
+        )
+        .await
+        .unwrap();
+    core.xbau_aufnehmen(
+        p.id,
+        core_lib::xbau::postfach::Nachrichtenaufnahme {
+            original: core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: eingang_doc.document_id,
+                version: 1,
+            },
+            richtung: core_lib::xbau::postfach::Richtung::Eingang,
+            zuordnung_bestaetigt: true,
+        },
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let antwort = core
+        .xbau_nachreichung_vorbereiten(p.id, eingang_id, &chefin)
+        .await
+        .unwrap();
+    assert_eq!(
+        antwort.nachricht.pruefung.kopf.bezugsnachricht,
+        Some(eingang_id)
+    );
+    assert_eq!(
+        antwort.nachricht.pruefung.kopf.aktenzeichen.as_deref(),
+        Some("BA-42")
+    );
+    let folge = core
+        .xbau_nachreichung_vorbereiten(p.id, ausgang.id, &chefin)
+        .await
+        .unwrap();
+    assert_eq!(
+        folge.nachricht.pruefung.kopf.element,
+        "baugenehmigung.antragGeaendert.0202"
+    );
+    assert_eq!(
+        folge.nachricht.pruefung.kopf.antragsreferenz,
+        ausgang.nachricht.pruefung.kopf.antragsreferenz
+    );
+    assert!(folge.nachricht.belege.is_empty());
     let mut zip = zip::ZipArchive::new(Cursor::new(export.zip)).unwrap();
     let mut xml = String::new();
     zip.by_name(NACHRICHT_DATEI)

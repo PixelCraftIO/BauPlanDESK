@@ -12,6 +12,16 @@ fn main() {
     );
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
+        core_lib::xbau::austausch::Nachrichtentyp,
+        core_lib::xbau::austausch::Nachrichtenkopf,
+        core_lib::xbau::austausch::AnlagePruefung,
+        core_lib::xbau::austausch::Pruefbericht,
+        core_lib::xbau::postfach::Richtung,
+        core_lib::xbau::postfach::Belegart,
+        core_lib::xbau::postfach::Nachrichtenbeleg,
+        core_lib::xbau::postfach::XbauNachricht,
+        core_lib::xbau::postfach::Nachrichtenstand,
+        core_lib::xbau::postfach::Nachrichtenaufnahme,
         core_lib::berechnungen::BerechnungsArt,
         core_lib::berechnungen::Regelkontext,
         core_lib::berechnungen::Einheit,

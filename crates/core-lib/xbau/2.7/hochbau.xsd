@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.xleitstelle.de/xbau/2/7">
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-abgeschlossenheitsbescheinigung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-abweichung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-akteneinsicht.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-angrenzer.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-anzeige.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-bauberatung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-baugenehmigung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-baulastaenderung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-baulasten.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-baulastenverzeichnis.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-baulastloeschung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-bauzustand.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-beteiligung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-genehmigungsfreistellung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-grundstuecksteilung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-informationsempfaenger.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-kammernverzeichnis.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-pruefingenieure.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-statistik.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-teilbaugenehmigung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-ueberwachungspflichtigeAnlagen.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-verlaengerung.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-nachrichten-vorbescheid.xsd"/>
+  <xs:include schemaLocation="xsd_dev/xbau-bauordnungsrechtlicheProzessnachrichten.xsd"/>
+</xs:schema>

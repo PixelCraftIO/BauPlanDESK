@@ -240,6 +240,7 @@ impl CoreServices {
             "nachweise",
             "freigaben",
             "verfahren",
+            "xbau_nachrichten",
             "abstandsflaechen",
             "suchtexte",
             "dokumentkategorie",
@@ -263,6 +264,7 @@ impl CoreServices {
             for modul in [
                 "formularinstanz",
                 "emailquelle",
+                "xbau_anlagenquelle",
                 "dokumentkategorie",
                 "ausgabeauftrag",
                 "ausgabeereignis",

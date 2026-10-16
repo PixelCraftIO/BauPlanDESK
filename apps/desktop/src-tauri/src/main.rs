@@ -19,6 +19,7 @@ mod projektordner;
 mod sicherungen;
 mod updater;
 mod verfahren;
+mod xbau;
 
 use tauri::{Emitter, Manager, RunEvent};
 
@@ -60,6 +61,15 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
+            xbau::xbau_nachrichtentypen,
+            xbau::xbau_nachrichten,
+            xbau::xbau_pruefen,
+            xbau::xbau_aufnehmen,
+            xbau::xbau_ausgang_vorbereiten,
+            xbau::xbau_nachreichung_vorbereiten,
+            xbau::xbau_beleg,
+            xbau::xbau_anlage_ablegen,
+            xbau::xbau_in_verfahren,
             verfahren::verfahrensprofil,
             verfahren::verfahren_profil_anwenden,
             verfahren::verfahren_abgabe,

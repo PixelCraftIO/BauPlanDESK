@@ -14,11 +14,39 @@ use crate::error::{CoreError, CoreResult};
 pub const NACHRICHT_DATEI: &str = "baugenehmigung.antrag.0200.xml";
 
 pub fn packen(xml: &str, anlagen: &[(String, &[u8])]) -> CoreResult<Vec<u8>> {
+    packen_nachricht(NACHRICHT_DATEI, xml, anlagen)
+}
+pub fn packen_nachricht(
+    nachricht: &str,
+    xml: &str,
+    anlagen: &[(String, &[u8])],
+) -> CoreResult<Vec<u8>> {
+    if anlagen.len() > 255
+        || xml.len() as u64 > super::austausch::MAX_XML
+        || anlagen
+            .iter()
+            .try_fold(xml.len() as u64, |sum, (_, b)| {
+                sum.checked_add(b.len() as u64)
+            })
+            .is_none_or(|s| s > super::austausch::MAX_ENTPACKT)
+    {
+        return Err(super::austausch::fehler(
+            "Paket überschreitet die zulässigen Größen oder die Anlagenanzahl",
+        ));
+    }
+    super::austausch::dateiname(nachricht)?;
+    let mut namen = HashSet::from([nachricht.to_lowercase()]);
+    for (n, _) in anlagen {
+        super::austausch::dateiname(n)?;
+        if !namen.insert(n.to_lowercase()) {
+            return Err(super::austausch::fehler("Doppelte Dateinamen im Paket"));
+        }
+    }
     let fehler = |e: zip::result::ZipError| CoreError::Storage(format!("ZIP: {e}"));
     let io = |e: std::io::Error| CoreError::Storage(format!("ZIP: {e}"));
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let opt = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-    zip.start_file(NACHRICHT_DATEI, opt).map_err(fehler)?;
+    zip.start_file(nachricht, opt).map_err(fehler)?;
     zip.write_all(xml.as_bytes()).map_err(io)?;
     for (name, inhalt) in anlagen {
         zip.start_file(name.as_str(), opt).map_err(fehler)?;
@@ -32,6 +60,7 @@ pub fn packen(xml: &str, anlagen: &[(String, &[u8])]) -> CoreResult<Vec<u8>> {
 pub fn eindeutige_namen<'a>(namen: impl IntoIterator<Item = &'a str>) -> Vec<String> {
     let mut vergeben = HashSet::new();
     vergeben.insert(NACHRICHT_DATEI.to_lowercase());
+    vergeben.insert("baugenehmigung.antraggeaendert.0202.xml".into());
     namen
         .into_iter()
         .map(|n| {

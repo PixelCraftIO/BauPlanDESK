@@ -5,12 +5,16 @@
 //! Bauvorlagen). Daraus entsteht die Nachricht `baugenehmigung.antrag.0200`
 //! und ein ZIP-Paket mit der Nachricht und den Anlagen ([`paket`]).
 //!
-//! Die Schemas liegen unter `crates/core-lib/xbau/2.7`; die Tests prüfen jede
-//! erzeugte Nachricht dagegen.
+//! `austausch` prüft XML/ZIP über einen injizierten XSD-Adapter, `postfach`
+//! archiviert Originalbezüge und manuelle Belege. Kein Transportdienst.
+//! Die Schemas liegen unter `crates/core-lib/xbau/2.7`; Tests und Laufzeit
+//! prüfen erzeugte Nachrichten dagegen.
 
 mod antrag;
+pub mod austausch;
 pub mod codeliste;
 pub mod paket;
+pub mod postfach;
 mod xml;
 
 use chrono::{DateTime, Utc};
@@ -20,7 +24,7 @@ use uuid::Uuid;
 use crate::domain::{Bundesland, DocumentId};
 
 pub(crate) use antrag::mime_pruefen;
-pub use antrag::{Anlagendatei, Nachrichtendaten, baugenehmigung_antrag};
+pub use antrag::{Anlagendatei, Nachrichtendaten, baugenehmigung_aenderung, baugenehmigung_antrag};
 pub use codeliste::{Codeeintrag, Codeliste, Codelisten};
 
 /// Version des XBau-Standards, die der Export erzeugt.

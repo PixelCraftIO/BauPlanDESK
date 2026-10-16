@@ -274,6 +274,7 @@ impl CoreServices {
                     .map(|(n, b)| (n.clone(), b.as_ref()))
                     .collect::<Vec<_>>(),
             )?;
+            crate::xbau::austausch::pruefen("XBau.zip", &bytes, self.xbau_pruefer.as_ref()).await?;
             ausgaben.push(("xbau", "XBau.zip", bytes));
         }
         if w.druck {
