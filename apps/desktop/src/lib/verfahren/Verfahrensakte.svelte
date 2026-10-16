@@ -359,8 +359,8 @@
     margin-bottom: 1rem;
   }
   .verfahren-tabs .aktiv {
-    background: var(--accent);
-    color: white;
+    background: var(--action-bg);
+    color: var(--on-action);
   }
   fieldset {
     border: 0;

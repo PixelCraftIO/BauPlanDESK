@@ -1,28 +1,29 @@
+/* Gemeinsame Farb- und Abstandswerte für alle Fachbereiche. */
 :root {
-  --bg: #f6f7f9;
-  --fg: #1d2330;
-  --muted: #5d6677;
-  --accent: #174ea6;
+  --bg: #f3f6f8;
+  --fg: #27343d;
+  --muted: #586b78;
+  --accent: #315e78;
+  --action-bg: #315e78;
+  --on-action: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--panel));
   --panel: #ffffff;
-  --border: #d9dde5;
-  --warn-bg: #fff4d6;
-  --err-bg: #fde3e3;
+  --border: #d4dee5;
+  --control-border: #83949f;
+  --warn-bg: #fff7e6;
+  --err-bg: #fbeceb;
+  --warning-text: #79541f;
+  --error-text: #9b3b34;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--fg);
   background: var(--bg);
-  user-select: none;
-}
-
-:root[data-theme="dark"] {
-  --bg: #15181e;
-  --fg: #e6e9ef;
-  --muted: #9aa3b2;
-  --accent: #7aa7f5;
-  --panel: #1d2129;
-  --border: #2e3440;
-  --warn-bg: #3a3218;
-  --err-bg: #3d1f22;
+  user-select: text;
 }
 
 body {
@@ -78,8 +79,8 @@ input[type="number"] {
   width: 7rem;
 }
 button {
-  background: var(--accent);
-  color: #fff;
+  background: var(--action-bg);
+  color: var(--on-action);
   border: none;
   cursor: pointer;
 }
@@ -249,11 +250,11 @@ button.link {
   font-size: 0.85rem;
 }
 .verstoss {
-  color: #c62828;
+  color: var(--error-text);
   font-weight: 600;
 }
 .fehlertext {
-  color: #c62828;
+  color: var(--error-text);
 }
 
 dialog {
@@ -349,8 +350,8 @@ dialog:has(.formularfelder) {
   border: 1px solid var(--border);
 }
 .werkzeuge button.aktiv {
-  background: var(--accent);
-  color: #fff;
+  background: var(--action-bg);
+  color: var(--on-action);
   border-color: var(--accent);
 }
 .planbereich {
@@ -454,7 +455,7 @@ dialog:has(.formularfelder) {
 .sperre {
   font-size: 0.85rem;
   white-space: nowrap;
-  color: #b26a00;
+  color: var(--warning-text);
 }
 .sperre.eigene {
   color: var(--accent);
@@ -741,18 +742,6 @@ form.flurstuecksformular {
 }
 
 /* Moderne Projektakte: gemeinsamer Arbeitsrahmen und Fachansichten. */
-:root {
-  --bg: #f6f9fb;
-  --fg: #27343d;
-  --muted: #586b78;
-  --accent: #315e78;
-  --panel: #fff;
-  --border: #dce5eb;
-  --warn-bg: #fff7e6;
-  --err-bg: #fbeceb;
-  font-size: 14px;
-  user-select: text;
-}
 * {
   box-sizing: border-box;
 }
@@ -787,14 +776,14 @@ input,
 select,
 textarea {
   border-radius: 4px;
-  min-height: 32px;
+  min-height: 36px;
   padding: 6px 10px;
 }
 input,
 select,
 textarea {
   background: var(--panel);
-  border-color: color-mix(in srgb, var(--muted) 35%, var(--panel));
+  border-color: var(--control-border);
   max-width: 100%;
 }
 button {
@@ -876,7 +865,7 @@ tbody tr:nth-child(even) {
 }
 .verstoss,
 .fehlertext {
-  color: #9b3b34;
+  color: var(--error-text);
 }
 .banner,
 .fehler {
@@ -926,7 +915,7 @@ tbody tr:nth-child(even) {
   font-size: 0.93rem;
 }
 .sperre {
-  color: #79541f;
+  color: var(--warning-text);
 }
 .app-kopf {
   padding: 13px 20px;
@@ -1060,7 +1049,7 @@ tbody tr:nth-child(even) {
   padding: 5px 10px;
 }
 .entwurf-punkt {
-  color: #87601d;
+  color: var(--warning-text);
   margin-left: 8px;
   font-size: 0.8rem;
 }
@@ -1212,31 +1201,18 @@ dialog h2 {
 }
 
 :root[data-theme="dark"] {
-  --bg: #182229;
-  --fg: #e5edf2;
-  --muted: #acbcc7;
-  --accent: #8bb7d0;
-  --panel: #202d36;
-  --border: #354751;
-  --warn-bg: #3e3420;
-  --err-bg: #452c2d;
-}
-:root[data-theme="dark"] button {
-  background: #426a80;
-  border-color: #426a80;
-  color: #fff;
-}
-:root[data-theme="dark"] button.sekundaer {
-  border-color: var(--border);
-  color: var(--fg);
-}
-:root[data-theme="dark"] .verstoss,
-:root[data-theme="dark"] .fehlertext {
-  color: #f4a39d;
-}
-:root[data-theme="dark"] .sperre,
-:root[data-theme="dark"] .entwurf-punkt {
-  color: #e3bd73;
+  --bg: #171e25;
+  --fg: #e4ebf2;
+  --muted: #adbdca;
+  --accent: #9bc7e5;
+  --action-bg: #35617d;
+  --panel: #202a34;
+  --border: #405160;
+  --control-border: #788e9e;
+  --warn-bg: #3c3321;
+  --err-bg: #412b30;
+  --warning-text: #e8c788;
+  --error-text: #ffb4ad;
 }
 
 @media (max-width: 1120px) {
@@ -1518,4 +1494,77 @@ dialog:has(.pdf-arbeitsplatz) {
 .appkopf,
 .statuszeile {
   flex-shrink: 0;
+}
+
+/* Gemeinsamer vertikaler Rhythmus; Tabellen und Fachbereiche behalten ihr Layout. */
+a {
+  color: var(--accent);
+}
+input,
+select,
+textarea {
+  accent-color: var(--action-bg);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+fieldset {
+  min-width: 0;
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+h3,
+h4 {
+  margin: var(--space-3) 0 var(--space-2);
+  line-height: 1.35;
+}
+summary {
+  padding-block: var(--space-1);
+  cursor: pointer;
+}
+fieldset > label:not(:has(> input:is([type="checkbox"], [type="radio"]))),
+.einstellungsabschnitt > label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block: var(--space-2);
+}
+label:has(> input:is([type="checkbox"], [type="radio"])) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block: var(--space-1);
+}
+input:is([type="checkbox"], [type="radio"]) {
+  min-height: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+}
+.knoepfe {
+  gap: 0.75rem;
+}
+.raster,
+.formularfelder {
+  row-gap: 1.25rem;
+}
+.ergebnistabelle + form {
+  margin-top: var(--space-3);
+}
+.einstellungsabschnitt {
+  padding-block: var(--space-4);
+}
+.aktennavigation button:hover:not(:disabled) {
+  background: var(--accent-soft);
 }

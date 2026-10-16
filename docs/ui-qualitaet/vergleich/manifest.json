@@ -1,0 +1,247 @@
+{
+  "screenshots": [
+    {
+      "id": "01-projekte",
+      "titel": "Projektverzeichnis",
+      "theme": "light",
+      "datei": "01-projekte-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "02-recht",
+      "titel": "Rechtsgrundlagen",
+      "theme": "light",
+      "datei": "02-recht-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "03-gebaeude",
+      "titel": "Gebäude und Geschosse",
+      "theme": "light",
+      "datei": "03-gebaeude-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "04-wohnflaeche",
+      "titel": "Wohnfläche · Aufmaßmaske",
+      "theme": "light",
+      "datei": "04-wohnflaeche-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "05-stellplaetze",
+      "titel": "Stellplätze · Prüfbericht",
+      "theme": "light",
+      "datei": "05-stellplaetze-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "06-pdf",
+      "titel": "PDF-Druckvorschau",
+      "theme": "light",
+      "datei": "06-pdf-light.png",
+      "hinweis": "Das Papier bleibt absichtlich weiß; die Bedienelemente folgen dem Theme."
+    },
+    {
+      "id": "07-einstellungen",
+      "titel": "Einstellungen · Darstellung und Speicherorte",
+      "theme": "light",
+      "datei": "07-einstellungen-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "08-abstand",
+      "titel": "Abstandsflächen · Ergebnis und Planskizze",
+      "theme": "light",
+      "datei": "08-abstand-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "09-dateien",
+      "titel": "Projektdateien · Kategorien und Versionen",
+      "theme": "light",
+      "datei": "09-dateien-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "10-verfahren",
+      "titel": "Verfahrensakte · Nachforderungen",
+      "theme": "light",
+      "datei": "10-verfahren-light.png",
+      "hinweis": ""
+    },
+    {
+      "id": "01-projekte",
+      "titel": "Projektverzeichnis",
+      "theme": "dark",
+      "datei": "01-projekte-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "02-recht",
+      "titel": "Rechtsgrundlagen",
+      "theme": "dark",
+      "datei": "02-recht-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "03-gebaeude",
+      "titel": "Gebäude und Geschosse",
+      "theme": "dark",
+      "datei": "03-gebaeude-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "04-wohnflaeche",
+      "titel": "Wohnfläche · Aufmaßmaske",
+      "theme": "dark",
+      "datei": "04-wohnflaeche-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "05-stellplaetze",
+      "titel": "Stellplätze · Prüfbericht",
+      "theme": "dark",
+      "datei": "05-stellplaetze-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "06-pdf",
+      "titel": "PDF-Druckvorschau",
+      "theme": "dark",
+      "datei": "06-pdf-dark.png",
+      "hinweis": "Das Papier bleibt absichtlich weiß; die Bedienelemente folgen dem Theme."
+    },
+    {
+      "id": "07-einstellungen",
+      "titel": "Einstellungen · Darstellung und Speicherorte",
+      "theme": "dark",
+      "datei": "07-einstellungen-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "08-abstand",
+      "titel": "Abstandsflächen · Ergebnis und Planskizze",
+      "theme": "dark",
+      "datei": "08-abstand-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "09-dateien",
+      "titel": "Projektdateien · Kategorien und Versionen",
+      "theme": "dark",
+      "datei": "09-dateien-dark.png",
+      "hinweis": ""
+    },
+    {
+      "id": "10-verfahren",
+      "titel": "Verfahrensakte · Nachforderungen",
+      "theme": "dark",
+      "datei": "10-verfahren-dark.png",
+      "hinweis": ""
+    }
+  ],
+  "pruefungen": [
+    {
+      "ansicht": "01-projekte",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "02-recht",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "03-gebaeude",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "04-wohnflaeche",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "05-stellplaetze",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "06-pdf",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "07-einstellungen",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "08-abstand",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "09-dateien",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "10-verfahren",
+      "theme": "light",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "01-projekte",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "02-recht",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "03-gebaeude",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "04-wohnflaeche",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "05-stellplaetze",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "06-pdf",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "07-einstellungen",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "08-abstand",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "09-dateien",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    },
+    {
+      "ansicht": "10-verfahren",
+      "theme": "dark",
+      "wurzelUeberlauf": false
+    }
+  ],
+  "hinweis": "Produktionsoberfläche mit fiktiven Core-Testdaten; nativer Transport ersetzt. 1600 × 1100 px. Keine vollständige native Betriebssystemprüfung."
+}

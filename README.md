@@ -9,6 +9,9 @@ NAS-/Büro-Server und optional in der Cloud.
 
 [Hierarchische Projektakte, Formulare im Projekt und Speicherorte](docs/klare-projektstruktur/README.md)
 beschreibt den aktuellen Ablauf mit Screenshots und Prüfprotokollen.
+[Dark Mode, Formularabstände und weitere Prüfschwerpunkte](docs/ui-qualitaet/README.md)
+mit sichtbaren Vorher-/Nachher-Beispielen.
+
 ## Plattformstrategie
 
 [Analyse der Anwendung, Zielarchitektur und priorisierter Maßnahmenplan](docs/plattform-analyse/README.md)
