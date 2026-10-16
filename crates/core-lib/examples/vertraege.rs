@@ -118,6 +118,7 @@ fn main() {
         Freigabe,
         core_lib::druckausgabe::Druckquelle,
         core_lib::druckausgabe::Druckauftrag,
+        core_lib::druckausgabe::Druckgestaltung,
         core_lib::druckausgabe::Druckeintrag,
         core_lib::druckausgabe::Druckkatalog,
         core_lib::druckausgabe::Druckposition,

@@ -89,7 +89,7 @@ fn speichern(mut d: Document) -> CoreResult<Vec<u8>> {
     }
     Ok(b)
 }
-fn umbruch(t: &str, breite: f32, size: f32) -> CoreResult<Vec<String>> {
+pub(super) fn umbruch(t: &str, breite: f32, size: f32) -> CoreResult<Vec<String>> {
     let mut result = Vec::new();
     for absatz in t
         .replace("\r\n", "\n")
@@ -133,106 +133,9 @@ pub(super) fn bericht(
     projekt: &str,
     titel: &str,
     zeilen: &[Zeile],
-    datum: DateTime<Utc>,
+    _datum: DateTime<Utc>,
 ) -> CoreResult<Document> {
-    let mut wrapped = Vec::new();
-    for z in zeilen {
-        for t in umbruch(&z.text, 493., if z.titel { 11. } else { 10. })? {
-            wrapped.push(Zeile {
-                text: t,
-                titel: z.titel,
-            });
-            if wrapped.len() > MAX_SEITEN * 40 {
-                return Err(fehler("Bericht zu umfangreich; bitte aufteilen"));
-            }
-        }
-    }
-    if wrapped.is_empty() {
-        wrapped.push(text(""));
-    }
-    let mut d = Document::with_version("1.7");
-    let seiten = d.new_object_id();
-    let mut chunks: Vec<Vec<Zeile>> = Vec::new();
-    let mut aktuell = Vec::new();
-    let mut hoehe = 0.;
-    for z in wrapped {
-        let h = if z.titel { 24. } else { 17. };
-        if hoehe + h > 648. {
-            chunks.push(aktuell);
-            aktuell = Vec::new();
-            hoehe = 0.;
-        }
-        hoehe += h;
-        aktuell.push(z);
-    }
-    if !aktuell.is_empty() {
-        chunks.push(aktuell);
-    }
-    let header = umbruch(projekt, 493., 11.)?;
-    let titel = umbruch(titel, 493., 16.)?;
-    // Lange Betreffe erhalten Platz im Bericht, statt den Seitenkopf zu überlagern.
-    let head = header.first().cloned().unwrap_or_default();
-    let title = titel.first().cloned().unwrap_or_default();
-    let footer = format!(
-        "BauProjektIO · Ausgabe {}",
-        datum.format("%d.%m.%Y %H:%M UTC")
-    );
-    let mut texte: Vec<&str> = chunks.iter().flatten().map(|z| z.text.as_str()).collect();
-    texte.extend([
-        head.as_str(),
-        title.as_str(),
-        footer.as_str(),
-        "Seite 0123456789 von",
-    ]);
-    let font = schrift::einbetten(&mut d, &texte)?;
-    let mut kids = Vec::new();
-    let anzahl = chunks.len();
-    for (i, chunk) in chunks.into_iter().enumerate() {
-        let mut x = Dictionary::new();
-        let mut ops = Vec::new();
-        let mut zeichne = |d: &mut Document, t: &str, y: f32, size: f32| -> CoreResult<()> {
-            let id = schrift::darstellung(d, t, 497., size * 1.5, size, font, false)?;
-            let name = format!("Z{}", x.len());
-            x.set(name.clone(), id);
-            ops.extend([
-                Operation::new("q", vec![]),
-                Operation::new(
-                    "cm",
-                    vec![1.into(), 0.into(), 0.into(), 1.into(), 48.into(), y.into()],
-                ),
-                Operation::new("Do", vec![Object::Name(name.into_bytes())]),
-                Operation::new("Q", vec![]),
-            ]);
-            Ok(())
-        };
-        zeichne(&mut d, &head, 788., 11.)?;
-        zeichne(&mut d, &title, 748., 16.)?;
-        let mut y = 716.;
-        for z in chunk {
-            let size = if z.titel { 11. } else { 10. };
-            y -= if z.titel { 24. } else { 17. };
-            zeichne(&mut d, &z.text, y, size)?;
-        }
-        zeichne(
-            &mut d,
-            &format!("{} · Seite {} von {}", footer, i + 1, anzahl),
-            30.,
-            8.,
-        )?;
-        let c = d.add_object(Stream::new(
-            dictionary! {},
-            Content { operations: ops }.encode().map_err(fehler)?,
-        ));
-        let page=d.add_object(dictionary!{"Type"=>"Page","Parent"=>seiten,"MediaBox"=>vec![0.into(),0.into(),595.276.into(),841.89.into()],"Resources"=>dictionary!{"XObject"=>x},"Contents"=>c});
-        kids.push(page.into());
-    }
-    d.objects.insert(
-        seiten,
-        Object::Dictionary(dictionary! {"Type"=>"Pages","Kids"=>kids,"Count"=>anzahl as i64}),
-    );
-    let root = d.add_object(dictionary! {"Type"=>"Catalog","Pages"=>seiten});
-    d.trailer.set("Root", root);
-    Ok(d)
+    super::layout::bericht(projekt, titel, zeilen)
 }
 /// Seitenauswahl ist 1-basiert, geordnet und ohne doppelte Seiten.
 pub(super) fn auswahl(bytes: &[u8], seiten: &[u32]) -> CoreResult<Document> {
@@ -241,6 +144,11 @@ pub(super) fn auswahl(bytes: &[u8], seiten: &[u32]) -> CoreResult<Document> {
         return Err(fehler("Verschlüsseltes PDF zuerst entsperren"));
     }
     let pages = d.get_pages();
+    for id in pages.values() {
+        d.get_dictionary_mut(*id)
+            .map_err(fehler)?
+            .remove(b"BauBericht");
+    }
     if pages.is_empty() || pages.len() > MAX_SEITEN {
         return Err(fehler("PDF benötigt 1 bis 300 Seiten"));
     }
@@ -511,9 +419,20 @@ pub(super) fn paket(
             text(""),
             text(&a.empfaenger),
             text(""),
-            text(datum.format("%d.%m.%Y").to_string()),
+            text(
+                a.datum
+                    .unwrap_or(datum.date_naive())
+                    .format("%d.%m.%Y")
+                    .to_string(),
+            ),
             text(""),
-            text(&a.titel),
+            super::berichte::titel(&a.titel),
+            text(format!("Bauvorhaben: {projekt}")),
+            text(if a.aktenzeichen.is_empty() {
+                String::new()
+            } else {
+                format!("Aktenzeichen / Bezug: {}", a.aktenzeichen)
+            }),
             text(""),
             text(&a.anschreiben),
         ];
@@ -526,12 +445,28 @@ pub(super) fn paket(
     let mut toc_seiten = 0;
     let toc = |offset: u32| -> CoreResult<Document> {
         let mut seite = vorne + offset + 1;
-        let mut z = Vec::new();
-        for (titel, d) in &quellen {
+        let mut rows = Vec::new();
+        for (i, (titel, d)) in quellen.iter().enumerate() {
             let n = d.get_pages().len() as u32;
-            z.push(text(format!("Seite {seite}–{} · {titel}", seite + n - 1)));
+            rows.push(vec![
+                (i + 1).to_string(),
+                titel.clone(),
+                if n == 1 {
+                    seite.to_string()
+                } else {
+                    format!("{seite}–{}", seite + n - 1)
+                },
+            ]);
             seite += n;
         }
+        let z = vec![
+            text(format!("Bauvorhaben: {projekt}")),
+            super::berichte::tabelle(
+                &["Anlage", "Unterlage / Berechnung", "Seite"],
+                &[0.6, 4., 0.8],
+                rows,
+            ),
+        ];
         bericht(projekt, "Inhaltsverzeichnis", &z, datum)
     };
     if a.inhaltsverzeichnis {
@@ -581,6 +516,7 @@ pub(super) fn paket(
     let cat = out.add_object(dictionary! {"Type"=>"Catalog","Pages"=>root});
     out.trailer.set("Root", cat);
     // Entfernt u.a. nicht ausgewählte Seiten, ursprüngliche Formfelder und Katalog-Aktionen.
+    super::layout::briefbogen(&mut out, projekt, &a, a.datum.unwrap_or(datum.date_naive()))?;
     out.prune_objects();
     Ok(Druckergebnis {
         pdf: speichern(out)?,
@@ -601,6 +537,9 @@ mod tests {
         let bericht = bericht("Projekt", "Berechnung", &zeilen, datum).unwrap();
         assert!(bericht.get_pages().len() > 3);
         let auftrag = Druckauftrag {
+            gestaltung: None,
+            aktenzeichen: String::new(),
+            datum: None,
             titel: "Unterlagen".into(),
             absender: "Büro Müller".into(),
             empfaenger: "Bauamt".into(),

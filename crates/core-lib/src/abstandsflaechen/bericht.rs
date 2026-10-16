@@ -163,15 +163,15 @@ pub fn planseite(
     let miny = points.iter().map(|v| v.y).fold(f64::INFINITY, f64::min);
     let maxx = points.iter().map(|v| v.x).fold(f64::NEG_INFINITY, f64::max);
     let maxy = points.iter().map(|v| v.y).fold(f64::NEG_INFINITY, f64::max);
-    let nenner = ((2834.64567 * ((maxx - minx).max(1.) / 480.).max((maxy - miny).max(1.) / 650.))
+    let nenner = ((2834.64567 * ((maxx - minx).max(1.) / 480.).max((maxy - miny).max(1.) / 595.))
         / 50.)
         .ceil()
         .max(1.)
         * 50.;
     let scale = 2834.64567 / nenner;
-    let xy = |v: &APunkt| ((v.x - minx) * scale + 55., (v.y - miny) * scale + 95.);
+    let xy = |v: &APunkt| ((v.x - minx) * scale + 55., (v.y - miny) * scale + 115.);
     let mut out = format!(
-        "q 0.6 w 0 0 0 RG BT /PlanFont 13 Tf 50 800 Td (Abstandsflaechen - Vektorplanskizze) Tj ET BT /PlanFont 10 Tf 50 780 Td (1:{nenner:.0} bei 100 Prozent PDF-Ausgabe; G/W/F siehe Bericht) Tj ET\n"
+        "q 0.6 w 0 0 0 RG BT /PlanFont 13 Tf 50 752 Td (Abstandsflaechen - Vektorplanskizze) Tj ET BT /PlanFont 10 Tf 50 732 Td (1:{nenner:.0} bei 100 Prozent PDF-Ausgabe; G/W/F siehe Bericht) Tj ET\n"
     );
     let path = |pts: &[APunkt]| -> String {
         let mut s = String::new();
@@ -251,7 +251,7 @@ pub fn planseite(
     let meter = (80. / scale).max(0.1);
     let b = meter * scale;
     out.push_str(&format!(
-        "0 0 0 RG 2 w 55 65 m {} 65 l S BT /PlanFont 10 Tf 55 48 Td ({meter:.3} m) Tj ET Q",
+        "0 0 0 RG 2 w 55 95 m {} 95 l S BT /PlanFont 10 Tf 55 78 Td ({meter:.3} m) Tj ET Q",
         55. + b
     ));
     let font =
@@ -267,7 +267,7 @@ pub fn planseite(
         .and_then(|v| v.get(b"Pages"))
         .and_then(Object::as_reference)
         .map_err(|e| err(e.to_string()))?;
-    let page=d.add_object(dictionary!{"Type"=>"Page","Parent"=>pages,"MediaBox"=>vec![0.into(),0.into(),595.into(),842.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"PlanFont"=>font}},"Contents"=>content});
+    let page=d.add_object(dictionary!{"Type"=>"Page","Parent"=>pages,"MediaBox"=>vec![0.into(),0.into(),595.into(),842.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"PlanFont"=>font}},"Contents"=>content,"BauBericht"=>true});
     let count = d.get_pages().len() as i64;
     let root = d
         .get_dictionary_mut(pages)

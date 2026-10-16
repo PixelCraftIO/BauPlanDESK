@@ -121,12 +121,17 @@ export type RegelArchiv = { id: string, version: string, sha256: string, format:
 export type Nachweisstand = { id: string, bezeichnung: string, erstellt_am: string, erstellt_von: string, land: Bundesland, rechtskontext: Planungsrecht, projekt_version: number, eingabe: NachweisEingabe, grundlagen_hash: string, regeln: Array<RegelArchiv>, gebaeude_hash: string, anfrage_hash: string, rechenstand: string, ergebnis: JsonValue, vollstaendig: boolean, };
 export type Freigabe = { nachweis_id: string, grundlagen_hash: string, freigegeben_am: string, freigegeben_von: string, bemerkung: string, };
 export type Druckquelle = { "art": "dokument", dokument_id: DocumentId, version: number, seiten: Array<number>, } | { "art": "nachweis", id: string, } | { "art": "baugrundstueck" } | { "art": "baugrenzen" } | { "art": "raumbuch", id: string, revision: number, };
-export type Druckauftrag = { titel: string, absender: string, empfaenger: string, anschreiben: string, mit_anschreiben: boolean, inhaltsverzeichnis: boolean,
+export type Druckauftrag = {
+/**
+ * Fehlend: gespeicherter Bürostandard. Explizit: Gestaltung dieser Ausgabe.
+ */
+gestaltung: Druckgestaltung | null, aktenzeichen: string, datum: string | null, titel: string, absender: string, empfaenger: string, anschreiben: string, mit_anschreiben: boolean, inhaltsverzeichnis: boolean,
 /**
  * Schützt aktuelle Fachberichte vor Änderungen während der Zusammenstellung.
  */
 projekt_version: number, quellen: Array<Druckquelle>, };
+export type Druckgestaltung = { kopfzeile: string, fusszeile: string, anschreiben: string, };
 export type Druckeintrag = { titel: string, quelle: Druckquelle, hinweis: string | null, verfuegbar: boolean, };
-export type Druckkatalog = { projekt_version: number, absender: string, eintraege: Array<Druckeintrag>, };
+export type Druckkatalog = { gestaltung: Druckgestaltung, projekt_version: number, absender: string, eintraege: Array<Druckeintrag>, };
 export type Druckposition = { titel: string, erste_seite: number, seiten: number, };
 export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe: Freigabe | null, };

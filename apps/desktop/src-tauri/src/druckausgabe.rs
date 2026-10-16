@@ -87,3 +87,20 @@ pub async fn druckausgabe_ablegen(
         )
         .await?)
 }
+
+#[tauri::command]
+pub async fn druckgestaltung(
+    state: State<'_, AppState>,
+) -> Result<core_lib::druckausgabe::Druckgestaltung, CmdError> {
+    Ok(state.core.druckgestaltung().await?)
+}
+#[tauri::command]
+pub async fn druckgestaltung_speichern(
+    state: State<'_, AppState>,
+    gestaltung: core_lib::druckausgabe::Druckgestaltung,
+) -> Result<core_lib::druckausgabe::Druckgestaltung, CmdError> {
+    Ok(state
+        .core
+        .druckgestaltung_speichern(gestaltung, &state.benutzer())
+        .await?)
+}

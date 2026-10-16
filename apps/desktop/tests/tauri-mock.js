@@ -52,6 +52,8 @@ window.__TAURI_INTERNALS__ = {
     }
     if (cmd.startsWith("plugin:event|")) return;
     if(cmd==="abstandsregeln")return [];
+    if(cmd==="druckgestaltung")return window.druckGestaltung??{kopfzeile:"{Projekt}",fusszeile:"Stand: {Datum}",anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen"};
+    if(cmd==="druckgestaltung_speichern"){window.druckGestaltung=JSON.parse(JSON.stringify(args.gestaltung));return window.druckGestaltung;}
     // Live-Pixeländerungen werden separat mit echten PDF-Fixtures geprüft.
     if (cmd === "kategorienkatalog") return {revision:0,kategorien:[]};
     if (cmd === "dokumentkategorien") return [];

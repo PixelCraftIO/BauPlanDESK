@@ -12,7 +12,27 @@ export interface Druckvorschau {
   positionen: Druckposition[];
 }
 export const druckApi = {
-  ablegen:(projektId:string,name:string,pdfBase64:string,vorgang:string)=>invoke<import("./api").DocumentVersion>("druckausgabe_ablegen",{projektId,name,pdfBase64,vorgang}),
+  gestaltung: () =>
+    invoke<import("./generated/plattform").Druckgestaltung>("druckgestaltung"),
+  gestaltungSpeichern: (
+    gestaltung: import("./generated/plattform").Druckgestaltung,
+  ) =>
+    invoke<import("./generated/plattform").Druckgestaltung>(
+      "druckgestaltung_speichern",
+      { gestaltung },
+    ),
+  ablegen: (
+    projektId: string,
+    name: string,
+    pdfBase64: string,
+    vorgang: string,
+  ) =>
+    invoke<import("./api").DocumentVersion>("druckausgabe_ablegen", {
+      projektId,
+      name,
+      pdfBase64,
+      vorgang,
+    }),
   katalog: (projektId: string) =>
     invoke<Druckkatalog>("druckkatalog", { projektId }),
   erstellen: (projektId: string, auftrag: Druckauftrag) =>

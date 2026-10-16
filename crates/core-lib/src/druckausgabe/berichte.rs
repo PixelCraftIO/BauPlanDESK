@@ -8,30 +8,79 @@ use crate::{
     },
 };
 use serde::Deserialize;
+/// Präsentationsvertrag: Fachadapter liefern Absätze oder echte Tabellen.
+/// Spaltenbreiten sind relative Gewichte; die PDF-Engine übernimmt Umbruch/Paginierung.
 #[derive(Clone)]
-pub(super) struct Zeile {
-    pub text: String,
-    pub titel: bool,
+pub(super) enum Zeile {
+    Seitenwechsel,
+    Text {
+        text: String,
+        titel: bool,
+    },
+    Tabelle {
+        koepfe: Vec<String>,
+        breiten: Vec<f32>,
+        zeilen: Vec<Vec<String>>,
+    },
 }
 pub(super) fn text(t: impl Into<String>) -> Zeile {
-    Zeile {
+    Zeile::Text {
         text: t.into(),
         titel: false,
     }
 }
-fn titel(t: impl Into<String>) -> Zeile {
-    Zeile {
+pub(super) fn titel(t: impl Into<String>) -> Zeile {
+    Zeile::Text {
         text: t.into(),
         titel: true,
     }
 }
-fn zahl(n: f64) -> String {
+pub(super) fn tabelle(koepfe: &[&str], breiten: &[f32], zeilen: Vec<Vec<String>>) -> Zeile {
+    Zeile::Tabelle {
+        koepfe: koepfe.iter().map(|s| s.to_string()).collect(),
+        breiten: breiten.to_vec(),
+        zeilen,
+    }
+}
+pub(super) fn angaben(z: &mut Vec<Zeile>, paare: Vec<(&str, String)>) {
+    z.push(tabelle(
+        &["Angabe", "Ansatz / Grundlage"],
+        &[1., 2.4],
+        paare.into_iter().map(|(k, v)| vec![k.into(), v]).collect(),
+    ));
+}
+pub(super) fn ja(b: bool) -> &'static str {
+    if b { "Ja" } else { "Nein / noch offen" }
+}
+fn land(l: crate::domain::Bundesland) -> String {
+    use crate::domain::Bundesland::*;
+    match l {
+        Sh => "Schleswig-Holstein",
+        Hh => "Hamburg",
+        Ni => "Niedersachsen",
+        Hb => "Bremen",
+        Nw => "Nordrhein-Westfalen",
+        He => "Hessen",
+        Rp => "Rheinland-Pfalz",
+        Bw => "Baden-Württemberg",
+        By => "Bayern",
+        Sl => "Saarland",
+        Be => "Berlin",
+        Bb => "Brandenburg",
+        Mv => "Mecklenburg-Vorpommern",
+        Sn => "Sachsen",
+        St => "Sachsen-Anhalt",
+        Th => "Thüringen",
+    }
+    .into()
+}
+pub(super) fn zahl(n: f64) -> String {
     format!("{n:.3}")
         .trim_end_matches('0')
         .trim_end_matches('.')
         .replace('.', ",")
 }
-fn optional(n: Option<f64>) -> String {
+pub(super) fn optional(n: Option<f64>) -> String {
     n.map(zahl).unwrap_or_else(|| "Nicht ermittelt".into())
 }
 pub(super) fn nachweisstatus(n: &NachweisAnsicht) -> String {
@@ -93,9 +142,9 @@ pub(super) async fn erstellen(
     staende: &[NachweisAnsicht],
 ) -> CoreResult<(String, Vec<Zeile>)> {
     let mut z = vec![text(format!(
-        "Projektstand: {} · Bundesland: {}",
-        p.version,
-        p.bundesland.code()
+        "Bauvorhaben: {} · {}",
+        p.name,
+        land(p.bundesland)
     ))];
     let name = match q {
         Druckquelle::Nachweis { id } => {
@@ -105,32 +154,51 @@ pub(super) async fn erstellen(
                 .ok_or_else(|| fehler("Nachweis nicht im Projekt gefunden"))?;
             z.push(titel(nachweisstatus(n)));
             z.push(text(format!(
-                "Berechnung erfasst von Benutzer {}",
-                n.stand.erstellt_von
+                "Berechnungsdatum: {} · {}",
+                n.stand.erstellt_am.format("%d.%m.%Y"),
+                land(n.stand.land)
             )));
-            z[0] = text(format!(
-                "Berechnet: {} · Bundesland: {} · Projektstand bei Berechnung: {}",
-                n.stand.erstellt_am.format("%d.%m.%Y %H:%M UTC"),
-                n.stand.land.code(),
-                n.stand.projekt_version
-            ));
             if let Some(f) = &n.freigabe {
                 z.push(text(format!(
-                    "Freigabe: {} · {} · Benutzer {}",
-                    f.freigegeben_am.format("%d.%m.%Y %H:%M UTC"),
-                    f.bemerkung,
-                    f.freigegeben_von
+                    "Bürofreigabe vom {}: {}",
+                    f.freigegeben_am.format("%d.%m.%Y"),
+                    f.bemerkung
+                )));
+            }
+            let recht = &n.stand.rechtskontext;
+            let grundlage = recht
+                .rechtsgrundlage
+                .map(|r| match r {
+                    crate::domain::Rechtsgrundlage::Par30 => "§ 30 BauGB",
+                    crate::domain::Rechtsgrundlage::Par34 => "§ 34 BauGB",
+                    crate::domain::Rechtsgrundlage::Par35 => "§ 35 BauGB",
+                })
+                .unwrap_or("Nicht festgelegt");
+            z.push(text(format!("Planungsrechtliche Grundlage: {grundlage}")));
+            if !recht.plan_bezeichnung.is_empty() || !recht.plan_nummer.is_empty() {
+                z.push(text(format!(
+                    "Bebauungsplan: {} · Nr. {} · Rechtskraft: {}",
+                    recht.plan_bezeichnung, recht.plan_nummer, recht.plan_rechtskraft
                 )));
             }
             match &n.stand.eingabe {
                 NachweisEingabe::AbstandProjekt { plan, .. } => {
                     let r: crate::abstandsflaechen::AbstandsErgebnis =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
-                    z.extend(
-                        crate::abstandsflaechen::bericht::zeilen(plan, &r)
-                            .into_iter()
-                            .map(text),
-                    );
+                    let docs = n
+                        .stand
+                        .regeln
+                        .iter()
+                        .filter(|a| a.format == "abstandsquellen-json-1")
+                        .map(|a| {
+                            serde_json::from_str::<Vec<crate::domain::DocumentVersion>>(&a.inhalt)
+                                .map_err(fehler)
+                        })
+                        .collect::<CoreResult<Vec<_>>>()?
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>();
+                    super::abstandsbericht::abstand(&mut z, plan, &r, &docs)?;
                 }
                 NachweisEingabe::Abstand {
                     gegenstand,
@@ -140,18 +208,29 @@ pub(super) async fn erstellen(
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
                     z.push(titel(gegenstand));
                     z.push(text("Leistungsumfang: einfache Tiefenvorprüfung. Grundstücksgeometrie, Dach-/Geländeherleitung und besondere Verhältnisse sind hier nicht umfassend geprüft."));
-                    z.push(text(format!(
-                        "Wandhöhe H: {} m · Baugebiet: {:?}",
-                        zahl(eingabe.wandhoehe_m),
-                        eingabe.gebiet
-                    )));
-                    z.push(text(format!(
-                        "Faktor: {} · Mindesttiefe: {} m",
-                        zahl(r.ergebnis.faktor),
-                        zahl(r.ergebnis.mindesttiefe_m)
-                    )));
+                    angaben(
+                        &mut z,
+                        vec![
+                            ("Wandhöhe H", format!("{} m", zahl(eingabe.wandhoehe_m))),
+                            ("Baugebiet", format!("{:?}", eingabe.gebiet)),
+                            ("Tiefenfaktor", zahl(r.ergebnis.faktor)),
+                            (
+                                "Mindesttiefe",
+                                format!("{} m", zahl(r.ergebnis.mindesttiefe_m)),
+                            ),
+                            (
+                                "Rechenweg",
+                                format!(
+                                    "max({} × {} m; {} m)",
+                                    zahl(r.ergebnis.faktor),
+                                    zahl(eingabe.wandhoehe_m),
+                                    zahl(r.ergebnis.mindesttiefe_m)
+                                ),
+                            ),
+                        ],
+                    );
                     z.push(titel(format!(
-                        "Ermittelte Abstandsflächentiefe: {} m",
+                        "Abstandsflächentiefe: {} m",
                         zahl(r.ergebnis.tiefe_m)
                     )));
                     z.push(text(r.ergebnis.rechtsgrundlage));
@@ -159,13 +238,11 @@ pub(super) async fn erstellen(
                 NachweisEingabe::Nutzung { fach, plan } => {
                     let r: Nutzung =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
-                    for g in r.baugrundstuecke {
+                    for (index, g) in r.baugrundstuecke.into_iter().enumerate() {
+                        if index > 0 {
+                            z.push(Zeile::Seitenwechsel);
+                        }
                         z.push(titel(&g.grundstueck.bezeichnung));
-                        z.push(text(format!(
-                            "Einheit: {} · Flurstücke: {}",
-                            g.grundstueck.schluessel,
-                            g.grundstueck.flurstueck_ids.join(", ")
-                        )));
                         let eingabe = plan
                             .berechnungen
                             .iter()
@@ -182,55 +259,67 @@ pub(super) async fn erstellen(
                             zahl(mass.grundstuecksflaeche_m2)
                         )));
                         let k = &g.pruefung.kennzahlen;
+                        let mut formeln = Vec::new();
                         match fach {
                             NutzungsArt::Grz => {
                                 let ii = g.pruefung.aufstellung.as_ref().is_some_and(|a| a.grz_ii);
-                                z.push(titel(format!(
-                                    "{}: {}",
-                                    if ii { "GRZ I" } else { "GRZ" },
-                                    zahl(k.grz)
-                                )));
-                                z.push(text(format!(
-                                    "Angerechnete Grundfläche: {} m² / {} m²",
-                                    zahl(mass.grundflaeche_m2),
-                                    zahl(mass.grundstuecksflaeche_m2)
-                                )));
+                                formeln.push(vec![
+                                    if ii { "GRZ I" } else { "GRZ" }.into(),
+                                    format!(
+                                        "{} m² / {} m²",
+                                        zahl(mass.grundflaeche_m2),
+                                        zahl(mass.grundstuecksflaeche_m2)
+                                    ),
+                                    zahl(k.grz),
+                                ]);
                                 if ii {
-                                    z.push(titel(format!("GRZ II: {}", zahl(k.grz_gesamt))));
-                                    z.push(text(format!(
-                                        "Zusätzliche Grundfläche nach § 19 Abs. 4: {} m²",
-                                        zahl(mass.grundflaeche_nebenanlagen_m2)
-                                    )));
+                                    formeln.push(vec![
+                                        "GRZ II (gesamt)".into(),
+                                        format!(
+                                            "({} + {}) m² / {} m²",
+                                            zahl(mass.grundflaeche_m2),
+                                            zahl(mass.grundflaeche_nebenanlagen_m2),
+                                            zahl(mass.grundstuecksflaeche_m2)
+                                        ),
+                                        zahl(k.grz_gesamt),
+                                    ]);
                                 }
                             }
-                            NutzungsArt::Gfz => {
-                                z.push(titel(format!("GFZ: {}", zahl(k.gfz))));
-                                z.push(text(format!(
-                                    "Angerechnete Geschossfläche: {} m² / {} m²",
+                            NutzungsArt::Gfz => formeln.push(vec![
+                                "GFZ".into(),
+                                format!(
+                                    "{} m² / {} m²",
                                     zahl(mass.geschossflaeche_m2),
                                     zahl(mass.grundstuecksflaeche_m2)
-                                )));
-                            }
-                            NutzungsArt::Bmz => {
-                                z.push(titel(format!("BMZ: {}", optional(k.bmz))));
-                                z.push(text(format!(
-                                    "Baumasse: {} m³",
-                                    optional(mass.baumasse_m3)
-                                )));
-                            }
-                            NutzungsArt::Geschossigkeit => {
-                                z.push(titel(format!(
-                                    "Vollgeschosse: {}",
-                                    g.pruefung
-                                        .aufstellung
-                                        .as_ref()
-                                        .map(|a| a.vollgeschosse)
-                                        .or(eingabe.eingabe.vollgeschosse)
-                                        .map(|n| n.to_string())
-                                        .unwrap_or_else(|| "Nicht ermittelt".into())
-                                )));
-                            }
+                                ),
+                                zahl(k.gfz),
+                            ]),
+                            NutzungsArt::Bmz => formeln.push(vec![
+                                "BMZ".into(),
+                                format!(
+                                    "{} m³ / {} m²",
+                                    optional(mass.baumasse_m3),
+                                    zahl(mass.grundstuecksflaeche_m2)
+                                ),
+                                optional(k.bmz),
+                            ]),
+                            NutzungsArt::Geschossigkeit => formeln.push(vec![
+                                "Vollgeschosse".into(),
+                                "Anzahl der als Vollgeschoss eingeordneten Geschosse".into(),
+                                g.pruefung
+                                    .aufstellung
+                                    .as_ref()
+                                    .map(|a| a.vollgeschosse)
+                                    .or(eingabe.eingabe.vollgeschosse)
+                                    .map(|n| n.to_string())
+                                    .unwrap_or_else(|| "Nicht ermittelt".into()),
+                            ]),
                         }
+                        z.push(tabelle(
+                            &["Kenngröße", "Rechenansatz", "Ergebnis"],
+                            &[1., 3., 1.],
+                            formeln,
+                        ));
                         if let Some(a) = &eingabe.eingabe.aufstellung {
                             z.push(text(format!(
                                 "BauNVO: {}",
@@ -238,32 +327,41 @@ pub(super) async fn erstellen(
                                     .trim_start_matches('V')
                             )));
                             if matches!(fach, NutzungsArt::Grz) {
-                                z.push(titel(
-                                    "Bauteilaufstellung: Eingabefläche / angerechnete Fläche",
-                                ));
+                                z.push(titel("Bauteilaufstellung"));
+                                let mut reihen = Vec::new();
                                 for (i, b) in a.bauteile.iter().enumerate() {
                                     let ansatz = g
                                         .pruefung
                                         .aufstellung
                                         .as_ref()
                                         .and_then(|r| r.bauteile.get(i));
-                                    z.push(text(format!(
-                                        "{} · {}: {} m² / {} m² · {}",
-                                        b.bezeichnung,
-                                        bauteiltyp(b.typ),
+                                    reihen.push(vec![
+                                        (i + 1).to_string(),
+                                        format!("{}\n{}", b.bezeichnung, bauteiltyp(b.typ)),
                                         zahl(b.flaeche_m2),
                                         optional(ansatz.map(|b| b.flaeche_m2)),
                                         ansatz
                                             .map(|a| anrechnung(a.anrechnung).to_owned())
-                                            .unwrap_or_else(|| "Nicht ermittelt".into())
-                                    )));
-                                    if !b.begruendung.is_empty() {
-                                        z.push(text(&b.begruendung));
-                                    }
+                                            .unwrap_or_else(|| "Nicht ermittelt".into()),
+                                        b.begruendung.clone(),
+                                    ]);
                                 }
+                                z.push(tabelle(
+                                    &[
+                                        "Pos.",
+                                        "Bauteil / Typ",
+                                        "Fläche m²",
+                                        "Ansatz m²",
+                                        "Zuordnung",
+                                        "Begründung",
+                                    ],
+                                    &[0.45, 1.8, 0.8, 0.8, 1.1, 1.5],
+                                    reihen,
+                                ));
                             }
                             if matches!(fach, NutzungsArt::Gfz | NutzungsArt::Geschossigkeit) {
                                 z.push(titel("Geschossaufstellung"));
+                                let mut reihen = Vec::new();
                                 for (i, s) in a.geschosse.iter().enumerate() {
                                     let fl = g
                                         .pruefung
@@ -271,21 +369,35 @@ pub(super) async fn erstellen(
                                         .as_ref()
                                         .and_then(|r| r.geschosse.get(i))
                                         .copied();
-                                    z.push(text(format!(
-                                        "{} · {} · Außenmaß: {} m² · angerechnet: {} m²",
-                                        s.bezeichnung,
+                                    reihen.push(vec![
+                                        s.bezeichnung.clone(),
                                         if s.vollgeschoss {
                                             "Vollgeschoss"
                                         } else {
                                             "Nichtvollgeschoss"
-                                        },
+                                        }
+                                        .into(),
                                         zahl(s.aussenmass_m2),
-                                        optional(fl)
-                                    )));
-                                    if !s.vollgeschoss {
-                                        z.push(text(format!("Aufenthalt: {} m² · Wände: {} m² · Erschließung: {} m²",zahl(s.aufenthalt_m2),zahl(s.waende_m2),zahl(s.erschliessung_m2))));
-                                    }
+                                        format!(
+                                            "{} / {} / {}",
+                                            zahl(s.aufenthalt_m2),
+                                            zahl(s.waende_m2),
+                                            zahl(s.erschliessung_m2)
+                                        ),
+                                        optional(fl),
+                                    ]);
                                 }
+                                z.push(tabelle(
+                                    &[
+                                        "Geschoss",
+                                        "Einordnung",
+                                        "Außenmaß m²",
+                                        "Aufenthalt / Wände / Wege m²",
+                                        "Ansatz m²",
+                                    ],
+                                    &[1.2, 1.3, 1., 1.8, 1.],
+                                    reihen,
+                                ));
                                 let fest = eingabe
                                     .eigene_festsetzungen
                                     .as_ref()
@@ -305,6 +417,7 @@ pub(super) async fn erstellen(
                             }
                         }
                         z.push(titel("Vergleich mit Vorgaben"));
+                        let mut vergleiche = Vec::new();
                         for v in g.pruefung.nachweise {
                             let relevant = match fach {
                                 NutzungsArt::Grz => {
@@ -317,10 +430,12 @@ pub(super) async fn erstellen(
                                 NutzungsArt::Geschossigkeit => v.art == "vollgeschosse",
                             };
                             if relevant {
-                                z.push(text(format!(
-                                    "{} {} · Ist: {} · Soll: {} · {} · Quelle: {}",
-                                    vergleichname(&v.art),
-                                    v.gegenstand.unwrap_or_default(),
+                                vergleiche.push(vec![
+                                    format!(
+                                        "{} {}",
+                                        vergleichname(&v.art),
+                                        v.gegenstand.unwrap_or_default()
+                                    ),
                                     optional(v.ist),
                                     v.soll
                                         .map(zahl)
@@ -329,47 +444,59 @@ pub(super) async fn erstellen(
                                         Some(true) => "Eingehalten",
                                         Some(false) => "Abweichung – prüfen",
                                         None => "Nicht abschließend prüfbar",
-                                    },
-                                    vergleichquelle(&v.quelle)
-                                )));
-                                if v.ueberschreitung.is_some_and(|n| n > 0.) {
-                                    z.push(text(format!(
-                                        "Überschreitung: {} · Flächenüberschreitung: {} m²",
+                                    }
+                                    .into(),
+                                    vergleichquelle(&v.quelle).into(),
+                                    format!(
+                                        "{} / {} m²",
                                         optional(v.ueberschreitung),
                                         optional(v.flaechenueberschreitung_m2)
-                                    )));
-                                }
+                                    ),
+                                ]);
                             }
                         }
+                        z.push(tabelle(
+                            &[
+                                "Kenngröße",
+                                "Ist",
+                                "Zulässig",
+                                "Prüfergebnis",
+                                "Grundlage",
+                                "Überschreitung / Fläche",
+                            ],
+                            &[1.2, 0.7, 0.8, 1.4, 1.1, 1.3],
+                            vergleiche,
+                        ));
                     }
                 }
             }
-            z.push(titel("Nachvollziehbarkeit und Regelgrundlagen"));
-            z.push(text(format!(
-                "Nachweis: {} · Rechenstand: {}",
-                id, n.stand.rechenstand
-            )));
-            z.push(text(format!(
-                "Grundlagen SHA-256: {}",
-                n.stand.grundlagen_hash
-            )));
+            z.push(titel("Regelgrundlagen und Prüfstand"));
+            let mut regeln = Vec::new();
             for r in &n.stand.regeln {
                 if r.format == "abstandsquellen-json-1" {
                     let docs: Vec<crate::domain::DocumentVersion> =
                         serde_json::from_str(&r.inhalt).map_err(fehler)?;
-                    for d in docs {
-                        z.push(text(format!(
-                            "Originalquelle: {} · Version {} · Dokument {} · SHA-256 {}",
-                            d.file_name, d.version, d.document_id.0, d.sha256
-                        )));
-                    }
+                    z.push(tabelle(
+                        &["Verwendete Unterlage", "Dokumentstand"],
+                        &[3., 1.],
+                        docs.into_iter()
+                            .map(|d| vec![d.file_name, format!("Version {}", d.version)])
+                            .collect(),
+                    ));
+                } else {
+                    regeln.push(vec![
+                        regelname(&r.id),
+                        r.version.clone(),
+                        r.pruefstatus.clone(),
+                    ]);
                 }
-                z.push(text(format!(
-                    "{} · Ausgabe {} · {}",
-                    r.id, r.version, r.pruefstatus
-                )));
-                z.push(text(format!("SHA-256: {}", r.sha256)));
             }
+            z.push(tabelle(
+                &["Regelgrundlage", "Ausgabe", "Fachlicher Prüfstand"],
+                &[2., 0.8, 3.],
+                regeln,
+            ));
+            z.push(text("Die Ausgabe gibt den gespeicherten Berechnungsstand wieder. Offene Angaben, Abweichungen und ausstehende Freigaben sind vor einer Einreichung fachlich zu klären."));
             n.stand.bezeichnung.clone()
         }
         Druckquelle::Baugrundstueck => {
@@ -378,29 +505,46 @@ pub(super) async fn erstellen(
                 return Err(fehler("Keine Baugrundstücksermittlung gespeichert"));
             }
             let plan = crate::grundstuecksinformationen::plan(&p.planungsrecht)?;
-            for g in g {
+            for (index, g) in g.into_iter().enumerate() {
+                if index > 0 {
+                    z.push(Zeile::Seitenwechsel);
+                }
                 z.push(titel(&g.bezeichnung));
-                z.push(text(format!("Einheit: {}", g.schluessel)));
+
                 if let Some(plan) = &plan {
                     for f in plan
                         .flurstuecke
                         .iter()
                         .filter(|f| g.flurstueck_ids.contains(&f.id))
                     {
-                        z.push(text(format!(
-                            "Flurstück {} · Gemarkung {} · Flur {} · {} m²",
-                            f.nummer,
-                            f.gemarkung,
-                            f.flur,
-                            zahl(f.flaeche_m2)
-                        )));
-                        for a in &f.abzuege {
-                            z.push(text(format!(
-                                "Abzug {}: {} m² · {}",
-                                a.art,
-                                zahl(a.flaeche_m2),
-                                a.grundlage
-                            )));
+                        angaben(
+                            &mut z,
+                            vec![
+                                (
+                                    "Flurstück",
+                                    format!(
+                                        "Gemarkung {} · Flur {} · Nr. {}",
+                                        f.gemarkung, f.flur, f.nummer
+                                    ),
+                                ),
+                                ("Katasterfläche", format!("{} m²", zahl(f.flaeche_m2))),
+                            ],
+                        );
+                        if !f.abzuege.is_empty() {
+                            z.push(tabelle(
+                                &["Abzugsfläche", "Fläche m²", "Rechtsgrundlage / Festsetzung"],
+                                &[1.4, 0.8, 2.4],
+                                f.abzuege
+                                    .iter()
+                                    .map(|a| {
+                                        vec![
+                                            abzugsart(&a.art),
+                                            zahl(a.flaeche_m2),
+                                            a.grundlage.clone(),
+                                        ]
+                                    })
+                                    .collect(),
+                            ));
                         }
                     }
                     if let Some(a) = plan
@@ -410,30 +554,43 @@ pub(super) async fn erstellen(
                         .and_then(|b| b.eingabe.aufstellung.as_ref())
                         .and_then(|a| a.grundstueck.as_ref())
                     {
-                        for a in &a.gemeinschaftsanteile {
-                            z.push(text(format!(
-                                "Gemeinschaftsfläche {}: {} m² × {} % · {}",
-                                a.bezeichnung,
-                                zahl(a.gesamtflaeche_m2),
-                                zahl(a.anteil_prozent),
-                                a.festsetzung
-                            )));
-                        }
+                        z.push(tabelle(
+                            &[
+                                "Gemeinschaftsfläche",
+                                "Gesamt m²",
+                                "Anteil %",
+                                "Zuschlag m²",
+                                "Festsetzung",
+                            ],
+                            &[1.4, 0.9, 0.8, 0.9, 1.8],
+                            a.gemeinschaftsanteile
+                                .iter()
+                                .map(|a| {
+                                    vec![
+                                        a.bezeichnung.clone(),
+                                        zahl(a.gesamtflaeche_m2),
+                                        zahl(a.anteil_prozent),
+                                        zahl(a.gesamtflaeche_m2 * a.anteil_prozent / 100.),
+                                        a.festsetzung.clone(),
+                                    ]
+                                })
+                                .collect(),
+                        ));
                     }
                 }
-                z.push(text(format!(
-                    "Eigentumsfläche: {} m²",
-                    zahl(g.eigentumsflaeche_m2)
-                )));
-                z.push(text(format!(
-                    "Abzüge: − {} m² · Zuschläge: + {} m²",
-                    zahl(g.abzug_m2),
-                    zahl(g.zuschlag_m2)
-                )));
-                z.push(titel(format!(
-                    "Maßgebende Bezugsfläche: {} m²",
-                    optional(g.bezugsflaeche_m2)
-                )));
+                z.push(tabelle(
+                    &["Berechnungsschritt", "Fläche m²"],
+                    &[3., 1.],
+                    vec![
+                        vec!["Summe Eigentumsflächen".into(), zahl(g.eigentumsflaeche_m2)],
+                        vec!["− Flächenabzüge".into(), zahl(g.abzug_m2)],
+                        vec!["+ zugeordnete Flächenanteile".into(), zahl(g.zuschlag_m2)],
+                        vec![
+                            "= Maßgebende Bezugsfläche".into(),
+                            optional(g.bezugsflaeche_m2),
+                        ],
+                    ],
+                ));
                 z.push(text(g.quelle));
             }
             "Baugrundstücksermittlung".into()
@@ -447,20 +604,45 @@ pub(super) async fn erstellen(
                 .ok_or_else(|| fehler("Raumbuch geändert. Auswahl aktualisieren."))?;
             let r: Raumbuch = serde_json::from_value(f.daten).map_err(fehler)?;
             let s = r.summen()?;
+            let gebaeude = core
+                .fachobjekte(p.id, ObjektArt::Gebaeude)
+                .await?
+                .into_iter()
+                .find(|f| f.objekt == r.gebaeude_id.to_string())
+                .and_then(|f| {
+                    f.daten
+                        .get("bezeichnung")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_owned)
+                })
+                .unwrap_or_else(|| "Nicht bezeichnet".into());
             z.push(text(format!(
-                "Raumbuch: {} · Revision {} · Gebäude {}",
-                r.bezeichnung, revision, r.gebaeude_id
+                "Gebäude: {gebaeude} · Dokumentstand {revision}"
             )));
-            for r in &r.raeume {
-                z.push(text(format!(
-                    "{} · {} · {} · {} m² · Höhe {} m",
-                    r.nummer,
-                    r.bezeichnung,
-                    r.nutzung,
-                    zahl(r.flaeche_m2),
-                    optional(r.hoehe_m)
-                )));
-            }
+            z.push(tabelle(
+                &[
+                    "Raum",
+                    "Bezeichnung",
+                    "Nutzung",
+                    "Fläche m²",
+                    "Höhe m",
+                    "Volumen m³",
+                ],
+                &[0.65, 1.6, 1.4, 0.9, 0.8, 1.],
+                r.raeume
+                    .iter()
+                    .map(|r| {
+                        vec![
+                            r.nummer.clone(),
+                            r.bezeichnung.clone(),
+                            r.nutzung.clone(),
+                            zahl(r.flaeche_m2),
+                            optional(r.hoehe_m),
+                            optional(r.hoehe_m.map(|h| h * r.flaeche_m2)),
+                        ]
+                    })
+                    .collect(),
+            ));
             z.push(titel(format!(
                 "{} Räume · Gesamtfläche: {} m² · Volumen: {} m³",
                 s.anzahl,
@@ -498,20 +680,42 @@ pub(super) async fn erstellen(
                 "Plan: {} · Version {}",
                 d.file_name, g.dokument_version
             )));
-            z.push(text(format!(
-                "Baufenster: {} m² · Vorhaben: {} m²",
-                zahl(r.baufenster_m2),
-                zahl(r.vorhaben_m2)
-            )));
-            z.push(titel(format!(
-                "Außerhalb: {} m² ({} %)",
-                zahl(r.ausserhalb_m2),
-                zahl(r.ausserhalb_prozent)
-            )));
-            z.push(text(format!(
-                "Größter Eckpunktüberstand: {} m (kein Maximum entlang aller Kanten)",
-                zahl(r.eckpunkt_ueberstand_m)
-            )));
+            angaben(
+                &mut z,
+                vec![
+                    (
+                        "Überbaubare Grundstücksfläche",
+                        format!("{} m²", zahl(r.baufenster_m2)),
+                    ),
+                    (
+                        "Grundfläche Vorhaben",
+                        format!("{} m²", zahl(r.vorhaben_m2)),
+                    ),
+                    (
+                        "Fläche außerhalb Baugrenze",
+                        format!("{} m²", zahl(r.ausserhalb_m2)),
+                    ),
+                    (
+                        "Überschreitungsanteil",
+                        format!("{} %", zahl(r.ausserhalb_prozent)),
+                    ),
+                    (
+                        "Rechenweg",
+                        format!(
+                            "{} m² / {} m² × 100",
+                            zahl(r.ausserhalb_m2),
+                            zahl(r.vorhaben_m2)
+                        ),
+                    ),
+                    (
+                        "Größter Eckpunktüberstand",
+                        format!(
+                            "{} m (kein Maximum entlang aller Kanten)",
+                            zahl(r.eckpunkt_ueberstand_m)
+                        ),
+                    ),
+                ],
+            );
             z.push(text(if r.eingehalten {
                 "Baugrenze eingehalten"
             } else {
@@ -600,4 +804,27 @@ fn vergleichquelle(a: &str) -> &str {
         "keine" => "Keine Vorgabe",
         _ => a,
     }
+}
+fn regelname(id: &str) -> String {
+    if let Some(jahr) = id.strip_prefix("baunvo-") {
+        format!("Baunutzungsverordnung {jahr}")
+    } else if id.starts_with("abstand") {
+        "Abstandsflächen – projektspezifischer Regelansatz".into()
+    } else if id.starts_with("lbo-") {
+        "Landesbauordnung".into()
+    } else {
+        "Projektbezogene Regelgrundlage".into()
+    }
+}
+fn abzugsart(s: &str) -> String {
+    match s {
+        "private_gruenflaeche" => "Private Grünfläche",
+        "oeffentliche_gruenflaeche" => "Öffentliche Grünfläche",
+        "verkehrsflaeche" => "Verkehrsfläche",
+        "strassenflaeche" => "Straßenfläche",
+        "nicht_bauland" => "Nicht als Bauland ansetzbare Fläche",
+        "wasserflaeche" => "Wasserfläche",
+        _ => return s.replace('_', " "),
+    }
+    .into()
 }

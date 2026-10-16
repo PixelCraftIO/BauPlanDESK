@@ -1,5 +1,8 @@
 # Drucken und PDF-Ausgabe
 
+[Strukturierte Behördenausgabe, Briefbogen und Beispiel-PDF](behoerdenausgabe/README.md)
+beschreibt die tabellarischen Vorlagen und die einstellbare Gestaltung.
+
 Im Projekt unter **Unterlagen → Drucken / PDF-Ausgabe** stehen gespeicherte
 Projektdateien und Fachberichte gemeinsam zur Auswahl. **Alle verfügbaren
 auswählen** stellt einen Stapel zusammen. Die Liste darunter erlaubt Umordnen,
@@ -46,7 +49,7 @@ verfügbare Quellen, `Druckauftrag` die Reihenfolge und optionale Vorblätter,
 `Druckergebnis` die PDF sowie Seitenpositionen. `Druckquelle` referenziert exakte
 Dokumentversionen, unveränderliche Nachweis-IDs, konkrete Raumbuchrevisionen oder
 die mit `projekt_version` geschützten aktuellen Fachgrundlagen. Fachadapter liefern
-lesbare Berichtszeilen, die PDF-Engine übernimmt Unicode, Umbruch, Paginierung,
+typisierte Absätze und Tabellen mit Spaltenbreiten; die PDF-Engine übernimmt Unicode, Umbruch, Paginierung,
 Formulardarstellung, Seitenauswahl und Zusammenführung. Neue Berechnungen ergänzen
 ihren Adapter, ohne vorhandene Berechnungsregeln oder PDF-Formulare zu ändern.
 Desktop- und HTTP-Adapter führen dieselbe Core-Operation aus.

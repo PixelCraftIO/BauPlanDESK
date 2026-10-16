@@ -91,6 +91,9 @@ async fn projekt_nachweis_pdf_quellen_und_unveraendertes_archiv() {
         .await
         .unwrap();
     let auftrag = Druckauftrag {
+        gestaltung: None,
+        aktenzeichen: String::new(),
+        datum: None,
         titel: "Abstandsflächennachweis".into(),
         absender: "Architekturbüro".into(),
         empfaenger: "Bauaufsicht".into(),

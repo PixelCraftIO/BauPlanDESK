@@ -1,7 +1,10 @@
 //! Lesende Ausgabe: genaue Quellversionen, archivierte Nachweise und getrennte
 //! Fachberichte. Erzeugt keine DMS-Version und bestätigt keine Einreichung.
+mod abstandsbericht;
 mod berichte;
+mod layout;
 mod pdf;
+mod vorlage;
 use crate::{
     CoreError, CoreResult, CoreServices,
     domain::{DocumentId, ProjectId},
@@ -9,6 +12,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+pub use vorlage::Druckgestaltung;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
@@ -34,6 +38,13 @@ pub enum Druckquelle {
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Druckauftrag {
+    /// Fehlend: gespeicherter Bürostandard. Explizit: Gestaltung dieser Ausgabe.
+    #[serde(default)]
+    pub gestaltung: Option<Druckgestaltung>,
+    #[serde(default)]
+    pub aktenzeichen: String,
+    #[serde(default)]
+    pub datum: Option<chrono::NaiveDate>,
     pub titel: String,
     pub absender: String,
     pub empfaenger: String,
@@ -54,6 +65,7 @@ pub struct Druckeintrag {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Druckkatalog {
+    pub gestaltung: Druckgestaltung,
     #[ts(type = "number")]
     pub projekt_version: i64,
     pub absender: String,
@@ -141,12 +153,17 @@ impl CoreServices {
         .trim()
         .to_owned();
         Ok(Druckkatalog {
+            gestaltung: self.druckgestaltung().await?,
             projekt_version: projekt.version,
             absender,
             eintraege,
         })
     }
-    pub async fn druckausgabe(&self, p: ProjectId, a: Druckauftrag) -> CoreResult<Druckergebnis> {
+    pub async fn druckausgabe(
+        &self,
+        p: ProjectId,
+        mut a: Druckauftrag,
+    ) -> CoreResult<Druckergebnis> {
         if a.quellen.is_empty()
             || a.quellen.len() > 100
             || a.titel.trim().is_empty()
@@ -154,11 +171,18 @@ impl CoreServices {
             || a.absender.len() > 4000
             || a.empfaenger.len() > 4000
             || a.anschreiben.len() > 16000
+            || a.aktenzeichen.len() > 300
         {
             return Err(fehler(
                 "Titel und 1 bis 100 Unterlagen erforderlich; Textgrenzen beachten",
             ));
         }
+        let gestaltung = match a.gestaltung.take() {
+            Some(g) => g,
+            None => self.druckgestaltung().await?,
+        };
+        gestaltung.validate()?;
+        a.gestaltung = Some(gestaltung);
         let projekt = self.get_project(p).await?;
         if projekt.version != a.projekt_version {
             return Err(fehler(

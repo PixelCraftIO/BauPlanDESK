@@ -6,6 +6,7 @@
   import { druckApi, type Druckquelle, type Druckvorschau } from "./druckApi";
   import type {
     Druckauftrag,
+    Druckgestaltung,
     Druckkatalog,
     Druckeintrag,
   } from "./generated/plattform";
@@ -22,6 +23,13 @@
     darfAblegen?: boolean;
     onbusy?: (b: boolean) => void;
   } = $props();
+  let gestaltung = $state<Druckgestaltung>({
+    kopfzeile: "{Projekt}",
+    fusszeile: "Stand: {Datum}",
+    anschreiben: "",
+  });
+  let aktenzeichen = $state("");
+  let datum = $state(new Date().toLocaleDateString("sv-SE"));
   let katalog = $state<Druckkatalog | null>(null),
     auswahl = $state<number[]>([]);
   let titel = $state("Projektunterlagen"),
@@ -40,6 +48,7 @@
     seite = $state(1),
     fortschritt = $state("");
   let signatur = $state("");
+  let initialisiert = false;
   let ablageVorgang = crypto.randomUUID();
   $effect(() => {
     onbusy?.(busy);
@@ -73,6 +82,9 @@
   function auftrag(): Druckauftrag {
     return {
       titel,
+      gestaltung,
+      aktenzeichen,
+      datum: datum || null,
       absender,
       empfaenger,
       anschreiben,
@@ -107,7 +119,18 @@
     pdf = null;
     try {
       katalog = await druckApi.katalog(projektId);
-      absender = katalog.absender;
+      if (!initialisiert) {
+        absender = katalog.absender;
+        gestaltung = {
+          ...(katalog.gestaltung ?? {
+            kopfzeile: "{Projekt}",
+            fusszeile: "Stand: {Datum}",
+            anschreiben,
+          }),
+        };
+        anschreiben = gestaltung.anschreiben || anschreiben;
+        initialisiert = true;
+      }
       auswahl = [];
       seiten = {};
       if (vorauswahl) {
@@ -302,7 +325,42 @@
               >{/if}
           </li>{/each}
       </ol>{/if}
+    <h3>Briefbogen und Ausgabeangaben</h3>
+    <p class="meta">
+      Der Bürostandard wird aus den Einstellungen übernommen. Änderungen hier
+      gelten für diese Ausgabe. Originalformulare und Pläne behalten ihre
+      Gestaltung und ihren Maßstab.
+    </p>
+    <div class="raster">
+      <label
+        >Kopfzeile<textarea
+          rows="3"
+          maxlength="1000"
+          bind:value={gestaltung.kopfzeile}
+        ></textarea></label
+      >
+      <label
+        >Fußzeile<textarea
+          rows="3"
+          maxlength="1000"
+          bind:value={gestaltung.fusszeile}
+        ></textarea></label
+      >
+    </div>
+    <p class="meta">
+      Platzhalter: {"{Projekt}"}, {"{Datum}"}, {"{Seite}"}, {"{Seiten}"}.
+      Maximal drei Druckzeilen. Die Paket-Seitenzahl wird zusätzlich automatisch
+      gesetzt.
+    </p>
     <label>Bezeichnung<input maxlength="500" bind:value={titel} /></label>
+    <div class="raster">
+      <label>Ausgabedatum<input type="date" bind:value={datum} /></label><label
+        >Aktenzeichen / Bezug<input
+          maxlength="300"
+          bind:value={aktenzeichen}
+        /></label
+      >
+    </div>
     <div class="aktionen">
       <label
         ><input type="checkbox" bind:checked={mitAnschreiben} /> Anschreiben voranstellen</label
@@ -311,7 +369,13 @@
         Seitenzahlen</label
       >
     </div>
-    {#if mitAnschreiben}<div class="raster">
+    {#if mitAnschreiben}<h3>Anschreiben formulieren</h3>
+      <p class="meta">
+        Die Bezeichnung wird als Betreff übernommen. Hier den Empfänger, den
+        Einreichungsanlass und gegebenenfalls die nachgereichten oder ersetzten
+        Unterlagen benennen.
+      </p>
+      <div class="raster">
         <label
           >Absender<textarea rows="3" maxlength="4000" bind:value={absender}
           ></textarea></label

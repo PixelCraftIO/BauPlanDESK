@@ -87,6 +87,30 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
         Arc::new(DevelopmentLicense),
     );
     let user = core.anmelden("druck", "Daniel").await.unwrap();
+    // Getrennter Bürostandard: autorisiertes Speichern und dauerhafte Wiederverwendung.
+    let standard = core_lib::druckausgabe::Druckgestaltung {
+        kopfzeile: "Bürostandard {Projekt}".into(),
+        ..Default::default()
+    };
+    assert_eq!(core.druckgestaltung().await.unwrap(), Default::default());
+    core.druckgestaltung_speichern(standard.clone(), &user)
+        .await
+        .unwrap();
+    assert_eq!(core.druckgestaltung().await.unwrap(), standard);
+    let mut leser = user.clone();
+    leser.rolle = core_lib::benutzer::Rolle::Lesen;
+    assert!(
+        core.druckgestaltung_speichern(Default::default(), &leser)
+            .await
+            .is_err()
+    );
+    let mut ungueltig = standard;
+    ungueltig.kopfzeile = "x".repeat(1001);
+    assert!(
+        core.druckgestaltung_speichern(ungueltig, &user)
+            .await
+            .is_err()
+    );
     let plan = core_lib::baugrundstuecke::musterplan();
     let p = core
         .create_project(
@@ -185,7 +209,7 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
     .await
     .unwrap();
     quellen.push(Druckquelle::Nachweis { id });
-    let a=Druckauftrag{titel:"Bauantragsunterlagen".into(),absender:"Planungsbüro Müller\nMusterstraße 1".into(),empfaenger:"Bauamt Musterstadt\nBauaufsicht".into(),anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen\nDaniel Müller".into(),mit_anschreiben:true,inhaltsverzeichnis:true,projekt_version:p.version,quellen};
+    let a=Druckauftrag{gestaltung:Some(core_lib::druckausgabe::Druckgestaltung {kopfzeile:"Planungsbüro Müller · Architektur und Genehmigungsplanung\n{Projekt}".into(), fusszeile:"Musterstraße 1 · 12345 Musterstadt · info@beispiel.de\nStand {Datum}".into(), ..Default::default()}), aktenzeichen:"BA-2026-042".into(),datum:chrono::NaiveDate::from_ymd_opt(2026,10,16),titel:"Bauantragsunterlagen".into(),absender:"Planungsbüro Müller\nMusterstraße 1".into(),empfaenger:"Bauamt Musterstadt\nBauaufsicht".into(),anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen\nDaniel Müller".into(),mit_anschreiben:true,inhaltsverzeichnis:true,projekt_version:p.version,quellen};
     let vorher = core
         .repos
         .protokoll
@@ -285,6 +309,24 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
     if let Ok(ziel) = std::env::var("BAUPROJEKT_DRUCK_ARTEFAKTE") {
         std::fs::create_dir_all(&ziel).unwrap();
         let ziel = std::path::Path::new(&ziel);
+        let mut beispiel = a.clone();
+        beispiel.quellen = a
+            .quellen
+            .iter()
+            .filter(|q| {
+                matches!(
+                    q,
+                    Druckquelle::Baugrundstueck | Druckquelle::Nachweis { .. }
+                )
+            })
+            .take(2)
+            .cloned()
+            .collect();
+        std::fs::write(
+            ziel.join("beispiel.pdf"),
+            core.druckausgabe(p.id, beispiel).await.unwrap().pdf,
+        )
+        .unwrap();
         let mut ui_auftrag = a.clone();
         ui_auftrag.quellen = katalog
             .eintraege
@@ -423,6 +465,9 @@ async fn weitere_fachberichte_beachten_revisionen_und_veraltete_planstaende() {
         .await
         .unwrap();
     let a = Druckauftrag {
+        gestaltung: None,
+        aktenzeichen: String::new(),
+        datum: None,
         titel: "Fachberichte".into(),
         absender: String::new(),
         empfaenger: String::new(),

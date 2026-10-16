@@ -157,6 +157,8 @@ fn main() {
             commands::bauantrag_speichern,
             emails::email_laden,
             emails::email_anhang_ablegen,
+            druckausgabe::druckgestaltung,
+            druckausgabe::druckgestaltung_speichern,
             kategorien::kategorienkatalog,
             kategorien::kategorienkatalog_speichern,
             kategorien::dokumentkategorien,
