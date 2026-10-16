@@ -117,6 +117,9 @@ with sync_playwright() as p:
     }''')
     assert 'Anschreiben' in texts[0] and 'Bauamt Musterstadt' in texts[0]
     assert 'Inhaltsverzeichnis' in texts[1] and '3–4' in texts[1]
+    for label in ['Dokumentkategorie','Dateiname / Bezeichnung','Version / Stand','Seite','Baubeschreibung','Baubeschreibung.pdf']:
+        assert label in texts[1],label
+    assert 'Planungsbüro Müller' not in texts[2] and 'Seite 3 von' not in texts[2]
     assert 'Anlage Lageplan' in texts[2]
     assert 'Daniel Müller' in texts[3] and 'Musterstraße 7' in texts[3] and '12345 Musterstadt' in texts[3]
     assert not any('Neuere Eingabe' in t for t in texts)
