@@ -66,3 +66,12 @@ Fachformular mit gruppierten Eingaben und Aktionen darunter, dunkel und hell.
 ![Gebäudeformular dunkel](screenshots/formular-dunkel.png)
 
 ![Gebäudeformular hell](screenshots/formular-hell.png)
+
+## Vergleich von zehn Bereichen
+
+[20 aktuelle Screenshots mit Bewertung je Bereich](vergleich/README.md) und
+[Galerie mit Hell/Dunkel-Auswahl und Bildvergrößerung](vergleich/index.html)
+zeigen dieselben Zustände in beiden Themes. Dabei wurden zusätzlich Probleme
+bei Checkboxen in Rechenmasken, Filterabständen, Nachforderungszeilen und der
+Breite des Druckdialogs sichtbar. Diese Aufnahmen dokumentieren den Stand;
+die Befunde wurden in diesem Schritt nicht durch weitere UI-Änderungen verdeckt.
