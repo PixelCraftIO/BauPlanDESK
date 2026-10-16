@@ -18,6 +18,8 @@
     onfesthalten,
     onbusy,
     gespeichert = [],
+    portalZiele = {},
+    onportal,
   }: {
     eintraege: Abgabestand[];
     dateien: DocumentVersion[];
@@ -27,6 +29,8 @@
     onfesthalten: (w: Abgabewunsch) => Promise<void>;
     onbusy: (b: boolean) => void;
     gespeichert?: Abgabestand[];
+    portalZiele?: Record<string, string>;
+    onportal?: (abgabe: string) => void;
   } = $props();
   let titel = $state("Bauantragsunterlagen"),
     dokumente = $state<Dokumentbezug[]>([]),
@@ -152,7 +156,13 @@
           >{/each}</tbody
       >
     </table>
-    <fieldset disabled={!darf}>
+    {#if portalZiele[b.id]}<p class="hinweisbox">
+        Diese Abgabe wird über den Portalbereich dokumentiert.
+      </p>
+      <button class="sekundaer" onclick={() => onportal?.(b.id)}
+        >Portalbelege bearbeiten</button
+      >{/if}
+    <fieldset disabled={!darf || !!portalZiele[b.id]}>
       <legend>Neues Versand-/Eingangsereignis (mit Akte speichern)</legend
       ><button
         type="button"
@@ -189,6 +199,8 @@
                 >Status<select bind:value={e.status}
                   ><option value="versendet">Versendet</option><option
                     value="eingegangen">Eingang belegt</option
+                  ><option value="ungeklaert"
+                    >Übergabe / Dateiabgleich ungeklärt</option
                   ><option value="zurueckgewiesen">Zurückgewiesen</option
                   ></select
                 ></label

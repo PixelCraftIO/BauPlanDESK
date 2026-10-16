@@ -17,11 +17,12 @@ pub(super) async fn pruefen(
     a: &Verfahrensakte,
     alt: Option<&Verfahrensakte>,
     wer: &Benutzer,
-    server_abgabe: bool,
+    kontext: AktenCommit,
 ) -> CoreResult<()> {
     core.projekt_zugriff(p, wer, ProjektRecht::Bearbeiten)
         .await?;
     core.get_project(p).await?;
+    crate::portale::validieren(a, alt, kontext)?;
     text(&a.bezeichnung, 500)?;
     text(&a.behoerde.name, 500)?;
     if a.behoerde.id.is_nil() || a.behoerde.kennung.len() > 500 {
@@ -125,7 +126,15 @@ pub(super) async fn pruefen(
                     .find(|b| b.id == *id)
                     .ok_or_else(|| fehler("Unbekannter Antwort-Abgabestand"))?;
             }
-            if !f.abgaben.is_empty()
+            let historisch = kontext == AktenCommit::Portal
+                && alt.is_some_and(|a| {
+                    a.nachforderungen
+                        .iter()
+                        .flat_map(|n| &n.punkte)
+                        .any(|v| v == f)
+                });
+            if !historisch
+                && !f.abgaben.is_empty()
                 && f.dokumente.iter().any(|d| {
                     !f.abgaben
                         .iter()
@@ -147,7 +156,8 @@ pub(super) async fn pruefen(
                     "Antwortunterlagen fehlen in den zugeordneten Abgabeständen",
                 ));
             }
-            if matches!(f.status, Punktstatus::Eingereicht | Punktstatus::Bestaetigt)
+            if !historisch
+                && matches!(f.status, Punktstatus::Eingereicht | Punktstatus::Bestaetigt)
                 && !f.abgaben.iter().any(|id| {
                     a.abgaben.iter().find(|b| b.id == *id).is_some_and(|b| {
                         matches!(
@@ -264,7 +274,7 @@ pub(super) async fn pruefen(
     }
     for b in &a.abgaben {
         let existiert = alt.is_some_and(|a| a.abgaben.iter().any(|v| v.id == b.id));
-        if !existiert && !server_abgabe {
+        if !existiert && kontext != AktenCommit::Abgabe {
             return Err(fehler("Abgabestände über Zusammenstellung festhalten"));
         }
         for e in &b.versand {

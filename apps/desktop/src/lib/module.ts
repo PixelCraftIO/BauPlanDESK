@@ -56,6 +56,7 @@ const BASIS_MODULE = [
   { id: "formulare", titel: "Formulare", gruppe: "Unterlagen" },
   { id: "dokumente", titel: "Projektdateien", gruppe: "Unterlagen" },
   { id: "plaene", titel: "Pläne / Aufmaß", gruppe: "Unterlagen" },
+  { id: "portale", titel: "Einreichen / Portal", gruppe: "Unterlagen" },
   { id: "xbau", titel: "XBau-Nachrichten", gruppe: "Unterlagen" },
   { id: "bauantrag", titel: "Bauantrag / XBau", gruppe: "Unterlagen" },
   { id: "druck", titel: "Drucken / PDF-Ausgabe", gruppe: "Unterlagen" },

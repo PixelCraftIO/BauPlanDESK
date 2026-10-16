@@ -188,6 +188,9 @@ pub struct Aktenereignis {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Verfahrensakte {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub portal: Option<crate::portale::Portalakte>,
     pub bezeichnung: String,
     pub art: Verfahrensart,
     pub status: Verfahrensstatus,
@@ -216,6 +219,12 @@ pub struct Erinnerung {
 fn fehler(t: impl Into<String>) -> CoreError {
     CoreError::InvalidInput(t.into())
 }
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum AktenCommit {
+    Bearbeitung,
+    Abgabe,
+    Portal,
+}
 impl CoreServices {
     pub async fn verfahrensakte(
         &self,
@@ -243,9 +252,32 @@ impl CoreServices {
         p: ProjectId,
         id: Uuid,
         basis: i64,
-        mut a: Verfahrensakte,
+        a: Verfahrensakte,
         wer: &Benutzer,
         server_abgabe: bool,
+    ) -> CoreResult<Fachstand> {
+        self.verfahren_speichern_intern(
+            p,
+            id,
+            basis,
+            a,
+            wer,
+            if server_abgabe {
+                AktenCommit::Abgabe
+            } else {
+                AktenCommit::Bearbeitung
+            },
+        )
+        .await
+    }
+    pub(crate) async fn verfahren_speichern_intern(
+        &self,
+        p: ProjectId,
+        id: Uuid,
+        basis: i64,
+        mut a: Verfahrensakte,
+        wer: &Benutzer,
+        kontext: AktenCommit,
     ) -> CoreResult<Fachstand> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         let alt = self
@@ -325,7 +357,7 @@ impl CoreServices {
             e.erfasst_von = wer.id.0;
             e.erfasst_am = Utc::now();
         }
-        pruefung::pruefen(self, p, id, &a, original.as_ref(), wer, server_abgabe).await?;
+        pruefung::pruefen(self, p, id, &a, original.as_ref(), wer, kontext).await?;
         if original.as_ref() == Some(&a) {
             return Ok(alt.expect("vorhandener Stand"));
         }

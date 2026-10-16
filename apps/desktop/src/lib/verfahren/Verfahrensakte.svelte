@@ -269,6 +269,21 @@
           verfahrenId={s.id!}
           {darf}
           gespeichert={s.original?.abgaben ?? []}
+          portalZiele={Object.fromEntries(
+            a.portal?.vorgaenge.flatMap((v) =>
+              v.abgaben.map((b) => [b.id, v.id]),
+            ) ?? [],
+          )}
+          onportal={(id) =>
+            navigation?.springen({
+              bereich: "portale",
+              objekt: s.id,
+              register:
+                a.portal?.vorgaenge.find((v) =>
+                  v.abgaben.some((b) => b.id === id),
+                )?.id ?? null,
+              eintrag: id,
+            })}
           onfesthalten={festhalten}
           onbusy={(b) => (s.laeuft = b)}
         />

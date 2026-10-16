@@ -1,5 +1,9 @@
 # Planung: Bauportal-Anbindung für NRW und weitere Bundesländer
 
+**Umsetzungsstand:** Der [geführte manuelle Portalablauf](../portale/README.md)
+mit Profilen, eingefrorenen Unterlagen, Dateiabgleich und Rückmeldungen ist
+implementiert. Automatische Landesportal-Schnittstellen bleiben offen.
+
 Stand: 16.10.2026. Dies ist ein Analyse- und Umsetzungsplan, keine implementierte
 Portalschnittstelle und keine behördliche Schnittstellenfreigabe.
 

@@ -153,10 +153,16 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
         let min = if teile.contains(&"mitglieder") {
             ProjektRecht::Leitung
         } else if (r.method() == axum::http::Method::POST
-            && teile.len() == 4
+            && teile.len() == 7
             && teile[0] == "projekte"
-            && teile[2] == "xbau"
-            && teile[3] == "pruefen")
+            && teile[2] == "verfahren"
+            && teile[4] == "portale"
+            && teile[6] == "pruefen")
+            || (r.method() == axum::http::Method::POST
+                && teile.len() == 4
+                && teile[0] == "projekte"
+                && teile[2] == "xbau"
+                && teile[3] == "pruefen")
             || r.method() == axum::http::Method::GET
             || (r.method() == axum::http::Method::POST
                 && teile.len() == 3

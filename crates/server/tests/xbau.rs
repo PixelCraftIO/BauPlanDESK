@@ -288,6 +288,7 @@ async fn bauantrag_erfassen_und_exportieren() {
         vid,
         1,
         core_lib::verfahren::abgabe::Abgabewunsch {
+            xbau_bezug: None,
             id: aid,
             titel: "Antragspaket".into(),
             dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
@@ -302,6 +303,41 @@ async fn bauantrag_erfassen_und_exportieren() {
     )
     .await
     .unwrap();
+    let folge_id = uuid::Uuid::new_v4();
+    core.verfahren_abgabe_festhalten(
+        p.id,
+        vid,
+        core.verfahrensakte(p.id, vid).await.unwrap().0.revision,
+        core_lib::verfahren::abgabe::Abgabewunsch {
+            xbau_bezug: Some(eingang_id),
+            id: folge_id,
+            titel: "Eingefrorene Nachreichung".into(),
+            dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: plan.document_id,
+                version: 1,
+            }],
+            xbau: true,
+            druck: false,
+            anschreiben: String::new(),
+        },
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let folge_bytes = core
+        .verfahren_artefakt(p.id, vid, folge_id, "xbau")
+        .await
+        .unwrap()
+        .1;
+    let folge_pruefung =
+        core_lib::xbau::austausch::pruefen("XBau.zip", &folge_bytes, core.xbau_pruefer.as_ref())
+            .await
+            .unwrap();
+    assert_eq!(
+        folge_pruefung.kopf.element,
+        "baugenehmigung.antragGeaendert.0202"
+    );
+    assert_eq!(folge_pruefung.kopf.bezugsnachricht, Some(eingang_id));
     let vorher = core
         .verfahren_artefakt(p.id, vid, aid, "xbau")
         .await

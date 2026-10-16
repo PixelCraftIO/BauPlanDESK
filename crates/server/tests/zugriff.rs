@@ -136,6 +136,75 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
             .unwrap();
         assert_eq!(response.status(), expected);
     }
+    // Portalvorschau ist lesend; Belege, Pakete und Katalogimporte bleiben geschützt.
+    let v = uuid::Uuid::new_v4();
+    let g = uuid::Uuid::new_v4();
+    let b = uuid::Uuid::new_v4();
+    for (projekt, suffix, expected) in [
+        (
+            p.id,
+            format!("verfahren/{v}/portale/{g}/pruefen"),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            fremd.id,
+            format!("verfahren/{v}/portale/{g}/pruefen"),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            p.id,
+            format!("verfahren/{v}/portale"),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            p.id,
+            format!("verfahren/{v}/portale/{g}/abgaben"),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            p.id,
+            format!("verfahren/{v}/portale/{g}/abgaben/{b}/ereignisse"),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            p.id,
+            format!("verfahren/{v}/portale/{g}/rueckmeldungen"),
+            StatusCode::FORBIDDEN,
+        ),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projekte/{projekt}/{suffix}"))
+                    .header("authorization", format!("Bearer {TOKEN}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected, "{suffix}");
+    }
+    for suffix in [
+        "url".to_owned(),
+        format!("abgaben/{b}/paket"),
+        format!("abgaben/{b}/dateien/{v}/1"),
+    ] {
+        assert_eq!(
+            status(
+                &app,
+                &format!(
+                    "/api/projekte/{}/verfahren/{v}/portale/{g}/{suffix}",
+                    fremd.id
+                ),
+                true
+            )
+            .await,
+            StatusCode::FORBIDDEN
+        );
+    }
     // Ein fremdes Raumbuch darf auch über den neuen Importweg nicht gelesen werden.
     let response = app
         .clone()

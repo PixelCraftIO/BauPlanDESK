@@ -69,6 +69,43 @@ pub struct ApiState {
 fn routen(core: CoreServices) -> Router {
     let api = Router::new()
         .route("/sitzung", get(sitzung))
+        .route(
+            "/portalprofile",
+            get(portalprofile).post(portalprofil_hinzufuegen),
+        )
+        .route("/projekte/{p}/verfahren/{v}/portale", post(portal_vorgang))
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/pruefen",
+            post(portal_pruefen),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/abgaben",
+            post(portal_abgabe),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/rueckmeldungen",
+            post(portal_rueckmeldung),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/url",
+            get(portal_url),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/abgaben/{b}/paket",
+            get(portal_paket),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/abgaben/{b}/dateien/{d}/{version}",
+            get(portal_datei),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/abgaben/{b}/ereignisse",
+            post(portal_ereignis),
+        )
+        .route(
+            "/projekte/{p}/verfahren/{v}/portale/{g}/abgaben/{b}/xbau",
+            post(portal_xbau),
+        )
         .route("/berechnungsvorlagen", get(berechnungsvorlagen))
         .route(
             "/projekte/{id}/raumbuchimport",
@@ -1352,6 +1389,159 @@ async fn xbau_nachreichung(
 ) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
     Ok(Json(
         core.xbau_nachreichung_vorbereiten(ProjectId(p), quelle, &wer)
+            .await?,
+    ))
+}
+
+// Portalunterstützung: keine automatische Antragstellung.
+async fn portalprofile(
+    State(ApiState { core }): State<ApiState>,
+) -> ApiResult<Vec<core_lib::portale::Portalprofil>> {
+    Ok(Json(core.portalprofile().await?))
+}
+async fn portalprofil_hinzufuegen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Json(profil): Json<core_lib::portale::Portalprofil>,
+) -> ApiResult<Vec<core_lib::portale::Portalprofil>> {
+    Ok(Json(core.portalprofil_hinzufuegen(profil, &wer).await?))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Portalvorgangsauftrag {
+    basis: i64,
+    wunsch: core_lib::portale::Portalvorgangswunsch,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Portalabgabeauftrag {
+    basis: i64,
+    wunsch: core_lib::portale::Portalabgabewunsch,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Portalereignisauftrag {
+    basis: i64,
+    wunsch: core_lib::portale::Portalereigniswunsch,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Portalrueckmeldungsauftrag {
+    basis: i64,
+    wunsch: core_lib::portale::Portalrueckmeldungswunsch,
+}
+async fn portal_vorgang(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v)): Path<(Uuid, Uuid)>,
+    Json(w): Json<Portalvorgangsauftrag>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.portal_vorgang_anlegen(ProjectId(p), v, w.basis, w.wunsch, &wer)
+            .await?,
+    ))
+}
+async fn portal_pruefen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g)): Path<(Uuid, Uuid, Uuid)>,
+    Json(w): Json<core_lib::portale::Portalabgabewunsch>,
+) -> ApiResult<core_lib::portale::Portalvorbereitung> {
+    Ok(Json(
+        core.portal_abgabe_pruefen(ProjectId(p), v, g, &w, &wer)
+            .await?,
+    ))
+}
+async fn portal_abgabe(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g)): Path<(Uuid, Uuid, Uuid)>,
+    Json(w): Json<Portalabgabeauftrag>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.portal_abgabe_festhalten(ProjectId(p), v, g, w.basis, w.wunsch, &wer)
+            .await?,
+    ))
+}
+async fn portal_ereignis(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g, b)): Path<(Uuid, Uuid, Uuid, Uuid)>,
+    Json(w): Json<Portalereignisauftrag>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.portal_ereignis_erfassen(ProjectId(p), v, g, b, w.basis, w.wunsch, &wer)
+            .await?,
+    ))
+}
+async fn portal_rueckmeldung(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g)): Path<(Uuid, Uuid, Uuid)>,
+    Json(w): Json<Portalrueckmeldungsauftrag>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.portal_rueckmeldung_erfassen(ProjectId(p), v, g, w.basis, w.wunsch, &wer)
+            .await?,
+    ))
+}
+fn portal_download(name: &str, bytes: Vec<u8>, mime: &str) -> Response {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, mime.to_string()),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                format!("attachment; filename*=UTF-8''{}", prozent_kodieren(name)),
+            ),
+        ],
+        bytes,
+    )
+        .into_response()
+}
+async fn portal_paket(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g, b)): Path<(Uuid, Uuid, Uuid, Uuid)>,
+) -> Result<Response, ApiError> {
+    let (name, bytes) = core
+        .portal_bereitstellung(ProjectId(p), v, g, b, &wer)
+        .await?;
+    Ok(portal_download(&name, bytes, "application/zip"))
+}
+async fn portal_datei(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g, b, d, version)): Path<(Uuid, Uuid, Uuid, Uuid, Uuid, i64)>,
+) -> Result<Response, ApiError> {
+    let (name, bytes) = core
+        .portal_datei(
+            ProjectId(p),
+            v,
+            g,
+            b,
+            &core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: DocumentId(d),
+                version,
+            },
+            &wer,
+        )
+        .await?;
+    Ok(portal_download(&name, bytes, "application/octet-stream"))
+}
+async fn portal_url(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g)): Path<(Uuid, Uuid, Uuid)>,
+) -> ApiResult<String> {
+    Ok(Json(core.portal_url(ProjectId(p), v, g, &wer).await?))
+}
+async fn portal_xbau(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, v, g, b)): Path<(Uuid, Uuid, Uuid, Uuid)>,
+) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
+    Ok(Json(
+        core.portal_xbau_archivieren(ProjectId(p), v, g, b, &wer)
             .await?,
     ))
 }

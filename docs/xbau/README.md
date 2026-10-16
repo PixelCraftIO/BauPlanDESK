@@ -4,8 +4,8 @@
 
 [Analyse und Umsetzungsplan für NRW und weitere Landesportale](portal-anbindung-plan.md)
 mit [Prüfprotokoll und offenen Betreiberfragen](portal-pruefprotokoll.md).
-Die Planung unterscheidet einen geführten Portalablauf von einer erst noch
-nachzuweisenden automatischen Schnittstelle.
+Der [geführte manuelle Portalablauf](../portale/README.md) ist jetzt implementiert.
+Eine automatische Schnittstelle bleibt gesondert nachzuweisen und abzunehmen.
 
 ## Tatsächlich implementierter Umfang
 
