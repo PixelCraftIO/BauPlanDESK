@@ -1,0 +1,198 @@
+{
+  "id": "ueberbaubarkeit-1",
+  "titel": "Überbaubare Grundstücksfläche",
+  "hinweis": "Maßbezogener Nachweis aus geprüften Extremmaßen. Positiv außerhalb, negativ innerhalb / zurücktretend. CAD-Baufensterprüfung im Planbereich getrennt ausführen.",
+  "plan": {
+    "modul": "ueberbaubarkeit",
+    "bezeichnung": "Überbaubare Grundstücksfläche",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "Baugrenzen, Baulinien und zulässige Vorbauten",
+      "version": "1",
+      "quelle": "",
+      "geltungsbereich": "Bebauungsplan / örtliche Satzung",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "regeln": {
+        "toleranz_m": 0
+      },
+      "positionen": [
+        {
+          "id": "abschnitt1",
+          "bezeichnung": "Fassadenabschnitt",
+          "art": "baugrenze",
+          "abstand_min_m": null,
+          "abstand_max_m": null,
+          "ausserhalb_m2": null,
+          "quelle": "",
+          "entscheidung_bestaetigt": false,
+          "entscheidung": ""
+        }
+      ],
+      "aufmass_geprueft": false,
+      "flaechen_abgegrenzt": false
+    }
+  },
+  "felder": [
+    {
+      "name": "regeln.toleranz_m",
+      "titel": "Ausdrücklich belegte Maßtoleranz (m; 0 ohne Sondervorgabe)",
+      "typ": "number",
+      "gruppe": "regeln",
+      "optionen": [],
+      "readonly": false,
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "aufmass_geprueft",
+      "titel": "Extremmaße sämtlicher Bauteile am Plan geprüft",
+      "typ": "checkbox",
+      "gruppe": "daten",
+      "optionen": [],
+      "readonly": false,
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "flaechen_abgegrenzt",
+      "titel": "Überschreitungsflächen ohne Mehrfachzählung abgegrenzt",
+      "typ": "checkbox",
+      "gruppe": "daten",
+      "optionen": [],
+      "readonly": false,
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "positionen",
+      "titel": "Festsetzungen und Bauteilabschnitte",
+      "gruppe": "daten",
+      "leer": {
+        "id": "abschnitt1",
+        "bezeichnung": "Fassadenabschnitt",
+        "art": "baugrenze",
+        "abstand_min_m": null,
+        "abstand_max_m": null,
+        "ausserhalb_m2": null,
+        "quelle": "",
+        "entscheidung_bestaetigt": false,
+        "entscheidung": ""
+      },
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bauteil / Abschnitt",
+          "typ": "text",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "art",
+          "titel": "Festsetzung",
+          "typ": "select",
+          "gruppe": "daten",
+          "optionen": [
+            {
+              "wert": "baugrenze",
+              "titel": "Baugrenze"
+            },
+            {
+              "wert": "baulinie",
+              "titel": "Baulinie"
+            },
+            {
+              "wert": "vorbau",
+              "titel": "Vorbau / Erker / Balkon"
+            }
+          ],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "abstand_min_m",
+          "titel": "Kleinster Abstand: außen + / innen − (m)",
+          "typ": "optional_number",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "abstand_max_m",
+          "titel": "Größter Abstand: außen + / innen − (m)",
+          "typ": "optional_number",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "ausserhalb_m2",
+          "titel": "Abgegrenzte Überschreitungsfläche (m²)",
+          "typ": "optional_number",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Planversion / Aufmaßbezug",
+          "typ": "text",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "entscheidung",
+          "titel": "Rechtsgrund, Entscheidung und Beleg für Abweichung / Vorbau",
+          "typ": "text",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "entscheidung_bestaetigt",
+          "titel": "Entscheidung / Beleg fachlich bestätigt",
+          "typ": "checkbox",
+          "gruppe": "daten",
+          "optionen": [],
+          "readonly": false,
+          "referenz": null,
+          "groesse": null
+        }
+      ]
+    }
+  ]
+}

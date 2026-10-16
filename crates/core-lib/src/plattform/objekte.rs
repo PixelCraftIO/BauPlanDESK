@@ -41,6 +41,9 @@ pub struct Gebaeude {
 #[serde(deny_unknown_fields)]
 pub struct GebaeudeGeschoss {
     pub id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub einstufungsquelle: Option<crate::berechnungen::Einstufungsquelle>,
     pub bezeichnung: String,
     pub vollgeschoss: Option<bool>,
     pub grundlage: String,
@@ -175,6 +178,24 @@ pub(super) async fn validieren(
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
+        ObjektArt::Stellplaetze
+        | ObjektArt::Wohnflaechen
+        | ObjektArt::Din277
+        | ObjektArt::Vollgeschosse
+        | ObjektArt::Ueberbaubarkeit
+        | ObjektArt::Hoehen
+        | ObjektArt::Freiflaechen
+        | ObjektArt::Entwaesserung => {
+            let plan: crate::berechnungen::FachPlan =
+                serde_json::from_value(daten).map_err(json_err)?;
+            if plan.modul.objekt() != art {
+                return Err(CoreError::InvalidInput(
+                    "Fachplan gehört zu einem anderen Modul".into(),
+                ));
+            }
+            crate::berechnungen::berechnen(&plan)?;
+            serde_json::to_value(plan)
+        }
         ObjektArt::Abstandsflaechen => {
             let plan = serde_json::from_value(daten).map_err(json_err)?;
             return core.abstandsplan_validieren(p.id, plan, wer).await;
@@ -339,11 +360,30 @@ impl CoreServices {
                                         "Geschoss gehört nicht zum gewählten Gebäude".into(),
                                     )
                                 })?;
-                            g.vollgeschoss = quelle.vollgeschoss.ok_or_else(|| {
-                                CoreError::InvalidInput(
-                                    "Vollgeschosseinstufung zuerst im Gebäude festlegen".into(),
+                            g.vollgeschoss = if let Some(q) = &quelle.einstufungsquelle {
+                                let projekt = self.get_project(p).await?;
+                                let grund = crate::grundstueckskontext::ermitteln(&projekt)?
+                                    .into_iter()
+                                    .find(|k| k.schluessel == b.schluessel)
+                                    .map(|k| k.id);
+                                self.geschosseinstufung_aus_nachweis(
+                                    p,
+                                    q,
+                                    g.gebaeude_id.as_deref().unwrap_or("").parse().map_err(
+                                        |_| CoreError::InvalidInput("Gebäude-ID ungültig".into()),
+                                    )?,
+                                    quelle.id,
+                                    grund,
                                 )
-                            })?;
+                                .await?
+                                .0
+                            } else {
+                                quelle.vollgeschoss.ok_or_else(|| {
+                                    CoreError::InvalidInput(
+                                        "Vollgeschosseinstufung zuerst im Gebäude festlegen".into(),
+                                    )
+                                })?
+                            };
                             g.bezeichnung = quelle.bezeichnung.clone();
                         } else if !geb.geschosse.is_empty() {
                             return Err(CoreError::InvalidInput(

@@ -1,0 +1,325 @@
+{
+  "id": "hoehen-1",
+  "titel": "Gebäudehöhen und Dachneigung",
+  "hinweis": "Vermessene Höhen, klarer Bezug und ausdrücklich hinterlegte Festsetzungen.",
+  "plan": {
+    "modul": "hoehen",
+    "bezeichnung": "Gebäudehöhen und Dachneigung",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "Höhenfestsetzungen / Dachgestaltung",
+      "version": "1",
+      "quelle": "",
+      "geltungsbereich": "Bebauungsplan / örtliche Satzung",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "hoehenbezug": "",
+      "regeln": [],
+      "punkte": [
+        {
+          "id": "traufe",
+          "bezeichnung": "Traufe",
+          "art": "traufe",
+          "absolut_m": 0,
+          "bezug_m": 0,
+          "quelle": ""
+        }
+      ],
+      "daecher": [],
+      "bezug_geprueft": false
+    }
+  },
+  "felder": [
+    {
+      "name": "hoehenbezug",
+      "titel": "Höhensystem / Bezug (z. B. NHN)",
+      "typ": "text",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "bezug_geprueft",
+      "titel": "Höhenbezug und Punkte geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "regeln",
+      "titel": "Höhenfestsetzungen",
+      "gruppe": "regeln",
+      "felder": [
+        {
+          "name": "art",
+          "titel": "Art",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "traufe",
+              "titel": "Traufhöhe"
+            },
+            {
+              "wert": "first",
+              "titel": "Firsthöhe"
+            },
+            {
+              "wert": "gebaeude",
+              "titel": "Gebäudehöhe"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "minimum_m",
+          "titel": "Mindesthöhe (m)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "maximum_m",
+          "titel": "Maximalhöhe (m)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "absolut",
+          "titel": "Grenzen beziehen sich auf absolute Höhen",
+          "typ": "checkbox",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "art": "traufe",
+        "minimum_m": null,
+        "maximum_m": null,
+        "absolut": false,
+        "quelle": ""
+      }
+    },
+    {
+      "pfad": "punkte",
+      "titel": "Vermessene Höhenpunkte",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "art",
+          "titel": "Art",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "traufe",
+              "titel": "Traufhöhe"
+            },
+            {
+              "wert": "first",
+              "titel": "Firsthöhe"
+            },
+            {
+              "wert": "gebaeude",
+              "titel": "Gebäudehöhe"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "absolut_m",
+          "titel": "Absolute Höhe (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezug_m",
+          "titel": "Maßgebliche Bezugshöhe (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Traufe",
+        "art": "traufe",
+        "absolut_m": 0,
+        "bezug_m": 0,
+        "quelle": ""
+      }
+    },
+    {
+      "pfad": "daecher",
+      "titel": "Dachneigungen",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "traufe_id",
+          "titel": "Traufpunkt",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "punkte",
+          "groesse": null
+        },
+        {
+          "name": "first_id",
+          "titel": "Firstpunkt",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "punkte",
+          "groesse": null
+        },
+        {
+          "name": "horizontale_m",
+          "titel": "Horizontale Strecke Traufe–First (m)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "min_neigung_grad",
+          "titel": "Mindestneigung (°)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "max_neigung_grad",
+          "titel": "Maximalneigung (°)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Dach",
+        "traufe_id": "",
+        "first_id": "",
+        "horizontale_m": 0,
+        "min_neigung_grad": null,
+        "max_neigung_grad": null,
+        "quelle": ""
+      }
+    }
+  ]
+}

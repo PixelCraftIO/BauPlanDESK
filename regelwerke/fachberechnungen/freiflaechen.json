@@ -1,0 +1,335 @@
+{
+  "id": "freiflaechen-1",
+  "titel": "Versiegelungs- und Freiflächenbilanz",
+  "hinweis": "Flächenklassen und Anrechnung projektbezogen prüfen. Eigentums-/Baulandflächen kommen aus der Grundstücksermittlung.",
+  "plan": {
+    "modul": "freiflaechen",
+    "bezeichnung": "Versiegelungs- und Freiflächenbilanz",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "Projektbezogene Freiflächenfestsetzungen",
+      "version": "1",
+      "quelle": "",
+      "geltungsbereich": "Bebauungsplan / Satzung",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "regeln": {
+        "klassen": [
+          {
+            "typ": "dach",
+            "bezeichnung": "Dach / Gebäude",
+            "versiegelungsfaktor": 1,
+            "gruenfaktor": 0,
+            "quelle": "Projektbezogene Bilanzdefinition – Festsetzung prüfen"
+          },
+          {
+            "typ": "befestigt",
+            "bezeichnung": "Befestigte Fläche",
+            "versiegelungsfaktor": 1,
+            "gruenfaktor": 0,
+            "quelle": "Projektbezogene Bilanzdefinition – Festsetzung prüfen"
+          },
+          {
+            "typ": "gruen",
+            "bezeichnung": "Grünfläche",
+            "versiegelungsfaktor": 0,
+            "gruenfaktor": 1,
+            "quelle": "Projektbezogene Bilanzdefinition – Festsetzung prüfen"
+          },
+          {
+            "typ": "gruendach",
+            "bezeichnung": "Gründach (keine automatische Boden-Grünanrechnung)",
+            "versiegelungsfaktor": 1,
+            "gruenfaktor": 0,
+            "quelle": "Projektbezogene Bilanzdefinition – Festsetzung prüfen"
+          },
+          {
+            "typ": "teilversiegelt",
+            "bezeichnung": "Teilversiegelte Fläche (Faktor prüfen)",
+            "versiegelungsfaktor": 0.5,
+            "gruenfaktor": 0,
+            "quelle": "Projektbezogene Bilanzdefinition – Festsetzung prüfen"
+          }
+        ],
+        "gruen_bezug": "eigentum",
+        "min_gruenanteil": null,
+        "max_versiegelungsanteil": null,
+        "baum_je_m2": null,
+        "spiel_m2_je_we": null
+      },
+      "grundstuecksflaeche_m2": 0,
+      "bauland_m2": null,
+      "positionen": [
+        {
+          "id": "flaeche1",
+          "bezeichnung": "Grundstücksfläche",
+          "typ": "gruen",
+          "flaeche_m2": 0,
+          "quelle": ""
+        }
+      ],
+      "baeume_angebot": 0,
+      "wohneinheiten": null,
+      "spielflaeche_m2": null,
+      "bilanz_geprueft": false
+    }
+  },
+  "felder": [
+    {
+      "name": "regeln.gruen_bezug",
+      "titel": "Bezugsfläche der Grün-/Pflanzfestsetzungen",
+      "typ": "select",
+      "optionen": [
+        {
+          "wert": "eigentum",
+          "titel": "Eigentumsfläche"
+        },
+        {
+          "wert": "bauland",
+          "titel": "Maßgebende Bezugsfläche"
+        }
+      ],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.min_gruenanteil",
+      "titel": "Mindestgrünanteil (0–1)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.max_versiegelungsanteil",
+      "titel": "Maximalversiegelung (0–1)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.baum_je_m2",
+      "titel": "Ein Baum je m² Bezugsfläche",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.spiel_m2_je_we",
+      "titel": "Spielfläche (m² je WE)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "grundstuecksflaeche_m2",
+      "titel": "Eigentumsfläche aus Baugrundstück (m²)",
+      "typ": "number",
+      "optionen": [],
+      "readonly": true,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "bauland_m2",
+      "titel": "Maßgebende Bezugsfläche aus Baugrundstück (m²)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": true,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "baeume_angebot",
+      "titel": "Anrechenbare Bäume",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "wohneinheiten",
+      "titel": "Wohneinheiten",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": "wohneinheiten"
+    },
+    {
+      "name": "spielflaeche_m2",
+      "titel": "Anrechenbare Spielfläche (m²)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "bilanz_geprueft",
+      "titel": "Überschneidungsfreie Flächenbilanz geprüft",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "regeln.klassen",
+      "titel": "Flächen-/Abflussklassen",
+      "gruppe": "regeln",
+      "felder": [
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "versiegelungsfaktor",
+          "titel": "Versiegelungsfaktor (0–1)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "gruenfaktor",
+          "titel": "Anrechnungsfaktor Grün (0–1)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "typ": "dach",
+        "bezeichnung": "Dach / Gebäude",
+        "versiegelungsfaktor": 1,
+        "gruenfaktor": 0,
+        "quelle": "Projektbezogene Bilanzdefinition – Festsetzung prüfen"
+      }
+    },
+    {
+      "pfad": "positionen",
+      "titel": "Nutzungen / Teilflächen",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "regeln.klassen:typ",
+          "groesse": null
+        },
+        {
+          "name": "flaeche_m2",
+          "titel": "Fläche (m²)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Grundstücksfläche",
+        "typ": "gruen",
+        "flaeche_m2": 0,
+        "quelle": ""
+      }
+    }
+  ]
+}

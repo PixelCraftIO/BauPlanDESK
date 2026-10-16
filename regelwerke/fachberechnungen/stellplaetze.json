@@ -1,0 +1,767 @@
+{
+  "id": "stellplaetze-1",
+  "titel": "Stellplatznachweis",
+  "hinweis": "Fiktive Richtzahlen als Bearbeitungsvorlage. Keine kommunal gültige Satzung vorausgewählt.",
+  "plan": {
+    "modul": "stellplaetze",
+    "bezeichnung": "Stellplatznachweis",
+    "grundstueck_id": null,
+    "gebaeude_id": null,
+    "regelkontext": {
+      "bezeichnung": "Kommunale Stellplatzsatzung – eigene Fassung erfassen",
+      "version": "1",
+      "quelle": "",
+      "geltungsbereich": "Kommune / Zone angeben",
+      "gueltig_ab": "",
+      "gueltig_bis": "",
+      "anwendbarkeit_bestaetigt": false,
+      "pruefvermerk": ""
+    },
+    "quellen": [],
+    "uebernahmen": [],
+    "eingaben": {
+      "regeln": {
+        "arten": [
+          "kfz",
+          "fahrrad"
+        ],
+        "richtzahlen": [
+          {
+            "id": "wohnen-kfz",
+            "art": "kfz",
+            "nutzung": "Wohnen",
+            "gebaeudetyp": "",
+            "zone": "",
+            "groesse_von_m2": null,
+            "groesse_bis_m2": null,
+            "bezugsart": "wohneinheiten",
+            "faktor": 0.75,
+            "bezugsmenge": 1,
+            "minimum": 0,
+            "besucheranteil": 0,
+            "besucher_zusaetzlich": false,
+            "quelle": "Fiktiver Kontrollsatz – durch geltende Satzung ersetzen"
+          },
+          {
+            "id": "wohnen-rad",
+            "art": "fahrrad",
+            "nutzung": "Wohnen",
+            "gebaeudetyp": "",
+            "zone": "",
+            "groesse_von_m2": null,
+            "groesse_bis_m2": null,
+            "bezugsart": "wohneinheiten",
+            "faktor": 2,
+            "bezugsmenge": 1,
+            "minimum": 0,
+            "besucheranteil": 0,
+            "besucher_zusaetzlich": false,
+            "quelle": "Fiktiver Kontrollsatz – durch geltende Satzung ersetzen"
+          }
+        ],
+        "rundung": "aufrunden",
+        "rundungsstufe": "gesamt",
+        "barrierefrei_anteil": null,
+        "barrierefrei_minimum": 0,
+        "keine_pflicht": false
+      },
+      "positionen": [
+        {
+          "id": "nutzung1",
+          "bezeichnung": "Wohnungen",
+          "nutzung": "Wohnen",
+          "gebaeudetyp": "",
+          "zone": "",
+          "klassengroesse_m2": null,
+          "wohneinheiten": null,
+          "wohnflaeche_m2": null,
+          "nutzungsflaeche_m2": null,
+          "verkaufsflaeche_m2": null,
+          "sitzplaetze": null,
+          "betten": null,
+          "beschaeftigte": null
+        }
+      ],
+      "angebot": [
+        {
+          "id": "angebot1",
+          "bezeichnung": "Stellplätze auf Grundstück",
+          "art": "kfz",
+          "anzahl": 0,
+          "besucher": 0,
+          "barrierefrei": 0,
+          "ausserhalb": false,
+          "anerkannt": false,
+          "lage_und_sicherung": ""
+        }
+      ],
+      "anrechnungen": []
+    }
+  },
+  "felder": [
+    {
+      "name": "regeln.rundung",
+      "titel": "Rundungsverfahren",
+      "typ": "select",
+      "optionen": [
+        {
+          "wert": "aufrunden",
+          "titel": "Aufrunden"
+        },
+        {
+          "wert": "kaufmaennisch",
+          "titel": "Kaufmännisch"
+        },
+        {
+          "wert": "abrunden",
+          "titel": "Abrunden"
+        }
+      ],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.rundungsstufe",
+      "titel": "Rundungsstufe",
+      "typ": "select",
+      "optionen": [
+        {
+          "wert": "je_position",
+          "titel": "Je Nutzungsposition"
+        },
+        {
+          "wert": "je_nutzung",
+          "titel": "Je Nutzungsart"
+        },
+        {
+          "wert": "gesamt",
+          "titel": "Gesamt je Verkehrsart"
+        }
+      ],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.barrierefrei_anteil",
+      "titel": "Barrierefreier Anteil Kfz (0–1)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.barrierefrei_minimum",
+      "titel": "Mindestens barrierefreie Kfz-Plätze",
+      "typ": "number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.keine_pflicht",
+      "titel": "Ausdrücklich keine Stellplatzpflicht",
+      "typ": "checkbox",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "regeln",
+      "referenz": null,
+      "groesse": null
+    },
+    {
+      "name": "regeln.arten",
+      "titel": "Verkehrsarten im Nachweis",
+      "typ": "multi_select",
+      "optionen": [
+        {
+          "wert": "kfz",
+          "titel": "Kfz"
+        },
+        {
+          "wert": "fahrrad",
+          "titel": "Fahrrad"
+        }
+      ],
+      "gruppe": "regeln",
+      "readonly": false,
+      "referenz": null,
+      "groesse": null
+    }
+  ],
+  "tabellen": [
+    {
+      "pfad": "regeln.richtzahlen",
+      "titel": "Richtzahlen der Satzung",
+      "gruppe": "regeln",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "art",
+          "titel": "Art",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "kfz",
+              "titel": "Kfz"
+            },
+            {
+              "wert": "fahrrad",
+              "titel": "Fahrrad"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "nutzung",
+          "titel": "Nutzungsart",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "gebaeudetyp",
+          "titel": "Gebäudetyp",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "zone",
+          "titel": "Satzungszone",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "groesse_von_m2",
+          "titel": "Größenklasse ab (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "groesse_bis_m2",
+          "titel": "Größenklasse unter (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezugsart",
+          "titel": "Maßgebliche Bezugsgröße",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "wohneinheiten",
+              "titel": "Wohneinheiten"
+            },
+            {
+              "wert": "wohnflaeche",
+              "titel": "Wohnfläche (m²)"
+            },
+            {
+              "wert": "nutzungsflaeche",
+              "titel": "Nutzungsfläche (m²)"
+            },
+            {
+              "wert": "verkaufsflaeche",
+              "titel": "Verkaufsfläche (m²)"
+            },
+            {
+              "wert": "sitzplaetze",
+              "titel": "Sitzplätze"
+            },
+            {
+              "wert": "betten",
+              "titel": "Betten"
+            },
+            {
+              "wert": "beschaeftigte",
+              "titel": "Beschäftigte"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "faktor",
+          "titel": "Faktor",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezugsmenge",
+          "titel": "Je Bezugsmenge",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "minimum",
+          "titel": "Mindestbedarf",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "besucheranteil",
+          "titel": "Besucheranteil (0–1)",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "besucher_zusaetzlich",
+          "titel": "Besucher zusätzlich zum Grundbedarf",
+          "typ": "checkbox",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "quelle",
+          "titel": "Quelle / Aufmaß / Fundstelle",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "regeln",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "art": "kfz",
+        "nutzung": "Wohnen",
+        "gebaeudetyp": "",
+        "zone": "",
+        "groesse_von_m2": null,
+        "groesse_bis_m2": null,
+        "bezugsart": "wohneinheiten",
+        "faktor": 0.75,
+        "bezugsmenge": 1,
+        "minimum": 0,
+        "besucheranteil": 0,
+        "besucher_zusaetzlich": false,
+        "quelle": "Fiktiver Kontrollsatz – durch geltende Satzung ersetzen"
+      }
+    },
+    {
+      "pfad": "positionen",
+      "titel": "Nutzungen / Teilflächen",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "nutzung",
+          "titel": "Nutzungsart",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": "regeln.richtzahlen:nutzung",
+          "groesse": null
+        },
+        {
+          "name": "gebaeudetyp",
+          "titel": "Gebäudetyp",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "zone",
+          "titel": "Satzungszone",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "klassengroesse_m2",
+          "titel": "Größe für Staffelklasse (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "wohneinheiten",
+          "titel": "Wohneinheiten",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "wohneinheiten"
+        },
+        {
+          "name": "wohnflaeche_m2",
+          "titel": "Wohnfläche (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "wohnflaeche"
+        },
+        {
+          "name": "nutzungsflaeche_m2",
+          "titel": "Nutzungsfläche (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "nutzungsflaeche"
+        },
+        {
+          "name": "verkaufsflaeche_m2",
+          "titel": "Verkaufsfläche (m²)",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "verkaufsflaeche"
+        },
+        {
+          "name": "sitzplaetze",
+          "titel": "Sitzplätze",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "sitzplaetze"
+        },
+        {
+          "name": "betten",
+          "titel": "Betten",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "betten"
+        },
+        {
+          "name": "beschaeftigte",
+          "titel": "Beschäftigte",
+          "typ": "optional_number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": "beschaeftigte"
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Wohnungen",
+        "nutzung": "Wohnen",
+        "gebaeudetyp": "",
+        "zone": "",
+        "klassengroesse_m2": null,
+        "wohneinheiten": null,
+        "wohnflaeche_m2": null,
+        "nutzungsflaeche_m2": null,
+        "verkaufsflaeche_m2": null,
+        "sitzplaetze": null,
+        "betten": null,
+        "beschaeftigte": null
+      }
+    },
+    {
+      "pfad": "angebot",
+      "titel": "Stellplatzangebot",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bezeichnung",
+          "titel": "Bezeichnung",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "art",
+          "titel": "Art",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "kfz",
+              "titel": "Kfz"
+            },
+            {
+              "wert": "fahrrad",
+              "titel": "Fahrrad"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "anzahl",
+          "titel": "Anzahl",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "besucher",
+          "titel": "Davon Besucher",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "barrierefrei",
+          "titel": "Davon barrierefrei",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "ausserhalb",
+          "titel": "Auf anderem Grundstück",
+          "typ": "checkbox",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "anerkannt",
+          "titel": "Angebot geprüft / anerkannt",
+          "typ": "checkbox",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "lage_und_sicherung",
+          "titel": "Lage / Sicherung / Beleg",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "bezeichnung": "Stellplätze auf Grundstück",
+        "art": "kfz",
+        "anzahl": 0,
+        "besucher": 0,
+        "barrierefrei": 0,
+        "ausserhalb": false,
+        "anerkannt": false,
+        "lage_und_sicherung": ""
+      }
+    },
+    {
+      "pfad": "anrechnungen",
+      "titel": "Bestand, Reduktionen und Ablösung",
+      "gruppe": "daten",
+      "felder": [
+        {
+          "name": "id",
+          "titel": "Kennung",
+          "typ": "hidden",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "art",
+          "titel": "Art",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "kfz",
+              "titel": "Kfz"
+            },
+            {
+              "wert": "fahrrad",
+              "titel": "Fahrrad"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "grund",
+          "titel": "Grundlage / Beleg",
+          "typ": "text",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "anzahl",
+          "titel": "Anzahl",
+          "typ": "number",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "bestaetigt",
+          "titel": "Anrechnung geprüft",
+          "typ": "checkbox",
+          "optionen": [],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        },
+        {
+          "name": "typ",
+          "titel": "Typ",
+          "typ": "select",
+          "optionen": [
+            {
+              "wert": "bestand",
+              "titel": "Anrechenbarer Altbedarf"
+            },
+            {
+              "wert": "reduktion",
+              "titel": "Zulässige Reduktion"
+            },
+            {
+              "wert": "abloesung",
+              "titel": "Gesicherte Ablösung"
+            }
+          ],
+          "readonly": false,
+          "gruppe": "daten",
+          "referenz": null,
+          "groesse": null
+        }
+      ],
+      "leer": {
+        "id": "",
+        "art": "kfz",
+        "grund": "",
+        "anzahl": 0,
+        "bestaetigt": false,
+        "typ": "reduktion"
+      }
+    }
+  ]
+}

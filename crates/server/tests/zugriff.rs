@@ -82,6 +82,46 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/projekte/{}", fremd.id), true).await,
         StatusCode::FORBIDDEN
     );
+    assert_eq!(
+        status(&app, "/api/berechnungsvorlagen", true).await,
+        StatusCode::OK
+    );
+    for vorlage in core_lib::berechnungen::vorlagen().unwrap() {
+        for (projekt, expected) in [(p.id, StatusCode::OK), (fremd.id, StatusCode::FORBIDDEN)] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(format!("/api/projekte/{projekt}/fachberechnung"))
+                        .header("authorization", format!("Bearer {TOKEN}"))
+                        .header("content-type", "application/json")
+                        .body(Body::from(serde_json::to_vec(&vorlage.plan).unwrap()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected, "{:?}", vorlage.plan.modul);
+        }
+    }
+    // Ein fremdes Raumbuch darf auch über den neuen Importweg nicht gelesen werden.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/projekte/{}/raumbuchimport", fremd.id))
+                .header("authorization", format!("Bearer {TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"id":uuid::Uuid::new_v4(),"modul":"wohnflaechen"})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
     let mut plan = core_lib::abstandsflaechen::testdaten::plan();
     plan.regeln = core_lib::abstandsflaechen::katalog()
         .unwrap()

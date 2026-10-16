@@ -182,6 +182,149 @@ pub(super) async fn erstellen(
                 )));
             }
             match &n.stand.eingabe {
+                NachweisEingabe::Fach { plan, .. } => {
+                    let r: crate::berechnungen::FachErgebnis =
+                        serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
+                    angaben(
+                        &mut z,
+                        vec![
+                            ("Berechnung", plan.modul.titel().into()),
+                            (
+                                "Regelfassung",
+                                format!(
+                                    "{} · Version {}",
+                                    plan.regelkontext.bezeichnung, plan.regelkontext.version
+                                ),
+                            ),
+                            ("Geltungsbereich", plan.regelkontext.geltungsbereich.clone()),
+                            ("Regelquelle", plan.regelkontext.quelle.clone()),
+                            (
+                                "Gültig ab / bis",
+                                format!(
+                                    "{} / {}",
+                                    plan.regelkontext.gueltig_ab, plan.regelkontext.gueltig_bis
+                                ),
+                            ),
+                            ("Prüfvermerk", plan.regelkontext.pruefvermerk.clone()),
+                        ],
+                    );
+                    for t in &r.tabellen {
+                        // A4 benötigt lesbare Spalten. Breite Fachverträge bleiben unverändert;
+                        // der Druckadapter führt ihre erste Identifikationsspalte in jeder Teiltabelle fort.
+                        if t.spalten.len() > 6 {
+                            let gruppen = (1..t.spalten.len()).collect::<Vec<_>>();
+                            for (teil, spalten) in gruppen.chunks(5).enumerate() {
+                                z.push(titel(format!("{} · Teil {}", t.titel, teil + 1)));
+                                let index = std::iter::once(0)
+                                    .chain(spalten.iter().copied())
+                                    .collect::<Vec<_>>();
+                                let sp = index
+                                    .iter()
+                                    .map(|i| t.spalten[*i].as_str())
+                                    .collect::<Vec<_>>();
+                                let mut breiten = vec![1.; index.len()];
+                                breiten[0] = 1.5;
+                                let rows = t
+                                    .zeilen
+                                    .iter()
+                                    .map(|r| index.iter().map(|i| r[*i].clone()).collect())
+                                    .collect();
+                                z.push(tabelle(&sp, &breiten, rows));
+                            }
+                        } else {
+                            z.push(titel(&t.titel));
+                            let sp = t.spalten.iter().map(String::as_str).collect::<Vec<_>>();
+                            let breiten = t.spalten.iter().map(|_| 1.).collect::<Vec<_>>();
+                            z.push(tabelle(&sp, &breiten, t.zeilen.clone()));
+                        }
+                    }
+                    z.push(titel("Ergebnisse"));
+                    z.push(tabelle(
+                        &["Kennzahl", "Wert", "Einheit"],
+                        &[3., 1., 1.],
+                        r.kennzahlen
+                            .iter()
+                            .map(|k| {
+                                vec![
+                                    k.bezeichnung.clone(),
+                                    k.wert.map(zahl).unwrap_or_else(|| "Nicht ermittelt".into()),
+                                    k.einheit.text().into(),
+                                ]
+                            })
+                            .collect(),
+                    ));
+                    for h in &r.offen {
+                        z.push(text(format!("Offener Prüfpunkt: {h}")));
+                    }
+                    for h in &r.hinweise {
+                        z.push(text(h));
+                    }
+                    if !plan.uebernahmen.is_empty() {
+                        z.push(titel("Übernommene Berechnungsgrundlagen"));
+                        let mut quellen = Vec::new();
+                        for u in &plan.uebernahmen {
+                            let quelle = staende
+                                .iter()
+                                .find(|s| s.stand.id == u.nachweis_id)
+                                .ok_or_else(|| fehler("Archivierter Quellnachweis fehlt"))?;
+                            let e: crate::berechnungen::FachErgebnis =
+                                serde_json::from_value(quelle.stand.ergebnis.clone())
+                                    .map_err(fehler)?;
+                            let k = e
+                                .kennzahlen
+                                .iter()
+                                .find(|k| k.id == u.kennzahl)
+                                .ok_or_else(|| fehler("Archivierte Quellkennzahl fehlt"))?;
+                            quellen.push(vec![
+                                quelle.stand.bezeichnung.clone(),
+                                quelle
+                                    .stand
+                                    .erstellt_am
+                                    .format("%d.%m.%Y %H:%M UTC")
+                                    .to_string(),
+                                k.bezeichnung.clone(),
+                                format!(
+                                    "{} {}",
+                                    k.wert.map(zahl).unwrap_or_else(|| "Nicht ermittelt".into()),
+                                    k.einheit.text()
+                                ),
+                            ]);
+                        }
+                        z.push(tabelle(
+                            &[
+                                "Quellnachweis",
+                                "Berechnungsstand",
+                                "Bezugsgröße",
+                                "Übernommener Wert",
+                            ],
+                            &[2., 1.5, 2., 1.],
+                            quellen,
+                        ));
+                    }
+                    for q in &plan.fachquellen {
+                        let quelle = core
+                            .fachverlauf(p.id, q.art, q.objekt)
+                            .await?
+                            .into_iter()
+                            .find(|f| f.revision == q.revision)
+                            .ok_or_else(|| fehler("Archivierte Raumdatenquelle fehlt"))?;
+                        let raumbuch: crate::plattform::objekte::Raumbuch =
+                            serde_json::from_value(quelle.daten).map_err(fehler)?;
+                        z.push(text(format!("Raumdatenquelle: {} · Revision {}. Raumklassifikation und Anrechnung erfolgen in diesem Nachweis.", raumbuch.bezeichnung, q.revision)));
+                    }
+                    for d in &plan.quellen {
+                        let m = core
+                            .document_history(d.dokument_id)
+                            .await?
+                            .into_iter()
+                            .find(|m| m.project_id == p.id && m.version == d.version)
+                            .ok_or_else(|| fehler("Archivierte Berechnungsquelle fehlt"))?;
+                        z.push(text(format!(
+                            "Quellunterlage: {} · Version {}",
+                            m.file_name, d.version
+                        )));
+                    }
+                }
                 NachweisEingabe::AbstandProjekt { plan, .. } => {
                     let r: crate::abstandsflaechen::AbstandsErgebnis =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;

@@ -14,6 +14,14 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjektArt {
+    Stellplaetze,
+    Wohnflaechen,
+    Din277,
+    Vollgeschosse,
+    Hoehen,
+    Freiflaechen,
+    Entwaesserung,
+    Ueberbaubarkeit,
     Abstandsflaechen,
     Verfahren,
     Projektorganisation,
@@ -26,6 +34,14 @@ pub enum ObjektArt {
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
         match self {
+            Self::Stellplaetze => "stellplaetze",
+            Self::Wohnflaechen => "wohnflaechen",
+            Self::Din277 => "din277",
+            Self::Vollgeschosse => "vollgeschosse",
+            Self::Hoehen => "hoehen",
+            Self::Freiflaechen => "freiflaechen",
+            Self::Entwaesserung => "entwaesserung",
+            Self::Ueberbaubarkeit => "ueberbaubarkeit",
             Self::Abstandsflaechen => "abstandsflaechen",
             Self::Verfahren => "verfahren",
             Self::Projektorganisation => "projektorganisation",
@@ -75,9 +91,30 @@ impl CoreServices {
         if serde_json::to_vec(&daten).map_err(json_err)?.len() > 2 * 1024 * 1024 {
             return Err(CoreError::InvalidInput("Fachdatensatz ist zu groß".into()));
         }
-        let daten = if art == ObjektArt::Abstandsflaechen {
+        let daten = if crate::berechnungen::BerechnungsArt::ALLE
+            .iter()
+            .any(|m| m.objekt() == art)
+        {
+            self.berechnungsplan_vorbereiten(p, id, basis, daten, wer)
+                .await?
+        } else if art == ObjektArt::Abstandsflaechen {
             self.abstandsplan_vorbereiten(p, id, basis, daten, wer)
                 .await?
+        } else {
+            daten
+        };
+        let daten = if art == ObjektArt::Gebaeude {
+            let mut g: objekte::Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
+            for geschoss in &mut g.geschosse {
+                if let Some(q) = &geschoss.einstufungsquelle {
+                    let (wert, grundlage) = self
+                        .geschosseinstufung_aus_nachweis(p, q, id, geschoss.id, None)
+                        .await?;
+                    geschoss.vollgeschoss = Some(wert);
+                    geschoss.grundlage = grundlage;
+                }
+            }
+            serde_json::to_value(g).map_err(json_err)?
         } else {
             daten
         };

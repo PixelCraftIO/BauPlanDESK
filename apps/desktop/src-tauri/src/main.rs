@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod abstandsflaechen;
+mod berechnungen;
 mod bibliothek;
 mod bootstrap;
 mod commands;
@@ -184,6 +185,9 @@ fn main() {
             abstandsflaechen::abstandscad_konturen,
             abstandsflaechen::abstandsplan_pruefen,
             abstandsflaechen::abstandsnachweis_export,
+            berechnungen::berechnungsvorlagen,
+            berechnungen::berechnung_aus_raumbuch,
+            berechnungen::fachberechnung_pruefen,
             commands::mass_der_nutzung,
             updater::update_pruefen,
             updater::update_installieren,

@@ -163,6 +163,16 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
         )
         .await
         .unwrap();
+    core.dokumentkategorie_speichern(
+        d.document_id,
+        core_lib::dokumentkategorien::KategorieZuordnung {
+            revision: 0,
+            kategorie: Some("baubeschreibung".into()),
+        },
+        &user,
+    )
+    .await
+    .unwrap();
     let mut quellen = vec![
         Druckquelle::Dokument {
             dokument_id: d.document_id,
@@ -310,18 +320,7 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
         std::fs::create_dir_all(&ziel).unwrap();
         let ziel = std::path::Path::new(&ziel);
         let mut beispiel = a.clone();
-        beispiel.quellen = a
-            .quellen
-            .iter()
-            .filter(|q| {
-                matches!(
-                    q,
-                    Druckquelle::Baugrundstueck | Druckquelle::Nachweis { .. }
-                )
-            })
-            .take(2)
-            .cloned()
-            .collect();
+        beispiel.quellen = a.quellen.iter().take(3).cloned().collect();
         std::fs::write(
             ziel.join("beispiel.pdf"),
             core.druckausgabe(p.id, beispiel).await.unwrap().pdf,
