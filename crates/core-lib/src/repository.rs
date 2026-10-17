@@ -15,7 +15,7 @@ use crate::domain::{
     ProjectId, ProjectUpdate, Protokolleintrag,
 };
 use crate::error::CoreResult;
-use crate::kunden::{Kunde, KundeId, Kundendaten};
+use crate::kunden::{Beteiligtenzuordnung, Kunde, KundeId, Kundendaten, Projektbeteiligter};
 use crate::license::Arbeitsplatzbelegung;
 
 #[async_trait]
@@ -212,8 +212,22 @@ pub trait KundenRepository: Send + Sync {
         expected_version: i64,
     ) -> CoreResult<Project>;
 
-    /// Projekte, denen der Kunde als Bauherr zugeordnet ist, zuletzt
-    /// geänderte zuerst.
+    /// Weitere Beteiligte eines Projekts, je Rolle in der gespeicherten
+    /// Reihenfolge.
+    async fn beteiligte(&self, project: ProjectId) -> CoreResult<Vec<Projektbeteiligter>>;
+
+    /// Ersetzt die weiteren Beteiligten eines Projekts (ohne Dubletten je
+    /// Rolle) und erhöht in derselben Transaktion die Projektversion, wie
+    /// [`Self::bauherren_setzen`].
+    async fn beteiligte_setzen(
+        &self,
+        project: ProjectId,
+        beteiligte: &[Beteiligtenzuordnung],
+        expected_version: i64,
+    ) -> CoreResult<Project>;
+
+    /// Projekte, denen der Kunde als Bauherr oder Beteiligter zugeordnet ist,
+    /// zuletzt geänderte zuerst.
     async fn projekte_des_kunden(&self, id: KundeId) -> CoreResult<Vec<Project>>;
 }
 

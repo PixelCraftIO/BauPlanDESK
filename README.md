@@ -377,8 +377,15 @@ Notizen. Ein Projekt bekommt einen oder mehrere Kunden als Bauherren
 [`formulare/`](formulare)) lesen die Angaben von dort; eine neue Anschrift
 gilt also sofort in allen Projekten.
 
+- Weitere Beteiligte (Grundstückseigentümer, Erbbauberechtigte,
+  Bevollmächtigte, Fachplaner) kommen ebenfalls aus der Kundendatenbank
+  (*Projektakte → Weitere Beteiligte …* oder in der Ansicht *Bauantrag*). Ist
+  ein Eigentümer oder Erbbauberechtigter nicht zugleich Bauherr, weist der
+  Bauantrag auf die nötige Zustimmungserklärung hin (sperrt den Export nicht)
+  und das Verfahrensprofil legt sie als Anforderung an.
 - Anlegen und Ändern: ab Rolle *Bearbeitung*; Löschen: *Projektleitung*, und
-  nur, solange der Kunde keinem Projekt zugeordnet ist.
+  nur, solange der Kunde keinem Projekt als Bauherr oder Beteiligter
+  zugeordnet ist.
 - Die Zuordnung erhöht die Projektversion (Optimistic Locking wie bei den
   übrigen Projektdaten). Kundendaten haben eine eigene Version.
 - Bauherren, die ältere Versionen direkt im Bauantrag gespeichert haben,
@@ -386,7 +393,8 @@ gilt also sofort in allen Projekten.
   zugeordnet; gleiche Personen bzw. Firmen unter gleicher Anschrift nur
   einmal.
 - Server: `GET/POST /api/kunden`, `GET/PUT/DELETE /api/kunden/{id}`,
-  `GET /api/kunden/{id}/projekte`, `GET/PUT /api/projekte/{id}/bauherren`.
+  `GET /api/kunden/{id}/projekte`, `GET/PUT /api/projekte/{id}/bauherren`,
+  `GET/PUT /api/projekte/{id}/beteiligte`.
 - Code: [`crates/core-lib/src/kunden.rs`](crates/core-lib/src/kunden.rs).
 
 ## Desktop-App

@@ -1,5 +1,6 @@
 //! Kundendatenbank: Bauherren, Bauträger, Investoren, Baufirmen usw. werden
-//! einmal zentral gepflegt und Projekten als Bauherren zugeordnet. Bauantrag,
+//! einmal zentral gepflegt und Projekten als Bauherren oder in weiteren Rollen
+//! ([`Beteiligtenrolle`]) zugeordnet. Bauantrag,
 //! XBau-Export und Formulare lesen die Angaben von dort, sodass eine neue
 //! Anschrift sofort in allen Projekten gilt.
 
@@ -305,6 +306,107 @@ impl Kunde {
             },
         }
     }
+}
+
+/// Rolle eines Kunden im Projekt neben dem Bauherrn. Bauherren stehen
+/// weiter in ihrer eigenen Zuordnung ([`crate::repository::KundenRepository::bauherren`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Beteiligtenrolle {
+    Grundstueckseigentuemer,
+    Erbbauberechtigter,
+    Bevollmaechtigter,
+    Fachplaner,
+}
+
+impl Beteiligtenrolle {
+    pub const ALLE: [Beteiligtenrolle; 4] = [
+        Self::Grundstueckseigentuemer,
+        Self::Erbbauberechtigter,
+        Self::Bevollmaechtigter,
+        Self::Fachplaner,
+    ];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Grundstueckseigentuemer => "grundstueckseigentuemer",
+            Self::Erbbauberechtigter => "erbbauberechtigter",
+            Self::Bevollmaechtigter => "bevollmaechtigter",
+            Self::Fachplaner => "fachplaner",
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Grundstueckseigentuemer => "Grundstückseigentümer",
+            Self::Erbbauberechtigter => "Erbbauberechtigter",
+            Self::Bevollmaechtigter => "Bevollmächtigter",
+            Self::Fachplaner => "Fachplaner",
+        }
+    }
+
+    /// Verfügungsberechtigt über das Grundstück.
+    pub fn verfuegungsberechtigt(self) -> bool {
+        matches!(
+            self,
+            Self::Grundstueckseigentuemer | Self::Erbbauberechtigter
+        )
+    }
+}
+
+impl std::str::FromStr for Beteiligtenrolle {
+    type Err = CoreError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALLE
+            .into_iter()
+            .find(|r| r.code() == s)
+            .ok_or_else(|| CoreError::Database(format!("unbekannte Beteiligtenrolle: {s}")))
+    }
+}
+
+/// Zuordnung eines Kunden in einer Rolle, wie sie gespeichert wird.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Beteiligtenzuordnung {
+    pub rolle: Beteiligtenrolle,
+    pub kunde: KundeId,
+}
+
+/// Ein Kunde in seiner Rolle im Projekt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Projektbeteiligter {
+    pub rolle: Beteiligtenrolle,
+    pub kunde: Kunde,
+}
+
+/// Grundstückseigentümer und Erbbauberechtigte, die nicht zugleich Bauherr
+/// sind. Ihre Zustimmung zum Vorhaben ist als Bauvorlage nachzuweisen; ob und
+/// in welcher Form, regelt das Landesrecht.
+pub fn zustimmung_erforderlich<'a>(
+    bauherren: &[Kunde],
+    beteiligte: &'a [Projektbeteiligter],
+) -> Vec<&'a Projektbeteiligter> {
+    let mut gesehen = std::collections::HashSet::new();
+    beteiligte
+        .iter()
+        .filter(|b| b.rolle.verfuegungsberechtigt())
+        .filter(|b| !bauherren.iter().any(|k| k.id == b.kunde.id))
+        .filter(|b| gesehen.insert(b.kunde.id))
+        .collect()
+}
+
+/// Hinweistexte zu [`zustimmung_erforderlich`].
+pub fn zustimmungshinweise(bauherren: &[Kunde], beteiligte: &[Projektbeteiligter]) -> Vec<String> {
+    zustimmung_erforderlich(bauherren, beteiligte)
+        .into_iter()
+        .map(|b| {
+            format!(
+                "Zustimmungserklärung von {} ({}), nicht Bauherr",
+                b.kunde.anzeigename(),
+                b.rolle.name()
+            )
+        })
+        .collect()
 }
 
 /// Sortiert nach Anzeigename, ohne Rücksicht auf Groß- und Kleinschreibung.

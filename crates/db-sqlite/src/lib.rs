@@ -14,7 +14,9 @@ use core_lib::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
 };
-use core_lib::kunden::{Kunde, KundeId, Kundendaten};
+use core_lib::kunden::{
+    Beteiligtenrolle, Beteiligtenzuordnung, Kunde, KundeId, Kundendaten, Projektbeteiligter,
+};
 use core_lib::license::Arbeitsplatzbelegung;
 use core_lib::repository::{
     BauantragDatensatz, BauantragRepository, BenutzerRepository, DocumentRepository,
@@ -1000,7 +1002,7 @@ impl KundenRepository for SqliteDatabase {
             Ok(r) if r.rows_affected() == 1 => Ok(()),
             Ok(_) => Err(self.kunde_konflikt(id, expected_version).await),
             Err(e) if ist_fremdschluessel(&e) => Err(CoreError::InvalidInput(
-                "Der Kunde ist noch einem Projekt als Bauherr zugeordnet".into(),
+                "Der Kunde ist noch einem Projekt als Bauherr oder Beteiligter zugeordnet".into(),
             )),
             Err(e) => Err(db_err(e)),
         }
@@ -1070,11 +1072,87 @@ impl KundenRepository for SqliteDatabase {
         project_from_row(&row)
     }
 
+    async fn beteiligte(&self, project: ProjectId) -> CoreResult<Vec<Projektbeteiligter>> {
+        let mut liste = sqlx::query(
+            "SELECT b.rolle, b.position, k.* FROM projekt_beteiligte b JOIN kunden k ON k.id = b.kunde_id
+              WHERE b.project_id = ?",
+        )
+        .bind(project.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(|row| {
+            let rolle: String = row.try_get("rolle").map_err(db_err)?;
+            let position: i64 = row.try_get("position").map_err(db_err)?;
+            Ok((rolle.parse::<Beteiligtenrolle>()?, position, kunde_from_row(row)?))
+        })
+        .collect::<CoreResult<Vec<_>>>()?;
+        liste.sort_by_key(|(rolle, position, _)| (*rolle, *position));
+        Ok(liste
+            .into_iter()
+            .map(|(rolle, _, kunde)| Projektbeteiligter { rolle, kunde })
+            .collect())
+    }
+
+    async fn beteiligte_setzen(
+        &self,
+        project: ProjectId,
+        beteiligte: &[Beteiligtenzuordnung],
+        expected_version: i64,
+    ) -> CoreResult<Project> {
+        // Wie bei den Bauherren schützt die Projektversion die Zuordnung.
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        let row = sqlx::query(
+            "UPDATE projects SET version = version + 1, updated_at = ?
+              WHERE id = ? AND version = ?
+          RETURNING *",
+        )
+        .bind(Utc::now())
+        .bind(project.to_string())
+        .bind(expected_version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db_err)?;
+        let Some(row) = row else {
+            tx.rollback().await.map_err(db_err)?;
+            return Err(self.conflict_or_missing(project, expected_version).await);
+        };
+        sqlx::query("DELETE FROM projekt_beteiligte WHERE project_id = ?")
+            .bind(project.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        for (position, z) in beteiligte.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO projekt_beteiligte (project_id, kunde_id, rolle, position) VALUES (?, ?, ?, ?)",
+            )
+            .bind(project.to_string())
+            .bind(z.kunde.to_string())
+            .bind(z.rolle.code())
+            .bind(position as i64)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                if ist_fremdschluessel(&e) {
+                    CoreError::NotFound(format!("Kunde {}", z.kunde))
+                } else {
+                    db_err(e)
+                }
+            })?;
+        }
+        tx.commit().await.map_err(db_err)?;
+        project_from_row(&row)
+    }
+
     async fn projekte_des_kunden(&self, id: KundeId) -> CoreResult<Vec<Project>> {
         sqlx::query(
-            "SELECT p.* FROM projects p JOIN projekt_bauherren b ON b.project_id = p.id
-              WHERE b.kunde_id = ? ORDER BY p.updated_at DESC",
+            "SELECT p.* FROM projects p
+              WHERE p.id IN (SELECT project_id FROM projekt_bauherren WHERE kunde_id = ?
+                             UNION SELECT project_id FROM projekt_beteiligte WHERE kunde_id = ?)
+              ORDER BY p.updated_at DESC",
         )
+        .bind(id.to_string())
         .bind(id.to_string())
         .fetch_all(&self.pool)
         .await

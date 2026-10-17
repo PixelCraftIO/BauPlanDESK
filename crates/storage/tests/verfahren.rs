@@ -600,3 +600,105 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     let _ = ref1;
     let _ = plan2;
 }
+
+#[tokio::test]
+async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
+    use core_lib::kunden::{Beteiligtenrolle, Beteiligtenzuordnung, Kundendaten};
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let storage =
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        storage,
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Eigentümerzustimmung".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let kunde = |vorname: &str| Kundendaten {
+        vorname: vorname.into(),
+        familienname: "Huber".into(),
+        ..Kundendaten::default()
+    };
+    let bauherr = core.kunde_anlegen(kunde("Berta"), &user).await.unwrap();
+    let eigentuemer = core.kunde_anlegen(kunde("Emil"), &user).await.unwrap();
+    let p = core
+        .bauherren_setzen(p.id, vec![bauherr.id], p.version, &user)
+        .await
+        .unwrap();
+    core.beteiligte_setzen(
+        p.id,
+        vec![Beteiligtenzuordnung {
+            rolle: Beteiligtenrolle::Grundstueckseigentuemer,
+            kunde: eigentuemer.id,
+        }],
+        p.version,
+        &user,
+    )
+    .await
+    .unwrap();
+    let vid = Uuid::new_v4();
+    speichern(&core, p.id, vid, 0, &leer(), &user).await;
+    let profil = Vorhabenprofil {
+        bundesland: Bundesland::By,
+        art: Verfahrensart::Bauantrag,
+        gebaeudeklasse: Some(1),
+        sonderbau: Some(false),
+        nutzung: "Wohnen".into(),
+    };
+    let f = core
+        .verfahren_profil_anwenden(
+            p.id,
+            vid,
+            1,
+            profil.clone(),
+            Anforderungskatalog::standard().unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let z: Vec<_> = a
+        .anforderungen
+        .iter()
+        .filter(|r| r.titel.starts_with("Zustimmungserklärung"))
+        .collect();
+    assert_eq!(z.len(), 1);
+    assert_eq!(z[0].titel, "Zustimmungserklärung von Emil Huber");
+    assert_eq!(z[0].erforderlich, Erforderlichkeit::Ungeklaert);
+
+    // Erneutes Anwenden legt die Anforderung nicht doppelt an.
+    let f = core
+        .verfahren_profil_anwenden(
+            p.id,
+            vid,
+            f.revision,
+            profil,
+            Anforderungskatalog::standard().unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    assert_eq!(
+        a.anforderungen
+            .iter()
+            .filter(|r| r.titel.starts_with("Zustimmungserklärung"))
+            .count(),
+        1
+    );
+}

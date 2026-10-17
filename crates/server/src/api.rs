@@ -17,7 +17,7 @@ use core_lib::domain::{
 };
 use core_lib::domain::{DocumentLock, Protokolleintrag};
 use core_lib::formular::Feldwert;
-use core_lib::kunden::{Kunde, KundeId, Kundendaten};
+use core_lib::kunden::{Beteiligtenzuordnung, Kunde, KundeId, Kundendaten, Projektbeteiligter};
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
@@ -224,6 +224,10 @@ fn routen(core: CoreServices) -> Router {
         .route(
             "/projekte/{id}/bauherren",
             get(bauherren).put(bauherren_setzen),
+        )
+        .route(
+            "/projekte/{id}/beteiligte",
+            get(beteiligte).put(beteiligte_setzen),
         )
         .route("/kunden", get(kunden).post(kunde_anlegen))
         .route(
@@ -598,6 +602,32 @@ async fn bauherren_setzen(
 ) -> ApiResult<Project> {
     Ok(Json(
         core.bauherren_setzen(ProjectId(id), body.kunden, body.version, &akteur)
+            .await?,
+    ))
+}
+
+async fn beteiligte(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<Projektbeteiligter>> {
+    Ok(Json(core.beteiligte(ProjectId(id)).await?))
+}
+
+#[derive(Deserialize)]
+struct BeteiligteSetzen {
+    beteiligte: Vec<Beteiligtenzuordnung>,
+    /// Zuletzt gelesene Projektversion.
+    version: i64,
+}
+
+async fn beteiligte_setzen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<BeteiligteSetzen>,
+) -> ApiResult<Project> {
+    Ok(Json(
+        core.beteiligte_setzen(ProjectId(id), body.beteiligte, body.version, &akteur)
             .await?,
     ))
 }

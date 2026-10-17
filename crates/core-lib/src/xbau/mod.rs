@@ -397,6 +397,9 @@ pub struct GespeicherterBauantrag {
     /// Was für den Export noch fehlt (siehe [`Bauantrag::fehlende_angaben`]
     /// und [`Codelisten::fehlende`]).
     pub fehlende_angaben: Vec<String>,
+    /// Prüfhinweise, die den Export nicht sperren, etwa eine nötige
+    /// Zustimmungserklärung (siehe [`crate::kunden::zustimmungshinweise`]).
+    pub hinweise: Vec<String>,
     /// `true`: Die Flurstücke stammen aus den Grundstücksinformationen des
     /// Projekts und werden dort bearbeitet; die Liste im Antrag ist nur Anzeige.
     pub flurstuecke_zentral: bool,

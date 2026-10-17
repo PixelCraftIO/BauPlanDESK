@@ -81,6 +81,7 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
     verboten!(c::projekt_laden(app.state(), fremd.id));
     verboten!(c::dokumente_auflisten(app.state(), fremd.id));
     verboten!(c::bauherren(app.state(), fremd.id));
+    verboten!(c::beteiligte(app.state(), fremd.id));
     verboten!(c::bauantrag(app.state(), fremd.id));
     verboten!(c::grundstueckskontext(app.state(), fremd.id));
     verboten!(c::pdf_vorschau(app.state(), dokument.document_id, None));
