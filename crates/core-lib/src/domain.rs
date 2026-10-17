@@ -177,6 +177,8 @@ pub struct Planungsrecht {
     pub festsetzungen: String,
     pub begruendung: String,
     pub festgesetzte_werte: crate::festsetzungen::Festsetzungen,
+    /// Vergleichswerte der näheren Umgebung für Vorhaben nach § 34 BauGB.
+    pub umgebung: Option<crate::festsetzungen::Umgebungsreferenz>,
     pub berechnung: Option<crate::festsetzungen::NutzungsEingabe>,
     /// Bestandsformat, wird beim getrennten Speichern in Fakten und Ansätze überführt.
     pub baugrundstuecke: Option<crate::baugrundstuecke::BaugrundstuecksPlan>,
@@ -190,6 +192,9 @@ pub struct Planungsrecht {
 impl Planungsrecht {
     pub fn validate(&self) -> CoreResult<()> {
         self.festgesetzte_werte.validate()?;
+        if let Some(u) = &self.umgebung {
+            u.validate()?;
+        }
         if let Some(i) = &self.grundstuecksinformationen {
             i.validate()?;
         }

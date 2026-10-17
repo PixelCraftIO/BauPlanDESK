@@ -31,6 +31,7 @@
   function grundlagen(p: Project): Planungsrecht {
     const wert = structuredClone($state.snapshot(p.planungsrecht));
     wert.bau_nvo ??= null;
+    wert.umgebung ??= null;
     return wert;
   }
   let gespeichert = $state(untrack(() => grundlagen(projekt)));
@@ -269,7 +270,73 @@
       {#if eingabe.rechtsgrundlage === "par34"}<p class="meta">
           Einfügen in die Eigenart der näheren Umgebung, Erschließung und
           weitere Voraussetzungen unter „Beurteilung“ dokumentieren.
-        </p>{/if}
+        </p>
+        {#if !mitPlan}
+          <h3>Vergleichswerte der näheren Umgebung</h3>
+          <p class="meta">
+            Die Berechnungen stellen GRZ, GFZ und Vollgeschosse diesen Werten
+            gegenüber. Die Orientierungswerte des § 17 BauNVO gelten hier nicht.
+            Ob sich das Vorhaben einfügt, bleibt Ihre fachliche Beurteilung.
+          </p>
+          {#if eingabe.umgebung}
+            <div class="raster">
+              <label
+                >GRZ der Umgebung<input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="any"
+                  bind:value={eingabe.umgebung.grz}
+                /></label
+              >
+              <label
+                >GFZ der Umgebung<input
+                  type="number"
+                  min="0"
+                  step="any"
+                  bind:value={eingabe.umgebung.gfz}
+                /></label
+              >
+              <label
+                >Vollgeschosse der Umgebung<input
+                  type="number"
+                  min="0"
+                  step="1"
+                  bind:value={eingabe.umgebung.vollgeschosse}
+                /></label
+              >
+            </div>
+            <label
+              >Referenzbebauung und Quelle<textarea
+                bind:value={eingabe.umgebung.grundlage}
+                maxlength="4000"
+                required={eingabe.umgebung.grz != null ||
+                  eingabe.umgebung.gfz != null ||
+                  eingabe.umgebung.vollgeschosse != null}
+                placeholder="z. B. Musterweg 3 bis 9, Lageplan und Ortsbesichtigung"
+              ></textarea></label
+            >
+            <button
+              type="button"
+              class="sekundaer"
+              onclick={() => (eingabe.umgebung = null)}
+              >Vergleichswerte entfernen</button
+            >
+          {:else}
+            <button
+              type="button"
+              class="sekundaer"
+              onclick={() =>
+                (eingabe.umgebung = {
+                  grz: null,
+                  gfz: null,
+                  vollgeschosse: null,
+                  grundlage: "",
+                })}>Vergleichswerte erfassen</button
+            >
+          {/if}
+        {/if}
+      {/if}
     </fieldset>
   {/if}
   {#if mitPlan && bereich !== "stammdaten"}

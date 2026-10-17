@@ -72,6 +72,51 @@ impl Festsetzungen {
     }
 }
 
+/// Vom Planungsbüro erfasste Vergleichswerte der näheren Umgebung (§ 34 Abs. 1 BauGB).
+/// Sie dienen nur der Orientierung: Ob sich das Vorhaben einfügt, bleibt eine fachliche
+/// Beurteilung. Die Prüfung meldet daher Abweichungen, aber kein „eingehalten“.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Umgebungsreferenz {
+    pub grz: Option<f64>,
+    pub gfz: Option<f64>,
+    pub vollgeschosse: Option<u32>,
+    /// Referenzbebauung und Quelle, z. B. „Musterweg 3–9, Lageplan vom 02.03.2026“.
+    pub grundlage: String,
+}
+
+impl Umgebungsreferenz {
+    pub fn validate(&self) -> CoreResult<()> {
+        for (name, wert) in [("GRZ", self.grz), ("GFZ", self.gfz)] {
+            if let Some(v) = wert
+                && (!v.is_finite() || v < 0.0)
+            {
+                return Err(CoreError::InvalidInput(format!(
+                    "Umgebung {name}: endlicher Wert ab 0 erforderlich"
+                )));
+            }
+        }
+        if self.grz.is_some_and(|v| v > 1.0) {
+            return Err(CoreError::InvalidInput(
+                "Umgebung GRZ darf 1,0 nicht überschreiten".into(),
+            ));
+        }
+        if self.grundlage.chars().count() > 4000 {
+            return Err(CoreError::InvalidInput(
+                "Grundlage der Umgebungswerte: höchstens 4000 Zeichen".into(),
+            ));
+        }
+        if (self.grz.is_some() || self.gfz.is_some() || self.vollgeschosse.is_some())
+            && self.grundlage.trim().is_empty()
+        {
+            return Err(CoreError::InvalidInput(
+                "Umgebungswerte benötigen die Angabe der Referenzbebauung".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NutzungsEingabe {
     #[serde(default)]
@@ -86,8 +131,11 @@ pub struct NutzungsEingabe {
 #[serde(rename_all = "snake_case")]
 pub enum Quelle {
     Festsetzung,
+    /// § 17 BauNVO richtet sich an die planende Gemeinde; reine Information ohne Urteil.
     Orientierungswert,
     BauNvo19,
+    /// Vergleichswerte der näheren Umgebung (§ 34 BauGB); Orientierung ohne Urteil.
+    Umgebung,
     Keine,
 }
 
@@ -117,7 +165,11 @@ fn nachweis(
 ) -> Nachweis {
     let abweichung = ist.zip(soll).map(|(i, s)| i - s);
     let ueberschreitung = abweichung.map(|d| if d.abs() < 1e-9 { 0.0 } else { d.max(0.0) });
-    let eingehalten = abweichung.map(|d| if zwingend { d.abs() < 1e-9 } else { d <= 1e-9 });
+    // Nur Festsetzungen und § 19 BauNVO sind Zulässigkeitsmaßstäbe; Orientierungs- und
+    // Umgebungswerte zeigen die Abweichung, ohne sie als Verstoß zu werten.
+    let eingehalten = abweichung
+        .filter(|_| !matches!(quelle, Quelle::Orientierungswert | Quelle::Umgebung))
+        .map(|d| if zwingend { d.abs() < 1e-9 } else { d <= 1e-9 });
     let prozent = ueberschreitung
         .zip(soll)
         .and_then(|(u, s)| (s > 0.0).then(|| u / s * 100.0).filter(|v| v.is_finite()));
@@ -186,15 +238,26 @@ pub fn pruefe_mit_regeln(
         Festsetzungen::default()
     };
     let o = f.baugebiet.unwrap_or(e.gebiet).orientierungswerte();
+    let innenbereich =
+        !mit_plan && p.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par34);
+    let umgebung = p.umgebung.clone().unwrap_or_default();
     // In einem Plan keine unbekannten Festsetzungen durch Orientierungswerte ersetzen.
+    // Im Innenbereich ist das Einfügen maßgebend, nicht § 17 BauNVO.
     let (grz, gfz, bmz, quelle) =
         if !mit_plan && p.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par35) {
             (None, None, None, Quelle::Keine)
         } else if mit_plan {
             (f.grz, f.gfz, f.bmz, Quelle::Festsetzung)
+        } else if innenbereich {
+            (umgebung.grz, umgebung.gfz, None, Quelle::Umgebung)
         } else {
             (Some(o.grz), o.gfz, o.bmz, Quelle::Orientierungswert)
         };
+    let (vollgeschosse_soll, vollgeschosse_quelle) = if innenbereich {
+        (umgebung.vollgeschosse, Quelle::Umgebung)
+    } else {
+        (f.vollgeschosse, Quelle::Festsetzung)
+    };
     let basis_gesamt = match (
         grz,
         f.grundflaeche_m2
@@ -211,7 +274,8 @@ pub fn pruefe_mit_regeln(
             .unwrap_or(crate::flaechen::BauNvo::V2017),
     )?;
     let historisch = !regel.grz_ii || aufstellung.as_ref().is_some_and(|a| !a.grz_ii);
-    let grz_gesamt = if historisch {
+    // § 19 Abs. 4 BauNVO begrenzt die zulässige Grundfläche eines Plans; ohne Plan gibt es keine GRZ-II-Grenze.
+    let grz_gesamt = if historisch || !mit_plan {
         None
     } else {
         f.grz_gesamt.or_else(|| {
@@ -278,9 +342,9 @@ pub fn pruefe_mit_regeln(
             n(
                 "vollgeschosse",
                 e.vollgeschosse.map(f64::from),
-                f.vollgeschosse.map(f64::from),
-                Quelle::Festsetzung,
-                f.geschossigkeit == Geschossigkeit::Zwingend,
+                vollgeschosse_soll.map(f64::from),
+                vollgeschosse_quelle,
+                !innenbereich && f.geschossigkeit == Geschossigkeit::Zwingend,
             ),
         ],
     };
@@ -292,9 +356,13 @@ pub fn pruefe_mit_regeln(
             let mut n = nachweis(
                 "vollgeschosse",
                 Some(f64::from(*anzahl)),
-                f.vollgeschosse.map(f64::from),
-                Quelle::Festsetzung,
-                f.geschossigkeit == Geschossigkeit::Zwingend,
+                vollgeschosse_soll.map(f64::from),
+                if vollgeschosse_soll.is_some() {
+                    vollgeschosse_quelle
+                } else {
+                    Quelle::Keine
+                },
+                !innenbereich && f.geschossigkeit == Geschossigkeit::Zwingend,
             );
             n.gegenstand = Some(id.clone());
             r.nachweise.push(n);
@@ -491,6 +559,66 @@ mod tests {
         assert_eq!(r.nachweise[0].soll, Some(0.4));
         assert_eq!(r.nachweise[0].quelle, Quelle::Orientierungswert);
         assert_eq!(r.nachweise[7].eingehalten, None);
+        // § 17 BauNVO ist kein Zulässigkeitsmaßstab: kein Urteil, auch nicht „eingehalten“.
+        assert!(r.nachweise.iter().all(|n| n.eingehalten.is_none()));
+        assert!(r.nachweise[1].soll.is_none());
+    }
+    #[test]
+    fn innenbereich_vergleicht_nur_mit_erfasster_umgebung_ohne_urteil() {
+        let mut p = Planungsrecht {
+            rechtsgrundlage: Some(crate::domain::Rechtsgrundlage::Par34),
+            bebauungsplan_art: BebauungsplanArt::Kein,
+            ..Default::default()
+        };
+        let r = pruefe(&eingabe(), &p, 1).unwrap();
+        for art in ["grz", "grz_gesamt", "gfz", "bmz", "vollgeschosse"] {
+            let n = r.nachweise.iter().find(|n| n.art == art).unwrap();
+            assert_eq!(n.soll, None, "{art}");
+            assert_eq!(n.eingehalten, None, "{art}");
+            assert_eq!(n.quelle, Quelle::Keine, "{art}");
+        }
+        p.umgebung = Some(Umgebungsreferenz {
+            grz: Some(0.25),
+            gfz: Some(0.5),
+            vollgeschosse: Some(1),
+            grundlage: "Musterweg 3–9".into(),
+        });
+        let r = pruefe(&eingabe(), &p, 1).unwrap();
+        let grz = r.nachweise.iter().find(|n| n.art == "grz").unwrap();
+        assert_eq!(grz.soll, Some(0.25));
+        assert_eq!(grz.quelle, Quelle::Umgebung);
+        assert_eq!(grz.eingehalten, None);
+        assert!(grz.abweichung.is_some());
+        let vg = r
+            .nachweise
+            .iter()
+            .find(|n| n.art == "vollgeschosse")
+            .unwrap();
+        assert_eq!(
+            (vg.soll, vg.quelle, vg.eingehalten),
+            (Some(1.0), Quelle::Umgebung, None)
+        );
+        assert!(
+            r.nachweise
+                .iter()
+                .find(|n| n.art == "grz_gesamt")
+                .unwrap()
+                .soll
+                .is_none()
+        );
+    }
+    #[test]
+    fn umgebungswerte_brauchen_referenzbebauung() {
+        let mut u = Umgebungsreferenz {
+            grz: Some(0.3),
+            ..Default::default()
+        };
+        assert!(u.validate().is_err());
+        u.grundlage = "Nachbarbebauung Nr. 5 und 7".into();
+        assert!(u.validate().is_ok());
+        u.grz = Some(1.2);
+        assert!(u.validate().is_err());
+        assert!(Umgebungsreferenz::default().validate().is_ok());
     }
     #[test]
     fn absolute_grundflaeche_begrenzt_auch_nebenanlagen() {

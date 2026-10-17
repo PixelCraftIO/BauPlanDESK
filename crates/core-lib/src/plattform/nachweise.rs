@@ -177,6 +177,16 @@ fn grundlagen(p: &Project, regeln: &[RegelArchiv]) -> CoreResult<ContentHash> {
     if !crate::grundstuecksinformationen::quellen_aktuell(&p.planungsrecht)? {
         daten["berechnungsgrundlage_unbestaetigt"] = serde_json::json!(true);
     }
+    // Ohne Plan werden Orientierungswerte seit Maßstab 2 nicht mehr als Verstoß gewertet;
+    // ältere Nachweise ohne Plan gelten deshalb als veraltet. Planprojekte behalten ihren Stand.
+    let r = &p.planungsrecht;
+    let mit_plan = !matches!(
+        r.bebauungsplan_art,
+        crate::domain::BebauungsplanArt::Ungeklaert | crate::domain::BebauungsplanArt::Kein
+    );
+    if !mit_plan && r.rechtsgrundlage != Some(crate::domain::Rechtsgrundlage::Par35) {
+        daten["massstab_ohne_plan"] = serde_json::json!({"version": 2, "umgebung": r.umgebung});
+    }
     hash(&daten)
 }
 
