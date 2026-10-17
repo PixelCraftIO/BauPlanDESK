@@ -48,6 +48,18 @@ pub async fn verfahren_abgabe(
         .await?)
 }
 #[tauri::command]
+pub async fn verfahren_xbau_erfassen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    abgabe: Uuid,
+) -> Result<core_lib::xbau::postfach::Nachrichtenstand, CmdError> {
+    Ok(state
+        .core
+        .verfahren_xbau_erfassen(projekt_id, id, abgabe, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
 pub async fn verfahren_export(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
@@ -56,13 +68,9 @@ pub async fn verfahren_export(
     format: String,
     ziel: PathBuf,
 ) -> Result<(), CmdError> {
-    state
-        .core
-        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
-        .await?;
     let (_, b) = state
         .core
-        .verfahren_artefakt(projekt_id, id, abgabe, &format)
+        .verfahren_artefakt(projekt_id, id, abgabe, &format, &state.benutzer())
         .await?;
     tokio::fs::write(ziel, b)
         .await

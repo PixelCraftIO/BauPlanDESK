@@ -90,6 +90,7 @@ fn main() {
             verfahren::verfahren_profil_anwenden,
             verfahren::verfahren_abgabe,
             verfahren::verfahren_export,
+            verfahren::verfahren_xbau_erfassen,
             verfahren::verfahren_erinnerungen,
             verfahren::verfahren_suche,
             verfahren::suchtext_speichern,

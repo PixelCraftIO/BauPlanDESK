@@ -231,15 +231,30 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         .unwrap();
     let id = w.id;
     let zip_vorher = core
-        .verfahren_artefakt(p.id, vid, id, "zip")
+        .verfahren_artefakt(p.id, vid, id, "zip", &user)
         .await
         .unwrap()
         .1;
     let druck = core
-        .verfahren_artefakt(p.id, vid, id, "pdf")
+        .verfahren_artefakt(p.id, vid, id, "pdf", &user)
         .await
         .unwrap()
         .1;
+    // Behörde und Aktenzeichen der Akte sind eingefroren und gehen in Druck und XBau.
+    let akte: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let g = &akte.abgaben.iter().find(|b| b.id == id).unwrap().grundlagen;
+    assert_eq!(g.aktenzeichen.as_deref(), Some("BA-2026-42"));
+    assert_eq!(
+        g.behoerde.as_ref().map(|b| b.kennung.as_str()),
+        Some("bab:test")
+    );
+    assert_eq!(g.antrag.bauaufsicht.kennung, "bab:test");
+    // Ältere Abgabestände ohne diese Angaben bleiben lesbar.
+    let mut alt = serde_json::to_value(g).unwrap();
+    alt.as_object_mut().unwrap().remove("behoerde");
+    alt.as_object_mut().unwrap().remove("aktenzeichen");
+    let alt: core_lib::verfahren::abgabe::Abgabegrundlagen = serde_json::from_value(alt).unwrap();
+    assert_eq!((alt.behoerde, alt.aktenzeichen), (None, None));
     let retry = core
         .verfahren_abgabe_festhalten(p.id, vid, 0, w.clone(), &user)
         .await
@@ -358,14 +373,14 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         .unwrap();
     assert_eq!(plan3.version, 3);
     assert_eq!(
-        core.verfahren_artefakt(p.id, vid, id, "zip")
+        core.verfahren_artefakt(p.id, vid, id, "zip", &user)
             .await
             .unwrap()
             .1,
         zip_vorher
     );
     assert_eq!(
-        core.verfahren_artefakt(p.id, vid, id, "pdf")
+        core.verfahren_artefakt(p.id, vid, id, "pdf", &user)
             .await
             .unwrap()
             .1,

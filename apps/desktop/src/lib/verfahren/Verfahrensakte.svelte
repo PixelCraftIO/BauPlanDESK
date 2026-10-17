@@ -132,6 +132,21 @@
     ["beziehungen", "Korrekturen"],
     ["chronik", "Verfahrenschronik"],
   ];
+  // Die Akte ist maßgebend für Behörde und Aktenzeichen; ältere Projekte
+  // führen die Bauaufsicht noch im Bauantrag.
+  async function bauaufsichtUebernehmen(a: Verfahrensakte) {
+    try {
+      const b = (await api.bauantrag(projekt.id)).antrag.bauaufsicht;
+      if (!b.kennung.trim()) {
+        s.fehler = "Der Bauantrag enthält keine Behördenkennung.";
+        return;
+      }
+      a.behoerde.kennung = b.kennung;
+      if (!a.behoerde.name.trim()) a.behoerde.name = b.name;
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    }
+  }
 </script>
 
 <Fachliste
@@ -194,7 +209,12 @@
               /></label
             ><label
               >Behördenkennung<input bind:value={a.behoerde.kennung} /></label
-            ><label>Kontakt<input bind:value={a.behoerde.kontakt} /></label
+            >{#if !a.behoerde.kennung.trim() && darf}<button
+                type="button"
+                class="sekundaer"
+                onclick={() => bauaufsichtUebernehmen(a)}
+                >Behörde aus dem Bauantrag übernehmen</button
+              >{/if}<label>Kontakt<input bind:value={a.behoerde.kontakt} /></label
             ><Zustaendigkeit {benutzer} bind:wert={a.verantwortlich} /><label
               >Vorgängerverfahren<select bind:value={a.vorgaenger}
                 ><option value={null}>Keines</option
@@ -270,6 +290,8 @@
           projektId={projekt.id}
           verfahrenId={s.id!}
           {darf}
+          behoerde={a.behoerde}
+          aktenzeichen={a.aktenzeichen}
           gespeichert={s.original?.abgaben ?? []}
           portalZiele={Object.fromEntries(
             a.portal?.vorgaenge.flatMap((v) =>

@@ -64,6 +64,14 @@ pub struct Abgabegrundlagen {
     pub art: Option<Verfahrensart>,
     #[serde(default)]
     pub antragsangaben: Antragsangaben,
+    /// Behörde der Verfahrensakte beim Festhalten; maßgebend für Empfänger
+    /// von XBau und Druck. Fehlt in älteren Abgabeständen.
+    #[serde(default)]
+    pub behoerde: Option<Behoerde>,
+    /// Aktenzeichen der Verfahrensakte beim Festhalten; fehlt in älteren
+    /// Abgabeständen.
+    #[serde(default)]
+    pub aktenzeichen: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Abgabestand {
@@ -158,7 +166,31 @@ impl CoreServices {
         }
         let projekt = self.get_project(p).await?;
         // Der Bauantrag liefert die Flurstücke bereits aus den zentralen Grundstücksinformationen.
-        let antrag = self.bauantrag(p).await?.antrag;
+        let mut antrag = self.bauantrag(p).await?.antrag;
+        // Die Verfahrensakte ist maßgebend für Behörde und Aktenzeichen; die
+        // Bauaufsicht im Bauantrag ist nur noch ein Altwert.
+        let mut hinweise = Vec::new();
+        let behoerde = &a.behoerde;
+        if w.xbau && behoerde.kennung.trim().is_empty() {
+            return Err(fehler(
+                "Für die XBau-Ausgabe die Behördenkennung (DVDV) in der Verfahrensakte erfassen",
+            ));
+        }
+        if !behoerde.kennung.trim().is_empty() || !behoerde.name.trim().is_empty() {
+            let alt = &antrag.bauaufsicht;
+            if !alt.kennung.trim().is_empty() && alt.kennung.trim() != behoerde.kennung.trim() {
+                hinweise.push(format!(
+                    "Bauaufsicht im Bauantrag ({}) weicht von der Behörde der Verfahrensakte ({}) ab. Maßgebend ist die Verfahrensakte.",
+                    alt.kennung.trim(),
+                    behoerde.kennung.trim()
+                ));
+            }
+            antrag.bauaufsicht = crate::xbau::Bauaufsicht {
+                name: behoerde.name.trim().into(),
+                kennung: behoerde.kennung.trim().into(),
+            };
+        }
+        let aktenzeichen = a.aktenzeichen.trim().to_string();
         let grundlagen = Abgabegrundlagen {
             bauherren: self.bauherren_fuer_antrag(p, &antrag).await?,
             buero: self.buero().await?,
@@ -167,6 +199,8 @@ impl CoreServices {
             beteiligte: self.repos.kunden.beteiligte(p).await?,
             art: Some(a.art.clone()),
             antragsangaben: a.antragsangaben.clone(),
+            behoerde: Some(a.behoerde.clone()),
+            aktenzeichen: Some(aktenzeichen.clone()),
         };
         let fragen = grundlagen.antragsangaben.fragen();
         let xbau_art = if w.xbau {
@@ -197,7 +231,7 @@ impl CoreServices {
             inhalte.push(daten);
         }
         // Abgeleitete Anforderungen nach dem aktuellen Stand des Projekts.
-        let mut hinweise = self.anforderungen_abgleichen(p, vid, &mut a).await?;
+        hinweise.extend(self.anforderungen_abgleichen(p, vid, &mut a).await?);
         for d in &docs {
             let aktuell = self.repos.documents.latest(d.document_id).await?;
             if aktuell.version != d.version {
@@ -257,20 +291,26 @@ impl CoreServices {
             let anlagen = docs
                 .iter()
                 .zip(&namen)
-                .map(|(d, name)| crate::xbau::Anlagendatei {
-                    dokumentid: d.document_id.0,
-                    bezeichnung: d.file_name.clone(),
-                    versionsnummer: d.version,
-                    datum: d.created_at.date_naive(),
-                    anlageart: stand
+                .map(|(d, name)| {
+                    // Bezeichnung und Anlageart aus der Anlagenwahl des Bauantrags.
+                    let wahl = stand
                         .grundlagen
                         .antrag
                         .anlagen
                         .iter()
-                        .find(|a| a.dokument == d.document_id)
-                        .map(|a| a.anlageart.clone())
-                        .unwrap_or_default(),
-                    dateiname: name.clone(),
+                        .find(|a| a.dokument == d.document_id);
+                    crate::xbau::Anlagendatei {
+                        dokumentid: d.document_id.0,
+                        bezeichnung: wahl
+                            .map(|a| a.bezeichnung.trim())
+                            .filter(|b| !b.is_empty())
+                            .unwrap_or(&d.file_name)
+                            .to_string(),
+                        versionsnummer: d.version,
+                        datum: d.created_at.date_naive(),
+                        anlageart: wahl.map(|a| a.anlageart.clone()).unwrap_or_default(),
+                        dateiname: name.clone(),
+                    }
                 })
                 .collect::<Vec<_>>();
             let daten = crate::xbau::Nachrichtendaten {
@@ -290,7 +330,21 @@ impl CoreServices {
                     .into_iter()
                     .find(|n| n.id == id)
                     .ok_or_else(|| fehler("XBau-Bezug nicht in diesem Projekt"))?;
-                crate::xbau::antrag_geaendert(&daten, art, &n.nachricht.pruefung.kopf)?
+                let mut kopf = n.nachricht.pruefung.kopf.clone();
+                match kopf.aktenzeichen.as_deref().map(str::trim) {
+                    Some(az)
+                        if !az.is_empty() && !aktenzeichen.is_empty() && az != aktenzeichen =>
+                    {
+                        return Err(fehler(
+                            "Aktenzeichen der Bezugsnachricht passt nicht zur Verfahrensakte",
+                        ));
+                    }
+                    Some(az) if !az.is_empty() => {}
+                    // Fehlt es in der Bezugsnachricht, nennt die Nachreichung das der Akte.
+                    _ if !aktenzeichen.is_empty() => kopf.aktenzeichen = Some(aktenzeichen.clone()),
+                    _ => {}
+                }
+                crate::xbau::antrag_geaendert(&daten, art, &kopf)?
             } else {
                 crate::xbau::antrag(&daten, art)?
             };
@@ -312,7 +366,7 @@ impl CoreServices {
                     p,
                     crate::druckausgabe::Druckauftrag {
                         gestaltung: None,
-                        aktenzeichen: String::new(),
+                        aktenzeichen: aktenzeichen.clone(),
                         datum: None,
                         titel: stand.titel.clone(),
                         absender: stand.grundlagen.buero.name.clone(),
@@ -369,13 +423,82 @@ impl CoreServices {
         }
         resultat
     }
+    /// Übernimmt das eingefrorene XBau-Artefakt einer Abgabe als ausgehende
+    /// Nachricht ins XBau-Journal. Mehrfaches Erfassen, auch über das Portal,
+    /// ergibt dieselbe Nachricht.
+    pub async fn verfahren_xbau_erfassen(
+        &self,
+        p: ProjectId,
+        vid: Uuid,
+        abgabe: Uuid,
+        wer: &Benutzer,
+    ) -> CoreResult<crate::xbau::postfach::Nachrichtenstand> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        self.projekt_zugriff(p, wer, crate::zugriff::ProjektRecht::Bearbeiten)
+            .await?;
+        let (_, a) = self.verfahrensakte(p, vid).await?;
+        let artefakt = a
+            .abgaben
+            .iter()
+            .find(|b| b.id == abgabe)
+            .ok_or_else(|| fehler("Verfahrensabgabe nicht gefunden"))?
+            .artefakte
+            .iter()
+            .find(|a| a.format == "xbau")
+            .ok_or_else(|| fehler("Dieser eingefrorene Stand enthält kein XBau-Artefakt"))?;
+        let bytes = self
+            .storage
+            .load_verified(
+                &StorageKey::new(artefakt.storage_key.clone())?,
+                &ContentHash::try_from(artefakt.sha256.clone())?,
+            )
+            .await?;
+        let pruefung =
+            crate::xbau::austausch::pruefen("XBau.zip", &bytes, self.xbau_pruefer.as_ref()).await?;
+        if pruefung.kopf.id != abgabe {
+            return Err(fehler(
+                "XBau-Nachrichten-ID passt nicht zur eingefrorenen Abgabe",
+            ));
+        }
+        let d = self
+            .ablegen_vorgang(
+                p,
+                None,
+                None,
+                "XBau-Abgabestand.zip",
+                bytes,
+                wer,
+                crate::domain::Aktion::DokumentAbgelegt,
+                " · eingefrorenes XBau der Abgabe",
+                // Derselbe Schlüssel wie früher beim Portal hält beide Wege idempotent.
+                Some(Uuid::new_v5(&abgabe, b"portal.xbau.original")),
+                vec![],
+            )
+            .await?;
+        self.xbau_aufnehmen(
+            p,
+            crate::xbau::postfach::Nachrichtenaufnahme {
+                original: Dokumentbezug {
+                    dokument_id: d.document_id,
+                    version: d.version,
+                },
+                richtung: crate::xbau::postfach::Richtung::Ausgang,
+                zuordnung_bestaetigt: true,
+            },
+            wer,
+        )
+        .await
+    }
     pub async fn verfahren_artefakt(
         &self,
         p: ProjectId,
         vid: Uuid,
         id: Uuid,
         format: &str,
+        wer: &Benutzer,
     ) -> CoreResult<(String, Bytes)> {
+        self.projekt_zugriff(p, wer, crate::zugriff::ProjektRecht::Lesen)
+            .await?;
         let (_, a) = self.verfahrensakte(p, vid).await?;
         let f = a
             .abgaben
