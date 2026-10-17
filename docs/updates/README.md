@@ -130,3 +130,26 @@ keine Datensicherung und führt keine automatische Datenrücksetzung durch.
 veröffentlichen und den vollständigen Wechsel zwischen zwei Versionen testen.
 Eine erfolgreiche Windows-/macOS-/Linux-Installation wurde durch die
 Browserprüfung nicht nachgewiesen.
+
+## ZIP-Sicherheitsaktualisierung vom 17.10.2026
+
+Der CI-Job `lizenzen` führt mit `cargo deny check` auch Sicherheitsprüfungen aus.
+Die neu erfassten Meldungen RUSTSEC-2026-0367, -0368 und -0369 betreffen
+`zip 4.6.1`, einschließlich der Windows-Abhängigkeit des Tauri-Updaters.
+Der Workspace verwendet deshalb mindestens `zip 9.0.4`. Fehler beim Lesen
+von ZIP-Dateinamen werden in XBau-Import und Sicherungsprüfung weitergegeben;
+die bestehenden Prüfungen auf Pfadmanipulation, doppelte Namen und Integrität
+bleiben erhalten. Öffentliche Projekt- und Exportverträge ändern sich nicht.
+
+Auch der veröffentlichte Updater `2.14.0` verwendet noch `zip 4`. Bis eine
+bereinigte Version veröffentlicht ist, verwendet der Desktop den offiziellen
+[Upstream-Fix](https://github.com/tauri-apps/plugins-workspace/commit/ba98bfadc4c868c9a7e1a226c83af528e1f11b89)
+mit exakt dieser Git-Revision. Der Fix ändert die ZIP-Abhängigkeit auf Version 9.
+`deny.toml` erlaubt dafür ausdrücklich dieses offizielle Git-Repository;
+Sicherheitsmeldungen werden nicht ignoriert. Die Lockdatei enthält kein `zip 4`
+mehr. Nach Veröffentlichung einer bereinigten stabilen Updater-Version die
+Git-Bindung und deren Quellenfreigabe entfernen und erneut
+`cargo deny --all-features check` sowie ZIP-/Sicherungs-/XBau-Tests ausführen.
+
+Ein echter signierter Windows-Updatevorgang muss weiterhin mit zwei Release-Builds
+auf dem Zielgerät geprüft werden.
