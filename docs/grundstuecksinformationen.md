@@ -12,6 +12,16 @@ zum Anlegen/Bearbeiten eines Projekts gibt es deshalb keine zweite Flächeneinga
 Gemessene Planflächen verweisen zur Prüfung auf die Flurstücksinformationen und
 überschreiben keine Kataster- oder Baugrundstücksfläche.
 
+Jedes Flurstück hat einen **Bezug zum Vorhaben**: Vorhabengrundstück (Normalfall),
+Nachbarflurstück oder Sonstiges (etwa Zuwegung oder Baulastfläche). Nur
+Vorhabenflurstücke bilden Baugrundstücke, stehen im Bauantrag und im XBau-Export
+und ergeben die Grundstücksfläche des Projekts (Summe ihrer Flurstücksflächen).
+Die übrigen bleiben als Fakten erfasst, etwa für Abstandsflächen. Ein
+Buchgrundstück gehört nur ganz zum Vorhaben, und mindestens ein Flurstück muss
+dazugehören. Ein Wechsel des Bezugs ändert den Quellenstand; die
+Baugrundstücksermittlung ist danach erneut zu bestätigen. Ohne erfasste
+Flurstücke bleibt die Flächenangabe eines Bestandsprojekts stehen.
+
 Unter **Berechnungen → Baugrundstück** stehen diese gespeicherten Fakten lesend
 bereit. Dort werden die Grundstückszuordnung, einzelne begründete Flächenabzüge
 und zugeordnete Gemeinschaftsanteile angesetzt. Die Flurstücksfläche wird dabei

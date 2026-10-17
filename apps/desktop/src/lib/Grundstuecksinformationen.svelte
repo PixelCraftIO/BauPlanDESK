@@ -1,7 +1,10 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { api, fehlertext, type Project, type DocumentVersion } from "./api";
-  import type { FlurstuecksInfo } from "./generated/plattform";
+  import type {
+    FlurstuecksInfo,
+    FlurstuecksRolle,
+  } from "./generated/plattform";
   import { grundstuecksinformationen } from "./grundstuecksdaten";
   import { editorAnmelden } from "./editoren";
   let {
@@ -70,6 +73,16 @@
       bemerkung: "",
     });
   }
+  const ROLLEN: { code: FlurstuecksRolle; name: string }[] = [
+    { code: "vorhaben", name: "Vorhabengrundstück" },
+    { code: "nachbar", name: "Nachbarflurstück" },
+    { code: "sonstiges", name: "Sonstiges (Zuwegung, Baulast …)" },
+  ];
+  function rolleSetzen(f: FlurstuecksInfo, wert: string) {
+    // Vorhaben ist der Normalfall und wird wie im Core nicht gespeichert.
+    if (wert === "vorhaben") delete f.rolle;
+    else f.rolle = wert as FlurstuecksRolle;
+  }
   function auszug(f: FlurstuecksInfo, wert: string) {
     const [id, v] = wert.split(":");
     f.grundbuchauszug = wert ? { dokument_id: id, version: Number(v) } : null;
@@ -120,8 +133,17 @@
 <p class="meta">
   Katasterangaben und tatsächliche Flurstücksflächen. Grundbuchangaben und
   Auszüge können später ergänzt werden. Zuordnungen, Abzüge und Zuschläge werden
-  separat unter Berechnungen → Baugrundstück erfasst.
+  separat unter Berechnungen → Baugrundstück erfasst. Nur Flurstücke des
+  Vorhabengrundstücks bilden Baugrundstücke und stehen im Bauantrag; Nachbar-
+  und sonstige Flurstücke bleiben als Angaben erhalten.
 </p>
+{#if gespeichert.flurstuecke.length && projekt.grundstuecksflaeche_m2 != null}<p
+    class="meta"
+  >
+    Grundstücksfläche des Vorhabens (gespeicherter Stand): {projekt.grundstuecksflaeche_m2.toLocaleString(
+      "de-DE",
+    )} m²
+  </p>{/if}
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
 {#if meldung}<p role="status">{meldung}</p>{/if}
 {#if dokumentenFehler}<p class="hinweisbox" role="status">
@@ -135,7 +157,7 @@
         ><tr
           ><th>Gemarkung</th><th>Flur</th><th>Flurstück</th><th
             >Flurstücksfläche m²</th
-          ><th></th></tr
+          ><th>Bezug</th><th></th></tr
         ></thead
       ><tbody>
         {#each eingabe.flurstuecke as f (f.id)}<tr
@@ -169,6 +191,16 @@
                 required
               /></td
             ><td
+              ><select
+                aria-label="Bezug zum Vorhaben"
+                value={f.rolle ?? "vorhaben"}
+                onchange={(e) => rolleSetzen(f, e.currentTarget.value)}
+              >
+                {#each ROLLEN as r (r.code)}<option value={r.code}
+                    >{r.name}</option
+                  >{/each}
+              </select></td
+            ><td
               ><button
                 class="link"
                 onclick={() =>
@@ -177,7 +209,7 @@
                   ))}>Entfernen</button
               ></td
             ></tr
-          >{:else}<tr><td colspan="5">Noch keine Flurstücke erfasst.</td></tr
+          >{:else}<tr><td colspan="6">Noch keine Flurstücke erfasst.</td></tr
           >{/each}
       </tbody>
     </table>

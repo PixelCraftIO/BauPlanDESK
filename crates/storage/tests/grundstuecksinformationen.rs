@@ -34,6 +34,7 @@ fn info() -> Grundstuecksinformationen {
             grundbuchauszug: None,
             eigentuemer: String::new(),
             bemerkung: String::new(),
+            rolle: Default::default(),
         }],
     }
 }

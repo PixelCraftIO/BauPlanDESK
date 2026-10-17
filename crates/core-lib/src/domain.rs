@@ -258,7 +258,11 @@ pub struct Project {
     pub id: ProjectId,
     pub name: String,
     pub bundesland: Bundesland,
-    /// Grundstücksfläche in m² (maßgebend nach § 19 Abs. 3 BauNVO).
+    /// Grundstücksfläche in m². Mit erfassten Flurstücken abgeleitet als Summe
+    /// der Vorhabenflurstücke (siehe
+    /// [`crate::grundstuecksinformationen::projektflaeche_ableiten`]); die
+    /// maßgebende Fläche nach § 19 Abs. 3 BauNVO liefert dann je Baugrundstück
+    /// [`crate::grundstueckskontext`]. Ohne Flurstücke die Angabe des Bestandsprojekts.
     pub grundstuecksflaeche_m2: Option<f64>,
     pub version: i64,
     pub created_at: DateTime<Utc>,
