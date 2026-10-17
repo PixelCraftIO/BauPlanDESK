@@ -7,8 +7,12 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use super::pdf::{Feldart, Feldwert, Formularfeld};
-use crate::domain::{Bundesland, Project};
+use crate::calc::Baugebiet;
+use crate::domain::{BebauungsplanArt, Bundesland, Project};
 use crate::error::{CoreError, CoreResult};
+use crate::festsetzungen::{Festsetzungen, NutzungsEingabe, NutzungsPruefung};
+use crate::grundstuecksinformationen::FlurstuecksInfo;
+use crate::grundstueckskontext::GrundstueckKontext;
 use crate::kunden::{Kunde, Kundentyp};
 
 /// Flache Sicht auf alle Daten, die in Formulare einfließen können, z. B.
@@ -18,19 +22,135 @@ use crate::kunden::{Kunde, Kundentyp};
 pub struct Projektkontext(pub BTreeMap<String, String>);
 
 impl Projektkontext {
+    /// Projektweite Angaben und, wenn das Projekt genau ein Baugrundstück hat,
+    /// dessen Angaben.
     pub fn aus_projekt(p: &Project) -> Self {
+        let mut k = Self::projekt(p);
+        if let Ok(einheiten) = crate::grundstueckskontext::ermitteln(p)
+            && let [g] = einheiten.as_slice()
+        {
+            k.grundstueck(p, g);
+        }
+        k
+    }
+
+    /// Projektweite Angaben ohne Bezug auf ein Baugrundstück:
+    /// `projekt.*`, `planung.*` und `datum.heute`.
+    pub fn projekt(p: &Project) -> Self {
         let mut k = Self::default();
         k.setze("projekt.name", &p.name);
         k.setze("projekt.bundesland", p.bundesland.code());
         k.setze("projekt.bundesland_name", p.bundesland.name());
-        if let Ok(einheiten) = crate::grundstueckskontext::ermitteln(p)
-            && einheiten.len() == 1
-            && let Some(f) = einheiten[0].bezugsflaeche_m2
+        let r = &p.planungsrecht;
+        k.setze("planung.gemeinde", &r.gemeinde);
+        k.setze("planung.bebauungsplan", &r.plan_bezeichnung);
+        k.setze("planung.bebauungsplan_nummer", &r.plan_nummer);
+        if mit_plan(p)
+            && let Some(g) = r.festgesetzte_werte.baugebiet
         {
-            k.setze("grundstueck.flaeche_m2", zahl(f, 2));
+            k.baugebiet(g);
         }
         k.setze("datum.heute", Local::now().format("%d.%m.%Y").to_string());
+        k.leere_entfernen();
         k
+    }
+
+    /// Angaben eines Baugrundstücks: Größe laut Grundbuch
+    /// (`grundstueck.flaeche_m2`), Bezugsfläche nach Abzügen, Flurstücke,
+    /// Grundbuch sowie die aktuellen Kennzahlen aus der Nutzungsberechnung.
+    /// Liefert Hinweise, wenn die Kennzahlen nicht berechnet werden können.
+    pub fn grundstueck(&mut self, p: &Project, g: &GrundstueckKontext) -> Vec<String> {
+        self.setze("grundstueck.bezeichnung", &g.bezeichnung);
+        self.setze("grundstueck.flaeche_m2", zahl(g.eigentumsflaeche_m2, 2));
+        if let Some(f) = g.bezugsflaeche_m2 {
+            self.setze("grundstueck.bezugsflaeche_m2", zahl(f, 2));
+        }
+        let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+        let flurstuecke: Vec<_> = g
+            .flurstueck_ids
+            .iter()
+            .filter_map(|id| infos.flurstuecke.iter().find(|f| &f.id == id))
+            .collect();
+        let liste = |wert: fn(&FlurstuecksInfo) -> &str| {
+            let mut werte: Vec<&str> = Vec::new();
+            for w in flurstuecke.iter().map(|f| wert(f).trim()) {
+                if !w.is_empty() && !werte.contains(&w) {
+                    werte.push(w);
+                }
+            }
+            werte.join(", ")
+        };
+        self.setze("grundstueck.gemarkung", liste(|f| &f.gemarkung));
+        self.setze("grundstueck.flur", liste(|f| &f.flur));
+        self.setze("grundstueck.flurstuecke", liste(|f| &f.nummer));
+        self.setze("grundstueck.grundbuchbezirk", liste(|f| &f.grundbuchbezirk));
+        self.setze("grundstueck.grundbuchblatt", liste(|f| &f.grundbuchblatt));
+        self.setze(
+            "grundstueck.flurstuecksverzeichnis",
+            flurstuecke
+                .iter()
+                .map(|f| {
+                    [
+                        ("Gemarkung", &f.gemarkung),
+                        ("Flur", &f.flur),
+                        ("Flurstück", &f.nummer),
+                    ]
+                    .iter()
+                    .filter(|(_, w)| !w.trim().is_empty())
+                    .map(|(t, w)| format!("{t} {}", w.trim()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+                })
+                .collect::<Vec<_>>()
+                .join("; "),
+        );
+        let mut hinweise = Vec::new();
+        match nutzung(p, g) {
+            Ok(Some((pruefung, eingabe, eigene))) => {
+                let k = &pruefung.kennzahlen;
+                self.setze("kennzahlen.grz", zahl(k.grz, 2));
+                self.setze("kennzahlen.grz_gesamt", zahl(k.grz_gesamt, 2));
+                self.setze("kennzahlen.gfz", zahl(k.gfz, 2));
+                if let Some(bmz) = k.bmz {
+                    self.setze("kennzahlen.bmz", zahl(bmz, 2));
+                }
+                let (mass, vollgeschosse) = match &pruefung.aufstellung {
+                    Some(a) => (&a.mass, Some(a.vollgeschosse)),
+                    None => (&eingabe.mass, eingabe.vollgeschosse),
+                };
+                self.setze("flaechen.grundflaeche_m2", zahl(mass.grundflaeche_m2, 2));
+                self.setze(
+                    "flaechen.grundflaeche_nebenanlagen_m2",
+                    zahl(mass.grundflaeche_nebenanlagen_m2, 2),
+                );
+                self.setze(
+                    "flaechen.geschossflaeche_m2",
+                    zahl(mass.geschossflaeche_m2, 2),
+                );
+                if let Some(b) = mass.baumasse_m3 {
+                    self.setze("flaechen.baumasse_m3", zahl(b, 2));
+                }
+                if let Some(v) = vollgeschosse {
+                    self.setze("gebaeude.vollgeschosse", v.to_string());
+                }
+                // Eigene Festsetzungen des Grundstücks gehen vor; ohne Plan gilt
+                // das Gebiet der Berechnung.
+                if let Some(b) = eigene.and_then(|f| f.baugebiet) {
+                    self.baugebiet(b);
+                } else if !mit_plan(p) {
+                    self.baugebiet(eingabe.gebiet);
+                }
+            }
+            Ok(None) => {}
+            Err(e) => hinweise.push(format!("Kennzahlen sind nicht verfügbar: {e}")),
+        }
+        self.leere_entfernen();
+        hinweise
+    }
+
+    fn baugebiet(&mut self, g: Baugebiet) {
+        self.setze("planung.baugebiet", g.code());
+        self.setze("planung.baugebiet_name", g.name());
     }
 
     /// Angaben des (ersten) Bauherrn aus der Kundendatenbank:
@@ -39,32 +159,52 @@ impl Projektkontext {
     /// `bauherr.strasse_hausnummer`, `bauherr.plz`, `bauherr.ort`,
     /// `bauherr.plz_ort`, `bauherr.telefon`, `bauherr.email`.
     pub fn bauherr(&mut self, k: &Kunde) {
+        self.person("bauherr", k);
+    }
+
+    /// Angaben einer Person aus der Kundendatenbank unter `präfix.*`, mit
+    /// denselben Schlüsseln wie [`Self::bauherr`].
+    pub fn person(&mut self, praefix: &str, k: &Kunde) {
         let d = &k.daten;
-        let a = &d.anschrift;
-        self.setze("bauherr.name", k.anzeigename());
+        self.setze(&format!("{praefix}.name"), k.anzeigename());
         match d.typ {
             Kundentyp::Person => {
-                self.setze("bauherr.vorname", &d.vorname);
-                self.setze("bauherr.familienname", &d.familienname);
+                self.setze(&format!("{praefix}.vorname"), &d.vorname);
+                self.setze(&format!("{praefix}.familienname"), &d.familienname);
             }
-            Kundentyp::Organisation => self.setze("bauherr.firma", &d.firma),
+            Kundentyp::Organisation => self.setze(&format!("{praefix}.firma"), &d.firma),
         }
-        self.setze("bauherr.strasse", &a.strasse);
-        self.setze("bauherr.hausnummer", &a.hausnummer);
+        let a = &d.anschrift;
+        self.anschrift(praefix, &a.strasse, &a.hausnummer, &a.postleitzahl, &a.ort);
+        self.setze(&format!("{praefix}.telefon"), &d.telefon);
+        self.setze(&format!("{praefix}.email"), &d.email);
+        self.leere_entfernen();
+    }
+
+    /// `präfix.strasse`, `.hausnummer`, `.strasse_hausnummer`, `.plz`,
+    /// `.ort` und `.plz_ort`.
+    pub fn anschrift(
+        &mut self,
+        praefix: &str,
+        strasse: &str,
+        hausnummer: &str,
+        plz: &str,
+        ort: &str,
+    ) {
+        self.setze(&format!("{praefix}.strasse"), strasse);
+        self.setze(&format!("{praefix}.hausnummer"), hausnummer);
         self.setze(
-            "bauherr.strasse_hausnummer",
-            format!("{} {}", a.strasse, a.hausnummer).trim(),
+            &format!("{praefix}.strasse_hausnummer"),
+            format!("{strasse} {hausnummer}").trim(),
         );
-        self.setze("bauherr.plz", &a.postleitzahl);
-        self.setze("bauherr.ort", &a.ort);
-        self.setze(
-            "bauherr.plz_ort",
-            format!("{} {}", a.postleitzahl, a.ort).trim(),
-        );
-        self.setze("bauherr.telefon", &d.telefon);
-        self.setze("bauherr.email", &d.email);
-        // Leere Angaben nicht vorschlagen.
-        self.0.retain(|_, v| !v.is_empty());
+        self.setze(&format!("{praefix}.plz"), plz);
+        self.setze(&format!("{praefix}.ort"), ort);
+        self.setze(&format!("{praefix}.plz_ort"), format!("{plz} {ort}").trim());
+    }
+
+    /// Leere Angaben nicht vorschlagen.
+    pub fn leere_entfernen(&mut self) {
+        self.0.retain(|_, v| !v.trim().is_empty());
     }
 
     pub fn setze(&mut self, schluessel: &str, wert: impl Into<String>) {
@@ -73,6 +213,69 @@ impl Projektkontext {
 
     pub fn wert(&self, schluessel: &str) -> Option<&str> {
         self.0.get(schluessel).map(String::as_str)
+    }
+
+    /// Werte, die den Datenstand eines Formulars bestimmen. Das Tagesdatum
+    /// gehört nicht dazu, sonst gälte jeder Stand nach Mitternacht als
+    /// geändert.
+    pub fn datenstand(&self) -> BTreeMap<&str, &str> {
+        self.0
+            .iter()
+            .filter(|(k, _)| k.as_str() != "datum.heute")
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect()
+    }
+}
+
+fn mit_plan(p: &Project) -> bool {
+    matches!(
+        p.planungsrecht.bebauungsplan_art,
+        BebauungsplanArt::Qualifiziert
+            | BebauungsplanArt::Einfach
+            | BebauungsplanArt::Vorhabenbezogen
+    )
+}
+
+/// Aktuelle Nutzungsprüfung eines Baugrundstücks aus den gespeicherten
+/// Eingaben, mit Eingabe und eigenen Festsetzungen. `None`, solange keine
+/// Berechnung erfasst ist.
+fn nutzung(
+    p: &Project,
+    g: &GrundstueckKontext,
+) -> CoreResult<Option<(NutzungsPruefung, NutzungsEingabe, Option<Festsetzungen>)>> {
+    match crate::grundstuecksinformationen::plan(&p.planungsrecht)? {
+        Some(plan) => {
+            let Some(b) = plan
+                .berechnungen
+                .iter()
+                .find(|b| b.schluessel == g.schluessel)
+            else {
+                return Ok(None);
+            };
+            let pruefung = plan
+                .pruefe(&p.planungsrecht, p.version)?
+                .baugrundstuecke
+                .into_iter()
+                .find(|n| n.grundstueck.schluessel == g.schluessel)
+                .ok_or_else(|| {
+                    CoreError::InvalidInput("Berechnung des Baugrundstücks fehlt".into())
+                })?
+                .pruefung;
+            Ok(Some((
+                pruefung,
+                b.eingabe.clone(),
+                b.eigene_festsetzungen.clone(),
+            )))
+        }
+        None => p
+            .planungsrecht
+            .berechnung
+            .as_ref()
+            .map(|e| {
+                crate::festsetzungen::pruefe(e, &p.planungsrecht, p.version)
+                    .map(|r| (r, e.clone(), None))
+            })
+            .transpose(),
     }
 }
 

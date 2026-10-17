@@ -142,9 +142,12 @@ mod tests {
             .retain(|b| b.schluessel == plan.flurstuecke[0].schluessel());
         let k = ermitteln(&p).unwrap();
         assert_eq!(k[0].bezugsflaeche_m2, Some(430.));
+        let k = Projektkontext::aus_projekt(&p);
         assert_eq!(
-            Projektkontext::aus_projekt(&p).wert("grundstueck.flaeche_m2"),
-            Some("430,00")
+            k.wert("grundstueck.flaeche_m2"),
+            Some("500,00"),
+            "Grundbuch"
         );
+        assert_eq!(k.wert("grundstueck.bezugsflaeche_m2"), Some("430,00"));
     }
 }

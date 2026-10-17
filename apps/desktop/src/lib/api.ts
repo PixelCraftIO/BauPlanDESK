@@ -781,6 +781,7 @@ export interface Formularfeld {
 export interface FormularBezug {
   grundstueck_id: string | null;
   bauherr_id: string | null;
+  verfahren_id?: string | null;
 }
 export interface FormularDatenstand {
   projekt_id: string;
@@ -793,6 +794,7 @@ export interface FormularQuellen {
   datenstand: FormularDatenstand;
   grundstuecke: { id: string; bezeichnung: string }[];
   bauherren: { id: string; bezeichnung: string }[];
+  verfahren: { id: string; bezeichnung: string }[];
   hinweise: string[];
 }
 export interface FormularAnalyse {

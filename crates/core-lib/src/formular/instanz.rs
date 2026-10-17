@@ -14,6 +14,10 @@ use std::collections::BTreeMap;
 pub struct FormularBezug {
     pub grundstueck_id: Option<uuid::Uuid>,
     pub bauherr_id: Option<KundeId>,
+    /// Verfahren, aus dessen Akte Behörde und Aktenzeichen stammen. Fehlt in
+    /// älteren Datenständen und bleibt dann aus der Prüfsumme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verfahren_id: Option<uuid::Uuid>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FormularDatenstand {
@@ -33,6 +37,9 @@ pub struct FormularQuellen {
     pub datenstand: FormularDatenstand,
     pub grundstuecke: Vec<Quellenwahl>,
     pub bauherren: Vec<Quellenwahl>,
+    /// Fehlt in älteren Formularinstanzen.
+    #[serde(default)]
+    pub verfahren: Vec<Quellenwahl>,
     pub hinweise: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,9 +57,9 @@ impl CoreServices {
         mut bezug: FormularBezug,
     ) -> CoreResult<FormularQuellen> {
         let p = self.repos.projects.get(projekt).await?;
-        let mut werte = Projektkontext::aus_projekt(&p);
-        // Die konkrete Auswahl ist maßgebend, nie eine zufällige erste Einheit.
-        werte.0.remove("grundstueck.flaeche_m2");
+        // Grundstücksangaben nur aus der konkreten Auswahl, nie aus einer
+        // zufälligen ersten Einheit.
+        let mut werte = Projektkontext::projekt(&p);
         let mut hinweise = Vec::new();
         let grundstuecke = match crate::grundstueckskontext::ermitteln(&p) {
             Ok(g) => g,
@@ -62,23 +69,38 @@ impl CoreServices {
             }
         };
         let bauherren = self.repos.kunden.bauherren(projekt).await?;
+        let beteiligte = self.repos.kunden.beteiligte(projekt).await?;
+        let mut verfahren = Vec::new();
+        for f in self.repos.commit.fachstaende(projekt, "verfahren").await? {
+            let (Ok(id), Ok(akte)) = (
+                uuid::Uuid::parse_str(&f.objekt),
+                serde_json::from_value::<crate::verfahren::Verfahrensakte>(f.daten),
+            ) else {
+                continue;
+            };
+            verfahren.push((id, akte));
+        }
         if bezug.grundstueck_id.is_none() && grundstuecke.len() == 1 {
             bezug.grundstueck_id = Some(grundstuecke[0].id);
         }
         if bezug.bauherr_id.is_none() && bauherren.len() == 1 {
             bezug.bauherr_id = Some(bauherren[0].id);
         }
-        if let Some(id) = bezug.grundstueck_id {
-            let g = grundstuecke.iter().find(|g| g.id == id).ok_or_else(|| {
+        if bezug.verfahren_id.is_none() && verfahren.len() == 1 {
+            bezug.verfahren_id = Some(verfahren[0].0);
+        }
+        let gewaehlt = match bezug.grundstueck_id {
+            Some(id) => Some(grundstuecke.iter().find(|g| g.id == id).ok_or_else(|| {
                 CoreError::InvalidInput("Gewähltes Baugrundstück ist nicht mehr verfügbar".into())
-            })?;
-            if let Some(f) = g.bezugsflaeche_m2 {
-                werte.setze("grundstueck.flaeche_m2", super::vorlage::zahl(f, 2));
-            } else {
+            })?),
+            None => None,
+        };
+        if let Some(g) = gewaehlt {
+            hinweise.extend(werte.grundstueck(&p, g));
+            if g.bezugsflaeche_m2.is_none() {
                 hinweise
                     .push("Für das gewählte Baugrundstück fehlt eine gültige Bezugsfläche.".into());
             }
-            werte.setze("grundstueck.bezeichnung", &g.bezeichnung);
         } else if grundstuecke.len() > 1 {
             hinweise.push("Mehrere Baugrundstücke: Bitte die Quelle wählen oder die Formularwerte manuell eingeben.".into());
         }
@@ -89,8 +111,65 @@ impl CoreServices {
         } else if bauherren.len() > 1 {
             hinweise.push("Mehrere Bauherren: Bitte die Quelle wählen oder die Formularwerte manuell eingeben.".into());
         }
+        beteiligte_setzen(&mut werte, &p, gewaehlt, &bauherren, &beteiligte);
+
+        let antrag = self.bauantrag(projekt).await?.antrag;
+        let a = &antrag.grundstueck.anschrift;
+        werte.anschrift(
+            "grundstueck",
+            &a.strasse,
+            &a.hausnummer,
+            &a.postleitzahl,
+            &a.ort,
+        );
+        werte.setze(
+            "vorhaben.bezeichnung",
+            if antrag.bezeichnung.trim().is_empty() {
+                &p.name
+            } else {
+                &antrag.bezeichnung
+            },
+        );
+        let buero = self.buero().await?;
+        werte.setze("buero.name", &buero.name);
+        let a = &buero.anschrift;
+        werte.anschrift("buero", &a.strasse, &a.hausnummer, &a.postleitzahl, &a.ort);
+        match antrag.entwurfsverfasser_von(&buero) {
+            Some(e) => {
+                werte.setze("entwurfsverfasser.name", e.anzeigename());
+                werte.setze("entwurfsverfasser.vorname", &e.vorname);
+                werte.setze("entwurfsverfasser.familienname", &e.familienname);
+                werte.setze("entwurfsverfasser.berufsbezeichnung", &e.berufsbezeichnung);
+                werte.setze("entwurfsverfasser.mitgliedsnummer", &e.mitgliedsnummer);
+                if let Some(l) = e.kammerland {
+                    werte.setze("entwurfsverfasser.kammerland", l.name());
+                }
+            }
+            None if buero.entwurfsverfasser.len() > 1 => hinweise.push(
+                "Mehrere Entwurfsverfasser im Büro: Bitte im Bauantrag die verantwortliche Person wählen.".into(),
+            ),
+            None => {}
+        }
+
+        match bezug.verfahren_id {
+            Some(id) => {
+                let (_, akte) = verfahren.iter().find(|(v, _)| *v == id).ok_or_else(|| {
+                    CoreError::InvalidInput("Gewähltes Verfahren gehört nicht zum Projekt".into())
+                })?;
+                werte.setze("verfahren.bezeichnung", &akte.bezeichnung);
+                werte.setze("verfahren.aktenzeichen", &akte.aktenzeichen);
+                werte.setze("behoerde.name", &akte.behoerde.name);
+            }
+            None => {
+                if verfahren.len() > 1 {
+                    hinweise.push("Mehrere Verfahren: Für Behörde und Aktenzeichen bitte das Verfahren wählen.".into());
+                }
+                werte.setze("behoerde.name", &antrag.bauaufsicht.name);
+            }
+        }
+        werte.leere_entfernen();
         let daten_hash = ContentHash::of(
-            &serde_json::to_vec(&(&bezug, &werte))
+            &serde_json::to_vec(&(&bezug, werte.datenstand()))
                 .map_err(|e| CoreError::InvalidInput(e.to_string()))?,
         );
         Ok(FormularQuellen {
@@ -113,6 +192,17 @@ impl CoreServices {
                 .map(|b| Quellenwahl {
                     id: b.id.0,
                     bezeichnung: b.anzeigename(),
+                })
+                .collect(),
+            verfahren: verfahren
+                .iter()
+                .map(|(id, a)| Quellenwahl {
+                    id: *id,
+                    bezeichnung: if a.behoerde.name.trim().is_empty() {
+                        a.bezeichnung.clone()
+                    } else {
+                        format!("{} ({})", a.bezeichnung, a.behoerde.name)
+                    },
                 })
                 .collect(),
             hinweise,
@@ -176,6 +266,83 @@ impl CoreServices {
                 serde_json::from_value(z.daten).map_err(|e| CoreError::InvalidInput(e.to_string()))
             })
             .transpose()
+    }
+}
+
+/// Eigentümer des gewählten Baugrundstücks (aus den Flurstücken, sonst alle
+/// Grundstückseigentümer des Projekts) und weitere Beteiligte nach Rolle. Bei
+/// einer Person stehen Name und Anschrift unter `rolle.*`, bei mehreren nur
+/// die Namen in `rolle.name`.
+fn beteiligte_setzen(
+    werte: &mut Projektkontext,
+    p: &crate::domain::Project,
+    grundstueck: Option<&crate::grundstueckskontext::GrundstueckKontext>,
+    bauherren: &[crate::kunden::Kunde],
+    beteiligte: &[crate::kunden::Projektbeteiligter],
+) {
+    use crate::kunden::{Beteiligtenrolle, Kunde};
+    fn setze(werte: &mut Projektkontext, praefix: &str, kunden: Vec<&Kunde>) {
+        match kunden.as_slice() {
+            [] => {}
+            [k] => werte.person(praefix, k),
+            _ => werte.setze(
+                &format!("{praefix}.name"),
+                kunden
+                    .iter()
+                    .map(|k| k.anzeigename())
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ),
+        }
+    }
+    let nach_rolle = |rolle| {
+        beteiligte
+            .iter()
+            .filter(move |b| b.rolle == rolle)
+            .map(|b| &b.kunde)
+    };
+    let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+    let flurstuecke: Vec<_> = infos
+        .flurstuecke
+        .iter()
+        .filter(|f| grundstueck.is_some_and(|g| g.flurstueck_ids.contains(&f.id)))
+        .collect();
+    let mut eigentuemer: Vec<&Kunde> = Vec::new();
+    for id in flurstuecke.iter().flat_map(|f| &f.eigentuemer_kunden) {
+        if let Some(k) = bauherren
+            .iter()
+            .chain(beteiligte.iter().map(|b| &b.kunde))
+            .find(|k| k.id == *id)
+            && !eigentuemer.iter().any(|e| e.id == k.id)
+        {
+            eigentuemer.push(k);
+        }
+    }
+    let freitext: Vec<_> = flurstuecke
+        .iter()
+        .map(|f| f.eigentuemer.trim())
+        .filter(|e| !e.is_empty())
+        .collect();
+    if eigentuemer.is_empty() && !freitext.is_empty() {
+        let mut namen: Vec<&str> = Vec::new();
+        for e in freitext {
+            if !namen.contains(&e) {
+                namen.push(e);
+            }
+        }
+        werte.setze("eigentuemer.name", namen.join("; "));
+    } else {
+        if eigentuemer.is_empty() {
+            eigentuemer = nach_rolle(Beteiligtenrolle::Grundstueckseigentuemer).collect();
+        }
+        setze(werte, "eigentuemer", eigentuemer);
+    }
+    for (praefix, rolle) in [
+        ("erbbauberechtigter", Beteiligtenrolle::Erbbauberechtigter),
+        ("bevollmaechtigter", Beteiligtenrolle::Bevollmaechtigter),
+        ("fachplaner", Beteiligtenrolle::Fachplaner),
+    ] {
+        setze(werte, praefix, nach_rolle(rolle).collect());
     }
 }
 

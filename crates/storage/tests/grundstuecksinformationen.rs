@@ -145,7 +145,10 @@ async fn fakten_ohne_grundbuch_berechnung_getrennt_und_aenderungen_sperren_alte_
     assert_eq!(k.len(), 1);
     assert_eq!(k[0].bezugsflaeche_m2, Some(900.));
     let kontext = core_lib::formular::vorlage::Projektkontext::aus_projekt(&p);
-    assert_eq!(kontext.wert("grundstueck.flaeche_m2"), Some("900,00"));
+    // Formulare fragen die Größe laut Grundbuch; die Bezugsfläche nach Abzügen
+    // steht getrennt.
+    assert_eq!(kontext.wert("grundstueck.flaeche_m2"), Some("1000,00"));
+    assert_eq!(kontext.wert("grundstueck.bezugsflaeche_m2"), Some("900,00"));
     let eingabe = plan(&p.planungsrecht).unwrap().unwrap();
     let gerechnet = core
         .projekt_baugrundstuecke_pruefen(p.id, &eingabe)
@@ -524,4 +527,247 @@ async fn grundbuchauszug_referenziert_eine_eigene_historische_projektversion() {
             .grundstuecksinformationen,
         p.planungsrecht.grundstuecksinformationen
     );
+}
+
+#[tokio::test]
+async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahren() {
+    use core_lib::{
+        formular::instanz::FormularBezug,
+        kunden::{Beteiligtenrolle, Beteiligtenzuordnung, Kundendaten},
+        plattform::ObjektArt,
+        verfahren::*,
+        xbau::{Anschrift, Buero, Entwurfsverfasser},
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().to_path_buf(), "test").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Planer").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Haus".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Planungsrecht {
+                    bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+                    bau_nvo: Some(core_lib::flaechen::BauNvo::V2017),
+                    plan_bezeichnung: "Am Lindenhof".into(),
+                    plan_nummer: "B 12".into(),
+                    gemeinde: "Linden".into(),
+                    festgesetzte_werte: core_lib::festsetzungen::Festsetzungen {
+                        baugebiet: Some(core_lib::calc::Baugebiet::WA),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let kunde = |vorname: &str| Kundendaten {
+        vorname: vorname.into(),
+        familienname: "Huber".into(),
+        ..Default::default()
+    };
+    let bauherr = core.kunde_anlegen(kunde("Anna"), &user).await.unwrap();
+    let mut daten = kunde("Emil");
+    daten.anschrift.strasse = "Gartenweg".into();
+    daten.anschrift.hausnummer = "3".into();
+    daten.anschrift.postleitzahl = "80331".into();
+    daten.anschrift.ort = "München".into();
+    let eigentuemer = core.kunde_anlegen(daten, &user).await.unwrap();
+    let planer = core.kunde_anlegen(kunde("Fritz"), &user).await.unwrap();
+    let p = core
+        .bauherren_setzen(p.id, vec![bauherr.id], p.version, &user)
+        .await
+        .unwrap();
+    let p = core
+        .beteiligte_setzen(
+            p.id,
+            vec![
+                Beteiligtenzuordnung {
+                    rolle: Beteiligtenrolle::Grundstueckseigentuemer,
+                    kunde: eigentuemer.id,
+                },
+                Beteiligtenzuordnung {
+                    rolle: Beteiligtenrolle::Fachplaner,
+                    kunde: planer.id,
+                },
+            ],
+            p.version,
+            &user,
+        )
+        .await
+        .unwrap();
+    let mut recht = p.planungsrecht.clone();
+    let mut infos = info();
+    infos.flurstuecke[0].grundbuchbezirk = "Linden".into();
+    infos.flurstuecke[0].grundbuchblatt = "4711".into();
+    infos.flurstuecke[0].eigentuemer_kunden = vec![eigentuemer.id];
+    recht.grundstuecksinformationen = Some(infos);
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            aenderung(&p, recht),
+            &user,
+        )
+        .await
+        .unwrap();
+    let mut recht = p.planungsrecht.clone();
+    let mut ermittlung = ansatz();
+    ermittlung.ansaetze[0].abweichende_zuordnung = None;
+    recht.baugrundstuecksermittlung = Some(ermittlung);
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecke,
+            aenderung(&p, recht),
+            &user,
+        )
+        .await
+        .unwrap();
+    let ev = Entwurfsverfasser {
+        id: uuid::Uuid::new_v4(),
+        vorname: "Eva".into(),
+        familienname: "Plan".into(),
+        berufsbezeichnung: "Architektin".into(),
+        mitgliedsnummer: "12345".into(),
+        kammerland: Some(Bundesland::By),
+        nachweis: String::new(),
+    };
+    core.buero_speichern(
+        Buero {
+            name: "Plan & Bau".into(),
+            anschrift: Anschrift {
+                strasse: "Hauptstraße".into(),
+                hausnummer: "1".into(),
+                postleitzahl: "80331".into(),
+                ort: "München".into(),
+            },
+            kennung: "arc:1".into(),
+            entwurfsverfasser: vec![ev],
+        },
+        &user,
+    )
+    .await
+    .unwrap();
+
+    let q = core
+        .formular_quellen(p.id, Default::default())
+        .await
+        .unwrap();
+    let w = &q.datenstand.werte;
+    for (schluessel, wert) in [
+        ("grundstueck.flaeche_m2", "1000,00"),
+        ("grundstueck.bezugsflaeche_m2", "900,00"),
+        ("grundstueck.gemarkung", "Linden"),
+        ("grundstueck.flur", "1"),
+        ("grundstueck.flurstuecke", "10/1"),
+        ("grundstueck.grundbuchblatt", "4711"),
+        (
+            "grundstueck.flurstuecksverzeichnis",
+            "Gemarkung Linden, Flur 1, Flurstück 10/1",
+        ),
+        ("planung.bebauungsplan", "Am Lindenhof"),
+        ("planung.bebauungsplan_nummer", "B 12"),
+        ("planung.baugebiet", "WA"),
+        ("planung.baugebiet_name", "Allgemeines Wohngebiet"),
+        ("bauherr.name", "Anna Huber"),
+        ("eigentuemer.name", "Emil Huber"),
+        ("eigentuemer.plz_ort", "80331 München"),
+        ("fachplaner.name", "Fritz Huber"),
+        ("entwurfsverfasser.name", "Eva Plan"),
+        ("entwurfsverfasser.mitgliedsnummer", "12345"),
+        ("entwurfsverfasser.kammerland", "Bayern"),
+        ("buero.name", "Plan & Bau"),
+        ("buero.strasse_hausnummer", "Hauptstraße 1"),
+        ("vorhaben.bezeichnung", "Haus"),
+    ] {
+        assert_eq!(w.wert(schluessel), Some(wert), "{schluessel}");
+    }
+    for schluessel in [
+        "kennzahlen.grz",
+        "kennzahlen.gfz",
+        "flaechen.grundflaeche_m2",
+        "flaechen.geschossflaeche_m2",
+    ] {
+        assert!(
+            w.wert(schluessel).is_some(),
+            "{schluessel}: {:?}",
+            q.hinweise
+        );
+    }
+    // Ohne Verfahren nennt der Bauantrag die Behörde; Aktenzeichen fehlt.
+    assert_eq!(w.wert("verfahren.aktenzeichen"), None);
+    assert!(q.verfahren.is_empty());
+
+    // Das Tagesdatum ändert den Datenstand nicht.
+    let mut morgen = q.datenstand.werte.clone();
+    morgen.setze("datum.heute", "01.01.2099");
+    assert_eq!(morgen.datenstand(), q.datenstand.werte.datenstand());
+
+    // Ein Verfahren liefert Behörde und Aktenzeichen.
+    let vid = uuid::Uuid::new_v4();
+    let akte = Verfahrensakte {
+        portal: None,
+        bezeichnung: "Neubau".into(),
+        art: Verfahrensart::Bauantrag,
+        antragsangaben: Default::default(),
+        status: Verfahrensstatus::Vorbereitung,
+        behoerde: Behoerde {
+            id: uuid::Uuid::new_v4(),
+            name: "Bauaufsicht Linden".into(),
+            kennung: "bab:1".into(),
+            kontakt: String::new(),
+        },
+        aktenzeichen: "BA-2026-7".into(),
+        verantwortlich: None,
+        vorgaenger: None,
+        profil: None,
+        kommunikation: vec![],
+        nachforderungen: vec![],
+        anforderungen: vec![],
+        dokumentbeziehungen: vec![],
+        abgaben: vec![],
+        bescheide: vec![],
+        ereignisse: vec![],
+    };
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Verfahren,
+        vid,
+        0,
+        serde_json::to_value(&akte).unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+    let q2 = core
+        .formular_quellen(p.id, Default::default())
+        .await
+        .unwrap();
+    assert_eq!(q2.datenstand.bezug.verfahren_id, Some(vid));
+    assert_eq!(q2.verfahren[0].bezeichnung, "Neubau (Bauaufsicht Linden)");
+    let w = &q2.datenstand.werte;
+    assert_eq!(w.wert("verfahren.aktenzeichen"), Some("BA-2026-7"));
+    assert_eq!(w.wert("behoerde.name"), Some("Bauaufsicht Linden"));
+    assert_ne!(q2.datenstand.daten_hash, q.datenstand.daten_hash);
+    let fremd = core
+        .formular_quellen(
+            p.id,
+            FormularBezug {
+                verfahren_id: Some(uuid::Uuid::new_v4()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+    assert!(fremd.to_string().contains("Verfahren"), "{fremd}");
 }

@@ -46,6 +46,41 @@ pub struct Orientierungswerte {
 }
 
 impl Baugebiet {
+    /// Kurzzeichen nach der PlanZV, z. B. „WA“.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::WS => "WS",
+            Self::WR => "WR",
+            Self::WA => "WA",
+            Self::WB => "WB",
+            Self::MD => "MD",
+            Self::MDW => "MDW",
+            Self::MI => "MI",
+            Self::MU => "MU",
+            Self::MK => "MK",
+            Self::GE => "GE",
+            Self::GI => "GI",
+            Self::SO => "SO",
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::WS => "Kleinsiedlungsgebiet",
+            Self::WR => "Reines Wohngebiet",
+            Self::WA => "Allgemeines Wohngebiet",
+            Self::WB => "Besonderes Wohngebiet",
+            Self::MD => "Dorfgebiet",
+            Self::MDW => "Dörfliches Wohngebiet",
+            Self::MI => "Mischgebiet",
+            Self::MU => "Urbanes Gebiet",
+            Self::MK => "Kerngebiet",
+            Self::GE => "Gewerbegebiet",
+            Self::GI => "Industriegebiet",
+            Self::SO => "Sondergebiet (Erholung)",
+        }
+    }
+
     pub fn orientierungswerte(self) -> Orientierungswerte {
         let (grz, gfz, bmz) = match self {
             Self::WS => (0.2, Some(0.4), None),
