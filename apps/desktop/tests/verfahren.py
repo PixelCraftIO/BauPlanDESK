@@ -48,6 +48,9 @@ with sync_playwright() as p:
  def tab(name):page.get_by_role('navigation',name='Verfahrensbereiche').get_by_role('button',name=name,exact=True).click()
  view('Verfahrensakte');page.get_by_role('button',name='Öffnen',exact=True).click()
  expect(page.get_by_role('textbox',name='Aktenzeichen',exact=True)).to_have_value('BA-2026-42')
+ # Status und behördliche Vollständigkeitsbestätigung stammen aus der Akte, nicht aus freien Texten.
+ expect(page.get_by_role('combobox',name='Bearbeitungsstand',exact=True).locator('option:checked')).to_have_text('Entschieden')
+ expect(page.get_by_role('textbox',name='Vollständigkeit bestätigt am',exact=True)).to_have_value(wf['verfahren']['daten']['vollstaendigkeit']['datum'])
  tab('Nachforderungen');expect(page.get_by_text('0 von 3 Punkten abgeschlossen',exact=True)).to_be_visible()
  expect(page.get_by_role('textbox',name='Forderung',exact=True)).to_have_count(3)
  # Eine neue Antwort lässt andere Forderungspunkte unverändert; Speicherfehler erhält sie.
@@ -61,6 +64,8 @@ with sync_playwright() as p:
  tab('Bescheide / Auflagen');expect(page.get_by_role('heading',name='Bescheide und genehmigte Unterlagen')).to_be_visible()
  expect(page.get_by_role('listitem').filter(has_text='Lageplan.pdf · Version 2')).to_be_visible()
  expect(page.get_by_role('textbox',name='Auflage',exact=True)).to_have_value('Nachweis vor Baubeginn')
+ # Ein gespeicherter Bescheid mit Zustelldatum bleibt unveränderlich.
+ expect(page.get_by_text('Zustelldatum',exact=True).locator('input')).to_be_disabled()
  page.screenshot(path=str(out/'genehmigter-stand.png'))
  tab('Abgabestände');expect(page.locator('summary').filter(has_text=wf['akte']['abgaben'][0]['titel']+' · eingegangen')).to_be_visible();expect(page.get_by_role('button',name='PDF exportieren',exact=True)).to_be_visible()
  expect(page.get_by_role('cell',name='eingegangen',exact=True)).to_be_visible()

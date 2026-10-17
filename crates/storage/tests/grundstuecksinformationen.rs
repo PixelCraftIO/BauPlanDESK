@@ -721,6 +721,8 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         art: Verfahrensart::Bauantrag,
         antragsangaben: Default::default(),
         status: Verfahrensstatus::Vorbereitung,
+        vollstaendigkeit: None,
+        ruecknahme: None,
         behoerde: Behoerde {
             id: uuid::Uuid::new_v4(),
             name: "Bauaufsicht Linden".into(),

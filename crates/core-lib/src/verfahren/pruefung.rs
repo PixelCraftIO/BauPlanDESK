@@ -219,7 +219,34 @@ pub(super) async fn pruefen(
             }
         }
     }
+    let versendet = |b: &&abgabe::Abgabestand| {
+        matches!(
+            abgabe::versandstand(b),
+            Some(abgabe::Versandstatus::Versendet | abgabe::Versandstatus::Eingegangen)
+        )
+    };
+    let eingereicht = a.abgaben.iter().any(|b| versendet(&b));
     for b in &a.bescheide {
+        // Neue Bescheide setzen eine tatsächliche Einreichung voraus und
+        // genehmigen nur Unterlagen, die der Behörde vorlagen. Ältere Bescheide
+        // bleiben unverändert gültig.
+        if !alt.is_some_and(|a| a.bescheide.iter().any(|v| v.id == b.id)) {
+            if !eingereicht {
+                return Err(fehler(
+                    "Ein Bescheid setzt einen versendeten Abgabestand voraus. Versand im Register Abgaben erfassen.",
+                ));
+            }
+            if b.genehmigte_unterlagen.iter().any(|d| {
+                !a.abgaben
+                    .iter()
+                    .filter(versendet)
+                    .any(|v| v.dokumente.iter().any(|e| &e.dokument == d))
+            }) {
+                return Err(fehler(
+                    "Genehmigte Unterlagen müssen aus einem versendeten Abgabestand stammen",
+                ));
+            }
+        }
         dokumente.push(b.original.clone());
         dokumente.extend(b.genehmigte_unterlagen.iter().cloned());
         if matches!(
@@ -270,6 +297,7 @@ pub(super) async fn pruefen(
     if a.status == Verfahrensstatus::Entschieden && a.bescheide.is_empty() {
         return Err(fehler("Entschiedenes Verfahren benötigt einen Bescheid"));
     }
+    status_pruefen(a, alt, eingereicht)?;
     for d in &a.dokumentbeziehungen {
         text(&d.grund, 4000)?;
         if d.vorher == d.nachher {
@@ -399,6 +427,10 @@ pub(super) async fn pruefen(
             let n = a.bescheide.iter().find(|n| n.id == b.id).expect("geprüft");
             let mut kopie = n.clone();
             kopie.auflagen = b.auflagen.clone();
+            // Ein später bekanntes Zustelldatum darf einmal nachgetragen werden.
+            if b.zugestellt.is_none() {
+                kopie.zugestellt = None;
+            }
             if &kopie != b {
                 return Err(fehler(
                     "Bescheiddaten bleiben unverändert. Folgebescheid anlegen.",
@@ -437,6 +469,86 @@ pub(super) async fn pruefen(
         {
             return Err(fehler("Frühere Ersatzbeziehungen bleiben unverändert"));
         }
+    }
+    Ok(())
+}
+/// Übergangsregeln des Verfahrensstatus. Bedingungen eines Status werden beim
+/// Wechsel geprüft, damit ältere Akten bearbeitbar bleiben.
+fn status_pruefen(
+    a: &Verfahrensakte,
+    alt: Option<&Verfahrensakte>,
+    eingereicht: bool,
+) -> CoreResult<()> {
+    use Verfahrensstatus::*;
+    let schreiben = |id: Uuid, eingehend: bool| {
+        a.kommunikation
+            .iter()
+            .any(|c| c.id == id && (c.eingehend || !eingehend))
+    };
+    if let Some(v) = &a.vollstaendigkeit
+        && !schreiben(v.kommunikation, true)
+    {
+        return Err(fehler(
+            "Vollständigkeit benötigt ein eingegangenes Schreiben der Behörde in dieser Akte",
+        ));
+    }
+    if let Some(r) = &a.ruecknahme
+        && !schreiben(r.kommunikation, false)
+    {
+        return Err(fehler(
+            "Rücknahme benötigt das zugehörige Schreiben in dieser Akte",
+        ));
+    }
+    let vorher = alt.map(|a| &a.status);
+    if vorher == Some(&a.status) {
+        return Ok(());
+    }
+    if let Some(v) = vorher {
+        if v.abgeschlossen() {
+            return Err(fehler(format!(
+                "Ein {} Verfahren wird nicht wieder geöffnet. Folgeverfahren anlegen.",
+                if *v == Entschieden {
+                    "entschiedenes"
+                } else {
+                    "zurückgenommenes"
+                }
+            )));
+        }
+        if a.status == Vorbereitung {
+            return Err(fehler(
+                "Ein eingereichtes Verfahren kehrt nicht in die Vorbereitung zurück",
+            ));
+        }
+    }
+    match a.status {
+        Vorbereitung => {}
+        Zurueckgenommen if a.ruecknahme.is_none() => {
+            return Err(fehler("Zurücknahme benötigt Datum und Rücknahmeschreiben"));
+        }
+        Zurueckgenommen => {}
+        _ if !eingereicht => {
+            return Err(fehler(format!(
+                "Status „{}“ setzt einen versendeten Abgabestand voraus",
+                a.status.bezeichnung()
+            )));
+        }
+        Unvollstaendig
+            if !a
+                .nachforderungen
+                .iter()
+                .flat_map(|n| &n.punkte)
+                .any(|p| !matches!(p.status, Punktstatus::Bestaetigt | Punktstatus::Entfallen)) =>
+        {
+            return Err(fehler(
+                "Status „Unvollständig“ benötigt eine Nachforderung mit offenen Punkten",
+            ));
+        }
+        Vollstaendig if a.vollstaendigkeit.is_none() => {
+            return Err(fehler(
+                "Status „Vollständig“ benötigt die behördliche Bestätigung mit Datum",
+            ));
+        }
+        _ => {}
     }
     Ok(())
 }

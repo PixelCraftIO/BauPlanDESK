@@ -18,7 +18,8 @@
   } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
-  import { leer, verfahrenApi, heute } from "./api";
+  import { leer, verfahrenApi, heute, STATUS } from "./api";
+  import Statusangaben from "./Statusangaben.svelte";
   import Kommunikation from "./Kommunikation.svelte";
   import Nachforderungen from "./Nachforderungen.svelte";
   import Bescheide from "./Bescheide.svelte";
@@ -48,7 +49,7 @@
         benutzerId,
         leer,
         (a) =>
-          `${a.bezeichnung} · ${a.aktenzeichen || "ohne Aktenzeichen"} · ${a.status}`,
+          `${a.bezeichnung} · ${a.aktenzeichen || "ohne Aktenzeichen"} · ${STATUS[a.status]}`,
       ),
   );
   let dateien = $state<DocumentVersion[]>([]),
@@ -61,6 +62,20 @@
     notizDatum = $state(heute()),
     notizBeleg = $state<Dokumentbezug | null>(null),
     notizBerichtigt = $state<string | null>(null);
+  /** Nur Unterlagen aus versendeten Abgaben dürfen als genehmigt gelten; der Core prüft dasselbe. */
+  function abgegeben(a: Verfahrensakte) {
+    const enthalten = a.abgaben
+      .filter(
+        (b) =>
+          b.versandstatus === "versendet" || b.versandstatus === "eingegangen",
+      )
+      .flatMap((b) => b.dokumente.map((d) => d.dokument));
+    return dateien.filter((d) =>
+      enthalten.some(
+        (e) => e.dokument_id === d.document_id && e.version === d.version,
+      ),
+    );
+  }
   const navigation = projektNavigation();
   let letzterSprung = 0;
   $effect(() => {
@@ -190,11 +205,9 @@
               ></label
             ><label
               >Bearbeitungsstand<select bind:value={a.status}
-                ><option value="vorbereitung">Vorbereitung</option><option
-                  value="in_pruefung">In behördlicher Prüfung</option
-                ><option value="ruhend">Ruhend</option><option
-                  value="entschieden">Entschieden</option
-                ><option value="zurueckgenommen">Zurückgenommen</option></select
+                >{#each Object.entries(STATUS) as [wert, titel]}<option
+                    value={wert}>{titel}</option
+                  >{/each}</select
               ></label
             ><label
               >Aktenzeichen<input
@@ -238,6 +251,12 @@
               ></label
             >
           </div>
+          <Statusangaben
+            status={a.status}
+            kommunikation={a.kommunikation}
+            bind:vollstaendigkeit={a.vollstaendigkeit}
+            bind:ruecknahme={a.ruecknahme}
+          />
           <Antragsangaben art={a.art} bind:angaben={a.antragsangaben} />
         </fieldset>
       {:else if tab === "profil"}<fieldset disabled={!darf}>
@@ -315,8 +334,12 @@
           <Bescheide
             bind:eintraege={a.bescheide}
             {dateien}
+            abgegeben={abgegeben(a)}
             {benutzer}
             alt={s.original?.bescheide.map((v) => v.id) ?? []}
+            ohneZustellung={s.original?.bescheide
+              .filter((v) => !v.zugestellt)
+              .map((v) => v.id) ?? []}
           />
         </fieldset>
       {:else if tab === "beziehungen"}<h3>Korrektur- und Ersatzbeziehungen</h3>

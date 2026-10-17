@@ -516,14 +516,7 @@ impl CoreServices {
                 bezeichnung: a.bezeichnung.clone(),
                 behoerde: a.behoerde.name.clone(),
                 aktenzeichen: a.aktenzeichen.clone(),
-                status: match a.status {
-                    Verfahrensstatus::Vorbereitung => "In Vorbereitung",
-                    Verfahrensstatus::InPruefung => "In behördlicher Prüfung",
-                    Verfahrensstatus::Ruhend => "Ruhend",
-                    Verfahrensstatus::Entschieden => "Entschieden",
-                    Verfahrensstatus::Zurueckgenommen => "Zurückgenommen",
-                }
-                .into(),
+                status: a.status.bezeichnung().into(),
                 offene_punkte: offen,
                 offene_auflagen: auflagen,
                 abgaben: a.abgaben.len(),
