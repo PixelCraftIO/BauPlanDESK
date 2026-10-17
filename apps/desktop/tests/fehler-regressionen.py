@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
+from navigation_hilfe import bereich, register, gliederung
 
 root = Path(__file__).resolve().parent
 fixture = json.loads((root / 'fixtures/projekt.json').read_text(encoding='utf-8'))
@@ -75,7 +76,7 @@ with sync_playwright() as p:
     tab=page('window.readLicense=true;')
     expect(tab.get_by_role('button',name='Anna Weber (Lesen)',exact=True)).to_be_visible()
     tab.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
-    tab.locator('.aktennavigation').get_by_role('button',name='Baugrundstück',exact=True).click()
+    bereich(tab,'Baugrundstück')
     expect(tab.locator('.entwurf-punkt')).to_have_count(0)
     tab.get_by_role('button',name=fixture['name']+' schließen',exact=True).click()
     expect(tab.get_by_role('dialog')).to_have_count(0)
@@ -84,7 +85,7 @@ with sync_playwright() as p:
 
     tab=page()
     tab.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
-    tab.locator('.aktennavigation').get_by_role('button',name='Stammdaten',exact=True).click()
+    bereich(tab,'Stammdaten')
     tab.get_by_role('button',name='Bearbeiten …',exact=True).click()
     tab.get_by_role('dialog').get_by_label('Projektname',exact=True).fill('Entwurf erhalten')
     tab.evaluate('window.conflict=true')

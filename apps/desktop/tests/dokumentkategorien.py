@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import os
 from playwright.sync_api import sync_playwright, expect
+from navigation_hilfe import bereich, register, gliederung
 
 root = Path(__file__).resolve().parent
 fixtures = Path(os.environ.get('BAUPROJEKT_KATEGORIEN_ARTEFAKTE', '/tmp/bauprojekt-kategorien'))
@@ -53,7 +54,7 @@ with sync_playwright() as p:
     page.locator('.projekttabelle').get_by_role('button', name=wf['projekt']['name'], exact=True).click()
 
     def view(name):
-        page.locator('.aktennavigation').get_by_role('button', name=name, exact=True).click()
+        bereich(page,name)
 
     view('Projektdateien')
     table = page.get_by_role('table', name='Projektdateien')

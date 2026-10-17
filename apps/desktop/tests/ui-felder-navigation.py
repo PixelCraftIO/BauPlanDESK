@@ -2,6 +2,7 @@
 from pathlib import Path
 import json,os
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich as bereich_oeffnen, register, gliederung
 root=Path(__file__).resolve().parent;repo=root.parents[2]
 out=Path(os.environ.get('BAUPROJEKT_UI_FELDER_ARTEFAKTE','/tmp/bauprojekt-ui-felder'));out.mkdir(parents=True,exist_ok=True)
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='UI-Prüfung Musterstraße';fixture['planungsrecht']['bau_nvo']='2017'
@@ -40,18 +41,15 @@ with sync_playwright() as pw:
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1460'))
  def open_project(name=fixture['name']):page.locator('.projekttabelle').get_by_role('button',name=name,exact=True).click()
  def active():return page.locator('.projekt-sitzung:visible')
- def view(name):
-  nav=page.locator('.aktennavigation');button=nav.get_by_role('button',name=name,exact=True,include_hidden=True)
-  for d in button.locator('xpath=ancestor::details').all():
-   if d.get_attribute('open') is None:d.locator(':scope > summary').click()
-  button.click()
+ def view(name):bereich_oeffnen(page,name)
  def wc():return active().locator('[data-berechnungsmodul="wohnflaechen"]')
- open_project();expect(page.locator('.aktennavigation').get_by_role('button',name='Projektübersicht',exact=True)).to_have_attribute('aria-current','page')
- calc=page.locator('.aktennavigation details').filter(has=page.locator('summary').get_by_text('Berechnungen',exact=True)).first
- assert calc.get_attribute('open') is None
+ open_project();expect(gliederung(page).get_by_role('button',name='Projektübersicht',exact=True)).to_have_attribute('aria-current','page')
+ # Die Gliederung zeigt nur das geöffnete Register.
+ expect(active().locator('.register').get_by_role('tab',name='Übersicht',exact=True)).to_have_attribute('aria-selected','true')
+ expect(gliederung(page).get_by_role('button',name='Wohnflächenberechnung',exact=True)).to_have_count(0)
  view('Wohnflächenberechnung');wc().get_by_role('button',name='Neu anlegen',exact=True).click()
  expect(wc().get_by_text('Eintragsliste anzeigen',exact=True)).to_be_visible()
- assert page.locator('.projekt-sitzung:visible .projektkopf.kompakt').bounding_box()['height']<80
+ assert page.locator('.projekt-sitzung:visible .projektkopf').bounding_box()['height']<90
  row=wc().locator('details.positionszeile').first;row.locator('summary').click()
  field=row.get_by_label('Direkte Aufmaßfläche (m²)',exact=True)
  expect(field).to_be_visible();expect(row.get_by_label('Länge / Höhe Trapez (m)',exact=True)).to_have_count(0)
@@ -82,12 +80,12 @@ with sync_playwright() as pw:
  saved=page.evaluate('window.calls.filter(c=>c.cmd==="fachobjekt_speichern").at(-1).args.daten.eingaben.positionen[0]');assert saved['laenge_m']==8 and saved['breite_m']==4 and saved['aufmass_m2']==0
  field=row.get_by_label('Direkte Aufmaßfläche (m²)',exact=True);field.fill('45');page.evaluate('window.fachSaveFail=true');wc().get_by_role('button',name='Speichern',exact=True).click();expect(wc()).to_contain_text('Parallel geändert');expect(field).to_have_value('45');expect(wc().get_by_text('Gespeichert.',exact=True)).to_have_count(0)
  page.evaluate('window.fachSaveFail=false');field.fill('46');wc().get_by_role('button',name='Speichern',exact=True).click()
- # Aufklappzustände eines inaktiven Zweigs gehören zum jeweiligen Projekt.
- nav=page.locator('.aktennavigation');unterlagen=nav.locator('details').filter(has=page.locator('summary').get_by_text('Unterlagen',exact=True)).first
- if unterlagen.get_attribute('open') is None:unterlagen.locator(':scope > summary').click()
- view('Projekte');open_project('Umbau Bürogebäude')
- unterlagen=page.locator('.aktennavigation details').filter(has=page.locator('summary').get_by_text('Unterlagen',exact=True)).first;assert unterlagen.get_attribute('open') is None
- page.locator('.tab-auswahl').filter(has_text=fixture['name']).click();expect(unterlagen).to_have_attribute('open','')
+ # Jedes Register merkt sich je Projekt den zuletzt geöffneten Bereich.
+ view('Pläne / Aufmaß');register(page,'Übersicht');register(page,'Unterlagen')
+ expect(gliederung(page).get_by_role('button',name='Pläne / Aufmaß',exact=True)).to_have_attribute('aria-current','page')
+ view('Projekte');open_project('Umbau Bürogebäude');register(page,'Unterlagen')
+ expect(gliederung(page).get_by_role('button',name='Projektdateien',exact=True)).to_have_attribute('aria-current','page')
+ page.locator('.tab-auswahl').filter(has_text=fixture['name']).click();expect(gliederung(page).get_by_role('button',name='Pläne / Aufmaß',exact=True)).to_have_attribute('aria-current','page')
  view('Bebauungsplanfestsetzungen');expect(active().get_by_role('textbox',name='Planbezeichnung',exact=True)).to_have_count(0)
  active().get_by_role('button',name='Rechtsgrundlagen bearbeiten',exact=True).click();expect(active().get_by_label('Planbezeichnung',exact=True)).to_be_visible()
  view('Projektdateien');page.screenshot(path=str(out/'dateifilter-light.png'));search=active().get_by_label('Dateien suchen',exact=True);label=active().get_by_label('Kategorie filtern',exact=True);assert label.locator('..').bounding_box()['height']>label.bounding_box()['height']+10
@@ -100,7 +98,7 @@ with sync_playwright() as pw:
   page.evaluate('(t)=>{document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}',theme);page.screenshot(path=str(out/f'wohnflaeche-{theme}.png'))
  for width in [1024,800,600]:
   page.set_viewport_size({'width':width,'height':850});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
-  assert page.locator('.aktennavigation button').evaluate_all('(es)=>es.filter(e=>e.getClientRects().length).every(e=>e.scrollWidth<=e.clientWidth+1)'),width
+  assert page.locator('.aktennavigation button, .register button').evaluate_all('(es)=>es.filter(e=>e.getClientRects().length).every(e=>e.scrollWidth<=e.clientWidth+1)'),width
  page.set_viewport_size({'width':1440,'height':1000});page.evaluate("document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light'")
  view('Gebäude / Geschosse');active().get_by_role('button',name='Neu anlegen',exact=True).click();active().get_by_role('button',name='Speichern',exact=True).click()
  geb=active().get_by_label('Gebäudebezeichnung',exact=True);expect(geb).to_have_attribute('aria-invalid','true');geb.fill('Garage');expect(geb).not_to_have_attribute('aria-invalid','true')
@@ -111,7 +109,7 @@ with sync_playwright() as pw:
  for modul,titel in [('stellplaetze','Stellplatznachweis'),('din277','DIN-277-Flächen / Rauminhalte'),('vollgeschosse','Vollgeschossprüfung'),('hoehen','Gebäudehöhen / Dachneigung'),('freiflaechen','Versiegelung / Freiflächen'),('entwaesserung','Regenwasser / Rückhaltung'),('ueberbaubarkeit','Überbaubare Grundstücksfläche')]:
   view(titel);bereich=active().locator(f'[data-berechnungsmodul="{modul}"]');bereich.get_by_role('button',name='Neu anlegen',exact=True).click();bereich.get_by_role('button',name='Speichern',exact=True).click();expect(bereich.get_by_text('Gespeichert.',exact=True)).to_be_visible()
   assert page.evaluate('window.calls.filter(c=>c.cmd==="fachobjekt_speichern").at(-1).args.art')==modul
- reader=browser.new_page(viewport={'width':1440,'height':1000});reader.on('pageerror',lambda e:errors.append(str(e)));reader.add_init_script(init+';window.testUser.rolle="lesen";');reader.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1460'));reader.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click();reader.locator('.aktennavigation').get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True).click()
+ reader=browser.new_page(viewport={'width':1440,'height':1000});reader.on('pageerror',lambda e:errors.append(str(e)));reader.add_init_script(init+';window.testUser.rolle="lesen";');reader.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1460'));reader.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click();bereich_oeffnen(reader,'Bebauungsplanfestsetzungen')
  expect(reader.locator('.projekt-sitzung:visible')).to_contain_text('Nur Leserecht');expect(reader.locator('.projekt-sitzung:visible').get_by_label('GRZ – Hauptanlagen',exact=True)).to_be_disabled()
  reader.screenshot(path=str(out/'lesemodus-light.png'))
  assert reader.locator('.projekt-sitzung:visible').get_by_label('GRZ – Hauptanlagen',exact=True).evaluate('(e)=>getComputedStyle(e).borderStyle')=='dashed'

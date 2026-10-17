@@ -2,6 +2,7 @@
 from pathlib import Path
 import json, os
 from playwright.sync_api import sync_playwright, expect
+from navigation_hilfe import bereich, register, gliederung
 root = Path(__file__).resolve().parent
 art = Path(os.environ.get('BAUPROJEKT_PORTAL_ARTEFAKTE', '/tmp/bauprojekt-portale'))
 wf = json.loads((art / 'workflow.json').read_text())
@@ -42,7 +43,7 @@ with sync_playwright() as pw:
         p=browser.new_page(viewport={'width':1600,'height':1100},locale='de-DE')
         p.on('pageerror',lambda e:errors.append(str(e)));p.add_init_script(init+extra);p.goto(url)
         p.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
-        p.locator('.aktennavigation').get_by_role('button',name='Einreichen / Portal',exact=True).click()
+        bereich(p,'Einreichen / Portal')
         return p
     page=start()
     def area():return page.locator('.projekt-sitzung:visible [data-portale]')
@@ -61,13 +62,13 @@ with sync_playwright() as pw:
     area().get_by_label('Portalabgabe',exact=True).select_option('')
     area().get_by_label('Portalabgabe',exact=True).select_option(wf['abgabe'])
     expect(area().get_by_label('Portalreferenz',exact=True)).to_have_value('PORTAL-2026-42')
-    page.locator('.aktennavigation').get_by_role('button',name='Stammdaten',exact=True).click()
-    page.locator('.aktennavigation').get_by_role('button',name='Einreichen / Portal',exact=True).click()
+    bereich(page,'Stammdaten')
+    bereich(page,'Einreichen / Portal')
     expect(area().get_by_label('Portalreferenz',exact=True)).to_have_value('PORTAL-2026-42')
     # Ein anderes Projekt erhält weder die Verfahrensakte noch deren Entwurf.
-    page.locator('.aktennavigation').get_by_role('button',name='Projekte',exact=True).click()
+    bereich(page,'Projekte')
     page.locator('.projekttabelle').get_by_role('button',name='Umbau Bürogebäude',exact=True).click()
-    page.locator('.aktennavigation').get_by_role('button',name='Einreichen / Portal',exact=True).click()
+    bereich(page,'Einreichen / Portal')
     expect(area()).to_contain_text('Für die Portalunterstützung zuerst eine Verfahrensakte')
     page.locator('.tab-auswahl').filter(has_text=wf['projekt']['name']).click()
     expect(area().get_by_label('Portalreferenz',exact=True)).to_have_value('PORTAL-2026-42')

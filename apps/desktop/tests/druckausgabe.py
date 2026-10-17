@@ -2,6 +2,7 @@
 from pathlib import Path
 import base64,json,os
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 artefakte=Path(os.environ.get('BAUPROJEKT_DRUCK_ARTEFAKTE','/tmp/bauprojekt-druck'))
 wf=json.loads((artefakte/'workflow.json').read_text())
@@ -33,7 +34,7 @@ with sync_playwright() as p:
     page.route('**/druck-pdf-test.mjs',lambda route:route.fulfill(path=str(root.parent/'node_modules/pdfjs-dist/build/pdf.mjs'),content_type='application/javascript'))
     page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1441'))
     page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
-    page.locator('.aktennavigation').get_by_role('button',name='Drucken / PDF-Ausgabe',exact=True).click()
+    bereich(page,'Drucken / PDF-Ausgabe')
     expect(page.get_by_role('heading',name='Drucken und PDF-Ausgabe')).to_be_visible()
     expect(page.get_by_role('checkbox',name='Lageplan.dwg · Version 1',exact=True)).to_be_disabled()
     page.get_by_role('button',name='Alle verfügbaren auswählen',exact=True).click()
@@ -66,7 +67,7 @@ with sync_playwright() as p:
     printed=page.evaluate('window.druckDialoge[0]');assert len(printed)==wf['seiten'];assert all(s['bild'] for s in printed)
     page.emulate_media(media='print')
     assert page.locator('#bau-druckbereich').is_visible()
-    assert not page.locator('.aktennavigation').is_visible()
+    assert page.locator('.aktennavigation:visible').count()==0 and not page.locator('.app-werkzeuge').is_visible()
     page.pdf(path=str(out/'systemdruck.pdf'),prefer_css_page_size=True,print_background=True)
     page.emulate_media(media='screen');page.evaluate("window.dispatchEvent(new Event('afterprint'))")
     expect(page.locator('#bau-druckbereich')).to_have_count(0)
@@ -90,7 +91,7 @@ with sync_playwright() as p:
     assert not args['inhaltsverzeichnis'] and not args['mit_anschreiben']
     page.screenshot(path=str(out/'einzelausgabe.png'),full_page=True)
     # Direktzugang übernimmt genau die gewählte Berechnung ohne Vorblätter.
-    page.locator('.aktennavigation').get_by_role('button',name='Baugrundstück',exact=True).click()
+    bereich(page,'Baugrundstück')
     page.get_by_role('button',name='Druckausgabe zusammenstellen',exact=True).click()
     dialog=page.get_by_role('dialog',name='Druckausgabe',exact=True)
     expect(dialog.get_by_role('checkbox',name='Baugrundstücksermittlung',exact=True)).to_be_checked()

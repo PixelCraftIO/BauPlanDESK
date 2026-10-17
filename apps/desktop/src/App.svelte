@@ -20,7 +20,7 @@
   } from "./lib/api";
   import Formularbibliothek from "./lib/Formularbibliothek.svelte";
   import { MODULE, voraussetzung } from "./lib/module";
-  import Sidebar from "./lib/Sidebar.svelte";
+  import NavIcon from "./lib/NavIcon.svelte";
   import Darstellung from "./lib/Darstellung.svelte";
   import Speicherorte from "./lib/Speicherorte.svelte";
   import DruckEinstellungen from "./lib/DruckEinstellungen.svelte";
@@ -611,19 +611,37 @@
   </div>
 {/if}
 
-<header class="app-kopf">
-  <strong>BauProjektIO</strong><span class="konto meta"
-    >{ich?.anzeigename ?? "Wird geladen …"}</span
-  >
+<header class="app-werkzeuge">
+  <nav aria-label="Arbeitsplatz">
+    <button
+      class:aktiv={globalAnsicht === "projekte"}
+      aria-pressed={globalAnsicht === "projekte"}
+      onclick={() => (globalAnsicht = "projekte")}
+      ><NavIcon art="projekte" />Projekte</button
+    >
+    <button
+      class:aktiv={globalAnsicht === "kunden"}
+      aria-pressed={globalAnsicht === "kunden"}
+      onclick={() => (globalAnsicht = "kunden")}
+      ><NavIcon art="kunden" />Kunden / Bauherren</button
+    >
+    <button
+      class:aktiv={globalAnsicht === "formulare"}
+      aria-pressed={globalAnsicht === "formulare"}
+      onclick={() => (globalAnsicht = "formulare")}
+      ><NavIcon art="formulare" />Formularbibliothek</button
+    >
+    <span class="werkzeug-trenner" aria-hidden="true"></span>
+    <button
+      class:aktiv={globalAnsicht === "verwaltung"}
+      aria-pressed={globalAnsicht === "verwaltung"}
+      onclick={() => (globalAnsicht = "verwaltung")}
+      ><NavIcon art="einstellungen" />Einstellungen</button
+    >
+  </nav>
+  <span class="konto">{ich?.anzeigename ?? "Wird geladen …"}</span>
 </header>
 <div class="arbeitsrahmen" inert={installiere}>
-  <Sidebar
-    {projekt}
-    {ansicht}
-    {globalAnsicht}
-    onbereich={bereich}
-    onglobal={(a) => (globalAnsicht = a)}
-  />
   <div class="aktenbereich">
     <nav class="projekttabs" aria-label="Geöffnete Projekte">
       <div class="offene-projekte">

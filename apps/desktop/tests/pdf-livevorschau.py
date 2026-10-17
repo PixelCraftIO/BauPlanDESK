@@ -2,6 +2,7 @@
 from pathlib import Path
 import base64,json,os
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 fixtures=Path(os.environ.get('BAUPROJEKT_PDF_LIVE_ARTEFAKTE','/workspace/review-main/pdf-live'))
 wf=json.loads((fixtures/'workflow.json').read_text())
@@ -47,7 +48,7 @@ with sync_playwright() as p:
  page.add_init_script('window.fixture='+json.dumps(fixture)+';window.wf='+json.dumps(wf)+';window.pdfs='+json.dumps(pdfs)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1430'))
  page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
- def view(name):page.locator('.aktennavigation').get_by_role('button',name=name,exact=True).click()
+ def view(name):bereich(page,name)
  def dialog():return page.get_by_role('dialog')
  def canvas():return dialog().locator('canvas')
  def aktuell():expect(dialog().get_by_text('Vorschau mit Ihren aktuellen Eingaben.',exact=True)).to_be_visible()

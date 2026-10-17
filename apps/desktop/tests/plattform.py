@@ -2,6 +2,7 @@
 from pathlib import Path
 import json, os
 from playwright.sync_api import sync_playwright, expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='Plattformprojekt'
 out=Path(os.environ.get('BAUPROJEKT_UI_ARTEFAKTE',str(root.parents[2]/'docs/plattform-umsetzung/screenshots')));out.mkdir(parents=True,exist_ok=True)
@@ -41,8 +42,8 @@ with sync_playwright() as p:
     def open_project():
         table=page.locator('.projekttabelle')
         if table.is_visible():table.get_by_role('button',name='Plattformprojekt',exact=True).click()
-    def view(name):page.get_by_role('complementary',name='Arbeitsbereiche').get_by_role('button',name=name,exact=True).click()
-    def section():return page.locator('.projekt-sitzung:visible > main > section:not([hidden])')
+    def view(name):bereich(page,name)
+    def section():return page.locator('.projekt-sitzung:visible > .aktenrumpf > main > section:not([hidden])')
     open_project();view('Gebäude / Geschosse');section().get_by_role('button',name='Neu anlegen',exact=True).click()
     section().get_by_label('Gebäudebezeichnung',exact=True).fill('Haus A')
     section().get_by_role('button',name='Geschoss hinzufügen',exact=True).click()
@@ -82,7 +83,7 @@ with sync_playwright() as p:
     dialog.get_by_role('button',name='Schließen',exact=True).click()
     page.wait_for_function("window.calls.some(c=>c.cmd==='fachobjekt_speichern'&&c.args.art==='dokumentdaten'&&c.args.daten.plannummer==='A-101')")
     assert not page.evaluate("window.calls.some(c=>c.cmd==='projekt_aktualisieren')")
-    page.get_by_role('complementary',name='Arbeitsbereiche').get_by_role('button',name='Einstellungen',exact=True).click()
+    bereich(page,'Einstellungen')
     page.get_by_role('button',name='Sicherung erstellen …',exact=True).click()
     assert not page.evaluate("window.calls.some(c=>c.cmd==='sicherung_erstellen')")
     page.evaluate('window.cancelBackup=false')

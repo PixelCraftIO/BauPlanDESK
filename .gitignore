@@ -7,3 +7,4 @@
 
 # Generated offline PDF preview resources (recreated by predev/prebuild).
 apps/desktop/public/pdfjs/
+__pycache__/

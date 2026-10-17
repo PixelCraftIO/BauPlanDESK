@@ -991,11 +991,34 @@ tbody tr:nth-child(even) {
   padding: 3px 6px;
   flex-shrink: 0;
 }
+.app-werkzeuge nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
 .app-werkzeuge button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   border-color: transparent;
   color: var(--fg);
   font-weight: 400;
+  padding: 2px 8px;
+}
+.app-werkzeuge button svg {
+  color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.app-werkzeuge button.aktiv {
+  background: var(--auswahl);
+  border-color: #9fb3c8;
+}
+.app-werkzeuge .konto {
+  color: var(--muted);
+  padding-right: 6px;
 }
 .werkzeug-trenner {
   height: 20px;
@@ -1004,10 +1027,74 @@ tbody tr:nth-child(even) {
 }
 .arbeitsrahmen {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   flex: 1;
   overflow: hidden;
+}
+/* Projektakte: Aktenkopf und Register oben, Gliederung und Maske darunter. */
+.projekt-sitzung:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+.aktenrumpf {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+.aktenrumpf > main {
+  overflow: auto;
+  min-height: 0;
+  align-content: start;
+}
+.aktendaten {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 2px 20px;
+  margin: 0;
+}
+.aktendaten div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.aktendaten dt {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.aktendaten dd {
+  margin: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.register {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 14px;
+  background: var(--leiste);
+  border-bottom: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+.register button {
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 0;
+  background: var(--kopfzeile);
+  color: var(--fg);
+  font-weight: 400;
+  margin-right: -1px;
+  padding: 3px 18px;
+}
+.register button.aktiv {
+  background: var(--panel);
+  border-color: var(--control-border);
+  box-shadow: inset 0 3px 0 var(--accent);
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding-bottom: 4px;
 }
 .aktennavigation {
   padding: 4px 0 6px;
@@ -1129,18 +1216,21 @@ tbody tr:nth-child(even) {
 .projekt-sitzung {
   min-height: 0;
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
   flex: 1;
 }
 .projektkopf {
   background: var(--leiste);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 14px;
-  gap: 8px;
+  border-bottom: 0;
+  padding: 6px 14px 8px;
+  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
 }
 .projektkopf h1 {
-  font-size: 1.25rem;
-  margin-bottom: 2px;
+  font-size: 1.15rem;
+  margin: 0;
 }
 .reiter {
   gap: 0;
@@ -1341,8 +1431,8 @@ dialog h2 {
 }
 
 @media (max-width: 1120px) {
-  .arbeitsrahmen {
-    grid-template-columns: 200px minmax(0, 1fr);
+  .aktenrumpf {
+    grid-template-columns: 190px minmax(0, 1fr);
   }
   .planbereich {
     grid-template-columns: minmax(0, 1fr);
@@ -1355,7 +1445,7 @@ dialog h2 {
   }
 }
 @media (max-width: 800px) {
-  .arbeitsrahmen {
+  .aktenrumpf {
     grid-template-columns: 158px minmax(0, 1fr);
   }
   .aktennavigation button {
@@ -1391,7 +1481,7 @@ dialog h2 {
   }
 }
 @media (max-width: 600px) {
-  .arbeitsrahmen {
+  .aktenrumpf {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
   }

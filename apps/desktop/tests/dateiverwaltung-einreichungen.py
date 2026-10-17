@@ -2,6 +2,7 @@
 from pathlib import Path
 import json,os
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 fixtures=Path(os.environ.get('BAUPROJEKT_EINREICHUNG_ARTEFAKTE','/workspace/review-main/einreichungen'))
 wf=json.loads((fixtures/'workflow.json').read_text())
@@ -45,7 +46,7 @@ with sync_playwright() as p:
  page.add_init_script('window.fixture='+json.dumps(wf['projekt'])+';window.workflow='+json.dumps(wf)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1431'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
- def view(n):page.locator('.aktennavigation').get_by_role('button',name=n,exact=True).click()
+ def view(n):bereich(page,n)
  view('Projektdateien')
  page.get_by_label('Dateien suchen',exact=True).fill('.xlsx')
  expect(page.locator('.ergebnistabelle:visible tbody tr')).to_have_count(1)
