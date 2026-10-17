@@ -145,6 +145,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         portal: None,
         bezeichnung: "Bauantrag Wohnhaus".into(),
         art: Verfahrensart::Bauantrag,
+        antragsangaben: Default::default(),
         status: Verfahrensstatus::InPruefung,
         behoerde: Behoerde {
             id: Uuid::new_v4(),

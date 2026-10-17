@@ -18,6 +18,7 @@ fn leer() -> Verfahrensakte {
         portal: None,
         bezeichnung: "Neubau Musterstraße".into(),
         art: Verfahrensart::Bauantrag,
+        antragsangaben: Default::default(),
         status: Verfahrensstatus::Vorbereitung,
         behoerde: Behoerde {
             id: Uuid::new_v4(),

@@ -19,8 +19,8 @@ Wirksamkeit eines Bescheids oder die Annahme eines Antrags.
 | --- | --- |
 | Versionsstand | XBau-Hochbau 2.7, Kernmodul 1.4.0, fest eingebettete offizielle Schemas |
 | Nachrichtenkatalog | 137 globale Nachrichten aus diesen Schemas; keine Behauptung über andere oder neuere Fassungen |
-| Erstellung | Bauantrag 0200 sowie Änderungen/Nachreichungen 0202 aus dem gespeicherten Bauvorhaben und den ausgewählten Anlagen |
-| Bezug einer Nachreichung | Archivierter ursprünglicher 0200 oder Befundliste 1140 mit passender Antragsreferenz/Behörde; neue Nachrichten-ID, bisherige Originale bleiben erhalten |
+| Erstellung | Bauantrag 0200 sowie Änderungen/Nachreichungen 0202 aus dem gespeicherten Bauvorhaben und den ausgewählten Anlagen. Abgabestände eines Verfahrens wählen die Nachricht nach der Verfahrensart, siehe unten |
+| Bezug einer Nachreichung | Archivierter ursprünglicher Antrag derselben Art (0200 oder 0210) oder Befundliste 1140 mit passender Antragsreferenz/Behörde; neue Nachrichten-ID, bisherige Originale bleiben erhalten |
 | Empfang | Original XML oder ein ZIP mit genau einer XBau-Nachricht und den referenzierten Anlagen |
 | Prüfung | XML-Struktur, XSD, Identitäten, Dateinamen, Anlagenvollständigkeit sowie angegebene Größen und SHA-256-Werte |
 | Journal | Projektgebunden, Original als unveränderliche DMS-Version, Prüfzeitpunkt, Hash, Erfassender; Wiederholung derselben Nachrichten-ID/Inhalt/Richtung erzeugt keinen zweiten Journaleintrag |
@@ -34,6 +34,25 @@ Die Nachreichung übermittelt den vollständigen gespeicherten Bauvorhabenstand
 und alle im Bauantrag ausgewählten Anlagen. Sie ermittelt keinen automatischen
 Differenzdatensatz. Eine geforderte Erläuterung/Übereinstimmungserklärung ist als
 Anlage auszuwählen. Änderungen im Bauantragseditor zuerst speichern.
+
+## Nachricht nach Verfahrensart
+
+Ein Abgabestand mit XBau-Ausgabe schreibt die Antragsnachricht, die zur
+Verfahrensart der Akte gehört. Arten ohne passende Antragsnachricht werden
+abgewiesen, statt als Bauantrag gesendet zu werden.
+
+| Verfahrensart | Erstantrag | Nachreichung |
+| --- | --- | --- |
+| Bauantrag, Änderungsantrag | `baugenehmigung.antrag.0200` | `baugenehmigung.antragGeaendert.0202` |
+| Vorbescheid | `vorbescheid.antrag.0210` mit den Fragen aus der Akte | `vorbescheid.antragGeaendert.0212` |
+| Freistellung | `genehmigungsfreistellung.anzeige.0600` mit „als Bauantrag weiterführen“ | keine (XBau kennt keine geänderte Anzeige) |
+| Teilbaugenehmigung, Sonstiges | keine XBau-Ausgabe | keine |
+
+Die Vorbescheidsfragen und die Angabe zur Weiterführung als Bauantrag stehen im
+Register „Verfahren“ der Akte. Jede Frage wird ein `beantragterVorbescheid`,
+jede Zeile ein Textabsatz. Der Abgabestand friert Verfahrensart und Angaben ein.
+Die Ausgabe „Bauantrag als Ausgang vorbereiten“ im Nachrichtenjournal bleibt ein
+Bauantrag (0200/0202).
 
 ## Bedienung
 

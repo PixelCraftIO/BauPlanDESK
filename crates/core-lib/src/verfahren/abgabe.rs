@@ -55,6 +55,11 @@ pub struct Abgabegrundlagen {
     pub antrag: Bauantrag,
     pub bauherren: Vec<Beteiligter>,
     pub buero: Buero,
+    /// Verfahrensart beim Festhalten; fehlt in älteren Abgabeständen.
+    #[serde(default)]
+    pub art: Option<Verfahrensart>,
+    #[serde(default)]
+    pub antragsangaben: Antragsangaben,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Abgabestand {
@@ -155,6 +160,14 @@ impl CoreServices {
             buero: self.buero().await?,
             projekt: projekt.clone(),
             antrag,
+            art: Some(a.art.clone()),
+            antragsangaben: a.antragsangaben.clone(),
+        };
+        let fragen = grundlagen.antragsangaben.fragen();
+        let xbau_art = if w.xbau {
+            Some(a.art.xbau_antrag(&grundlagen.antragsangaben, &fragen)?)
+        } else {
+            None
         };
         let mut seen = std::collections::HashSet::new();
         let mut docs = Vec::new();
@@ -232,7 +245,7 @@ impl CoreServices {
         let mut ausgaben = Vec::new();
         let zip = zip(&stand, &docs, &inhalte)?;
         ausgaben.push(("zip", "Unterlagen.zip", zip));
-        if w.xbau {
+        if let Some(art) = xbau_art {
             let namen =
                 crate::xbau::paket::eindeutige_namen(docs.iter().map(|d| d.file_name.as_str()));
             let anlagen = docs
@@ -271,16 +284,12 @@ impl CoreServices {
                     .into_iter()
                     .find(|n| n.id == id)
                     .ok_or_else(|| fehler("XBau-Bezug nicht in diesem Projekt"))?;
-                crate::xbau::baugenehmigung_aenderung(&daten, &n.nachricht.pruefung.kopf)?
+                crate::xbau::antrag_geaendert(&daten, art, &n.nachricht.pruefung.kopf)?
             } else {
-                crate::xbau::baugenehmigung_antrag(&daten)?
+                crate::xbau::antrag(&daten, art)?
             };
             let bytes = crate::xbau::paket::packen_nachricht(
-                if w.xbau_bezug.is_some() {
-                    "baugenehmigung.antragGeaendert.0202.xml"
-                } else {
-                    crate::xbau::paket::NACHRICHT_DATEI
-                },
+                &art.dateiname(w.xbau_bezug.is_some())?,
                 &xml,
                 &namen
                     .iter()

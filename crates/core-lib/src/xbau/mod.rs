@@ -25,7 +25,10 @@ use crate::domain::{Bundesland, DocumentId};
 use crate::error::{CoreError, CoreResult};
 
 pub(crate) use antrag::mime_pruefen;
-pub use antrag::{Anlagendatei, Nachrichtendaten, baugenehmigung_aenderung, baugenehmigung_antrag};
+pub use antrag::{
+    Anlagendatei, Antragsart, Nachrichtendaten, antrag, antrag_geaendert, baugenehmigung_aenderung,
+    baugenehmigung_antrag,
+};
 pub use codeliste::{Codeeintrag, Codeliste, Codelisten};
 
 /// Version des XBau-Standards, die der Export erzeugt.

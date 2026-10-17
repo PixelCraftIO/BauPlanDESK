@@ -26,6 +26,7 @@
   import Abgaben from "./Abgaben.svelte";
   import Profil from "./Profil.svelte";
   import Zustaendigkeit from "./Zustaendigkeit.svelte";
+  import Antragsangaben from "./Antragsangaben.svelte";
   import Dokumentfeld from "./Dokumentfeld.svelte";
   import Dokumentliste from "./Dokumentliste.svelte";
   let {
@@ -217,6 +218,7 @@
               ></label
             >
           </div>
+          <Antragsangaben art={a.art} bind:angaben={a.antragsangaben} />
         </fieldset>
       {:else if tab === "profil"}<fieldset disabled={!darf}>
           <Profil

@@ -155,7 +155,8 @@ fn xml_lesen(xml: &[u8]) -> CoreResult<Gelesen> {
                     .join("/");
                 let meta = p.starts_with("nachrichtenkopf.g2g/")
                     || p.starts_with("bezug/")
-                    || p.starts_with("referenzAntragsservice/");
+                    || p.starts_with("referenzAntragsservice/")
+                    || p.starts_with("referenzAnzeigeservice/");
                 if meta
                     && !ns.is_empty()
                     && ns != HOCHBAU
@@ -185,6 +186,7 @@ fn xml_lesen(xml: &[u8]) -> CoreResult<Gelesen> {
                     "bezug/bezugNachricht",
                     "bezug/bezugNachricht/nachrichtenUUID",
                     "referenzAntragsservice/referenzAntragsservice",
+                    "referenzAnzeigeservice/referenzAntragsservice",
                 ]
                 .contains(&p.as_str())
                     && werte.insert(format!("#{}", p), String::new()).is_some()
@@ -323,6 +325,7 @@ fn xml_lesen(xml: &[u8]) -> CoreResult<Gelesen> {
             absender,
             empfaenger,
             antragsreferenz: uuid("referenzAntragsservice/referenzAntragsservice")?
+                .or(uuid("referenzAnzeigeservice/referenzAntragsservice")?)
                 .or(uuid("bezug/referenz")?),
             aktenzeichen: wert("bezug/vorgang").map(String::from),
             bezugsnachricht: uuid("bezug/bezugNachricht/nachrichtenUUID")?,
@@ -353,6 +356,7 @@ fn text(
     if p.starts_with("nachrichtenkopf.g2g/")
         || p.starts_with("bezug/")
         || p.starts_with("referenzAntragsservice/")
+        || p.starts_with("referenzAnzeigeservice/")
     {
         let s = werte.entry(p).or_default();
         if s.len() + t.len() > 16384 {
