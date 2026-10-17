@@ -55,6 +55,10 @@ pub struct Abgabegrundlagen {
     pub antrag: Bauantrag,
     pub bauherren: Vec<Beteiligter>,
     pub buero: Buero,
+    /// Weitere Projektbeteiligte (Eigentümer, Bevollmächtigte, Fachplaner) beim
+    /// Festhalten; fehlen in älteren Abgabeständen.
+    #[serde(default)]
+    pub beteiligte: Vec<crate::kunden::Projektbeteiligter>,
     /// Verfahrensart beim Festhalten; fehlt in älteren Abgabeständen.
     #[serde(default)]
     pub art: Option<Verfahrensart>,
@@ -160,6 +164,7 @@ impl CoreServices {
             buero: self.buero().await?,
             projekt: projekt.clone(),
             antrag,
+            beteiligte: self.repos.kunden.beteiligte(p).await?,
             art: Some(a.art.clone()),
             antragsangaben: a.antragsangaben.clone(),
         };
@@ -191,7 +196,8 @@ impl CoreServices {
             docs.push(meta);
             inhalte.push(daten);
         }
-        let mut hinweise = Vec::new();
+        // Zustimmungspflicht nach dem aktuellen Stand der Projektbeteiligten.
+        let mut hinweise = self.zustimmungen_abgleichen(p, vid, &mut a).await?;
         for d in &docs {
             let aktuell = self.repos.documents.latest(d.document_id).await?;
             if aktuell.version != d.version {

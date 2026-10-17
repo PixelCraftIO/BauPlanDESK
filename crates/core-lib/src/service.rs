@@ -414,6 +414,13 @@ impl CoreServices {
         };
         crate::grundstuecksinformationen::projektflaeche_ableiten(&mut p);
         crate::grundstuecksinformationen::dokumente_pruefen(self, p.id, &p.planungsrecht).await?;
+        crate::grundstuecksinformationen::eigentuemer_pruefen_im_projekt(
+            self,
+            p.id,
+            &p.planungsrecht,
+            None,
+        )
+        .await?;
         let audit = Self::audit(
             wer,
             Aktion::ProjektAngelegt,
@@ -445,17 +452,23 @@ impl CoreServices {
     ) -> CoreResult<Project> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
         validate_project(&update.name, update.grundstuecksflaeche_m2)?;
+        let vorher = self.repos.projects.get(update.id).await?;
         if let Some(p) = &update.planungsrecht {
             p.validate()?;
             crate::grundstuecksinformationen::dokumente_pruefen(self, update.id, p).await?;
-            if let Some(g) = &p.baugrenzen {
-                let vorher = self.repos.projects.get(update.id).await?;
-                if vorher.planungsrecht.baugrenzen.as_ref() != Some(g) {
-                    self.pruefe_planbezug(update.id, g).await?;
-                }
+            crate::grundstuecksinformationen::eigentuemer_pruefen_im_projekt(
+                self,
+                update.id,
+                p,
+                Some(&vorher.planungsrecht),
+            )
+            .await?;
+            if let Some(g) = &p.baugrenzen
+                && vorher.planungsrecht.baugrenzen.as_ref() != Some(g)
+            {
+                self.pruefe_planbezug(update.id, g).await?;
             }
         }
-        let vorher = self.repos.projects.get(update.id).await?;
         let mut p = Project {
             id: update.id,
             name: update.name,
@@ -606,6 +619,25 @@ impl CoreServices {
                 namen.join(", ")
             )));
         }
+        let flurstuecke: Vec<_> = self
+            .list_projects()
+            .await?
+            .into_iter()
+            .filter(|p| {
+                crate::grundstuecksinformationen::informationen(&p.planungsrecht)
+                    .flurstuecke
+                    .iter()
+                    .any(|f| f.eigentuemer_kunden.contains(&id))
+            })
+            .map(|p| format!("„{}“", p.name))
+            .collect();
+        if !flurstuecke.is_empty() {
+            return Err(CoreError::InvalidInput(format!(
+                "{} ist als Flurstückseigentümer in {} eingetragen und kann erst gelöscht werden, wenn er dort nicht mehr eingetragen ist.",
+                k.anzeigename(),
+                flurstuecke.join(", ")
+            )));
+        }
         self.repos
             .kunden
             .kunde_loeschen(id, expected_version)
@@ -642,6 +674,12 @@ impl CoreServices {
                 ids.push(id);
             }
         }
+        let beteiligte = self.repos.kunden.beteiligte(project).await?;
+        self.eigentuemer_bleiben_verfuegungsberechtigt(
+            project,
+            kunden::verfuegungsberechtigte(&ids, &beteiligte),
+        )
+        .await?;
         let p = self
             .repos
             .kunden
@@ -660,6 +698,47 @@ impl CoreServices {
         )
         .await?;
         Ok(p)
+    }
+
+    /// Bauherren und Beteiligte mit Verfügungsrecht über das Grundstück.
+    pub(crate) async fn verfuegungsberechtigte(
+        &self,
+        project: ProjectId,
+    ) -> CoreResult<std::collections::HashSet<KundeId>> {
+        let bauherren: Vec<KundeId> = self
+            .repos
+            .kunden
+            .bauherren(project)
+            .await?
+            .iter()
+            .map(|k| k.id)
+            .collect();
+        Ok(kunden::verfuegungsberechtigte(
+            &bauherren,
+            &self.repos.kunden.beteiligte(project).await?,
+        ))
+    }
+
+    /// Eigentümer der Vorhabenflurstücke müssen nach einer Änderung der
+    /// Bauherren oder Beteiligten verfügungsberechtigt bleiben.
+    async fn eigentuemer_bleiben_verfuegungsberechtigt(
+        &self,
+        project: ProjectId,
+        berechtigt: std::collections::HashSet<KundeId>,
+    ) -> CoreResult<()> {
+        let p = self.repos.projects.get(project).await?;
+        let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+        if let Some((f, k)) = infos
+            .vorhabeneigentuemer()
+            .find(|(_, k)| !berechtigt.contains(k))
+        {
+            return Err(CoreError::InvalidInput(format!(
+                "{} ist Eigentümer von Flurstück {} und bleibt deshalb Bauherr oder Grundstückseigentümer bzw. Erbbauberechtigter. Zuerst die Eigentümerangabe am Flurstück ändern.",
+                self.repos.kunden.kunde(k).await?.anzeigename(),
+                f.nummer.trim()
+            )));
+        }
+        Ok(())
     }
 
     /// Weitere Beteiligte eines Projekts (Eigentümer, Bevollmächtigte, Fachplaner).
@@ -691,6 +770,23 @@ impl CoreServices {
                 liste.push(z);
             }
         }
+        let bauherren: Vec<KundeId> = self
+            .repos
+            .kunden
+            .bauherren(project)
+            .await?
+            .iter()
+            .map(|k| k.id)
+            .collect();
+        let mut berechtigt: std::collections::HashSet<KundeId> = bauherren.into_iter().collect();
+        berechtigt.extend(
+            liste
+                .iter()
+                .filter(|z| z.rolle.verfuegungsberechtigt())
+                .map(|z| z.kunde),
+        );
+        self.eigentuemer_bleiben_verfuegungsberechtigt(project, berechtigt)
+            .await?;
         let p = self
             .repos
             .kunden

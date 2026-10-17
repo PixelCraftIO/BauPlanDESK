@@ -702,4 +702,104 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
             .count(),
         1
     );
+
+    // Ändern sich die Beteiligten, hält jede Speicherung der Akte die
+    // Zustimmungspflicht aktuell, auch ohne erneutes Profil.
+    let frieda = core.kunde_anlegen(kunde("Frieda"), &user).await.unwrap();
+    let p = core.get_project(p.id).await.unwrap();
+    let p = core
+        .beteiligte_setzen(
+            p.id,
+            vec![
+                Beteiligtenzuordnung {
+                    rolle: Beteiligtenrolle::Grundstueckseigentuemer,
+                    kunde: eigentuemer.id,
+                },
+                Beteiligtenzuordnung {
+                    rolle: Beteiligtenrolle::Erbbauberechtigter,
+                    kunde: frieda.id,
+                },
+            ],
+            p.version,
+            &user,
+        )
+        .await
+        .unwrap();
+    let mut a = a;
+    a.bezeichnung = "Bauantrag mit Erbbaurecht".into();
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    let a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let titel: Vec<_> = a
+        .anforderungen
+        .iter()
+        .filter(|r| r.titel.starts_with("Zustimmungserklärung"))
+        .map(|r| r.titel.as_str())
+        .collect();
+    assert_eq!(
+        titel,
+        [
+            "Zustimmungserklärung von Emil Huber",
+            "Zustimmungserklärung von Frieda Huber"
+        ]
+    );
+
+    // Wird der Eigentümer Bauherr, bleibt der Akteneintrag; die Abgabe weist darauf
+    // hin und friert die Beteiligten ein.
+    core.bauherren_setzen(p.id, vec![bauherr.id, eigentuemer.id], p.version, &user)
+        .await
+        .unwrap();
+    let plan = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan.pdf",
+            Bytes::from_static(b"%PDF-1.7 Lageplan"),
+            &user,
+        )
+        .await
+        .unwrap();
+    let w = core_lib::verfahren::abgabe::Abgabewunsch {
+        xbau_bezug: None,
+        id: Uuid::new_v4(),
+        titel: "Antragspaket".into(),
+        dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+            dokument_id: plan.document_id,
+            version: 1,
+        }],
+        xbau: false,
+        druck: false,
+        anschreiben: String::new(),
+    };
+    let f = core
+        .verfahren_abgabe_festhalten(p.id, vid, f.revision, w.clone(), &user)
+        .await
+        .unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let stand = a.abgaben.iter().find(|b| b.id == w.id).unwrap();
+    assert!(
+        stand.hinweise.iter().any(|h| h
+            == "Zustimmungserklärung von Emil Huber: nach den aktuellen Projektbeteiligten nicht mehr erforderlich. Anforderung prüfen."),
+        "{:?}",
+        stand.hinweise
+    );
+    let beteiligte: Vec<_> = stand
+        .grundlagen
+        .beteiligte
+        .iter()
+        .map(|b| (b.rolle, b.kunde.anzeigename()))
+        .collect();
+    assert_eq!(
+        beteiligte,
+        [
+            (
+                Beteiligtenrolle::Grundstueckseigentuemer,
+                "Emil Huber".to_string()
+            ),
+            (
+                Beteiligtenrolle::Erbbauberechtigter,
+                "Frieda Huber".to_string()
+            )
+        ]
+    );
 }

@@ -1,6 +1,15 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
-  import { api, fehlertext, type Project, type DocumentVersion } from "./api";
+  import {
+    api,
+    beteiligtenrolleName,
+    fehlertext,
+    kundenname,
+    type DocumentVersion,
+    type Kunde,
+    type Project,
+    type Projektbeteiligter,
+  } from "./api";
   import type {
     FlurstuecksInfo,
     FlurstuecksRolle,
@@ -58,6 +67,60 @@
       abgebaut = true;
     };
   });
+  let kunden = $state<Kunde[]>([]),
+    bauherren = $state<Kunde[]>([]),
+    beteiligte = $state<Projektbeteiligter[]>([]),
+    kundenFehler = $state<string | null>(null);
+  $effect(() => {
+    if (!aktiv) return;
+    const id = projekt.id;
+    // Bauherren und Beteiligte ändern die Projektversion.
+    void projekt.version;
+    let abgebaut = false;
+    kundenFehler = null;
+    void Promise.all([api.kunden(), api.bauherren(id), api.beteiligte(id)])
+      .then(([k, b, t]) => {
+        if (abgebaut) return;
+        kunden = k;
+        bauherren = b;
+        beteiligte = t;
+      })
+      .catch((e) => {
+        if (!abgebaut) kundenFehler = fehlertext(e);
+      });
+    return () => {
+      abgebaut = true;
+    };
+  });
+  // Eigentümer eines Vorhabenflurstücks: Bauherren und verfügungsberechtigte
+  // Beteiligte. Der Core prüft die Zuordnung beim Speichern.
+  const verfuegungsberechtigt = $derived([
+    ...bauherren.map((k) => ({ id: k.id, name: `${kundenname(k)} (Bauherr)` })),
+    ...beteiligte
+      .filter(
+        (b) =>
+          b.rolle === "grundstueckseigentuemer" ||
+          b.rolle === "erbbauberechtigter",
+      )
+      .map((b) => ({
+        id: b.kunde.id,
+        name: `${kundenname(b.kunde)} (${beteiligtenrolleName(b.rolle)})`,
+      })),
+  ]);
+  function kundeName(id: string) {
+    const k = kunden.find((k) => k.id === id);
+    return k ? kundenname(k) : "Kunde nicht gefunden";
+  }
+  function eigentuemerHinzu(f: FlurstuecksInfo, id: string) {
+    if (id && !f.eigentuemer_kunden?.includes(id))
+      f.eigentuemer_kunden = [...(f.eigentuemer_kunden ?? []), id];
+  }
+  function eigentuemerEntfernen(f: FlurstuecksInfo, id: string) {
+    const rest = (f.eigentuemer_kunden ?? []).filter((x) => x !== id);
+    // Leer wird wie im Core nicht gespeichert.
+    if (rest.length) f.eigentuemer_kunden = rest;
+    else delete f.eigentuemer_kunden;
+  }
   function hinzufuegen() {
     eingabe.flurstuecke.push({
       id: crypto.randomUUID(),
@@ -146,6 +209,9 @@
   </p>{/if}
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
 {#if meldung}<p role="status">{meldung}</p>{/if}
+{#if kundenFehler}<p class="hinweisbox" role="status">
+    Kunden für die Eigentümerwahl konnten nicht geladen werden: {kundenFehler}
+  </p>{/if}
 {#if dokumentenFehler}<p class="hinweisbox" role="status">
     Projektdateien für die Auszugswahl konnten nicht geladen werden: {dokumentenFehler}
   </p>{/if}
@@ -243,9 +309,6 @@
           /></label
         >
         <label
-          >Eigentümer<input bind:value={f.eigentuemer} maxlength="500" /></label
-        >
-        <label
           >Grundbuchauszug<select
             aria-label="Grundbuchauszug"
             value={f.grundbuchauszug
@@ -269,7 +332,54 @@
           ></textarea></label
         >
       </div>
+      <div class="eigentuemer">
+        <span>Eigentümer</span>
+        {#if f.eigentuemer}<p class="meta">
+            Bisherige Freitextangabe: {f.eigentuemer}
+            <button class="link" onclick={() => (f.eigentuemer = "")}
+              >Freitext entfernen</button
+            >
+          </p>{/if}
+        {#if f.eigentuemer_kunden?.length}<ul>
+            {#each f.eigentuemer_kunden as id (id)}<li>
+                {kundeName(id)}
+                <button
+                  class="link"
+                  onclick={() => eigentuemerEntfernen(f, id)}
+                  >Entfernen</button
+                >
+              </li>{/each}
+          </ul>{/if}
+        <select
+          aria-label="Eigentümer hinzufügen"
+          value=""
+          onchange={(e) => {
+            eigentuemerHinzu(f, e.currentTarget.value);
+            e.currentTarget.value = "";
+          }}
+        >
+          <option value="">Eigentümer hinzufügen …</option>
+          <optgroup label="Bauherren und Eigentümer im Projekt"
+            >{#each verfuegungsberechtigt as o (o.id + o.name)}<option
+                value={o.id}
+                disabled={f.eigentuemer_kunden?.includes(o.id)}
+                >{o.name}</option
+              >{/each}</optgroup
+          >
+          {#if (f.rolle ?? "vorhaben") !== "vorhaben"}<optgroup
+              label="Weitere Kunden"
+              >{#each kunden.filter((k) => !verfuegungsberechtigt.some((o) => o.id === k.id)) as k (k.id)}<option
+                  value={k.id}
+                  disabled={f.eigentuemer_kunden?.includes(k.id)}
+                  >{kundenname(k)}</option
+                >{/each}</optgroup
+            >{/if}
+        </select>
+      </div>
       <p class="meta">
+        Eigentümer eines Vorhabenflurstücks sind Bauherren oder unter „Weitere
+        Beteiligte“ als Grundstückseigentümer bzw. Erbbauberechtigte erfasst;
+        daraus folgt die Zustimmungserklärung im Verfahren.
         Ein Grundbuchauszug kann unter Projektdateien hinzugefügt und hier
         zugeordnet werden. Eine laufende Nummer gilt zusammen mit Bezirk und
         Grundbuchblatt.
@@ -298,5 +408,16 @@
   }
   .raster {
     margin-top: 1rem;
+  }
+  .eigentuemer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 1rem;
+    max-width: 36rem;
+  }
+  .eigentuemer ul {
+    margin: 0;
+    padding-left: 1.25rem;
   }
 </style>

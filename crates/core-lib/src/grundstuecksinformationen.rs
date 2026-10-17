@@ -1,5 +1,6 @@
 //! Kataster-/Grundbuchfakten und davon getrennte Ansätze der Baugrundstücksermittlung.
 //! `BaugrundstuecksPlan` bleibt der vollständige Eingabe-/Archivvertrag für Verbraucher.
+use crate::kunden::KundeId;
 use crate::{
     CoreError, CoreResult, baugrundstuecke::*, domain::Planungsrecht,
     plattform::objekte::Dokumentbezug, storage::ContentHash,
@@ -27,8 +28,16 @@ pub struct FlurstuecksInfo {
     pub laufende_nummer: Option<u32>,
     #[serde(default)]
     pub grundbuchauszug: Option<Dokumentbezug>,
+    /// Frühere Freitextangabe. Sie bleibt lesbar, kann aber nur noch entfernt
+    /// werden; Eigentümer werden über [`Self::eigentuemer_kunden`] zugeordnet.
     #[serde(default)]
     pub eigentuemer: String,
+    /// Eigentümer aus der Kundendatenbank. Bei Vorhabenflurstücken Bauherr oder
+    /// Projektbeteiligter mit Verfügungsrecht, siehe [`eigentuemer_pruefen`].
+    // Nicht geschrieben, solange leer, damit Bestandsdaten unverändert bleiben.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub eigentuemer_kunden: Vec<KundeId>,
     #[serde(default)]
     pub bemerkung: String,
     /// Bezug zum Vorhaben; fehlt bei Vorhabenflurstücken.
@@ -97,6 +106,9 @@ impl Grundstuecksinformationen {
                 .iter()
                 .any(|s| s.len() > 500)
                 || f.bemerkung.len() > 4000
+                || f.eigentuemer_kunden.len() > 20
+                || (1..f.eigentuemer_kunden.len())
+                    .any(|i| f.eigentuemer_kunden[..i].contains(&f.eigentuemer_kunden[i]))
                 || f.laufende_nummer == Some(0)
                 || !f.flaeche_m2.is_finite()
                 || f.flaeche_m2 <= 0.
@@ -159,10 +171,21 @@ impl Grundstuecksinformationen {
         flaechen.peek()?;
         Some(flaechen.sum())
     }
+    /// Quellenstand der Baugrundstücksermittlung. Eigentümerzuordnungen ändern
+    /// keine Fläche und lassen die Ermittlung aktuell.
     pub fn fingerprint(&self) -> CoreResult<ContentHash> {
+        let mut quelle = self.clone();
+        for f in &mut quelle.flurstuecke {
+            f.eigentuemer_kunden.clear();
+        }
         Ok(ContentHash::of(
-            &serde_json::to_vec(self).map_err(|e| CoreError::InvalidInput(e.to_string()))?,
+            &serde_json::to_vec(&quelle).map_err(|e| CoreError::InvalidInput(e.to_string()))?,
         ))
+    }
+    /// Eigentümer der Vorhabenflurstücke.
+    pub fn vorhabeneigentuemer(&self) -> impl Iterator<Item = (&FlurstuecksInfo, KundeId)> {
+        self.vorhaben()
+            .flat_map(|f| f.eigentuemer_kunden.iter().map(move |k| (f, *k)))
     }
 }
 /// Lesender Adapter für Bestandsprojekte; die erste getrennte Speicherung übernimmt beide Teile.
@@ -187,6 +210,7 @@ pub fn informationen(p: &Planungsrecht) -> Grundstuecksinformationen {
                             laufende_nummer: Some(f.laufende_nummer).filter(|n| *n > 0),
                             grundbuchauszug: None,
                             eigentuemer: String::new(),
+                            eigentuemer_kunden: vec![],
                             bemerkung: String::new(),
                             rolle: FlurstuecksRolle::Vorhaben,
                         })
@@ -357,6 +381,65 @@ pub fn pruefe_bestaetigte_ermittlung(p: &Planungsrecht, b: &BaugrundstuecksPlan)
     Ok(())
 }
 
+/// Eigentümer am Flurstück sind Kunden. Vorhabenflurstücke gehören dem Bauherrn
+/// oder einem Projektbeteiligten mit Verfügungsrecht, damit die Zustimmungspflicht
+/// aus den Projektbeteiligten folgt. Die frühere Freitextangabe kann nur entfernt
+/// oder unverändert behalten werden.
+pub fn eigentuemer_pruefen(
+    neu: &Grundstuecksinformationen,
+    alt: Option<&Grundstuecksinformationen>,
+    verfuegungsberechtigt: &std::collections::HashSet<KundeId>,
+) -> CoreResult<()> {
+    for f in &neu.flurstuecke {
+        if !f.eigentuemer.trim().is_empty()
+            && alt
+                .and_then(|a| a.flurstuecke.iter().find(|v| v.id == f.id))
+                .is_none_or(|v| v.eigentuemer != f.eigentuemer)
+        {
+            return Err(CoreError::InvalidInput(format!(
+                "Flurstück {}: Eigentümer als Kunden zuordnen. Die bisherige Freitextangabe kann nur entfernt werden.",
+                f.nummer.trim()
+            )));
+        }
+    }
+    if let Some((f, _)) = neu
+        .vorhabeneigentuemer()
+        .find(|(_, k)| !verfuegungsberechtigt.contains(k))
+    {
+        return Err(CoreError::InvalidInput(format!(
+            "Flurstück {}: Eigentümer eines Vorhabenflurstücks zuerst als Bauherr oder als Grundstückseigentümer bzw. Erbbauberechtigten unter den Projektbeteiligten erfassen.",
+            f.nummer.trim()
+        )));
+    }
+    Ok(())
+}
+
+/// Prüft die Eigentümerzuordnungen gegen Kundendatenbank und Projektbeteiligte.
+pub(crate) async fn eigentuemer_pruefen_im_projekt(
+    core: &crate::CoreServices,
+    projekt: crate::domain::ProjectId,
+    neu: &Planungsrecht,
+    alt: Option<&Planungsrecht>,
+) -> CoreResult<()> {
+    let neu = informationen(neu);
+    let mut geprueft = std::collections::HashSet::new();
+    for k in neu.flurstuecke.iter().flat_map(|f| &f.eigentuemer_kunden) {
+        if geprueft.insert(*k) {
+            core.repos.kunden.kunde(*k).await?;
+        }
+    }
+    let verfuegungsberechtigt = if neu.vorhabeneigentuemer().next().is_some() {
+        core.verfuegungsberechtigte(projekt).await?
+    } else {
+        Default::default()
+    };
+    eigentuemer_pruefen(
+        &neu,
+        alt.map(informationen).as_ref(),
+        &verfuegungsberechtigt,
+    )
+}
+
 pub(crate) async fn dokumente_pruefen(
     core: &crate::CoreServices,
     projekt: crate::domain::ProjectId,
@@ -409,6 +492,33 @@ mod tests {
             });
         }
         assert_eq!(plan(&p).unwrap().unwrap().gruppen(true).unwrap().len(), 3);
+    }
+    #[test]
+    fn eigentuemerzuordnung_laesst_ermittlung_aktuell() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let k = KundeId::new();
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        infos.flurstuecke[0].eigentuemer_kunden = vec![k];
+        assert!(quellen_aktuell(&p).unwrap());
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        let berechtigt = std::collections::HashSet::from([k]);
+        eigentuemer_pruefen(infos, None, &berechtigt).unwrap();
+        assert!(eigentuemer_pruefen(infos, None, &Default::default()).is_err());
+        infos.flurstuecke[0].eigentuemer_kunden.push(k);
+        assert!(infos.validate().is_err(), "doppelt zugeordnet");
+        infos.flurstuecke[0].eigentuemer_kunden.pop();
+        // Bestehender Freitext bleibt erlaubt, neuer nicht.
+        let alt = infos.clone();
+        infos.flurstuecke[1].eigentuemer = "Huber".into();
+        assert!(eigentuemer_pruefen(infos, Some(&alt), &berechtigt).is_err());
+        let alt = infos.clone();
+        eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
+        infos.flurstuecke[1].eigentuemer.clear();
+        eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
     }
     #[test]
     fn gleiche_nummer_in_unterschiedlichen_grundbuchblaettern_bleibt_getrennt() {
