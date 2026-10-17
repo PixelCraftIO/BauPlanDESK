@@ -123,6 +123,7 @@
   let auswahl = $state<FormularBezug>({
     grundstueck_id: null,
     bauherr_id: null,
+    verfahren_id: null,
   });
   async function laden(auffrischen = false) {
     const nummer = ++ladeNummer;
@@ -165,7 +166,8 @@
       }
       werte = start;
       analyse = a;
-      if (a.quellen) auswahl = { ...a.quellen.datenstand.bezug };
+      if (a.quellen)
+        auswahl = { verfahren_id: null, ...a.quellen.datenstand.bezug };
       if (a.dokument) {
         try {
           const p = await api.pdfVorschau(dokumentId!, a.dokument.version);
@@ -260,6 +262,14 @@
               >{/each}</select
           ></label
         >
+        {#if analyse.quellen.verfahren.length}<label
+            >Verfahren<select bind:value={auswahl.verfahren_id}
+              ><option value={null}>Keine Auswahl</option
+              >{#each analyse.quellen.verfahren as v}<option value={v.id}
+                  >{v.bezeichnung}</option
+                >{/each}</select
+            ></label
+          >{/if}
         <button type="button" onclick={() => laden(true)}
           >Projektdaten neu laden</button
         >
