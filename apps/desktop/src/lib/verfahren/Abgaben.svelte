@@ -209,7 +209,7 @@
               ><label>Übermittlungsweg<input bind:value={e.weg} /></label><label
                 >Übermittlungsreferenz<input bind:value={e.referenz} /></label
               ><label
-                >Notiz / Begründung<input
+                >Notiz / Begründung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Notiz / Begründung"
                   required
                   maxlength="4000"
                   bind:value={e.notiz}

@@ -21,11 +21,11 @@
   {#if daten.typ === "person"}
     <div class="anschrift">
       <label class="breit">Vorname <input bind:value={daten.vorname} disabled={gesperrt} /></label>
-      <label class="breit">Familienname <input bind:value={daten.familienname} disabled={gesperrt} required /></label>
+      <label class="breit">Familienname <span class="pflicht" aria-hidden="true"> *</span><input aria-label="Familienname" bind:value={daten.familienname} disabled={gesperrt} required /></label>
     </div>
   {:else}
     <div class="anschrift">
-      <label class="breit">Firma / Organisation <input bind:value={daten.firma} disabled={gesperrt} required /></label>
+      <label class="breit">Firma / Organisation <span class="pflicht" aria-hidden="true"> *</span><input aria-label="Firma / Organisation" bind:value={daten.firma} disabled={gesperrt} required /></label>
       <label class="breit">Ansprechpartner <input bind:value={daten.ansprechpartner} disabled={gesperrt} /></label>
     </div>
   {/if}

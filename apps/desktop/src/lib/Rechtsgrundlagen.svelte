@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { projektNavigation } from "./projektNavigation.svelte";
   import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
@@ -24,6 +25,7 @@
     onprojekt: (p: Project) => void;
     bereich?: "grundlagen" | "festsetzungen" | "stammdaten";
   } = $props();
+  const navigation = projektNavigation();
   let land = $state<Bundesland>(untrack(() => projekt.bundesland));
   let gespeichertLand = $state<Bundesland>(untrack(() => projekt.bundesland));
   function grundlagen(p: Project): Planungsrecht {
@@ -168,7 +170,8 @@
       : "Standort und Beschreibung des Vorhabens."}
 </p>
 <form class="rechtsgrundlagen" onsubmit={speichern}>
-  <div class="knoepfe links">
+  {#if !darf}<p class="lesemodus">Nur Leserecht · Die Angaben können hier nicht geändert werden.</p>{/if}
+  <div class="knoepfe links formularaktionen">
     <button type="submit" disabled={!darf || !geaendert || laeuft}
       >{laeuft ? "Wird gespeichert …" : "Speichern"}</button
     >
@@ -270,8 +273,10 @@
     </fieldset>
   {/if}
   {#if mitPlan && bereich !== "stammdaten"}
+    {#if bereich === 'festsetzungen'}<div class="planbezug"><strong>{projekt.planungsrecht.plan_bezeichnung || 'Bebauungsplan noch nicht bezeichnet'}</strong><p class="meta">{projekt.planungsrecht.plan_nummer || 'Fassung noch nicht angegeben'} · Rechtskraft: {projekt.planungsrecht.plan_rechtskraft || 'noch nicht angegeben'}</p><button type="button" class="link" onclick={()=>navigation?.springen({bereich:'rechtsgrundlagen',objekt:null,register:null,eintrag:null})}>Rechtsgrundlagen bearbeiten</button></div>{/if}
     <fieldset disabled={!darf || laeuft}>
       <legend>Angaben zum Bebauungsplan</legend>
+      {#if bereich === 'grundlagen'}
       <div class="raster">
         <label
           >Planbezeichnung<input
@@ -293,6 +298,7 @@
           /></label
         >
       </div>
+      {/if}
       {#if bereich === "festsetzungen"}
         <h3>Festgesetzte Werte</h3>
         <div class="raster">

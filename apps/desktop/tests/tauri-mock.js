@@ -10,6 +10,9 @@ window.testProjects = [
     name: "Umbau Bürogebäude",
   },
 ];
+// Bestehende Fachablauf-Suiten verwenden bewusst eine gespeicherte, vollständig
+// geöffnete Navigation. Die eigene UI-Suite prüft den kompakten Standard separat.
+for (const p of window.testProjects) localStorage.setItem(`bauprojekt.navigation.v1.${p.id}`, JSON.stringify({grundlagen:true,berechnungen:true,nutzung:true,flaechen:true,weitere:true,unterlagen:true,verfahren:true,einreichungswerkzeuge:true}));
 window.calls = [];
 window.failSave = false;
 window.saveDelay = 0;

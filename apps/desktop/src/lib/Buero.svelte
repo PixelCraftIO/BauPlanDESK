@@ -31,7 +31,7 @@
 <form class="spalte" onsubmit={speichern}>
   <p class="meta">Das Büro ist Absender jedes XBau-Bauantrags und wird als Entwurfsverfasser eingetragen.</p>
   <label>Name des Büros
-    <input bind:value={buero.name} disabled={!darf} required />
+    <span class="pflicht" aria-hidden="true"> *</span><input aria-label="Name des Büros" bind:value={buero.name} disabled={!darf} required />
   </label>
   <AnschriftFelder bind:anschrift={buero.anschrift} gesperrt={!darf} />
   <label>Absenderkennung

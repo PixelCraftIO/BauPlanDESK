@@ -31,7 +31,8 @@ serde_json.workspace = true
 sha2.workspace = true
 storage = { workspace = true, features = ["s3"] }
 tauri = { version = "2", features = [] }
-tauri-plugin-updater = "2"
+# Upstream-Sicherheitsfix für zip 9; nach Veröffentlichung auf crates.io zurückstellen.
+tauri-plugin-updater = { version = "2.14", git = "https://github.com/tauri-apps/plugins-workspace", rev = "ba98bfadc4c868c9a7e1a226c83af528e1f11b89" }
 tauri-plugin-dialog = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"

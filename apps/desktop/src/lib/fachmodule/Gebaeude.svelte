@@ -113,7 +113,7 @@
   {#snippet zusatz(g)}<span>{z(g.geometrie?.grundflaeche_m2 ?? null)}{g.geometrie?.grundflaeche_m2 !== undefined ? " m² Grundfläche" : ""}</span><br /><span class="meta">{g.geschosse.length ? `${g.geschosse.length} Geschosse erfasst` : "Einzelgeschoss aus Grundfläche"}</span>{/snippet}
   {#snippet children(g)}
     <label
-      >Gebäudebezeichnung<input
+      >Gebäudebezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Gebäudebezeichnung"
         bind:value={g.bezeichnung}
         required
         maxlength="500"
@@ -164,7 +164,7 @@
         <legend>Geschoss {i + 1}</legend>
         <div class="raster">
           <label
-            >Bezeichnung<input
+            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung"
               bind:value={geschoss.bezeichnung}
               required
             /></label

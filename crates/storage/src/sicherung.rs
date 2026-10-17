@@ -236,7 +236,7 @@ fn manifest(zip: &mut ZipArchive<File>) -> CoreResult<Sicherungsmanifest> {
     let mut archive_names = HashSet::new();
     for i in 0..zip.len() {
         let f = zip.by_index(i).map_err(err)?;
-        if !archive_names.insert(f.name().to_string()) {
+        if !archive_names.insert(f.name().map_err(err)?.into_owned()) {
             return Err(err("Doppelte ZIP-Datei"));
         }
     }

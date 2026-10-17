@@ -46,7 +46,7 @@
     <fieldset disabled={alt.includes(c.id)}>
       <div class="raster">
         <label
-          >Betreff<input
+          >Betreff<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Betreff"
             required
             maxlength="500"
             bind:value={c.betreff}
@@ -60,7 +60,7 @@
             ><option value="besprechung">Besprechung</option></select
           ></label
         ><label
-          >Ereignisdatum<input
+          >Ereignisdatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Ereignisdatum"
             type="date"
             required
             bind:value={c.datum}

@@ -57,6 +57,7 @@ export class FachSitzung<T> {
     this.eingabe = this.leer();
     this.original = null;
     this.fehler = null;
+    this.meldung = null;
   }
   bearbeiten(f: Datensatz<T>) {
     if (this.hatAenderungen() || this.gerettet) return;
@@ -65,12 +66,14 @@ export class FachSitzung<T> {
     this.original = JSON.parse(JSON.stringify(f.daten)) as T;
     this.eingabe = JSON.parse(JSON.stringify(f.daten)) as T;
     this.fehler = null;
+    this.meldung = null;
   }
   verwerfen() {
     this.eingabe = null;
     this.original = null;
     this.id = null;
     this.gerettet = false;
+    this.meldung = null;
     localStorage.removeItem(this.schluessel);
   }
   entwurfSichern() {
@@ -114,12 +117,15 @@ export class FachSitzung<T> {
       this.fehler = fehlertext(e);
     }
   }
+  vorSpeichern?: () => boolean;
   async speichern(): Promise<boolean> {
+    if (this.vorSpeichern && !this.vorSpeichern()) return false;
     if (this.laeuft) return false;
     if (!this.hatAenderungen()) return true;
     if (!this.eingabe || !this.id) return false;
     this.laeuft = true;
     this.fehler = null;
+    this.meldung = null;
     try {
       const f = await plattformApi.speichern<T>(
         this.projektId,

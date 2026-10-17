@@ -263,7 +263,7 @@
       {#if bereich === "grundlagen"}
         <h3>Rechts- und Datengrundlagen</h3>
         <div class="raster">
-          <label>Bezeichnung<input required bind:value={p.bezeichnung} /></label
+          <label>Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung" required bind:value={p.bezeichnung} /></label
           ><label>Gemeinde<input bind:value={p.recht.gemeinde} /></label><label
             >Konkrete LBO-Fassung<input bind:value={p.recht.fassung} /></label
           ><label

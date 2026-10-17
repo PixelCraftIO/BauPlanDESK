@@ -467,7 +467,7 @@
   });
 </script>
 
-<div class="knoepfe links">
+<div class="werkzeugleiste dateiaktionen">
   <button class="sekundaer" disabled={laeuft} onclick={laden}
     >Dateiliste aktualisieren</button
   >
@@ -502,6 +502,7 @@
   diesen Kopien werden nicht automatisch in die Anwendung übernommen.
 </p>
 
+<div class="dateifilter werkzeugleiste">
 <label class="dateisuche"
   >Dateien suchen<input
     type="search"
@@ -510,21 +511,6 @@
   /></label
 >
 
-<div class="knoepfe links" aria-label="Schnellfilter für Unterlagen">
-  <button
-    class="sekundaer"
-    aria-pressed={kategorieFilter === ""}
-    onclick={() => (kategorieFilter = "")}
-    >Alle Unterlagen ({kategorieAnzahlen.alle})</button
-  >
-  <button
-    class="sekundaer"
-    aria-pressed={kategorieFilter === ":ohne"}
-    onclick={() => (kategorieFilter = ":ohne")}
-    >Ohne Kategorie ({kategorieAnzahlen.ohne})</button
-  >
-</div>
-<div class="knoepfe links">
   <label
     >Kategorie filtern<select
       aria-label="Kategorie filtern"
@@ -544,6 +530,22 @@
       ></select
     ></label
   >
+</div>
+<div class="knoepfe links" aria-label="Schnellfilter für Unterlagen">
+  <button
+    class="sekundaer"
+    aria-pressed={kategorieFilter === ""}
+    onclick={() => (kategorieFilter = "")}
+    >Alle Unterlagen ({kategorieAnzahlen.alle})</button
+  >
+  <button
+    class="sekundaer"
+    aria-pressed={kategorieFilter === ":ohne"}
+    onclick={() => (kategorieFilter = ":ohne")}
+    >Ohne Kategorie ({kategorieAnzahlen.ohne})</button
+  >
+</div>
+<div class="knoepfe links">
   <button
     class="sekundaer"
     disabled={laeuft ||

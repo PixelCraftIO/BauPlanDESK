@@ -11,10 +11,10 @@
 
 {#if wert}<div class="raster">
     <label
-      >Fristdatum<input type="date" required bind:value={wert.datum} /></label
-    ><label>Fristauslöser<input required bind:value={wert.ausloeser} /></label
+      >Fristdatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Fristdatum" type="date" required bind:value={wert.datum} /></label
+    ><label>Fristauslöser<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Fristauslöser" required bind:value={wert.ausloeser} /></label
     ><label
-      >Grund / Verlängerung<input required bind:value={wert.grund} /></label
+      >Grund / Verlängerung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Grund / Verlängerung" required bind:value={wert.grund} /></label
     ><label
       >Erinnerung Tage vorher<input
         type="number"

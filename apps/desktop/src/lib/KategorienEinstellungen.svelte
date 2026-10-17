@@ -95,7 +95,7 @@
           >{bearbeitung ? "Kategorie bearbeiten" : "Neue Kategorie"}</legend
         >
         <div class="raster">
-          <label>Name<input bind:value={name} required maxlength="120" /></label
+          <label>Name<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Name" bind:value={name} required maxlength="120" /></label
           >
           <label
             >Hauptkategorie<select

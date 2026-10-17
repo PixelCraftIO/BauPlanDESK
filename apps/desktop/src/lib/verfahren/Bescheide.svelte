@@ -63,7 +63,7 @@
             ></select
           ></label
         ><label
-          >Bescheiddatum<input
+          >Bescheiddatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bescheiddatum"
             type="date"
             required
             bind:value={b.datum}
@@ -107,7 +107,7 @@
         <legend>{p.titel || "Neue Auflage"}</legend>
         <div class="raster">
           <label
-            >Auflage<input
+            >Auflage<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Auflage"
               required
               maxlength="500"
               bind:value={p.titel}

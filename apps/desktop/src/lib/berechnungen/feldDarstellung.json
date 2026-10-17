@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "mehrzeilig": [
+    "quelle",
+    "grundlage",
+    "sondergrundlage",
+    "bemerkung",
+    "herkunft",
+    "pruefvermerk",
+    "begruendung",
+    "nachweis",
+    "ausnahmegrund"
+  ],
+  "aufmass": {
+    "wohnflaechen.positionen": {
+      "laenge_m": ["rechteck", "dreieck", "trapez"],
+      "breite_m": ["rechteck", "dreieck", "trapez"],
+      "breite2_m": ["trapez"],
+      "aufmass_m2": ["aufmass"]
+    },
+    "din277.positionen": {
+      "laenge_m": ["rechteck", "dreieck", "trapez"],
+      "breite_m": ["rechteck", "dreieck", "trapez"],
+      "breite2_m": ["trapez"],
+      "aufmass_m2": ["aufmass"]
+    },
+    "din277.volumen": {
+      "laenge_m": ["rechteck", "dreieck", "trapez"],
+      "breite_m": ["rechteck", "dreieck", "trapez"],
+      "breite2_m": ["trapez"],
+      "aufmass_m2": ["aufmass"]
+    }
+  }
+}

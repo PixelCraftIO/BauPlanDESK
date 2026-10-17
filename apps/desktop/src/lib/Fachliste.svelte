@@ -15,6 +15,7 @@
     zusatz,
     lesendBedienbar = false,
     zusatzBeschaeftigt,
+    pruefen,
   }: {
     titel: string;
     s: FachSitzung<T>;
@@ -22,9 +23,62 @@
     darf: boolean;
     lesendBedienbar?: boolean;
     zusatzBeschaeftigt?: () => boolean;
+    pruefen?: () => boolean;
     children: Snippet<[T]>;
     zusatz?: Snippet<[T]>;
   } = $props();
+  const formularId = $props.id();
+  let formular = $state<HTMLFormElement>();
+  let feldfehler = $state<
+    { element: HTMLElement; name: string; meldung: string }[]
+  >([]);
+  let listeOffen = $state(false);
+  $effect(() => {
+    void s.id;
+    untrack(() => (feldfehler = []));
+  });
+  function validieren() {
+    const fachlich = pruefen?.() ?? true;
+    const controls = [
+      ...(formular?.querySelectorAll<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >("input,select,textarea") ?? []),
+    ];
+    feldfehler = controls
+      .filter((e) => !e.matches(":disabled") && !e.validity.valid)
+      .map((element) => ({
+        element,
+        meldung: element.validity.valueMissing
+          ? "Bitte diese Angabe ergänzen."
+          : element.validity.rangeUnderflow
+            ? `Der Wert muss mindestens ${(element as HTMLInputElement).min} betragen.`
+            : element.validity.rangeOverflow
+              ? `Der Wert darf höchstens ${(element as HTMLInputElement).max} betragen.`
+              : "Bitte eine gültige Eingabe verwenden.",
+        name:
+          element.labels?.[0]?.textContent?.trim() ||
+          element.getAttribute("aria-label") ||
+          "Eingabe",
+      }));
+    for (const e of controls) {
+      if (!e.matches(":disabled") && !e.validity.valid)
+        e.setAttribute("aria-invalid", "true");
+      else if (!e.closest('[data-feldzustand="fehler"]'))
+        e.removeAttribute("aria-invalid");
+    }
+    feldfehler.forEach((f, i) =>
+      f.element.setAttribute("aria-errormessage", `${formularId}-fehler-${i}`),
+    );
+    if (feldfehler.length) feldfehler[0].element.focus();
+    return fachlich && feldfehler.length === 0;
+  }
+  $effect(() => {
+    s.vorSpeichern = validieren;
+    return () => {
+      s.vorSpeichern = undefined;
+    };
+  });
+  $effect(()=>{if(s.hatAenderungen() && s.meldung === "Gespeichert.")s.meldung=null;});
   const gesperrt = $derived(s.laeuft || (zusatzBeschaeftigt?.() ?? false));
   let verlauf = $state<Datensatz<T>[]>([]);
   async function historie(id: string) {
@@ -100,26 +154,59 @@
     >Liste aktualisieren</button
   >
 </div>
-<table class="ergebnistabelle">
-  <thead><tr><th>Bezeichnung</th>{#if zusatz}<th>Grundlagen</th>{/if}<th>Stand</th><th></th></tr></thead><tbody
-    >{#each s.liste as f (f.objekt)}<tr
-        ><td>{s.titel(f.daten)}</td>{#if zusatz}<td>{@render zusatz(f.daten)}</td>{/if}<td>{f.revision}</td><td
-          ><button
-            class="link"
-            disabled={gesperrt || s.hatAenderungen() || s.gerettet}
-            onclick={() => s.bearbeiten(f)}>Öffnen</button
-          ><button class="link" onclick={() => historie(f.objekt)}
-            >Verlauf</button
-          ></td
-        ></tr
-      >{:else}<tr
-        ><td colspan={zusatz ? 4 : 3}
-          >{s.laeuft ? "Wird geladen …" : "Noch keine Einträge vorhanden."}</td
-        ></tr
-      >{/each}</tbody
-  >
-</table>
+{#if !s.eingabe || s.liste.length || listeOffen}
+  <table class="ergebnistabelle">
+    <thead
+      ><tr
+        ><th>Bezeichnung</th>{#if zusatz}<th>Grundlagen</th>{/if}<th>Stand</th
+        ><th></th></tr
+      ></thead
+    ><tbody
+      >{#each s.liste as f (f.objekt)}<tr
+          ><td>{s.titel(f.daten)}</td>{#if zusatz}<td
+              >{@render zusatz(f.daten)}</td
+            >{/if}<td>{f.revision}</td><td
+            ><button
+              class="link"
+              disabled={gesperrt || s.hatAenderungen() || s.gerettet}
+              onclick={() => s.bearbeiten(f)}>Öffnen</button
+            ><button class="link" onclick={() => historie(f.objekt)}
+              >Verlauf</button
+            ></td
+          ></tr
+        >{:else}<tr
+          ><td colspan={zusatz ? 4 : 3}
+            >{s.laeuft
+              ? "Wird geladen …"
+              : "Noch keine Einträge vorhanden."}</td
+          ></tr
+        >{/each}</tbody
+    >
+  </table>
+{:else}<button type="button" class="link" onclick={() => (listeOffen = true)}
+    >Eintragsliste anzeigen</button
+  >{/if}
 {#if s.eingabe}<form
+    bind:this={formular}
+    novalidate
+    oninput={() => {
+      for (const f of feldfehler)
+        if ((f.element as HTMLInputElement).validity.valid) {
+          f.element.removeAttribute("aria-invalid");
+          f.element.removeAttribute("aria-errormessage");
+        }
+      feldfehler = feldfehler.filter(
+        (f) =>
+          f.element.isConnected &&
+          !(f.element as HTMLInputElement).validity.valid,
+      );
+      feldfehler.forEach((f, i) =>
+        f.element.setAttribute(
+          "aria-errormessage",
+          `${formularId}-fehler-${i}`,
+        ),
+      );
+    }}
     class="fachformular"
     class:aktenformular={lesendBedienbar}
     onsubmit={async (e) => {
@@ -127,12 +214,36 @@
       if (!gesperrt) await s.speichern();
     }}
   >
-    <fieldset disabled={(!darf && !lesendBedienbar) || gesperrt}>
-      <legend
-        >{s.revision === 0 ? "Neuer Eintrag" : "Eintrag bearbeiten"}</legend
-      >{@render children(s.eingabe)}
-    </fieldset>
-    <div class="knoepfe links">
+    {#if !darf}<p class="lesemodus" role="status">
+        Nur Leserecht · Die Angaben können hier nicht geändert werden.
+      </p>{/if}
+    <p class="meta pflichtkonvention">
+      Mit * gekennzeichnete Angaben sind erforderlich.
+    </p>
+    {#if feldfehler.length}<div class="fehlerzusammenfassung" role="alert">
+        <strong>Bitte die erforderlichen Eingaben ergänzen.</strong>
+        <ul>
+          {#each feldfehler as f, i}<li id={`${formularId}-fehler-${i}`}>
+              <button
+                type="button"
+                class="link"
+                onclick={() => {
+                  f.element.closest("details")?.setAttribute("open", "");
+                  f.element.focus();
+                  f.element.scrollIntoView({ block: "center" });
+                }}>{f.name}: {f.meldung}</button
+              >
+            </li>{/each}
+        </ul>
+      </div>{/if}
+    <div class="knoepfe links speicherleiste">
+      <span class="meta" aria-label="Speicherstatus"
+        >{s.laeuft
+          ? "Wird gespeichert …"
+          : s.hatAenderungen()
+            ? "Ungespeicherte Änderungen"
+            : "Gespeicherter Stand"}</span
+      >
       <button
         disabled={!darf || gesperrt || !(s.hatAenderungen() || s.gerettet)}
         >Speichern</button
@@ -144,6 +255,11 @@
         >{s.hatAenderungen() ? "Entwurf verwerfen" : "Schließen"}</button
       >
     </div>
+    <fieldset disabled={(!darf && !lesendBedienbar) || gesperrt}>
+      <legend
+        >{s.revision === 0 ? "Neuer Eintrag" : "Eintrag bearbeiten"}</legend
+      >{@render children(s.eingabe)}
+    </fieldset>
   </form>{/if}
 
 {#if verlauf.length}<details open>
@@ -161,6 +277,20 @@
   </details>{/if}
 
 <style>
+  .speicherleiste {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--panel);
+    padding: 1rem 0.5rem;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -3px 12px color-mix(in srgb, var(--fg) 8%, transparent);
+  }
+  .fachformular :global(input),
+  .fachformular :global(select),
+  .fachformular :global(textarea) {
+    scroll-margin-block-start: 7rem;
+  }
   .fachformular {
     display: block;
   }

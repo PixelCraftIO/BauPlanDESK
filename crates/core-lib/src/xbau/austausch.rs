@@ -393,8 +393,9 @@ pub async fn pruefen(
         let mut namen = HashSet::new();
         for i in 0..z.len() {
             let mut f = z.by_index(i).map_err(|e| fehler(e.to_string()))?;
-            dateiname(f.name())?;
-            if !namen.insert(f.name().to_lowercase())
+            let n = f.name().map_err(|e| fehler(e.to_string()))?.into_owned();
+            dateiname(&n)?;
+            if !namen.insert(n.to_lowercase())
                 || f.is_dir()
                 || f.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000)
             {
@@ -406,7 +407,6 @@ pub async fn pruefen(
             if gesamt > MAX_ENTPACKT || f.size() > MAX_PAKET {
                 return Err(fehler("Entpackte Paketgröße überschritten"));
             }
-            let n = f.name().to_string();
             let mut b = vec![];
             (&mut f)
                 .take(MAX_PAKET + 1)
