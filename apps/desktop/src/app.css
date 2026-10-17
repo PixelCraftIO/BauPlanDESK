@@ -1803,3 +1803,82 @@ label:has(> .pflicht):not(:has(> input[type="checkbox"])) {
 label:has(> .pflicht) > .pflicht {justify-self:start;}
 label:has(> .pflicht) > input, label:has(> .pflicht) > select,
 label:has(> .pflicht) > textarea {grid-column:1 / -1; width:100%;}
+
+/* Maskenkopf und Formularmasken wie amtliche Vordrucke: Aktionen rechts,
+   nummerierte Abschnitte, Beschriftung links, Feldbreite nach Inhalt. */
+.maskenkopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 6px 12px;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+}
+.maskenkopf h2 {
+  margin: 0;
+}
+.formularaktionen.knoepfe {
+  justify-content: flex-end;
+  align-items: center;
+}
+/* Der Maskenrand bleibt beim Scrollen hinter der Aktionsleiste verdeckt. */
+.aktenrumpf > main .formularaktionen {
+  top: -12px;
+  padding-top: 10px;
+}
+.formularaktionen .werkzeug-trenner {
+  height: 20px;
+  border-left: 1px solid var(--border);
+}
+.bauantrag {
+  counter-reset: abschnitt;
+}
+.bauantrag fieldset {
+  counter-increment: abschnitt;
+  gap: 4px;
+}
+.bauantrag legend::before {
+  content: counter(abschnitt) "\2002";
+}
+.bauantrag fieldset > label:not(.zeile),
+.bauantrag .feldzeilen > label {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 28rem);
+  align-items: center;
+  gap: 8px;
+  color: var(--fg);
+  font-size: inherit;
+  align-self: stretch;
+}
+.bauantrag .feldzeilen {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 4px;
+}
+.bauantrag fieldset > label:not(.zeile) > input[type="number"] {
+  width: 6rem;
+}
+.bauantrag .massnahmen {
+  display: grid;
+  grid-template-columns: 190px repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 12px;
+  align-self: stretch;
+}
+.bauantrag .massnahmen > .meta {
+  grid-row: span 3;
+  color: var(--fg);
+  font-size: inherit;
+}
+@media (max-width: 800px) {
+  .bauantrag fieldset > label:not(.zeile),
+  .bauantrag .feldzeilen > label,
+  .bauantrag .massnahmen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bauantrag .massnahmen > .meta {
+    grid-row: auto;
+  }
+}

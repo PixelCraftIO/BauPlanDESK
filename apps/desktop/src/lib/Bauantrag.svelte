@@ -274,10 +274,15 @@
 
 {#if antrag && gespeichert}
   <div class="bauantrag">
-    <div class="knoepfe links">
-      <button onclick={speichern} disabled={!darf || !geaendert || laeuft}
-        >Speichern</button
+    <div class="knoepfe formularaktionen">
+      <button class="sekundaer" onclick={onbuero}>Büroangaben …</button>
+      <button class="sekundaer" onclick={neuLaden} disabled={laeuft}
+        >Aktuellen Stand laden</button
       >
+      <button class="sekundaer" onclick={exportieren} disabled={laeuft}
+        >Als XBau exportieren …</button
+      >
+      <span class="werkzeug-trenner" aria-hidden="true"></span>
       <button
         class="sekundaer"
         onclick={() =>
@@ -286,13 +291,9 @@
           (antrag = structuredClone(gespeichert.antrag))}
         disabled={!geaendert || laeuft}>Verwerfen</button
       >
-      <button onclick={exportieren} disabled={laeuft}
-        >Als XBau exportieren …</button
+      <button onclick={speichern} disabled={!darf || !geaendert || laeuft}
+        >Speichern</button
       >
-      <button class="sekundaer" onclick={neuLaden} disabled={laeuft}
-        >Aktuellen Stand laden</button
-      >
-      <button class="sekundaer" onclick={onbuero}>Büroangaben …</button>
     </div>
     <p class="meta">
       XBau 2.7, Nachricht „Beantragung einer Baugenehmigung“ (0200). Das Paket
@@ -347,7 +348,7 @@
 
     <fieldset disabled={!darf}>
       <legend>Bauaufsichtsbehörde</legend>
-      <div class="anschrift">
+      <div class="feldzeilen">
         <label class="breit"
           >Name <input
             bind:value={antrag.bauaufsicht.name}
