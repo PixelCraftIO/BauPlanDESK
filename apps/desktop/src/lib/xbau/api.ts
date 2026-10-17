@@ -16,11 +16,6 @@ export const xbau = {
       id,
       dateiname,
     }),
-  nachreichung: (projektId: string, quelle: string) =>
-    invoke<Nachrichtenstand>("xbau_nachreichung_vorbereiten", {
-      projektId,
-      quelle,
-    }),
   typen: () => invoke<Nachrichtentyp[]>("xbau_nachrichtentypen"),
   nachrichten: (projektId: string) =>
     invoke<Nachrichtenstand[]>("xbau_nachrichten", { projektId }),
@@ -28,8 +23,6 @@ export const xbau = {
     invoke<Pruefbericht>("xbau_pruefen", { projektId, original }),
   aufnehmen: (projektId: string, wunsch: Nachrichtenaufnahme) =>
     invoke<Nachrichtenstand>("xbau_aufnehmen", { projektId, wunsch }),
-  ausgang: (projektId: string) =>
-    invoke<Nachrichtenstand>("xbau_ausgang_vorbereiten", { projektId }),
   beleg: (
     projektId: string,
     id: string,

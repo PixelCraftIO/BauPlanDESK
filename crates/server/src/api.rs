@@ -144,10 +144,6 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/status", get(projektstatus))
         .route("/projekte/{id}/uebersicht", get(projektuebersicht))
         .route(
-            "/projekte/{id}/paketpruefung",
-            axum::routing::post(paket_pruefstand),
-        )
-        .route(
             "/projekte/{id}/checkliste",
             axum::routing::post(checkliste_anwenden),
         )
@@ -204,10 +200,7 @@ fn routen(core: CoreServices) -> Router {
             get(formular_analysieren).post(formular_ausfuellen),
         )
         .route("/dokumente/{id}/vorlage", post(formular_vorlage_erstellen))
-        .route(
-            "/projekte/{id}/einreichungen",
-            get(einreichungen).post(einreichung_erstellen),
-        )
+        .route("/projekte/{id}/einreichungen", get(einreichungen))
         .route(
             "/projekte/{id}/einreichungsvergleich",
             get(einreichungsvergleich),
@@ -247,14 +240,9 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/bauantrag",
             get(bauantrag).put(bauantrag_speichern),
         )
-        .route("/projekte/{id}/xbau", get(xbau_exportieren))
         .route("/buero", get(buero).put(buero_speichern))
         .route("/xbau/codelisten", get(codelisten))
         .route("/xbau/nachrichtentypen", get(xbau_typen))
-        .route(
-            "/projekte/{p}/xbau/nachrichten/{quelle}/nachreichung",
-            post(xbau_nachreichung),
-        )
         .route(
             "/projekte/{p}/xbau/nachrichten/{id}/anlagen",
             post(xbau_anlage),
@@ -264,7 +252,6 @@ fn routen(core: CoreServices) -> Router {
             get(xbau_nachrichten).post(xbau_aufnehmen),
         )
         .route("/projekte/{id}/xbau/pruefen", post(xbau_pruefen))
-        .route("/projekte/{id}/xbau/ausgang", post(xbau_ausgang))
         .route(
             "/projekte/{p}/xbau/nachrichten/{id}/belege",
             post(xbau_beleg),
@@ -678,30 +665,6 @@ async fn codelisten(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<
     Ok(Json(core.codelisten.alle().cloned().collect()))
 }
 
-/// Liefert das ZIP-Paket als Download.
-async fn xbau_exportieren(
-    Extension(akteur): Extension<Benutzer>,
-    State(ApiState { core }): State<ApiState>,
-    Path(id): Path<Uuid>,
-) -> Result<Response, ApiError> {
-    let export = core.xbau_exportieren(ProjectId(id), &akteur).await?;
-    let disposition = format!(
-        "attachment; filename=\"bauantrag.zip\"; filename*=UTF-8''{}",
-        prozent_kodieren(&export.dateiname)
-    );
-    Ok((
-        [
-            (
-                axum::http::header::CONTENT_TYPE,
-                "application/zip".to_string(),
-            ),
-            (axum::http::header::CONTENT_DISPOSITION, disposition),
-        ],
-        export.zip,
-    )
-        .into_response())
-}
-
 /// Prozentkodierung für `filename*` (RFC 5987).
 fn prozent_kodieren(s: &str) -> String {
     s.bytes()
@@ -756,26 +719,6 @@ async fn einreichungsvergleich(
     Ok(Json(
         core.einreichungs_vergleich(ProjectId(id), &q.empfaenger)
             .await?,
-    ))
-}
-#[derive(Deserialize)]
-struct PaketRequest {
-    #[serde(flatten)]
-    paket: core_lib::einreichung::NeuesPaket,
-    vorgang: Option<Uuid>,
-}
-async fn einreichung_erstellen(
-    Extension(akteur): Extension<Benutzer>,
-    State(ApiState { core }): State<ApiState>,
-    Path(id): Path<Uuid>,
-    Json(p): Json<PaketRequest>,
-) -> Result<(StatusCode, Json<core_lib::einreichung::Einreichung>), ApiError> {
-    Ok((
-        StatusCode::CREATED,
-        Json(
-            core.einreichung_erstellen_vorgang(ProjectId(id), p.paket, p.vorgang, &akteur)
-                .await?,
-        ),
     ))
 }
 #[derive(Deserialize)]
@@ -997,16 +940,6 @@ async fn checkliste_anwenden(
     Ok(Json(
         core.checkliste_anwenden(ProjectId(id), vorlage, &wer)
             .await?,
-    ))
-}
-
-async fn paket_pruefstand(
-    State(ApiState { core }): State<ApiState>,
-    Path(id): Path<Uuid>,
-    Json(dokumente): Json<Vec<core_lib::einreichung::DokumentAuswahl>>,
-) -> ApiResult<core_lib::einreichung::PaketPruefstand> {
-    Ok(Json(
-        core.paket_pruefstand(ProjectId(id), &dokumente).await?,
     ))
 }
 
@@ -1370,15 +1303,6 @@ async fn xbau_aufnehmen(
         core.xbau_aufnehmen(ProjectId(id), wunsch, &wer).await?,
     ))
 }
-async fn xbau_ausgang(
-    Extension(wer): Extension<Benutzer>,
-    State(ApiState { core }): State<ApiState>,
-    Path(id): Path<Uuid>,
-) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
-    Ok(Json(
-        core.xbau_ausgang_vorbereiten(ProjectId(id), &wer).await?,
-    ))
-}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct XbauBelegwunsch {
@@ -1427,17 +1351,6 @@ async fn xbau_anlage(
 ) -> ApiResult<DocumentVersion> {
     Ok(Json(
         core.xbau_anlage_ablegen(ProjectId(p), id, &w.dateiname, &wer)
-            .await?,
-    ))
-}
-
-async fn xbau_nachreichung(
-    Extension(wer): Extension<Benutzer>,
-    State(ApiState { core }): State<ApiState>,
-    Path((p, quelle)): Path<(Uuid, Uuid)>,
-) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
-    Ok(Json(
-        core.xbau_nachreichung_vorbereiten(ProjectId(p), quelle, &wer)
             .await?,
     ))
 }

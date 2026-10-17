@@ -98,9 +98,7 @@ with sync_playwright() as p:
  checks.append('Beenden berücksichtigt alle offenen Akten; verspätete close-Ereignisse geschlossener Dialoge beeinflussen den neuen Dialog nicht; Abbrechen und fehlgeschlagenes Speichern erhalten Fenster und Projektentwürfe.')
  page.evaluate('window.emitNative("menu","datei.importieren")')
  page.wait_for_function('window.calls.filter(c=>c.cmd==="plugin:dialog|open").length===1')
- page.evaluate('window.emitNative("menu","datei.xbau")')
- page.wait_for_function('window.calls.filter(c=>c.cmd==="plugin:dialog|save").length===1')
- checks.append('Import- und Export-Adapter lösen nur im aktiven Projekt genau eine Aktion aus.')
+ checks.append('Der Import-Adapter löst nur im aktiven Projekt genau eine Aktion aus.')
  page.evaluate('window.failSave=false')
  for name in ['Wohnbebauung Lindenweg','Umbau Bürogebäude']:
   close(name)

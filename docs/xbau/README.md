@@ -51,8 +51,8 @@ abgewiesen, statt als Bauantrag gesendet zu werden.
 Die Vorbescheidsfragen und die Angabe zur Weiterführung als Bauantrag stehen im
 Register „Verfahren“ der Akte. Jede Frage wird ein `beantragterVorbescheid`,
 jede Zeile ein Textabsatz. Der Abgabestand friert Verfahrensart und Angaben ein.
-Die Ausgabe „Bauantrag als Ausgang vorbereiten“ im Nachrichtenjournal bleibt ein
-Bauantrag (0200/0202).
+XBau-Ausgänge entstehen nur noch aus Abgabeständen der Verfahrensakte; das
+Postfach führt dorthin.
 
 ## Bedienung
 
@@ -63,10 +63,11 @@ Nach Abgleich mit dem Original Projektzuordnung und Richtung bestätigen und die
 Nachricht ins Journal aufnehmen. Der Import bleibt eine Dateiablage und
 bestätigt keinen Eingang bei einer Behörde.
 
-Mit „Bauantrag als Ausgang vorbereiten“ wird 0200 im DMS und Journal abgelegt.
-Den ursprünglichen Antrag oder einen eingegangenen 1140-Befund auswählen, um
-0202 vorzubereiten. Über „Original exportieren“ die unveränderte Datei für das
-vorgeschriebene Behördenportal beziehen. Anschließend den echten Portalbeleg im
+Ausgänge und Nachreichungen entstehen als Abgabestand der Verfahrensakte („Zur
+Abgabe in der Verfahrensakte …“). Dort lässt sich die Bezugsnachricht wählen,
+etwa den eigenen Antrag oder einen eingegangenen 1140-Befund, und der Stand mit
+„Im XBau-Journal erfassen“ übernehmen. Über „Original exportieren“ die
+unveränderte Datei für das vorgeschriebene Behördenportal beziehen. Anschließend den echten Portalbeleg im
 Projekt ablegen und im Nachrichtenjournal erfassen. Eine Transportquittung ist
 von einer fachlichen Annahme zu unterscheiden.
 
@@ -85,7 +86,7 @@ Der Plattformadapter verwendet **xmllint/libxml2**, unter Linux beispielsweise
 gepflegte libxml2-Installation bereitstellen. `xmllint` muss im Prozess-PATH
 liegen, alternativ `BAUPROJEKT_XMLLINT` als vollständigen Pfad zur ausführbaren
 Datei setzen. Die Anwendung liefert aktuell **kein Windows-Validator-Binary**
-mit. Ohne verfügbaren Prüfer schlagen Prüfung, XBau-Export und Vorbereitung
+mit. Ohne verfügbaren Prüfer schlagen Prüfung und XBau-Abgabe
 fehl; eine ungeprüfte Nachricht wird nicht als geprüft ausgewiesen.
 
 Schemas werden beim Build eingebettet und für jede Prüfung in ein privates
@@ -135,8 +136,10 @@ keine landes- oder empfangsspezifischen Fachregeln/Schematron-Prüfungen.
   qualifiziertes Langzeitarchiv oder manipulationssicherer Zeitstempeldienst.
 
 HTTP unter `/api/projekte/{id}/xbau`: `nachrichten` GET/POST, `pruefen` POST
-(Dokumentbezug), `ausgang` POST; unter `nachrichten/{nachricht}`: `nachreichung`,
-`anlagen`, `belege`, `verfahren` jeweils POST. Der Katalog liegt unter
+(Dokumentbezug); unter `nachrichten/{nachricht}`: `anlagen`, `belege`,
+`verfahren` jeweils POST. Ausgänge entstehen über
+`/api/projekte/{id}/verfahren/{verfahren}/abgabe` (POST) und
+`…/abgaben/{abgabe}/xbau-journal` (POST). Der Katalog liegt unter
 `/api/xbau/nachrichtentypen`. Projektmitgliedschaft wird auch im Core geprüft;
 lesende Mitglieder können prüfen/lesen, Änderungen erfordern Bearbeitungsrechte.
 

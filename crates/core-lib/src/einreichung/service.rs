@@ -28,6 +28,10 @@ impl CoreServices {
         }
         Ok(vergleich)
     }
+    /// Neue Einreichungspakete entstehen nur noch für Testdaten. Einreichen
+    /// und Nachreichen laufen über die Abgabestände der Verfahrensakte;
+    /// bestehende Pakete bleiben lesbar, exportierbar und bestätigbar.
+    #[cfg(feature = "testdaten")]
     pub async fn einreichung_erstellen(
         &self,
         projekt: ProjectId,
@@ -37,6 +41,7 @@ impl CoreServices {
         self.einreichung_erstellen_vorgang(projekt, input, None, wer)
             .await
     }
+    #[cfg(feature = "testdaten")]
     pub async fn einreichung_erstellen_vorgang(
         &self,
         projekt: ProjectId,
@@ -158,6 +163,7 @@ impl CoreServices {
         }
     }
 
+    #[cfg(feature = "testdaten")]
     pub async fn paket_pruefstand(
         &self,
         p: ProjectId,

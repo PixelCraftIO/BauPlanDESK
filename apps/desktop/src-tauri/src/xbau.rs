@@ -45,16 +45,6 @@ pub async fn xbau_aufnehmen(
         .await?)
 }
 #[tauri::command]
-pub async fn xbau_ausgang_vorbereiten(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-) -> Result<Nachrichtenstand, CmdError> {
-    Ok(state
-        .core
-        .xbau_ausgang_vorbereiten(projekt_id, &state.benutzer())
-        .await?)
-}
-#[tauri::command]
 pub async fn xbau_beleg(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
@@ -91,17 +81,5 @@ pub async fn xbau_anlage_ablegen(
     Ok(state
         .core
         .xbau_anlage_ablegen(projekt_id, id, &dateiname, &state.benutzer())
-        .await?)
-}
-
-#[tauri::command]
-pub async fn xbau_nachreichung_vorbereiten(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    quelle: Uuid,
-) -> Result<Nachrichtenstand, CmdError> {
-    Ok(state
-        .core
-        .xbau_nachreichung_vorbereiten(projekt_id, quelle, &state.benutzer())
         .await?)
 }

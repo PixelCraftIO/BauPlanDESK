@@ -11,9 +11,9 @@ custom='''
 const original=window.__TAURI_INTERNALS__.invoke;
 const wf=window.workflow;
 window.serverDocs=[wf.plan4,wf.excel,wf.foto];window.copies=[];window.changed=false;window.failCommit=true;window.cancelSave=true;window.failExport=false;
-window.submissionHistory=wf.chronik;
+window.submissionHistory=[{...structuredClone(wf.chronik[0]),stand:{...structuredClone(wf.chronik[0].stand),id:'46b9312a-0997-4483-91be-08d3b3f99053',titel:'Korrektur der Planunterlagen',dokumente:[wf.plan4]},einreichung:null,version:1},...wf.chronik];
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
- const handled=['dokumente_auflisten','arbeitskopien','dokument_extern_oeffnen','arbeitskopie_oeffnen','arbeitskopie_uebernehmen','einreichungen','einreichungs_vergleich','einreichung_erstellen','einreichung_exportieren','einreichung_bestaetigen','plugin:dialog|save','plugin:dialog|message'];
+ const handled=['dokumente_auflisten','arbeitskopien','dokument_extern_oeffnen','arbeitskopie_oeffnen','arbeitskopie_uebernehmen','einreichungen','einreichungs_vergleich','einreichung_exportieren','einreichung_bestaetigen','plugin:dialog|save','plugin:dialog|message'];
  if(!handled.includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:JSON.parse(JSON.stringify(args))});
  switch(cmd){
@@ -30,7 +30,6 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(doc)row={...row,zuletzt_eingereicht:doc,paket_id:newlyConfirmed.stand.id,eingereicht_am:newlyConfirmed.einreichung.datum,status:'bereits_eingereicht'};
    return row;
  });
- case 'einreichung_erstellen':{const e={stand:{id:'46b9312a-0997-4483-91be-08d3b3f99053',projekt_id:args.projektId,titel:args.paket.titel,empfaenger:args.paket.empfaenger,erstellt_am:new Date().toISOString(),erstellt_von:'Anna Weber',dokumente:args.paket.dokumente.map(x=>window.serverDocs.find(d=>d.document_id===x.dokument_id))},zip_key:'paket.zip',zip_hash:'a'.repeat(64),size:100,version:1,einreichung:null};window.submissionHistory.unshift(e);return structuredClone(e);}
  case 'einreichung_exportieren':if(window.failExport)throw {art:'datei',meldung:'ZIP konnte nicht geschrieben werden; Paket bleibt gespeichert'};return;
  case 'einreichung_bestaetigen':{const e=window.submissionHistory.find(e=>e.stand.id===args.id);e.einreichung={datum:args.datum,notiz:args.notiz,bestaetigt_am:new Date().toISOString(),bestaetigt_von:'Anna Weber'};e.version=2;return structuredClone(e);}
  case 'plugin:dialog|save':return window.cancelSave?null:'C:\\\\BauProjektIO\\\\Bauantrag.zip';
@@ -67,29 +66,21 @@ with sync_playwright() as p:
  page.get_by_label('Dateien suchen',exact=True).fill('')
  page.screenshot(path=str(out/'01-dateiverwaltung.png'))
  view('Einreichungen')
- expect(page.get_by_text('Seit Einreichung geändert',exact=True)).to_be_visible()
- expect(page.get_by_text('Diese Version bereits eingereicht',exact=True)).to_have_count(1)
- expect(page.get_by_text('Neue Version, gleicher Dateiinhalt',exact=True)).to_be_visible()
- page.get_by_role('textbox',name='Bezeichnung',exact=True).fill('Korrektur der Planunterlagen')
- page.get_by_role('button',name='Neue und geänderte auswählen',exact=True).click()
- expect(page.get_by_role('checkbox',name='Plan.dwg auswählen',exact=True)).to_be_checked()
- expect(page.get_by_role('checkbox',name='Berechnung.xlsx auswählen',exact=True)).not_to_be_checked()
- page.get_by_role('button',name='Paket festhalten und ZIP exportieren …',exact=True).click()
- assert page.evaluate('window.calls.filter(c=>c.cmd==="einreichung_erstellen").length')==0
- # Draft remains in its project after switching to another tab.
- view('Stammdaten');view('Einreichungen')
- expect(page.get_by_role('textbox',name='Bezeichnung',exact=True)).to_have_value('Korrektur der Planunterlagen')
+ expect(page.get_by_role('heading',name='Frühere Einreichungspakete',exact=True)).to_be_visible()
+ expect(page.get_by_role('button',name='Paket festhalten und ZIP exportieren …',exact=True)).to_have_count(0)
+ expect(page.get_by_text('Neues Einreichungspaket',exact=True)).to_have_count(0)
+ legacy='Korrektur der Planunterlagen · Bauamt · Vorbereitet, noch nicht eingereicht · 1 Unterlagen'
+ expect(page.get_by_text(legacy,exact=True)).to_be_visible()
+ page.get_by_text(legacy,exact=True).click()
  page.evaluate('window.cancelSave=false;window.failExport=true')
- page.get_by_role('button',name='Paket festhalten und ZIP exportieren …',exact=True).click()
+ page.get_by_role('button',name='Dieses ZIP erneut exportieren …',exact=True).first.click()
  expect(page.get_by_role('alert').filter(has_text='ZIP konnte nicht geschrieben werden; Paket bleibt gespeichert')).to_be_visible()
- package=page.evaluate('window.calls.find(c=>c.cmd==="einreichung_erstellen").args')
- assert package['projektId']==wf['projekt']['id']
- assert package['paket']['dokumente']==[{'dokument_id':wf['plan4']['document_id'],'version':4}]
- expect(page.get_by_text('Korrektur der Planunterlagen · Bauamt · Vorbereitet, noch nicht eingereicht · 1 Unterlagen',exact=True)).to_be_visible()
- page.get_by_text('Korrektur der Planunterlagen · Bauamt · Vorbereitet, noch nicht eingereicht · 1 Unterlagen',exact=True).click()
  page.get_by_role('alert').get_by_role('button',name='Schließen',exact=True).click()
  page.evaluate('window.failExport=false')
  page.get_by_role('button',name='Dieses ZIP erneut exportieren …',exact=True).first.click()
+ expect(page.get_by_text('Unverändertes Einreichungspaket exportiert.',exact=True)).to_be_visible()
+ exported=page.evaluate('window.calls.filter(c=>c.cmd==="einreichung_exportieren").map(c=>c.args.id)')
+ assert exported[-1]=='46b9312a-0997-4483-91be-08d3b3f99053',exported
  page.get_by_role('button',name='Einreichungsdatum erfassen …',exact=True).click()
  page.get_by_label('Einreichungsdatum',exact=True).fill('2026-10-01')
  page.get_by_label('Übermittlungsweg / Aktenzeichen / Notiz',exact=True).fill('Bauportal, AZ 123, korrigierter Lageplan')
@@ -97,14 +88,13 @@ with sync_playwright() as p:
  expect(page.get_by_text('Korrektur der Planunterlagen · Bauamt · Eingereicht am 2026-10-01 · 1 Unterlagen',exact=True)).to_be_visible()
  confirmation=page.evaluate('window.calls.find(c=>c.cmd==="einreichung_bestaetigen").args')
  assert confirmation['basis']==1 and confirmation['datum']=='2026-10-01'
- expect(page.get_by_role('cell',name='v4 · 2026-10-01',exact=True)).to_be_visible()
  page.evaluate('document.querySelector(".aktenbereich").scrollTop=0')
  page.screenshot(path=str(out/'02-einreichungschronik.png'))
- page.get_by_label('Empfänger',exact=True).fill('Andere Behörde')
- expect(page.get_by_role('button',name='Paket festhalten und ZIP exportieren …',exact=True)).to_be_disabled()
+ page.get_by_role('button',name='Zur Abgabe in der Verfahrensakte …',exact=True).click()
+ expect(page.locator('.projekt-sitzung:visible').get_by_role('heading',name='Verfahrensakte',exact=True)).to_be_visible()
  page.set_viewport_size({'width':980,'height':900})
  assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'horizontal page overflow'
  assert not errors,errors
  browser.close()
-(out/'ui-pruefung.json').write_text(json.dumps({'checks':['Excel-Datei gezielt suchen','Öffnen mit konkreter Dokumentversion','Externe Arbeitskopie und Änderungsprüfung','Konflikt erhält Arbeitskopie','Übernahme als neue Version','Vergleich eingereichter und geänderter Dateien','Neue/geänderte Auswahl','ZIP-Abbruch erhält Entwurf','Entwurf bei Bereichswechsel','Auswahl mit festem Versionstand','Exportfehler erhält gespeichertes Paket','ZIP erneut exportieren','Einreichungsdatum/Notiz ausdrücklich bestätigen','Empfängerwechsel sperrt veralteten Vergleich','Schmale Ansicht ohne Seitenüberlauf'],'page_errors':errors},ensure_ascii=False,indent=2)+'\n')
-print('Dateiverwaltung und Einreichungen: 15 UI-Prüfungen bestanden')
+(out/'ui-pruefung.json').write_text(json.dumps({'checks':['Excel-Datei gezielt suchen','Öffnen mit konkreter Dokumentversion','Externe Arbeitskopie und Änderungsprüfung','Konflikt erhält Arbeitskopie','Übernahme als neue Version','Keine neuen Einreichungspakete mehr','Frühere Pakete bleiben sichtbar','Exportfehler erhält gespeichertes Paket','ZIP erneut exportieren','Einreichungsdatum/Notiz ausdrücklich bestätigen','Weg zur Abgabe in der Verfahrensakte','Schmale Ansicht ohne Seitenüberlauf'],'page_errors':errors},ensure_ascii=False,indent=2)+'\n')
+print('Dateiverwaltung und Einreichungen: 12 UI-Prüfungen bestanden')

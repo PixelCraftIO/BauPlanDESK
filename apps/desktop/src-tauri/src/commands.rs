@@ -887,44 +887,6 @@ pub fn xbau_codelisten(state: State<'_, AppState>) -> Vec<Codeliste> {
     state.core.codelisten.alle().cloned().collect()
 }
 
-/// Ergebnis des XBau-Exports für die Meldung im Frontend.
-#[derive(Serialize)]
-pub struct XbauErgebnis {
-    dateiname: String,
-    groesse_bytes: usize,
-}
-
-/// Erzeugt das XBau-Paket und schreibt es nach `ziel`.
-#[tauri::command]
-pub async fn xbau_exportieren(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    ziel: PathBuf,
-) -> CmdResult<XbauErgebnis> {
-    state
-        .core
-        .projekt_zugriff(
-            projekt_id,
-            &state.benutzer(),
-            core_lib::zugriff::ProjektRecht::Lesen,
-        )
-        .await?;
-    let export = state
-        .core
-        .xbau_exportieren(projekt_id, &state.benutzer())
-        .await?;
-    tokio::fs::write(&ziel, &export.zip)
-        .await
-        .map_err(|e| CmdError {
-            art: "datei",
-            meldung: format!("{}: {e}", ziel.display()),
-        })?;
-    Ok(XbauErgebnis {
-        dateiname: export.dateiname,
-        groesse_bytes: export.zip.len(),
-    })
-}
-
 #[tauri::command]
 pub async fn projekt_nutzung_pruefen(
     state: State<'_, AppState>,

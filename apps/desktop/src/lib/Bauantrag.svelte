@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { heuteDeutsch } from "./kalender";
   import { editorAnmelden } from "./editoren";
   import { projektNavigation } from "./projektNavigation.svelte";
   import { untrack } from "svelte";
-  import { save, ask } from "@tauri-apps/plugin-dialog";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import {
     CODELISTE_ANLAGEN,
     MASSNAHMEN,
@@ -34,16 +33,13 @@
   let {
     projekt,
     benutzer,
-    exportAusloeser,
     onbuero,
     onbauherren,
     onbeteiligte,
     onfehler,
-    onhinweis,
   }: {
     projekt: Project;
     benutzer: Benutzer;
-    exportAusloeser: number;
     /** Dialog „Büroangaben“ öffnen. */
     onbuero: () => void;
     /** Dialog „Bauherren“ öffnen. */
@@ -51,7 +47,6 @@
     /** Dialog „Weitere Beteiligte“ öffnen. */
     onbeteiligte: () => void;
     onfehler: (m: string) => void;
-    onhinweis: (m: string) => void;
   } = $props();
 
   const darf = $derived(
@@ -208,45 +203,6 @@
     }
   }
 
-  async function exportieren() {
-    if (geaendert && !(await speichern())) return;
-    if (gespeichert && gespeichert.fehlende_angaben.length > 0) {
-      onfehler(
-        `Für den XBau-Export fehlen noch: ${gespeichert.fehlende_angaben.join(", ")}.`,
-      );
-      return;
-    }
-    const datum = heuteDeutsch();
-    const ziel = await save({
-      title: "Bauantrag als XBau exportieren",
-      defaultPath: `Bauantrag ${projekt.name.replace(/[\\/:*?"<>|]/g, "_")} ${datum}.zip`,
-      filters: [{ name: "XBau-Paket (ZIP)", extensions: ["zip"] }],
-    });
-    if (!ziel) return;
-    laeuft = true;
-    try {
-      await api.xbauExportieren(projekt.id, ziel);
-      onhinweis(`Bauantrag exportiert: ${ziel}`);
-    } catch (e) {
-      onfehler(fehlertext(e));
-    } finally {
-      laeuft = false;
-    }
-  }
-
-  // „Datei → Bauantrag als XBau exportieren …“
-  let letzterAusloeser = untrack(() => exportAusloeser);
-  $effect(() => {
-    if (exportAusloeser > letzterAusloeser) {
-      letzterAusloeser = exportAusloeser;
-      untrack(() => {
-        // Erst exportieren, wenn der Antrag geladen ist.
-        if (antrag) exportieren();
-        else laden().then(exportieren);
-      });
-    }
-  });
-
   const neueId = () => crypto.randomUUID();
   const neuePerson = (): Beteiligter => ({
     art: "person",
@@ -304,9 +260,16 @@
       <button class="sekundaer" onclick={neuLaden} disabled={laeuft}
         >Aktuellen Stand laden</button
       >
-      <button class="sekundaer" onclick={exportieren} disabled={laeuft}
-        >Als XBau exportieren …</button
-      >
+      {#if navigation}<button
+          class="sekundaer"
+          onclick={() =>
+            navigation.springen({
+              bereich: "verfahren",
+              objekt: null,
+              register: null,
+              eintrag: null,
+            })}>Zur Abgabe in der Verfahrensakte …</button
+        >{/if}
       <span class="werkzeug-trenner" aria-hidden="true"></span>
       <button
         class="sekundaer"
@@ -321,8 +284,9 @@
       >
     </div>
     <p class="meta">
-      XBau 2.7, Nachricht „Beantragung einer Baugenehmigung“ (0200). Das Paket
-      enthält die Nachricht und die ausgewählten Bauvorlagen.
+      Die Angaben gelten für jeden Abgabestand der Verfahrensakte. Dort entstehen
+      XBau-Nachricht und Druck nach der Verfahrensart, mit Behörde und
+      Aktenzeichen der Akte.
       {#if gespeichert.geaendert_am}Zuletzt gespeichert {new Date(
           gespeichert.geaendert_am,
         ).toLocaleString("de-DE")} von {gespeichert.geaendert_von}.{/if}
@@ -330,7 +294,7 @@
     {#if gespeichert.fehlende_angaben.length > 0}
       <div class="hinweisbox" role="status">
         <strong
-          >Für den Export fehlt noch{geaendert
+          >Für die Abgabe fehlt noch{geaendert
             ? " (Stand der letzten Speicherung)"
             : ""}:</strong
         >
@@ -341,7 +305,7 @@
     {/if}
     {#if gespeichert.hinweise?.length}
       <div class="hinweisbox" role="status">
-        <strong>Bitte prüfen (sperrt den Export nicht):</strong>
+        <strong>Bitte prüfen (sperrt die Abgabe nicht):</strong>
         <ul>
           {#each gespeichert.hinweise as h}<li>{h}</li>{/each}
         </ul>
@@ -381,6 +345,10 @@
 
     <fieldset disabled={!darf}>
       <legend>Bauaufsichtsbehörde</legend>
+      <p class="meta">
+        Für Abgaben gilt die Behörde der Verfahrensakte. Diese Angabe lässt sich
+        dort übernehmen.
+      </p>
       <div class="feldzeilen">
         <label class="breit"
           >Name <input
@@ -506,7 +474,7 @@
       {#if gespeichert?.flurstuecke_zentral}
         <p class="meta">
           Die Flurstücke stammen aus den Grundstücksinformationen des Projekts
-          und gelten unverändert für Antrag, XBau-Export und Abgabe.
+          und gelten unverändert für Antrag und Abgabe.
         </p>
         <table class="ergebnistabelle">
           <thead
@@ -597,7 +565,7 @@
       {#if !anlagenarten}
         <p class="fehlertext">
           Die Codeliste der Anlagenarten fehlt. Ohne sie kann die Art der Anlage
-          nur als Code eingetragen werden, und der Export ist nicht möglich.
+          nur als Code eingetragen werden, und eine XBau-Abgabe ist nicht möglich.
         </p>
       {/if}
       {#if dokumente.length === 0}
