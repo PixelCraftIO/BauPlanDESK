@@ -409,17 +409,21 @@
       />{/key}
   </section>
   <section hidden={!berechnungsAnsichten.includes(ansicht)}>
-    <Druckknopf
-      projektId={projekt.id}
-      quelle={ansicht === "grundstueck" ? { art: "baugrundstueck" } : undefined}
-      disabled={!!nutzungsEditor?.hatAenderungen()}
-      text="Druckausgabe zusammenstellen"
-    />
-    <h2>
-      {berechnungsTitel[
-        (ansicht === "mass" ? "grundstueck" : ansicht) as BerechnungsBereich
-      ] ?? "Berechnungen"}
-    </h2>
+    <div class="maskenkopf">
+      <h2>
+        {berechnungsTitel[
+          (ansicht === "mass" ? "grundstueck" : ansicht) as BerechnungsBereich
+        ] ?? "Berechnungen"}
+      </h2>
+      <Druckknopf
+        projektId={projekt.id}
+        quelle={ansicht === "grundstueck"
+          ? { art: "baugrundstueck" }
+          : undefined}
+        disabled={!!nutzungsEditor?.hatAenderungen()}
+        text="Druckausgabe zusammenstellen"
+      />
+    </div>
     {#key projekt.id}
       <MassDerNutzung
         bind:this={nutzungsEditor}
