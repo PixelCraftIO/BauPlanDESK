@@ -119,6 +119,7 @@ impl CoreServices {
                     });
                 }
             }
+            let vorher = aktuell.planungsrecht.clone();
             let mut plan = serde_json::to_value(&aktuell.planungsrecht).map_err(json_err)?;
             for k in bereich.felder() {
                 if alt[k] != neu[k] {
@@ -185,6 +186,13 @@ impl CoreServices {
                             self,
                             aktuell.id,
                             &aktuell.planungsrecht,
+                        )
+                        .await?;
+                        crate::grundstuecksinformationen::eigentuemer_pruefen_im_projekt(
+                            self,
+                            aktuell.id,
+                            &aktuell.planungsrecht,
+                            Some(&vorher),
                         )
                         .await?;
                     }

@@ -381,11 +381,20 @@ gilt also sofort in allen Projekten.
   Bevollmächtigte, Fachplaner) kommen ebenfalls aus der Kundendatenbank
   (*Projektakte → Weitere Beteiligte …* oder in der Ansicht *Bauantrag*). Ist
   ein Eigentümer oder Erbbauberechtigter nicht zugleich Bauherr, weist der
-  Bauantrag auf die nötige Zustimmungserklärung hin (sperrt den Export nicht)
-  und das Verfahrensprofil legt sie als Anforderung an.
+  Bauantrag auf die nötige Zustimmungserklärung hin (sperrt den Export nicht).
+  Jede Speicherung einer Verfahrensakte und jeder Abgabestand legen sie als
+  Anforderung an; entfällt sie später, nennt der Abgabestand die Anforderung
+  zur Prüfung. Der Abgabestand friert die Beteiligten ein.
+- Eigentümer am Flurstück werden als Kunden zugeordnet (*Grundlagen →
+  Flurstücke*). Vorhabenflurstücke gehören einem Bauherrn oder einem
+  Beteiligten mit der Rolle Grundstückseigentümer bzw. Erbbauberechtigter;
+  Nachbarflurstücke beliebigen Kunden. Solange ein Kunde Eigentümer eines
+  Vorhabenflurstücks ist, bleibt er Bauherr oder verfügungsberechtigter
+  Beteiligter. Frühere Freitextangaben bleiben lesbar und lassen sich nur
+  entfernen.
 - Anlegen und Ändern: ab Rolle *Bearbeitung*; Löschen: *Projektleitung*, und
-  nur, solange der Kunde keinem Projekt als Bauherr oder Beteiligter
-  zugeordnet ist.
+  nur, solange der Kunde keinem Projekt als Bauherr, Beteiligter oder
+  Flurstückseigentümer zugeordnet ist.
 - Die Zuordnung erhöht die Projektversion (Optimistic Locking wie bei den
   übrigen Projektdaten). Kundendaten haben eine eigene Version.
 - Bauherren, die ältere Versionen direkt im Bauantrag gespeichert haben,

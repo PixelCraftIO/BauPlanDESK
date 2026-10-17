@@ -395,6 +395,23 @@ pub fn zustimmung_erforderlich<'a>(
         .collect()
 }
 
+/// Bauherren und Beteiligte mit Verfügungsrecht über das Grundstück.
+pub fn verfuegungsberechtigte(
+    bauherren: &[KundeId],
+    beteiligte: &[Projektbeteiligter],
+) -> std::collections::HashSet<KundeId> {
+    bauherren
+        .iter()
+        .copied()
+        .chain(
+            beteiligte
+                .iter()
+                .filter(|b| b.rolle.verfuegungsberechtigt())
+                .map(|b| b.kunde.id),
+        )
+        .collect()
+}
+
 /// Hinweistexte zu [`zustimmung_erforderlich`].
 pub fn zustimmungshinweise(bauherren: &[Kunde], beteiligte: &[Projektbeteiligter]) -> Vec<String> {
     zustimmung_erforderlich(bauherren, beteiligte)

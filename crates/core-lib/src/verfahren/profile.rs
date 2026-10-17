@@ -103,7 +103,66 @@ impl Anforderungskatalog {
             .collect()
     }
 }
+/// Kennung der Anforderung „Zustimmungserklärung“ eines Kunden in einem Verfahren.
+fn zustimmungs_id(verfahren: Uuid, kunde: crate::kunden::KundeId) -> Uuid {
+    Uuid::new_v5(
+        &verfahren,
+        format!("anforderung/zustimmung/{kunde}").as_bytes(),
+    )
+}
+const ZUSTIMMUNG_QUELLE: &str = "Projektbeteiligte";
 impl CoreServices {
+    /// Hält die Zustimmungserklärungen der Akte mit den Projektbeteiligten aktuell:
+    /// Verfügungsberechtigte, die nicht Bauherr sind, erhalten eine offene
+    /// Anforderung. Entfällt die Zustimmungspflicht, bleibt die Anforderung als
+    /// Akteneintrag stehen; der Rückgabewert nennt sie zur fachlichen Prüfung.
+    pub(crate) async fn zustimmungen_abgleichen(
+        &self,
+        p: ProjectId,
+        id: Uuid,
+        a: &mut Verfahrensakte,
+    ) -> CoreResult<Vec<String>> {
+        let bauherren = self.repos.kunden.bauherren(p).await?;
+        let beteiligte = self.repos.kunden.beteiligte(p).await?;
+        let erforderlich = crate::kunden::zustimmung_erforderlich(&bauherren, &beteiligte);
+        for b in &erforderlich {
+            let aid = zustimmungs_id(id, b.kunde.id);
+            if !a.anforderungen.iter().any(|x| x.id == aid) {
+                a.anforderungen.push(Anforderung {
+                    id: aid,
+                    titel: format!("Zustimmungserklärung von {}", b.kunde.anzeigename()),
+                    erforderlich: Erforderlichkeit::Ungeklaert,
+                    grund: format!(
+                        "{} ist nicht Bauherr; Form und Erforderlichkeit nach Landesrecht bestätigen",
+                        b.rolle.name()
+                    ),
+                    quelle: ZUSTIMMUNG_QUELLE.into(),
+                    dokumente: vec![],
+                    freigegeben: false,
+                    verantwortlich: None,
+                });
+            }
+        }
+        let aktuell: Vec<Uuid> = erforderlich
+            .iter()
+            .map(|b| zustimmungs_id(id, b.kunde.id))
+            .collect();
+        Ok(a
+            .anforderungen
+            .iter()
+            .filter(|r| {
+                r.quelle == ZUSTIMMUNG_QUELLE
+                    && r.erforderlich != Erforderlichkeit::NichtErforderlich
+                    && !aktuell.contains(&r.id)
+            })
+            .map(|r| {
+                format!(
+                    "{}: nach den aktuellen Projektbeteiligten nicht mehr erforderlich. Anforderung prüfen.",
+                    r.titel
+                )
+            })
+            .collect())
+    }
     pub async fn verfahren_profil_anwenden(
         &self,
         p: ProjectId,
@@ -139,30 +198,6 @@ impl CoreServices {
                 }
             } else {
                 a.anforderungen.push(r);
-            }
-        }
-        // Verfügungsberechtigte, die nicht Bauherr sind, müssen zustimmen.
-        let bauherren = self.repos.kunden.bauherren(p).await?;
-        let beteiligte = self.repos.kunden.beteiligte(p).await?;
-        for b in crate::kunden::zustimmung_erforderlich(&bauherren, &beteiligte) {
-            let aid = Uuid::new_v5(
-                &id,
-                format!("anforderung/zustimmung/{}", b.kunde.id).as_bytes(),
-            );
-            if !a.anforderungen.iter().any(|x| x.id == aid) {
-                a.anforderungen.push(Anforderung {
-                    id: aid,
-                    titel: format!("Zustimmungserklärung von {}", b.kunde.anzeigename()),
-                    erforderlich: Erforderlichkeit::Ungeklaert,
-                    grund: format!(
-                        "{} ist nicht Bauherr; Form und Erforderlichkeit nach Landesrecht bestätigen",
-                        b.rolle.name()
-                    ),
-                    quelle: "Projektbeteiligte".into(),
-                    dokumente: vec![],
-                    freigegeben: false,
-                    verantwortlich: None,
-                });
             }
         }
         // Vorhandene Anforderungen und Entscheidungen bleiben erhalten und prüfbar.

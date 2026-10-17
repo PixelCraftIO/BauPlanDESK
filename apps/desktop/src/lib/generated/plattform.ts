@@ -70,7 +70,17 @@ export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, 
 export type Ueberdeckung = { wand_a: string, wand_b: string, flaeche_m2: number, polygone: Array<AbstandsPolygon>, };
 export type AbstandsErgebnis = { rechenstand: string, waende: Array<WandErgebnis>, ueberdeckungen: Array<Ueberdeckung>, offen: Array<string>, vollstaendig: boolean, konfliktfrei: boolean, };
 export type Grundstuecksinformationen = { flurstuecke: Array<FlurstuecksInfo>, };
-export type FlurstuecksInfo = { id: string, gemarkung: string, flur: string, nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null, eigentuemer: string, bemerkung: string,
+export type FlurstuecksInfo = { id: string, gemarkung: string, flur: string, nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null,
+/**
+ * Frühere Freitextangabe. Sie bleibt lesbar, kann aber nur noch entfernt
+ * werden; Eigentümer werden über [`Self::eigentuemer_kunden`] zugeordnet.
+ */
+eigentuemer: string,
+/**
+ * Eigentümer aus der Kundendatenbank. Bei Vorhabenflurstücken Bauherr oder
+ * Projektbeteiligter mit Verfügungsrecht, siehe [`eigentuemer_pruefen`].
+ */
+eigentuemer_kunden?: Array<string>, bemerkung: string,
 /**
  * Bezug zum Vorhaben; fehlt bei Vorhabenflurstücken.
  */

@@ -403,6 +403,9 @@ impl CoreServices {
                 r.freigegeben = false;
             }
         }
+        if kontext == AktenCommit::Bearbeitung {
+            self.zustimmungen_abgleichen(p, id, &mut a).await?;
+        }
         let bisher = original.as_ref().map(|a| a.ereignisse.len()).unwrap_or(0);
         for b in &mut a.abgaben {
             b.versandstatus = abgabe::versandstand(b);

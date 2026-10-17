@@ -33,6 +33,7 @@ fn info() -> Grundstuecksinformationen {
             laufende_nummer: None,
             grundbuchauszug: None,
             eigentuemer: String::new(),
+            eigentuemer_kunden: vec![],
             bemerkung: String::new(),
             rolle: Default::default(),
         }],
@@ -282,7 +283,7 @@ async fn fakten_ohne_grundbuch_berechnung_getrennt_und_aenderungen_sperren_alte_
         .as_mut()
         .unwrap()
         .flurstuecke[0]
-        .eigentuemer = "Muster".into();
+        .bemerkung = "Muster".into();
     let neu = core
         .projekt_bereich_speichern(
             basis.clone(),

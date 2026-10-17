@@ -656,6 +656,7 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
         laufende_nummer: None,
         grundbuchauszug: None,
         eigentuemer: String::new(),
+        eigentuemer_kunden: vec![],
         bemerkung: String::new(),
         rolle: Default::default(),
     };
@@ -776,6 +777,7 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
         laufende_nummer: None,
         grundbuchauszug: None,
         eigentuemer: String::new(),
+        eigentuemer_kunden: vec![],
         bemerkung: String::new(),
         rolle,
     };

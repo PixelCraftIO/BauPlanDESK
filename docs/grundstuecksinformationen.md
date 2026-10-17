@@ -5,7 +5,11 @@
 Unter **Grundstücksinformationen → Flurstücke und Grundbuch** werden Gemarkung,
 Flur, Flurstücknummer und tatsächliche Flurstücksfläche erfasst. Grundbuchbezirk,
 Blatt, laufende Nummer, Eigentümer, Bemerkung und ein Dokumentbezug auf eine
-konkrete Version des Grundbuchauszugs sind optional. Auszüge werden zunächst als
+konkrete Version des Grundbuchauszugs sind optional. Eigentümer sind Kunden aus
+der Kundendatenbank: bei Vorhabenflurstücken Bauherren oder Beteiligte mit der
+Rolle Grundstückseigentümer bzw. Erbbauberechtigter, bei Nachbar- und sonstigen
+Flurstücken beliebige Kunden. Eine Eigentümerzuordnung ändert keine Fläche; die
+Baugrundstücksermittlung bleibt aktuell. Auszüge werden zunächst als
 Projektdatei importiert und anschließend ausgewählt. Die Flurstücke lassen sich
 ohne Grundbuch und ohne fertige Baugrundstücksberechnung speichern. Im Dialog
 zum Anlegen/Bearbeiten eines Projekts gibt es deshalb keine zweite Flächeneingabe.

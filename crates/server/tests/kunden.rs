@@ -367,3 +367,127 @@ async fn beteiligte_in_rollen_und_zustimmung_des_eigentuemers() {
                 && e.eintrag.details.contains("Tom Träger (Fachplaner)"))
     );
 }
+
+#[tokio::test]
+async fn flurstueckseigentuemer_sind_kunden_und_projektbeteiligte() {
+    use core_lib::domain::ProjectUpdate;
+    use core_lib::grundstuecksinformationen::{
+        FlurstuecksInfo, FlurstuecksRolle, Grundstuecksinformationen,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let core = core(dir.path()).await;
+    let chefin = core.anmelden("chefin", "Clara Chefin").await.unwrap();
+    let p = projekt(&core, "Anbau Huber").await;
+    let anna = core
+        .kunde_anlegen(person("Anna", "Müller"), &chefin)
+        .await
+        .unwrap();
+    let emil = core
+        .kunde_anlegen(person("Emil", "Huber"), &chefin)
+        .await
+        .unwrap();
+    let nachbarin = core
+        .kunde_anlegen(person("Nora", "Nachbar"), &chefin)
+        .await
+        .unwrap();
+    let p = core
+        .bauherren_setzen(p.id, vec![anna.id], p.version, &chefin)
+        .await
+        .unwrap();
+    let fl = |id: &str, nummer: &str, rolle, eigentuemer: Vec<_>, text: &str| FlurstuecksInfo {
+        id: id.into(),
+        gemarkung: "Schwabing".into(),
+        flur: String::new(),
+        nummer: nummer.into(),
+        flaeche_m2: 500.,
+        grundbuchbezirk: String::new(),
+        grundbuchblatt: String::new(),
+        laufende_nummer: None,
+        grundbuchauszug: None,
+        eigentuemer: text.into(),
+        eigentuemer_kunden: eigentuemer,
+        bemerkung: String::new(),
+        rolle,
+    };
+    let speichern = |p: &Project, flurstuecke: Vec<FlurstuecksInfo>| {
+        let mut recht = p.planungsrecht.clone();
+        recht.grundstuecksinformationen = Some(Grundstuecksinformationen { flurstuecke });
+        core.update_project(
+            ProjectUpdate {
+                id: p.id,
+                expected_version: p.version,
+                name: p.name.clone(),
+                bundesland: p.bundesland,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Some(recht),
+            },
+            &chefin,
+        )
+    };
+    let v = FlurstuecksRolle::Vorhaben;
+    let n = FlurstuecksRolle::Nachbar;
+
+    // Freitext ist keine neue Eigentümerangabe mehr.
+    let err = speichern(&p, vec![fl("a", "12", v, vec![], "Emil Huber")])
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("als Kunden zuordnen"), "{err}");
+    // Ein Vorhabeneigentümer muss Bauherr oder verfügungsberechtigter Beteiligter sein.
+    let err = speichern(&p, vec![fl("a", "12", v, vec![emil.id], "")])
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Flurstück 12"), "{err}");
+    let p = core
+        .beteiligte_setzen(
+            p.id,
+            vec![Beteiligtenzuordnung {
+                rolle: Beteiligtenrolle::Grundstueckseigentuemer,
+                kunde: emil.id,
+            }],
+            p.version,
+            &chefin,
+        )
+        .await
+        .unwrap();
+    // Nachbarflurstücke dürfen beliebigen Kunden gehören.
+    let p = speichern(
+        &p,
+        vec![
+            fl("a", "12", v, vec![anna.id, emil.id], ""),
+            fl("b", "13", n, vec![nachbarin.id], ""),
+        ],
+    )
+    .await
+    .unwrap();
+    let infos = p.planungsrecht.grundstuecksinformationen.clone().unwrap();
+    assert_eq!(infos.flurstuecke[0].eigentuemer_kunden, [anna.id, emil.id]);
+
+    // Wer Eigentümer am Vorhaben ist, bleibt verfügungsberechtigt.
+    let err = core
+        .beteiligte_setzen(p.id, vec![], p.version, &chefin)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("Emil Huber ist Eigentümer"),
+        "{err}"
+    );
+    let err = core
+        .bauherren_setzen(p.id, vec![], p.version, &chefin)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("Anna Müller ist Eigentümer"),
+        "{err}"
+    );
+    // Ein Kunde am Flurstück lässt sich nicht löschen.
+    let err = core
+        .kunde_loeschen(nachbarin.id, nachbarin.version, &chefin)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Flurstückseigentümer"), "{err}");
+    // Die Zustimmungspflicht folgt aus den Projektbeteiligten.
+    assert_eq!(
+        core.bauantrag(p.id).await.unwrap().hinweise,
+        ["Zustimmungserklärung von Emil Huber (Grundstückseigentümer), nicht Bauherr"]
+    );
+}
