@@ -17,7 +17,7 @@ window.procedures=[copy(window.wf.verfahren)];window.procedureFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  if(cmd==='fachobjekte'&&args.art!=='verfahren')return original(cmd,args);
  if(cmd==='fachobjekt_speichern'&&args.art!=='verfahren')return original(cmd,args);
- if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export'].includes(cmd))return original(cmd,args);
+ if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_bescheidfristen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export'].includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:copy(args)});
  switch(cmd){
  case 'fachobjekte':return copy(window.procedures);
@@ -27,6 +27,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
   window.procedures=[...window.procedures.filter(p=>p.objekt!==args.id),f];return copy(f);
  }
  case 'verfahren_erinnerungen':return copy(window.wf.erinnerungen);
+ case 'verfahren_bescheidfristen':return copy(window.wf.fristen);
  case 'verfahren_suche':return copy(window.wf.treffer);
  case 'dokumente_auflisten':return copy(window.wf.dateien);
  case 'dokument_historie':return copy(window.wf.dateien.filter(d=>d.document_id===args.dokumentId));
@@ -63,10 +64,19 @@ with sync_playwright() as p:
  expect(page.get_by_role('status').filter(has_text='Gespeichert.')).to_be_visible()
  tab('Bescheide / Auflagen');expect(page.get_by_role('heading',name='Bescheide und genehmigte Unterlagen')).to_be_visible()
  expect(page.get_by_role('listitem').filter(has_text='Lageplan.pdf · Version 2')).to_be_visible()
- expect(page.get_by_role('textbox',name='Auflage',exact=True)).to_have_value('Nachweis vor Baubeginn')
+ expect(page.get_by_role('textbox',name='Nebenbestimmung',exact=True).first).to_have_value('Nachweis vor Baubeginn')
+ # Nebenbestimmungen sind typisiert; ein Hinweis kennt keine Erfüllung.
+ expect(page.get_by_role('combobox',name='Art',exact=True).first.locator('option:checked')).to_have_text('Bedingung')
+ expect(page.get_by_text('Ein Hinweis begründet keine Pflicht',exact=False)).to_be_visible()
+ # Fristen berechnet der Core aus Zustellung und Bundesland.
+ ende=wf['fristen'][0]['rechtsbehelfsfrist']['ende']
+ expect(page.get_by_role('region',name='Berechnete Fristen')).to_contain_text('Rechtsbehelfsfrist: bis '+ende)
+ expect(page.get_by_role('region',name='Berechnete Fristen')).to_contain_text('Geltungsdauer der Genehmigung')
  # Ein gespeicherter Bescheid mit Zustelldatum bleibt unveränderlich.
  expect(page.get_by_text('Zustelldatum',exact=True).locator('input')).to_be_disabled()
  page.screenshot(path=str(out/'genehmigter-stand.png'))
+ tab('Anhörung / Zurückstellung');expect(page.get_by_role('heading',name='Anhörung und Zurückstellung')).to_be_visible()
+ expect(page.get_by_role('button',name='Verfahrensschritt erfassen',exact=True)).to_be_disabled()
  tab('Abgabestände');expect(page.locator('summary').filter(has_text=wf['akte']['abgaben'][0]['titel']+' · eingegangen')).to_be_visible();expect(page.get_by_role('button',name='PDF exportieren',exact=True)).to_be_visible()
  expect(page.get_by_role('cell',name='eingegangen',exact=True)).to_be_visible()
  # Frühere Versandereignisse werden in der UI vor versehentlicher Bearbeitung geschützt.

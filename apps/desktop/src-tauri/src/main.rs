@@ -90,6 +90,7 @@ fn main() {
             verfahren::verfahren_export,
             verfahren::verfahren_xbau_erfassen,
             verfahren::verfahren_erinnerungen,
+            verfahren::verfahren_bescheidfristen,
             verfahren::verfahren_suche,
             verfahren::suchtext_speichern,
             verfahren::verfahren_aktenexport,

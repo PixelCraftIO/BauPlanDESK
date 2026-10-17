@@ -190,6 +190,7 @@ fn routen(core: CoreServices) -> Router {
             get(verfahren_artefakt),
         )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
+        .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
         .route("/projekte/{id}/aktensuche", get(verfahren_suche))
         .route("/projekte/{id}/suchtext", post(suchtext_speichern))
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
@@ -1128,6 +1129,13 @@ async fn verfahren_erinnerungen(
     Ok(Json(
         core.verfahren_erinnerungen(ProjectId(p), q.heute).await?,
     ))
+}
+async fn bescheidfristen(
+    State(ApiState { core }): State<ApiState>,
+    Path(p): Path<Uuid>,
+    Json(auftrag): Json<core_lib::verfahren::fristen::Fristauftrag>,
+) -> ApiResult<Vec<core_lib::verfahren::fristen::Bescheidfristen>> {
+    Ok(Json(core.bescheidfristen(ProjectId(p), &auftrag).await?))
 }
 #[derive(Deserialize)]
 struct Aktenfrage {
