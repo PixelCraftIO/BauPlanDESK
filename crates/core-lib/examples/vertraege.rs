@@ -113,6 +113,8 @@ fn main() {
         core_lib::verfahren::Antragsangaben,
         core_lib::verfahren::Vorbescheidfrage,
         core_lib::verfahren::Verfahrensstatus,
+        core_lib::verfahren::Vollstaendigkeit,
+        core_lib::verfahren::Ruecknahme,
         core_lib::verfahren::Behoerde,
         core_lib::verfahren::Bezug,
         core_lib::verfahren::Kommunikationsart,

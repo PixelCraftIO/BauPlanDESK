@@ -10,12 +10,18 @@
     eintraege = $bindable(),
     dateien,
     benutzer,
+    abgegeben,
     alt = [],
+    ohneZustellung = [],
   }: {
     eintraege: Bescheid[];
     dateien: DocumentVersion[];
+    /** Dokumentversionen aus versendeten oder eingegangenen Abgabeständen. */
+    abgegeben: DocumentVersion[];
     benutzer: Benutzer[];
     alt?: string[];
+    /** Gespeicherte Bescheide, deren Zustelldatum noch einmal nachgetragen werden darf. */
+    ohneZustellung?: string[];
   } = $props();
   let original = $state<import("../generated/plattform").Dokumentbezug | null>(
     null,
@@ -46,16 +52,15 @@
 /><button type="button" class="sekundaer" disabled={!original} onclick={neu}
   >Bescheid erfassen</button
 >
-{#each eintraege as b (b.id)}<details data-uebersicht-eintrag={b.id} open>
+{#each eintraege as b (b.id)}{@const fest = alt.includes(b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
       >{b.datum} · {b.entscheidung}{eintraege.some((n) => n.ersetzt === b.id)
         ? " · durch Folgebescheid ersetzt"
         : ""}</summary
     >
-    <fieldset disabled={alt.includes(b.id)}>
-      <div class="raster">
-        <label
-          >Entscheidung<select bind:value={b.entscheidung}
+    <div class="raster">
+      <label
+        >Entscheidung<select disabled={fest} bind:value={b.entscheidung}
             ><option value="genehmigt">Genehmigt</option><option
               value="teilweise_genehmigt">Teilweise genehmigt</option
             ><option value="abgelehnt">Abgelehnt</option><option
@@ -65,17 +70,21 @@
         ><label
           >Bescheiddatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bescheiddatum"
             type="date"
+            disabled={fest}
             required
             bind:value={b.datum}
           /></label
         ><label
           >Zustelldatum<input
             type="date"
+            disabled={fest && !ohneZustellung.includes(b.id)}
             value={b.zugestellt ?? ""}
             onchange={(e) => (b.zugestellt = e.currentTarget.value || null)}
           /></label
         ><label
-          >Ersetzt früheren Bescheid<select bind:value={b.ersetzt}
+          >Ersetzt früheren Bescheid<select
+            disabled={fest}
+            bind:value={b.ersetzt}
             ><option value={null}>Keinen</option
             >{#each eintraege.filter((n) => n.id !== b.id) as n}<option
                 value={n.id}>{n.datum} · {n.entscheidung}</option
@@ -83,11 +92,15 @@
           ></label
         >
       </div>
-      <Dokumentliste
-        {dateien}
-        bind:werte={b.genehmigte_unterlagen}
-        label="Ausdrücklich genehmigte Unterlagen"
-      />
+    <fieldset disabled={fest}>
+      {#if abgegeben.length || b.genehmigte_unterlagen.length}<Dokumentliste
+          dateien={fest ? dateien : abgegeben}
+          bind:werte={b.genehmigte_unterlagen}
+          label="Ausdrücklich genehmigte Unterlagen"
+        />{:else}<p class="hinweis">
+          Genehmigte Unterlagen stammen aus einem versendeten Abgabestand.
+          Versand im Register Abgaben erfassen.
+        </p>{/if}
     </fieldset>
     <h4>Nebenbestimmungen / offene Pflichten</h4>
     <button

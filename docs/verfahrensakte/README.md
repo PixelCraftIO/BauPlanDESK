@@ -47,11 +47,33 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    versandten/eingegangenen Abgabestand, der seine Antwortunterlagen enthält.
    Eine behördliche Bestätigung benötigt eine weitere eingehende Kommunikation.
 9. **Bescheide / Auflagen:** Originalbescheid, Zustellung und ausdrücklich
-   genehmigte Dokumentversionen festhalten. Nebenbestimmungen mit Auslöser,
-   Zuständigkeit und Nachweis überwachen. Ein späterer Entwurf ersetzt keine
-   genehmigte Version. Folgebescheide ersetzen ausdrücklich benannte Bescheide.
+   genehmigte Dokumentversionen festhalten. Ein Bescheid setzt einen versendeten
+   oder eingegangenen Abgabestand voraus; genehmigte Unterlagen werden nur aus
+   solchen Abgabeständen ausgewählt. Ein fehlendes Zustelldatum lässt sich einmal
+   nachtragen, danach ist der Bescheid unveränderlich. Nebenbestimmungen mit
+   Auslöser, Zuständigkeit und Nachweis überwachen. Ein späterer Entwurf ersetzt
+   keine genehmigte Version. Folgebescheide ersetzen ausdrücklich benannte Bescheide.
 10. **Korrekturen / Verfahrenschronik:** Dokumentersatz und Änderungsgründe
     verknüpfen, fachliche Ereignisse und sämtliche gespeicherten Stände nachsehen.
+
+## Bearbeitungsstand
+
+Der Core prüft jeden Wechsel des Bearbeitungsstands; die Oberfläche bietet nur
+die Auswahl an.
+
+| Stand | Voraussetzung |
+| --- | --- |
+| In Vorbereitung | Ausgangsstand; nach der Einreichung kein Rückweg |
+| Eingereicht, In behördlicher Prüfung, Ruhend | versendeter oder eingegangener Abgabestand |
+| Unvollständig | zusätzlich ein offener Nachforderungspunkt |
+| Vollständig | zusätzlich die behördliche Bestätigung mit Datum und eingegangenem Schreiben |
+| Entschieden | zusätzlich ein Bescheid |
+| Zurückgenommen | Rücknahmedatum und zugehöriges Schreiben |
+
+Entschiedene und zurückgenommene Verfahren werden nicht wieder geöffnet; dafür
+ein Folgeverfahren anlegen. Jeder Wechsel, die Vollständigkeitsbestätigung und die
+Rücknahme erscheinen in der Verfahrenschronik. Bestehende Akten bleiben
+bearbeitbar: Die Voraussetzungen gelten erst beim nächsten Statuswechsel.
 
 ## Suche und Wiedervorlagen
 

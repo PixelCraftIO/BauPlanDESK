@@ -20,6 +20,8 @@ fn leer() -> Verfahrensakte {
         art: Verfahrensart::Bauantrag,
         antragsangaben: Default::default(),
         status: Verfahrensstatus::Vorbereitung,
+        vollstaendigkeit: None,
+        ruecknahme: None,
         behoerde: Behoerde {
             id: Uuid::new_v4(),
             name: "Bauaufsicht Musterstadt".into(),
@@ -194,6 +196,22 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
             .collect(),
     });
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    // Ohne versendeten Abgabestand ist das Verfahren nicht eingereicht.
+    let mut versuch = a.clone();
+    versuch.status = Verfahrensstatus::Unvollstaendig;
+    let err = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Verfahren,
+            vid,
+            f.revision,
+            serde_json::to_value(&versuch).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("versendeten Abgabestand"), "{err}");
     assert_eq!(
         core.verfahren_erinnerungen(p.id, heute)
             .await
@@ -333,12 +351,68 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         versandstand(&a.abgaben[0]),
         Some(Versandstatus::Eingegangen)
     );
+    let ablehnen = |a: &Verfahrensakte, revision: i64| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        let pid = p.id;
+        async move {
+            core.fachobjekt_speichern(pid, ObjektArt::Verfahren, vid, revision, a, user)
+                .await
+                .unwrap_err()
+                .to_string()
+        }
+    };
+    // Nach dem Versand: unvollständig, dann vollständig nur mit Bestätigung.
+    a.status = Verfahrensstatus::Unvollstaendig;
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    a = serde_json::from_value(f.daten.clone()).unwrap();
+    a.status = Verfahrensstatus::Vollstaendig;
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("behördliche Bestätigung"), "{err}");
+    a.vollstaendigkeit = Some(Vollstaendigkeit {
+        datum: heute,
+        kommunikation: Uuid::new_v4(),
+    });
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("eingegangenes Schreiben"), "{err}");
+    a.vollstaendigkeit = Some(Vollstaendigkeit {
+        datum: heute,
+        kommunikation,
+    });
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    a = serde_json::from_value(f.daten.clone()).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Unvollständig → Vollständig")
+    );
+    a.status = Verfahrensstatus::Vorbereitung;
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("nicht in die Vorbereitung"), "{err}");
+    a.status = Verfahrensstatus::Vollstaendig;
+    // Genehmigt wird nur, was der Behörde mit einem versendeten Stand vorlag.
+    let mut versuch = a.clone();
+    versuch.bescheide.push(Bescheid {
+        id: Uuid::new_v4(),
+        entscheidung: Entscheidung::Genehmigt,
+        datum: heute,
+        zugestellt: None,
+        original: brief.clone(),
+        genehmigte_unterlagen: vec![ref1.clone()],
+        auflagen: vec![],
+        ersetzt: None,
+    });
+    let err = ablehnen(&versuch, f.revision).await;
+    assert!(err.contains("aus einem versendeten Abgabestand"), "{err}");
     let besch = Uuid::new_v4();
     a.bescheide.push(Bescheid {
         id: besch,
         entscheidung: Entscheidung::Genehmigt,
         datum: heute,
-        zugestellt: Some(heute),
+        zugestellt: None,
         original: brief.clone(),
         genehmigte_unterlagen: vec![ref2.clone()],
         auflagen: vec![Auflage {
@@ -360,6 +434,26 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     });
     a.status = Verfahrensstatus::Entschieden;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    // Das Zustelldatum lässt sich einmal nachtragen, danach nicht mehr ändern.
+    a = serde_json::from_value(f.daten.clone()).unwrap();
+    a.bescheide[0].zugestellt = Some(heute);
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    a = serde_json::from_value(f.daten.clone()).unwrap();
+    assert_eq!(a.bescheide[0].zugestellt, Some(heute));
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Zustellung des Bescheids")
+    );
+    a.bescheide[0].zugestellt = Some(heute + chrono::Duration::days(1));
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("Folgebescheid"), "{err}");
+    a.bescheide[0].zugestellt = Some(heute);
+    a.status = Verfahrensstatus::InPruefung;
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("nicht wieder geöffnet"), "{err}");
     let plan3 = core
         .store_document(
             p.id,
@@ -897,4 +991,76 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
             )
         ]
     );
+}
+#[tokio::test]
+async fn ruecknahme_braucht_datum_und_schreiben_und_bleibt_abgeschlossen() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let storage =
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        storage,
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Rücknahme".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let vid = Uuid::new_v4();
+    let f = speichern(&core, p.id, vid, 0, &leer(), &user).await;
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let versuch = |a: &Verfahrensakte, revision: i64| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        let pid = p.id;
+        async move {
+            core.fachobjekt_speichern(pid, ObjektArt::Verfahren, vid, revision, a, user)
+                .await
+        }
+    };
+    a.status = Verfahrensstatus::Zurueckgenommen;
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("Rücknahmeschreiben"), "{err}");
+    let schreiben = Uuid::new_v4();
+    a.kommunikation.push(Kommunikation {
+        id: schreiben,
+        art: Kommunikationsart::Brief,
+        eingehend: false,
+        datum: Utc::now().date_naive(),
+        betreff: "Rücknahme des Bauantrags".into(),
+        beteiligte: "Bauamt".into(),
+        inhalt: String::new(),
+        original: None,
+        bezuege: vec![],
+    });
+    a.ruecknahme = Some(Ruecknahme {
+        datum: Utc::now().date_naive(),
+        kommunikation: schreiben,
+    });
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("zurückgenommen am")
+    );
+    a.status = Verfahrensstatus::Vorbereitung;
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("zurückgenommenes Verfahren"), "{err}");
 }

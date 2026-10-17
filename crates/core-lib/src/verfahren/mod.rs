@@ -79,10 +79,54 @@ pub struct Vorbescheidfrage {
 #[serde(rename_all = "snake_case")]
 pub enum Verfahrensstatus {
     Vorbereitung,
+    /// Ein Abgabestand ist versendet; die Behörde hat die Vollständigkeit noch
+    /// nicht beurteilt.
+    Eingereicht,
+    /// Die Behörde hat Unterlagen nachgefordert.
+    Unvollstaendig,
+    /// Die Behörde hat die Vollständigkeit bestätigt (siehe
+    /// [`Verfahrensakte::vollstaendigkeit`]).
+    Vollstaendig,
     InPruefung,
     Ruhend,
     Entschieden,
     Zurueckgenommen,
+}
+impl Verfahrensstatus {
+    pub fn bezeichnung(&self) -> &'static str {
+        match self {
+            Self::Vorbereitung => "In Vorbereitung",
+            Self::Eingereicht => "Eingereicht",
+            Self::Unvollstaendig => "Unvollständig",
+            Self::Vollstaendig => "Vollständig",
+            Self::InPruefung => "In behördlicher Prüfung",
+            Self::Ruhend => "Ruhend",
+            Self::Entschieden => "Entschieden",
+            Self::Zurueckgenommen => "Zurückgenommen",
+        }
+    }
+    /// Entschiedene und zurückgenommene Verfahren werden nicht wieder geöffnet;
+    /// eine neue Befassung ist ein Folgeverfahren.
+    pub fn abgeschlossen(&self) -> bool {
+        matches!(self, Self::Entschieden | Self::Zurueckgenommen)
+    }
+}
+/// Behördliche Bestätigung der Vollständigkeit. Ihr Datum ist der Beginn von
+/// Bearbeitungsfrist und Genehmigungsfiktion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Vollstaendigkeit {
+    pub datum: NaiveDate,
+    /// Eingegangenes Schreiben der Behörde in dieser Akte.
+    pub kommunikation: Uuid,
+}
+/// Rücknahme des Antrags mit Datum und Beleg.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Ruecknahme {
+    pub datum: NaiveDate,
+    /// Rücknahmeschreiben oder Bestätigung der Behörde in dieser Akte.
+    pub kommunikation: Uuid,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -248,6 +292,13 @@ pub struct Verfahrensakte {
     #[serde(default)]
     pub antragsangaben: Antragsangaben,
     pub status: Verfahrensstatus,
+    /// Ältere Akten ohne diese Angabe lesen sie leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub vollstaendigkeit: Option<Vollstaendigkeit>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ruecknahme: Option<Ruecknahme>,
     pub behoerde: Behoerde,
     pub aktenzeichen: String,
     pub verantwortlich: Option<Uuid>,
@@ -422,9 +473,20 @@ impl CoreServices {
         if let Some(alt) = &original {
             if alt.status != a.status {
                 details.push(format!(
-                    "Verfahrensstatus: {:?} → {:?}",
-                    alt.status, a.status
+                    "Verfahrensstatus: {} → {}",
+                    alt.status.bezeichnung(),
+                    a.status.bezeichnung()
                 ));
+            }
+            if alt.vollstaendigkeit != a.vollstaendigkeit
+                && let Some(v) = &a.vollstaendigkeit
+            {
+                details.push(format!("Vollständigkeit bestätigt am {}", v.datum));
+            }
+            if alt.ruecknahme != a.ruecknahme
+                && let Some(r) = &a.ruecknahme
+            {
+                details.push(format!("Antrag zurückgenommen am {}", r.datum));
             }
             for n in &a.nachforderungen {
                 for p in &n.punkte {
@@ -480,11 +542,20 @@ impl CoreServices {
                 }
             }
             for b in &a.bescheide {
-                if !alt.bescheide.iter().any(|n| n.id == b.id) {
-                    details.push(format!(
+                match alt.bescheide.iter().find(|n| n.id == b.id) {
+                    None => details.push(format!(
                         "Bescheid erfasst: {:?} am {}",
                         b.entscheidung, b.datum
-                    ));
+                    )),
+                    Some(v) if v.zugestellt != b.zugestellt => {
+                        if let Some(z) = b.zugestellt {
+                            details.push(format!(
+                                "Zustellung des Bescheids vom {} nachgetragen: {z}",
+                                b.datum
+                            ));
+                        }
+                    }
+                    _ => {}
                 }
                 for p in &b.auflagen {
                     let v = alt

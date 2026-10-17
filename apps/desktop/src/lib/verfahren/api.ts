@@ -10,7 +10,19 @@ import type {
   Erinnerung,
   Textquelle,
   Nachrichtenstand,
+  Verfahrensstatus,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Verfahrensstatus::bezeichnung` im Core. */
+export const STATUS: Record<Verfahrensstatus, string> = {
+  vorbereitung: "In Vorbereitung",
+  eingereicht: "Eingereicht",
+  unvollstaendig: "Unvollständig",
+  vollstaendig: "Vollständig",
+  in_pruefung: "In behördlicher Prüfung",
+  ruhend: "Ruhend",
+  entschieden: "Entschieden",
+  zurueckgenommen: "Zurückgenommen",
+};
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
   profilAnwenden: (

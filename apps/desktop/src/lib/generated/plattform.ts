@@ -149,7 +149,17 @@ vorbescheidfragen: Array<Vorbescheidfrage>,
  */
 als_bauantrag_weiterfuehren: boolean, };
 export type Vorbescheidfrage = { id: string, frage: string, };
-export type Verfahrensstatus = "vorbereitung" | "in_pruefung" | "ruhend" | "entschieden" | "zurueckgenommen";
+export type Verfahrensstatus = "vorbereitung" | "eingereicht" | "unvollstaendig" | "vollstaendig" | "in_pruefung" | "ruhend" | "entschieden" | "zurueckgenommen";
+export type Vollstaendigkeit = { datum: string,
+/**
+ * Eingegangenes Schreiben der Behörde in dieser Akte.
+ */
+kommunikation: string, };
+export type Ruecknahme = { datum: string,
+/**
+ * Rücknahmeschreiben oder Bestätigung der Behörde in dieser Akte.
+ */
+kommunikation: string, };
 export type Behoerde = { id: string, name: string, kennung: string, kontakt: string, };
 export type Bezug = { "art": "dokument", dokument: Dokumentbezug, } | { "art": "nachweis", id: string, } | { "art": "kommunikation", id: string, } | { "art": "nachforderung", id: string, punkt: string, } | { "art": "anforderung", id: string, } | { "art": "abgabe", id: string, } | { "art": "bescheid", id: string, } | { "art": "auflage", bescheid: string, id: string, };
 export type Kommunikationsart = "email" | "brief" | "portal" | "telefon" | "besprechung";
@@ -170,7 +180,11 @@ export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Ve
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
  */
-antragsangaben: Antragsangaben, status: Verfahrensstatus, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+antragsangaben: Antragsangaben, status: Verfahrensstatus,
+/**
+ * Ältere Akten ohne diese Angabe lesen sie leer.
+ */
+vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };

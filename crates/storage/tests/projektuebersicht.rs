@@ -146,7 +146,9 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         bezeichnung: "Bauantrag Wohnhaus".into(),
         art: Verfahrensart::Bauantrag,
         antragsangaben: Default::default(),
-        status: Verfahrensstatus::InPruefung,
+        status: Verfahrensstatus::Vorbereitung,
+        vollstaendigkeit: None,
+        ruecknahme: None,
         behoerde: Behoerde {
             id: Uuid::new_v4(),
             name: "Bauaufsicht Musterstadt".into(),
