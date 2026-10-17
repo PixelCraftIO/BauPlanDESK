@@ -418,7 +418,7 @@
 <style>
   .projektuebersicht {
     display: grid;
-    gap: 1.75rem;
+    gap: 14px;
   }
   .kopf {
     display: flex;
@@ -427,33 +427,51 @@
     gap: 1rem;
     flex-wrap: wrap;
   }
+  .kopf {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 4px;
+    align-items: end;
+  }
   .kopf h2 {
-    font-size: 1.3rem;
     margin: 0;
   }
   .kopf p {
-    margin: 0.4rem 0 0;
+    margin: 2px 0 0;
   }
+  /* Kennzahlen als Prüfliste in einer Zeile statt als Kacheln. */
   .kennzahlen {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+    gap: 0;
+    border: 1px solid var(--border);
+    background: var(--border);
+    column-gap: 1px;
+    row-gap: 1px;
   }
   .kennzahl {
     display: grid;
-    gap: 0.4rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    align-items: baseline;
     text-align: left;
-    background: var(--bg);
+    background: var(--panel);
     color: var(--fg);
-    border: 1px solid var(--border);
-    padding: 1rem;
+    border: 0;
+    border-radius: 0;
+    font-weight: 400;
+    padding: 5px 10px;
+    min-height: 0;
   }
   .kennzahl strong {
-    font-size: 1.8rem;
+    font-size: 1.1rem;
     line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    grid-row: 1;
+    grid-column: 2;
   }
   .kennzahl .meta {
-    font-size: 0.75rem;
+    font-size: 0.88rem;
+    grid-column: 1 / -1;
   }
   .warnung {
     color: var(--warning-text);
@@ -464,16 +482,16 @@
     justify-content: space-between;
     gap: 1.5rem;
     flex-wrap: wrap;
-    border-left: 3px solid var(--accent);
-    background: var(--accent-soft);
-    padding: 1.25rem;
+    border: 1px solid var(--border);
+    background: var(--leiste);
+    padding: 8px 12px;
   }
   .naechster > div {
     flex: 1;
     min-width: min(100%, 18rem);
   }
   .naechster h3 {
-    margin: 0.35rem 0 0.5rem;
+    margin: 2px 0 4px;
   }
   .naechster p {
     margin: 0;
@@ -481,12 +499,15 @@
   .arbeitsraster {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(240px, 0.33fr);
-    gap: 2rem;
+    gap: 14px;
   }
   .arbeitsbedarf h3,
   .termine h3,
   section > h3 {
-    margin: 0 0 1rem;
+    margin: 0 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid var(--accent);
+    color: var(--accent);
   }
   .filter {
     display: flex;
@@ -508,15 +529,16 @@
   }
   .punktliste {
     padding: 0;
-    margin: 1rem 0;
+    margin: 8px 0;
     list-style: none;
+    border: 1px solid var(--border);
   }
   .punktliste > li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.75rem 1rem;
-    padding: 1rem 0;
-    border-top: 1px solid var(--border);
+    gap: 2px 12px;
+    padding: 5px 10px;
+    border-top: 1px solid var(--border-innen);
     align-items: start;
   }
   .punkt-meta {
@@ -526,8 +548,7 @@
     grid-column: 1/-1;
   }
   .punktliste p {
-    margin: 0.4rem 0 0;
-    font-size: 0.9rem;
+    margin: 2px 0 0;
     color: var(--muted);
   }
   .punktliste .leer {
@@ -538,10 +559,10 @@
     font-weight: 600;
   }
   .termine {
-    padding: 1.25rem;
+    padding: 8px 12px;
     border: 1px solid var(--border);
     align-self: start;
-    background: var(--bg);
+    background: var(--leiste);
   }
   .termine ul {
     margin: 0;
@@ -550,15 +571,15 @@
   }
   .termine li {
     display: grid;
-    gap: 0.35rem;
-    padding: 0.75rem 0;
+    gap: 2px;
+    padding: 4px 0;
     align-items: start;
   }
   .termine li > span {
     font-size: 0.85rem;
   }
   .termine h3:not(:first-child) {
-    margin-top: 1.5rem;
+    margin-top: 12px;
   }
   .schnellzugriff {
     display: grid;
@@ -569,9 +590,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 0;
-    border-top: 1px solid var(--border);
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--border-innen);
     flex-wrap: wrap;
   }
   .verfahrensliste h4 {
