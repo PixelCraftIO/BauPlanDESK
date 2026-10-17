@@ -149,6 +149,14 @@
     baufensterflaeche: "Baufensterfläche",
     vollgeschosse: "Vollgeschosse",
   };
+  // Orientierungs- und Umgebungswerte zeigen nur die Abweichung; der Core wertet sie nicht als Verstoß.
+  const quellenTitel: Record<string, string> = {
+    festsetzung: "Festsetzung",
+    orientierungswert: "Orientierungswert § 17 BauNVO",
+    bau_nvo19: "§ 19 Abs. 4 BauNVO",
+    umgebung: "Nähere Umgebung (§ 34 BauGB)",
+    keine: "Keine Vorgabe",
+  };
   const relevanteNachweise = $derived(
     (nachweis?.nachweise ?? []).filter((n) =>
       bereich === "grz"
@@ -610,7 +618,8 @@
                 · {n.gegenstand}</span
               >{/if}</td
           ><td>{z(n.ist)}</td><td>{z(n.soll)}</td><td
-            class:verstoss={n.eingehalten === false}
+            >{quellenTitel[n.quelle]}</td
+          ><td class:verstoss={n.eingehalten === false}
             >{z(n.abweichung ?? n.ueberschreitung)}</td
           ></tr
         >{/each}</tbody

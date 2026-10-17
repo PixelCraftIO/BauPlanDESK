@@ -559,7 +559,7 @@ export interface NutzungsPruefung {
     gegenstand?: string | null;
     ist: number | null;
     soll: number | null;
-    quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "keine";
+    quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "umgebung" | "keine";
     zwingend: boolean;
     eingehalten: boolean | null;
     abweichung: number | null;
@@ -591,6 +591,13 @@ export interface BaugrenzenPruefung {
   aussenflaechen: Aussenflaeche[];
 }
 
+export interface Umgebungsreferenz {
+  grz: number | null;
+  gfz: number | null;
+  vollgeschosse: number | null;
+  grundlage: string;
+}
+
 export interface Planungsrecht {
   bau_nvo?: BauNvo | null;
   rechtsgrundlage: "par30" | "par34" | "par35" | null;
@@ -612,6 +619,8 @@ export interface Planungsrecht {
   festsetzungen: string;
   begruendung: string;
   festgesetzte_werte: Festsetzungen;
+  /** Vergleichswerte der näheren Umgebung (§ 34 BauGB); Orientierung ohne Urteil. */
+  umgebung?: Umgebungsreferenz | null;
   berechnung: NutzungsEingabe | null;
   baugrundstuecke: BaugrundstuecksPlan | null;
   grundstuecksinformationen?: import('./generated/plattform').Grundstuecksinformationen | null;

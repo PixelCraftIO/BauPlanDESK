@@ -942,7 +942,8 @@ fn vergleichname(a: &str) -> &str {
 fn vergleichquelle(a: &str) -> &str {
     match a {
         "festsetzung" => "Planfestsetzung",
-        "orientierungswert" => "Orientierungswert",
+        "orientierungswert" => "Orientierungswert § 17 BauNVO",
+        "umgebung" => "Nähere Umgebung (§ 34 BauGB)",
         "bau_nvo19" => "§ 19 BauNVO",
         "keine" => "Keine Vorgabe",
         _ => a,

@@ -415,3 +415,106 @@ async fn mehrere_baugrundstuecke_bleiben_getrennt_gespeichert_und_berechnet() {
     assert_eq!(r.baugrundstuecke[1].grundstueck.bauland_m2, 400.);
     assert_eq!(r.projekt_version, p2.version);
 }
+
+#[tokio::test]
+async fn innenbereich_speichert_umgebungswerte_und_wertet_sie_nicht_als_verstoss() {
+    use core_lib::domain::Rechtsgrundlage;
+    use core_lib::festsetzungen::{Quelle, Umgebungsreferenz};
+    use core_lib::projektbereiche::ProjektBereich;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        storage::build(&storage::StorageConfig::Local {
+            root: dir.path().to_owned(),
+        })
+        .unwrap(),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let admin = core.anmelden("admin", "Admin").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Baulücke".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: Some(500.),
+                planungsrecht: Planungsrecht {
+                    bebauungsplan_art: BebauungsplanArt::Kein,
+                    rechtsgrundlage: Some(Rechtsgrundlage::Par34),
+                    ..Default::default()
+                },
+            },
+            &admin,
+        )
+        .await
+        .unwrap();
+    let eingabe = NutzungsEingabe {
+        aufstellung: None,
+        mass: MassDerNutzung {
+            grundstuecksflaeche_m2: 500.,
+            grundflaeche_m2: 225.,
+            grundflaeche_nebenanlagen_m2: 0.,
+            geschossflaeche_m2: 450.,
+            baumasse_m3: None,
+        },
+        vollgeschosse: Some(2),
+        gebiet: Baugebiet::WA,
+    };
+    // Ohne erfasste Umgebung: GRZ 0,45 ist kein Verstoß gegen § 17 BauNVO.
+    let r = core.projekt_nutzung_pruefen(p.id, &eingabe).await.unwrap();
+    assert!(r.nachweise.iter().all(|n| n.eingehalten.is_none()));
+    assert!(r.nachweise.iter().all(|n| n.soll.is_none()));
+
+    let aenderung = |p: &core_lib::domain::Project, u: Umgebungsreferenz| {
+        let mut recht = p.planungsrecht.clone();
+        recht.umgebung = Some(u);
+        ProjectUpdate {
+            id: p.id,
+            expected_version: p.version,
+            name: p.name.clone(),
+            bundesland: p.bundesland,
+            grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+            planungsrecht: Some(recht),
+        }
+    };
+    let ohne_grundlage = Umgebungsreferenz {
+        grz: Some(0.35),
+        ..Default::default()
+    };
+    assert!(matches!(
+        core.projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundlagen,
+            aenderung(&p, ohne_grundlage),
+            &admin
+        )
+        .await,
+        Err(CoreError::InvalidInput(_))
+    ));
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundlagen,
+            aenderung(
+                &p,
+                Umgebungsreferenz {
+                    grz: Some(0.35),
+                    gfz: Some(0.7),
+                    vollgeschosse: Some(2),
+                    grundlage: "Lindenweg 2 bis 10, Ortsbesichtigung".into(),
+                },
+            ),
+            &admin,
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.planungsrecht.umgebung.as_ref().unwrap().grz, Some(0.35));
+    let r = core.projekt_nutzung_pruefen(p.id, &eingabe).await.unwrap();
+    let grz = r.nachweise.iter().find(|n| n.art == "grz").unwrap();
+    assert_eq!(
+        (grz.soll, grz.quelle, grz.eingehalten),
+        (Some(0.35), Quelle::Umgebung, None)
+    );
+    assert!((grz.abweichung.unwrap() - 0.1).abs() < 1e-9);
+}

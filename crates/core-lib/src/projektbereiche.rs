@@ -29,6 +29,7 @@ impl ProjektBereich {
                 "plan_bezeichnung",
                 "plan_nummer",
                 "plan_rechtskraft",
+                "umgebung",
             ],
             Self::Festsetzungen => &["festgesetzte_werte", "festsetzungen"],
             Self::Grundstuecke => &["baugrundstuecksermittlung"],
