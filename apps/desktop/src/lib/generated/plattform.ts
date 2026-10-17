@@ -169,8 +169,23 @@ export type Frist = { datum: string, ausloeser: string, beleg: Dokumentbezug | n
 export type Forderungspunkt = { id: string, titel: string, grundlage: string, verantwortlich: string | null, frist: Frist | null, status: Punktstatus, antwort: string, dokumente: Array<Dokumentbezug>, abgaben: Array<string>, bestaetigung: string | null, };
 export type Nachforderung = { id: string, kommunikation: string, punkte: Array<Forderungspunkt>, };
 export type Entscheidung = "genehmigt" | "teilweise_genehmigt" | "abgelehnt" | "sonstiges";
-export type Auflage = { id: string, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>, };
+export type Nebenbestimmungsart = "auflage" | "bedingung" | "befristung" | "widerrufsvorbehalt" | "auflagenvorbehalt" | "hinweis";
+export type Auflage = { id: string,
+/**
+ * Ältere Akten ohne diese Angabe lesen sie als Auflage.
+ */
+art: Nebenbestimmungsart, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>, };
 export type Bescheid = { id: string, entscheidung: Entscheidung, datum: string, zugestellt: string | null, original: Dokumentbezug, genehmigte_unterlagen: Array<Dokumentbezug>, auflagen: Array<Auflage>, ersetzt: string | null, };
+export type Schrittart = "anhoerung" | "zurueckstellung";
+export type Verfahrensschritt = { id: string, art: Schrittart, kommunikation: string,
+/**
+ * Anhörung: Frist zur Stellungnahme. Zurückstellung: Ende der Zurückstellung.
+ */
+frist: Frist | null,
+/**
+ * Ausgehende Stellungnahme dieser Akte; beendet die Wiedervorlage einer Anhörung.
+ */
+stellungnahme: string | null, verantwortlich: string | null, };
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
@@ -184,7 +199,11 @@ antragsangaben: Antragsangaben, status: Verfahrensstatus,
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */
-vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>,
+/**
+ * Ältere Akten ohne diese Angabe lesen sie leer.
+ */
+schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };
@@ -199,6 +218,17 @@ export type Abgabestand = { id: string, auftrag_hash: string, titel: string, ers
  */
 versandstatus: Versandstatus | null, };
 export type Abgabewunsch = { xbau_bezug?: string, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
+export type Fristauftrag = { art: Verfahrensart, bescheide: Array<Bescheid>, };
+export type Fristberechnung = {
+/**
+ * Tag des fristauslösenden Ereignisses; er wird nicht mitgezählt (§ 187 Abs. 1 BGB).
+ */
+beginn: string, ende: string, grundlage: string, hinweise: Array<string>, };
+export type Bescheidfristen = { bescheid: string, rechtsbehelfsfrist: Fristberechnung | null, geltungsdauer: Fristberechnung | null,
+/**
+ * Warum eine Frist nicht berechnet wurde.
+ */
+hinweise: Array<string>, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };

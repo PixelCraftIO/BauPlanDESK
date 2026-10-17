@@ -169,6 +169,7 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
                 && teile[0] == "projekte"
                 && [
                     "druckausgabe",
+                    "bescheidfristen",
                     "abstandsplan",
                     "abstandscad",
                     "fachberechnung",

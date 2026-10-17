@@ -253,7 +253,7 @@ impl CoreServices {
                 .iter()
                 .filter(|b| !a.bescheide.iter().any(|n| n.ersetzt == Some(b.id)))
                 .flat_map(|b| &b.auflagen)
-                .filter(|a| !a.erledigt)
+                .filter(|a| !a.erledigt && a.art != crate::verfahren::Nebenbestimmungsart::Hinweis)
                 .count();
             let unklar = a
                 .anforderungen

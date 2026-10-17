@@ -36,6 +36,7 @@ pub(super) async fn pruefen(
         || a.abgaben.len() > 200
         || a.kommunikation.len() > 1000
         || a.nachforderungen.len() > 500
+        || a.schritte.len() > 100
         || a.anforderungen.len() > 500
         || a.bescheide.len() > 100
         || a.antragsangaben.vorbescheidfragen.len() > 50
@@ -72,6 +73,7 @@ pub(super) async fn pruefen(
         .chain(a.abgaben.iter().map(|v| v.id))
         .chain(a.bescheide.iter().map(|v| v.id))
         .chain(a.nachforderungen.iter().map(|v| v.id))
+        .chain(a.schritte.iter().map(|v| v.id))
         .chain(a.dokumentbeziehungen.iter().map(|v| v.id))
         .chain(a.ereignisse.iter().map(|v| v.id))
         .chain(a.antragsangaben.vorbescheidfragen.iter().map(|v| v.id))
@@ -195,6 +197,34 @@ pub(super) async fn pruefen(
             }
         }
     }
+    for v in &a.schritte {
+        let schreiben = a
+            .kommunikation
+            .iter()
+            .find(|c| c.id == v.kommunikation && c.eingehend)
+            .ok_or_else(|| {
+                fehler(format!(
+                    "{} benötigt das eingegangene Schreiben der Behörde in dieser Akte",
+                    v.art.bezeichnung()
+                ))
+            })?;
+        if let Some(id) = v.stellungnahme
+            && !a.kommunikation.iter().any(|c| c.id == id && !c.eingehend)
+        {
+            return Err(fehler(
+                "Stellungnahme muss eine ausgehende Kommunikation dieser Akte sein",
+            ));
+        }
+        if v.art == Schrittart::Zurueckstellung
+            && v.frist.as_ref().is_none_or(|f| f.datum <= schreiben.datum)
+        {
+            return Err(fehler(
+                "Zurückstellung benötigt ihr Ende als Frist nach dem Datum des Schreibens",
+            ));
+        }
+        benutzer.extend(v.verantwortlich);
+        frist(&v.frist, &mut dokumente)?;
+    }
     for r in &a.anforderungen {
         text(&r.titel, 500)?;
         if r.quelle.len() > 4000 || r.grund.len() > 4000 {
@@ -289,6 +319,14 @@ pub(super) async fn pruefen(
             benutzer.extend(f.verantwortlich);
             dokumente.extend(f.nachweise.iter().cloned());
             frist(&f.frist, &mut dokumente)?;
+            if f.art == Nebenbestimmungsart::Hinweis && f.erledigt {
+                return Err(fehler(
+                    "Ein Hinweis begründet keine Pflicht und wird nicht erfüllt",
+                ));
+            }
+            if f.art == Nebenbestimmungsart::Befristung && f.frist.is_none() {
+                return Err(fehler("Befristung benötigt ihr Ablaufdatum als Frist"));
+            }
             if f.erledigt && f.nachweise.is_empty() {
                 return Err(fehler("Erledigte Auflage benötigt einen Erfüllungsbeleg"));
             }
@@ -398,6 +436,15 @@ pub(super) async fn pruefen(
         behalten(&alt.nachforderungen, &a.nachforderungen, |v| v.id)?;
         behalten(&alt.anforderungen, &a.anforderungen, |v| v.id)?;
         behalten(&alt.bescheide, &a.bescheide, |v| v.id)?;
+        behalten(&alt.schritte, &a.schritte, |v| v.id)?;
+        for v in &alt.schritte {
+            let n = a.schritte.iter().find(|n| n.id == v.id).expect("geprüft");
+            if n.art != v.art || n.kommunikation != v.kommunikation {
+                return Err(fehler(
+                    "Art und Schreiben eines erfassten Verfahrensschritts bleiben unverändert",
+                ));
+            }
+        }
         for c in &alt.kommunikation {
             let n = a
                 .kommunikation

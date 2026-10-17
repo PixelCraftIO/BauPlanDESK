@@ -24,7 +24,12 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
 5. **Nachforderungen:** Aus einer eingehenden Kommunikation einzelne Punkte
    anlegen. Jeder Punkt besitzt eigene Zuständigkeit, Antwort, Unterlagen,
    Frist, Erinnerung und Bearbeitungszustand. Teilantworten sind möglich.
-6. **Abgabestände:** Exakte Dokumentversionen auswählen und verbindlich festhalten.
+6. **Anhörung / Zurückstellung:** Eine Anhörung vor belastender Entscheidung
+   (§ 28 VwVfG) oder eine Zurückstellung nach § 15 BauGB an das eingegangene
+   Schreiben binden. Die Anhörung erhält die Frist zur Stellungnahme und wird mit
+   der ausgehenden Stellungnahme abgeschlossen; die Zurückstellung braucht ihr
+   Ende als Frist. Art und Schreiben bleiben nach dem Speichern unverändert.
+7. **Abgabestände:** Exakte Dokumentversionen auswählen und verbindlich festhalten.
    ZIP, optional XBau-ZIP und Druck-PDF werden einmal erzeugt und gespeichert.
    Die XBau-Nachricht folgt der Verfahrensart (0200, 0210 oder 0600, siehe
    [XBau](../xbau/README.md#nachricht-nach-verfahrensart)); Teilbaugenehmigung
@@ -39,21 +44,25 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    der Akte, ein abweichendes wird abgewiesen. **Im XBau-Journal erfassen**
    übernimmt das eingefrorene XBau-ZIP als ausgehende Nachricht, auch mehrfach
    nur einmal.
-7. **Übermittlung:** Versand, Eingang oder Zurückweisung einzeln mit Datum,
+8. **Übermittlung:** Versand, Eingang oder Zurückweisung einzeln mit Datum,
    Übermittlungsweg, Referenz und Beleg erfassen. Export bedeutet keinen Versand.
    Bestätigter Eingang benötigt einen Dokumentbeleg. Frühere Versandereignisse
    bleiben unveränderlich; begründete Berichtigungen sind eigene Ereignisse.
-8. **Antwort zuordnen:** Ein eingereichter Forderungspunkt braucht einen tatsächlich
+9. **Antwort zuordnen:** Ein eingereichter Forderungspunkt braucht einen tatsächlich
    versandten/eingegangenen Abgabestand, der seine Antwortunterlagen enthält.
    Eine behördliche Bestätigung benötigt eine weitere eingehende Kommunikation.
-9. **Bescheide / Auflagen:** Originalbescheid, Zustellung und ausdrücklich
+10. **Bescheide / Auflagen:** Originalbescheid, Zustellung und ausdrücklich
    genehmigte Dokumentversionen festhalten. Ein Bescheid setzt einen versendeten
    oder eingegangenen Abgabestand voraus; genehmigte Unterlagen werden nur aus
    solchen Abgabeständen ausgewählt. Ein fehlendes Zustelldatum lässt sich einmal
-   nachtragen, danach ist der Bescheid unveränderlich. Nebenbestimmungen mit
-   Auslöser, Zuständigkeit und Nachweis überwachen. Ein späterer Entwurf ersetzt
-   keine genehmigte Version. Folgebescheide ersetzen ausdrücklich benannte Bescheide.
-10. **Korrekturen / Verfahrenschronik:** Dokumentersatz und Änderungsgründe
+   nachtragen, danach ist der Bescheid unveränderlich. Nebenbestimmungen sind
+   nach § 36 VwVfG typisiert (Auflage, Bedingung, Befristung, Widerrufs- und
+   Auflagenvorbehalt) und werden mit Auslöser, Zuständigkeit und Nachweis
+   überwacht; eine Befristung braucht ihr Ablaufdatum. Ein Hinweis begründet
+   keine Pflicht und wird weder erfüllt noch wiedervorgelegt. Ältere Einträge
+   gelten als Auflage. Ein späterer Entwurf ersetzt keine genehmigte Version.
+   Folgebescheide ersetzen ausdrücklich benannte Bescheide.
+11. **Korrekturen / Verfahrenschronik:** Dokumentersatz und Änderungsgründe
     verknüpfen, fachliche Ereignisse und sämtliche gespeicherten Stände nachsehen.
 
 ## Bearbeitungsstand
@@ -75,10 +84,31 @@ ein Folgeverfahren anlegen. Jeder Wechsel, die Vollständigkeitsbestätigung und
 Rücknahme erscheinen in der Verfahrenschronik. Bestehende Akten bleiben
 bearbeitbar: Die Voraussetzungen gelten erst beim nächsten Statuswechsel.
 
+## Berechnete Fristen
+
+Zu jedem Bescheid mit Zustelldatum berechnet der Core nach dem Bundesland des
+Projekts:
+
+- **Rechtsbehelfsfrist:** ein Monat ab Zustellung (§§ 70, 74 VwGO), Ende nach
+  §§ 187, 188 BGB am Tag gleicher Zahl oder am Monatsletzten. Fällt es auf einen
+  Samstag, Sonntag oder landesweiten Feiertag, endet die Frist am nächsten
+  Werktag (§ 57 Abs. 2 VwGO, § 222 Abs. 2 ZPO). Örtliche Feiertage, eine
+  fehlerhafte Rechtsbehelfsbelehrung (dann ein Jahr) und Fristen der Nachbarn
+  sind nicht berücksichtigt; die Oberfläche nennt das.
+- **Geltungsdauer:** nur für Bauantrag, Änderungsantrag und Teilbaugenehmigung
+  mit (teilweiser) Genehmigung. Die Tabelle in `crates/core-lib/src/verfahren/fristen.rs`
+  führt die Jahre je Landesbauordnung (Bayern und Rheinland-Pfalz 4,
+  Brandenburg 6, sonst 3). Unterbrechung und Verlängerung bleiben eine Prüfung
+  nach Landesrecht.
+
+Die Werte werden bei jeder Anzeige neu berechnet und nicht in der Akte
+gespeichert, damit eine korrigierte Regel sofort für alle Bescheide gilt.
+
 ## Suche und Wiedervorlagen
 
-**Organisation → Suche / Wiedervorlagen** zeigt fällige Forderungspunkte und
-Nebenbestimmungen, einschließlich eingereichter, noch nicht bestätigter Punkte.
+**Organisation → Suche / Wiedervorlagen** zeigt fällige Forderungspunkte,
+Nebenbestimmungen, offene Anhörungen und das Ende einer Zurückstellung,
+einschließlich eingereichter, noch nicht bestätigter Punkte.
 Auch nach einer Genehmigung bleiben offene Pflichten sichtbar. Zurückgenommene
 Verfahren und ausdrücklich ersetzte Bescheide erzeugen keine aktiven Erinnerungen.
 Der Projektarbeitsstand verweist ebenfalls auf offene Punkte und Verfahrensfristen.

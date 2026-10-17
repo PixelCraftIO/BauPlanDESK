@@ -1,6 +1,7 @@
 //! Fachliche Verfahrensakte. Eine Akte wird mit Ereignis und Revision atomar
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
+pub mod fristen;
 pub mod profile;
 mod pruefung;
 pub mod suche;
@@ -218,10 +219,37 @@ pub enum Entscheidung {
     Abgelehnt,
     Sonstiges,
 }
+/// Art einer Nebenbestimmung (§ 36 VwVfG). Ein Hinweis begründet keine Pflicht.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Nebenbestimmungsart {
+    #[default]
+    Auflage,
+    Bedingung,
+    Befristung,
+    Widerrufsvorbehalt,
+    Auflagenvorbehalt,
+    Hinweis,
+}
+impl Nebenbestimmungsart {
+    pub fn bezeichnung(&self) -> &'static str {
+        match self {
+            Self::Auflage => "Auflage",
+            Self::Bedingung => "Bedingung",
+            Self::Befristung => "Befristung",
+            Self::Widerrufsvorbehalt => "Widerrufsvorbehalt",
+            Self::Auflagenvorbehalt => "Auflagenvorbehalt",
+            Self::Hinweis => "Hinweis",
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Auflage {
     pub id: Uuid,
+    /// Ältere Akten ohne diese Angabe lesen sie als Auflage.
+    #[serde(default)]
+    pub art: Nebenbestimmungsart,
     pub titel: String,
     pub ausloeser: String,
     pub verantwortlich: Option<Uuid>,
@@ -240,6 +268,36 @@ pub struct Bescheid {
     pub genehmigte_unterlagen: Vec<Dokumentbezug>,
     pub auflagen: Vec<Auflage>,
     pub ersetzt: Option<Uuid>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Schrittart {
+    /// Anhörung vor einer belastenden Entscheidung (§ 28 VwVfG).
+    Anhoerung,
+    /// Zurückstellung des Baugesuchs durch die Gemeinde (§ 15 BauGB).
+    Zurueckstellung,
+}
+impl Schrittart {
+    pub fn bezeichnung(&self) -> &'static str {
+        match self {
+            Self::Anhoerung => "Anhörung",
+            Self::Zurueckstellung => "Zurückstellung",
+        }
+    }
+}
+/// Behördlicher Zwischenschritt vor der Entscheidung, eingeleitet durch ein
+/// eingegangenes Schreiben der Akte.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Verfahrensschritt {
+    pub id: Uuid,
+    pub art: Schrittart,
+    pub kommunikation: Uuid,
+    /// Anhörung: Frist zur Stellungnahme. Zurückstellung: Ende der Zurückstellung.
+    pub frist: Option<Frist>,
+    /// Ausgehende Stellungnahme dieser Akte; beendet die Wiedervorlage einer Anhörung.
+    pub stellungnahme: Option<Uuid>,
+    pub verantwortlich: Option<Uuid>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
@@ -306,6 +364,9 @@ pub struct Verfahrensakte {
     pub profil: Option<profile::Profilstand>,
     pub kommunikation: Vec<Kommunikation>,
     pub nachforderungen: Vec<Nachforderung>,
+    /// Ältere Akten ohne diese Angabe lesen sie leer.
+    #[serde(default)]
+    pub schritte: Vec<Verfahrensschritt>,
     pub anforderungen: Vec<Anforderung>,
     pub dokumentbeziehungen: Vec<Dokumentbeziehung>,
     pub abgaben: Vec<abgabe::Abgabestand>,
@@ -524,6 +585,32 @@ impl CoreServices {
                     }
                 }
             }
+            for v in &a.schritte {
+                let vorher = alt.schritte.iter().find(|n| n.id == v.id);
+                if vorher.is_none() {
+                    details.push(format!("{} erfasst", v.art.bezeichnung()));
+                }
+                if vorher.is_some_and(|n| n.frist != v.frist)
+                    || (vorher.is_none() && v.frist.is_some())
+                {
+                    details.push(format!(
+                        "Frist {}: {}",
+                        v.art.bezeichnung(),
+                        v.frist
+                            .as_ref()
+                            .map(|f| f.datum.to_string())
+                            .unwrap_or_else(|| "entfernt".into())
+                    ));
+                }
+                if v.stellungnahme.is_some()
+                    && vorher.is_none_or(|n| n.stellungnahme != v.stellungnahme)
+                {
+                    details.push(format!(
+                        "Stellungnahme zur {} zugeordnet",
+                        v.art.bezeichnung()
+                    ));
+                }
+            }
             for c in &a.kommunikation {
                 if !alt.kommunikation.iter().any(|n| n.id == c.id) {
                     details.push(format!("Kommunikation erfasst: {}", c.betreff));
@@ -563,9 +650,12 @@ impl CoreServices {
                         .iter()
                         .flat_map(|b| &b.auflagen)
                         .find(|v| v.id == p.id);
-                    if v.is_none_or(|v| v.erledigt != p.erledigt || v.frist != p.frist) {
+                    if v.is_none_or(|v| {
+                        v.erledigt != p.erledigt || v.frist != p.frist || v.art != p.art
+                    }) {
                         details.push(format!(
-                            "Auflage {} · {} · Frist {}",
+                            "{} {} · {} · Frist {}",
+                            p.art.bezeichnung(),
                             p.titel,
                             if p.erledigt { "erfüllt" } else { "offen" },
                             p.frist
@@ -673,8 +763,19 @@ impl CoreServices {
                     continue;
                 }
                 for p in &b.auflagen {
-                    if !p.erledigt {
+                    if !p.erledigt && p.art != Nebenbestimmungsart::Hinweis {
                         add(p.id, &p.titel, &p.frist, p.verantwortlich);
+                    }
+                }
+            }
+            if !a.status.abgeschlossen() {
+                for v in &a.schritte {
+                    if v.art == Schrittart::Zurueckstellung || v.stellungnahme.is_none() {
+                        let titel = match v.art {
+                            Schrittart::Anhoerung => "Stellungnahme zur Anhörung",
+                            Schrittart::Zurueckstellung => "Ende der Zurückstellung",
+                        };
+                        add(v.id, titel, &v.frist, v.verantwortlich);
                     }
                 }
             }

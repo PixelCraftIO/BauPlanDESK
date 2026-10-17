@@ -22,6 +22,7 @@ fn leer() -> Verfahrensakte {
         status: Verfahrensstatus::Vorbereitung,
         vollstaendigkeit: None,
         ruecknahme: None,
+        schritte: Vec::new(),
         behoerde: Behoerde {
             id: Uuid::new_v4(),
             name: "Bauaufsicht Musterstadt".into(),
@@ -417,6 +418,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         genehmigte_unterlagen: vec![ref2.clone()],
         auflagen: vec![Auflage {
             id: Uuid::new_v4(),
+            art: Nebenbestimmungsart::Auflage,
             titel: "Nachweis vor Baubeginn".into(),
             ausloeser: "Vor Baubeginn".into(),
             verantwortlich: Some(user.id.0),
@@ -450,6 +452,66 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     a.bescheide[0].zugestellt = Some(heute + chrono::Duration::days(1));
     let err = ablehnen(&a, f.revision).await;
     assert!(err.contains("Folgebescheid"), "{err}");
+    a.bescheide[0].zugestellt = Some(heute);
+    // Fristen folgen aus Zustellung und Bundesland des Projekts.
+    let fristen = core
+        .bescheidfristen(
+            p.id,
+            &fristen::Fristauftrag {
+                art: a.art.clone(),
+                bescheide: a.bescheide.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    let rechtsbehelf = fristen[0].rechtsbehelfsfrist.as_ref().unwrap();
+    assert_eq!(rechtsbehelf.beginn, heute);
+    assert!(rechtsbehelf.ende > heute);
+    assert!(fristen[0].geltungsdauer.is_some());
+    // Nebenbestimmungen sind typisiert: Ein Hinweis wird nicht erfüllt und
+    // nicht wiedervorgelegt, eine Befristung braucht ihr Ablaufdatum.
+    let mut hinweis = a.bescheide[0].auflagen[0].clone();
+    hinweis.id = Uuid::new_v4();
+    hinweis.art = Nebenbestimmungsart::Hinweis;
+    hinweis.titel = "Denkmalschutz bei Erdarbeiten beachten".into();
+    hinweis.erledigt = true;
+    hinweis.nachweise = vec![brief.clone()];
+    a.bescheide[0].auflagen.push(hinweis);
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("Hinweis"), "{err}");
+    a.bescheide[0].auflagen[1].erledigt = false;
+    a.bescheide[0].auflagen[0].art = Nebenbestimmungsart::Befristung;
+    a.bescheide[0].auflagen[0].frist = None;
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("Befristung"), "{err}");
+    a.bescheide[0].auflagen[0].art = Nebenbestimmungsart::Bedingung;
+    a.bescheide[0].auflagen[0].frist = Some(Frist {
+        datum: heute,
+        ausloeser: "Bescheid".into(),
+        beleg: Some(brief.clone()),
+        erinnerung_tage: 7,
+        grund: "Terminüberwachung".into(),
+    });
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    a = serde_json::from_value(f.daten.clone()).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Bedingung Nachweis vor Baubeginn")
+    );
+    let erinnerungen = core.verfahren_erinnerungen(p.id, heute).await.unwrap();
+    assert!(
+        erinnerungen
+            .iter()
+            .any(|e| e.objekt == a.bescheide[0].auflagen[0].id)
+    );
+    assert!(
+        !erinnerungen
+            .iter()
+            .any(|e| e.objekt == a.bescheide[0].auflagen[1].id)
+    );
     a.bescheide[0].zugestellt = Some(heute);
     a.status = Verfahrensstatus::InPruefung;
     let err = ablehnen(&a, f.revision).await;
@@ -691,7 +753,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     if let Ok(ziel) = std::env::var("BAUPROJEKT_VERFAHREN_ARTEFAKTE") {
         let ziel = std::path::Path::new(&ziel);
         std::fs::create_dir_all(ziel).unwrap();
-        std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"verfahren":f,"akte":a,"dateien":core.list_documents(p.id).await.unwrap(),"benutzer":user,"erinnerungen":core.verfahren_erinnerungen(p.id,heute).await.unwrap(),"treffer":treffer,"uebersicht":uebersicht})).unwrap()).unwrap();
+        std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"verfahren":f,"akte":a,"dateien":core.list_documents(p.id).await.unwrap(),"benutzer":user,"erinnerungen":core.verfahren_erinnerungen(p.id,heute).await.unwrap(),"fristen":core.bescheidfristen(p.id,&fristen::Fristauftrag{art:a.art.clone(),bescheide:a.bescheide.clone()}).await.unwrap(),"treffer":treffer,"uebersicht":uebersicht})).unwrap()).unwrap();
         std::fs::write(ziel.join("akte.zip"), export).unwrap();
     }
     drop(core);
@@ -1063,4 +1125,148 @@ async fn ruecknahme_braucht_datum_und_schreiben_und_bleibt_abgeschlossen() {
     a.status = Verfahrensstatus::Vorbereitung;
     let err = versuch(&a, f.revision).await.unwrap_err().to_string();
     assert!(err.contains("zurückgenommenes Verfahren"), "{err}");
+}
+#[tokio::test]
+async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let storage =
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        storage,
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Anhörung".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let heute = Utc::now().date_naive();
+    let vid = Uuid::new_v4();
+    let f = speichern(&core, p.id, vid, 0, &leer(), &user).await;
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let versuch = |a: &Verfahrensakte, revision: i64| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        let pid = p.id;
+        async move {
+            core.fachobjekt_speichern(pid, ObjektArt::Verfahren, vid, revision, a, user)
+                .await
+        }
+    };
+    let brief = |eingehend: bool, betreff: &str| Kommunikation {
+        id: Uuid::new_v4(),
+        art: Kommunikationsart::Brief,
+        eingehend,
+        datum: heute,
+        betreff: betreff.into(),
+        beteiligte: "Bauamt".into(),
+        inhalt: String::new(),
+        original: None,
+        bezuege: vec![],
+    };
+    let anhoerung = brief(true, "Anhörung vor Ablehnung");
+    let antwort = brief(false, "Stellungnahme zur Anhörung");
+    a.kommunikation = vec![anhoerung.clone(), antwort.clone()];
+    let frist = |datum| Frist {
+        datum,
+        ausloeser: "Anhörungsschreiben".into(),
+        beleg: None,
+        erinnerung_tage: 14,
+        grund: "Frist der Behörde".into(),
+    };
+    let schritt = Verfahrensschritt {
+        id: Uuid::new_v4(),
+        art: Schrittart::Anhoerung,
+        kommunikation: antwort.id,
+        frist: Some(frist(heute + chrono::Duration::days(10))),
+        stellungnahme: None,
+        verantwortlich: Some(user.id.0),
+    };
+    a.schritte.push(schritt.clone());
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("eingegangene Schreiben"), "{err}");
+    a.schritte[0].kommunikation = anhoerung.id;
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Anhörung erfasst")
+    );
+    let offen = |e: &[Erinnerung]| e.iter().any(|e| e.objekt == schritt.id);
+    assert!(offen(
+        &core.verfahren_erinnerungen(p.id, heute).await.unwrap()
+    ));
+    a.schritte[0].stellungnahme = Some(anhoerung.id);
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("ausgehende"), "{err}");
+    a.schritte[0].stellungnahme = Some(antwort.id);
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Stellungnahme zur Anhörung")
+    );
+    assert!(!offen(
+        &core.verfahren_erinnerungen(p.id, heute).await.unwrap()
+    ));
+    // Art und Schreiben bleiben, der Schritt selbst wird nicht gelöscht.
+    a.schritte[0].art = Schrittart::Zurueckstellung;
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("bleiben unverändert"), "{err}");
+    a.schritte.clear();
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("nicht gelöscht"), "{err}");
+    // Eine Zurückstellung braucht ihr Ende und bleibt bis dahin wiedervorgelegt.
+    let (_, mut a) = core.verfahrensakte(p.id, vid).await.unwrap();
+    let gemeinde = brief(true, "Zurückstellung nach § 15 BauGB");
+    a.kommunikation.push(gemeinde.clone());
+    let zurueck = Verfahrensschritt {
+        id: Uuid::new_v4(),
+        art: Schrittart::Zurueckstellung,
+        kommunikation: gemeinde.id,
+        frist: None,
+        stellungnahme: None,
+        verantwortlich: None,
+    };
+    a.schritte.push(zurueck.clone());
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("Zurückstellung benötigt"), "{err}");
+    a.schritte[1].frist = Some(frist(heute + chrono::Duration::days(365)));
+    let f = versuch(&a, f.revision).await.unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Zurückstellung erfasst")
+    );
+    let spaeter = heute + chrono::Duration::days(360);
+    assert!(
+        core.verfahren_erinnerungen(p.id, spaeter)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.objekt == zurueck.id && e.titel.contains("Ende der Zurückstellung"))
+    );
 }

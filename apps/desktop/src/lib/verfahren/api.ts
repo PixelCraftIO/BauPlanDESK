@@ -11,6 +11,10 @@ import type {
   Textquelle,
   Nachrichtenstand,
   Verfahrensstatus,
+  Schrittart,
+  Nebenbestimmungsart,
+  Fristauftrag,
+  Bescheidfristen,
 } from "../generated/plattform";
 /** Bezeichnungen wie `Verfahrensstatus::bezeichnung` im Core. */
 export const STATUS: Record<Verfahrensstatus, string> = {
@@ -22,6 +26,20 @@ export const STATUS: Record<Verfahrensstatus, string> = {
   ruhend: "Ruhend",
   entschieden: "Entschieden",
   zurueckgenommen: "Zurückgenommen",
+};
+/** Bezeichnungen wie `Schrittart::bezeichnung` im Core. */
+export const SCHRITTART: Record<Schrittart, string> = {
+  anhoerung: "Anhörung",
+  zurueckstellung: "Zurückstellung",
+};
+/** Bezeichnungen wie `Nebenbestimmungsart::bezeichnung` im Core. */
+export const NEBENBESTIMMUNG: Record<Nebenbestimmungsart, string> = {
+  auflage: "Auflage",
+  bedingung: "Bedingung",
+  befristung: "Befristung",
+  widerrufsvorbehalt: "Widerrufsvorbehalt",
+  auflagenvorbehalt: "Auflagenvorbehalt",
+  hinweis: "Hinweis",
 };
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
@@ -58,6 +76,11 @@ export const verfahrenApi = {
       projektId,
       id,
       abgabe,
+    }),
+  bescheidfristen: (projektId: string, auftrag: Fristauftrag) =>
+    invoke<Bescheidfristen[]>("verfahren_bescheidfristen", {
+      projektId,
+      auftrag,
     }),
   erinnerungen: (projektId: string, heute: string) =>
     invoke<Erinnerung[]>("verfahren_erinnerungen", { projektId, heute }),
@@ -98,6 +121,7 @@ export function leer(): Verfahrensakte {
     profil: null,
     kommunikation: [],
     nachforderungen: [],
+    schritte: [],
     anforderungen: [],
     dokumentbeziehungen: [],
     abgaben: [],

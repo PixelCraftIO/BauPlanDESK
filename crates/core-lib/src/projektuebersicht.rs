@@ -466,13 +466,41 @@ impl CoreServices {
                         s.termin(datum, r.verantwortlich);
                     }
                 }
+                for r in a.schritte.iter().filter(|_| !a.status.abgeschlossen()) {
+                    let anhoerung = r.art == crate::verfahren::Schrittart::Anhoerung;
+                    if anhoerung && r.stellungnahme.is_some() {
+                        continue;
+                    }
+                    let datum = r.frist.as_ref().map(|f| f.datum);
+                    s.punkt(
+                        format!("schritt:{vid}:{}", r.id),
+                        Verfahren,
+                        frist(datum, heute, if anhoerung { Handeln } else { Warten }),
+                        if anhoerung {
+                            "Stellungnahme zur Anhörung abgeben"
+                        } else {
+                            "Zurückstellung läuft"
+                        },
+                        format!(
+                            "{} · {}",
+                            a.bezeichnung,
+                            if anhoerung {
+                                "Die Behörde hört vor ihrer Entscheidung an; Stellungnahme als ausgehende Kommunikation zuordnen"
+                            } else {
+                                "Die Entscheidung ist bis zum Fristende zurückgestellt"
+                            }
+                        ),
+                        ziel("schritte").eintrag(r.id),
+                    );
+                    s.termin(datum, r.verantwortlich);
+                }
                 for b in a
                     .bescheide
                     .iter()
                     .filter(|b| !a.bescheide.iter().any(|n| n.ersetzt == Some(b.id)))
                 {
                     for r in &b.auflagen {
-                        if r.erledigt {
+                        if r.erledigt || r.art == crate::verfahren::Nebenbestimmungsart::Hinweis {
                             continue;
                         }
                         auflagen += 1;
@@ -482,7 +510,12 @@ impl CoreServices {
                             Verfahren,
                             frist(datum, heute, Handeln),
                             r.titel.clone(),
-                            format!("{} · Auflage: {}", a.bezeichnung, r.ausloeser),
+                            format!(
+                                "{} · {}: {}",
+                                a.bezeichnung,
+                                r.art.bezeichnung(),
+                                r.ausloeser
+                            ),
                             ziel("bescheide").eintrag(r.id),
                         );
                         s.termin(datum, r.verantwortlich);

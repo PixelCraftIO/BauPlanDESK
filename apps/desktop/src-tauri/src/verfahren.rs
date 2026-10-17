@@ -8,6 +8,7 @@ use core_lib::{
     verfahren::{
         Erinnerung,
         abgabe::Abgabewunsch,
+        fristen::{Bescheidfristen, Fristauftrag},
         profile::{Anforderungskatalog, Vorhabenprofil},
         suche::{Suchtreffer, Textquelle},
     },
@@ -88,6 +89,18 @@ pub async fn verfahren_erinnerungen(
         .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
         .await?;
     Ok(state.core.verfahren_erinnerungen(projekt_id, heute).await?)
+}
+#[tauri::command]
+pub async fn verfahren_bescheidfristen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    auftrag: Fristauftrag,
+) -> Result<Vec<Bescheidfristen>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.bescheidfristen(projekt_id, &auftrag).await?)
 }
 #[tauri::command]
 pub async fn verfahren_suche(

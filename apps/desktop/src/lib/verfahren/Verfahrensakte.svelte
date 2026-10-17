@@ -20,6 +20,7 @@
   import Fachliste from "../Fachliste.svelte";
   import { leer, verfahrenApi, heute, STATUS } from "./api";
   import Statusangaben from "./Statusangaben.svelte";
+  import Schritte from "./Schritte.svelte";
   import Kommunikation from "./Kommunikation.svelte";
   import Nachforderungen from "./Nachforderungen.svelte";
   import Bescheide from "./Bescheide.svelte";
@@ -142,6 +143,7 @@
     ["anforderungen", "Anforderungen"],
     ["kommunikation", "Kommunikation"],
     ["nachforderungen", "Nachforderungen"],
+    ["schritte", "Anhörung / Zurückstellung"],
     ["abgaben", "Abgabestände"],
     ["bescheide", "Bescheide / Auflagen"],
     ["beziehungen", "Korrekturen"],
@@ -303,6 +305,15 @@
             {benutzer}
           />
         </fieldset>
+      {:else if tab === "schritte"}<fieldset disabled={!darf}>
+          <Schritte
+            bind:eintraege={a.schritte}
+            kommunikation={a.kommunikation}
+            {dateien}
+            {benutzer}
+            alt={s.original?.schritte?.map((v) => v.id) ?? []}
+          />
+        </fieldset>
       {:else if tab === "abgaben"}<Abgaben
           bind:eintraege={a.abgaben}
           {dateien}
@@ -336,6 +347,8 @@
             {dateien}
             abgegeben={abgegeben(a)}
             {benutzer}
+            projektId={projekt.id}
+            art={a.art}
             alt={s.original?.bescheide.map((v) => v.id) ?? []}
             ohneZustellung={s.original?.bescheide
               .filter((v) => !v.zugestellt)

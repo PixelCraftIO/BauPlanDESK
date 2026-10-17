@@ -254,6 +254,24 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
             .unwrap();
         assert_eq!(response.status(), expected);
     }
+    // Die Fristberechnung ändert nichts und steht Lesern ihres Projekts offen.
+    let auftrag = serde_json::json!({"art":"bauantrag","bescheide":[]});
+    for (projekt, expected) in [(p.id, StatusCode::OK), (fremd.id, StatusCode::FORBIDDEN)] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projekte/{projekt}/bescheidfristen"))
+                    .header("authorization", format!("Bearer {TOKEN}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(auftrag.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+    }
     // Neue Akten-Lesewege sind projektgebunden; Schreibwege sperren Leser
     // bereits vor dem Parsen oder Ausführen eines Auftrags.
     for suffix in [

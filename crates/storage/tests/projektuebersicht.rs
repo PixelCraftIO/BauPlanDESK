@@ -149,6 +149,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         status: Verfahrensstatus::Vorbereitung,
         vollstaendigkeit: None,
         ruecknahme: None,
+        schritte: Vec::new(),
         behoerde: Behoerde {
             id: Uuid::new_v4(),
             name: "Bauaufsicht Musterstadt".into(),
