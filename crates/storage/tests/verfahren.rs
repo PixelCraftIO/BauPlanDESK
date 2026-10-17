@@ -743,6 +743,80 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
         ]
     );
 
+    // Ein Flurstück mit Rolle „Sonstiges“ verlangt eine Baulastklärung.
+    let flurstuecke = |rolle| {
+        let fl =
+            |id: &str, nummer: &str, rolle| core_lib::grundstuecksinformationen::FlurstuecksInfo {
+                id: id.into(),
+                gemarkung: "Schwabing".into(),
+                gemarkungsnummer: String::new(),
+                flur: String::new(),
+                nummer: nummer.into(),
+                flaeche_m2: 500.,
+                grundbuchbezirk: String::new(),
+                grundbuchblatt: String::new(),
+                laufende_nummer: None,
+                grundbuchauszug: None,
+                eigentuemer: String::new(),
+                eigentuemer_kunden: vec![],
+                bemerkung: String::new(),
+                rolle,
+            };
+        core_lib::domain::Planungsrecht {
+            grundstuecksinformationen: Some(
+                core_lib::grundstuecksinformationen::Grundstuecksinformationen {
+                    flurstuecke: vec![
+                        fl(
+                            "a",
+                            "12",
+                            core_lib::grundstuecksinformationen::FlurstuecksRolle::Vorhaben,
+                        ),
+                        fl("w", "13/1", rolle),
+                    ],
+                },
+            ),
+            ..Default::default()
+        }
+    };
+    let projekt_setzen = |p: core_lib::domain::Project, recht| {
+        core.update_project(
+            core_lib::domain::ProjectUpdate {
+                id: p.id,
+                expected_version: p.version,
+                name: p.name.clone(),
+                bundesland: p.bundesland,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Some(recht),
+            },
+            &user,
+        )
+    };
+    let p = projekt_setzen(
+        p,
+        flurstuecke(core_lib::grundstuecksinformationen::FlurstuecksRolle::Sonstiges),
+    )
+    .await
+    .unwrap();
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    let a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let baulast: Vec<_> = a
+        .anforderungen
+        .iter()
+        .filter(|r| r.quelle == "Flurstücke")
+        .collect();
+    assert_eq!(baulast.len(), 1);
+    assert_eq!(
+        baulast[0].titel,
+        "Baulast für Flurstück Schwabing 13/1 klären"
+    );
+    assert_eq!(baulast[0].erforderlich, Erforderlichkeit::Ungeklaert);
+    let p = projekt_setzen(
+        p,
+        flurstuecke(core_lib::grundstuecksinformationen::FlurstuecksRolle::Nachbar),
+    )
+    .await
+    .unwrap();
+
     // Wird der Eigentümer Bauherr, bleibt der Akteneintrag; die Abgabe weist darauf
     // hin und friert die Beteiligten ein.
     core.bauherren_setzen(p.id, vec![bauherr.id, eigentuemer.id], p.version, &user)
@@ -780,6 +854,12 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
     assert!(
         stand.hinweise.iter().any(|h| h
             == "Zustimmungserklärung von Emil Huber: nach den aktuellen Projektbeteiligten nicht mehr erforderlich. Anforderung prüfen."),
+        "{:?}",
+        stand.hinweise
+    );
+    assert!(
+        stand.hinweise.iter().any(|h| h
+            == "Baulast für Flurstück Schwabing 13/1 klären: nach den aktuellen Flurstücken nicht mehr erforderlich. Anforderung prüfen."),
         "{:?}",
         stand.hinweise
     );

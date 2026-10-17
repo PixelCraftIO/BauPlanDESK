@@ -25,6 +25,7 @@ fn info() -> Grundstuecksinformationen {
         flurstuecke: vec![FlurstuecksInfo {
             id: "a".into(),
             gemarkung: "Linden".into(),
+            gemarkungsnummer: String::new(),
             flur: "1".into(),
             nummer: "10/1".into(),
             flaeche_m2: 1000.,

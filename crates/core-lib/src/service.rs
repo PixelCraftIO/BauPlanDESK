@@ -414,7 +414,7 @@ impl CoreServices {
         };
         crate::grundstuecksinformationen::projektflaeche_ableiten(&mut p);
         crate::grundstuecksinformationen::dokumente_pruefen(self, p.id, &p.planungsrecht).await?;
-        crate::grundstuecksinformationen::eigentuemer_pruefen_im_projekt(
+        crate::grundstuecksinformationen::aenderungen_pruefen_im_projekt(
             self,
             p.id,
             &p.planungsrecht,
@@ -456,7 +456,7 @@ impl CoreServices {
         if let Some(p) = &update.planungsrecht {
             p.validate()?;
             crate::grundstuecksinformationen::dokumente_pruefen(self, update.id, p).await?;
-            crate::grundstuecksinformationen::eigentuemer_pruefen_im_projekt(
+            crate::grundstuecksinformationen::aenderungen_pruefen_im_projekt(
                 self,
                 update.id,
                 p,
@@ -947,10 +947,23 @@ impl CoreServices {
         let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
         fehlende_angaben.extend(self.codelisten.fehlende());
         fehlende_angaben.extend(self.anlagen_pruefen(&antrag).await?);
-        let hinweise = kunden::zustimmungshinweise(
+        let mut hinweise = kunden::zustimmungshinweise(
             &self.repos.kunden.bauherren(project).await?,
             &self.repos.kunden.beteiligte(project).await?,
         );
+        let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+        hinweise.extend(
+            infos
+                .vorhaben()
+                .filter(|f| !f.nummer_gueltig())
+                .map(|f| {
+                    format!(
+                        "Flurstück {}: Nummer nicht in der Form Zähler/Nenner. Unter Flurstücke mit Zähler und Nenner laut Kataster neu erfassen.",
+                        f.bezeichnung()
+                    )
+                }),
+        );
+        hinweise.extend(infos.baulasthinweise());
         Ok(GespeicherterBauantrag {
             antrag,
             version,

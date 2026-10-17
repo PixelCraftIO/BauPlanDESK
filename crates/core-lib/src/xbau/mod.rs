@@ -110,21 +110,24 @@ impl Beteiligter {
 pub struct Flurstueck {
     /// Name der Gemarkung oder Gemarkungsnummer (nur Ziffern).
     pub gemarkung: String,
+    /// Gemarkungsnummer laut Kataster; geht dem Namen in XBau vor.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub gemarkungsnummer: String,
     pub flur: String,
     pub zaehler: String,
     pub nenner: String,
 }
 
 impl Flurstueck {
-    /// XBau-Kodierung eines zentral erfassten Flurstücks. Die Flurstücksnummer
-    /// „Zähler/Nenner“ wird am Schrägstrich getrennt.
+    /// XBau-Kodierung eines zentral erfassten Flurstücks.
     pub fn aus_info(f: &crate::grundstuecksinformationen::FlurstuecksInfo) -> Self {
-        let (zaehler, nenner) = f.nummer.split_once('/').unwrap_or((&f.nummer, ""));
+        let (zaehler, nenner) = f.zaehler_nenner();
         Self {
             gemarkung: f.gemarkung.trim().into(),
+            gemarkungsnummer: f.gemarkungsnummer.trim().into(),
             flur: f.flur.trim().into(),
-            zaehler: zaehler.trim().into(),
-            nenner: nenner.trim().into(),
+            zaehler: zaehler.into(),
+            nenner: nenner.into(),
         }
     }
 }

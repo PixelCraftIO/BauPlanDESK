@@ -393,7 +393,9 @@ fn schreiben(
             .auf("kodierungFlurstueck", &[])
             .auf("gemarkung", &[]);
         let gemarkung = f.gemarkung.trim();
-        if gemarkung.chars().all(|c| c.is_ascii_digit()) {
+        if !f.gemarkungsnummer.trim().is_empty() {
+            x.text("nummer", f.gemarkungsnummer.trim());
+        } else if gemarkung.chars().all(|c| c.is_ascii_digit()) {
             x.text("nummer", gemarkung);
         } else {
             x.text("bezeichnung", gemarkung);
@@ -604,6 +606,13 @@ pub(crate) mod tests {
                         flur: "3".into(),
                         zaehler: "123".into(),
                         nenner: "4".into(),
+                        ..Default::default()
+                    },
+                    Flurstueck {
+                        gemarkung: "Freimann".into(),
+                        gemarkungsnummer: "0921".into(),
+                        zaehler: "7".into(),
+                        ..Default::default()
                     },
                     Flurstueck {
                         gemarkung: "0915".into(),
@@ -729,6 +738,9 @@ pub(crate) mod tests {
         assert!(xml.contains("Wohnbau Süd GmbH &amp; Co. KG"));
         assert!(xml.contains("<bezeichnung>Schwabing</bezeichnung>"));
         assert!(xml.contains("<nummer>0915</nummer>"));
+        // Die Gemarkungsnummer geht dem Namen vor.
+        assert!(xml.contains("<nummer>0921</nummer>"));
+        assert!(!xml.contains("<bezeichnung>Freimann</bezeichnung>"));
         assert!(xml.contains("MFH Lindenweg"), "Projektname als Bezeichnung");
         let kompakt: String = xml.lines().map(str::trim).collect();
         let ev = &kompakt[kompakt.find("<xbau:entwurfsverfasser>").unwrap()..];
