@@ -891,7 +891,7 @@
     />
   </Dialog>
 {:else if dialog === "buero" && ich}
-  <Dialog titel="Büroangaben" onclose={() => (dialog = null)}>
+  <Dialog titel="Büroangaben" breit onclose={() => (dialog = null)}>
     <BueroDialog {ich} onschliessen={() => (dialog = null)} />
   </Dialog>
 {:else if dialog === "mitglieder" && projekt}

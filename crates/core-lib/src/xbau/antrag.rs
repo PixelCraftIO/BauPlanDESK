@@ -213,17 +213,51 @@ fn schreiben(
         akteur(&mut x, b);
         x.zu().zu();
     }
+    // `fehlende_angaben` hat oben geprüft, dass es den Entwurfsverfasser gibt.
+    let ev = d
+        .antrag
+        .entwurfsverfasser_von(d.buero)
+        .ok_or_else(|| CoreError::InvalidInput("Entwurfsverfasser fehlt".into()))?;
     x.auf("xbau:entwurfsverfasser", &[])
         .auf("xbau:personendaten", &[]);
-    organisation(
+    akteur(
         &mut x,
-        // Feste ID je Büro und Vorgang, damit das Büro innerhalb des
-        // Vorgangs immer dieselbe ID trägt.
-        Uuid::new_v5(&d.antrag.vorgang, d.buero.name.trim().as_bytes()),
-        &d.buero.name,
-        &d.buero.anschrift,
+        &Beteiligter::Person {
+            id: ev.id,
+            vorname: ev.vorname.clone(),
+            familienname: ev.familienname.clone(),
+            // Geschäftsanschrift des Büros.
+            anschrift: d.buero.anschrift.clone(),
+        },
     );
-    x.zu().zu();
+    x.zu();
+    x.auf("xbau:berechtigung", &[]);
+    if let Some(land) = ev.kammerland
+        && !ev.mitgliedsnummer.trim().is_empty()
+    {
+        x.auf("xbau:mitgliedschaftInland", &[])
+            .auf("xbau:mitgliedsnummerBundesland", &[])
+            .text("xbau:mitgliedsnummer", ev.mitgliedsnummer.trim())
+            .auf("xbau:bundesland", &[("listVersionID", BUNDESLAND_VERSION)])
+            .text("code", land_schluessel(land))
+            .zu()
+            .zu()
+            .zu();
+    }
+    if !ev.nachweis.trim().is_empty() {
+        x.auf("xbau:nachweisBerechtigung", &[])
+            .auf("xbau:nachweisBerechtigung", &[]);
+        for absatz in ev.nachweis.lines().map(str::trim).filter(|a| !a.is_empty()) {
+            x.text("textabsatz", absatz);
+        }
+        x.zu().zu();
+    }
+    if !ev.berufsbezeichnung.trim().is_empty() {
+        x.auf("xbau:berufsbezeichnung", &[])
+            .text("xbau:berufsbezeichnung", ev.berufsbezeichnung.trim())
+            .zu();
+    }
+    x.zu().zu(); // berechtigung, entwurfsverfasser
     x.auf("xbau:gebuehrenpflichtiger", &[]);
     akteur(
         &mut x,
@@ -490,6 +524,15 @@ pub(crate) mod tests {
             name: "Architekturbüro Muster".into(),
             anschrift: Anschrift::default(),
             kennung: "arc:4711".into(),
+            entwurfsverfasser: vec![crate::xbau::Entwurfsverfasser {
+                id: Uuid::new_v4(),
+                vorname: "Eva".into(),
+                familienname: "Entwurf".into(),
+                berufsbezeichnung: "Architektin".into(),
+                mitgliedsnummer: "12345".into(),
+                kammerland: Some(Bundesland::By),
+                nachweis: String::new(),
+            }],
         };
         (projekt, antrag, buero)
     }
@@ -588,7 +631,86 @@ pub(crate) mod tests {
         assert!(xml.contains("<bezeichnung>Schwabing</bezeichnung>"));
         assert!(xml.contains("<nummer>0915</nummer>"));
         assert!(xml.contains("MFH Lindenweg"), "Projektname als Bezeichnung");
+        let kompakt: String = xml.lines().map(str::trim).collect();
+        let ev = &kompakt[kompakt.find("<xbau:entwurfsverfasser>").unwrap()..];
+        assert!(ev.starts_with("<xbau:entwurfsverfasser><xbau:personendaten><natuerlichePerson>"));
+        assert!(ev.contains("<name>Entwurf</name>"));
+        assert!(ev.contains("<xbau:mitgliedsnummer>12345</xbau:mitgliedsnummer>"));
+        assert!(ev.contains("<xbau:berufsbezeichnung>Architektin</xbau:berufsbezeichnung>"));
+        assert!(!ev[..ev.find("</xbau:entwurfsverfasser>").unwrap()].contains("Architekturbüro"));
         gegen_schema_pruefen(&xml);
+    }
+
+    #[test]
+    fn entwurfsverfasser_mit_nachweis_ohne_kammer_ist_schemakonform() {
+        let (projekt, antrag, mut buero) = beispiel();
+        let e = &mut buero.entwurfsverfasser[0];
+        e.mitgliedsnummer.clear();
+        e.kammerland = None;
+        e.berufsbezeichnung.clear();
+        e.nachweis = "Bescheinigung nach Art. 61 Abs. 3 BayBO\n\nausgestellt 2019".into();
+        buero.anschrift.ort = "München".into();
+        let anlagen = anlagen();
+        let c = test_codelisten();
+        let xml = baugenehmigung_antrag(&daten(&projekt, &antrag, &buero, &anlagen, &c)).unwrap();
+        assert!(!xml.contains("mitgliedschaftInland"));
+        assert!(xml.contains("<textabsatz>Bescheinigung nach Art. 61 Abs. 3 BayBO</textabsatz>"));
+        assert!(xml.contains("<textabsatz>ausgestellt 2019</textabsatz>"));
+        gegen_schema_pruefen(&xml);
+    }
+
+    #[test]
+    fn entwurfsverfasser_muss_bauvorlageberechtigt_und_eindeutig_sein() {
+        let (_, mut antrag, mut buero) = beispiel();
+        let bauherren = antrag.bauherren.clone();
+        let fehlt = |a: &Bauantrag, b: &Buero| a.fehlende_angaben(b, &bauherren);
+        assert!(
+            !fehlt(&antrag, &buero)
+                .iter()
+                .any(|f| f.contains("Entwurfsverfasser"))
+        );
+
+        buero.entwurfsverfasser[0].mitgliedsnummer.clear();
+        assert!(
+            fehlt(&antrag, &buero)
+                .iter()
+                .any(|f| f.contains("Nachweis der Bauvorlageberechtigung"))
+        );
+        buero.entwurfsverfasser[0].mitgliedsnummer = "12345".into();
+        buero.entwurfsverfasser[0].kammerland = None;
+        assert!(fehlt(&antrag, &buero).contains(&"Entwurfsverfasser: Land der Kammer".to_string()));
+
+        // Zwei Personen: ohne Wahl ist offen, wer zeichnet.
+        let mut zweite = buero.entwurfsverfasser[0].clone();
+        zweite.id = Uuid::new_v4();
+        zweite.kammerland = Some(Bundesland::By);
+        buero.entwurfsverfasser.push(zweite.clone());
+        assert!(
+            fehlt(&antrag, &buero)
+                .iter()
+                .any(|f| f.contains("bauvorlageberechtigte Person"))
+        );
+        antrag.entwurfsverfasser = Some(zweite.id);
+        assert_eq!(antrag.entwurfsverfasser_von(&buero), Some(&zweite));
+        assert!(
+            !fehlt(&antrag, &buero)
+                .iter()
+                .any(|f| f.contains("Entwurfsverfasser"))
+        );
+
+        buero.entwurfsverfasser.pop();
+        assert!(
+            fehlt(&antrag, &buero)
+                .iter()
+                .any(|f| f.contains("nicht mehr in den Büroangaben"))
+        );
+        buero.entwurfsverfasser.clear();
+        antrag.entwurfsverfasser = None;
+        assert!(
+            fehlt(&antrag, &buero)
+                .iter()
+                .any(|f| f.contains("bauvorlageberechtigte Person"))
+        );
     }
 
     #[test]

@@ -175,6 +175,8 @@ export interface Bauantrag {
   bauaufsicht: { name: string; kennung: string };
   bezeichnung: string;
   gebuehrenpflichtiger: Beteiligter | null;
+  /** Gewählte Person aus `Buero.entwurfsverfasser`; null = die einzige des Büros. */
+  entwurfsverfasser?: string | null;
   massnahmen: string[];
   anzahl_gebaeude: number;
   grundstueck: { anschrift: Anschrift; flurstuecke: Flurstueck[] };
@@ -334,6 +336,25 @@ export interface Buero {
   name: string;
   anschrift: Anschrift;
   kennung: string;
+  /** Bauvorlageberechtigte Personen des Büros. */
+  entwurfsverfasser: Entwurfsverfasser[];
+}
+
+export interface Entwurfsverfasser {
+  id: string;
+  vorname: string;
+  familienname: string;
+  berufsbezeichnung: string;
+  /** Mitgliedsnummer der Architekten- oder Ingenieurkammer. */
+  mitgliedsnummer: string;
+  kammerland: Bundesland | null;
+  /** Nachweis der Bauvorlageberechtigung ohne Kammermitgliedschaft. */
+  nachweis: string;
+}
+
+export function entwurfsverfasserName(e: Entwurfsverfasser): string {
+  const name = `${e.vorname} ${e.familienname}`.trim() || "Ohne Namen";
+  return e.berufsbezeichnung.trim() ? `${name}, ${e.berufsbezeichnung.trim()}` : name;
 }
 
 export interface Codeliste {
