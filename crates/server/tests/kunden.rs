@@ -397,6 +397,7 @@ async fn flurstueckseigentuemer_sind_kunden_und_projektbeteiligte() {
     let fl = |id: &str, nummer: &str, rolle, eigentuemer: Vec<_>, text: &str| FlurstuecksInfo {
         id: id.into(),
         gemarkung: "Schwabing".into(),
+        gemarkungsnummer: String::new(),
         flur: String::new(),
         nummer: nummer.into(),
         flaeche_m2: 500.,

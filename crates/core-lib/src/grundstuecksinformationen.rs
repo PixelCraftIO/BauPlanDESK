@@ -16,8 +16,18 @@ pub struct Grundstuecksinformationen {
 #[serde(deny_unknown_fields)]
 pub struct FlurstuecksInfo {
     pub id: String,
+    /// Name der Gemarkung.
     pub gemarkung: String,
+    /// Gemarkungsnummer laut Liegenschaftskataster (höchstens vier Ziffern, ohne
+    /// Landesschlüssel). XBau übermittelt sie statt des Namens.
+    // Nicht geschrieben, solange leer, damit Bestandsdaten unverändert bleiben.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub gemarkungsnummer: String,
     pub flur: String,
+    /// Flurstücksnummer „Zähler/Nenner“ (Zähler bis fünf, Nenner bis vier Ziffern),
+    /// siehe [`Self::zaehler_nenner`]. Bestandsangaben in anderer Form bleiben
+    /// erhalten, neue und geänderte Nummern prüft [`kennzeichen_pruefen`].
     pub nummer: String,
     pub flaeche_m2: f64,
     #[serde(default)]
@@ -46,6 +56,8 @@ pub struct FlurstuecksInfo {
     #[ts(as = "Option<FlurstuecksRolle>", optional)]
     pub rolle: FlurstuecksRolle,
 }
+/// Anlass der Baulastklärung für ein Flurstück mit Rolle „Sonstiges“.
+pub const BAULAST_GRUND: &str = "Flurstück außerhalb des Vorhabengrundstücks (Zuwegung, Baulastfläche o. Ä.). Klären, ob eine Baulast nötig ist; die Baulasterklärung des Eigentümers ist dann Bauvorlage.";
 /// Bezug eines erfassten Flurstücks zum Vorhaben. Nur Vorhabenflurstücke bilden
 /// Baugrundstücke und stehen im Bauantrag; die übrigen bleiben als Kataster-
 /// und Grundbuchfakten erfasst, etwa für Abstandsflächen oder Nachbarn.
@@ -58,6 +70,30 @@ pub enum FlurstuecksRolle {
     Nachbar,
     /// Weiteres Flurstück, etwa Zuwegung oder Baulastfläche.
     Sonstiges,
+}
+impl FlurstuecksInfo {
+    /// Zähler und Nenner der Flurstücksnummer; der Nenner ist leer, wenn die
+    /// Nummer keinen Schrägstrich enthält.
+    pub fn zaehler_nenner(&self) -> (&str, &str) {
+        let n = self.nummer.trim();
+        let (z, nenner) = n.split_once('/').unwrap_or((n, ""));
+        (z.trim(), nenner.trim())
+    }
+    /// Die Nummer hat die Form „Zähler“ oder „Zähler/Nenner“ aus Ziffern.
+    pub fn nummer_gueltig(&self) -> bool {
+        let ziffern = |s: &str, max: usize| {
+            !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_digit())
+        };
+        let n = self.nummer.trim();
+        match n.split_once('/') {
+            Some((z, nenner)) => ziffern(z, 5) && ziffern(nenner, 4),
+            None => ziffern(n, 5),
+        }
+    }
+    /// Bezeichnung für Hinweise, etwa „Schwabing 123/4“.
+    pub fn bezeichnung(&self) -> String {
+        format!("{} {}", self.gemarkung.trim(), self.nummer.trim())
+    }
 }
 impl FlurstuecksRolle {
     pub fn ist_vorhaben(&self) -> bool {
@@ -106,6 +142,8 @@ impl Grundstuecksinformationen {
                 .iter()
                 .any(|s| s.len() > 500)
                 || f.bemerkung.len() > 4000
+                || f.gemarkungsnummer.len() > 4
+                || !f.gemarkungsnummer.bytes().all(|b| b.is_ascii_digit())
                 || f.eigentuemer_kunden.len() > 20
                 || (1..f.eigentuemer_kunden.len())
                     .any(|i| f.eigentuemer_kunden[..i].contains(&f.eigentuemer_kunden[i]))
@@ -113,7 +151,7 @@ impl Grundstuecksinformationen {
                 || !f.flaeche_m2.is_finite()
                 || f.flaeche_m2 <= 0.
             {
-                return Err(CoreError::InvalidInput("Flurstück benötigt Gemarkung, Nummer und positive Fläche. Grundbuchangaben sind optional; eine angegebene laufende Nummer muss positiv sein.".into()));
+                return Err(CoreError::InvalidInput("Flurstück benötigt Gemarkung, Nummer und positive Fläche. Grundbuchangaben sind optional; eine angegebene laufende Nummer muss positiv sein, eine Gemarkungsnummer besteht aus höchstens vier Ziffern.".into()));
             }
             if f.rolle.ist_vorhaben()
                 && !f.grundbuchbezirk.trim().is_empty()
@@ -171,16 +209,30 @@ impl Grundstuecksinformationen {
         flaechen.peek()?;
         Some(flaechen.sum())
     }
-    /// Quellenstand der Baugrundstücksermittlung. Eigentümerzuordnungen ändern
-    /// keine Fläche und lassen die Ermittlung aktuell.
+    /// Quellenstand der Baugrundstücksermittlung. Eigentümerzuordnungen und
+    /// Gemarkungsnummer ändern keine Fläche und lassen die Ermittlung aktuell.
     pub fn fingerprint(&self) -> CoreResult<ContentHash> {
         let mut quelle = self.clone();
         for f in &mut quelle.flurstuecke {
             f.eigentuemer_kunden.clear();
+            f.gemarkungsnummer.clear();
         }
         Ok(ContentHash::of(
             &serde_json::to_vec(&quelle).map_err(|e| CoreError::InvalidInput(e.to_string()))?,
         ))
+    }
+    /// Flurstücke außerhalb des Vorhabengrundstücks, die das Vorhaben nutzt,
+    /// etwa Zuwegung oder Baulastfläche (Rolle „Sonstiges“).
+    pub fn baulastflurstuecke(&self) -> impl Iterator<Item = &FlurstuecksInfo> {
+        self.flurstuecke
+            .iter()
+            .filter(|f| f.rolle == FlurstuecksRolle::Sonstiges)
+    }
+    /// Hinweise für den Bauantrag zu [`Self::baulastflurstuecke`].
+    pub fn baulasthinweise(&self) -> Vec<String> {
+        self.baulastflurstuecke()
+            .map(|f| format!("Flurstück {}: {BAULAST_GRUND}", f.bezeichnung()))
+            .collect()
     }
     /// Eigentümer der Vorhabenflurstücke.
     pub fn vorhabeneigentuemer(&self) -> impl Iterator<Item = (&FlurstuecksInfo, KundeId)> {
@@ -202,6 +254,7 @@ pub fn informationen(p: &Planungsrecht) -> Grundstuecksinformationen {
                         .map(|f| FlurstuecksInfo {
                             id: f.id.clone(),
                             gemarkung: f.gemarkung.clone(),
+                            gemarkungsnummer: String::new(),
                             flur: f.flur.clone(),
                             nummer: f.nummer.clone(),
                             flaeche_m2: f.flaeche_m2,
@@ -414,14 +467,39 @@ pub fn eigentuemer_pruefen(
     Ok(())
 }
 
-/// Prüft die Eigentümerzuordnungen gegen Kundendatenbank und Projektbeteiligte.
-pub(crate) async fn eigentuemer_pruefen_im_projekt(
+/// Neue und geänderte Flurstücksnummern haben die Form „Zähler/Nenner“, damit
+/// XBau und Kataster sie eindeutig trennen. Bestandsangaben bleiben unverändert
+/// speicherbar.
+pub fn kennzeichen_pruefen(
+    neu: &Grundstuecksinformationen,
+    alt: Option<&Grundstuecksinformationen>,
+) -> CoreResult<()> {
+    for f in &neu.flurstuecke {
+        if !f.nummer_gueltig()
+            && alt
+                .and_then(|a| a.flurstuecke.iter().find(|v| v.id == f.id))
+                .is_none_or(|v| v.nummer != f.nummer)
+        {
+            return Err(CoreError::InvalidInput(format!(
+                "Flurstück {}: Zähler mit höchstens fünf und Nenner mit höchstens vier Ziffern angeben.",
+                f.bezeichnung()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Prüft Flurstücksnummern und Eigentümerzuordnungen gegen den bisherigen
+/// Stand, die Kundendatenbank und die Projektbeteiligten.
+pub(crate) async fn aenderungen_pruefen_im_projekt(
     core: &crate::CoreServices,
     projekt: crate::domain::ProjectId,
     neu: &Planungsrecht,
     alt: Option<&Planungsrecht>,
 ) -> CoreResult<()> {
     let neu = informationen(neu);
+    let alt = alt.map(informationen);
+    kennzeichen_pruefen(&neu, alt.as_ref())?;
     let mut geprueft = std::collections::HashSet::new();
     for k in neu.flurstuecke.iter().flat_map(|f| &f.eigentuemer_kunden) {
         if geprueft.insert(*k) {
@@ -433,11 +511,7 @@ pub(crate) async fn eigentuemer_pruefen_im_projekt(
     } else {
         Default::default()
     };
-    eigentuemer_pruefen(
-        &neu,
-        alt.map(informationen).as_ref(),
-        &verfuegungsberechtigt,
-    )
+    eigentuemer_pruefen(&neu, alt.as_ref(), &verfuegungsberechtigt)
 }
 
 pub(crate) async fn dokumente_pruefen(
@@ -519,6 +593,45 @@ mod tests {
         eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
         infos.flurstuecke[1].eigentuemer.clear();
         eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
+    }
+    #[test]
+    fn flurstuecksnummer_und_gemarkungsnummer() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        let f = &mut infos.flurstuecke[0];
+        for (nummer, gueltig, teile) in [
+            ("123", true, ("123", "")),
+            (" 12345/6789 ", true, ("12345", "6789")),
+            ("123456", false, ("123456", "")),
+            ("12/34567", false, ("12", "34567")),
+            ("12a", false, ("12a", "")),
+            ("12/", false, ("12", "")),
+        ] {
+            f.nummer = nummer.into();
+            assert_eq!(f.nummer_gueltig(), gueltig, "{nummer}");
+            assert_eq!(f.zaehler_nenner(), teile, "{nummer}");
+        }
+        f.nummer = "12a".into();
+        // Ein Bestandswert bleibt speicherbar, ein neuer nicht.
+        let alt = infos.clone();
+        kennzeichen_pruefen(infos, Some(&alt)).unwrap();
+        assert!(kennzeichen_pruefen(infos, None).is_err());
+        infos.flurstuecke[0].nummer = "12/3".into();
+        kennzeichen_pruefen(infos, Some(&alt)).unwrap();
+        // Die Gemarkungsnummer hat höchstens vier Ziffern und lässt die
+        // Ermittlung aktuell.
+        let vorher = infos.fingerprint().unwrap();
+        infos.flurstuecke[0].gemarkungsnummer = "0915".into();
+        infos.validate().unwrap();
+        assert_eq!(infos.fingerprint().unwrap(), vorher);
+        for falsch in ["09155", "09a"] {
+            infos.flurstuecke[0].gemarkungsnummer = falsch.into();
+            assert!(infos.validate().is_err(), "{falsch}");
+        }
     }
     #[test]
     fn gleiche_nummer_in_unterschiedlichen_grundbuchblaettern_bleibt_getrennt() {

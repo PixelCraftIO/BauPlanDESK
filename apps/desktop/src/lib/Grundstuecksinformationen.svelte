@@ -146,6 +146,20 @@
     if (wert === "vorhaben") delete f.rolle;
     else f.rolle = wert as FlurstuecksRolle;
   }
+  // Die Flurstücksnummer wird als „Zähler/Nenner“ gespeichert; Form und
+  // Stellenzahl prüft der Core.
+  function teile(f: FlurstuecksInfo) {
+    const [zaehler, ...rest] = f.nummer.split("/");
+    return { zaehler, nenner: rest.join("/") };
+  }
+  function nummerSetzen(f: FlurstuecksInfo, zaehler: string, nenner: string) {
+    f.nummer = nenner.trim() ? `${zaehler.trim()}/${nenner.trim()}` : zaehler.trim();
+  }
+  function gemarkungsnummerSetzen(f: FlurstuecksInfo, wert: string) {
+    // Leer wird wie im Core nicht gespeichert.
+    if (wert.trim()) f.gemarkungsnummer = wert.trim();
+    else delete f.gemarkungsnummer;
+  }
   function auszug(f: FlurstuecksInfo, wert: string) {
     const [id, v] = wert.split(":");
     f.grundbuchauszug = wert ? { dokument_id: id, version: Number(v) } : null;
@@ -198,7 +212,9 @@
   Auszüge können später ergänzt werden. Zuordnungen, Abzüge und Zuschläge werden
   separat unter Berechnungen → Baugrundstück erfasst. Nur Flurstücke des
   Vorhabengrundstücks bilden Baugrundstücke und stehen im Bauantrag; Nachbar-
-  und sonstige Flurstücke bleiben als Angaben erhalten.
+  und sonstige Flurstücke bleiben als Angaben erhalten. Für sonstige Flurstücke
+  (Zuwegung, Baulastfläche) legt das Verfahren eine Anforderung zur
+  Baulastklärung an.
 </p>
 {#if gespeichert.flurstuecke.length && projekt.grundstuecksflaeche_m2 != null}<p
     class="meta"
@@ -221,7 +237,7 @@
     <table class="ergebnistabelle eingabetabelle">
       <thead
         ><tr
-          ><th>Gemarkung</th><th>Flur</th><th>Flurstück</th><th
+          ><th>Gemarkung</th><th>Flur</th><th>Zähler</th><th>Nenner</th><th
             >Flurstücksfläche m²</th
           ><th>Bezug</th><th></th></tr
         ></thead
@@ -242,10 +258,22 @@
               /></td
             ><td
               ><input
-                aria-label="Flurstücknummer"
-                bind:value={f.nummer}
+                aria-label="Zähler"
+                value={teile(f).zaehler}
+                oninput={(e) =>
+                  nummerSetzen(f, e.currentTarget.value, teile(f).nenner)}
                 required
-                maxlength="500"
+                inputmode="numeric"
+                maxlength="5"
+              /></td
+            ><td
+              ><input
+                aria-label="Nenner"
+                value={teile(f).nenner}
+                oninput={(e) =>
+                  nummerSetzen(f, teile(f).zaehler, e.currentTarget.value)}
+                inputmode="numeric"
+                maxlength="4"
               /></td
             ><td
               ><input
@@ -275,7 +303,7 @@
                   ))}>Entfernen</button
               ></td
             ></tr
-          >{:else}<tr><td colspan="6">Noch keine Flurstücke erfasst.</td></tr
+          >{:else}<tr><td colspan="7">Noch keine Flurstücke erfasst.</td></tr
           >{/each}
       </tbody>
     </table>
@@ -284,9 +312,20 @@
   {#each eingabe.flurstuecke as f (f.id)}<details>
       <summary
         >{f.gemarkung || "Gemarkung"} · {f.nummer || "Flurstück"} – Grundbuch und
-        weitere Angaben (optional)</summary
+        weitere Angaben (optional){#if f.rolle === "sonstiges"}<span
+            class="meta"> · Baulast klären</span
+          >{/if}</summary
       >
       <div class="raster">
+        <label
+          >Gemarkungsnummer<input
+            value={f.gemarkungsnummer ?? ""}
+            oninput={(e) => gemarkungsnummerSetzen(f, e.currentTarget.value)}
+            inputmode="numeric"
+            maxlength="4"
+            placeholder="Laut Kataster, höchstens 4 Ziffern"
+          /></label
+        >
         <label
           >Grundbuchbezirk<input
             bind:value={f.grundbuchbezirk}

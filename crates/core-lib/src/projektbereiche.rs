@@ -188,7 +188,7 @@ impl CoreServices {
                             &aktuell.planungsrecht,
                         )
                         .await?;
-                        crate::grundstuecksinformationen::eigentuemer_pruefen_im_projekt(
+                        crate::grundstuecksinformationen::aenderungen_pruefen_im_projekt(
                             self,
                             aktuell.id,
                             &aktuell.planungsrecht,

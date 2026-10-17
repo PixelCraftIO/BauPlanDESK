@@ -70,7 +70,22 @@ export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, 
 export type Ueberdeckung = { wand_a: string, wand_b: string, flaeche_m2: number, polygone: Array<AbstandsPolygon>, };
 export type AbstandsErgebnis = { rechenstand: string, waende: Array<WandErgebnis>, ueberdeckungen: Array<Ueberdeckung>, offen: Array<string>, vollstaendig: boolean, konfliktfrei: boolean, };
 export type Grundstuecksinformationen = { flurstuecke: Array<FlurstuecksInfo>, };
-export type FlurstuecksInfo = { id: string, gemarkung: string, flur: string, nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null,
+export type FlurstuecksInfo = { id: string,
+/**
+ * Name der Gemarkung.
+ */
+gemarkung: string,
+/**
+ * Gemarkungsnummer laut Liegenschaftskataster (höchstens vier Ziffern, ohne
+ * Landesschlüssel). XBau übermittelt sie statt des Namens.
+ */
+gemarkungsnummer?: string, flur: string,
+/**
+ * Flurstücksnummer „Zähler/Nenner“ (Zähler bis fünf, Nenner bis vier Ziffern),
+ * siehe [`Self::zaehler_nenner`]. Bestandsangaben in anderer Form bleiben
+ * erhalten, neue und geänderte Nummern prüft [`kennzeichen_pruefen`].
+ */
+nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null,
 /**
  * Frühere Freitextangabe. Sie bleibt lesbar, kann aber nur noch entfernt
  * werden; Eigentümer werden über [`Self::eigentuemer_kunden`] zugeordnet.

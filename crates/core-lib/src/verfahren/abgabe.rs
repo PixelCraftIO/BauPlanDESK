@@ -196,8 +196,8 @@ impl CoreServices {
             docs.push(meta);
             inhalte.push(daten);
         }
-        // Zustimmungspflicht nach dem aktuellen Stand der Projektbeteiligten.
-        let mut hinweise = self.zustimmungen_abgleichen(p, vid, &mut a).await?;
+        // Abgeleitete Anforderungen nach dem aktuellen Stand des Projekts.
+        let mut hinweise = self.anforderungen_abgleichen(p, vid, &mut a).await?;
         for d in &docs {
             let aktuell = self.repos.documents.latest(d.document_id).await?;
             if aktuell.version != d.version {

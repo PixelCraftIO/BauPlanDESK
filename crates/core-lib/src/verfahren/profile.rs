@@ -110,13 +110,23 @@ fn zustimmungs_id(verfahren: Uuid, kunde: crate::kunden::KundeId) -> Uuid {
         format!("anforderung/zustimmung/{kunde}").as_bytes(),
     )
 }
+/// Kennung der Anforderung „Baulast prüfen“ eines Flurstücks in einem Verfahren.
+fn baulast_id(verfahren: Uuid, flurstueck: &str) -> Uuid {
+    Uuid::new_v5(
+        &verfahren,
+        format!("anforderung/baulast/{flurstueck}").as_bytes(),
+    )
+}
 const ZUSTIMMUNG_QUELLE: &str = "Projektbeteiligte";
+const BAULAST_QUELLE: &str = "Flurstücke";
 impl CoreServices {
-    /// Hält die Zustimmungserklärungen der Akte mit den Projektbeteiligten aktuell:
-    /// Verfügungsberechtigte, die nicht Bauherr sind, erhalten eine offene
-    /// Anforderung. Entfällt die Zustimmungspflicht, bleibt die Anforderung als
-    /// Akteneintrag stehen; der Rückgabewert nennt sie zur fachlichen Prüfung.
-    pub(crate) async fn zustimmungen_abgleichen(
+    /// Hält die aus Projektdaten abgeleiteten Anforderungen der Akte aktuell:
+    /// Verfügungsberechtigte, die nicht Bauherr sind, brauchen eine
+    /// Zustimmungserklärung; Flurstücke mit Rolle „Sonstiges“ (Zuwegung,
+    /// Baulastfläche) eine Klärung der Baulast. Neue Anforderungen bleiben
+    /// ungeklärt. Entfällt der Anlass, bleibt die Anforderung als Akteneintrag
+    /// stehen; der Rückgabewert nennt sie zur fachlichen Prüfung.
+    pub(crate) async fn anforderungen_abgleichen(
         &self,
         p: ProjectId,
         id: Uuid,
@@ -124,41 +134,62 @@ impl CoreServices {
     ) -> CoreResult<Vec<String>> {
         let bauherren = self.repos.kunden.bauherren(p).await?;
         let beteiligte = self.repos.kunden.beteiligte(p).await?;
-        let erforderlich = crate::kunden::zustimmung_erforderlich(&bauherren, &beteiligte);
-        for b in &erforderlich {
-            let aid = zustimmungs_id(id, b.kunde.id);
-            if !a.anforderungen.iter().any(|x| x.id == aid) {
-                a.anforderungen.push(Anforderung {
-                    id: aid,
-                    titel: format!("Zustimmungserklärung von {}", b.kunde.anzeigename()),
+        let mut abgeleitet: Vec<Anforderung> = crate::kunden::zustimmung_erforderlich(
+            &bauherren,
+            &beteiligte,
+        )
+        .into_iter()
+        .map(|b| Anforderung {
+            id: zustimmungs_id(id, b.kunde.id),
+            titel: format!("Zustimmungserklärung von {}", b.kunde.anzeigename()),
+            erforderlich: Erforderlichkeit::Ungeklaert,
+            grund: format!(
+                "{} ist nicht Bauherr; Form und Erforderlichkeit nach Landesrecht bestätigen",
+                b.rolle.name()
+            ),
+            quelle: ZUSTIMMUNG_QUELLE.into(),
+            dokumente: vec![],
+            freigegeben: false,
+            verantwortlich: None,
+        })
+        .collect();
+        let projekt = self.repos.projects.get(p).await?;
+        abgeleitet.extend(
+            crate::grundstuecksinformationen::informationen(&projekt.planungsrecht)
+                .baulastflurstuecke()
+                .map(|f| Anforderung {
+                    id: baulast_id(id, &f.id),
+                    titel: format!("Baulast für Flurstück {} klären", f.bezeichnung()),
                     erforderlich: Erforderlichkeit::Ungeklaert,
-                    grund: format!(
-                        "{} ist nicht Bauherr; Form und Erforderlichkeit nach Landesrecht bestätigen",
-                        b.rolle.name()
-                    ),
-                    quelle: ZUSTIMMUNG_QUELLE.into(),
+                    grund: crate::grundstuecksinformationen::BAULAST_GRUND.into(),
+                    quelle: BAULAST_QUELLE.into(),
                     dokumente: vec![],
                     freigegeben: false,
                     verantwortlich: None,
-                });
+                }),
+        );
+        let aktuell: Vec<Uuid> = abgeleitet.iter().map(|r| r.id).collect();
+        for r in abgeleitet {
+            if !a.anforderungen.iter().any(|x| x.id == r.id) {
+                a.anforderungen.push(r);
             }
         }
-        let aktuell: Vec<Uuid> = erforderlich
-            .iter()
-            .map(|b| zustimmungs_id(id, b.kunde.id))
-            .collect();
-        Ok(a
-            .anforderungen
+        Ok(a.anforderungen
             .iter()
             .filter(|r| {
-                r.quelle == ZUSTIMMUNG_QUELLE
+                [ZUSTIMMUNG_QUELLE, BAULAST_QUELLE].contains(&r.quelle.as_str())
                     && r.erforderlich != Erforderlichkeit::NichtErforderlich
                     && !aktuell.contains(&r.id)
             })
             .map(|r| {
                 format!(
-                    "{}: nach den aktuellen Projektbeteiligten nicht mehr erforderlich. Anforderung prüfen.",
-                    r.titel
+                    "{}: nach den aktuellen {} nicht mehr erforderlich. Anforderung prüfen.",
+                    r.titel,
+                    if r.quelle == ZUSTIMMUNG_QUELLE {
+                        "Projektbeteiligten"
+                    } else {
+                        "Flurstücken"
+                    }
                 )
             })
             .collect())

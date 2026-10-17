@@ -648,6 +648,7 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     let fl = |id: &str, nummer: &str| FlurstuecksInfo {
         id: id.into(),
         gemarkung: "Lindenthal".into(),
+        gemarkungsnummer: String::new(),
         flur: "3".into(),
         nummer: nummer.into(),
         flaeche_m2: 400.,
@@ -769,6 +770,7 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
     let fl = |id: &str, nummer: &str, rolle| FlurstuecksInfo {
         id: id.into(),
         gemarkung: "Lindenthal".into(),
+        gemarkungsnummer: String::new(),
         flur: "3".into(),
         nummer: nummer.into(),
         flaeche_m2: 400.,
@@ -838,6 +840,47 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
     assert!(
         err.to_string().contains("ergibt sich aus den Flurstücken"),
         "{err}"
+    );
+
+    // Neue Flurstücksnummern haben die Form Zähler/Nenner; ein Bestandswert
+    // in anderer Form bleibt speicherbar und erscheint als Hinweis.
+    let mut recht = p.planungsrecht.clone();
+    recht
+        .grundstuecksinformationen
+        .as_mut()
+        .unwrap()
+        .flurstuecke
+        .push(fl("z", "12 a", FlurstuecksRolle::Sonstiges));
+    let err = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            update(&p, p.grundstuecksflaeche_m2, Some(recht.clone())),
+            &u,
+        )
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Lindenthal 12 a"), "{err}");
+    let infos = recht.grundstuecksinformationen.as_mut().unwrap();
+    infos.flurstuecke[2].nummer = "102".into();
+    infos.flurstuecke[3].nummer = "12/3".into();
+    infos.flurstuecke[0].gemarkungsnummer = "5318".into();
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            update(&p, p.grundstuecksflaeche_m2, Some(recht)),
+            &u,
+        )
+        .await
+        .unwrap();
+    let g = core.bauantrag(p.id).await.unwrap();
+    assert_eq!(g.antrag.grundstueck.flurstuecke[0].gemarkungsnummer, "5318");
+    assert_eq!(
+        g.hinweise,
+        [
+            "Flurstück Lindenthal 12/3: Flurstück außerhalb des Vorhabengrundstücks (Zuwegung, Baulastfläche o. Ä.). Klären, ob eine Baulast nötig ist; die Baulasterklärung des Eigentümers ist dann Bauvorlage."
+        ]
     );
 }
 

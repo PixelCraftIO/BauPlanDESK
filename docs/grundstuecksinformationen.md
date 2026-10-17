@@ -3,13 +3,23 @@
 ## Bedienung
 
 Unter **Grundstücksinformationen → Flurstücke und Grundbuch** werden Gemarkung,
-Flur, Flurstücknummer und tatsächliche Flurstücksfläche erfasst. Grundbuchbezirk,
+Flur, Flurstücksnummer mit Zähler und Nenner sowie tatsächliche Flurstücksfläche
+erfasst. Der Zähler hat höchstens fünf, der Nenner höchstens vier Ziffern; die
+Nummer wird als „Zähler/Nenner“ gespeichert. Ältere Nummern in anderer Form
+bleiben unverändert speicherbar, der Bauantrag weist auf sie hin. Die optionale
+Gemarkungsnummer (höchstens vier Ziffern, ohne Landesschlüssel) übermittelt XBau
+statt des Gemarkungsnamens. Grundbuchbezirk,
 Blatt, laufende Nummer, Eigentümer, Bemerkung und ein Dokumentbezug auf eine
 konkrete Version des Grundbuchauszugs sind optional. Eigentümer sind Kunden aus
 der Kundendatenbank: bei Vorhabenflurstücken Bauherren oder Beteiligte mit der
 Rolle Grundstückseigentümer bzw. Erbbauberechtigter, bei Nachbar- und sonstigen
 Flurstücken beliebige Kunden. Eine Eigentümerzuordnung ändert keine Fläche; die
-Baugrundstücksermittlung bleibt aktuell. Auszüge werden zunächst als
+Baugrundstücksermittlung bleibt aktuell; das gilt auch für die Gemarkungsnummer.
+
+Flurstücke mit der Rolle „Sonstiges“ (Zuwegung, Baulastfläche) zeigen im
+Bauantrag einen Hinweis auf die Baulastklärung. Jede Verfahrensakte erhält dazu
+eine ungeklärte Anforderung „Baulast für Flurstück … klären“; ändert sich die
+Rolle später, nennt der nächste Abgabestand die Anforderung zur Prüfung. Auszüge werden zunächst als
 Projektdatei importiert und anschließend ausgewählt. Die Flurstücke lassen sich
 ohne Grundbuch und ohne fertige Baugrundstücksberechnung speichern. Im Dialog
 zum Anlegen/Bearbeiten eines Projekts gibt es deshalb keine zweite Flächeneingabe.
