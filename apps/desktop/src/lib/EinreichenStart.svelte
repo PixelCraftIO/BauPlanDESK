@@ -170,7 +170,7 @@
     display: block;
     border: 1px solid var(--border);
     padding: 1.2rem;
-    border-radius: 4px;
+    border-radius: 0;
   }
   .einreichschritte h3 {
     margin: 0 0 0.5rem;

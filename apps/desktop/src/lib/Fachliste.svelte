@@ -284,7 +284,7 @@
     background: var(--panel);
     padding: 1rem 0.5rem;
     border-top: 1px solid var(--border);
-    box-shadow: 0 -3px 12px color-mix(in srgb, var(--fg) 8%, transparent);
+    border-top: 1px solid var(--border);
   }
   .fachformular :global(input),
   .fachformular :global(select),

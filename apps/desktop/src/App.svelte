@@ -835,22 +835,23 @@
   </Dialog>
 {/if}
 
-<footer class="statusleiste meta">
+<footer class="statusleiste">
   {#if info}
+    <span>{projekt?.name ?? "Projektverzeichnis"}</span>
     <button
       class="link"
       onclick={() => (dialog = "benutzer")}
       title="Benutzerverwaltung"
       >{info.benutzer.anzeigename} ({rollenName(ich?.rolle ?? "lesen")})</button
     >
-    ·
     {#if lizenz?.zustand.art === "testversion"}
       <button class="link" onclick={() => (dialog = "lizenz")}
         >Testversion, noch {lizenz.zustand.tage_uebrig}
         {lizenz.zustand.tage_uebrig === 1 ? "Tag" : "Tage"}</button
-      > ·
+      >
     {/if}
-    BauProjektIO {info.version} · {projekt?.name ?? "Projektverzeichnis"}
+    <span>Ablage: {info.storage}</span>
+    <span class="rechts">BauProjektIO {info.version}</span>
   {/if}
 </footer>
 
