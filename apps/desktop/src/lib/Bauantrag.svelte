@@ -1,6 +1,7 @@
 <script lang="ts">
   import { heuteDeutsch } from "./kalender";
   import { editorAnmelden } from "./editoren";
+  import { projektNavigation } from "./projektNavigation.svelte";
   import { untrack } from "svelte";
   import { save, ask } from "@tauri-apps/plugin-dialog";
   import {
@@ -50,6 +51,7 @@
     benutzer.aktiv && mindestens(benutzer.rolle, "bearbeitung"),
   );
 
+  const navigation = projektNavigation();
   let gespeichert = $state<GespeicherterBauantrag | null>(null);
   let antrag = $state<Bauantrag | null>(null);
   let dokumente = $state<DocumentVersion[]>([]);
@@ -423,6 +425,41 @@
         bind:anschrift={antrag.grundstueck.anschrift}
         gesperrt={!darf}
       />
+      {#if gespeichert?.flurstuecke_zentral}
+        <p class="meta">
+          Die Flurstücke stammen aus den Grundstücksinformationen des Projekts
+          und gelten unverändert für Antrag, XBau-Export und Abgabe.
+        </p>
+        <table class="ergebnistabelle">
+          <thead
+            ><tr
+              ><th>Gemarkung</th><th>Flur</th><th>Flurstück Zähler</th><th
+                >Nenner</th
+              ></tr
+            ></thead
+          >
+          <tbody>
+            {#each antrag.grundstueck.flurstuecke as f}
+              <tr
+                ><td>{f.gemarkung}</td><td>{f.flur || "–"}</td><td
+                  >{f.zaehler}</td
+                ><td>{f.nenner || "–"}</td></tr
+              >
+            {/each}
+          </tbody>
+        </table>
+        {#if navigation}<button
+            type="button"
+            class="sekundaer"
+            onclick={() =>
+              navigation.springen({
+                bereich: "flurstuecke",
+                objekt: null,
+                register: null,
+                eintrag: null,
+              })}>Flurstücke bearbeiten</button
+          >{/if}
+      {:else}
       <table class="ergebnistabelle">
         <thead
           ><tr
@@ -474,6 +511,7 @@
             nenner: "",
           })}>Flurstück hinzufügen</button
       >
+      {/if}
     </fieldset>
 
     <fieldset disabled={!darf}>

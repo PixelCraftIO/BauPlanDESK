@@ -187,6 +187,8 @@ export interface GespeicherterBauantrag {
   geaendert_von: string | null;
   geaendert_am: string | null;
   fehlende_angaben: string[];
+  /** Flurstücke stammen aus den Grundstücksinformationen und sind hier nur Anzeige. */
+  flurstuecke_zentral?: boolean;
 }
 
 // --- Kunden ------------------------------------------------------------------
