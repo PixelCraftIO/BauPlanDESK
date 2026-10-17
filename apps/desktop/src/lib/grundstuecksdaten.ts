@@ -29,17 +29,20 @@ export function berechnungsplan(p: Planungsrecht): BaugrundstuecksPlan {
   const infos = grundstuecksinformationen(p);
   const e = p.baugrundstuecksermittlung;
   return {
-    flurstuecke: infos.flurstuecke.map((f) => {
-      const a = e
-        ? e.ansaetze.find((a) => a.flurstueck_id === f.id)
-        : p.baugrundstuecke?.flurstuecke.find((a) => a.id === f.id);
-      return {
-        ...f,
-        laufende_nummer: f.laufende_nummer ?? 0,
-        abzuege: a?.abzuege ?? [],
-        abweichende_zuordnung: a?.abweichende_zuordnung ?? null,
-      };
-    }),
+    // Nur Vorhabenflurstücke bilden Baugrundstücke (wie `plan` im Core).
+    flurstuecke: infos.flurstuecke
+      .filter((f) => (f.rolle ?? "vorhaben") === "vorhaben")
+      .map(({ rolle: _rolle, ...f }) => {
+        const a = e
+          ? e.ansaetze.find((a) => a.flurstueck_id === f.id)
+          : p.baugrundstuecke?.flurstuecke.find((a) => a.id === f.id);
+        return {
+          ...f,
+          laufende_nummer: f.laufende_nummer ?? 0,
+          abzuege: a?.abzuege ?? [],
+          abweichende_zuordnung: a?.abweichende_zuordnung ?? null,
+        };
+      }),
     berechnungen: e?.berechnungen ?? p.baugrundstuecke?.berechnungen ?? [],
   };
 }

@@ -517,6 +517,7 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
         grundbuchauszug: None,
         eigentuemer: String::new(),
         bemerkung: String::new(),
+        rolle: Default::default(),
     };
     let mut recht = p.planungsrecht.clone();
     recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
@@ -600,6 +601,102 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     assert!(xml.contains("<nenner>1</nenner>"));
     assert!(xml.contains("<zaehler>101</zaehler>"));
     assert!(!xml.contains("999") && !xml.contains("Falschgemarkung"));
+}
+
+#[tokio::test]
+async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
+    use core_lib::domain::{Planungsrecht, ProjectUpdate};
+    use core_lib::grundstuecksinformationen::{
+        FlurstuecksInfo, FlurstuecksRolle, Grundstuecksinformationen,
+    };
+    use core_lib::projektbereiche::ProjektBereich;
+    let dir = tempfile::tempdir().unwrap();
+    let core = core(dir.path(), true).await;
+    let u = core.anmelden("planer", "Planer").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Mit Nachbar".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: Some(9999.),
+                planungsrecht: Planungsrecht::default(),
+            },
+            &u,
+        )
+        .await
+        .unwrap();
+    let fl = |id: &str, nummer: &str, rolle| FlurstuecksInfo {
+        id: id.into(),
+        gemarkung: "Lindenthal".into(),
+        flur: "3".into(),
+        nummer: nummer.into(),
+        flaeche_m2: 400.,
+        grundbuchbezirk: String::new(),
+        grundbuchblatt: String::new(),
+        laufende_nummer: None,
+        grundbuchauszug: None,
+        eigentuemer: String::new(),
+        bemerkung: String::new(),
+        rolle,
+    };
+    let mut recht = p.planungsrecht.clone();
+    recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
+        flurstuecke: vec![
+            fl("a", "100/1", FlurstuecksRolle::Vorhaben),
+            fl("b", "100/2", FlurstuecksRolle::Vorhaben),
+            fl("n", "102", FlurstuecksRolle::Nachbar),
+        ],
+    });
+    let update = |p: &core_lib::domain::Project, flaeche, recht| ProjectUpdate {
+        id: p.id,
+        expected_version: p.version,
+        name: p.name.clone(),
+        bundesland: p.bundesland,
+        grundstuecksflaeche_m2: flaeche,
+        planungsrecht: recht,
+    };
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            update(&p, p.grundstuecksflaeche_m2, Some(recht)),
+            &u,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        p.grundstuecksflaeche_m2,
+        Some(800.),
+        "nur Vorhabenflurstücke"
+    );
+    assert_eq!(
+        core.get_project(p.id).await.unwrap().grundstuecksflaeche_m2,
+        Some(800.)
+    );
+
+    let antrag = core.bauantrag(p.id).await.unwrap().antrag;
+    let nummern: Vec<_> = antrag
+        .grundstueck
+        .flurstuecke
+        .iter()
+        .map(|f| f.zaehler.as_str())
+        .collect();
+    assert_eq!(nummern, ["100", "100"]);
+
+    // Die Fläche lässt sich nicht mehr unabhängig von den Flurstücken setzen.
+    let err = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Projektdaten,
+            update(&p, Some(1234.), None),
+            &u,
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("ergibt sich aus den Flurstücken"),
+        "{err}"
+    );
 }
 
 /// Büroangaben mit einer bauvorlageberechtigten Person.

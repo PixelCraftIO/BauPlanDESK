@@ -70,7 +70,12 @@ export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, 
 export type Ueberdeckung = { wand_a: string, wand_b: string, flaeche_m2: number, polygone: Array<AbstandsPolygon>, };
 export type AbstandsErgebnis = { rechenstand: string, waende: Array<WandErgebnis>, ueberdeckungen: Array<Ueberdeckung>, offen: Array<string>, vollstaendig: boolean, konfliktfrei: boolean, };
 export type Grundstuecksinformationen = { flurstuecke: Array<FlurstuecksInfo>, };
-export type FlurstuecksInfo = { id: string, gemarkung: string, flur: string, nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null, eigentuemer: string, bemerkung: string, };
+export type FlurstuecksInfo = { id: string, gemarkung: string, flur: string, nummer: string, flaeche_m2: number, grundbuchbezirk: string, grundbuchblatt: string, laufende_nummer: number | null, grundbuchauszug: Dokumentbezug | null, eigentuemer: string, bemerkung: string,
+/**
+ * Bezug zum Vorhaben; fehlt bei Vorhabenflurstücken.
+ */
+rolle?: FlurstuecksRolle, };
+export type FlurstuecksRolle = "vorhaben" | "nachbar" | "sonstiges";
 export type FlurstuecksAnsatz = { flurstueck_id: string, abzuege: Array<FlaechenAbzug>, abweichende_zuordnung: { kennung: string; grundlage: string } | null, };
 export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, berechnungen: Array<BaugrundstueckBerechnung>,
 /**

@@ -402,7 +402,7 @@ impl CoreServices {
             ));
         }
         let now = Utc::now();
-        let p = Project {
+        let mut p = Project {
             id: ProjectId::new(),
             name: project.name,
             bundesland: project.bundesland,
@@ -412,6 +412,7 @@ impl CoreServices {
             created_at: now,
             updated_at: now,
         };
+        crate::grundstuecksinformationen::projektflaeche_ableiten(&mut p);
         crate::grundstuecksinformationen::dokumente_pruefen(self, p.id, &p.planungsrecht).await?;
         let audit = Self::audit(
             wer,
@@ -424,11 +425,17 @@ impl CoreServices {
     }
 
     pub async fn get_project(&self, id: ProjectId) -> CoreResult<Project> {
-        self.repos.projects.get(id).await
+        let mut p = self.repos.projects.get(id).await?;
+        crate::grundstuecksinformationen::projektflaeche_ableiten(&mut p);
+        Ok(p)
     }
 
     pub async fn list_projects(&self) -> CoreResult<Vec<Project>> {
-        self.repos.projects.list().await
+        let mut liste = self.repos.projects.list().await?;
+        liste
+            .iter_mut()
+            .for_each(crate::grundstuecksinformationen::projektflaeche_ableiten);
+        Ok(liste)
     }
 
     pub async fn update_project(
@@ -449,7 +456,7 @@ impl CoreServices {
             }
         }
         let vorher = self.repos.projects.get(update.id).await?;
-        let p = Project {
+        let mut p = Project {
             id: update.id,
             name: update.name,
             bundesland: update.bundesland,
@@ -459,6 +466,7 @@ impl CoreServices {
             created_at: vorher.created_at,
             updated_at: Utc::now(),
         };
+        crate::grundstuecksinformationen::projektflaeche_ableiten(&mut p);
         let audit = Self::audit(
             wer,
             Aktion::ProjektGeaendert,
@@ -1854,8 +1862,7 @@ fn sanitize_file_name(name: &str) -> CoreResult<String> {
 /// Flurstücke des Projekts in XBau-Kodierung; leer, solange keine erfasst sind.
 fn flurstuecke_fuer_antrag(p: &Project) -> Vec<xbau::Flurstueck> {
     crate::grundstuecksinformationen::informationen(&p.planungsrecht)
-        .flurstuecke
-        .iter()
+        .vorhaben()
         .map(xbau::Flurstueck::aus_info)
         .collect()
 }

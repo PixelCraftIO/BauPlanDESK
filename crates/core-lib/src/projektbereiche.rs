@@ -134,6 +134,15 @@ impl CoreServices {
                     aktuell.name = ziel.name.clone();
                 }
                 if alt["grundstuecksflaeche_m2"] != neu["grundstuecksflaeche_m2"] {
+                    if crate::grundstuecksinformationen::informationen(&aktuell.planungsrecht)
+                        .vorhabenflaeche_m2()
+                        .is_some()
+                    {
+                        return Err(CoreError::InvalidInput(
+                            "Die Grundstücksfläche ergibt sich aus den Flurstücken des Vorhabens"
+                                .into(),
+                        ));
+                    }
                     aktuell.grundstuecksflaeche_m2 = ziel.grundstuecksflaeche_m2;
                 }
             }
@@ -181,6 +190,7 @@ impl CoreServices {
                     }
                 }
             }
+            crate::grundstuecksinformationen::projektflaeche_ableiten(&mut aktuell);
             if bereich.auszug(&aktuell)? == stand {
                 return Ok(aktuell);
             }

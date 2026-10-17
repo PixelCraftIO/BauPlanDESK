@@ -31,6 +31,29 @@ pub struct FlurstuecksInfo {
     pub eigentuemer: String,
     #[serde(default)]
     pub bemerkung: String,
+    /// Bezug zum Vorhaben; fehlt bei Vorhabenflurstücken.
+    // Nicht geschrieben, damit Bestandsdaten ihren Quellen-Fingerprint behalten.
+    #[serde(default, skip_serializing_if = "FlurstuecksRolle::ist_vorhaben")]
+    #[ts(as = "Option<FlurstuecksRolle>", optional)]
+    pub rolle: FlurstuecksRolle,
+}
+/// Bezug eines erfassten Flurstücks zum Vorhaben. Nur Vorhabenflurstücke bilden
+/// Baugrundstücke und stehen im Bauantrag; die übrigen bleiben als Kataster-
+/// und Grundbuchfakten erfasst, etwa für Abstandsflächen oder Nachbarn.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum FlurstuecksRolle {
+    #[default]
+    Vorhaben,
+    /// Angrenzendes Flurstück, etwa für die Nachbarbeteiligung.
+    Nachbar,
+    /// Weiteres Flurstück, etwa Zuwegung oder Baulastfläche.
+    Sonstiges,
+}
+impl FlurstuecksRolle {
+    pub fn ist_vorhaben(&self) -> bool {
+        *self == Self::Vorhaben
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -60,6 +83,7 @@ impl Grundstuecksinformationen {
         }
         let mut ids = std::collections::HashSet::new();
         let mut kataster = std::collections::HashSet::new();
+        let mut vorhaben_buchgrundstuecke = std::collections::HashSet::new();
         for f in &self.flurstuecke {
             if [&f.id, &f.gemarkung, &f.nummer]
                 .iter()
@@ -79,6 +103,17 @@ impl Grundstuecksinformationen {
             {
                 return Err(CoreError::InvalidInput("Flurstück benötigt Gemarkung, Nummer und positive Fläche. Grundbuchangaben sind optional; eine angegebene laufende Nummer muss positiv sein.".into()));
             }
+            if f.rolle.ist_vorhaben()
+                && !f.grundbuchbezirk.trim().is_empty()
+                && !f.grundbuchblatt.trim().is_empty()
+                && let Some(n) = f.laufende_nummer
+            {
+                vorhaben_buchgrundstuecke.insert((
+                    f.grundbuchbezirk.trim().to_lowercase(),
+                    f.grundbuchblatt.trim().to_lowercase(),
+                    n,
+                ));
+            }
             if !ids.insert(&f.id)
                 || !kataster.insert((
                     f.gemarkung.trim().to_lowercase(),
@@ -91,7 +126,38 @@ impl Grundstuecksinformationen {
                 ));
             }
         }
+        if !self.flurstuecke.is_empty() && self.vorhaben().next().is_none() {
+            return Err(CoreError::InvalidInput(
+                "Mindestens ein Flurstück muss zum Vorhabengrundstück gehören".into(),
+            ));
+        }
+        // Das Baugrundstück ist das Buchgrundstück; es gehört nur ganz zum Vorhaben.
+        for f in self.flurstuecke.iter().filter(|f| !f.rolle.ist_vorhaben()) {
+            if let Some(n) = f.laufende_nummer
+                && vorhaben_buchgrundstuecke.contains(&(
+                    f.grundbuchbezirk.trim().to_lowercase(),
+                    f.grundbuchblatt.trim().to_lowercase(),
+                    n,
+                ))
+            {
+                return Err(CoreError::InvalidInput(format!(
+                    "Flurstück {} liegt im selben Buchgrundstück wie ein Vorhabenflurstück und gehört deshalb zum Vorhaben",
+                    f.nummer.trim()
+                )));
+            }
+        }
         Ok(())
+    }
+    /// Flurstücke, die das Vorhabengrundstück bilden.
+    pub fn vorhaben(&self) -> impl Iterator<Item = &FlurstuecksInfo> {
+        self.flurstuecke.iter().filter(|f| f.rolle.ist_vorhaben())
+    }
+    /// Summe der Flurstücksflächen des Vorhabens (Eigentumsfläche, ohne Abzüge);
+    /// `None`, solange keine Flurstücke erfasst sind.
+    pub fn vorhabenflaeche_m2(&self) -> Option<f64> {
+        let mut flaechen = self.vorhaben().map(|f| f.flaeche_m2).peekable();
+        flaechen.peek()?;
+        Some(flaechen.sum())
     }
     pub fn fingerprint(&self) -> CoreResult<ContentHash> {
         Ok(ContentHash::of(
@@ -122,11 +188,19 @@ pub fn informationen(p: &Planungsrecht) -> Grundstuecksinformationen {
                             grundbuchauszug: None,
                             eigentuemer: String::new(),
                             bemerkung: String::new(),
+                            rolle: FlurstuecksRolle::Vorhaben,
                         })
                         .collect()
                 })
                 .unwrap_or_default(),
         })
+}
+/// Mit erfassten Flurstücken ist die Projektfläche die Summe der Vorhabenflurstücke;
+/// ohne Flurstücke bleibt die Angabe des Bestandsprojekts stehen.
+pub fn projektflaeche_ableiten(p: &mut crate::domain::Project) {
+    if let Some(f) = informationen(&p.planungsrecht).vorhabenflaeche_m2() {
+        p.grundstuecksflaeche_m2 = Some(f);
+    }
 }
 pub fn ermittlung(p: &Planungsrecht) -> CoreResult<Option<BaugrundstuecksErmittlung>> {
     if let Some(e) = &p.baugrundstuecksermittlung {
@@ -176,8 +250,7 @@ pub fn plan(p: &Planungsrecht) -> CoreResult<Option<BaugrundstuecksPlan>> {
     let e = ermittlung(p)?.unwrap_or_default();
     Ok(Some(BaugrundstuecksPlan {
         flurstuecke: infos
-            .flurstuecke
-            .iter()
+            .vorhaben()
             .map(|f| {
                 let a = e.ansaetze.iter().find(|a| a.flurstueck_id == f.id);
                 Flurstueck {
@@ -355,5 +428,77 @@ mod tests {
         assert!(quellen_aktuell(&p).unwrap());
         normalisieren(&mut p).unwrap();
         assert_eq!(plan(&p).unwrap(), vorher);
+    }
+    #[test]
+    fn nur_vorhabenflurstuecke_bilden_baugrundstuecke_und_projektflaeche() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let vorher = informationen(&p).fingerprint().unwrap();
+        assert!(
+            !serde_json::to_string(&informationen(&p))
+                .unwrap()
+                .contains("rolle"),
+            "Vorhabenflurstücke behalten ihre bisherige Darstellung"
+        );
+        assert_eq!(informationen(&p).vorhabenflaeche_m2(), Some(900.));
+
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        infos.flurstuecke[2].rolle = FlurstuecksRolle::Nachbar;
+        infos.validate().unwrap();
+        assert_ne!(informationen(&p).fingerprint().unwrap(), vorher);
+        assert!(
+            !quellen_aktuell(&p).unwrap(),
+            "Ermittlung muss neu bestätigt werden"
+        );
+        let ids: Vec<_> = plan(&p)
+            .unwrap()
+            .unwrap()
+            .flurstuecke
+            .into_iter()
+            .map(|f| f.id)
+            .collect();
+        assert_eq!(ids, ["a", "b"]);
+        assert_eq!(informationen(&p).vorhabenflaeche_m2(), Some(500.));
+
+        let mut projekt = crate::domain::Project {
+            id: crate::domain::ProjectId::new(),
+            name: "P".into(),
+            bundesland: crate::domain::Bundesland::By,
+            grundstuecksflaeche_m2: Some(9999.),
+            planungsrecht: p,
+            version: 1,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        projektflaeche_ableiten(&mut projekt);
+        assert_eq!(projekt.grundstuecksflaeche_m2, Some(500.));
+        projekt.planungsrecht = Planungsrecht::default();
+        projekt.grundstuecksflaeche_m2 = Some(812.);
+        projektflaeche_ableiten(&mut projekt);
+        assert_eq!(
+            projekt.grundstuecksflaeche_m2,
+            Some(812.),
+            "Bestandsprojekt"
+        );
+    }
+    #[test]
+    fn buchgrundstueck_gehoert_ganz_oder_gar_nicht_zum_vorhaben() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        infos.flurstuecke[1].rolle = FlurstuecksRolle::Sonstiges;
+        let err = infos.validate().unwrap_err().to_string();
+        assert!(err.contains("selben Buchgrundstück"), "{err}");
+        for f in &mut infos.flurstuecke {
+            f.rolle = FlurstuecksRolle::Nachbar;
+        }
+        let err = infos.validate().unwrap_err().to_string();
+        assert!(err.contains("Mindestens ein Flurstück"), "{err}");
     }
 }
