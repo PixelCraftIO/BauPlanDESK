@@ -67,6 +67,10 @@ export function leer(): Verfahrensakte {
   return {
     bezeichnung: "",
     art: "bauantrag",
+    antragsangaben: {
+      vorbescheidfragen: [],
+      als_bauantrag_weiterfuehren: false,
+    },
     status: "vorbereitung",
     behoerde: { id: crypto.randomUUID(), name: "", kennung: "", kontakt: "" },
     aktenzeichen: "",

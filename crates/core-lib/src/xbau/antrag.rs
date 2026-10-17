@@ -1,4 +1,5 @@
-//! Nachricht `baugenehmigung.antrag.0200` (Beantragung einer Baugenehmigung).
+//! Antragsnachrichten: `baugenehmigung.antrag.0200`, `vorbescheid.antrag.0210`,
+//! `genehmigungsfreistellung.anzeige.0600` und die geänderten Fassungen 0202/0212.
 //!
 //! Die XBau-Schemas mischen qualifizierte Elemente (Präfix `xbau:`) und
 //! unqualifizierte (ohne Namensraum, u. a. alles aus dem Kernmodul). Welches
@@ -42,10 +43,55 @@ pub struct Nachrichtendaten<'a> {
     pub zeitpunkt: DateTime<Utc>,
 }
 
+/// Welche Antragsnachricht geschrieben wird. Die Verfahrensart der Akte legt sie
+/// fest, siehe [`crate::verfahren::Verfahrensart`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Antragsart<'a> {
+    /// `baugenehmigung.antrag.0200`, geändert `baugenehmigung.antragGeaendert.0202`.
+    Baugenehmigung,
+    /// `vorbescheid.antrag.0210`, geändert `vorbescheid.antragGeaendert.0212`.
+    /// Jede Frage wird ein `beantragterVorbescheid`, jede Zeile ein Textabsatz.
+    Vorbescheid { fragen: &'a [String] },
+    /// `genehmigungsfreistellung.anzeige.0600`. XBau kennt keine geänderte Anzeige.
+    Genehmigungsfreistellung { als_bauantrag_weiterfuehren: bool },
+}
+
+impl Antragsart<'_> {
+    /// Wurzelelement der Nachricht (ohne Präfix).
+    pub fn element(&self, geaendert: bool) -> CoreResult<&'static str> {
+        let w = self.wurzel(geaendert)?;
+        Ok(w.strip_prefix("xbau:").unwrap_or(w))
+    }
+
+    fn wurzel(&self, geaendert: bool) -> CoreResult<&'static str> {
+        Ok(match (self, geaendert) {
+            (Self::Baugenehmigung, false) => "xbau:baugenehmigung.antrag.0200",
+            (Self::Baugenehmigung, true) => "xbau:baugenehmigung.antragGeaendert.0202",
+            (Self::Vorbescheid { .. }, false) => "xbau:vorbescheid.antrag.0210",
+            (Self::Vorbescheid { .. }, true) => "xbau:vorbescheid.antragGeaendert.0212",
+            (Self::Genehmigungsfreistellung { .. }, false) => {
+                "xbau:genehmigungsfreistellung.anzeige.0600"
+            }
+            (Self::Genehmigungsfreistellung { .. }, true) => {
+                return Err(CoreError::InvalidInput(
+                    "XBau sieht für die Genehmigungsfreistellung keine geänderte Anzeige vor. \
+                     Unterlagen ohne XBau-Bezug nachreichen."
+                        .into(),
+                ));
+            }
+        })
+    }
+
+    /// Dateiname der Nachricht im Paket.
+    pub fn dateiname(&self, geaendert: bool) -> CoreResult<String> {
+        Ok(format!("{}.xml", self.element(geaendert)?))
+    }
+}
+
 /// Erzeugt die Antragsnachricht. Prüft vorher die Pflichtangaben und die
 /// Codes gegen die Codelisten.
 pub fn baugenehmigung_antrag(d: &Nachrichtendaten<'_>) -> CoreResult<String> {
-    schreiben(d, None)
+    antrag(d, Antragsart::Baugenehmigung)
 }
 
 /// Geänderte Bauvorhabendaten und ausgewählte Anlagen als vollständiger Datensatz.
@@ -53,10 +99,25 @@ pub fn baugenehmigung_aenderung(
     d: &Nachrichtendaten<'_>,
     bezug: &super::austausch::Nachrichtenkopf,
 ) -> CoreResult<String> {
+    antrag_geaendert(d, Antragsart::Baugenehmigung, bezug)
+}
+
+/// Erzeugt die Antragsnachricht der gewählten Art.
+pub fn antrag(d: &Nachrichtendaten<'_>, art: Antragsart<'_>) -> CoreResult<String> {
+    schreiben(d, art, None)
+}
+
+/// Geänderte Daten zu einem gestellten Antrag. Bezug ist der eigene Antrag
+/// derselben Art oder eine behördliche Befundliste (1140) dazu.
+pub fn antrag_geaendert(
+    d: &Nachrichtendaten<'_>,
+    art: Antragsart<'_>,
+    bezug: &super::austausch::Nachrichtenkopf,
+) -> CoreResult<String> {
+    art.element(true)?;
+    let ursprung = art.element(false)?;
     let erwartet = match bezug.element.as_str() {
-        "baugenehmigung.antrag.0200" if bezug.namensraum == super::austausch::HOCHBAU => {
-            &bezug.empfaenger
-        }
+        e if e == ursprung && bezug.namensraum == super::austausch::HOCHBAU => &bezug.empfaenger,
         "prozessnachrichten.formellePruefungBefundliste.1140"
             if bezug.namensraum == super::austausch::KERN =>
         {
@@ -75,13 +136,28 @@ pub fn baugenehmigung_aenderung(
             "Antragsreferenz oder Behörde der Nachreichung passen nicht zum gespeicherten Bauantrag",
         ));
     }
-    schreiben(d, Some(bezug))
+    schreiben(d, art, Some(bezug))
 }
+
 fn schreiben(
     d: &Nachrichtendaten<'_>,
+    art: Antragsart<'_>,
     bezug: Option<&super::austausch::Nachrichtenkopf>,
 ) -> CoreResult<String> {
-    let fehlt = d.antrag.fehlende_angaben(d.buero, d.bauherren);
+    let wurzel = art.wurzel(bezug.is_some())?;
+    let element = art.element(bezug.is_some())?;
+    let mut fehlt = d.antrag.fehlende_angaben(d.buero, d.bauherren);
+    let fragen: Vec<Vec<&str>> = match art {
+        Antragsart::Vorbescheid { fragen } => fragen
+            .iter()
+            .map(|f| f.lines().map(str::trim).filter(|z| !z.is_empty()).collect())
+            .filter(|f: &Vec<&str>| !f.is_empty())
+            .collect(),
+        _ => vec![],
+    };
+    if matches!(art, Antragsart::Vorbescheid { .. }) && fragen.is_empty() {
+        fehlt.push("Frage zum Vorbescheid".into());
+    }
     if !fehlt.is_empty() {
         return Err(CoreError::InvalidInput(format!(
             "Für den XBau-Export fehlen noch: {}.",
@@ -105,11 +181,7 @@ fn schreiben(
 
     let mut x = XmlSchreiber::new();
     x.auf(
-        if bezug.is_some() {
-            "xbau:baugenehmigung.antragGeaendert.0202"
-        } else {
-            "xbau:baugenehmigung.antrag.0200"
-        },
+        wurzel,
         &[
             ("xmlns:xbau", NAMENSRAUM),
             ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
@@ -133,7 +205,7 @@ fn schreiben(
                 ("listVersionID", "5.0"),
             ],
         )
-        .text("code", if bezug.is_some() { "0202" } else { "0200" })
+        .text("code", element.rsplit('.').next().unwrap_or_default())
         .zu()
         .text("erstellungszeitpunkt", &zeit)
         .zu();
@@ -183,14 +255,28 @@ fn schreiben(
         }
         x.zu();
     } else {
-        x.auf("xbau:referenzAntragsservice", &[])
+        let (referenz, antragsteller) = match art {
+            Antragsart::Genehmigungsfreistellung { .. } => {
+                ("xbau:referenzAnzeigeservice", "xbau:anzeigender")
+            }
+            _ => ("xbau:referenzAntragsservice", "xbau:antragsteller"),
+        };
+        x.auf(referenz, &[])
             .text("referenzAntragsservice", &d.antrag.vorgang.to_string())
             .zu();
         for b in d.bauherren {
-            x.auf("xbau:antragsteller", &[]);
+            x.auf(antragsteller, &[]);
             akteur(&mut x, b);
             x.zu();
         }
+    }
+    for frage in &fragen {
+        x.auf("xbau:beantragterVorbescheid", &[])
+            .auf("xbau:vorbescheidfrage", &[]);
+        for absatz in frage {
+            x.text("textabsatz", absatz);
+        }
+        x.zu().zu();
     }
 
     // Bauvorhaben
@@ -350,6 +436,19 @@ fn schreiben(
             .zu();
     }
     x.zu(); // anlagen
+    if let Antragsart::Genehmigungsfreistellung {
+        als_bauantrag_weiterfuehren,
+    } = art
+    {
+        x.text(
+            "xbau:alsBauantragWeiterzufuehren",
+            if als_bauantrag_weiterfuehren {
+                "true"
+            } else {
+                "false"
+            },
+        );
+    }
 
     x.zu();
     Ok(x.fertig())
@@ -559,7 +658,7 @@ pub(crate) mod tests {
         let datei = dir.join("nachricht.xml");
         std::fs::write(&datei, xml).unwrap();
         let ergebnis = Command::new("xmllint")
-            .args(["--noout", "--nonet", "--schema", "pruefschema.xsd"])
+            .args(["--noout", "--nonet", "--schema", "austausch.xsd"])
             .arg(&datei)
             .current_dir(schema_ordner())
             .output();
@@ -774,5 +873,93 @@ pub(crate) mod tests {
             .unwrap_err()
             .to_string();
         assert!(err.contains("urn:xoev-de:xbau:codeliste:anlagen"), "{err}");
+    }
+
+    fn bezugskopf(element: &str, ba: &Bauantrag) -> super::super::austausch::Nachrichtenkopf {
+        super::super::austausch::Nachrichtenkopf {
+            id: Uuid::new_v4(),
+            element: element.into(),
+            namensraum: super::super::austausch::HOCHBAU.into(),
+            titel: String::new(),
+            erstellt: Utc.with_ymd_and_hms(2026, 10, 1, 9, 0, 0).unwrap(),
+            absender: "buero:test".into(),
+            empfaenger: ba.bauaufsicht.kennung.trim().into(),
+            antragsreferenz: Some(ba.vorgang),
+            aktenzeichen: Some("2026/42".into()),
+            bezugsnachricht: None,
+        }
+    }
+
+    #[test]
+    fn vorbescheid_ist_schemakonform() {
+        let (projekt, ba, buero) = beispiel();
+        let anlagen = anlagen();
+        let c = test_codelisten();
+        let fragen = vec![
+            "Ist ein drittes Vollgeschoss zulässig?\n\nBezug: Nachbarbebauung Lindenweg 3".into(),
+            "  ".into(),
+            "Ist die Garage an der Grenze zulässig?".into(),
+        ];
+        let art = Antragsart::Vorbescheid { fragen: &fragen };
+        let d = daten(&projekt, &ba, &buero, &anlagen, &c);
+        let xml = antrag(&d, art).unwrap();
+        assert!(xml.contains("<xbau:vorbescheid.antrag.0210 "));
+        assert!(xml.contains("<code>0210</code>"));
+        assert_eq!(xml.matches("<xbau:beantragterVorbescheid>").count(), 2);
+        assert!(xml.contains("<textabsatz>Bezug: Nachbarbebauung Lindenweg 3</textabsatz>"));
+        gegen_schema_pruefen(&xml);
+        let kopf = super::super::austausch::vorpruefen(xml.as_bytes()).unwrap();
+        assert_eq!(kopf.element, "vorbescheid.antrag.0210");
+        assert_eq!(kopf.antragsreferenz, Some(ba.vorgang));
+
+        let geaendert =
+            antrag_geaendert(&d, art, &bezugskopf("vorbescheid.antrag.0210", &ba)).unwrap();
+        assert!(geaendert.contains("<code>0212</code>"));
+        assert!(geaendert.contains("<xbau:beantragterVorbescheid>"));
+        gegen_schema_pruefen(&geaendert);
+        // Bezug auf einen Bauantrag passt nicht zum Vorbescheid.
+        assert!(antrag_geaendert(&d, art, &bezugskopf("baugenehmigung.antrag.0200", &ba)).is_err());
+
+        let leer = vec![" \n ".to_string()];
+        let err = antrag(&d, Antragsart::Vorbescheid { fragen: &leer })
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Frage zum Vorbescheid"), "{err}");
+    }
+
+    #[test]
+    fn genehmigungsfreistellung_ist_schemakonform() {
+        let (projekt, ba, buero) = beispiel();
+        let anlagen = anlagen();
+        let c = test_codelisten();
+        let d = daten(&projekt, &ba, &buero, &anlagen, &c);
+        let art = Antragsart::Genehmigungsfreistellung {
+            als_bauantrag_weiterfuehren: true,
+        };
+        let xml = antrag(&d, art).unwrap();
+        assert!(xml.contains("<xbau:genehmigungsfreistellung.anzeige.0600 "));
+        assert!(xml.contains("<xbau:anzeigender>"));
+        assert!(!xml.contains("antragsteller"));
+        assert!(
+            xml.contains(
+                "<xbau:alsBauantragWeiterzufuehren>true</xbau:alsBauantragWeiterzufuehren>"
+            )
+        );
+        gegen_schema_pruefen(&xml);
+        let kopf = super::super::austausch::vorpruefen(xml.as_bytes()).unwrap();
+        assert_eq!(kopf.antragsreferenz, Some(ba.vorgang));
+        assert_eq!(
+            art.dateiname(false).unwrap(),
+            "genehmigungsfreistellung.anzeige.0600.xml"
+        );
+        assert!(art.dateiname(true).is_err());
+        assert!(
+            antrag_geaendert(
+                &d,
+                art,
+                &bezugskopf("genehmigungsfreistellung.anzeige.0600", &ba)
+            )
+            .is_err()
+        );
     }
 }

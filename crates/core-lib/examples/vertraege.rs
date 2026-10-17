@@ -110,6 +110,8 @@ fn main() {
         core_lib::email::MailAnhang,
         core_lib::email::EmailInhalt,
         core_lib::verfahren::Verfahrensart,
+        core_lib::verfahren::Antragsangaben,
+        core_lib::verfahren::Vorbescheidfrage,
         core_lib::verfahren::Verfahrensstatus,
         core_lib::verfahren::Behoerde,
         core_lib::verfahren::Bezug,

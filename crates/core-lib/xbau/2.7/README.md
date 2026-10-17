@@ -14,12 +14,12 @@ Plattformadapter bettet sie ein und prüft mit `xmllint`; siehe
 `austausch.xsd`/`hochbau.xsd` sind eigene Aggregatoren für alle mitgelieferten
 Nachrichten. Die offiziellen XSD-Dateien in `xsd_dev` bleiben unverändert.
 
-`pruefschema.xsd` und `kernmodul.xsd` sind eigene Hilfsdateien. libxml2 lädt
+`kernmodul.xsd` ist eine eigene Hilfsdatei. libxml2 lädt
 pro Namensraum nur die erste importierte Schemadatei; die XBau-Schemas
 importieren den Kernmodul-Namensraum aber aus mehreren Dateien.
 `kernmodul.xsd` fasst diese Dateien zusammen und wird zuerst importiert.
 
 ```sh
 cd crates/core-lib/xbau/2.7
-xmllint --noout --nonet --schema pruefschema.xsd bauantrag.xml
+xmllint --noout --nonet --schema austausch.xsd bauantrag.xml
 ```

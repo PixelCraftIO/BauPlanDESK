@@ -24,6 +24,57 @@ pub enum Verfahrensart {
     Freistellung,
     Sonstiges,
 }
+impl Verfahrensart {
+    /// XBau-Antragsnachricht dieser Verfahrensart. Arten ohne eigene
+    /// Antragsnachricht werden abgewiesen statt als Bauantrag gesendet.
+    pub fn xbau_antrag<'a>(
+        &self,
+        angaben: &Antragsangaben,
+        fragen: &'a [String],
+    ) -> CoreResult<crate::xbau::Antragsart<'a>> {
+        use crate::xbau::Antragsart;
+        match self {
+            // Ein Änderungsantrag ist ein neuer Bauantrag zum geänderten Vorhaben.
+            Self::Bauantrag | Self::Aenderungsantrag => Ok(Antragsart::Baugenehmigung),
+            Self::Vorbescheid => Ok(Antragsart::Vorbescheid { fragen }),
+            Self::Freistellung => Ok(Antragsart::Genehmigungsfreistellung {
+                als_bauantrag_weiterfuehren: angaben.als_bauantrag_weiterfuehren,
+            }),
+            Self::Teilbaugenehmigung => Err(fehler(
+                "XBau-Ausgabe für Teilbaugenehmigungen wird noch nicht unterstützt: \
+                 Die Nachricht 0230 braucht den Bezug auf das laufende Baugenehmigungsverfahren. \
+                 Abgabe ohne XBau festhalten.",
+            )),
+            Self::Sonstiges => Err(fehler(
+                "Für die Verfahrensart „Sonstiges“ gibt es keine XBau-Antragsnachricht. \
+                 Verfahrensart wählen oder Abgabe ohne XBau festhalten.",
+            )),
+        }
+    }
+}
+/// Angaben, die nur bestimmte Verfahrensarten in ihrer Antragsnachricht tragen.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Antragsangaben {
+    /// Fragen des Vorbescheidsantrags; jede Frage wird ein `beantragterVorbescheid`.
+    pub vorbescheidfragen: Vec<Vorbescheidfrage>,
+    /// Genehmigungsfreistellung: bei abschlägiger Entscheidung als Bauantrag weiterführen.
+    pub als_bauantrag_weiterfuehren: bool,
+}
+impl Antragsangaben {
+    pub fn fragen(&self) -> Vec<String> {
+        self.vorbescheidfragen
+            .iter()
+            .map(|f| f.frage.clone())
+            .collect()
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Vorbescheidfrage {
+    pub id: Uuid,
+    pub frage: String,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Verfahrensstatus {
@@ -193,6 +244,9 @@ pub struct Verfahrensakte {
     pub portal: Option<crate::portale::Portalakte>,
     pub bezeichnung: String,
     pub art: Verfahrensart,
+    /// Ältere Akten ohne diese Angaben lesen sie leer.
+    #[serde(default)]
+    pub antragsangaben: Antragsangaben,
     pub status: Verfahrensstatus,
     pub behoerde: Behoerde,
     pub aktenzeichen: String,

@@ -38,6 +38,11 @@ pub(super) async fn pruefen(
         || a.nachforderungen.len() > 500
         || a.anforderungen.len() > 500
         || a.bescheide.len() > 100
+        || a.antragsangaben.vorbescheidfragen.len() > 50
+        || a.antragsangaben
+            .vorbescheidfragen
+            .iter()
+            .any(|f| f.frage.len() > 16000)
     {
         return Err(fehler(
             "Verfahrensakte enthält zu viele Einträge oder zu lange Texte",
@@ -69,6 +74,7 @@ pub(super) async fn pruefen(
         .chain(a.nachforderungen.iter().map(|v| v.id))
         .chain(a.dokumentbeziehungen.iter().map(|v| v.id))
         .chain(a.ereignisse.iter().map(|v| v.id))
+        .chain(a.antragsangaben.vorbescheidfragen.iter().map(|v| v.id))
     {
         add(id)?;
     }

@@ -12,6 +12,14 @@ use zip::write::{SimpleFileOptions, ZipWriter};
 use crate::error::{CoreError, CoreResult};
 
 pub const NACHRICHT_DATEI: &str = "baugenehmigung.antrag.0200.xml";
+/// Nachrichtendateien der Antragsnachrichten; Anlagen dürfen sie nicht überdecken.
+const NACHRICHTEN_DATEIEN: [&str; 5] = [
+    NACHRICHT_DATEI,
+    "baugenehmigung.antragGeaendert.0202.xml",
+    "vorbescheid.antrag.0210.xml",
+    "vorbescheid.antragGeaendert.0212.xml",
+    "genehmigungsfreistellung.anzeige.0600.xml",
+];
 
 pub fn packen(xml: &str, anlagen: &[(String, &[u8])]) -> CoreResult<Vec<u8>> {
     packen_nachricht(NACHRICHT_DATEI, xml, anlagen)
@@ -58,9 +66,10 @@ pub fn packen_nachricht(
 /// Macht Dateinamen im Paket eindeutig (`plan.pdf`, `plan-2.pdf`, …) und
 /// entfernt Pfadanteile.
 pub fn eindeutige_namen<'a>(namen: impl IntoIterator<Item = &'a str>) -> Vec<String> {
-    let mut vergeben = HashSet::new();
-    vergeben.insert(NACHRICHT_DATEI.to_lowercase());
-    vergeben.insert("baugenehmigung.antraggeaendert.0202.xml".into());
+    let mut vergeben: HashSet<String> = NACHRICHTEN_DATEIEN
+        .iter()
+        .map(|n| n.to_lowercase())
+        .collect();
     namen
         .into_iter()
         .map(|n| {

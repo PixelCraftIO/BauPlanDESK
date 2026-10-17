@@ -381,6 +381,146 @@ async fn bauantrag_erfassen_und_exportieren() {
             .1,
         vorher
     );
+
+    // Die Verfahrensart wählt die XBau-Nachricht; Arten ohne Antragsnachricht
+    // werden abgewiesen statt als Bauantrag gesendet.
+    let abgabe = |xbau_bezug| core_lib::verfahren::abgabe::Abgabewunsch {
+        xbau_bezug,
+        id: uuid::Uuid::new_v4(),
+        titel: "Abgabe".into(),
+        dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+            dokument_id: plan.document_id,
+            version: 1,
+        }],
+        xbau: true,
+        druck: false,
+        anschreiben: String::new(),
+    };
+    let verfahren = |art: &str, angaben: serde_json::Value| {
+        let mut a = serde_json::json!({"bezeichnung":art,"art":art,"status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:test","kontakt":""},"aktenzeichen":"","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
+        if !angaben.is_null() {
+            a["antragsangaben"] = angaben;
+        }
+        a
+    };
+    let mut vorbescheid = None;
+    for (art, angaben, erwartet) in [
+        (
+            "vorbescheid",
+            serde_json::json!({"vorbescheidfragen":[{"id":uuid::Uuid::new_v4(),"frage":"Ist ein drittes Vollgeschoss zulässig?"}],"als_bauantrag_weiterfuehren":false}),
+            Ok("vorbescheid.antrag.0210"),
+        ),
+        (
+            "freistellung",
+            serde_json::json!({"vorbescheidfragen":[],"als_bauantrag_weiterfuehren":true}),
+            Ok("genehmigungsfreistellung.anzeige.0600"),
+        ),
+        (
+            "aenderungsantrag",
+            serde_json::Value::Null,
+            Ok("baugenehmigung.antrag.0200"),
+        ),
+        (
+            "vorbescheid",
+            serde_json::Value::Null,
+            Err("Frage zum Vorbescheid"),
+        ),
+        ("sonstiges", serde_json::Value::Null, Err("„Sonstiges“")),
+        (
+            "teilbaugenehmigung",
+            serde_json::Value::Null,
+            Err("Teilbaugenehmigung"),
+        ),
+    ] {
+        let vid = uuid::Uuid::new_v4();
+        core.fachobjekt_speichern(
+            p.id,
+            core_lib::plattform::ObjektArt::Verfahren,
+            vid,
+            0,
+            verfahren(art, angaben),
+            &chefin,
+        )
+        .await
+        .unwrap();
+        let w = abgabe(None);
+        let aid = w.id;
+        let ergebnis = core
+            .verfahren_abgabe_festhalten(p.id, vid, 1, w, &chefin)
+            .await;
+        match erwartet {
+            Ok(element) => {
+                ergebnis.unwrap();
+                let bytes = core
+                    .verfahren_artefakt(p.id, vid, aid, "xbau")
+                    .await
+                    .unwrap()
+                    .1;
+                let pruefung = core_lib::xbau::austausch::pruefen(
+                    "XBau.zip",
+                    &bytes,
+                    core.xbau_pruefer.as_ref(),
+                )
+                .await
+                .unwrap();
+                assert_eq!(pruefung.kopf.element, element, "{art}");
+                assert!(pruefung.kopf.antragsreferenz.is_some(), "{art}");
+                let mut archiv = zip::ZipArchive::new(Cursor::new(&bytes)).unwrap();
+                assert!(archiv.by_name(&format!("{element}.xml")).is_ok(), "{art}");
+                if art == "vorbescheid" {
+                    vorbescheid = Some((vid, pruefung.kopf.id));
+                }
+                if art == "freistellung" {
+                    let err = core
+                        .verfahren_abgabe_festhalten(
+                            p.id,
+                            vid,
+                            core.verfahrensakte(p.id, vid).await.unwrap().0.revision,
+                            abgabe(Some(eingang_id)),
+                            &chefin,
+                        )
+                        .await
+                        .unwrap_err()
+                        .to_string();
+                    assert!(err.contains("keine geänderte Anzeige"), "{err}");
+                }
+            }
+            Err(text) => {
+                let err = ergebnis.unwrap_err().to_string();
+                assert!(err.contains(text), "{art}: {err}");
+            }
+        }
+    }
+    // Nachreichung zum Vorbescheid auf eine Befundliste: 0212.
+    let (vid, _) = vorbescheid.unwrap();
+    let w = abgabe(Some(eingang_id));
+    let aid = w.id;
+    core.verfahren_abgabe_festhalten(
+        p.id,
+        vid,
+        core.verfahrensakte(p.id, vid).await.unwrap().0.revision,
+        w,
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let bytes = core
+        .verfahren_artefakt(p.id, vid, aid, "xbau")
+        .await
+        .unwrap()
+        .1;
+    let pruefung =
+        core_lib::xbau::austausch::pruefen("XBau.zip", &bytes, core.xbau_pruefer.as_ref())
+            .await
+            .unwrap();
+    assert_eq!(pruefung.kopf.element, "vorbescheid.antragGeaendert.0212");
+    let akte = core.verfahrensakte(p.id, vid).await.unwrap().1;
+    let stand = akte.abgaben.iter().find(|b| b.id == aid).unwrap();
+    assert_eq!(
+        stand.grundlagen.art,
+        Some(core_lib::verfahren::Verfahrensart::Vorbescheid)
+    );
+    assert_eq!(stand.grundlagen.antragsangaben.vorbescheidfragen.len(), 1);
 }
 
 #[tokio::test]

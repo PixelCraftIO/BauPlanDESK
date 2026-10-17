@@ -114,6 +114,16 @@ export type EmailInhalt = { format: string, betreff: string, absender: Array<Mai
  */
 datum: string | null, nachrichten_id: string | null, text: string, anhaenge: Array<MailAnhang>, hinweise: Array<string>, };
 export type Verfahrensart = "bauantrag" | "vorbescheid" | "aenderungsantrag" | "teilbaugenehmigung" | "freistellung" | "sonstiges";
+export type Antragsangaben = {
+/**
+ * Fragen des Vorbescheidsantrags; jede Frage wird ein `beantragterVorbescheid`.
+ */
+vorbescheidfragen: Array<Vorbescheidfrage>,
+/**
+ * Genehmigungsfreistellung: bei abschlägiger Entscheidung als Bauantrag weiterführen.
+ */
+als_bauantrag_weiterfuehren: boolean, };
+export type Vorbescheidfrage = { id: string, frage: string, };
 export type Verfahrensstatus = "vorbereitung" | "in_pruefung" | "ruhend" | "entschieden" | "zurueckgenommen";
 export type Behoerde = { id: string, name: string, kennung: string, kontakt: string, };
 export type Bezug = { "art": "dokument", dokument: Dokumentbezug, } | { "art": "nachweis", id: string, } | { "art": "kommunikation", id: string, } | { "art": "nachforderung", id: string, punkt: string, } | { "art": "anforderung", id: string, } | { "art": "abgabe", id: string, } | { "art": "bescheid", id: string, } | { "art": "auflage", bescheid: string, id: string, };
@@ -131,7 +141,11 @@ export type Anforderung = { id: string, titel: string, erforderlich: Erforderlic
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
 export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null, };
 export type Erinnerung = { verfahren: string, objekt: string, titel: string, datum: string, ueberfaellig: boolean, verantwortlich: string | null, };
-export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart, status: Verfahrensstatus, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
+/**
+ * Ältere Akten ohne diese Angaben lesen sie leer.
+ */
+antragsangaben: Antragsangaben, status: Verfahrensstatus, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };

@@ -7,6 +7,8 @@ Ein Projekt kann mehrere Anträge, Vorbescheide oder Änderungsverfahren enthalt
 Vorgängerverfahren und Behörden besitzen feste Identitäten.
 
 1. **Verfahren:** Art, Behörde, Aktenzeichen, Bearbeitung und Zuständigkeit festlegen.
+   Ein Vorbescheid erhält hier seine Fragen, eine Freistellung die Angabe, ob sie
+   bei abschlägiger Entscheidung als Bauantrag weitergeführt werden soll.
 2. **Vorhabenprofil:** Bundesland aus dem Projekt, Verfahrensart, Gebäudeklasse,
    Sonderbau und Nutzung erfassen. Einen mitgelieferten oder eigenen JSON-Katalog
    anwenden. Vorhandene Zuordnungen bleiben erhalten. Bei geändertem Profil oder
@@ -24,7 +26,9 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    Frist, Erinnerung und Bearbeitungszustand. Teilantworten sind möglich.
 6. **Abgabestände:** Exakte Dokumentversionen auswählen und verbindlich festhalten.
    ZIP, optional XBau-ZIP und Druck-PDF werden einmal erzeugt und gespeichert.
-   Berechnungen können zuvor unter **Drucken / PDF-Ausgabe** erstellt und mit
+   Die XBau-Nachricht folgt der Verfahrensart (0200, 0210 oder 0600, siehe
+   [XBau](../xbau/README.md#nachricht-nach-verfahrensart)); Teilbaugenehmigung
+   und „Sonstiges“ haben noch keine XBau-Ausgabe. Berechnungen können zuvor unter **Drucken / PDF-Ausgabe** erstellt und mit
    **Als Projektunterlage ablegen** ohne erneute Berechnung gespeichert werden.
 7. **Übermittlung:** Versand, Eingang oder Zurückweisung einzeln mit Datum,
    Übermittlungsweg, Referenz und Beleg erfassen. Export bedeutet keinen Versand.
