@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EinreichenStart from "./EinreichenStart.svelte";
   import Projektorganisation from "./Projektorganisation.svelte";
   import Projektuebersicht from "./Projektuebersicht.svelte";
   import { projektNavigationAnlegen } from "./projektNavigation.svelte";
@@ -69,6 +70,13 @@
   } = $props();
   const editoren = projektEditoren();
   const navigation = projektNavigationAnlegen();
+  let navigationsNummer = 0;
+  $effect(() => {
+    const a = navigation.auftrag;
+    if (!a || a.nummer === navigationsNummer) return;
+    navigationsNummer = a.nummer;
+    if (MODULE.some(m => m.id === a.ziel.bereich)) ansicht = a.ziel.bereich as Ansicht;
+  });
   function oeffnen(ziel: UebersichtsZiel) {
     if (!MODULE.some((m) => m.id === ziel.bereich)) return;
     navigation.springen(ziel);
@@ -88,6 +96,8 @@
   let formularEditor = $state<ProjektFormulare>();
   let festsetzungsEditor = $state<Rechtsgrundlagen>();
   let stammdatenEditor = $state<Rechtsgrundlagen>();
+  let einreichenBesucht = $state(false);
+  $effect(()=>{if(ansicht==="einreichen")einreichenBesucht=true;});
   let druckBesucht = $state(false);
   $effect(() => {
     if (ansicht === "druck") druckBesucht = true;
@@ -177,7 +187,7 @@
       >OK</button
     >
   </div>{/if}
-<header class="projektkopf">
+<header class="projektkopf" class:kompakt={ansicht !== "projektuebersicht"}>
   <div>
     <h1>{projekt.name}</h1>
     <span class="meta">
@@ -187,6 +197,7 @@
 </header>
 
 <main>
+  {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><EinreichenStart projektId={projekt.id} aktiv={aktiv && ansicht === "einreichen"} /></section>{/if}
   {#each FACHMODULE as modul (modul.id)}
     {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}>
         <modul.komponente

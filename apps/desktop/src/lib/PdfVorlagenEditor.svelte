@@ -172,7 +172,7 @@
           <legend>Feld bearbeiten</legend>
           <div class="raster">
             <label
-              >Feldname / Platzhalter<input
+              >Feldname / Platzhalter<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Feldname / Platzhalter"
                 bind:value={aktiv.name}
                 required
                 maxlength="120"
@@ -187,7 +187,7 @@
               /></label
             >
             <label
-              >X (mm)<input
+              >X (mm)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="X (mm)"
                 type="number"
                 min="0"
                 max={page?.breite_mm}
@@ -196,7 +196,7 @@
                 required
               /></label
             ><label
-              >Y (mm)<input
+              >Y (mm)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Y (mm)"
                 type="number"
                 min="0"
                 max={page?.hoehe_mm}
@@ -206,7 +206,7 @@
               /></label
             >
             <label
-              >Breite (mm)<input
+              >Breite (mm)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Breite (mm)"
                 type="number"
                 min="2"
                 step="0.1"
@@ -214,7 +214,7 @@
                 required
               /></label
             ><label
-              >Höhe (mm)<input
+              >Höhe (mm)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Höhe (mm)"
                 type="number"
                 min="2"
                 step="0.1"
@@ -226,7 +226,7 @@
                 ><input type="checkbox" bind:checked={aktiv.mehrzeilig} /> Mehrzeiliges
                 Textfeld</label
               ><label
-                >Schriftgröße (pt)<input
+                >Schriftgröße (pt)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Schriftgröße (pt)"
                   type="number"
                   min="6"
                   max="24"

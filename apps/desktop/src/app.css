@@ -1568,3 +1568,43 @@ input:is([type="checkbox"], [type="radio"]) {
 .aktennavigation button:hover:not(:disabled) {
   background: var(--accent-soft);
 }
+
+/* Gemeinsame Feldzustände und kompaktere Facharbeitsplätze. */
+:root { --readonly-bg: color-mix(in srgb,var(--muted) 10%,var(--panel)); }
+input:disabled, select:disabled, textarea:disabled,
+input[readonly], textarea[readonly] {
+  background:var(--readonly-bg); border-style:dashed; color:var(--muted); cursor:default;
+}
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] {
+  border:2px solid var(--error-text); background:color-mix(in srgb,var(--err-bg) 55%,var(--panel));
+}
+.feldhilfe {font-size:.8rem;color:var(--muted);line-height:1.4;}
+.feldfehler {font-size:.85rem;color:var(--error-text);line-height:1.4;}
+.pflicht {color:var(--warning-text);font-weight:700;}
+.fehlerzusammenfassung {padding:1rem;border-inline-start:4px solid var(--error-text);background:var(--err-bg);margin:1rem 0;}
+.fehlerzusammenfassung ul {margin:.5rem 0 0;list-style:disc;padding-left:1.5rem;}
+.fehlerzusammenfassung li {display:list-item;border:0;padding:.2rem 0;}
+.lesemodus {padding:.7rem 1rem;background:var(--readonly-bg);border-inline-start:3px solid var(--muted);font-size:.9rem;}
+.checkboxzeile {display:flex;flex-direction:row;align-items:flex-start;gap:.6rem;}
+.projektkopf.kompakt {padding:10px 28px;}
+.projektkopf.kompakt > div {display:flex;gap:1rem;align-items:baseline;flex-wrap:wrap;}
+.projektkopf.kompakt h1 {font-size:1.05rem;letter-spacing:0;}
+.projektkopf.kompakt .meta {font-size:.8rem;}
+.werkzeugleiste {display:flex;flex-wrap:wrap;gap:1rem;align-items:end;margin:1rem 0;}
+.werkzeugleiste label:not(:has(input[type="checkbox"])) {display:flex;flex-direction:column;gap:.45rem;min-width:0;}
+.werkzeugleiste label:has(input[type="checkbox"]) {align-self:center;}
+.dateifilter .dateisuche {flex:1;min-width:min(100%,18rem);}
+.dateifilter .dateisuche input {width:100%;}
+.dateifilter label {flex:0 1 18rem;}
+.formularaktionen {position:sticky;top:0;z-index:3;background:var(--panel);padding:.7rem 0;border-bottom:1px solid var(--border);}
+.planbezug {padding:.75rem 1rem;background:var(--readonly-bg);border-inline-start:3px solid var(--accent);}
+.planbezug p {margin:.3rem 0;}
+dialog:has(.druckliste) {width:min(1200px,96vw);max-height:94dvh;}
+/* Pflichtstern bleibt neben dem Titel, auch in bisherigen Flex-Formularen. */
+label:has(> .pflicht):not(:has(> input[type="checkbox"])) {
+  display:grid; grid-template-columns:fit-content(90%) minmax(0,1fr);
+  column-gap:.25rem; row-gap:.4rem; align-items:start;
+}
+label:has(> .pflicht) > .pflicht {justify-self:start;}
+label:has(> .pflicht) > input, label:has(> .pflicht) > select,
+label:has(> .pflicht) > textarea {grid-column:1 / -1; width:100%;}

@@ -47,7 +47,7 @@
     >
     <div class="raster">
       <label
-        >Anforderung<input
+        >Anforderung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Anforderung"
           required
           maxlength="500"
           bind:value={a.titel}

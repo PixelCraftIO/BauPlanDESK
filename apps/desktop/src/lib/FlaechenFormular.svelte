@@ -120,7 +120,7 @@
         <legend>Bauteil {i + 1}</legend>
         <div class="raster">
           <label
-            >Bezeichnung<input
+            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung"
               bind:value={b.bezeichnung}
               required
               maxlength="500"
@@ -135,7 +135,7 @@
             ></label
           >
           <label
-            >Grundfläche (m²)<input
+            >Grundfläche (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Grundfläche (m²)"
               type="number"
               min="0"
               step="any"
@@ -247,7 +247,7 @@
               >{/if}
           {/if}
           <label
-            >Bezeichnung<input
+            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung"
               bind:value={g.bezeichnung}
               readonly={!!g.geschoss_id}
               required
@@ -265,7 +265,7 @@
             ></label
           >
           {#if g.vollgeschoss || faktor > 0}<label
-              >Geschossfläche nach Außenmaßen (m²)<input
+              >Geschossfläche nach Außenmaßen (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Geschossfläche nach Außenmaßen (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -276,7 +276,7 @@
             >{/if}
           {#if !g.vollgeschoss && faktor > 0}
             <label
-              >Aufenthaltsräume (m²)<input
+              >Aufenthaltsräume (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Aufenthaltsräume (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -285,7 +285,7 @@
               /></label
             >
             <label
-              >Zugehörige Umfassungswände (m²)<input
+              >Zugehörige Umfassungswände (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Zugehörige Umfassungswände (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -294,7 +294,7 @@
               /></label
             >
             <label
-              >Zugehörige Erschließung / Treppenräume (m²)<input
+              >Zugehörige Erschließung / Treppenräume (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Zugehörige Erschließung / Treppenräume (m²)"
                 type="number"
                 min="0"
                 step="any"

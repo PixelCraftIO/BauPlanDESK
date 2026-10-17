@@ -106,7 +106,7 @@
       </p>{/if}
     <div class="raster">
       <label
-        >Unterlage<input
+        >Unterlage<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Unterlage"
           bind:value={u.bezeichnung}
           required
           maxlength="500"

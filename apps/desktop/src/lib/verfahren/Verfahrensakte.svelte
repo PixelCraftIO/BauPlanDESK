@@ -157,7 +157,7 @@
       {#if tab === "stamm"}<fieldset disabled={!darf}>
           <div class="raster">
             <label
-              >Verfahrensbezeichnung<input
+              >Verfahrensbezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Verfahrensbezeichnung"
                 required
                 maxlength="500"
                 bind:value={a.bezeichnung}
@@ -186,7 +186,7 @@
                 bind:value={a.aktenzeichen}
               /></label
             ><label
-              >Behörde<input
+              >Behörde<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Behörde"
                 required
                 maxlength="500"
                 bind:value={a.behoerde.name}

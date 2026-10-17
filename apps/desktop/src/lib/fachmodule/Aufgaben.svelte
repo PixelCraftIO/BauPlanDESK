@@ -40,7 +40,7 @@
 <Fachliste titel="Aufgaben und Fristen" {s} bereich="aufgaben" {darf}>
   {#snippet children(a)}<div class="raster">
       <label
-        >Aufgabe<input bind:value={a.titel} required maxlength="500" /></label
+        >Aufgabe<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Aufgabe" bind:value={a.titel} required maxlength="500" /></label
       ><label
         >Status<select bind:value={a.status}
           ><option value="offen">Offen</option><option value="in_arbeit"

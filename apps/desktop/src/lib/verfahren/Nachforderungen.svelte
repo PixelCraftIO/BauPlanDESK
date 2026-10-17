@@ -69,7 +69,7 @@
         <summary>{p.titel || "Neuer Punkt"} · {p.status}</summary>
         <div class="raster">
           <label
-            >Forderung<input
+            >Forderung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Forderung"
               required
               maxlength="500"
               bind:value={p.titel}

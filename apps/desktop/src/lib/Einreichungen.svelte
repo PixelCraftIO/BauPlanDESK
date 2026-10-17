@@ -262,9 +262,9 @@
     <legend>Neues Einreichungspaket</legend>
     <div class="raster">
       <label
-        >Bezeichnung<input bind:value={titel} required maxlength="300" /></label
+        >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung" bind:value={titel} required maxlength="300" /></label
       ><label
-        >Empfänger<input
+        >Empfänger<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Empfänger"
           bind:value={empfaenger}
           required
           maxlength="300"
@@ -386,7 +386,7 @@
     <fieldset disabled={laeuft}>
       <div class="raster">
         <label
-          >Einreichungsdatum<input
+          >Einreichungsdatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Einreichungsdatum"
             type="date"
             bind:value={datum}
             required

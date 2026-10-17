@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { feldSichtbar, feldFehler } from "./feldDarstellung";
+  import { onMount, untrack, tick } from "svelte";
   import {
     api,
     fehlertext,
@@ -113,6 +114,56 @@
     }
     return [...vals].map(([wert, titel]) => ({ wert, titel }));
   }
+  let bereichElement = $state<HTMLDivElement>();
+  let pruefversuch = $state(false),
+    alleFelder = $state(false);
+  let eingabefehler = $state<{ titel: string; gruppe: string; pfad: string }[]>(
+    [],
+  );
+  $effect(() => {
+    void s.id;
+    untrack(() => {
+      eingabefehler = [];
+      pruefversuch = false;
+    });
+  });
+  function formatPruefen() {
+    if (!s.eingabe || !vorlage) return true;
+    pruefversuch = true;
+    const fehler: { titel: string; gruppe: string; pfad: string }[] = [];
+    if (!s.eingabe.bezeichnung.trim()) fehler.push({titel:'Bezeichnung',gruppe:'daten',pfad:'$bezeichnung'});
+    for (const f of vorlage.felder)
+      if (feldFehler(f, lesen(s.eingabe.eingaben, f.name)))
+        fehler.push({ titel: f.titel, gruppe: f.gruppe, pfad: f.name });
+    for (const t of vorlage.tabellen)
+      for (const [i, row] of zeilen(t).entries())
+        for (const f of t.felder)
+          if (feldFehler(f, row[f.name]))
+            fehler.push({
+              titel: `${t.titel}, Position ${i + 1}: ${f.titel}`,
+              gruppe: t.gruppe,
+              pfad: `${t.pfad}[${i}].${f.name}`,
+            });
+    eingabefehler = fehler;
+    if (fehler.length) fehlerOeffnen(fehler[0]);
+    return fehler.length === 0;
+  }
+  function fehlerOeffnen(f: { gruppe: string; pfad: string }) {
+    bereich = f.gruppe;
+    alleFelder = true;
+    void tick().then(() => {
+      const block = [
+        ...(bereichElement?.querySelectorAll<HTMLElement>("[data-feldpfad]") ??
+          []),
+      ].find((e) => e.dataset.feldpfad === f.pfad);
+      if (!block) return;
+      for (let p = block.parentElement; p; p = p.parentElement)
+        if (p instanceof HTMLDetailsElement) p.open = true;
+      const e = block.querySelector<HTMLElement>("input,select,textarea");
+      e?.focus();
+      e?.scrollIntoView({ block: "center" });
+    });
+  }
   function neu(t: FormTabelle) {
     const row = JSON.parse(JSON.stringify(t.leer)) as Obj;
     if ("id" in row) row.id = crypto.randomUUID();
@@ -194,7 +245,7 @@
     }
   });
   async function pruefen() {
-    if (!s.eingabe || busy) return;
+    if (!s.eingabe || busy || !formatPruefen()) return;
     busy = true;
     s.fehler = null;
     try {
@@ -324,6 +375,7 @@
   }
 </script>
 
+<div bind:this={bereichElement} data-berechnungsmodul={modul}>
 {#if vorlage}
   <Fachliste
     titel={vorlage.titel}
@@ -332,9 +384,12 @@
     {darf}
     lesendBedienbar
     zusatzBeschaeftigt={() => busy}
+    pruefen={formatPruefen}
   >
     {#snippet children(p)}
       <p class="meta">{vorlage!.hinweis}</p>
+      <p class="meta">* Erforderliche Zahl. Leere optionale Angaben bleiben unbekannt; 0 ist ein bewusst erfasster Wert.</p>
+      {#if eingabefehler.length}<div class="fehlerzusammenfassung" role="alert"><strong>Bitte die Eingaben prüfen.</strong><ul>{#each eingabefehler as f}<li><button type="button" class="link" onclick={()=>fehlerOeffnen(f)}>{f.titel}: Eingabe prüfen.</button></li>{/each}</ul></div>{/if}
       <nav class="fach-tabs" aria-label="Berechnungsbereiche">
         {#each [["daten", "Eingaben"], ["regeln", "Regeln / Grundlagen"], ["quellen", "Quellen / Übernahmen"], ["bericht", "Prüfbericht"]] as [id, t]}<button
             type="button"
@@ -346,7 +401,10 @@
         {#if bereich === "daten"}
           <div class="fachraster">
             <label
-              >Bezeichnung<input
+              data-feldpfad="$bezeichnung">Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input
+                aria-label="Bezeichnung"
+                required
+                aria-invalid={pruefversuch && !p.bezeichnung.trim() ? 'true' : undefined}
                 bind:value={p.bezeichnung}
                 maxlength="500"
               /></label
@@ -459,10 +517,12 @@
         {/if}
         {#if bereich === "daten" || bereich === "regeln"}
           <div class="fachraster">
-            {#each vorlage!.felder.filter((f) => f.gruppe === bereich) as f}<div
+            {#each vorlage!.felder.filter((f) => f.gruppe === bereich) as f (f.name)}<div
               >
                 <Fachfeld
                   feld={f}
+                  {pruefversuch}
+                  quelle={quelleFuer(f.name) ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen" : ""}
                   wert={lesen(p.eingaben, f.name)}
                   optionen={optionen(f)}
                   disabled={!!quelleFuer(f.name)}
@@ -472,6 +532,7 @@
                   )}{/if}
               </div>{/each}
           </div>
+          {#if ["wohnflaechen","din277"].includes(modul) && bereich === 'daten'}<label class="checkboxzeile"><input type="checkbox" bind:checked={alleFelder} />Auch derzeit nicht verwendete Geometriewerte anzeigen</label><p class="meta">Beim Wechsel der Aufmaßform bleiben vorhandene Werte erhalten. Verwendet werden die zur Aufmaßform gehörenden Werte.</p>{/if}
           {#each vorlage!.tabellen.filter((t) => t.gruppe === bereich) as t}<section
               class="positionsliste"
               aria-label={t.titel}
@@ -482,12 +543,15 @@
                   >Position hinzufügen</button
                 >
               </header>
-              {#each zeilen(t) as row, i}<details class="positionszeile">
+              {#each zeilen(t) as row, i (row.id ?? i)}<details class="positionszeile">
                   <summary>{i + 1} · {name(row)}</summary>
                   <div class="fachraster">
-                    {#each t.felder.filter((f) => f.typ !== "hidden") as f}<div>
+                    {#each t.felder.filter((f) => f.typ !== "hidden" && (alleFelder || feldSichtbar(modul,t.pfad,f,row))) as f (f.name)}<div>
                         <Fachfeld
                           feld={f}
+                          pfad={`${t.pfad}[${i}].${f.name}`}
+                          {pruefversuch}
+                          quelle={quelleFuer(ziel(t,row,f)) ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen" : ""}
                           wert={row[f.name]}
                           optionen={optionen(f)}
                           disabled={!!quelleFuer(ziel(t, row, f)) || (modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten" && !["sonderentscheidung", "sondergrundlage"].includes(f.name))}
@@ -646,6 +710,8 @@
     ></label
   >
 {/snippet}
+
+</div>
 
 <style>
   fieldset {

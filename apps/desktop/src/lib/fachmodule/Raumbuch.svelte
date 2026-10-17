@@ -59,7 +59,7 @@
 
 <Fachliste titel="Flächen- und Raumbuch" {s} bereich="raumbuch" {darf}>
   {#snippet children(r)}<div class="raster">
-      <label>Bezeichnung<input bind:value={r.bezeichnung} required /></label
+      <label>Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung" bind:value={r.bezeichnung} required /></label
       ><label
         >Gebäude<select
           bind:value={r.gebaeude_id}
