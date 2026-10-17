@@ -121,6 +121,7 @@ window.__TAURI_INTERNALS__ = {
     if (
       [
         "bauherren",
+        "beteiligte",
         "dokumente_auflisten",
         "sperren_auflisten",
         "xbau_codelisten",

@@ -14,7 +14,7 @@ use core_lib::domain::{
     ProjectUpdate, Protokolleintrag,
 };
 use core_lib::formular::Feldwert;
-use core_lib::kunden::{Kunde, KundeId, Kundendaten};
+use core_lib::kunden::{Beteiligtenzuordnung, Kunde, KundeId, Kundendaten, Projektbeteiligter};
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
@@ -793,6 +793,43 @@ pub async fn bauherren_setzen(
     Ok(state
         .core
         .bauherren_setzen(projekt_id, kunden, version, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn beteiligte(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<Vec<Projektbeteiligter>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state.core.beteiligte(projekt_id).await?)
+}
+
+#[tauri::command]
+pub async fn beteiligte_setzen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    beteiligte: Vec<Beteiligtenzuordnung>,
+    version: i64,
+) -> CmdResult<Project> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
+    Ok(state
+        .core
+        .beteiligte_setzen(projekt_id, beteiligte, version, &state.benutzer())
         .await?)
 }
 

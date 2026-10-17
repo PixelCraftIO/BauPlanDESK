@@ -11,6 +11,7 @@
     anschriftZeile,
     api,
     entwurfsverfasserName,
+    beteiligtenrolleName,
     fehlertext,
     istKonflikt,
     kundenname,
@@ -25,6 +26,7 @@
     type GespeicherterBauantrag,
     type Kunde,
     type Project,
+    type Projektbeteiligter,
   } from "./api";
   import AnschriftFelder from "./AnschriftFelder.svelte";
   import BeteiligterFelder from "./BeteiligterFelder.svelte";
@@ -35,6 +37,7 @@
     exportAusloeser,
     onbuero,
     onbauherren,
+    onbeteiligte,
     onfehler,
     onhinweis,
   }: {
@@ -45,6 +48,8 @@
     onbuero: () => void;
     /** Dialog „Bauherren“ öffnen. */
     onbauherren: () => void;
+    /** Dialog „Weitere Beteiligte“ öffnen. */
+    onbeteiligte: () => void;
     onfehler: (m: string) => void;
     onhinweis: (m: string) => void;
   } = $props();
@@ -59,6 +64,7 @@
   let dokumente = $state<DocumentVersion[]>([]);
   let anlagenarten = $state<Codeliste | null>(null);
   let bauherren = $state<Kunde[]>([]);
+  let beteiligte = $state<Projektbeteiligter[]>([]);
   let kunden = $state<Kunde[]>([]);
   let entwurfsverfasser = $state<Entwurfsverfasser[]>([]);
   let laeuft = $state(false);
@@ -95,15 +101,17 @@
 
   async function laden() {
     try {
-      const [g, d, listen, b] = await Promise.all([
+      const [g, d, listen, b, t] = await Promise.all([
         api.bauantrag(projekt.id),
         api.dokumente(projekt.id),
         api.xbauCodelisten(),
         api.bauherren(projekt.id),
+        api.beteiligte(projekt.id).catch(() => []),
         entwurfsverfasserLaden(),
       ]);
       uebernehmen(g);
       bauherren = b;
+      beteiligte = t;
       dokumente = neuesteVersionen(d);
       anlagenarten = listen.find((l) => l.uri === CODELISTE_ANLAGEN) ?? null;
     } catch (e) {
@@ -125,16 +133,19 @@
     geladeneVersion = v;
     untrack(async () => {
       try {
-        const [g, b] = await Promise.all([
+        const [g, b, t] = await Promise.all([
           api.bauantrag(projekt.id),
           api.bauherren(projekt.id),
+          api.beteiligte(projekt.id).catch(() => beteiligte),
         ]);
         bauherren = b;
+        beteiligte = t;
         if (!geaendert) uebernehmen(g);
         else if (gespeichert)
           gespeichert = {
             ...gespeichert,
             fehlende_angaben: g.fehlende_angaben,
+            hinweise: g.hinweise,
           };
       } catch (e) {
         onfehler(fehlertext(e));
@@ -328,6 +339,14 @@
         </ul>
       </div>
     {/if}
+    {#if gespeichert.hinweise?.length}
+      <div class="hinweisbox" role="status">
+        <strong>Bitte prüfen (sperrt den Export nicht):</strong>
+        <ul>
+          {#each gespeichert.hinweise as h}<li>{h}</li>{/each}
+        </ul>
+      </div>
+    {/if}
 
     <fieldset disabled={!darf}>
       <legend>Bauvorhaben</legend>
@@ -390,6 +409,15 @@
       {/each}
       <button type="button" class="sekundaer" onclick={onbauherren}
         >Bauherren aus der Kundendatenbank wählen …</button
+      >
+      {#each beteiligte as b (`${b.rolle}:${b.kunde.id}`)}
+        <div>
+          {kundenname(b.kunde)}
+          <span class="meta">{beteiligtenrolleName(b.rolle)}</span>
+        </div>
+      {/each}
+      <button type="button" class="sekundaer" onclick={onbeteiligte}
+        >Eigentümer und weitere Beteiligte …</button
       >
       <label class="zeile">
         <input

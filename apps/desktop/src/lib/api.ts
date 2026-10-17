@@ -129,6 +129,7 @@ export const AKTIONEN: Record<string, string> = {
   kunde_geaendert: "Kunde geändert",
   kunde_geloescht: "Kunde gelöscht",
   bauherren_geaendert: "Bauherren geändert",
+  beteiligte_geaendert: "Beteiligte geändert",
 };
 
 // --- XBau ------------------------------------------------------------------
@@ -189,6 +190,8 @@ export interface GespeicherterBauantrag {
   geaendert_von: string | null;
   geaendert_am: string | null;
   fehlende_angaben: string[];
+  /** Prüfhinweise, die den Export nicht sperren (z. B. Zustimmungserklärung). */
+  hinweise?: string[];
   /** Flurstücke stammen aus den Grundstücksinformationen und sind hier nur Anzeige. */
   flurstuecke_zentral?: boolean;
 }
@@ -233,6 +236,26 @@ export interface Kundendaten {
   telefon: string;
   email: string;
   notizen: string;
+}
+
+/** Rolle eines Kunden im Projekt neben dem Bauherrn (core-lib kunden::Beteiligtenrolle). */
+export type Beteiligtenrolle =
+  | "grundstueckseigentuemer"
+  | "erbbauberechtigter"
+  | "bevollmaechtigter"
+  | "fachplaner";
+export const BETEILIGTENROLLEN: { code: Beteiligtenrolle; name: string }[] = [
+  { code: "grundstueckseigentuemer", name: "Grundstückseigentümer" },
+  { code: "erbbauberechtigter", name: "Erbbauberechtigter" },
+  { code: "bevollmaechtigter", name: "Bevollmächtigter" },
+  { code: "fachplaner", name: "Fachplaner" },
+];
+export function beteiligtenrolleName(r: Beteiligtenrolle): string {
+  return BETEILIGTENROLLEN.find((x) => x.code === r)?.name ?? r;
+}
+export interface Projektbeteiligter {
+  rolle: Beteiligtenrolle;
+  kunde: Kunde;
 }
 
 export interface Kunde extends Kundendaten {
@@ -1248,6 +1271,13 @@ export const api = {
   bauherren: (projektId: string) => invoke<Kunde[]>("bauherren", { projektId }),
   bauherrenSetzen: (projektId: string, kunden: string[], version: number) =>
     invoke<Project>("bauherren_setzen", { projektId, kunden, version }),
+  beteiligte: (projektId: string) =>
+    invoke<Projektbeteiligter[]>("beteiligte", { projektId }),
+  beteiligteSetzen: (
+    projektId: string,
+    beteiligte: { rolle: Beteiligtenrolle; kunde: string }[],
+    version: number,
+  ) => invoke<Project>("beteiligte_setzen", { projektId, beteiligte, version }),
   bauantrag: (projektId: string) =>
     invoke<GespeicherterBauantrag>("bauantrag", { projektId }),
   bauantragSpeichern: (projektId: string, antrag: Bauantrag, version: number) =>

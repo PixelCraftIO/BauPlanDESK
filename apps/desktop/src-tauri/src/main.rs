@@ -182,6 +182,8 @@ fn main() {
             commands::kunde_projekte,
             commands::bauherren,
             commands::bauherren_setzen,
+            commands::beteiligte,
+            commands::beteiligte_setzen,
             commands::bauantrag,
             commands::bauantrag_speichern,
             emails::email_laden,

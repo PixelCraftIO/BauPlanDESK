@@ -17,7 +17,7 @@ use crate::domain::{
 };
 use crate::error::{CoreError, CoreResult};
 use crate::formular::{self, Feldwert, Formularfeld, Formularkatalog};
-use crate::kunden::{self, Kunde, KundeId, Kundendaten};
+use crate::kunden::{self, Beteiligtenzuordnung, Kunde, KundeId, Kundendaten, Projektbeteiligter};
 use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboEngine};
 use crate::license::{LicenseProvider, Lizenzstatus};
 use crate::repository::Repositories;
@@ -601,7 +601,7 @@ impl CoreServices {
         if !projekte.is_empty() {
             let namen: Vec<_> = projekte.iter().map(|p| format!("„{}“", p.name)).collect();
             return Err(CoreError::InvalidInput(format!(
-                "{} ist Bauherr in {} und kann erst gelöscht werden, wenn er dort nicht mehr eingetragen ist.",
+                "{} ist Bauherr oder Beteiligter in {} und kann erst gelöscht werden, wenn er dort nicht mehr eingetragen ist.",
                 k.anzeigename(),
                 namen.join(", ")
             )));
@@ -654,6 +654,55 @@ impl CoreServices {
             None,
             if namen.is_empty() {
                 "keine Bauherren".into()
+            } else {
+                namen.join(", ")
+            },
+        )
+        .await?;
+        Ok(p)
+    }
+
+    /// Weitere Beteiligte eines Projekts (Eigentümer, Bevollmächtigte, Fachplaner).
+    pub async fn beteiligte(&self, project: ProjectId) -> CoreResult<Vec<Projektbeteiligter>> {
+        self.repos.kunden.beteiligte(project).await
+    }
+
+    /// Ordnet dem Projekt Kunden in weiteren Rollen zu. Wie bei
+    /// [`Self::bauherren_setzen`] ist `expected_version` die Projektversion.
+    pub async fn beteiligte_setzen(
+        &self,
+        project: ProjectId,
+        beteiligte: Vec<Beteiligtenzuordnung>,
+        expected_version: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<Project> {
+        self.pruefe(wer, Recht::ProjektBearbeiten).await?;
+        if beteiligte.len() > 200 {
+            return Err(CoreError::InvalidInput(
+                "Höchstens 200 Beteiligte je Projekt".into(),
+            ));
+        }
+        let mut liste: Vec<Beteiligtenzuordnung> = Vec::with_capacity(beteiligte.len());
+        let mut namen = Vec::with_capacity(beteiligte.len());
+        for z in beteiligte {
+            if !liste.contains(&z) {
+                let k = self.repos.kunden.kunde(z.kunde).await?;
+                namen.push(format!("{} ({})", k.anzeigename(), z.rolle.name()));
+                liste.push(z);
+            }
+        }
+        let p = self
+            .repos
+            .kunden
+            .beteiligte_setzen(project, &liste, expected_version)
+            .await?;
+        self.protokollieren(
+            wer,
+            Aktion::BeteiligteGeaendert,
+            Some(project),
+            None,
+            if namen.is_empty() {
+                "keine weiteren Beteiligten".into()
             } else {
                 namen.join(", ")
             },
@@ -802,12 +851,17 @@ impl CoreServices {
         let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
         fehlende_angaben.extend(self.codelisten.fehlende());
         fehlende_angaben.extend(self.anlagen_pruefen(&antrag).await?);
+        let hinweise = kunden::zustimmungshinweise(
+            &self.repos.kunden.bauherren(project).await?,
+            &self.repos.kunden.beteiligte(project).await?,
+        );
         Ok(GespeicherterBauantrag {
             antrag,
             version,
             geaendert_von: von,
             geaendert_am: am,
             fehlende_angaben,
+            hinweise,
             flurstuecke_zentral,
         })
     }

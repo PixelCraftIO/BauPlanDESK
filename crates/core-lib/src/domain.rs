@@ -364,10 +364,11 @@ pub enum Aktion {
     KundeGeaendert,
     KundeGeloescht,
     BauherrenGeaendert,
+    BeteiligteGeaendert,
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 20] = [
+    const ALLE: [Aktion; 21] = [
         Self::ProjektAngelegt,
         Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
@@ -388,6 +389,7 @@ impl Aktion {
         Self::KundeGeaendert,
         Self::KundeGeloescht,
         Self::BauherrenGeaendert,
+        Self::BeteiligteGeaendert,
     ];
 
     pub fn code(self) -> &'static str {
@@ -412,6 +414,7 @@ impl Aktion {
             Self::KundeGeaendert => "kunde_geaendert",
             Self::KundeGeloescht => "kunde_geloescht",
             Self::BauherrenGeaendert => "bauherren_geaendert",
+            Self::BeteiligteGeaendert => "beteiligte_geaendert",
         }
     }
 }

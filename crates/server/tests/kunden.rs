@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use core_lib::benutzer::{NeuerBenutzer, Rolle};
 use core_lib::domain::{Aktion, Bundesland, NewProject, Project};
-use core_lib::kunden::{Kundendaten, Kundenkategorie, Kundentyp};
+use core_lib::kunden::{
+    Beteiligtenrolle, Beteiligtenzuordnung, Kundendaten, Kundenkategorie, Kundentyp,
+};
 use core_lib::lbo::LboEngine;
 use core_lib::license::DevelopmentLicense;
 use core_lib::{CoreError, CoreServices};
@@ -254,4 +256,114 @@ async fn bauherren_aus_alten_bauantraegen_uebernehmen() {
     // Wiederholbar.
     assert_eq!(core.bauherren_uebernehmen(&chefin).await.unwrap(), 0);
     assert_eq!(core.kunden_auflisten().await.unwrap().len(), 2);
+}
+
+fn person(vorname: &str, familienname: &str) -> Kundendaten {
+    Kundendaten {
+        vorname: vorname.into(),
+        familienname: familienname.into(),
+        ..Kundendaten::default()
+    }
+}
+
+#[tokio::test]
+async fn beteiligte_in_rollen_und_zustimmung_des_eigentuemers() {
+    let dir = tempfile::tempdir().unwrap();
+    let core = core(dir.path()).await;
+    let chefin = core.anmelden("chefin", "Clara Chefin").await.unwrap();
+    let p = projekt(&core, "Anbau Huber").await;
+    let anna = core
+        .kunde_anlegen(person("Anna", "Müller"), &chefin)
+        .await
+        .unwrap();
+    let erben = core
+        .kunde_anlegen(
+            Kundendaten {
+                typ: Kundentyp::Organisation,
+                firma: "Erbengemeinschaft Huber".into(),
+                ..Kundendaten::default()
+            },
+            &chefin,
+        )
+        .await
+        .unwrap();
+    let statik = core
+        .kunde_anlegen(person("Tom", "Träger"), &chefin)
+        .await
+        .unwrap();
+    let p = core
+        .bauherren_setzen(p.id, vec![anna.id], p.version, &chefin)
+        .await
+        .unwrap();
+    let z = |rolle, kunde| Beteiligtenzuordnung { rolle, kunde };
+    let p = core
+        .beteiligte_setzen(
+            p.id,
+            vec![
+                z(Beteiligtenrolle::Fachplaner, statik.id),
+                z(Beteiligtenrolle::Grundstueckseigentuemer, erben.id),
+                z(Beteiligtenrolle::Grundstueckseigentuemer, anna.id),
+                z(Beteiligtenrolle::Grundstueckseigentuemer, anna.id),
+            ],
+            p.version,
+            &chefin,
+        )
+        .await
+        .unwrap();
+    let b = core.beteiligte(p.id).await.unwrap();
+    let liste: Vec<_> = b.iter().map(|b| (b.rolle, b.kunde.anzeigename())).collect();
+    assert_eq!(
+        liste,
+        [
+            (
+                Beteiligtenrolle::Grundstueckseigentuemer,
+                "Erbengemeinschaft Huber".to_string()
+            ),
+            (
+                Beteiligtenrolle::Grundstueckseigentuemer,
+                "Anna Müller".to_string()
+            ),
+            (Beteiligtenrolle::Fachplaner, "Tom Träger".to_string()),
+        ],
+        "nach Rolle geordnet, ohne Dubletten"
+    );
+
+    // Nur der Eigentümer, der nicht Bauherr ist, muss zustimmen.
+    let g = core.bauantrag(p.id).await.unwrap();
+    assert_eq!(
+        g.hinweise,
+        ["Zustimmungserklärung von Erbengemeinschaft Huber (Grundstückseigentümer), nicht Bauherr"]
+    );
+    assert!(!g.fehlende_angaben.iter().any(|f| f.contains("Zustimmung")));
+
+    // Ein Beteiligter kann wie ein Bauherr nicht gelöscht werden.
+    let err = core
+        .kunde_loeschen(statik.id, statik.version, &chefin)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CoreError::InvalidInput(_)), "{err}");
+    assert_eq!(core.kunde_projekte(statik.id).await.unwrap().len(), 1);
+
+    // Veraltete Projektversion wird abgewiesen.
+    let err = core
+        .beteiligte_setzen(p.id, vec![], p.version - 1, &chefin)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CoreError::VersionConflict { .. }), "{err}");
+    let p = core
+        .beteiligte_setzen(p.id, vec![], p.version, &chefin)
+        .await
+        .unwrap();
+    assert!(core.beteiligte(p.id).await.unwrap().is_empty());
+    assert!(core.bauantrag(p.id).await.unwrap().hinweise.is_empty());
+    core.kunde_loeschen(statik.id, statik.version, &chefin)
+        .await
+        .unwrap();
+    let protokoll = core.protokoll(p.id, 50).await.unwrap();
+    assert!(
+        protokoll
+            .iter()
+            .any(|e| e.eintrag.aktion == Aktion::BeteiligteGeaendert
+                && e.eintrag.details.contains("Tom Träger (Fachplaner)"))
+    );
 }

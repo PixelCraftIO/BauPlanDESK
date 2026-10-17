@@ -30,6 +30,7 @@
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
   import { type Ansicht } from "./lib/projektSitzung";
   import BauherrenDialog from "./lib/Bauherren.svelte";
+  import BeteiligteDialog from "./lib/Beteiligte.svelte";
   import Benutzerverwaltung from "./lib/Benutzerverwaltung.svelte";
   import BueroDialog from "./lib/Buero.svelte";
   import Dialog from "./lib/Dialog.svelte";
@@ -47,6 +48,7 @@
     | "buero"
     | "lizenz"
     | "bauherren"
+    | "beteiligte"
     | "mitglieder"
     | null;
 
@@ -911,6 +913,15 @@
 {:else if dialog === "bauherren" && ich && projekt}
   <Dialog titel="Bauherren" breit onclose={() => (dialog = null)}>
     <BauherrenDialog
+      {projekt}
+      {ich}
+      onprojekt={projektSetzen}
+      onschliessen={() => (dialog = null)}
+    />
+  </Dialog>
+{:else if dialog === "beteiligte" && ich && projekt}
+  <Dialog titel="Weitere Beteiligte" breit onclose={() => (dialog = null)}>
+    <BeteiligteDialog
       {projekt}
       {ich}
       onprojekt={projektSetzen}
