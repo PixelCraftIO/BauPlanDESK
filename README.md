@@ -346,7 +346,8 @@ exportieren …* (Strg+Umschalt+E).
 
 - **Büroangaben** (*Bearbeiten → Büroangaben …*, nur Projektleitung): Name,
   Anschrift und Absenderkennung des Büros. Das Büro ist Absender (`autor`)
-  und Entwurfsverfasser jeder Nachricht.
+  jeder Nachricht; Entwurfsverfasser ist eine bauvorlageberechtigte Person des Büros
+  mit Kammer-Mitgliedsnummer oder Nachweis.
 - **Bauantrag je Projekt:** Bauaufsichtsbehörde mit DVDV-Kennung (`leser`),
   die Bauherren des Projekts aus der Kundendatenbank (sie sind die
   Antragsteller), Gebührenpflichtiger, Art der

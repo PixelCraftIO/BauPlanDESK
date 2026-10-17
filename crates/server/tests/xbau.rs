@@ -14,6 +14,7 @@ use core_lib::xbau::codeliste::{ANLAGEN, MIMETYPES};
 use core_lib::xbau::paket::NACHRICHT_DATEI;
 use core_lib::xbau::{
     Anlagenwahl, Anschrift, Bauaufsicht, Buero, Codeeintrag, Codeliste, Codelisten,
+    Entwurfsverfasser,
 };
 use core_lib::{CoreError, CoreServices};
 
@@ -87,19 +88,17 @@ async fn bauantrag_erfassen_und_exportieren() {
     let leer = core.bauantrag(p.id).await.unwrap();
     assert_eq!(leer.version, 0);
     assert!(leer.fehlende_angaben.iter().any(|f| f == "Büro: Name"));
+    assert!(
+        leer.fehlende_angaben
+            .iter()
+            .any(|f| f == "Entwurfsverfasser (bauvorlageberechtigte Person)")
+    );
     let err = core.xbau_exportieren(p.id, &chefin).await.unwrap_err();
     assert!(err.to_string().contains("Bauherr"), "{err}");
 
-    core.buero_speichern(
-        Buero {
-            name: "Architekturbüro Muster".into(),
-            anschrift: Anschrift::default(),
-            kennung: "arc:4711".into(),
-        },
-        &chefin,
-    )
-    .await
-    .unwrap();
+    core.buero_speichern(buero("Architekturbüro Muster"), &chefin)
+        .await
+        .unwrap();
 
     let mut antrag = leer.antrag;
     antrag.bauaufsicht = Bauaufsicht {
@@ -247,6 +246,10 @@ async fn bauantrag_erfassen_und_exportieren() {
         xml.contains(&anna.id.to_string()),
         "Kunden-ID als Akteur-ID"
     );
+    assert!(
+        xml.contains("<xbau:mitgliedsnummer>12345</xbau:mitgliedsnummer>"),
+        "Entwurfsverfasser mit Kammereintrag aus den Büroangaben"
+    );
     assert!(xml.contains("<dateiname>Lageplan.pdf</dateiname>"));
     assert!(xml.contains(&format!("urn:uuid:{}", plan.document_id.0)));
     let mut pdf = Vec::new();
@@ -358,16 +361,9 @@ async fn bauantrag_erfassen_und_exportieren() {
         .read_to_end(&mut altplan)
         .unwrap();
     assert_eq!(altplan, b"%PDF-1.7 Lageplan");
-    core.buero_speichern(
-        Buero {
-            name: "Neuer Büroname".into(),
-            anschrift: Anschrift::default(),
-            kennung: "arc:4711".into(),
-        },
-        &chefin,
-    )
-    .await
-    .unwrap();
+    core.buero_speichern(buero("Neuer Büroname"), &chefin)
+        .await
+        .unwrap();
     core.store_document(
         p.id,
         Some(plan.document_id),
@@ -576,16 +572,9 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     assert_eq!(g.antrag.grundstueck.flurstuecke[0].zaehler, "100");
     assert!(!g.fehlende_angaben.iter().any(|f| f.contains("Flurstück")));
 
-    core.buero_speichern(
-        Buero {
-            name: "Architekturbüro Muster".into(),
-            anschrift: Anschrift::default(),
-            kennung: "arc:4711".into(),
-        },
-        &u,
-    )
-    .await
-    .unwrap();
+    core.buero_speichern(buero("Architekturbüro Muster"), &u)
+        .await
+        .unwrap();
     let anna = core
         .kunde_anlegen(
             Kundendaten {
@@ -611,4 +600,22 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     assert!(xml.contains("<nenner>1</nenner>"));
     assert!(xml.contains("<zaehler>101</zaehler>"));
     assert!(!xml.contains("999") && !xml.contains("Falschgemarkung"));
+}
+
+/// Büroangaben mit einer bauvorlageberechtigten Person.
+fn buero(name: &str) -> Buero {
+    Buero {
+        name: name.into(),
+        anschrift: Anschrift::default(),
+        kennung: "arc:4711".into(),
+        entwurfsverfasser: vec![Entwurfsverfasser {
+            id: uuid::Uuid::new_v4(),
+            vorname: "Eva".into(),
+            familienname: "Entwurf".into(),
+            berufsbezeichnung: "Architektin".into(),
+            mitgliedsnummer: "12345".into(),
+            kammerland: Some(Bundesland::By),
+            nachweis: String::new(),
+        }],
+    }
 }

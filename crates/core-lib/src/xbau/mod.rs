@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::domain::{Bundesland, DocumentId};
+use crate::error::{CoreError, CoreResult};
 
 pub(crate) use antrag::mime_pruefen;
 pub use antrag::{Anlagendatei, Nachrichtendaten, baugenehmigung_aenderung, baugenehmigung_antrag};
@@ -170,6 +171,9 @@ pub struct Bauantrag {
     pub bauherren: Vec<Beteiligter>,
     /// Wer die Gebühren zahlt; `None` = der erste Bauherr.
     pub gebuehrenpflichtiger: Option<Beteiligter>,
+    /// Gewählter Entwurfsverfasser aus [`Buero::entwurfsverfasser`];
+    /// `None` = die einzige eingetragene Person des Büros.
+    pub entwurfsverfasser: Option<Uuid>,
     /// Codes der Art der Maßnahme, siehe [`MASSNAHMEN`].
     pub massnahmen: Vec<String>,
     pub anzahl_gebaeude: u32,
@@ -185,6 +189,7 @@ impl Default for Bauantrag {
             bezeichnung: String::new(),
             bauherren: Vec::new(),
             gebuehrenpflichtiger: None,
+            entwurfsverfasser: None,
             massnahmen: vec!["11".into()],
             anzahl_gebaeude: 1,
             grundstueck: Baugrundstueck {
@@ -197,6 +202,18 @@ impl Default for Bauantrag {
 }
 
 impl Bauantrag {
+    /// Entwurfsverfasser dieses Antrags: die gewählte Person oder, ohne Wahl,
+    /// die einzige des Büros.
+    pub fn entwurfsverfasser_von<'a>(&self, buero: &'a Buero) -> Option<&'a Entwurfsverfasser> {
+        match self.entwurfsverfasser {
+            Some(id) => buero.entwurfsverfasser.iter().find(|e| e.id == id),
+            None => match buero.entwurfsverfasser.as_slice() {
+                [e] => Some(e),
+                _ => None,
+            },
+        }
+    }
+
     /// Pflichtangaben, die für den Export noch fehlen (leer = vollständig).
     /// `bauherren` sind die dem Projekt zugeordneten Bauherren.
     pub fn fehlende_angaben(&self, buero: &Buero, bauherren: &[Beteiligter]) -> Vec<String> {
@@ -206,6 +223,13 @@ impl Bauantrag {
         }
         if buero.kennung.trim().is_empty() {
             fehlt.push("Büro: Absenderkennung".into());
+        }
+        match self.entwurfsverfasser_von(buero) {
+            Some(e) => e.fehlende(&mut fehlt),
+            None if self.entwurfsverfasser.is_some() => fehlt.push(
+                "Entwurfsverfasser: gewählte Person steht nicht mehr in den Büroangaben".into(),
+            ),
+            None => fehlt.push("Entwurfsverfasser (bauvorlageberechtigte Person)".into()),
         }
         if self.bauaufsicht.name.trim().is_empty() {
             fehlt.push("Bauaufsichtsbehörde: Name".into());
@@ -264,7 +288,8 @@ impl Bauantrag {
 }
 
 /// Angaben zum eigenen Büro, für alle Projekte gleich. Das Büro ist Absender
-/// der Nachricht und Entwurfsverfasser.
+/// der Nachricht; Entwurfsverfasser ist eine seiner bauvorlageberechtigten
+/// Personen.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Buero {
@@ -273,6 +298,92 @@ pub struct Buero {
     /// Kennung des Absenders, wie sie Antragsportal oder Behörde vergeben
     /// (z. B. DVDV-Kennung).
     pub kennung: String,
+    /// Bauvorlageberechtigte Personen des Büros, aus denen der Bauantrag den
+    /// Entwurfsverfasser wählt.
+    pub entwurfsverfasser: Vec<Entwurfsverfasser>,
+}
+
+impl Buero {
+    pub fn validate(&self) -> CoreResult<()> {
+        let mut ids = std::collections::HashSet::new();
+        for e in &self.entwurfsverfasser {
+            if !ids.insert(e.id) {
+                return Err(CoreError::InvalidInput(
+                    "Entwurfsverfasser: doppelte ID".into(),
+                ));
+            }
+            for (feld, wert) in [
+                ("Vorname", &e.vorname),
+                ("Familienname", &e.familienname),
+                ("Berufsbezeichnung", &e.berufsbezeichnung),
+                ("Mitgliedsnummer", &e.mitgliedsnummer),
+            ] {
+                if wert.chars().count() > 200 {
+                    return Err(CoreError::InvalidInput(format!(
+                        "Entwurfsverfasser: {feld} ist zu lang"
+                    )));
+                }
+            }
+            if e.nachweis.chars().count() > 2000 {
+                return Err(CoreError::InvalidInput(
+                    "Entwurfsverfasser: Nachweis ist zu lang".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Bauvorlageberechtigte Person (XBau `Entwurfsverfasser`). Die Berechtigung
+/// belegt entweder die Kammermitgliedschaft oder ein freier Nachweis, etwa
+/// eine Bescheinigung nach Landesrecht.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Entwurfsverfasser {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub vorname: String,
+    #[serde(default)]
+    pub familienname: String,
+    /// Etwa „Architektin“ oder „Beratender Ingenieur“.
+    #[serde(default)]
+    pub berufsbezeichnung: String,
+    /// Mitgliedsnummer in der Architekten- oder Ingenieurkammer.
+    #[serde(default)]
+    pub mitgliedsnummer: String,
+    /// Land, in dem die Kammer ihren Sitz hat.
+    #[serde(default)]
+    pub kammerland: Option<Bundesland>,
+    /// Nachweis der Bauvorlageberechtigung ohne Kammermitgliedschaft.
+    #[serde(default)]
+    pub nachweis: String,
+}
+
+impl Entwurfsverfasser {
+    pub fn anzeigename(&self) -> String {
+        format!("{} {}", self.vorname.trim(), self.familienname.trim())
+            .trim()
+            .to_string()
+    }
+
+    fn fehlende(&self, fehlt: &mut Vec<String>) {
+        if self.vorname.trim().is_empty() {
+            fehlt.push("Entwurfsverfasser: Vorname".into());
+        }
+        if self.familienname.trim().is_empty() {
+            fehlt.push("Entwurfsverfasser: Familienname".into());
+        }
+        if self.mitgliedsnummer.trim().is_empty() {
+            if self.nachweis.trim().is_empty() {
+                fehlt.push(
+                    "Entwurfsverfasser: Kammer-Mitgliedsnummer oder Nachweis der Bauvorlageberechtigung"
+                        .into(),
+                );
+            }
+        } else if self.kammerland.is_none() {
+            fehlt.push("Entwurfsverfasser: Land der Kammer".into());
+        }
+    }
 }
 
 /// Gespeicherter Bauantrag mit Version für das Optimistic Locking.

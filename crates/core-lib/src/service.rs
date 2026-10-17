@@ -892,6 +892,7 @@ impl CoreServices {
 
     pub async fn buero_speichern(&self, buero: Buero, wer: &Benutzer) -> CoreResult<Buero> {
         self.pruefe(wer, Recht::BueroangabenAendern).await?;
+        buero.validate()?;
         let t =
             serde_json::to_string(&buero).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
         self.repos.lizenz.einstellung_setzen(BUERO, &t).await?;

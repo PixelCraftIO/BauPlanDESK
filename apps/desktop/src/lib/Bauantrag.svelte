@@ -10,6 +10,7 @@
     alsBeteiligter,
     anschriftZeile,
     api,
+    entwurfsverfasserName,
     fehlertext,
     istKonflikt,
     kundenname,
@@ -20,6 +21,7 @@
     type Beteiligter,
     type Codeliste,
     type DocumentVersion,
+    type Entwurfsverfasser,
     type GespeicherterBauantrag,
     type Kunde,
     type Project,
@@ -58,6 +60,7 @@
   let anlagenarten = $state<Codeliste | null>(null);
   let bauherren = $state<Kunde[]>([]);
   let kunden = $state<Kunde[]>([]);
+  let entwurfsverfasser = $state<Entwurfsverfasser[]>([]);
   let laeuft = $state(false);
 
   const geaendert = $derived(
@@ -97,6 +100,7 @@
         api.dokumente(projekt.id),
         api.xbauCodelisten(),
         api.bauherren(projekt.id),
+        entwurfsverfasserLaden(),
       ]);
       uebernehmen(g);
       bauherren = b;
@@ -158,6 +162,14 @@
     } finally {
       laeuft = false;
     }
+  }
+  // Die Büroangaben können sich im Dialog geändert haben. Fehlen sie, bleibt
+  // die Maske nutzbar; die fehlenden Angaben nennen den Entwurfsverfasser.
+  async function entwurfsverfasserLaden() {
+    entwurfsverfasser = await api
+      .buero()
+      .then((b) => b.entwurfsverfasser ?? [])
+      .catch(() => entwurfsverfasser);
   }
   async function kundenLaden() {
     if (kunden.length === 0) kunden = await api.kunden().catch(() => []);
@@ -417,6 +429,44 @@
           </select>
         </label>
       {/if}
+    </fieldset>
+
+    <fieldset disabled={!darf}>
+      <legend>Entwurfsverfasser</legend>
+      {#if entwurfsverfasser.length === 0}
+        <p class="meta">
+          In den Büroangaben ist noch keine bauvorlageberechtigte Person
+          eingetragen.
+        </p>
+      {:else}
+        <label
+          >Bauvorlageberechtigte Person
+          <select
+            value={antrag.entwurfsverfasser ?? ""}
+            onfocus={entwurfsverfasserLaden}
+            onchange={(e) =>
+              antrag &&
+              (antrag.entwurfsverfasser = e.currentTarget.value || null)}
+          >
+            <option value=""
+              >{entwurfsverfasser.length === 1
+                ? `Einzige Person des Büros (${entwurfsverfasserName(entwurfsverfasser[0])})`
+                : "– Person wählen –"}</option
+            >
+            {#if antrag.entwurfsverfasser && !entwurfsverfasser.some((e) => e.id === antrag?.entwurfsverfasser)}
+              <option value={antrag.entwurfsverfasser}
+                >Nicht mehr in den Büroangaben</option
+              >
+            {/if}
+            {#each entwurfsverfasser as e (e.id)}<option value={e.id}
+                >{entwurfsverfasserName(e)}</option
+              >{/each}
+          </select>
+        </label>
+      {/if}
+      <button type="button" class="sekundaer" onclick={onbuero}
+        >Personen in den Büroangaben pflegen …</button
+      >
     </fieldset>
 
     <fieldset disabled={!darf}>
