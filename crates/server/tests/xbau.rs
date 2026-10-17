@@ -488,3 +488,127 @@ async fn buero_aendern_braucht_projektleitung() {
     ));
     assert_eq!(core.buero().await.unwrap(), Buero::default());
 }
+
+#[tokio::test]
+async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
+    use core_lib::domain::{Planungsrecht, ProjectUpdate};
+    use core_lib::grundstuecksinformationen::{FlurstuecksInfo, Grundstuecksinformationen};
+    use core_lib::projektbereiche::ProjektBereich;
+    let dir = tempfile::tempdir().unwrap();
+    let core = core(dir.path(), true).await;
+    let u = core.anmelden("planer", "Planer").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Zentrale Flurstücke".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Planungsrecht::default(),
+            },
+            &u,
+        )
+        .await
+        .unwrap();
+    let fl = |id: &str, nummer: &str| FlurstuecksInfo {
+        id: id.into(),
+        gemarkung: "Lindenthal".into(),
+        flur: "3".into(),
+        nummer: nummer.into(),
+        flaeche_m2: 400.,
+        grundbuchbezirk: String::new(),
+        grundbuchblatt: String::new(),
+        laufende_nummer: None,
+        grundbuchauszug: None,
+        eigentuemer: String::new(),
+        bemerkung: String::new(),
+    };
+    let mut recht = p.planungsrecht.clone();
+    recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
+        flurstuecke: vec![fl("a", "100/1"), fl("b", "101")],
+    });
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            ProjectUpdate {
+                id: p.id,
+                expected_version: p.version,
+                name: p.name.clone(),
+                bundesland: p.bundesland,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Some(recht),
+            },
+            &u,
+        )
+        .await
+        .unwrap();
+
+    // Eine abweichende Eingabe im Antrag wird nicht gespeichert und nicht exportiert.
+    let leer = core.bauantrag(p.id).await.unwrap();
+    assert!(leer.flurstuecke_zentral);
+    assert_eq!(leer.antrag.grundstueck.flurstuecke.len(), 2);
+    assert_eq!(leer.antrag.grundstueck.flurstuecke[0].zaehler, "100");
+    assert_eq!(leer.antrag.grundstueck.flurstuecke[0].nenner, "1");
+    let mut antrag = leer.antrag;
+    antrag.grundstueck.flurstuecke[0].gemarkung = "Falschgemarkung".into();
+    antrag.grundstueck.flurstuecke[0].zaehler = "999".into();
+    antrag.bauaufsicht = Bauaufsicht {
+        name: "Bauordnungsamt Köln".into(),
+        kennung: "bab:053150000".into(),
+    };
+    let plan = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan.pdf",
+            Bytes::from_static(b"%PDF-1.7 Lageplan"),
+            &u,
+        )
+        .await
+        .unwrap();
+    antrag.anlagen.push(Anlagenwahl {
+        dokument: plan.document_id,
+        anlageart: "0100".into(),
+        bezeichnung: String::new(),
+    });
+    let g = core.bauantrag_speichern(p.id, antrag, 0, &u).await.unwrap();
+    assert_eq!(g.antrag.grundstueck.flurstuecke[0].zaehler, "100");
+    assert!(!g.fehlende_angaben.iter().any(|f| f.contains("Flurstück")));
+
+    core.buero_speichern(
+        Buero {
+            name: "Architekturbüro Muster".into(),
+            anschrift: Anschrift::default(),
+            kennung: "arc:4711".into(),
+        },
+        &u,
+    )
+    .await
+    .unwrap();
+    let anna = core
+        .kunde_anlegen(
+            Kundendaten {
+                vorname: "Anna".into(),
+                familienname: "Müller".into(),
+                ..Kundendaten::default()
+            },
+            &u,
+        )
+        .await
+        .unwrap();
+    core.bauherren_setzen(p.id, vec![anna.id], p.version, &u)
+        .await
+        .unwrap();
+    let export = core.xbau_exportieren(p.id, &u).await.unwrap();
+    let mut zip = zip::ZipArchive::new(Cursor::new(export.zip)).unwrap();
+    let mut xml = String::new();
+    zip.by_name(NACHRICHT_DATEI)
+        .unwrap()
+        .read_to_string(&mut xml)
+        .unwrap();
+    assert!(xml.contains("<zaehler>100</zaehler>"), "{xml}");
+    assert!(xml.contains("<nenner>1</nenner>"));
+    assert!(xml.contains("<zaehler>101</zaehler>"));
+    assert!(!xml.contains("999") && !xml.contains("Falschgemarkung"));
+}

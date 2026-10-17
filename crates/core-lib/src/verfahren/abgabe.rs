@@ -148,25 +148,8 @@ impl CoreServices {
             ));
         }
         let projekt = self.get_project(p).await?;
-        let mut antrag = self.bauantrag(p).await?.antrag;
-        // Vorhandene amtliche Antragsdaten nicht still überschreiben: Flurstücke explizit
-        // aus den zentralen Fakten übernehmen; Abgabesnapshot zeigt genau diese Daten.
-        let info = crate::grundstuecksinformationen::informationen(&projekt.planungsrecht);
-        if !info.flurstuecke.is_empty() {
-            antrag.grundstueck.flurstuecke = info
-                .flurstuecke
-                .iter()
-                .map(|v| {
-                    let (zaehler, nenner) = v.nummer.split_once('/').unwrap_or((&v.nummer, ""));
-                    crate::xbau::Flurstueck {
-                        gemarkung: v.gemarkung.clone(),
-                        flur: v.flur.clone(),
-                        zaehler: zaehler.into(),
-                        nenner: nenner.into(),
-                    }
-                })
-                .collect();
-        }
+        // Der Bauantrag liefert die Flurstücke bereits aus den zentralen Grundstücksinformationen.
+        let antrag = self.bauantrag(p).await?.antrag;
         let grundlagen = Abgabegrundlagen {
             bauherren: self.bauherren_fuer_antrag(p, &antrag).await?,
             buero: self.buero().await?,

@@ -769,8 +769,9 @@ impl CoreServices {
     /// Angaben zum Bauantrag; noch nie gespeichert = Vorgabewerte mit
     /// Version 0.
     pub async fn bauantrag(&self, project: ProjectId) -> CoreResult<GespeicherterBauantrag> {
-        self.repos.projects.get(project).await?;
-        let (antrag, version, von, am) = match self.repos.bauantraege.bauantrag(project).await? {
+        let p = self.repos.projects.get(project).await?;
+        let (mut antrag, version, von, am) = match self.repos.bauantraege.bauantrag(project).await?
+        {
             Some(d) => (
                 serde_json::from_str(&d.daten).map_err(|e| {
                     CoreError::Database(format!("gespeicherter Bauantrag ist ungültig: {e}"))
@@ -781,6 +782,14 @@ impl CoreServices {
             ),
             None => (Bauantrag::default(), 0, None, None),
         };
+        // Eine Quelle für Flurstücke: Sind sie im Projekt erfasst, gelten sie für
+        // Antrag, XBau-Export und Abgabe. Nur Altprojekte ohne Erfassung nutzen die
+        // im Antrag gespeicherte Liste.
+        let zentral = flurstuecke_fuer_antrag(&p);
+        let flurstuecke_zentral = !zentral.is_empty();
+        if flurstuecke_zentral {
+            antrag.grundstueck.flurstuecke = zentral;
+        }
         let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
         let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
         fehlende_angaben.extend(self.codelisten.fehlende());
@@ -791,6 +800,7 @@ impl CoreServices {
             geaendert_von: von,
             geaendert_am: am,
             fehlende_angaben,
+            flurstuecke_zentral,
         })
     }
 
@@ -830,12 +840,16 @@ impl CoreServices {
     pub async fn bauantrag_speichern(
         &self,
         project: ProjectId,
-        antrag: Bauantrag,
+        mut antrag: Bauantrag,
         expected_version: i64,
         wer: &Benutzer,
     ) -> CoreResult<GespeicherterBauantrag> {
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
-        self.repos.projects.get(project).await?;
+        let p = self.repos.projects.get(project).await?;
+        // Zentral erfasste Flurstücke nicht als zweite, später veraltende Kopie speichern.
+        if !flurstuecke_fuer_antrag(&p).is_empty() {
+            antrag.grundstueck.flurstuecke.clear();
+        }
         // Alte Bauherren erst in die Kundendatenbank holen, sonst gingen sie
         // mit dem Speichern verloren.
         let expected_version = match self.bauherren_uebernehmen_fuer(project, wer).await? {
@@ -1834,6 +1848,15 @@ fn sanitize_file_name(name: &str) -> CoreResult<String> {
     } else {
         Ok(cleaned)
     }
+}
+
+/// Flurstücke des Projekts in XBau-Kodierung; leer, solange keine erfasst sind.
+fn flurstuecke_fuer_antrag(p: &Project) -> Vec<xbau::Flurstueck> {
+    crate::grundstuecksinformationen::informationen(&p.planungsrecht)
+        .flurstuecke
+        .iter()
+        .map(xbau::Flurstueck::aus_info)
+        .collect()
 }
 
 #[cfg(test)]

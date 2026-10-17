@@ -111,6 +111,20 @@ pub struct Flurstueck {
     pub nenner: String,
 }
 
+impl Flurstueck {
+    /// XBau-Kodierung eines zentral erfassten Flurstücks. Die Flurstücksnummer
+    /// „Zähler/Nenner“ wird am Schrägstrich getrennt.
+    pub fn aus_info(f: &crate::grundstuecksinformationen::FlurstuecksInfo) -> Self {
+        let (zaehler, nenner) = f.nummer.split_once('/').unwrap_or((&f.nummer, ""));
+        Self {
+            gemarkung: f.gemarkung.trim().into(),
+            flur: f.flur.trim().into(),
+            zaehler: zaehler.trim().into(),
+            nenner: nenner.trim().into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Baugrundstueck {
@@ -272,6 +286,9 @@ pub struct GespeicherterBauantrag {
     /// Was für den Export noch fehlt (siehe [`Bauantrag::fehlende_angaben`]
     /// und [`Codelisten::fehlende`]).
     pub fehlende_angaben: Vec<String>,
+    /// `true`: Die Flurstücke stammen aus den Grundstücksinformationen des
+    /// Projekts und werden dort bearbeitet; die Liste im Antrag ist nur Anzeige.
+    pub flurstuecke_zentral: bool,
 }
 
 /// Art der Maßnahme (XBau-interne Codeliste `baumassnahmeart`, Version 2.0).
