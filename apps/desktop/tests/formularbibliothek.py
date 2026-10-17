@@ -2,6 +2,7 @@
 from pathlib import Path
 import json,base64,os
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 fixtures=Path(os.environ.get('BAUPROJEKT_PDF_ARTEFAKTE','/workspace/review-main/pdf-ablage'))
 wf=json.loads((fixtures/'workflow.json').read_text())
@@ -32,7 +33,7 @@ with sync_playwright() as p:
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(wf['projekt'])+';window.pdfBytes='+json.dumps(pdfs)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1432'))
- page.get_by_role('complementary',name='Arbeitsbereiche').get_by_role('button',name='Formularbibliothek',exact=True).click()
+ bereich(page,'Formularbibliothek')
  expect(page.get_by_role('heading',name='Formularbibliothek',exact=True)).to_be_visible()
  assert page.get_by_role('button',name='Im Projekt verwenden …',exact=True).count()==0
  page.get_by_role('button',name='PDF-Vorlage importieren …',exact=True).click()

@@ -2,6 +2,7 @@
 from pathlib import Path
 import os,json,base64,zipfile
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 art=Path(os.environ.get('BAUPROJEKT_VERFAHREN_ARTEFAKTE','/tmp/bauprojekt-verfahren'))
 wf=json.loads((art/'workflow.json').read_text())
@@ -43,7 +44,7 @@ with sync_playwright() as p:
  page.add_init_script('window.fixture='+json.dumps(wf['projekt'])+';window.wf='+json.dumps(wf)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1444'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
- def view(name):page.locator('.aktennavigation').get_by_role('button',name=name,exact=True).click()
+ def view(name):bereich(page,name)
  def tab(name):page.get_by_role('navigation',name='Verfahrensbereiche').get_by_role('button',name=name,exact=True).click()
  view('Verfahrensakte');page.get_by_role('button',name='Öffnen',exact=True).click()
  expect(page.get_by_role('textbox',name='Aktenzeichen',exact=True)).to_have_value('BA-2026-42')

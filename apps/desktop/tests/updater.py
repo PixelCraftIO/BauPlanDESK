@@ -2,6 +2,7 @@
 from pathlib import Path
 import json, os
 from playwright.sync_api import sync_playwright, expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 fixture=json.loads((root/'fixtures/projekt.json').read_text())
 custom=r'''
@@ -27,7 +28,7 @@ with sync_playwright() as p:
  page=browser.new_page(viewport={'width':1440,'height':1000});page.on('pageerror',lambda e:errors.append(str(e)))
  page.add_init_script('window.fixture='+json.dumps(fixture)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1452'))
- page.locator('.aktennavigation').get_by_role('button',name='Einstellungen',exact=True).click()
+ bereich(page,'Einstellungen')
  button=page.get_by_role('button',name='Updates prüfen',exact=True)
  button.click();expect(page.get_by_text('BauProjektIO ist auf dem neuesten Stand.',exact=True)).to_be_visible()
  page.evaluate('window.updateConfigured=false');button.click();expect(page.get_by_role('status')).to_contain_text('noch nicht eingerichtet')
@@ -35,18 +36,18 @@ with sync_playwright() as p:
  page.evaluate('window.updateFail=false;window.updateAvailable={version:"0.1.1",notizen:"Neue Funktionen"}')
  button.click();install=page.get_by_role('button',name='Update installieren und neu starten',exact=True);expect(install).to_be_visible()
  page.get_by_text('Änderungen anzeigen',exact=True).click();expect(page.get_by_text('Neue Funktionen',exact=True)).to_be_visible()
- page.locator('.aktennavigation').get_by_role('button',name='Projekte',exact=True).click()
+ bereich(page,'Projekte')
  page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
- page.locator('.aktennavigation').get_by_role('button',name='Rechtsgrundlagen',exact=True).click()
+ bereich(page,'Rechtsgrundlagen')
  page.locator('.projekt-sitzung:visible section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True).fill('Nicht verlieren')
- page.locator('.aktennavigation').get_by_role('button',name='Einstellungen',exact=True).click()
+ bereich(page,'Einstellungen')
  install.click();expect(page.get_by_role('status').filter(has_text='Vor der Aktualisierung')).to_contain_text('alle Projekt- und Kundeneingaben speichern')
  assert page.evaluate('window.calls.filter(c=>c.cmd==="update_installieren").length')==0
  page.locator('.tab-auswahl').filter(has_text=fixture['name']).click()
  expect(page.locator('.projekt-sitzung:visible section[aria-label="Rechtsgrundlagen"]').get_by_label('Planbezeichnung',exact=True)).to_have_value('Nicht verlieren')
  page.get_by_role('button',name=fixture['name']+' schließen',exact=True).click()
  page.get_by_role('button',name='Verwerfen und schließen',exact=True).click()
- page.locator('.aktennavigation').get_by_role('button',name='Einstellungen',exact=True).click()
+ bereich(page,'Einstellungen')
  install.click();expect(page.get_by_role('progressbar',name='Update herunterladen')).to_be_visible()
  expect(page.locator('.arbeitsrahmen')).to_have_attribute('inert','')
  page.evaluate('window.emitNative("tauri://close-requested")')

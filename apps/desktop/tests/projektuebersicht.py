@@ -2,6 +2,7 @@
 from pathlib import Path
 import os,json
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 art=Path(os.environ.get('BAUPROJEKT_UEBERSICHT_ARTEFAKTE','/tmp/bauprojekt-uebersicht'))
 wf=json.loads((art/'workflow.json').read_text())
@@ -37,7 +38,7 @@ with sync_playwright() as p:
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
  def active():return page.locator('.projekt-sitzung:visible')
  def overview():return active().get_by_role('region',name='Zentrale Projektübersicht',exact=True)
- def view(n):page.locator('.aktennavigation').get_by_role('button',name=n,exact=True).click()
+ def view(n):bereich(page,n)
  expect(overview().get_by_role('heading',name='Projektübersicht',exact=True)).to_be_visible()
  expect(overview().get_by_role('button',name='Arbeitsschritt öffnen',exact=True)).to_be_visible()
  expect(overview().get_by_role('button',name='Offene Aufgaben 2 Einträge anzeigen →',exact=True)).to_be_visible()

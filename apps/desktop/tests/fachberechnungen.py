@@ -2,6 +2,7 @@
 from pathlib import Path
 import json,os,base64,re
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 art=Path(os.environ.get('BAUPROJEKT_FACH_ARTEFAKTE','/tmp/bauprojekt-fach'))
 wf=json.loads((art/'workflow.json').read_text());wf['pdf']=base64.b64encode((art/'nachweise.pdf').read_bytes()).decode();wf['einzel']=base64.b64encode((art/'einzel.pdf').read_bytes()).decode()
@@ -50,7 +51,7 @@ with sync_playwright() as p:
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
  names={'ueberbaubarkeit':'Überbaubare Grundstücksfläche','stellplaetze':'Stellplatznachweis','wohnflaechen':'Wohnflächenberechnung','din277':'DIN-277-Flächen / Rauminhalte','vollgeschosse':'Vollgeschossprüfung','hoehen':'Gebäudehöhen / Dachneigung','freiflaechen':'Versiegelung / Freiflächen','entwaesserung':'Regenwasser / Rückhaltung'}
  def offen(art,neu=False):
-  page.locator('.aktennavigation').get_by_role('button',name=names[art],exact=True).click()
+  bereich(page,names[art])
   titel=next(v['titel'] for v in wf['vorlagen'] if v['plan']['modul']==art)
   section=page.locator('section').filter(has=page.get_by_role('heading',name=titel,exact=True)).first
   if neu:section.get_by_role('button',name='Öffnen',exact=True).click()

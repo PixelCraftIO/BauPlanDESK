@@ -5,10 +5,19 @@ export interface NavZweig {
   module: ModulId[];
   kinder?: NavZweig[];
 }
+/**
+ * Register der Projektakte. Jedes Register zeigt links nur seine eigene
+ * Gliederung; Unterzweige erscheinen dort als Zwischenüberschriften.
+ */
 export const NAVIGATION: NavZweig[] = [
   {
+    id: "akte",
+    titel: "Übersicht",
+    module: ["projektuebersicht", "aufgaben", "protokoll"],
+  },
+  {
     id: "grundlagen",
-    titel: "Projektgrundlagen",
+    titel: "Grundlagen",
     module: [
       "uebersicht",
       "rechtsgrundlagen",
@@ -66,7 +75,7 @@ export const NAVIGATION: NavZweig[] = [
   {
     id: "verfahren",
     titel: "Verfahren",
-    module: ["verfahren", "einreichen", "aufgaben", "aktensuche", "protokoll"],
+    module: ["verfahren", "einreichen", "aktensuche"],
     kinder: [
       {
         id: "einreichungswerkzeuge",
@@ -94,7 +103,7 @@ export function navigationMitModulen(
   module: readonly { id: ModulId; gruppe: string }[],
 ) {
   const zweige = structuredClone(NAVIGATION);
-  const bekannt = new Set<string>(["projektuebersicht"]);
+  const bekannt = new Set<string>();
   for (const z of zweige) {
     for (const id of z.module) bekannt.add(id);
     for (const k of z.kinder ?? []) for (const id of k.module) bekannt.add(id);
@@ -116,4 +125,18 @@ export function navigationMitModulen(
     bekannt.add(m.id);
   }
   return zweige;
+}
+
+/** Alle Module eines Registers in Anzeigereihenfolge. */
+export function moduleVon(z: NavZweig): ModulId[] {
+  return [...z.module, ...(z.kinder ?? []).flatMap(moduleVon)];
+}
+
+/** Register, zu dem eine Ansicht gehört; die Maßansicht zählt zum Baugrundstück. */
+export function registerVon(
+  register: NavZweig[],
+  ansicht: string,
+): NavZweig | undefined {
+  const id = ansicht === "mass" ? "grundstueck" : ansicht;
+  return register.find((z) => enthaelt(z, id));
 }

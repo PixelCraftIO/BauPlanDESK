@@ -2,6 +2,7 @@
 from pathlib import Path
 import json, os
 from playwright.sync_api import sync_playwright, expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 art=Path(os.environ.get('BAUPROJEKT_XBAU_ARTEFAKTE','/tmp/bauprojekt-xbau'))
 wf=json.loads((art/'workflow.json').read_text())
@@ -28,7 +29,7 @@ with sync_playwright() as pw:
  init='window.fixture='+json.dumps(wf['projekt'])+';window.xbauData='+json.dumps(wf)+';'+(root/'tauri-mock.js').read_text()+custom
  page.add_init_script(init);page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1451'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
- def view(n):page.locator('.aktennavigation').get_by_role('button',name=n,exact=True).click()
+ def view(n):bereich(page,n)
  def area():return page.locator('.projekt-sitzung:visible [data-xbau]')
  view('XBau-Nachrichten');expect(area().get_by_text('Behördenanschluss: Dateiaustausch',exact=True)).to_be_visible();expect(area()).to_contain_text('Testportal');expect(area()).to_contain_text(wf['nachrichten'][0]['id'])
  page.screenshot(path=str(out/'xbau-hell.png'))
@@ -45,6 +46,6 @@ with sync_playwright() as pw:
  page.evaluate("document.documentElement.dataset.theme='dark';document.documentElement.style.colorScheme='dark'");area().get_by_role('heading',name='Nachrichtenjournal',exact=True).scroll_into_view_if_needed();page.screenshot(path=str(out/'xbau-dunkel.png'))
  for width in [900,600]:
   page.set_viewport_size({'width':width,'height':1000});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
- reader=browser.new_page(viewport={'width':1440,'height':1000});reader.on('pageerror',lambda e:errors.append(str(e)));reader.add_init_script(init+';window.testUser.rolle="lesen";');reader.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1451'));reader.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click();reader.locator('.aktennavigation').get_by_role('button',name='XBau-Nachrichten',exact=True).click();expect(reader.get_by_role('button',name='Bauantrag als Ausgang vorbereiten',exact=True)).to_be_disabled();expect(reader.get_by_role('button',name='Beleg speichern',exact=True)).to_have_count(0)
+ reader=browser.new_page(viewport={'width':1440,'height':1000});reader.on('pageerror',lambda e:errors.append(str(e)));reader.add_init_script(init+';window.testUser.rolle="lesen";');reader.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1451'));reader.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click();bereich(reader,'XBau-Nachrichten');expect(reader.get_by_role('button',name='Bauantrag als Ausgang vorbereiten',exact=True)).to_be_disabled();expect(reader.get_by_role('button',name='Beleg speichern',exact=True)).to_have_count(0)
  assert not errors,errors;browser.close()
 print('XBau: echte Prüfdaten, Importbestätigung, Fehlerzustand, Verfahrensübergabe, Belegentwurf, Hell/Dunkel, Responsivität und Leserechte geprüft.')

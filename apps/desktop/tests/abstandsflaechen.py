@@ -2,6 +2,7 @@
 from pathlib import Path
 import os,json,base64
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 art=Path(os.environ.get('BAUPROJEKT_ABSTAND_ARTEFAKTE','/tmp/bauprojekt-abstand'))
 wf=json.loads((art/'workflow.json').read_text());wf['pdf']=base64.b64encode((art/'nachweis.pdf').read_bytes()).decode()
@@ -41,7 +42,7 @@ with sync_playwright() as p:
  page.route('**/abstand-pdf-test.mjs',lambda route:route.fulfill(path=str(root.parent/'node_modules/pdfjs-dist/build/pdf.mjs'),content_type='application/javascript'))
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1444'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
- page.locator('.aktennavigation').get_by_role('button',name='Abstandsflächen',exact=True).click()
+ bereich(page,'Abstandsflächen')
  section=page.locator('section').filter(has=page.get_by_role('heading',name='Abstandsflächen im Projekt',exact=True)).first
  section.get_by_role('button',name='Öffnen',exact=True).click()
  def tab(n):page.get_by_role('navigation',name='Abstandsflächenbereiche').get_by_role('button',name=n,exact=True).click()

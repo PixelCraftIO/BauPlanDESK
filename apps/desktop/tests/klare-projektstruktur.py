@@ -2,6 +2,7 @@
 from pathlib import Path
 import json,base64,os
 from playwright.sync_api import sync_playwright,expect
+from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
 pdfroot=Path(os.environ.get('BAUPROJEKT_PDF_ARTEFAKTE','/workspace/review-main/pdf-ablage'))
 wf=json.loads((pdfroot/'workflow.json').read_text())
@@ -45,21 +46,21 @@ with sync_playwright() as p:
  page.add_init_script('window.fixture='+json.dumps(fixture)+';window.pdfWorkflow='+json.dumps(wf)+';window.sourcePdf='+json.dumps(pdf)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1431'))
  page.locator('.projekttabelle').get_by_role('button',name='Wohnhaus Lindenweg',exact=True).click()
- nav=page.get_by_role('complementary',name='Arbeitsbereiche')
- def view(n):nav.get_by_role('button',name=n,exact=True).click()
- def section():return page.locator('.projekt-sitzung:visible > main > section:not([hidden])')
+ nav=gliederung(page)
+ def view(n):bereich(page,n)
+ def section():return page.locator('.projekt-sitzung:visible > .aktenrumpf > main > section:not([hidden])')
  assert page.get_by_role('navigation',name='Projektbereiche').count()==0
  assert page.get_by_role('navigation',name='Werkzeugleiste').count()==0
- expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled()
- expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_have_count(0)
+ register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled()
+ register(page,'Grundlagen');expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_have_count(0)
  checks.append('Eine Sidebar, keine doppelte Projekt- oder Werkzeugnavigation')
  view('Rechtsgrundlagen')
  section().get_by_label('Bebauungsplan',exact=True).select_option('qualifiziert')
  section().get_by_label('BauNVO',exact=True).select_option('1977')
  section().get_by_label('Planbezeichnung',exact=True).fill('Lindenweg Nord')
  section().get_by_role('button',name='Speichern',exact=True).click()
- expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_enabled()
  expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_be_visible()
+ register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_enabled()
  assert not section().get_by_label('GFZ',exact=True).count()
  view('Bebauungsplanfestsetzungen')
  section().get_by_label('GFZ',exact=True).fill('0.8')
@@ -139,7 +140,7 @@ with sync_playwright() as p:
  page.wait_for_function('window.testProjects[0].planungsrecht.grundstuecksinformationen.flurstuecke[0].grundbuchauszug?.version===2')
  checks.append('Neu hinzugefügte Projektdateien erscheinen beim erneuten Öffnen der Auszugswahl; Bezug speichert die konkrete Version')
 
- nav.get_by_role('button',name='Einstellungen',exact=True).click()
+ bereich(page,'Einstellungen')
  page.get_by_label('Farbschema',exact=True).select_option('dark')
  assert page.evaluate('document.documentElement.dataset.theme')=='dark'
  page.emulate_media(color_scheme='dark')

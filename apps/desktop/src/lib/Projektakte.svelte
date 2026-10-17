@@ -3,7 +3,14 @@
   import Projektorganisation from "./Projektorganisation.svelte";
   import Projektuebersicht from "./Projektuebersicht.svelte";
   import { projektNavigationAnlegen } from "./projektNavigation.svelte";
-  import { MODULE } from "./module";
+  import { MODULE, voraussetzung } from "./module";
+  import {
+    navigationMitModulen,
+    moduleVon,
+    registerVon,
+    type NavZweig,
+  } from "./navigation";
+  import Sidebar from "./Sidebar.svelte";
   import type { UebersichtsZiel } from "./generated/plattform";
   import { FACHMODULE } from "./fachmodule/register";
   import { projektEditoren } from "./editoren";
@@ -171,6 +178,29 @@
     }
     return !hatAenderungen();
   }
+  const REGISTER = navigationMitModulen(MODULE);
+  const aktuellesRegister = $derived(registerVon(REGISTER, ansicht));
+  // Jedes Register merkt sich seinen zuletzt geöffneten Bereich.
+  let zuletzt = $state<Record<string, Ansicht>>({});
+  $effect(() => {
+    const a = ansicht;
+    const r = registerVon(REGISTER, a);
+    if (r) untrack(() => (zuletzt[r.id] = a));
+  });
+  function bereich(id: Ansicht) {
+    const modul = MODULE.find((m) => m.id === id);
+    ansicht =
+      modul && voraussetzung(projekt, modul) ? "rechtsgrundlagen" : id;
+  }
+  function registerOeffnen(r: NavZweig) {
+    const ziel =
+      zuletzt[r.id] ??
+      moduleVon(r).find((id) => {
+        const m = MODULE.find((m) => m.id === id);
+        return m && !voraussetzung(projekt, m);
+      });
+    if (ziel) bereich(ziel);
+  }
   function grundstuecksflaecheUebernehmen(m2: number) {
     ansicht = "flurstuecke";
     hinweis = `Gemessene Planfläche: ${m2.toLocaleString("de-DE")} m². Bitte beim passenden Flurstück mit den Katasterangaben abgleichen und bei Bedarf dort eintragen.`;
@@ -187,15 +217,51 @@
       >OK</button
     >
   </div>{/if}
-<header class="projektkopf" class:kompakt={ansicht !== "projektuebersicht"}>
-  <div>
-    <h1>{projekt.name}</h1>
-    <span class="meta">
-      {landName(projekt.bundesland)}
-    </span>
-  </div>
+<header class="projektkopf" aria-label="Aktenkopf">
+  <h1>{projekt.name}</h1>
+  <dl class="aktendaten">
+    <div>
+      <dt>Bundesland</dt>
+      <dd>{landName(projekt.bundesland)}</dd>
+    </div>
+    <div>
+      <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
+      <dd>{bauherren.map(kundenname).join(", ") || "–"}</dd>
+    </div>
+    <div>
+      <dt>Baugrundstück</dt>
+      <dd>
+        {grundstuecke.map((g) => g.bezeichnung).join(", ") ||
+          "Noch nicht ermittelt"}
+      </dd>
+    </div>
+    <div>
+      <dt>Rechtsgrundlage</dt>
+      <dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
+    </div>
+    <div>
+      <dt>Stand</dt>
+      <dd>
+        Version {projekt.version}, {new Date(
+          projekt.updated_at,
+        ).toLocaleDateString("de-DE")}
+      </dd>
+    </div>
+  </dl>
 </header>
+<div class="register" role="tablist" aria-label="Register der Projektakte">
+  {#each REGISTER as r (r.id)}
+    <button
+      role="tab"
+      aria-selected={aktuellesRegister?.id === r.id}
+      class:aktiv={aktuellesRegister?.id === r.id}
+      onclick={() => registerOeffnen(r)}>{r.titel}</button
+    >
+  {/each}
+</div>
 
+<div class="aktenrumpf">
+<Sidebar {projekt} {ansicht} onbereich={bereich} />
 <main>
   {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><EinreichenStart projektId={projekt.id} aktiv={aktiv && ansicht === "einreichen"} /></section>{/if}
   {#each FACHMODULE as modul (modul.id)}
@@ -463,3 +529,4 @@
       />{/if}
   </section>
 </main>
+</div>
