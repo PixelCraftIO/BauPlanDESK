@@ -979,15 +979,6 @@ export interface Einreichung {
     bestaetigt_von: string;
   } | null;
 }
-export interface DokumentAuswahl {
-  dokument_id: string;
-  version: number;
-}
-export interface NeuesPaket {
-  titel: string;
-  empfaenger: string;
-  dokumente: DokumentAuswahl[];
-}
 export interface DokumentVergleich {
   kategorie?: import("./generated/plattform").KategorieStand | null;
   eingereichte_kategorie_erfasst?: boolean;
@@ -1138,14 +1129,6 @@ export const api = {
       projektId,
       empfaenger,
     }),
-  paketPruefstand: (projektId: string, dokumente: NeuesPaket["dokumente"]) =>
-    invoke<PaketPruefstand>("paket_pruefstand", { projektId, dokumente }),
-  einreichungErstellen: (
-    projektId: string,
-    paket: NeuesPaket,
-    vorgang?: string,
-  ) =>
-    invoke<Einreichung>("einreichung_erstellen", { projektId, paket, vorgang }),
   einreichungBestaetigen: (
     id: string,
     basis: number,
@@ -1291,11 +1274,6 @@ export const api = {
   buero: () => invoke<Buero>("buero"),
   bueroSpeichern: (buero: Buero) => invoke<Buero>("buero_speichern", { buero }),
   xbauCodelisten: () => invoke<Codeliste[]>("xbau_codelisten"),
-  xbauExportieren: (projektId: string, ziel: string) =>
-    invoke<{ dateiname: string; groesse_bytes: number }>("xbau_exportieren", {
-      projektId,
-      ziel,
-    }),
   formularAnalysieren: (dokumentId: string, bezug?: FormularBezug) =>
     invoke<FormularAnalyse>("formular_analysieren", { dokumentId, bezug }),
   formularAusfuellen: (

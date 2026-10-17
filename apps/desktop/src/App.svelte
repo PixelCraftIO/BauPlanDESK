@@ -58,7 +58,6 @@
     ansicht: Ansicht;
     planDokument: string | null;
     importAusloeser: number;
-    exportAusloeser: number;
     editor?: Projektakte;
   };
   onMount(darstellungInitialisieren);
@@ -200,7 +199,6 @@
           ansicht: "projektuebersicht",
           planDokument: null,
           importAusloeser: 0,
-          exportAusloeser: 0,
         });
       aktiveId = id;
       globalAnsicht = null;
@@ -324,7 +322,6 @@
         ansicht: "projektuebersicht",
         planDokument: null,
         importAusloeser: 0,
-        exportAusloeser: 0,
       });
       aktiveId = neu.id;
       globalAnsicht = null;
@@ -429,10 +426,6 @@
         break;
       case "ansicht.bauantrag":
         bereich("bauantrag");
-        break;
-      case "datei.xbau":
-        bereich("bauantrag");
-        aktiv && aktiv.exportAusloeser++;
         break;
       case "ansicht.protokoll":
         bereich("protokoll");
@@ -780,7 +773,6 @@
           {ich}
           {darf}
           importAusloeser={s.importAusloeser}
-          exportAusloeser={s.exportAusloeser}
           onprojekt={projektSetzen}
           ondialog={(art) => {
             aktiveId = s.projekt.id;

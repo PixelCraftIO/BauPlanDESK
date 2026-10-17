@@ -18,7 +18,7 @@ window.catalog=clone(wf.katalog);window.docs=clone(wf.dokumente);window.submissi
 window.mapping=Object.fromEntries(window.docs.map((d,i)=>[d.document_id,{dokument_id:d.document_id,revision:1,kategorie:i===0?'lageplan':'grz'}]));
 window.templates={};window.failCategory=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
- const handled=['kategorienkatalog','kategorienkatalog_speichern','dokumentkategorien','dokumentkategorie_speichern','vorlagenkategorie','vorlagenkategorie_speichern','dokumente_auflisten','formularbibliothek','einreichungen','einreichungs_vergleich','plugin:dialog|open','dokument_importieren'];
+ const handled=['kategorienkatalog','kategorienkatalog_speichern','dokumentkategorien','dokumentkategorie_speichern','vorlagenkategorie','vorlagenkategorie_speichern','dokumente_auflisten','formularbibliothek','einreichungen','plugin:dialog|open','dokument_importieren'];
  if(!handled.includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:clone(args)});
  switch(cmd){
@@ -35,7 +35,6 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  case 'dokumente_auflisten':return args.projektId===wf.projekt.id?clone(window.docs):[];
  case 'formularbibliothek':return {root:'C:\\BauProjektIO\\Formulare',vorlagen:clone(wf.vorlagen)};
  case 'einreichungen':return clone(window.submissionHistory);
- case 'einreichungs_vergleich':return window.docs.map(d=>({aktuell:clone(d),zuletzt_eingereicht:null,paket_id:null,eingereicht_am:null,status:'neu',kategorie:window.mapping[d.document_id]?.kategorie?(()=>{const k=window.catalog.kategorien.find(k=>k.id===window.mapping[d.document_id].kategorie);return {id:k.id,name:k.name,hauptkategorie:window.catalog.kategorien.find(p=>p.id===k.eltern_id)?.name??null};})():null}));
  case 'plugin:dialog|open':return 'C:/Import/Anschreiben.docx';
  case 'dokument_importieren':{
   const d={...clone(window.docs[0]),document_id:crypto.randomUUID(),version:1,file_name:'Anschreiben.docx'};
@@ -129,10 +128,8 @@ with sync_playwright() as p:
     view('Formulare')
     page.get_by_role('button', name='Bibliothek aktualisieren', exact=True).click()
     expect(page.get_by_role('cell', name='Baubeschreibung', exact=True)).to_be_visible()
+    # Frühere Einreichungspakete zeigen die Kategorie zum Zeitpunkt des Pakets.
     view('Einreichungen')
-    page.get_by_role('combobox', name='Kategorie filtern', exact=True).select_option('anschreiben')
-    page.get_by_role('button', name='Gefilterte Unterlagen auswählen', exact=True).click()
-    expect(page.get_by_text('3 Unterlage(n) ausgewählt, auch außerhalb des Filters', exact=True)).to_be_visible()
     package = page.locator('details.paket')
     package.locator('summary').click()
     expect(package.get_by_role('cell', name='Lageplan', exact=True)).to_be_visible()

@@ -38,61 +38,37 @@ als XRef-/Verknüpfungsverbund erkannt oder gebündelt.
 
 ## Einreichungen und Nachreichungen
 
-Der Projektbereich **Einreichungen** unterscheidet einen vorbereiteten Paketstand
-von der tatsächlichen Einreichung:
+Neue Einreichungen und Nachreichungen entstehen als **Abgabestand der
+Verfahrensakte** (siehe [Verfahrensakte](../verfahrensakte/README.md)). Er friert
+Unterlagen, Behörde, Aktenzeichen, XBau-Nachricht und Druck gemeinsam ein. Der
+XBau-Export im Bauantrag, „Ausgang/Nachreichung vorbereiten“ im XBau-Postfach und
+das Erstellen neuer Einreichungspakete entfallen; diese Stellen führen zur
+Verfahrensakte.
 
-1. Bezeichnung und Empfänger angeben, dann **Vergleich aktualisieren**.
-2. Einzelne Unterlagen, **Neue und geänderte auswählen** oder **Alle auswählen**.
-   Die angezeigten aktuellen Versionen werden bei der Erstellung festgehalten.
-3. **Paket festhalten und ZIP exportieren** speichert das Paket im DMS-Speicher
-   und die zugehörigen Metadaten in der Projektdatenbank. Ein abgebrochener
-   Dateidialog erzeugt kein Paket. Bei einem späteren Exportfehler bleibt das
-   gespeicherte Paket in der Chronik und kann erneut exportiert werden.
-4. Nach der tatsächlichen Übermittlung **Einreichungsdatum erfassen** verwenden.
-   Datum, Benutzer, Bestätigungszeit und eine Notiz (etwa Übermittlungsweg oder
-   Aktenzeichen) werden festgehalten. Export allein bestätigt keine Einreichung.
+Der Projektbereich **Einreichungen** zeigt die früher erstellten
+Einreichungspakete unverändert:
 
-Das ZIP enthält die ausgewählten Dateiversionen unter
+- Die Chronik nennt je Paket die festgehaltenen Unterlagen, Versionen, Prüfsummen
+  und die Kategorie zum Zeitpunkt des Pakets.
+- **Dieses ZIP erneut exportieren** liefert dieselben Bytes wie beim Erstellen.
+- **Einreichungsdatum erfassen** bestätigt ein noch unbestätigtes Paket einmalig
+  mit Datum, Benutzer, Bestätigungszeit und Notiz. Export allein bestätigt keine
+  Einreichung.
+
+Das ZIP enthält die Dateiversionen unter
 `Unterlagen/<Dokument-ID>/v<Version>-<Dateiname>` sowie `Einreichungsstand.json` mit
-Dokumentidentitäten, Dateinamen, Versionen und Prüfsummen. Das gespeicherte ZIP ist
-unveränderlich: Ein späterer Export desselben Pakets liefert dieselben Bytes,
-auch wenn Projektdokumente inzwischen bearbeitet wurden. Das ZIP-Manifest hält
-den **Paketstand** fest; die spätere Einreichungsbestätigung wird separat in der
-Chronik gespeichert und verändert das ZIP nicht.
+Dokumentidentitäten, Dateinamen, Versionen und Prüfsummen. Die Bestätigung wird
+separat in der Chronik gespeichert und verändert das ZIP nicht.
 
-Für den gewählten Empfänger zeigt der Vergleich je Dokument:
+Die Projektübersicht vergleicht weiterhin den Behördenstand bestätigter Pakete
+je Empfänger mit den aktuellen Dokumentversionen. Der Stand wird über alle
+bestätigten Pakete eines Empfängers zusammengestellt; das tatsächliche
+Einreichungsdatum bestimmt die Reihenfolge, bei gleichem Datum die
+Bestätigungszeit, danach die Paket-ID.
 
-| Anzeige | Bedeutung |
-| --- | --- |
-| Noch nicht eingereicht | Keine bestätigte Einreichung dieses Dokuments an diesen Empfänger |
-| Diese Version bereits eingereicht | Aktuelle und zuletzt eingereichte Versionsnummer stimmen überein |
-| Neue Version, gleicher Dateiinhalt | Höhere Versionsnummer, aber identischer Inhalts-Hash |
-| Seit Einreichung geändert | Höhere Version mit verändertem Dateiinhalt |
-| Älter als eingereichter Stand | Der verglichene Stand liegt unter der zuletzt eingereichten Version |
-
-Der aktuelle Einreichungsstand wird über alle bestätigten Pakete des Projekts
-und Empfängers zusammengestellt. Eine Teilnachreichung ersetzt nur die darin
-enthaltenen Dokumentstände. Das tatsächliche Einreichungsdatum bestimmt die
-Reihenfolge; bei gleichem Datum entscheidet die Bestätigungszeit, danach die
-Paket-ID. Eine später erfasste historische Einreichung setzt den neueren
-Behördenstand nicht zurück. Empfängernamen werden für den Vergleich getrimmt und
-ohne ASCII-Groß-/Kleinschreibung verglichen; unterschiedliche Bezeichnungen
-werden nicht automatisch als dieselbe Behörde erkannt.
-
-Die Chronik zeigt die festgehaltenen Unterlagen und Versionen jedes Pakets.
-Ein Datum kann einmal bestätigt werden; bestätigte Pakete werden nicht verändert
-oder gelöscht. Korrekturen/Nachreichungen benötigen einen neuen Paketstand.
-Eine Korrektur einer versehentlich bestätigten Datumsangabe ist noch nicht
-enthalten. Die Ansicht dokumentiert die Angaben der Nutzer, keinen automatischen
-Eingangsnachweis des Bauamts. Ausdruck oder Übermittlung erfolgen außerhalb der
-Anwendung. Für die Auswahl stehen derzeit die neuesten DMS-Versionen zur
-Verfügung; die Core-Schnittstelle unterstützt auch explizit ausgewählte ältere
-Versionen. ZIP-Grenzen: 1–500 Dokumente, insgesamt maximal 512 MB unkomprimiert.
-
-Das Festhalten und Bestätigen erfordert Bearbeitungsrechte und eine gültige
-Lizenz. Einreichungsentwürfe bleiben über Bereichs- und Projektwechsel erhalten.
-Beim Schließen müssen sie im Einreichungsbereich abgeschlossen oder ausdrücklich
-verworfen werden; allgemeines Projektspeichern bestätigt keine Einreichung.
+Das Bestätigen erfordert Bearbeitungsrechte und eine gültige Lizenz. Eine
+begonnene Bestätigung muss vor dem Schließen abgeschlossen oder abgebrochen
+werden.
 
 ## Architektur und Migration
 
@@ -109,7 +85,8 @@ verworfen werden; allgemeines Projektspeichern bestätigt keine Einreichung.
 - Migration `0007_einreichungen.sql` ergänzt jeweils eine Tabelle und einen Index.
   Bestehende Projekte, Dokumentversionen und Formularvorlagen bleiben unverändert.
 - Neue Core-/Desktop-Aufrufe ergänzen bestehende Verträge. HTTP:
-  `GET/POST /api/projekte/{id}/einreichungen`,
+  `GET /api/projekte/{id}/einreichungen` (neue Pakete nur noch über die
+  Verfahrensakte; das Erstellen ist im Core auf Testdaten beschränkt),
   `GET /api/projekte/{id}/einreichungsvergleich?empfaenger=…`,
   `POST /api/einreichungen/{id}/bestaetigen` (`basis`, `datum`, `notiz`),
   `GET /api/einreichungen/{id}/zip`.
@@ -126,10 +103,10 @@ Dieser ursprüngliche Dateiverwaltungsstand verwendete noch ein technisches Serv
   gleiche Inhalte, historische Daten, Empfängertrennung und Neustart.
 - PostgreSQL-Test mit dedizierter Testdatenbank: Migration, Persistenz und
   gleichzeitige Bestätigung – genau ein erfolgreicher Commit.
-- HTTP-Integration: Paket erstellen, ZIP laden, Bestätigung und Konflikt,
-  Versionsvergleich nach Korrektur, unverändertes ursprüngliches ZIP.
+- HTTP-Integration: kein Erstellen neuer Pakete, ZIP laden, Bestätigung und
+  Konflikt, Versionsvergleich nach Korrektur, unverändertes ursprüngliches ZIP.
 - Kompilierte UI mit Test-IPC: Dateiöffnung, externe Änderung, Konflikt,
-  Paket-Auswahl, Exportabbruch/-fehler, Chronik und Datumsbestätigung. Die UI
+  frühere Pakete, Exportfehler, Chronik, Datumsbestätigung und Weg zur Abgabe. Die UI
   verwendet Daten aus der realen Rust-Integration. Excel/AutoCAD unter Windows
   werden in dieser Linux-Testumgebung nicht tatsächlich gestartet.
 

@@ -336,13 +336,13 @@ Ein direkter Behördenversand ist noch nicht angebunden.
 Umfang, Installation des erforderlichen XSD-Prüfers und Grenzen:
 [XBau-Nachrichten und Behördenanschluss](docs/xbau/README.md).
 
-### Bauantrag als XBau exportieren
+### Bauantrag und XBau-Abgabe
 
-Aus einem Projekt entsteht die Nachricht *Beantragung einer Baugenehmigung*
-(`baugenehmigung.antrag.0200`) nach **XBau-Hochbau 2.7** (Kernmodul 1.4.0),
-zusammen mit den ausgewählten Bauvorlagen als ZIP-Paket. Bedienung: Ansicht
-*Bauantrag* (Strg+Umschalt+B), Export über *Datei → Bauantrag als XBau
-exportieren …* (Strg+Umschalt+E).
+Die Ansicht *Bauantrag* (Strg+Umschalt+B) erfasst die Antragsangaben. Die
+XBau-Nachricht nach **XBau-Hochbau 2.7** (Kernmodul 1.4.0), etwa *Beantragung
+einer Baugenehmigung* (`baugenehmigung.antrag.0200`), entsteht mit den
+ausgewählten Unterlagen als ZIP-Paket im Abgabestand der Verfahrensakte. Behörde
+und Aktenzeichen stammen aus der Akte.
 
 - **Büroangaben** (*Bearbeiten → Büroangaben …*, nur Projektleitung): Name,
   Anschrift und Absenderkennung des Büros. Das Büro ist Absender (`autor`)
@@ -352,7 +352,7 @@ exportieren …* (Strg+Umschalt+E).
   die Bauherren des Projekts aus der Kundendatenbank (sie sind die
   Antragsteller), Gebührenpflichtiger, Art der
   Maßnahme, Grundstück mit Flurstücken und die Anlagen aus den Dokumenten.
-  Was für den Export fehlt, zeigt die Ansicht vorher an.
+  Was für die Abgabe fehlt, zeigt die Ansicht vorher an.
 - **Codelisten:** Die mitgelieferten Typ-3/4-Listen stehen unter
   [`codelisten/`](codelisten). Deren Version muss zum Profil der empfangenden
   Behörde passen; die Anlagenliste ist derzeit als Entwurf gekennzeichnet.
@@ -373,7 +373,7 @@ Bauherren, Bauträger, Investoren, Baufirmen usw. werden einmal unter
 Kategorie, Kundennummer, Ansprechpartner, Anschrift, Telefon, E-Mail und
 Notizen. Ein Projekt bekommt einen oder mehrere Kunden als Bauherren
 (*Übersicht → Bauherren …*, beim Anlegen eines Projekts oder in der Ansicht
-*Bauantrag*). Bauantrag, XBau-Export und PDF-Formulare (`bauherr.*`, siehe
+*Bauantrag*). Bauantrag, XBau-Abgabe und PDF-Formulare (`bauherr.*`, siehe
 [`formulare/`](formulare)) lesen die Angaben von dort; eine neue Anschrift
 gilt also sofort in allen Projekten.
 

@@ -23,11 +23,13 @@
   import { editorAnmelden } from "../editoren";
   import { xbau } from "./api";
   import { plattformApi } from "../plattformApi";
+  import { projektNavigation } from "../projektNavigation.svelte";
   let { projekt, benutzer }: { projekt: Project; benutzer: Benutzer } =
     $props();
   const darf = $derived(
     benutzer.aktiv && mindestens(benutzer.rolle, "bearbeitung"),
   );
+  const navigation = projektNavigation();
   let nachrichten = $state<Nachrichtenstand[]>([]);
   let dokumente = $state<DocumentVersion[]>([]);
   let verfahren = $state<Fachstand[]>([]);
@@ -192,22 +194,6 @@
       laeuft = false;
     }
   }
-  async function vorbereiten() {
-    laeuft = true;
-    fehler = "";
-    hinweis = "";
-    try {
-      const n = await xbau.ausgang(projekt.id);
-      await laden();
-      auswahl = n.id;
-      hinweis =
-        "Bauantrag als geprüfte Ausgangsdatei im Projekt gespeichert. Für die Übermittlung das vorgeschriebene Behördenportal verwenden.";
-    } catch (e) {
-      fehler = fehlertext(e);
-    } finally {
-      laeuft = false;
-    }
-  }
   async function exportieren(d: Dokumentbezug) {
     const meta = dokumente.find(
       (v) => v.document_id === d.dokument_id && v.version === d.version,
@@ -228,21 +214,14 @@
       laeuft = false;
     }
   }
-  async function nachreichen() {
-    if (!aktiv) return;
-    laeuft = true;
-    fehler = "";
-    try {
-      const n = await xbau.nachreichung(projekt.id, aktiv.id);
-      await laden();
-      auswahl = n.id;
-      hinweis =
-        "Nachreichung 0202 als neue Ausgangsdatei vorbereitet. Sie enthält den gespeicherten Bauvorhabenstand und die im Bauantrag ausgewählten Anlagen.";
-    } catch (e) {
-      fehler = fehlertext(e);
-    } finally {
-      laeuft = false;
-    }
+  /** Ausgänge und Nachreichungen entstehen als Abgabestand der Verfahrensakte. */
+  function zurAbgabe(verfahren: string | null = null) {
+    navigation?.springen({
+      bereich: "verfahren",
+      objekt: verfahren,
+      register: verfahren ? "abgaben" : null,
+      eintrag: null,
+    });
   }
   async function anlageAblegen(id: string, dateiname: string) {
     laeuft = true;
@@ -336,14 +315,14 @@
     <button onclick={importieren} disabled={!darf || laeuft}
       >XML / ZIP importieren …</button
     >
-    <button onclick={vorbereiten} disabled={!darf || laeuft}
-      >Bauantrag als Ausgang vorbereiten</button
+    <button onclick={() => zurAbgabe()} disabled={laeuft}
+      >Zur Abgabe in der Verfahrensakte …</button
     >
   </div>
   <p class="meta">
-    Der Ausgang verwendet den gespeicherten Bauantrag und seine ausgewählten
-    Bauvorlagen. Ungespeicherte Antragsänderungen zuerst im Bereich „Bauantrag /
-    XBau“ speichern.
+    Ausgänge und Nachreichungen entstehen als Abgabestand der Verfahrensakte,
+    mit Behörde und Aktenzeichen der Akte. Dort lassen sie sich ins Journal
+    übernehmen.
   </p>
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
   {#if hinweis}<p class="hinweisbox" role="status">{hinweis}</p>{/if}
@@ -454,8 +433,8 @@
         <button onclick={() => exportieren(n.original)}
           >Original exportieren …</button
         >{#if ["baugenehmigung.antrag.0200", "prozessnachrichten.formellePruefungBefundliste.1140"].includes(n.pruefung.kopf.element)}<button
-            onclick={nachreichen}
-            disabled={!darf}>Nachreichung 0202 vorbereiten</button
+            onclick={() => zurAbgabe(verfahrensId || null)}
+            >Nachreichung in der Verfahrensakte …</button
           >{/if}
       </div>
       <div class="felder">
@@ -604,8 +583,8 @@
     >
     <p>
       Die Schemaprüfung unterstützt die aufgeführten Nachrichten. Fachliche
-      Eingabemasken und automatische Erstellung sind derzeit für den Bauantrag
-      0200 und die Nachreichung 0202 vorhanden. Weitere Nachrichten lassen sich
+      Eingabemasken und automatische Erstellung laufen über die Abgabestände der
+      Verfahrensakte. Weitere Nachrichten lassen sich
       als Originaldatei prüfen und archivieren.
     </p>
     <label>Nachrichten suchen<input type="search" bind:value={suche} /></label>

@@ -1,5 +1,6 @@
-//! Ende-zu-Ende: Bauantrag erfassen, Büroangaben, XBau-Paket exportieren
-//! über `CoreServices` mit SQLite und lokalem Storage.
+//! Ende-zu-Ende: Bauantrag erfassen, Büroangaben, XBau-Paket aus dem
+//! Abgabestand der Verfahrensakte über `CoreServices` mit SQLite und lokalem
+//! Storage.
 
 use std::io::{Cursor, Read};
 use std::sync::Arc;
@@ -93,7 +94,41 @@ async fn bauantrag_erfassen_und_exportieren() {
             .iter()
             .any(|f| f == "Entwurfsverfasser (bauvorlageberechtigte Person)")
     );
-    let err = core.xbau_exportieren(p.id, &chefin).await.unwrap_err();
+    // Einreichen läuft über die Verfahrensakte: Behörde und Aktenzeichen
+    // stammen aus der Akte, das XBau-Paket aus dem Abgabestand.
+    let vid = uuid::Uuid::new_v4();
+    let a = serde_json::json!({"bezeichnung":"Erstantrag","art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:053150000","kontakt":""},"aktenzeichen":"BA-42","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
+    core.fachobjekt_speichern(
+        p.id,
+        core_lib::plattform::ObjektArt::Verfahren,
+        vid,
+        0,
+        a,
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let abgabe = |xbau_bezug, titel: &str| core_lib::verfahren::abgabe::Abgabewunsch {
+        xbau_bezug,
+        id: uuid::Uuid::new_v4(),
+        titel: titel.into(),
+        dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+            dokument_id: plan.document_id,
+            version: 1,
+        }],
+        xbau: true,
+        druck: false,
+        anschreiben: String::new(),
+    };
+    let revision = || {
+        let core = &core;
+        let pid = p.id;
+        async move { core.verfahrensakte(pid, vid).await.unwrap().0.revision }
+    };
+    let err = core
+        .verfahren_abgabe_festhalten(p.id, vid, 1, abgabe(None, "Zu früh"), &chefin)
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("Bauherr"), "{err}");
 
     core.buero_speichern(buero("Architekturbüro Muster"), &chefin)
@@ -141,7 +176,13 @@ async fn bauantrag_erfassen_und_exportieren() {
         Err(CoreError::VersionConflict { .. })
     ));
 
-    // Exportieren darf auch, wer nur lesen darf.
+    let erst = abgabe(None, "Antragspaket");
+    let aid = erst.id;
+    core.verfahren_abgabe_festhalten(p.id, vid, revision().await, erst, &chefin)
+        .await
+        .unwrap();
+
+    // Den eingefrorenen Stand herunterladen darf auch, wer nur lesen darf.
     let leser = core
         .benutzer_anlegen(
             NeuerBenutzer {
@@ -157,6 +198,11 @@ async fn bauantrag_erfassen_und_exportieren() {
         core.bauantrag_speichern(p.id, antrag, 1, &leser).await,
         Err(CoreError::Forbidden(_))
     ));
+    assert!(matches!(
+        core.verfahren_artefakt(p.id, vid, aid, "xbau", &leser)
+            .await,
+        Err(CoreError::Forbidden(_))
+    ));
     core.projektmitglied_setzen(
         p.id,
         core_lib::zugriff::ProjektMitglied {
@@ -168,13 +214,52 @@ async fn bauantrag_erfassen_und_exportieren() {
     )
     .await
     .unwrap();
-    let export = core.xbau_exportieren(p.id, &leser).await.unwrap();
+    let vorher = core
+        .verfahren_artefakt(p.id, vid, aid, "xbau", &leser)
+        .await
+        .unwrap()
+        .1;
+    let mut zip = zip::ZipArchive::new(Cursor::new(&vorher)).unwrap();
+    let mut xml = String::new();
+    zip.by_name(NACHRICHT_DATEI)
+        .unwrap()
+        .read_to_string(&mut xml)
+        .unwrap();
+    assert!(xml.contains("<code>05</code>"), "NRW");
     assert!(
-        export.dateiname.starts_with("Bauantrag MFH Lindenweg "),
-        "{}",
-        export.dateiname
+        xml.contains("<name>Müller</name>"),
+        "Bauherr aus der Kundendatenbank"
     );
-    let ausgang = core.xbau_ausgang_vorbereiten(p.id, &chefin).await.unwrap();
+    assert!(
+        xml.contains(&anna.id.to_string()),
+        "Kunden-ID als Akteur-ID"
+    );
+    assert!(
+        xml.contains("<xbau:mitgliedsnummer>12345</xbau:mitgliedsnummer>"),
+        "Entwurfsverfasser mit Kammereintrag aus den Büroangaben"
+    );
+    assert!(xml.contains("Architekturbüro Muster"));
+    assert!(xml.contains("<dateiname>Lageplan.pdf</dateiname>"));
+    assert!(xml.contains(&format!("urn:uuid:{}", plan.document_id.0)));
+    let mut pdf = Vec::new();
+    zip.by_name("Lageplan.pdf")
+        .unwrap()
+        .read_to_end(&mut pdf)
+        .unwrap();
+    assert_eq!(pdf, b"%PDF-1.7 Lageplan");
+    let protokoll = core.protokoll(p.id, 50).await.unwrap();
+    assert!(
+        protokoll
+            .iter()
+            .any(|e| e.eintrag.aktion == Aktion::BauantragGeaendert)
+    );
+
+    // Der Abgabestand wird als Ausgang ins Journal übernommen; die Behörde
+    // antwortet darauf mit einer Befundliste.
+    let ausgang = core
+        .verfahren_xbau_erfassen(p.id, vid, aid, &chefin)
+        .await
+        .unwrap();
     let eingang_id = uuid::Uuid::new_v4();
     let eingang = format!(
         r#"<k:prozessnachrichten.formellePruefungBefundliste.1140 xmlns:k="http://www.xleitstelle.de/xbau/kernmodul/1/4/0" produkt="Test" produkthersteller="Test" standard="XBau-Kernmodul" version="1.4.0"><nachrichtenkopf.g2g><identifikation.nachricht><nachrichtenUUID>{eingang_id}</nachrichtenUUID><nachrichtentyp listURI="urn:xoev-de:xbau-kernmodul:codeliste:xbau-kernmodul-nachrichten" listVersionID="3.0"><code>1140</code></nachrichtentyp><erstellungszeitpunkt>2026-01-02T12:00:00Z</erstellungszeitpunkt></identifikation.nachricht><leser><verzeichnisdienst listVersionID="1.0"><code>DVDV</code></verzeichnisdienst><kennung>planer:test</kennung><name>Planer</name></leser><autor><verzeichnisdienst listVersionID="1.0"><code>DVDV</code></verzeichnisdienst><kennung>{}</kennung><name>Behörde</name></autor></nachrichtenkopf.g2g><bezug><referenz>{}</referenz><vorgang>BA-42</vorgang></bezug><dokumentationVollstaendig>false</dokumentationVollstaendig></k:prozessnachrichten.formellePruefungBefundliste.1140>"#,
@@ -206,127 +291,13 @@ async fn bauantrag_erfassen_und_exportieren() {
     )
     .await
     .unwrap();
-    let antwort = core
-        .xbau_nachreichung_vorbereiten(p.id, eingang_id, &chefin)
-        .await
-        .unwrap();
-    assert_eq!(
-        antwort.nachricht.pruefung.kopf.bezugsnachricht,
-        Some(eingang_id)
-    );
-    assert_eq!(
-        antwort.nachricht.pruefung.kopf.aktenzeichen.as_deref(),
-        Some("BA-42")
-    );
-    let folge = core
-        .xbau_nachreichung_vorbereiten(p.id, ausgang.id, &chefin)
-        .await
-        .unwrap();
-    assert_eq!(
-        folge.nachricht.pruefung.kopf.element,
-        "baugenehmigung.antragGeaendert.0202"
-    );
-    assert_eq!(
-        folge.nachricht.pruefung.kopf.antragsreferenz,
-        ausgang.nachricht.pruefung.kopf.antragsreferenz
-    );
-    assert!(folge.nachricht.belege.is_empty());
-    let mut zip = zip::ZipArchive::new(Cursor::new(export.zip)).unwrap();
-    let mut xml = String::new();
-    zip.by_name(NACHRICHT_DATEI)
-        .unwrap()
-        .read_to_string(&mut xml)
-        .unwrap();
-    assert!(xml.contains("<code>05</code>"), "NRW");
-    assert!(
-        xml.contains("<name>Müller</name>"),
-        "Bauherr aus der Kundendatenbank"
-    );
-    assert!(
-        xml.contains(&anna.id.to_string()),
-        "Kunden-ID als Akteur-ID"
-    );
-    assert!(
-        xml.contains("<xbau:mitgliedsnummer>12345</xbau:mitgliedsnummer>"),
-        "Entwurfsverfasser mit Kammereintrag aus den Büroangaben"
-    );
-    assert!(xml.contains("<dateiname>Lageplan.pdf</dateiname>"));
-    assert!(xml.contains(&format!("urn:uuid:{}", plan.document_id.0)));
-    let mut pdf = Vec::new();
-    zip.by_name("Lageplan.pdf")
-        .unwrap()
-        .read_to_end(&mut pdf)
-        .unwrap();
-    assert_eq!(pdf, b"%PDF-1.7 Lageplan");
 
-    let protokoll = core.protokoll(p.id, 50).await.unwrap();
-    assert!(
-        protokoll
-            .iter()
-            .any(|e| e.eintrag.aktion == Aktion::XbauExportiert
-                && e.eintrag.benutzer_name == "Leo Leser")
-    );
-    assert!(
-        protokoll
-            .iter()
-            .any(|e| e.eintrag.aktion == Aktion::BauantragGeaendert)
-    );
-    // Gemeinsamer Abgabestand friert auch XBau ein: spätere Büro- und
-    // Planänderungen dürfen weder XML noch Anlagenbytes neu erzeugen.
-    let vid = uuid::Uuid::new_v4();
-    let a = serde_json::json!({"bezeichnung":"Erstantrag","art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:053150000","kontakt":""},"aktenzeichen":"BA-42","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
-    core.fachobjekt_speichern(
-        p.id,
-        core_lib::plattform::ObjektArt::Verfahren,
-        vid,
-        0,
-        a,
-        &chefin,
-    )
-    .await
-    .unwrap();
-    let aid = uuid::Uuid::new_v4();
-    core.verfahren_abgabe_festhalten(
-        p.id,
-        vid,
-        1,
-        core_lib::verfahren::abgabe::Abgabewunsch {
-            xbau_bezug: None,
-            id: aid,
-            titel: "Antragspaket".into(),
-            dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
-                dokument_id: plan.document_id,
-                version: 1,
-            }],
-            xbau: true,
-            druck: false,
-            anschreiben: String::new(),
-        },
-        &chefin,
-    )
-    .await
-    .unwrap();
-    let folge_id = uuid::Uuid::new_v4();
-    core.verfahren_abgabe_festhalten(
-        p.id,
-        vid,
-        core.verfahrensakte(p.id, vid).await.unwrap().0.revision,
-        core_lib::verfahren::abgabe::Abgabewunsch {
-            xbau_bezug: Some(eingang_id),
-            id: folge_id,
-            titel: "Eingefrorene Nachreichung".into(),
-            dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
-                dokument_id: plan.document_id,
-                version: 1,
-            }],
-            xbau: true,
-            druck: false,
-            anschreiben: String::new(),
-        },
-        &chefin,
-    )
-    .await
-    .unwrap();
+    // Nachreichung auf die Befundliste: 0202 mit Bezug und Aktenzeichen.
+    let folge = abgabe(Some(eingang_id), "Eingefrorene Nachreichung");
+    let folge_id = folge.id;
+    core.verfahren_abgabe_festhalten(p.id, vid, revision().await, folge, &chefin)
+        .await
+        .unwrap();
     let folge_bytes = core
         .verfahren_artefakt(p.id, vid, folge_id, "xbau", &chefin)
         .await
@@ -341,26 +312,36 @@ async fn bauantrag_erfassen_und_exportieren() {
         "baugenehmigung.antragGeaendert.0202"
     );
     assert_eq!(folge_pruefung.kopf.bezugsnachricht, Some(eingang_id));
-    let vorher = core
-        .verfahren_artefakt(p.id, vid, aid, "xbau", &chefin)
+    assert_eq!(folge_pruefung.kopf.aktenzeichen.as_deref(), Some("BA-42"));
+
+    // Nachreichung auf den eigenen Antrag behält dessen Antragsreferenz.
+    let eigene = abgabe(Some(ausgang.id), "Nachreichung zum Antrag");
+    let eigene_id = eigene.id;
+    core.verfahren_abgabe_festhalten(p.id, vid, revision().await, eigene, &chefin)
         .await
-        .unwrap()
-        .1;
-    let mut archiv = zip::ZipArchive::new(Cursor::new(&vorher)).unwrap();
-    let mut xml = String::new();
-    archiv
-        .by_name(NACHRICHT_DATEI)
-        .unwrap()
-        .read_to_string(&mut xml)
         .unwrap();
-    assert!(xml.contains("Architekturbüro Muster"));
-    let mut altplan = Vec::new();
-    archiv
-        .by_name("Lageplan.pdf")
-        .unwrap()
-        .read_to_end(&mut altplan)
-        .unwrap();
-    assert_eq!(altplan, b"%PDF-1.7 Lageplan");
+    let eigene_pruefung = core_lib::xbau::austausch::pruefen(
+        "XBau.zip",
+        &core
+            .verfahren_artefakt(p.id, vid, eigene_id, "xbau", &chefin)
+            .await
+            .unwrap()
+            .1,
+        core.xbau_pruefer.as_ref(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        eigene_pruefung.kopf.element,
+        "baugenehmigung.antragGeaendert.0202"
+    );
+    assert_eq!(
+        eigene_pruefung.kopf.antragsreferenz,
+        ausgang.nachricht.pruefung.kopf.antragsreferenz
+    );
+
+    // Gemeinsamer Abgabestand friert auch XBau ein: spätere Büro- und
+    // Planänderungen dürfen weder XML noch Anlagenbytes neu erzeugen.
     core.buero_speichern(buero("Neuer Büroname"), &chefin)
         .await
         .unwrap();
@@ -861,8 +842,8 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     core.bauherren_setzen(p.id, vec![anna.id], p.version, &u)
         .await
         .unwrap();
-    let export = core.xbau_exportieren(p.id, &u).await.unwrap();
-    let mut zip = zip::ZipArchive::new(Cursor::new(export.zip)).unwrap();
+    let bytes = xbau_abgabe(&core, p.id, plan.document_id, &u).await;
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
     let mut xml = String::new();
     zip.by_name(NACHRICHT_DATEI)
         .unwrap()
@@ -1014,6 +995,53 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
 }
 
 /// Büroangaben mit einer bauvorlageberechtigten Person.
+/// Hält einen XBau-Abgabestand in einer neuen Verfahrensakte fest und liefert
+/// dessen eingefrorenes Paket.
+async fn xbau_abgabe(
+    core: &CoreServices,
+    projekt: core_lib::domain::ProjectId,
+    dokument: core_lib::domain::DocumentId,
+    wer: &core_lib::benutzer::Benutzer,
+) -> Vec<u8> {
+    let vid = uuid::Uuid::new_v4();
+    core.fachobjekt_speichern(
+        projekt,
+        core_lib::plattform::ObjektArt::Verfahren,
+        vid,
+        0,
+        serde_json::json!({"bezeichnung":"Bauantrag","art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:053150000","kontakt":""},"aktenzeichen":"","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]}),
+        wer,
+    )
+    .await
+    .unwrap();
+    let id = uuid::Uuid::new_v4();
+    core.verfahren_abgabe_festhalten(
+        projekt,
+        vid,
+        1,
+        core_lib::verfahren::abgabe::Abgabewunsch {
+            xbau_bezug: None,
+            id,
+            titel: "Bauantrag".into(),
+            dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: dokument,
+                version: 1,
+            }],
+            xbau: true,
+            druck: false,
+            anschreiben: String::new(),
+        },
+        wer,
+    )
+    .await
+    .unwrap();
+    core.verfahren_artefakt(projekt, vid, id, "xbau", wer)
+        .await
+        .unwrap()
+        .1
+        .to_vec()
+}
+
 fn buero(name: &str) -> Buero {
     Buero {
         name: name.into(),

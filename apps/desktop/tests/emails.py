@@ -12,7 +12,7 @@ const wf=window.mailWorkflow;
 window.mailDocs=[clone(wf.eml1.dokument),clone(wf.eml2.dokument),clone(wf.msg.dokument)];
 window.mailKategorien=clone(wf.zuordnungen);window.mailFailKategorie=false;window.mailFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
- const handled=['kategorienkatalog','dokumentkategorien','dokumentkategorie_speichern','dokumente_auflisten','dokument_historie','email_laden','email_anhang_ablegen','einreichungs_vergleich','fachobjekt_speichern'];
+ const handled=['kategorienkatalog','dokumentkategorien','dokumentkategorie_speichern','dokumente_auflisten','dokument_historie','email_laden','email_anhang_ablegen','fachobjekt_speichern'];
  if(!handled.includes(cmd))return base(cmd,args);
  window.calls.push({cmd,args:clone(args)});
  switch(cmd){
@@ -36,11 +36,6 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(window.mailMalicious)result.inhalt.text+='<img src="https://mail-tracker.invalid/pixel" onerror="window.mailCode=true"><script>window.mailCode=true</script>';
    return result;
  }
- case 'einreichungs_vergleich':return clone(wf.vergleich).filter(v=>window.mailDocs.some(d=>d.document_id===v.aktuell.document_id)).map(v=>{
-   const id=window.mailKategorien.find(k=>k.dokument_id===v.aktuell.document_id)?.kategorie;
-   const k=wf.katalog.kategorien.find(k=>k.id===id);
-   return {...v,kategorie:k?{id:k.id,name:k.name,hauptkategorie:wf.katalog.kategorien.find(p=>p.id===k.eltern_id)?.name??null}:null};
- });
  }
 };
 '''
@@ -135,14 +130,7 @@ with sync_playwright() as p:
     assert not any('mail-tracker.invalid' in r for r in requests)
     expect(mail.locator('img,script')).to_have_count(0)
     mail.get_by_role('button',name='Schließen',exact=True).click()
-    view('Einreichungen')
-    expect(page.get_by_role('columnheader',name='Kategorie zuletzt eingereicht',exact=True)).to_be_visible()
-    submission=page.get_by_role('row').filter(has=page.get_by_role('cell',name='Bauantrag.eml',exact=True))
-    expect(submission.get_by_role('cell').filter(has_text='Kategorie geändert')).to_be_visible()
-    expect(submission.get_by_role('cell',name='Anschreiben',exact=True)).to_be_visible()
-    expect(submission.get_by_role('cell',name='Diese Version bereits eingereicht',exact=True)).to_be_visible()
-    page.screenshot(path=str(out/'03-kategorievergleich.png'))
     assert not page.evaluate('window.calls.some(c=>["dokument_importieren","formular_im_projekt_speichern"].includes(c.cmd))')
     assert not errors,errors
     browser.close()
-print('E-Mail-Archiv und Kategorien: Originalversionen, EML/MSG, Metadatenkategorie, Anzahlen, Schnellfilter, Vergleich, Fehler und veraltete Antworten erfolgreich geprüft')
+print('E-Mail-Archiv und Kategorien: Originalversionen, EML/MSG, Metadatenkategorie, Anzahlen, Schnellfilter, Fehler und veraltete Antworten erfolgreich geprüft')

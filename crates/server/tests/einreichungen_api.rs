@@ -14,7 +14,7 @@ use server::api;
 use std::sync::Arc;
 use tower::ServiceExt;
 #[tokio::test]
-async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
+async fn bestehende_pakete_bestaetigen_vergleichen_und_unveraendertes_zip() {
     let temp = tempfile::tempdir().unwrap();
     let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
     let core = CoreServices::new(
@@ -77,9 +77,12 @@ async fn erstellen_bestaetigen_vergleichen_und_unveraendertes_zip() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
-    let e: core_lib::einreichung::Einreichung =
-        serde_json::from_slice(&to_bytes(response.into_body(), 100000).await.unwrap()).unwrap();
+    // Neue Pakete entstehen nur noch als Abgabestand der Verfahrensakte.
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    let e = core
+        .einreichung_erstellen(p.id, serde_json::from_value(payload).unwrap(), &user)
+        .await
+        .unwrap();
     let zip_uri = format!("/api/einreichungen/{}/zip", e.stand.id);
     let response = router
         .clone()

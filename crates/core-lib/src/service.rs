@@ -22,10 +22,7 @@ use crate::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, LboE
 use crate::license::{LicenseProvider, Lizenzstatus};
 use crate::repository::Repositories;
 use crate::storage::{ContentHash, Storage, StorageKey};
-use crate::xbau::{
-    self, Anlagendatei, Bauantrag, Beteiligter, Buero, Codelisten, GespeicherterBauantrag,
-    Nachrichtendaten,
-};
+use crate::xbau::{self, Bauantrag, Beteiligter, Buero, Codelisten, GespeicherterBauantrag};
 
 /// Alle Abhängigkeiten der Geschäftslogik, von der Laufzeitumgebung injiziert:
 ///
@@ -47,27 +44,6 @@ pub struct CoreServices {
 
 /// Einstellungsschlüssel der Büroangaben.
 const BUERO: &str = "xbau.buero";
-
-/// Ergebnis des XBau-Exports.
-#[derive(Debug, Clone, PartialEq)]
-pub struct XbauExport {
-    /// Vorgeschlagener Dateiname.
-    pub dateiname: String,
-    pub zip: Vec<u8>,
-}
-
-/// Entfernt Zeichen, die in Dateinamen unter Windows nicht erlaubt sind.
-fn dateiname_sicher(name: &str) -> String {
-    let s: String = name
-        .chars()
-        .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            c if c.is_control() => '_',
-            c => c,
-        })
-        .collect();
-    s.trim().trim_end_matches('.').to_string()
-}
 
 /// Ein CAD-Plan aus dem DMS.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -1068,131 +1044,6 @@ impl CoreServices {
             serde_json::to_string(&buero).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
         self.repos.lizenz.einstellung_setzen(BUERO, &t).await?;
         Ok(buero)
-    }
-
-    /// Erzeugt das XBau-Paket (ZIP mit Antragsnachricht und Anlagen) aus dem
-    /// gespeicherten Bauantrag. Exportieren ist Lesen: Es geht mit jeder
-    /// Rolle und auch, wenn die Lizenz nur noch Lesen erlaubt.
-    pub async fn xbau_exportieren(
-        &self,
-        project: ProjectId,
-        wer: &Benutzer,
-    ) -> CoreResult<XbauExport> {
-        self.xbau_paket(project, wer, None).await
-    }
-    pub(crate) async fn xbau_paket(
-        &self,
-        project: ProjectId,
-        wer: &Benutzer,
-        bezug: Option<&xbau::austausch::Nachrichtenkopf>,
-    ) -> CoreResult<XbauExport> {
-        self.projekt_zugriff(project, wer, crate::zugriff::ProjektRecht::Lesen)
-            .await?;
-        let projekt = self.repos.projects.get(project).await?;
-        let antrag = self.bauantrag(project).await?.antrag;
-        let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
-        let buero = self.buero().await?;
-        if antrag.anlagen.len() > 255 {
-            return Err(xbau::austausch::fehler(
-                "Höchstens 255 Anlagen je Nachricht",
-            ));
-        }
-        let mut versionen = Vec::new();
-        let mut gesamt = 0u64;
-        for a in &antrag.anlagen {
-            let meta = self.repos.documents.latest(a.dokument).await?;
-            if meta.project_id != project {
-                return Err(xbau::austausch::fehler(
-                    "Anlage gehört zu einem anderen Projekt",
-                ));
-            }
-            gesamt = gesamt.saturating_add(meta.size_bytes);
-            if meta.size_bytes > xbau::austausch::MAX_PAKET
-                || gesamt > xbau::austausch::MAX_ENTPACKT - xbau::austausch::MAX_XML
-            {
-                return Err(xbau::austausch::fehler(
-                    "XBau-Anlagen überschreiten die zulässige Paketgröße",
-                ));
-            }
-            let (v, inhalt) = self.load_version(a.dokument, meta.version).await?;
-            if v.project_id != project {
-                return Err(CoreError::InvalidInput(format!(
-                    "{} gehört zu einem anderen Projekt",
-                    v.file_name
-                )));
-            }
-            versionen.push((a, v, inhalt));
-        }
-        let namen =
-            xbau::paket::eindeutige_namen(versionen.iter().map(|(_, v, _)| v.file_name.as_str()));
-        let anlagen: Vec<Anlagendatei> = versionen
-            .iter()
-            .zip(&namen)
-            .map(|((a, v, _), name)| Anlagendatei {
-                dokumentid: a.dokument.0,
-                bezeichnung: match a.bezeichnung.trim() {
-                    "" => v.file_name.clone(),
-                    b => b.to_string(),
-                },
-                versionsnummer: v.version,
-                datum: v.created_at.date_naive(),
-                anlageart: a.anlageart.trim().to_string(),
-                dateiname: name.clone(),
-            })
-            .collect();
-        let jetzt = Utc::now();
-        let daten = Nachrichtendaten {
-            projekt: &projekt,
-            antrag: &antrag,
-            bauherren: &bauherren,
-            buero: &buero,
-            anlagen: &anlagen,
-            codelisten: &self.codelisten,
-            nachricht_id: uuid::Uuid::new_v4(),
-            zeitpunkt: jetzt,
-        };
-        let xml = if let Some(k) = bezug {
-            xbau::baugenehmigung_aenderung(&daten, k)?
-        } else {
-            xbau::baugenehmigung_antrag(&daten)?
-        };
-        let dateien: Vec<(String, &[u8])> = namen
-            .iter()
-            .zip(&versionen)
-            .map(|(n, (_, _, inhalt))| (n.clone(), inhalt.as_ref()))
-            .collect();
-        let nachrichten_datei = if bezug.is_some() {
-            "baugenehmigung.antragGeaendert.0202.xml"
-        } else {
-            xbau::paket::NACHRICHT_DATEI
-        };
-        let zip = xbau::paket::packen_nachricht(nachrichten_datei, &xml, &dateien)?;
-        xbau::austausch::pruefen("XBau.zip", &zip, self.xbau_pruefer.as_ref()).await?;
-        self.protokollieren(
-            wer,
-            Aktion::XbauExportiert,
-            Some(project),
-            None,
-            format!(
-                "Bauantrag nach XBau {} mit {} Anlagen",
-                xbau::XBAU_VERSION,
-                anlagen.len()
-            ),
-        )
-        .await?;
-        Ok(XbauExport {
-            dateiname: format!(
-                "{} {} {}.zip",
-                if bezug.is_some() {
-                    "Nachreichung"
-                } else {
-                    "Bauantrag"
-                },
-                dateiname_sicher(&projekt.name),
-                crate::kalender::datum_deutsch(jetzt).format("%Y-%m-%d")
-            ),
-            zip,
-        })
     }
 
     // --- DMS ------------------------------------------------------------

@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 use core_lib::{
     CoreError,
     domain::ProjectId,
-    einreichung::{DokumentVergleich, Einreichung, NeuesPaket},
+    einreichung::{DokumentVergleich, Einreichung},
 };
 use std::path::PathBuf;
 use tauri::State;
@@ -41,26 +41,6 @@ pub async fn einreichungs_vergleich(
     Ok(state
         .core
         .einreichungs_vergleich(projekt_id, &empfaenger)
-        .await?)
-}
-#[tauri::command]
-pub async fn einreichung_erstellen(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    paket: NeuesPaket,
-    vorgang: Option<Uuid>,
-) -> Result<Einreichung, CmdError> {
-    state
-        .core
-        .projekt_zugriff(
-            projekt_id,
-            &state.benutzer(),
-            core_lib::zugriff::ProjektRecht::Bearbeiten,
-        )
-        .await?;
-    Ok(state
-        .core
-        .einreichung_erstellen_vorgang(projekt_id, paket, vorgang, &state.benutzer())
         .await?)
 }
 #[tauri::command]
@@ -103,21 +83,4 @@ pub async fn einreichung_exportieren(
         .await
         .map_err(|e| CoreError::Storage(e.to_string()))?;
     Ok(())
-}
-
-#[tauri::command]
-pub async fn paket_pruefstand(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    dokumente: Vec<core_lib::einreichung::DokumentAuswahl>,
-) -> Result<core_lib::einreichung::PaketPruefstand, CmdError> {
-    state
-        .core
-        .projekt_zugriff(
-            projekt_id,
-            &state.benutzer(),
-            core_lib::zugriff::ProjektRecht::Lesen,
-        )
-        .await?;
-    Ok(state.core.paket_pruefstand(projekt_id, &dokumente).await?)
 }

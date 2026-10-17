@@ -59,7 +59,6 @@
     ich,
     darf,
     importAusloeser,
-    exportAusloeser,
     onprojekt,
     ondialog,
   }: {
@@ -71,7 +70,6 @@
     ich: Benutzer | null;
     darf: (min: "bearbeitung" | "projektleitung") => boolean;
     importAusloeser: number;
-    exportAusloeser: number;
     onprojekt: (p: Project) => void;
     ondialog: (
       art: "projektdaten" | "bauherren" | "beteiligte" | "buero" | "mitglieder",
@@ -486,7 +484,7 @@
       <h2>XBau-Nachrichten</h2>
       <XbauPostfach {projekt} benutzer={ich} />
     </section>{/if}
-  <!-- Bleibt eingehängt, damit "Datei → Bauantrag als XBau exportieren" aus jeder Ansicht funktioniert. -->
+  <!-- Bleibt eingehängt, damit ungespeicherte Antragsänderungen beim Bereichswechsel erhalten bleiben. -->
   <section hidden={ansicht !== "bauantrag"}>
     <h2>Bauantrag (XBau)</h2>
     {#if ich}
@@ -495,12 +493,10 @@
           bind:this={antragEditor}
           {projekt}
           benutzer={ich}
-          {exportAusloeser}
           onbuero={() => ondialog("buero")}
           onbauherren={() => ondialog("bauherren")}
           onbeteiligte={() => ondialog("beteiligte")}
           onfehler={melde}
-          onhinweis={(m) => (hinweis = m)}
         />
       {/key}
     {/if}
