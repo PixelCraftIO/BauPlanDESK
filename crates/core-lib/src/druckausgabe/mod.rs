@@ -188,7 +188,7 @@ impl CoreServices {
             || a.absender.len() > 4000
             || a.empfaenger.len() > 4000
             || a.anschreiben.len() > 16000
-            || a.aktenzeichen.len() > 300
+            || a.aktenzeichen.len() > 500
         {
             return Err(fehler(
                 "Titel und 1 bis 100 Unterlagen erforderlich; Textgrenzen beachten",

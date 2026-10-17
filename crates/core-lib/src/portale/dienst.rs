@@ -435,51 +435,8 @@ impl CoreServices {
     ) -> CoreResult<crate::xbau::postfach::Nachrichtenstand> {
         let (_, a) = self.portalakte_laden(p, verfahren, wer, true).await?;
         abgabe_ref(vorgang_ref(&a, vorgang)?, abgabe)?;
-        let quelle = a
-            .abgaben
-            .iter()
-            .find(|b| b.id == abgabe)
-            .ok_or_else(|| fehler("Verfahrensabgabe nicht gefunden"))?;
-        let artefakt = quelle
-            .artefakte
-            .iter()
-            .find(|a| a.format == "xbau")
-            .ok_or_else(|| fehler("Dieser eingefrorene Stand enthält kein XBau-Artefakt"))?;
-        let bytes = paket::laden(self, artefakt).await?;
-        let pruefung =
-            crate::xbau::austausch::pruefen("XBau.zip", &bytes, self.xbau_pruefer.as_ref()).await?;
-        if pruefung.kopf.id != abgabe {
-            return Err(fehler(
-                "XBau-Nachrichten-ID passt nicht zur eingefrorenen Abgabe",
-            ));
-        }
-        let d = self
-            .ablegen_vorgang(
-                p,
-                None,
-                None,
-                "XBau-Abgabestand.zip",
-                Bytes::from(bytes),
-                wer,
-                crate::domain::Aktion::DokumentAbgelegt,
-                " · eingefrorenes Portal-XBau",
-                Some(Uuid::new_v5(&abgabe, b"portal.xbau.original")),
-                vec![],
-            )
-            .await?;
-        self.xbau_aufnehmen(
-            p,
-            crate::xbau::postfach::Nachrichtenaufnahme {
-                original: Dokumentbezug {
-                    dokument_id: d.document_id,
-                    version: d.version,
-                },
-                richtung: crate::xbau::postfach::Richtung::Ausgang,
-                zuordnung_bestaetigt: true,
-            },
-            wer,
-        )
-        .await
+        self.verfahren_xbau_erfassen(p, verfahren, abgabe, wer)
+            .await
     }
     async fn portal_dokument_pruefen(&self, p: ProjectId, d: &Dokumentbezug) -> CoreResult<()> {
         if !self

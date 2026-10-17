@@ -30,6 +30,15 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    [XBau](../xbau/README.md#nachricht-nach-verfahrensart)); Teilbaugenehmigung
    und „Sonstiges“ haben noch keine XBau-Ausgabe. Berechnungen können zuvor unter **Drucken / PDF-Ausgabe** erstellt und mit
    **Als Projektunterlage ablegen** ohne erneute Berechnung gespeichert werden.
+   Empfänger und Aktenzeichen kommen aus der Verfahrensakte und werden mit dem
+   Stand eingefroren: Druck-PDF und XBau nennen beide, XBau verlangt die
+   Behördenkennung (DVDV) der Akte. Weicht die Bauaufsicht im Bauantrag ab, nennt
+   der Stand das als Hinweis; „Behörde aus dem Bauantrag übernehmen“ füllt eine
+   leere Kennung der Akte. Unter **XBau-Nachricht** wird eine Nachreichung auf den
+   eigenen Antrag oder eine Befundliste bezogen; fehlt deren Aktenzeichen, gilt das
+   der Akte, ein abweichendes wird abgewiesen. **Im XBau-Journal erfassen**
+   übernimmt das eingefrorene XBau-ZIP als ausgehende Nachricht, auch mehrfach
+   nur einmal.
 7. **Übermittlung:** Versand, Eingang oder Zurückweisung einzeln mit Datum,
    Übermittlungsweg, Referenz und Beleg erfassen. Export bedeutet keinen Versand.
    Bestätigter Eingang benötigt einen Dokumentbeleg. Frühere Versandereignisse

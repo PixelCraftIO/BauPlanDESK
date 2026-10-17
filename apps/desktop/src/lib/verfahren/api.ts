@@ -9,6 +9,7 @@ import type {
   Suchtreffer,
   Erinnerung,
   Textquelle,
+  Nachrichtenstand,
 } from "../generated/plattform";
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
@@ -40,6 +41,12 @@ export const verfahrenApi = {
     ziel: string,
   ) =>
     invoke<void>("verfahren_export", { projektId, id, abgabe, format, ziel }),
+  xbauErfassen: (projektId: string, id: string, abgabe: string) =>
+    invoke<Nachrichtenstand>("verfahren_xbau_erfassen", {
+      projektId,
+      id,
+      abgabe,
+    }),
   erinnerungen: (projektId: string, heute: string) =>
     invoke<Erinnerung[]>("verfahren_erinnerungen", { projektId, heute }),
   suche: (projektId: string, suche: string) =>

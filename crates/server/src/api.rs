@@ -186,6 +186,10 @@ fn routen(core: CoreServices) -> Router {
             post(verfahren_abgabe),
         )
         .route(
+            "/projekte/{id}/verfahren/{verfahren}/abgaben/{abgabe}/xbau-journal",
+            post(verfahren_xbau_erfassen),
+        )
+        .route(
             "/projekte/{id}/verfahren/{verfahren}/abgaben/{abgabe}/{format}",
             get(verfahren_artefakt),
         )
@@ -1154,12 +1158,23 @@ async fn verfahren_abgabe(
             .await?,
     ))
 }
+async fn verfahren_xbau_erfassen(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id, abgabe)): Path<(Uuid, Uuid, Uuid)>,
+) -> ApiResult<core_lib::xbau::postfach::Nachrichtenstand> {
+    Ok(Json(
+        core.verfahren_xbau_erfassen(ProjectId(p), id, abgabe, &wer)
+            .await?,
+    ))
+}
 async fn verfahren_artefakt(
     State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
     Path((p, id, abgabe, format)): Path<(Uuid, Uuid, Uuid, String)>,
 ) -> Result<Response, ApiError> {
     let (_, b) = core
-        .verfahren_artefakt(ProjectId(p), id, abgabe, &format)
+        .verfahren_artefakt(ProjectId(p), id, abgabe, &format, &wer)
         .await?;
     let typ = if format == "pdf" {
         "application/pdf"

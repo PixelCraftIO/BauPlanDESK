@@ -274,7 +274,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     // Gemeinsamer Abgabestand friert auch XBau ein: spätere Büro- und
     // Planänderungen dürfen weder XML noch Anlagenbytes neu erzeugen.
     let vid = uuid::Uuid::new_v4();
-    let a = serde_json::json!({"bezeichnung":"Erstantrag","art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:test","kontakt":""},"aktenzeichen":"2026/42","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
+    let a = serde_json::json!({"bezeichnung":"Erstantrag","art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:053150000","kontakt":""},"aktenzeichen":"BA-42","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
     core.fachobjekt_speichern(
         p.id,
         core_lib::plattform::ObjektArt::Verfahren,
@@ -328,7 +328,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     .await
     .unwrap();
     let folge_bytes = core
-        .verfahren_artefakt(p.id, vid, folge_id, "xbau")
+        .verfahren_artefakt(p.id, vid, folge_id, "xbau", &chefin)
         .await
         .unwrap()
         .1;
@@ -342,7 +342,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     );
     assert_eq!(folge_pruefung.kopf.bezugsnachricht, Some(eingang_id));
     let vorher = core
-        .verfahren_artefakt(p.id, vid, aid, "xbau")
+        .verfahren_artefakt(p.id, vid, aid, "xbau", &chefin)
         .await
         .unwrap()
         .1;
@@ -375,7 +375,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     .await
     .unwrap();
     assert_eq!(
-        core.verfahren_artefakt(p.id, vid, aid, "xbau")
+        core.verfahren_artefakt(p.id, vid, aid, "xbau", &chefin)
             .await
             .unwrap()
             .1,
@@ -397,7 +397,7 @@ async fn bauantrag_erfassen_und_exportieren() {
         anschreiben: String::new(),
     };
     let verfahren = |art: &str, angaben: serde_json::Value| {
-        let mut a = serde_json::json!({"bezeichnung":art,"art":art,"status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:test","kontakt":""},"aktenzeichen":"","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
+        let mut a = serde_json::json!({"bezeichnung":art,"art":art,"status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:053150000","kontakt":""},"aktenzeichen":"","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
         if !angaben.is_null() {
             a["antragsangaben"] = angaben;
         }
@@ -452,7 +452,7 @@ async fn bauantrag_erfassen_und_exportieren() {
             Ok(element) => {
                 ergebnis.unwrap();
                 let bytes = core
-                    .verfahren_artefakt(p.id, vid, aid, "xbau")
+                    .verfahren_artefakt(p.id, vid, aid, "xbau", &chefin)
                     .await
                     .unwrap()
                     .1;
@@ -505,7 +505,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     .await
     .unwrap();
     let bytes = core
-        .verfahren_artefakt(p.id, vid, aid, "xbau")
+        .verfahren_artefakt(p.id, vid, aid, "xbau", &chefin)
         .await
         .unwrap()
         .1;
@@ -521,6 +521,135 @@ async fn bauantrag_erfassen_und_exportieren() {
         Some(core_lib::verfahren::Verfahrensart::Vorbescheid)
     );
     assert_eq!(stand.grundlagen.antragsangaben.vorbescheidfragen.len(), 1);
+
+    // Behörde und Aktenzeichen stammen aus der Verfahrensakte, nicht aus dem
+    // Bauantrag.
+    let akte = |kennung: &str, aktenzeichen: &str| {
+        let mut a = verfahren("bauantrag", serde_json::Value::Null);
+        a["behoerde"]["kennung"] = kennung.into();
+        a["aktenzeichen"] = aktenzeichen.into();
+        a
+    };
+    let anlegen = |a: serde_json::Value| {
+        let vid = uuid::Uuid::new_v4();
+        let core = &core;
+        let chefin = &chefin;
+        async move {
+            core.fachobjekt_speichern(
+                p.id,
+                core_lib::plattform::ObjektArt::Verfahren,
+                vid,
+                0,
+                a,
+                chefin,
+            )
+            .await
+            .unwrap();
+            vid
+        }
+    };
+    let xml_von = |bytes: &[u8]| {
+        let mut archiv = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let name = (0..archiv.len())
+            .map(|i| archiv.by_index(i).unwrap().name().unwrap().to_string())
+            .find(|n| n.ends_with(".xml"))
+            .unwrap();
+        let mut xml = String::new();
+        archiv
+            .by_name(&name)
+            .unwrap()
+            .read_to_string(&mut xml)
+            .unwrap();
+        xml
+    };
+    let vid = anlegen(akte("bab:anders", "BA-42")).await;
+    let erst = abgabe(None);
+    let erst_id = erst.id;
+    let f = core
+        .verfahren_abgabe_festhalten(p.id, vid, 1, erst, &chefin)
+        .await
+        .unwrap();
+    let a: core_lib::verfahren::Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let stand = a.abgaben.iter().find(|b| b.id == erst_id).unwrap();
+    assert!(
+        stand.hinweise.iter().any(|h| h.contains(
+            "Bauaufsicht im Bauantrag (bab:053150000) weicht von der Behörde der Verfahrensakte (bab:anders) ab"
+        )),
+        "{:?}",
+        stand.hinweise
+    );
+    assert_eq!(stand.grundlagen.aktenzeichen.as_deref(), Some("BA-42"));
+    let xml = xml_von(
+        &core
+            .verfahren_artefakt(p.id, vid, erst_id, "xbau", &chefin)
+            .await
+            .unwrap()
+            .1,
+    );
+    assert!(
+        xml.contains("<kennung>bab:anders</kennung>"),
+        "Leser aus der Akte"
+    );
+    assert!(!xml.contains("bab:053150000"));
+
+    // Ins Journal übernommen ist die Abgabe genau einmal, auch bei Wiederholung.
+    let vorher = core.xbau_nachrichten(p.id, &chefin).await.unwrap().len();
+    let n1 = core
+        .verfahren_xbau_erfassen(p.id, vid, erst_id, &chefin)
+        .await
+        .unwrap();
+    let n2 = core
+        .verfahren_xbau_erfassen(p.id, vid, erst_id, &chefin)
+        .await
+        .unwrap();
+    assert_eq!(n1.id, n2.id);
+    assert_eq!(n1.nachricht.pruefung.kopf.id, erst_id);
+    assert_eq!(
+        core.xbau_nachrichten(p.id, &chefin).await.unwrap().len(),
+        vorher + 1
+    );
+
+    // Eine Nachreichung auf den eigenen Antrag nennt das Aktenzeichen der Akte.
+    let nach = abgabe(Some(n1.id));
+    let nach_id = nach.id;
+    core.verfahren_abgabe_festhalten(
+        p.id,
+        vid,
+        core.verfahrensakte(p.id, vid).await.unwrap().0.revision,
+        nach,
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let xml = xml_von(
+        &core
+            .verfahren_artefakt(p.id, vid, nach_id, "xbau", &chefin)
+            .await
+            .unwrap()
+            .1,
+    );
+    assert!(xml.contains("<vorgang>BA-42</vorgang>"), "{xml}");
+
+    // Ein abweichendes Aktenzeichen der Bezugsnachricht wird abgewiesen.
+    let vid = anlegen(akte("bab:053150000", "BA-99")).await;
+    let err = core
+        .verfahren_abgabe_festhalten(p.id, vid, 1, abgabe(Some(eingang_id)), &chefin)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Aktenzeichen der Bezugsnachricht"), "{err}");
+
+    // Ohne Behördenkennung in der Akte gibt es keine XBau-Ausgabe.
+    let vid = anlegen(akte("", "")).await;
+    let err = core
+        .verfahren_abgabe_festhalten(p.id, vid, 1, abgabe(None), &chefin)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("Behördenkennung (DVDV) in der Verfahrensakte"),
+        "{err}"
+    );
 }
 
 #[tokio::test]

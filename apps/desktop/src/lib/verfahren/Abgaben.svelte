@@ -4,8 +4,11 @@
   import type {
     Abgabestand,
     Abgabewunsch,
+    Behoerde,
     Dokumentbezug,
+    Nachrichtenstand,
   } from "../generated/plattform";
+  import { xbau as xbauApi } from "../xbau/api";
   import Dokumentliste from "./Dokumentliste.svelte";
   import Dokumentfeld from "./Dokumentfeld.svelte";
   import { verfahrenApi, heute } from "./api";
@@ -15,6 +18,8 @@
     projektId,
     verfahrenId,
     darf,
+    behoerde,
+    aktenzeichen,
     onfesthalten,
     onbusy,
     gespeichert = [],
@@ -26,6 +31,8 @@
     projektId: string;
     verfahrenId: string;
     darf: boolean;
+    behoerde: Behoerde;
+    aktenzeichen: string;
     onfesthalten: (w: Abgabewunsch) => Promise<void>;
     onbusy: (b: boolean) => void;
     gespeichert?: Abgabestand[];
@@ -37,16 +44,50 @@
     xbau = $state(false),
     druck = $state(false),
     anschreiben = $state(""),
+    xbauBezug = $state(""),
+    nachrichten = $state<Nachrichtenstand[]>([]),
+    erfasst = $state<Record<string, boolean>>({}),
     fehler = $state("");
+  // Nachreichungen beziehen sich auf den eigenen Antrag oder eine Befundliste.
+  const bezugsarten = [
+    "baugenehmigung.antrag.0200",
+    "vorbescheid.antrag.0210",
+    "prozessnachrichten.formellePruefungBefundliste.1140",
+  ];
+  $effect(() => {
+    if (!xbau) return;
+    xbauApi
+      .nachrichten(projektId)
+      .then((n) => {
+        nachrichten = n.filter((m) =>
+          bezugsarten.includes(m.nachricht.pruefung.kopf.element),
+        );
+      })
+      .catch((e) => (fehler = fehlertext(e)));
+  });
+  async function journal(b: Abgabestand) {
+    onbusy(true);
+    fehler = "";
+    try {
+      await verfahrenApi.xbauErfassen(projektId, verfahrenId, b.id);
+      erfasst[b.id] = true;
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      onbusy(false);
+    }
+  }
   let fingerprint = "",
     vorgang = "";
   async function festhalten() {
-    const q = JSON.stringify([titel, dokumente, xbau, druck, anschreiben]);
+    const bezug = xbau && xbauBezug ? xbauBezug : undefined;
+    const q = JSON.stringify([titel, dokumente, xbau, bezug, druck, anschreiben]);
     if (q !== fingerprint) {
       fingerprint = q;
       vorgang = crypto.randomUUID();
     }
     await onfesthalten({
+      xbau_bezug: bezug,
       id: vorgang,
       titel,
       dokumente: structuredClone($state.snapshot(dokumente)),
@@ -86,12 +127,27 @@
 </p>
 {#if fehler}<p role="alert" class="fehlertext">{fehler}</p>{/if}
 <fieldset disabled={!darf}>
-  <legend>Neuen Stand zusammenstellen</legend><label
+  <legend>Neuen Stand zusammenstellen</legend>
+  <p class="meta">
+    Empfänger laut Verfahrensakte: {behoerde.name.trim() || "–"}
+    ({behoerde.kennung.trim() || "keine DVDV-Kennung"}) · Aktenzeichen: {aktenzeichen.trim() ||
+      "–"}. Druck und XBau übernehmen beides aus der Akte.
+  </p><label
     >Abgabebezeichnung<input bind:value={titel} maxlength="500" /></label
   ><Dokumentliste {dateien} bind:werte={dokumente} /><label
     ><input type="checkbox" bind:checked={xbau} />XBau-Ausgabe zusätzlich
     erzeugen (Antragsdaten und Anlagenarten erforderlich)</label
-  ><label
+  >{#if xbau}<label
+      >XBau-Nachricht<select aria-label="XBau-Nachricht" bind:value={xbauBezug}
+        ><option value="">Antrag zum Verfahren</option
+        >{#each nachrichten as n}<option value={n.id}
+            >Nachreichung zu {n.nachricht.pruefung.kopf.titel} · {n.id.slice(
+              0,
+              8,
+            )}</option
+          >{/each}</select
+      ></label
+    >{/if}<label
     ><input type="checkbox" bind:checked={druck} />Druck-PDF mit
     Inhaltsverzeichnis zusätzlich erzeugen (druckbare Dateien)</label
   ><label
@@ -129,7 +185,15 @@
           class="sekundaer"
           onclick={() => exportieren(b, f.format, f.dateiname)}
           >{f.format.toLocaleUpperCase()} exportieren</button
-        >{/each}
+        >{/each}{#if b.artefakte.some((f) => f.format === "xbau")}<button
+          type="button"
+          class="sekundaer"
+          disabled={!darf || erfasst[b.id]}
+          onclick={() => journal(b)}
+          >{erfasst[b.id]
+            ? "Im XBau-Journal erfasst"
+            : "Im XBau-Journal erfassen"}</button
+        >{/if}
     </div>
     <table class="ergebnistabelle">
       <thead
