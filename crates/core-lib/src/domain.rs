@@ -376,10 +376,16 @@ pub enum Aktion {
     VerfahrenSchritt,
     VerfahrenAusfuehrung,
     VerfahrenBerichtigt,
+    /// Anmeldung am Arbeitsplatz (Kennwort oder einmaliger Übergang).
+    Angemeldet,
+    /// Falsches Kennwort, gesperrtes oder unbekanntes Konto.
+    AnmeldungFehlgeschlagen,
+    /// Eigenes Kennwort geändert oder Erstkennwort vergeben.
+    KennwortGeaendert,
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 30] = [
+    const ALLE: [Aktion; 33] = [
         Self::ProjektAngelegt,
         Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
@@ -410,6 +416,9 @@ impl Aktion {
         Self::VerfahrenSchritt,
         Self::VerfahrenAusfuehrung,
         Self::VerfahrenBerichtigt,
+        Self::Angemeldet,
+        Self::AnmeldungFehlgeschlagen,
+        Self::KennwortGeaendert,
     ];
 
     pub fn code(self) -> &'static str {
@@ -444,6 +453,9 @@ impl Aktion {
             Self::VerfahrenSchritt => "verfahren_schritt",
             Self::VerfahrenAusfuehrung => "verfahren_ausfuehrung",
             Self::VerfahrenBerichtigt => "verfahren_berichtigt",
+            Self::Angemeldet => "angemeldet",
+            Self::AnmeldungFehlgeschlagen => "anmeldung_fehlgeschlagen",
+            Self::KennwortGeaendert => "kennwort_geaendert",
         }
     }
 }

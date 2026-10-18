@@ -40,6 +40,9 @@ pub struct CoreServices {
     pub formulare: Arc<Formularkatalog>,
     pub codelisten: Arc<Codelisten>,
     pub xbau_pruefer: Arc<dyn xbau::austausch::SchemaPruefer>,
+    /// Netzwerkbetrieb: Rechte nur für Konten mit eigenem Kennwort, siehe
+    /// [`crate::anmeldung`].
+    pub kennwortpflicht: bool,
 }
 
 /// Einstellungsschlüssel der Büroangaben.
@@ -94,6 +97,7 @@ impl CoreServices {
             formulare: Arc::new(Formularkatalog::default()),
             codelisten: Arc::new(Codelisten::eingebaut()),
             xbau_pruefer: xbau::austausch::kein_pruefer(),
+            kennwortpflicht: false,
         }
     }
 
@@ -121,7 +125,7 @@ impl CoreServices {
     /// bleiben auch ohne gültige Lizenz möglich, sonst käme man nie heraus.
     pub async fn berechtigung_pruefen(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
         wer.pruefe(recht)?;
-        self.repos.benutzer.get(wer.id).await?.pruefe(recht)
+        self.angemeldeter_benutzer(wer).await?.pruefe(recht)
     }
     pub(crate) async fn pruefe(&self, wer: &Benutzer, recht: Recht) -> CoreResult<()> {
         self.berechtigung_pruefen(wer, recht).await?;
@@ -206,7 +210,9 @@ impl CoreServices {
 
     // --- Benutzer --------------------------------------------------------
 
-    /// Anmeldung über den Betriebssystem-Benutzer (Desktop-App). Unbekannte
+    /// Anmeldung über den Betriebssystem-Benutzer ohne Kennwort (Einzelplatz,
+    /// Einrichtung von Serverzugängen). Im Netzwerkbetrieb melden sich
+    /// Arbeitsplätze über [`crate::anmeldung`] an. Unbekannte
     /// Benutzer werden angelegt: Solange es keinen Administrator gibt, als
     /// Administrator, danach mit der Rolle „Lesen“; ein Administrator kann
     /// sie dann hochstufen.
@@ -1820,7 +1826,7 @@ impl CoreServices {
 }
 
 /// Anmeldename des technischen Kontos, siehe [`CoreServices::systembenutzer`].
-const SYSTEM: &str = "system";
+pub(crate) const SYSTEM: &str = "system";
 
 fn projekt_details(p: &Project) -> String {
     let mut d = format!("{} ({})", p.name, p.bundesland.name());

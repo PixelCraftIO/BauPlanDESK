@@ -405,20 +405,29 @@ pub async fn pruefen(
             {
                 return Err(fehler("Doppelte Namen, Ordner oder Verknüpfungen im Paket"));
             }
-            gesamt = gesamt
-                .checked_add(f.size())
-                .ok_or_else(|| fehler("ZIP-Größe ungültig"))?;
-            if gesamt > MAX_ENTPACKT || f.size() > MAX_PAKET {
+            // Die Größenangabe im ZIP ist nur eine Behauptung des Absenders. Maßgebend
+            // sind die tatsächlich entpackten Bytes; gelesen wird höchstens bis zur
+            // verbleibenden Gesamtgrenze (plus ein Byte zur Erkennung).
+            let angegeben = f.size();
+            if angegeben > MAX_PAKET || gesamt.saturating_add(angegeben) > MAX_ENTPACKT {
                 return Err(fehler("Entpackte Paketgröße überschritten"));
             }
+            let grenze = MAX_PAKET.min(MAX_ENTPACKT - gesamt);
             let mut b = vec![];
             (&mut f)
-                .take(MAX_PAKET + 1)
+                .take(grenze + 1)
                 .read_to_end(&mut b)
-                .map_err(|e| fehler(e.to_string()))?;
-            if b.len() as u64 > MAX_PAKET {
-                return Err(fehler("Dateigröße überschritten"));
+                .map_err(|e| fehler(format!("ZIP-Eintrag {n} nicht lesbar: {e}")))?;
+            let gelesen = b.len() as u64;
+            if gelesen > grenze {
+                return Err(fehler("Entpackte Paketgröße überschritten"));
             }
+            if gelesen != angegeben {
+                return Err(fehler(format!(
+                    "ZIP-Eintrag {n}: entpackte Größe weicht von der Angabe im Paket ab"
+                )));
+            }
+            gesamt += gelesen;
             dateien.insert(n, b);
         }
         // Eine Bauvorlage darf selbst XML sein. Nur XML mit einem XBau-Wurzelelement
@@ -517,4 +526,82 @@ pub(crate) fn anlage_lesen(paket: &[u8], name: &str, sha256: &str) -> CoreResult
         return Err(fehler("Anlageninhalt passt nicht zum Prüfbericht"));
     }
     Ok(b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    /// ZIP mit einem gespeicherten Eintrag, dessen Größenangabe nachträglich
+    /// verfälscht wird (lokaler Kopf und zentrales Verzeichnis).
+    fn zip_mit_falscher_groesse(inhalt: &[u8], angabe: u32) -> Vec<u8> {
+        let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        w.start_file(
+            "anlage.pdf",
+            zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored),
+        )
+        .unwrap();
+        w.write_all(inhalt).unwrap();
+        let mut z = w.finish().unwrap().into_inner();
+        let echt = (inhalt.len() as u32).to_le_bytes();
+        // Lokaler Kopf: Signatur PK\x03\x04, unkomprimierte Größe an Offset 22.
+        let mut i = 0;
+        while i + 46 <= z.len() {
+            if z[i..i + 4] == *b"PK\x03\x04" && z[i + 22..i + 26] == echt {
+                z[i + 22..i + 26].copy_from_slice(&angabe.to_le_bytes());
+            } else if z[i..i + 4] == *b"PK\x01\x02" && z[i + 24..i + 28] == echt {
+                z[i + 24..i + 28].copy_from_slice(&angabe.to_le_bytes());
+            }
+            i += 1;
+        }
+        z
+    }
+
+    #[tokio::test]
+    async fn gesamtgrenze_gilt_fuer_tatsaechlich_entpackte_bytes() {
+        // Viele kleine Einträge mit stimmiger Angabe: unter der Grenze unkritisch.
+        let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for i in 0..3 {
+            w.start_file(
+                format!("a{i}.pdf"),
+                zip::write::SimpleFileOptions::default(),
+            )
+            .unwrap();
+            w.write_all(&[0u8; 1024]).unwrap();
+        }
+        let zip = w.finish().unwrap().into_inner();
+        let e = pruefen("paket.zip", &zip, &KeinSchemaPruefer)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("Genau eine lesbare XBau-Nachricht"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn zip_eintrag_mit_falscher_groessenangabe_wird_abgelehnt() {
+        let inhalt = vec![b'x'; 4096];
+        for angabe in [0u32, 1, 4095, 4097] {
+            let zip = zip_mit_falscher_groesse(&inhalt, angabe);
+            let e = pruefen("paket.zip", &zip, &KeinSchemaPruefer)
+                .await
+                .unwrap_err()
+                .to_string();
+            // Je nach Abweichung meldet die ZIP-Bibliothek (zu groß) oder die
+            // eigene Gegenprüfung (zu klein) den Fehler; entpackt wird nie mehr.
+            assert!(
+                e.contains("ZIP-Eintrag anlage.pdf")
+                    && (e.contains("weicht von der Angabe") || e.contains("declared")),
+                "{angabe}: {e}"
+            );
+        }
+        // Gegenprobe: stimmige Angabe scheitert erst an der fehlenden Nachricht.
+        let zip = zip_mit_falscher_groesse(&inhalt, inhalt.len() as u32);
+        let e = pruefen("paket.zip", &zip, &KeinSchemaPruefer)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("Genau eine lesbare XBau-Nachricht"), "{e}");
+    }
 }

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer};
+use crate::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, Kennwortdaten, NeuerBenutzer};
 use crate::domain::{
     DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag, NewProject, Project,
     ProjectId, ProjectUpdate, Protokolleintrag,
@@ -93,6 +93,35 @@ pub trait BenutzerRepository: Send + Sync {
     async fn list(&self) -> CoreResult<Vec<Benutzer>>;
 
     async fn update(&self, aenderung: BenutzerAenderung) -> CoreResult<Benutzer>;
+
+    /// Kennwort-Hash, Fehlversuche und Sperre. Nur für [`crate::anmeldung`];
+    /// unbekannte `id`: [`crate::CoreError::NotFound`].
+    async fn kennwortdaten(&self, id: BenutzerId) -> CoreResult<Kennwortdaten>;
+
+    /// Speichert einen neuen Hash (`erstkennwort`: muss bei der nächsten
+    /// Anmeldung geändert werden), setzt Fehlversuche und Sperre zurück.
+    async fn kennwort_speichern(
+        &self,
+        id: BenutzerId,
+        hash: &str,
+        erstkennwort: bool,
+        zeit: DateTime<Utc>,
+    ) -> CoreResult<()>;
+
+    /// Erhöht die Fehlversuche atomar um 1 (`UPDATE … SET n = n + 1
+    /// RETURNING n`), damit gleichzeitige Fehleingaben an mehreren
+    /// Arbeitsplätzen alle zählen. Liefert den neuen Stand.
+    async fn fehlversuch_zaehlen(&self, id: BenutzerId) -> CoreResult<u32>;
+
+    async fn anmeldesperre_setzen(
+        &self,
+        id: BenutzerId,
+        bis: Option<DateTime<Utc>>,
+    ) -> CoreResult<()>;
+
+    /// Erfolgreiche Anmeldung: Fehlversuche und Sperre zurücksetzen,
+    /// Zeitpunkt merken.
+    async fn anmeldung_vermerken(&self, id: BenutzerId, zeit: DateTime<Utc>) -> CoreResult<()>;
 }
 
 #[async_trait]

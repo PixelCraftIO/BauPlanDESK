@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -48,7 +48,20 @@ impl IntoResponse for ApiError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         if status.is_server_error() {
-            tracing::error!(error = %self.0, "Anfrage fehlgeschlagen");
+            // Interna (Pfade, Datenbankmeldungen) nur ins Protokoll; der Client
+            // erhält eine Kennung, über die der Betrieb den Eintrag findet.
+            let kennung = Uuid::new_v4();
+            tracing::error!(%kennung, error = %self.0, "Anfrage fehlgeschlagen");
+            return (
+                status,
+                Json(serde_json::json!({
+                    "fehler": format!(
+                        "Interner Serverfehler. Bitte die Administration mit der Kennung {kennung} verständigen."
+                    ),
+                    "kennung": kennung,
+                })),
+            )
+                .into_response();
         }
         (
             status,
@@ -65,6 +78,11 @@ type ApiResult<T> = Result<Json<T>, ApiError>;
 pub struct ApiState {
     pub core: CoreServices,
 }
+
+/// Body-Grenze für JSON-Aufträge, deren Inhalt der Core selbst auf 2 MiB begrenzt
+/// (Fachobjekte, Suchtexte): Spielraum für Hülle, Einrückung und Escapes, damit
+/// nicht axum (Standard 2 MB) vor der fachlichen Prüfung mit 413 abbricht.
+const JSON_MIT_KERNGRENZE: usize = 4 * 1024 * 1024;
 
 fn routen(core: CoreServices) -> Router {
     let api = Router::new()
@@ -158,7 +176,9 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/bereiche/{bereich}", post(bereich_speichern))
         .route(
             "/projekte/{id}/fachobjekte/{art}",
-            get(fachobjekte).post(fachobjekt_speichern),
+            get(fachobjekte)
+                .post(fachobjekt_speichern)
+                .layer(DefaultBodyLimit::max(JSON_MIT_KERNGRENZE)),
         )
         .route(
             "/projekte/{id}/nachweise",
@@ -193,7 +213,10 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
         .route("/projekte/{id}/termine.ics", get(verfahren_termine_ics))
         .route("/projekte/{id}/aktensuche", get(verfahren_suche))
-        .route("/projekte/{id}/suchtext", post(suchtext_speichern))
+        .route(
+            "/projekte/{id}/suchtext",
+            post(suchtext_speichern).layer(DefaultBodyLimit::max(JSON_MIT_KERNGRENZE)),
+        )
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
         .route("/projekte", get(list_projects).post(create_project))
         .route("/projekte/{id}", get(get_project).put(update_project))
@@ -216,7 +239,9 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/druckausgabe", post(druckausgabe))
         .route(
             "/projekte/{id}/druckausgabe/unterlage",
-            post(druckausgabe_ablegen),
+            // Transportgrenze = Core-Grenze, nur an dieser Route.
+            post(druckausgabe_ablegen)
+                .layer(DefaultBodyLimit::max(core_lib::druckausgabe::MAX_DRUCKPDF)),
         )
         .route("/projekte/{id}/projektordner", get(projektordner_plan))
         .route("/projekte/{id}/protokoll", get(protokoll))
@@ -501,15 +526,19 @@ async fn mass_der_nutzung(
     Ok(Json(r))
 }
 
-async fn kunden(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Kunde>> {
-    Ok(Json(core.kunden_auflisten().await?))
+async fn kunden(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<Vec<Kunde>> {
+    Ok(Json(core.kunden_fuer_benutzer(&wer).await?))
 }
 
 async fn kunde(
+    Extension(wer): Extension<Benutzer>,
     State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Kunde> {
-    Ok(Json(core.kunde(KundeId(id)).await?))
+    Ok(Json(core.kunde_fuer_benutzer(KundeId(id), &wer).await?))
 }
 
 async fn kunde_anlegen(
@@ -744,19 +773,42 @@ async fn einreichung_zip(
     State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
-    let (_, bytes) = core.einreichung_zip(id).await?;
+    let (_, datei) = core
+        .einreichung_zip_schreiben(id, temporaere_datei()?)
+        .await?;
+    datei_antwort(
+        datei,
+        "application/zip",
+        format!("attachment; filename=\"Einreichung-{id}.zip\""),
+    )
+}
+
+/// Anonyme temporäre Datei (Verzeichnis über `TMPDIR`), wird beim Schließen entfernt.
+fn temporaere_datei() -> Result<std::fs::File, ApiError> {
+    tempfile::tempfile()
+        .map_err(|e| CoreError::Storage(format!("Temporäre Exportdatei: {e}")).into())
+}
+
+/// Streamt eine fertig geschriebene Exportdatei, ohne sie in den Speicher zu laden.
+fn datei_antwort(
+    mut datei: std::fs::File,
+    typ: &'static str,
+    disposition: String,
+) -> Result<Response, ApiError> {
+    use std::io::Seek;
+    let laenge = datei
+        .rewind()
+        .and_then(|_| datei.metadata())
+        .map_err(|e| CoreError::Storage(format!("Temporäre Exportdatei: {e}")))?
+        .len();
+    let strom = tokio_util::io::ReaderStream::new(tokio::fs::File::from_std(datei));
     Ok((
         [
-            (
-                axum::http::header::CONTENT_TYPE,
-                "application/zip".to_string(),
-            ),
-            (
-                axum::http::header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"Einreichung-{id}.zip\""),
-            ),
+            (axum::http::header::CONTENT_TYPE, typ.to_string()),
+            (axum::http::header::CONTENT_DISPOSITION, disposition),
+            (axum::http::header::CONTENT_LENGTH, laenge.to_string()),
         ],
-        bytes,
+        axum::body::Body::from_stream(strom),
     )
         .into_response())
 }
@@ -1190,17 +1242,15 @@ async fn verfahren_aktenexport(
     State(ApiState { core }): State<ApiState>,
     Path(p): Path<Uuid>,
 ) -> Result<Response, ApiError> {
-    Ok((
-        [
-            (axum::http::header::CONTENT_TYPE, "application/zip"),
-            (
-                axum::http::header::CONTENT_DISPOSITION,
-                "attachment; filename=Projektakte.zip",
-            ),
-        ],
-        core.verfahren_aktenexport(ProjectId(p)).await?,
+    // Fortlaufend in eine temporäre Datei, danach gestreamt: kein Gesamtarchiv im Speicher.
+    let datei = core
+        .verfahren_aktenexport_in(ProjectId(p), temporaere_datei()?)
+        .await?;
+    datei_antwort(
+        datei,
+        "application/zip",
+        "attachment; filename=Projektakte.zip".into(),
     )
-        .into_response())
 }
 
 async fn abstandsregeln() -> ApiResult<Vec<core_lib::abstandsflaechen::AbstandsRegeln>> {
@@ -1548,4 +1598,42 @@ async fn gebaeude_auswerten(
     Json(w): Json<GebaeudeAuswertung>,
 ) -> ApiResult<core_lib::plattform::gebaeude::GebaeudeGrundlagen> {
     Ok(Json(w.gebaeude.grundlagen(w.id)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn antwort(e: CoreError) -> (StatusCode, serde_json::Value) {
+        let r = ApiError(e).into_response();
+        let status = r.status();
+        let body = axum::body::to_bytes(r.into_body(), 64 * 1024)
+            .await
+            .unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    #[tokio::test]
+    async fn serverfehler_verraten_keine_interna() {
+        let (status, body) = antwort(CoreError::Storage(
+            "/srv/bauprojekt/dateien/data/projekte/x: Permission denied".into(),
+        ))
+        .await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        let text = body["fehler"].as_str().unwrap();
+        assert!(
+            !text.contains("/srv") && !text.contains("Permission"),
+            "{text}"
+        );
+        let kennung = body["kennung"].as_str().unwrap();
+        assert!(Uuid::parse_str(kennung).is_ok());
+        assert!(text.contains(kennung));
+        let (_, body) = antwort(CoreError::Database("relation \"x\" does not exist".into())).await;
+        assert!(!body["fehler"].as_str().unwrap().contains("relation"));
+        // Fachliche Fehler (4xx) bleiben unverändert aussagekräftig.
+        let (status, body) = antwort(CoreError::InvalidInput("Name fehlt".into())).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body["fehler"], "Ungültige Eingabe: Name fehlt");
+        assert!(body.get("kennung").is_none());
+    }
 }
