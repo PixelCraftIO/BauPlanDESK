@@ -453,12 +453,15 @@ pub enum Aktion {
     KundeGeloescht,
     BauherrenGeaendert,
     BeteiligteGeaendert,
+<<<<<<< HEAD
     /// Anmeldung am Arbeitsplatz (Kennwort oder einmaliger Übergang).
     Angemeldet,
     /// Falsches Kennwort, gesperrtes oder unbekanntes Konto.
     AnmeldungFehlgeschlagen,
     /// Eigenes Kennwort geändert oder Erstkennwort vergeben.
     KennwortGeaendert,
+=======
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     /// Verfahrensakte: Aktionen werden aus dem Aktenereignis der Revision
     /// abgeleitet (siehe `verfahren::chronik::aktion`).
     VerfahrenAngelegt,
@@ -470,6 +473,15 @@ pub enum Aktion {
     VerfahrenSchritt,
     VerfahrenAusfuehrung,
     VerfahrenBerichtigt,
+<<<<<<< HEAD
+=======
+    /// Anmeldung am Arbeitsplatz (Kennwort oder einmaliger Übergang).
+    Angemeldet,
+    /// Falsches Kennwort, gesperrtes oder unbekanntes Konto.
+    AnmeldungFehlgeschlagen,
+    /// Eigenes Kennwort geändert oder Erstkennwort vergeben.
+    KennwortGeaendert,
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 }
 
 impl Aktion {
@@ -495,9 +507,12 @@ impl Aktion {
         Self::KundeGeloescht,
         Self::BauherrenGeaendert,
         Self::BeteiligteGeaendert,
+<<<<<<< HEAD
         Self::Angemeldet,
         Self::AnmeldungFehlgeschlagen,
         Self::KennwortGeaendert,
+=======
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
         Self::VerfahrenAngelegt,
         Self::VerfahrenGeaendert,
         Self::VerfahrensstatusGeaendert,
@@ -507,6 +522,12 @@ impl Aktion {
         Self::VerfahrenSchritt,
         Self::VerfahrenAusfuehrung,
         Self::VerfahrenBerichtigt,
+<<<<<<< HEAD
+=======
+        Self::Angemeldet,
+        Self::AnmeldungFehlgeschlagen,
+        Self::KennwortGeaendert,
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     ];
 
     pub fn code(self) -> &'static str {
@@ -532,9 +553,12 @@ impl Aktion {
             Self::KundeGeloescht => "kunde_geloescht",
             Self::BauherrenGeaendert => "bauherren_geaendert",
             Self::BeteiligteGeaendert => "beteiligte_geaendert",
+<<<<<<< HEAD
             Self::Angemeldet => "angemeldet",
             Self::AnmeldungFehlgeschlagen => "anmeldung_fehlgeschlagen",
             Self::KennwortGeaendert => "kennwort_geaendert",
+=======
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
             Self::VerfahrenAngelegt => "verfahren_angelegt",
             Self::VerfahrenGeaendert => "verfahren_geaendert",
             Self::VerfahrensstatusGeaendert => "verfahrensstatus_geaendert",
@@ -544,6 +568,12 @@ impl Aktion {
             Self::VerfahrenSchritt => "verfahren_schritt",
             Self::VerfahrenAusfuehrung => "verfahren_ausfuehrung",
             Self::VerfahrenBerichtigt => "verfahren_berichtigt",
+<<<<<<< HEAD
+=======
+            Self::Angemeldet => "angemeldet",
+            Self::AnmeldungFehlgeschlagen => "anmeldung_fehlgeschlagen",
+            Self::KennwortGeaendert => "kennwort_geaendert",
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
         }
     }
 }

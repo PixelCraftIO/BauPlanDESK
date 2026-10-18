@@ -551,8 +551,13 @@ pub(super) async fn pruefen(
     }
     Ok(())
 }
+<<<<<<< HEAD
 /// Gilt die Akte heute als eingereicht? Versendeter Abgabestand oder
 /// nachgetragene externe Einreichung (siehe [`externe_einreichung::eingereicht`]).
+=======
+/// Gilt die Akte als eingereicht? Versendeter oder eingegangener Abgabestand
+/// oder nachgetragene externe Einreichung, jeweils nicht in der Zukunft.
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 pub(super) fn ist_eingereicht(a: &Verfahrensakte) -> bool {
     externe_einreichung::eingereicht(a, crate::kalender::heute())
 }

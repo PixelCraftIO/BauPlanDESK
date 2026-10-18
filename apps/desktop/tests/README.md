@@ -54,16 +54,28 @@ Versionskonflikte bei Projektdaten, Bauherren und Kunden (Eingaben bleiben,
 „Alle speichern und beenden“ schließt nicht), Rückfragen bei Escape und
 Menübefehlen, Strg+S je Ansicht und das Projektrecht „Lesen“. Der Test nutzt
 ebenfalls `BAUPROJEKT_UI_URL` und optional `BAUPROJEKT_CHROMIUM`.
-`python apps/desktop/tests/anmeldung.py` prüft den Anmeldedialog im Netzwerkbetrieb:
-keine Anwendungsaufrufe vor der Anmeldung, Fehlversuch, Erstkennwort ersetzen,
-einmaliger Übergang über das Rechnerkonto und *Abmelden / Benutzer wechseln*. Der
-gemeinsame Testtransport meldet sonst den Testbenutzer im Einzelplatzbetrieb an
-(`anmeldestatus`).
+<<<<<<< HEAD
+=======
 
 Der Testtransport beantwortet Rückfragen (`ask`/`confirm`) standardmäßig mit
 Bestätigen; `window.rueckfrage = false` wählt „Abbrechen“, gestellte Fragen
 stehen in `window.rueckfragen`. `projekt_recht` liefert `leitung`, je Projekt
 überschreibbar über `window.testProjektRecht = { [projektId]: "lesen" }`.
+
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
+`python apps/desktop/tests/anmeldung.py` prüft den Anmeldedialog im Netzwerkbetrieb:
+keine Anwendungsaufrufe vor der Anmeldung, Fehlversuch, Erstkennwort ersetzen,
+einmaliger Übergang über das Rechnerkonto und *Abmelden / Benutzer wechseln*. Der
+gemeinsame Testtransport meldet sonst den Testbenutzer im Einzelplatzbetrieb an
+(`anmeldestatus`).
+<<<<<<< HEAD
+
+Der Testtransport beantwortet Rückfragen (`ask`/`confirm`) standardmäßig mit
+Bestätigen; `window.rueckfrage = false` wählt „Abbrechen“, gestellte Fragen
+stehen in `window.rueckfragen`. `projekt_recht` liefert `leitung`, je Projekt
+überschreibbar über `window.testProjektRecht = { [projektId]: "lesen" }`.
+=======
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 `node --test apps/desktop/tests/kalender.test.mjs` prüft die Datumsgrenzen für
 Einreichungsfelder und Exportnamen ohne Abhängigkeit von der Rechnerzeitzone.
 

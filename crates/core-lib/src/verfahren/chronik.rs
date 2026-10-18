@@ -301,7 +301,11 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         }),
         Versand,
     );
+<<<<<<< HEAD
     // Eine nachgetragene externe Einreichung ist ebenfalls eine Übermittlung.
+=======
+    // Eine nachgetragene externe Einreichung ist eine Übermittlung.
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     wenn(
         alt.externe_einreichungen != a.externe_einreichungen,
         Versand,

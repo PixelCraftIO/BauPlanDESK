@@ -1339,7 +1339,11 @@ pub(crate) mod tests {
                 n("vollgeschosse", 2.0, 3.0, quelle),
             ],
             bebauungsplan: quelle == Quelle::Festsetzung,
+<<<<<<< HEAD
             hinweise: vec![],
+=======
+            hinweise: Vec::new(),
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
         };
         let f = crate::xbau::FlaechenBauNvo::aus_pruefung(&pruefung(Quelle::Festsetzung), 812.0)
             .unwrap();

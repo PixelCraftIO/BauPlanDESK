@@ -15,9 +15,15 @@
     Anforderungskatalog,
     Fachstand,
     Dokumentbezug,
+<<<<<<< HEAD
     ExterneEinreichungswunsch,
     Berichtigungsgegenstand,
     Ereignisart,
+=======
+    Berichtigungsgegenstand,
+    Ereignisart,
+    ExterneEinreichungswunsch,
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
   } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";

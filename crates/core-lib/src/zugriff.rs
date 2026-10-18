@@ -115,8 +115,13 @@ impl CoreServices {
             .await?
             .unwrap_or(ProjektRecht::Kein))
     }
+<<<<<<< HEAD
     /// Gespeichertes Recht der Mitgliedschaft von `wer`, tolerant gelesen über
     /// [`gespeichertes_recht`].
+=======
+    /// Gespeichertes Recht der Mitgliedschaft, tolerant gelesen über
+    /// [`gespeichertes_recht`]; `None` ohne Mitgliedschaft.
+>>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     async fn mitgliedsrecht(
         &self,
         p: ProjectId,
