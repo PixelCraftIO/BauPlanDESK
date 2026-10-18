@@ -63,8 +63,10 @@ pub fn packen_nachricht(
     Ok(zip.finish().map_err(fehler)?.into_inner())
 }
 
-/// Macht Dateinamen im Paket eindeutig (`plan.pdf`, `plan-2.pdf`, …) und
-/// entfernt Pfadanteile.
+/// Macht Dateinamen im Paket eindeutig (`plan.pdf`, `plan-2.pdf`, …),
+/// entfernt Pfadanteile und bildet portable Namen von höchstens
+/// [`MAX_DATEINAME`] Byte (siehe [`crate::dateiname`]). Die Endung bleibt
+/// beim Kürzen erhalten.
 pub fn eindeutige_namen<'a>(namen: impl IntoIterator<Item = &'a str>) -> Vec<String> {
     let mut vergeben: HashSet<String> = NACHRICHTEN_DATEIEN
         .iter()
@@ -73,22 +75,24 @@ pub fn eindeutige_namen<'a>(namen: impl IntoIterator<Item = &'a str>) -> Vec<Str
     namen
         .into_iter()
         .map(|n| {
-            let n = n.rsplit(['/', '\\']).next().unwrap_or(n).trim();
-            let n = if n.is_empty() { "anlage" } else { n };
-            let (stamm, endung) = match n.rsplit_once('.') {
-                Some((s, e)) if !s.is_empty() => (s, format!(".{e}")),
-                _ => (n, String::new()),
-            };
-            let mut kandidat = n.to_string();
+            let letzter = n.rsplit(['/', '\\']).next().unwrap_or(n);
+            let basis = crate::dateiname::portabel(letzter, MAX_DATEINAME)
+                .unwrap_or_else(|| "anlage".into());
+            let mut kandidat = basis.clone();
             let mut i = 2;
             while !vergeben.insert(kandidat.to_lowercase()) {
-                kandidat = format!("{stamm}-{i}{endung}");
+                let zusatz = format!("-{i}");
+                kandidat = crate::dateiname::mit_zusatz(&basis, &zusatz, MAX_DATEINAME)
+                    .unwrap_or_else(|| format!("anlage{zusatz}"));
                 i += 1;
             }
             kandidat
         })
         .collect()
 }
+
+/// Längster zulässiger Anlagenname im XBau-Paket in Byte.
+pub const MAX_DATEINAME: usize = 240;
 
 #[cfg(test)]
 mod tests {
@@ -102,6 +106,15 @@ mod tests {
             eindeutige_namen(["plan.pdf", "Plan.pdf", "a/b/plan.pdf", "", "x"]),
             ["plan.pdf", "Plan-2.pdf", "plan-3.pdf", "anlage", "x"]
         );
+        let lang = format!("{}.pdf", "Ö".repeat(200));
+        let namen = eindeutige_namen(["Lageplan M 1:500.pdf", "Ansicht. ", &lang, &lang]);
+        assert_eq!(namen[0], "Lageplan M 1_500.pdf");
+        assert_eq!(namen[1], "Ansicht");
+        assert!(namen[2].ends_with(".pdf") && namen[3].ends_with("-2.pdf"));
+        for n in &namen {
+            assert!(n.len() <= MAX_DATEINAME);
+            super::super::austausch::dateiname(n).unwrap();
+        }
     }
 
     #[test]

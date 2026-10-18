@@ -1,5 +1,5 @@
 //! Quellenwahl und unveränderlicher Datenstand einer ausgefüllten PDF-Version.
-use super::{Feldwert, Projektkontext};
+use super::{Feldwert, Projektkontext, VeralteterFeldwert};
 use crate::{
     CoreError, CoreResult, CoreServices,
     domain::ProjectId,
@@ -42,6 +42,13 @@ pub struct FormularQuellen {
     pub verfahren: Vec<Quellenwahl>,
     pub hinweise: Vec<String>,
 }
+/// Kennung und Version der Formularzuordnung (`formulare/*.json`), mit der
+/// Vorschläge und Abgleich erzeugt wurden.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Zuordnungsstand {
+    pub id: String,
+    pub version: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormularInstanz {
     pub vorlagen_name: String,
@@ -49,6 +56,15 @@ pub struct FormularInstanz {
     pub vorlagen_storage_key: String,
     pub quellen: FormularQuellen,
     pub feldwerte: BTreeMap<String, Feldwert>,
+    /// Verwendete Formularzuordnung; fehlt in älteren Instanzen und ohne
+    /// erkannte Zuordnung.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zuordnung: Option<Zuordnungsstand>,
+    /// Felder, deren gespeicherter Wert beim Speichern vom festgehaltenen
+    /// Datenstand abwich. Der Datenstand beschreibt diese Felder also nicht.
+    /// Leer in älteren Instanzen (dort nicht ermittelt).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub veraltet: Vec<VeralteterFeldwert>,
 }
 impl CoreServices {
     pub async fn formular_quellen(
@@ -80,21 +96,36 @@ impl CoreServices {
             };
             verfahren.push((id, akte));
         }
-        if bezug.grundstueck_id.is_none() && grundstuecke.len() == 1 {
+        // Ein gespeicherter Bezug kann nach Entfernen von Grundstück, Bauherr
+        // oder Verfahren ins Leere zeigen. Das Formular bleibt bearbeitbar:
+        // Bezug aufheben, Hinweis ausgeben, keine stille Ersatzauswahl.
+        if let Some(id) = bezug.grundstueck_id
+            && !grundstuecke.iter().any(|g| g.id == id)
+        {
+            bezug.grundstueck_id = None;
+            hinweise.push("Das zuvor gewählte Baugrundstück ist nicht mehr vorhanden. Bitte ein Baugrundstück wählen und die Grundstücksangaben prüfen.".into());
+        } else if bezug.grundstueck_id.is_none() && grundstuecke.len() == 1 {
             bezug.grundstueck_id = Some(grundstuecke[0].id);
         }
-        if bezug.bauherr_id.is_none() && bauherren.len() == 1 {
+        if let Some(id) = bezug.bauherr_id
+            && !bauherren.iter().any(|b| b.id == id)
+        {
+            bezug.bauherr_id = None;
+            hinweise.push("Der zuvor gewählte Bauherr gehört nicht mehr zum Projekt. Bitte einen Bauherrn wählen und die Bauherrenangaben prüfen.".into());
+        } else if bezug.bauherr_id.is_none() && bauherren.len() == 1 {
             bezug.bauherr_id = Some(bauherren[0].id);
         }
-        if bezug.verfahren_id.is_none() && verfahren.len() == 1 {
+        if let Some(id) = bezug.verfahren_id
+            && !verfahren.iter().any(|(v, _)| *v == id)
+        {
+            bezug.verfahren_id = None;
+            hinweise.push("Das zuvor gewählte Verfahren ist nicht mehr vorhanden. Bitte ein Verfahren wählen und Behörde und Aktenzeichen prüfen.".into());
+        } else if bezug.verfahren_id.is_none() && verfahren.len() == 1 {
             bezug.verfahren_id = Some(verfahren[0].0);
         }
-        let gewaehlt = match bezug.grundstueck_id {
-            Some(id) => Some(grundstuecke.iter().find(|g| g.id == id).ok_or_else(|| {
-                CoreError::InvalidInput("Gewähltes Baugrundstück ist nicht mehr verfügbar".into())
-            })?),
-            None => None,
-        };
+        let gewaehlt = bezug
+            .grundstueck_id
+            .and_then(|id| grundstuecke.iter().find(|g| g.id == id));
         if let Some(g) = gewaehlt {
             hinweise.extend(werte.grundstueck(&p, g));
             if g.bezugsflaeche_m2.is_none() {
@@ -104,10 +135,11 @@ impl CoreServices {
         } else if grundstuecke.len() > 1 {
             hinweise.push("Mehrere Baugrundstücke: Bitte die Quelle wählen oder die Formularwerte manuell eingeben.".into());
         }
-        if let Some(id) = bezug.bauherr_id {
-            werte.bauherr(bauherren.iter().find(|b| b.id == id).ok_or_else(|| {
-                CoreError::InvalidInput("Gewählter Bauherr gehört nicht zum Projekt".into())
-            })?);
+        if let Some(b) = bezug
+            .bauherr_id
+            .and_then(|id| bauherren.iter().find(|b| b.id == id))
+        {
+            werte.bauherr(b);
         } else if bauherren.len() > 1 {
             hinweise.push("Mehrere Bauherren: Bitte die Quelle wählen oder die Formularwerte manuell eingeben.".into());
         }
@@ -151,11 +183,11 @@ impl CoreServices {
             None => {}
         }
 
-        match bezug.verfahren_id {
-            Some(id) => {
-                let (_, akte) = verfahren.iter().find(|(v, _)| *v == id).ok_or_else(|| {
-                    CoreError::InvalidInput("Gewähltes Verfahren gehört nicht zum Projekt".into())
-                })?;
+        match bezug
+            .verfahren_id
+            .and_then(|id| verfahren.iter().find(|(v, _)| *v == id))
+        {
+            Some((_, akte)) => {
                 werte.setze("verfahren.bezeichnung", &akte.bezeichnung);
                 werte.setze("verfahren.aktenzeichen", &akte.aktenzeichen);
                 werte.setze("behoerde.name", &akte.behoerde.name);
@@ -215,6 +247,7 @@ impl CoreServices {
         pdf: &[u8],
         werte: &BTreeMap<String, Feldwert>,
         stand: Option<FormularDatenstand>,
+        bisherige_zuordnung: Option<&str>,
     ) -> CoreResult<crate::commit::DokumentZusatz> {
         let quellen = self
             .formular_quellen(
@@ -227,6 +260,15 @@ impl CoreServices {
         {
             return Err(CoreError::InvalidInput("Die Formularquellen haben sich geändert. Bitte Projektdaten erneut laden und die Eingaben prüfen. Ihre Eingaben bleiben erhalten.".into()));
         }
+        // Abweichungen vom festgehaltenen Datenstand mitspeichern, damit die
+        // Instanz alte Feldwerte nicht als aktuellen Stand ausgibt.
+        let felder = super::pdf::felder_lesen(pdf)?;
+        let land = self.repos.projects.get(projekt).await?.bundesland;
+        let vorlage = self
+            .formulare
+            .zuordnung_fuer(&felder, land, bisherige_zuordnung);
+        let veraltet =
+            super::vorlage::veraltete_werte(&felder, werte, vorlage, &quellen.datenstand.werte);
         let hash = ContentHash::of(pdf);
         // Inhaltsadressierte Vorlage außerhalb der Projektdateiliste. Spätere Bibliotheksänderungen betreffen sie nicht.
         let key = StorageKey::new(format!("formularvorlagen/{hash}.pdf"))?;
@@ -239,6 +281,11 @@ impl CoreServices {
             vorlagen_storage_key: key.to_string(),
             quellen,
             feldwerte: werte.clone(),
+            zuordnung: vorlage.map(|v| Zuordnungsstand {
+                id: v.id.clone(),
+                version: v.version.clone(),
+            }),
+            veraltet,
         };
         Ok(crate::commit::DokumentZusatz {
             modul: "formularinstanz".into(),
@@ -266,6 +313,63 @@ impl CoreServices {
                 serde_json::from_value(z.daten).map_err(|e| CoreError::InvalidInput(e.to_string()))
             })
             .transpose()
+    }
+}
+
+impl CoreServices {
+    /// Abgleich einer gespeicherten Formularversion mit den aktuellen
+    /// Projektdaten: Felder, deren Wert im PDF vom aktuellen Projektwert
+    /// abweicht. `None`, wenn die Version keine Formularinstanz hat.
+    pub async fn formular_aktualitaet(
+        &self,
+        id: crate::domain::DocumentId,
+        version: i64,
+        pdf: &[u8],
+    ) -> CoreResult<Option<Vec<VeralteterFeldwert>>> {
+        let Some(instanz) = self.formular_instanz(id, version).await? else {
+            return Ok(None);
+        };
+        let projekt = instanz.quellen.datenstand.projekt_id;
+        let quellen = self
+            .formular_quellen(projekt, instanz.quellen.datenstand.bezug.clone())
+            .await?;
+        let felder = super::pdf::felder_lesen(pdf)?;
+        let land = self.repos.projects.get(projekt).await?.bundesland;
+        let vorlage = self.formulare.zuordnung_fuer(
+            &felder,
+            land,
+            instanz.zuordnung.as_ref().map(|z| z.id.as_str()),
+        );
+        Ok(Some(super::vorlage::veraltete_werte(
+            &felder,
+            &BTreeMap::new(),
+            vorlage,
+            &quellen.datenstand.werte,
+        )))
+    }
+
+    /// Hinweis für Abgabe und Prüfung, wenn eine Formularversion veraltete
+    /// Werte enthält. Ein Prüffehler wird als Hinweis gemeldet, nie verschwiegen.
+    pub(crate) async fn formular_hinweis(
+        &self,
+        id: crate::domain::DocumentId,
+        version: i64,
+        name: &str,
+        pdf: &[u8],
+    ) -> Option<String> {
+        match self.formular_aktualitaet(id, version, pdf).await {
+            Ok(Some(v)) if !v.is_empty() => Some(format!(
+                "{name} (Version {version}): Formularwerte weichen von den aktuellen Projektdaten ab ({}). Formular aktualisieren oder Abweichung bewusst prüfen.",
+                v.iter()
+                    .map(|f| f.feld.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+            Ok(_) => None,
+            Err(e) => Some(format!(
+                "{name} (Version {version}): Formularwerte konnten nicht mit den Projektdaten abgeglichen werden: {e}"
+            )),
+        }
     }
 }
 

@@ -296,3 +296,210 @@ async fn formularvorgang_hat_eine_identitaet_und_unveraenderliche_quellen() {
         source.as_slice()
     );
 }
+
+/// Veraltete Formularwerte werden in Analyse, Formularinstanz und Abgabe
+/// gemeldet; Zuordnung nach Bundesland wird gespeichert; ein entfernter
+/// Bauherr verhindert das Öffnen nicht.
+#[tokio::test]
+async fn veraltete_werte_zuordnung_und_entfernter_bauherr() {
+    use core_lib::{
+        formular::{Formularkatalog, Formularvorlage},
+        kunden::Kundendaten,
+    };
+    let zuordnung = |id: &str, land: Option<Bundesland>, quelle: &str| Formularvorlage {
+        id: id.into(),
+        titel: id.into(),
+        land,
+        version: "2026.1".into(),
+        erkennung: vec!["Bauherr_Name".into(), "Grundstueck.Flaeche".into()],
+        zuordnung: BTreeMap::from([("Bauherr_Name".into(), quelle.into())]),
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(temp.path().join("Ablage"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    )
+    .mit_formularen(Formularkatalog::new(vec![
+        zuordnung("by-antrag", Some(Bundesland::By), "bauherr.name"),
+        zuordnung("bw-antrag", Some(Bundesland::Bw), "projekt.name"),
+    ]));
+    let user = core.anmelden("aktuell", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Aktualität".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let kunde = core
+        .kunde_anlegen(
+            Kundendaten {
+                vorname: "Erika".into(),
+                familienname: "Muster".into(),
+                ..Default::default()
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    core.bauherren_setzen(p.id, vec![kunde.id], p.version, &user)
+        .await
+        .unwrap();
+    let source = musterformular();
+    let schema = core.formular_schema(p.id, &source).await.unwrap();
+    assert_eq!(schema.vorlage.as_ref().unwrap().id, "by-antrag");
+    assert_eq!(
+        schema.vorschlag["Bauherr_Name"],
+        Feldwert::Text("Erika Muster".into())
+    );
+    assert!(schema.veraltet.is_empty());
+    let d = core
+        .formular_aus_bibliothek_mit_quellen(
+            p.id,
+            "Antrag.pdf",
+            &source,
+            &schema.vorschlag,
+            core_lib::formular::instanz::FormularSpeicheroptionen {
+                vorgang: None,
+                datenstand: Some(schema.quellen.datenstand.clone()),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let instanz = core
+        .formular_instanz(d.document_id, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(instanz.zuordnung.as_ref().unwrap().id, "by-antrag");
+    assert_eq!(instanz.zuordnung.as_ref().unwrap().version, "2026.1");
+    assert!(instanz.veraltet.is_empty());
+
+    // Bauherr ändert seinen Namen: das Formular ist veraltet.
+    let mut daten = kunde.daten.clone();
+    daten.familienname = "Neumann".into();
+    core.repos
+        .kunden
+        .kunde_aendern(kunde.id, daten, kunde.version)
+        .await
+        .unwrap();
+    let analyse = core.formular_analysieren(d.document_id).await.unwrap();
+    assert_eq!(analyse.veraltet.len(), 1, "{:?}", analyse.veraltet);
+    assert_eq!(analyse.veraltet[0].feld, "Bauherr_Name");
+    assert_eq!(
+        analyse.veraltet[0].wert,
+        Feldwert::Text("Erika Muster".into())
+    );
+    assert_eq!(
+        analyse.veraltet[0].aktuell,
+        Feldwert::Text("Erika Neumann".into())
+    );
+    // Gespeichert ohne Übernahme: die Instanz dokumentiert die Abweichung.
+    let d2 = core
+        .formular_im_projekt_speichern(
+            d.document_id,
+            1,
+            &BTreeMap::from([(
+                "Grundstueck.Flaeche".into(),
+                Feldwert::Text("640,00".into()),
+            )]),
+            &user,
+        )
+        .await
+        .unwrap();
+    let zweite = core
+        .formular_instanz(d.document_id, d2.version)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(zweite.veraltet.len(), 1);
+    assert_eq!(zweite.veraltet[0].feld, "Bauherr_Name");
+
+    // Die Abgabe weist auf das veraltete Formular hin, bricht aber nicht ab.
+    let vid = uuid::Uuid::new_v4();
+    let akte: core_lib::verfahren::Verfahrensakte = serde_json::from_value(serde_json::json!({
+        "portal": null, "bezeichnung": "Neubau", "art": "bauantrag",
+        "antragsangaben": serde_json::to_value(core_lib::verfahren::Antragsangaben::default()).unwrap(), "status": "vorbereitung", "vollstaendigkeit": null,
+        "ruecknahme": null, "schritte": [],
+        "behoerde": {"id": uuid::Uuid::new_v4(), "name": "Bauaufsicht", "kennung": "bab:test", "kontakt": ""},
+        "aktenzeichen": "BA-1", "verantwortlich": null, "vorgaenger": null, "profil": null,
+        "kommunikation": [], "nachforderungen": [], "anforderungen": [],
+        "dokumentbeziehungen": [], "abgaben": [], "bescheide": [], "ereignisse": []
+    }))
+    .unwrap();
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            core_lib::plattform::ObjektArt::Verfahren,
+            vid,
+            0,
+            serde_json::to_value(&akte).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let w = core_lib::verfahren::abgabe::Abgabewunsch {
+        xbau_bezug: None,
+        id: uuid::Uuid::new_v4(),
+        titel: "Antrag".into(),
+        dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
+            dokument_id: d.document_id,
+            version: d2.version,
+        }],
+        xbau: false,
+        druck: false,
+        anschreiben: String::new(),
+    };
+    let f = core
+        .verfahren_abgabe_festhalten(p.id, vid, f.revision, w.clone(), &user)
+        .await
+        .unwrap();
+    let akte: core_lib::verfahren::Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let stand = akte.abgaben.iter().find(|a| a.id == w.id).unwrap();
+    assert!(
+        stand
+            .hinweise
+            .iter()
+            .any(|h| h.contains("Formularwerte weichen") && h.contains("Bauherr_Name")),
+        "{:?}",
+        stand.hinweise
+    );
+
+    // Bauherr aus dem Projekt entfernt: Formular bleibt bearbeitbar.
+    let p = core.get_project(p.id).await.unwrap();
+    core.bauherren_setzen(p.id, vec![], p.version, &user)
+        .await
+        .unwrap();
+    let analyse = core.formular_analysieren(d.document_id).await.unwrap();
+    assert_eq!(analyse.quellen.datenstand.bezug.bauherr_id, None);
+    assert!(
+        analyse
+            .quellen
+            .hinweise
+            .iter()
+            .any(|h| h.contains("nicht mehr zum Projekt")),
+        "{:?}",
+        analyse.quellen.hinweise
+    );
+    core.formular_im_projekt_mit_quellen(
+        d.document_id,
+        d2.version,
+        &BTreeMap::from([(
+            "Bauherr_Name".into(),
+            Feldwert::Text("Erika Neumann".into()),
+        )]),
+        Some(analyse.quellen.datenstand),
+        &user,
+    )
+    .await
+    .unwrap();
+}

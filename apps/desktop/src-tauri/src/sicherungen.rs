@@ -4,12 +4,9 @@ use crate::{
     commands::CmdError,
     config::{AppConfig, DateiablageConfig, ProfilAuswahl},
 };
-use core_lib::{CoreError, benutzer::Recht, storage::ContentHash};
+use core_lib::{CoreError, benutzer::Recht};
 use serde::Serialize;
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use storage::sicherung::{Sicherungsmanifest, Sicherungsquelle};
 use tauri::{AppHandle, Manager, State};
 async fn verwalten(state: &AppState) -> Result<(), CmdError> {
@@ -55,34 +52,53 @@ pub async fn sicherung_erstellen(
     tokio::fs::create_dir_all(&scratch)
         .await
         .map_err(|e| CoreError::Storage(e.to_string()))?;
-    let result=async {
-        let db=db_sqlite::SqliteDatabase::open(&state.data_dir.join("bauprojekt.db")).await?;
-        let snapshot=scratch.join("bauprojekt.db");db.sichern(&snapshot).await?;
-        let kopie=db_sqlite::SqliteDatabase::open(&snapshot).await?;kopie.integritaet_pruefen().await?;
-        let repos=kopie.repositories();let mut erwartet=BTreeMap::<String,ContentHash>::new();
-        for p in repos.projects.list().await? {
-            for d in repos.documents.list_for_project(p.id).await? {
-                erwartet.insert(d.storage_key.clone(),d.sha256);
-                if let Some(z)=repos.commit.dokumentzusatz(d.document_id,d.version,"formularinstanz").await? {
-                    if z.schema_version!=1{return Err(CoreError::InvalidInput("Unbekannte Formularinstanzversion; Sicherung mit neuerer Anwendung erstellen".into()));}
-                    let i:core_lib::formular::instanz::FormularInstanz=serde_json::from_value(z.daten).map_err(|e|CoreError::InvalidInput(e.to_string()))?;
-                    erwartet.insert(i.vorlagen_storage_key,i.vorlagen_hash);
-                }
-            }
-            for e in repos.einreichungen.auflisten(p.id).await? {erwartet.insert(e.zip_key,e.zip_hash);}
+    let result = async {
+        let db = db_sqlite::SqliteDatabase::open(&state.data_dir.join("bauprojekt.db")).await?;
+        let snapshot = scratch.join("bauprojekt.db");
+        db.sichern(&snapshot).await?;
+        let kopie = db_sqlite::SqliteDatabase::open(&snapshot).await?;
+        kopie.integritaet_pruefen().await?;
+        let repos = kopie.repositories();
+        let erwartet = storage::sicherung::dms_referenzen(&repos).await;
+        drop(repos);
+        kopie.schliessen().await;
+        let mut quellen = vec![Sicherungsquelle {
+            name: "bauprojekt.db".into(),
+            pfad: snapshot,
+            erwartet: None,
+        }];
+        // Abgleich über den Storage-Schlüssel unter `data/`; `tmp/` bleibt außen vor.
+        quellen.extend(storage::sicherung::dateiablage(
+            &dmsroot, "dateien", erwartet?,
+        )?);
+        let formularroot = state.formularordner.read().await.clone();
+        if formularroot.exists() {
+            quellen.extend(storage::sicherung::verzeichnis(
+                &formularroot,
+                "Formularvorlagen",
+            )?);
         }
-        drop(repos);kopie.schliessen().await;
-        let mut quellen=vec![Sicherungsquelle{name:"bauprojekt.db".into(),pfad:snapshot,erwartet:None}];
-        let mut dateien=storage::sicherung::verzeichnis(&dmsroot,"dateien")?;
-        for q in &mut dateien {if let Some(h)=erwartet.remove(q.name.trim_start_matches("dateien/")){q.erwartet=Some(h);}}
-        if !erwartet.is_empty(){return Err(CoreError::Storage(format!("{} Datenbankreferenzen fehlen in der Dateiablage. Die Sicherung wird nicht als vollständig ausgegeben.",erwartet.len())));}
-        quellen.extend(dateien);
-        let formularroot=state.formularordner.read().await.clone();
-        if formularroot.exists(){quellen.extend(storage::sicherung::verzeichnis(&formularroot,"Formularvorlagen")?);}
-        if state.config_dir.exists(){quellen.extend(storage::sicherung::verzeichnis(&state.config_dir,"einstellungen")?);}
-        for ordner in ["lbo-rules","formulare","codelisten"] {let pfad=state.data_dir.join(ordner);if pfad.exists(){quellen.extend(storage::sicherung::verzeichnis(&pfad,ordner)?);}}
-        tauri::async_runtime::spawn_blocking(move||{let m=storage::sicherung::erstellen(&ziel,&quellen)?;storage::sicherung::pruefen(&ziel)?;Ok::<_,CoreError>(m)}).await.map_err(|e|CoreError::Storage(e.to_string()))?
-    }.await;
+        if state.config_dir.exists() {
+            quellen.extend(storage::sicherung::verzeichnis(
+                &state.config_dir,
+                "einstellungen",
+            )?);
+        }
+        for ordner in ["lbo-rules", "formulare", "codelisten"] {
+            let pfad = state.data_dir.join(ordner);
+            if pfad.exists() {
+                quellen.extend(storage::sicherung::verzeichnis(&pfad, ordner)?);
+            }
+        }
+        tauri::async_runtime::spawn_blocking(move || {
+            let m = storage::sicherung::erstellen(&ziel, &quellen)?;
+            storage::sicherung::pruefen(&ziel)?;
+            Ok::<_, CoreError>(m)
+        })
+        .await
+        .map_err(|e| CoreError::Storage(e.to_string()))?
+    }
+    .await;
     let _ = tokio::fs::remove_dir_all(scratch).await;
     Ok(result?)
 }

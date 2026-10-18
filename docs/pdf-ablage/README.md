@@ -30,6 +30,18 @@ Projektkontext-/Vorlagenmodul; der PDF-Parser kennt keine Grundstücksberechnung
 Eigene Textfelder verwenden eine eingebettete DejaVu-Sans-Schrift, sodass etwa
 Umlaute, Ł und € auch in der exportierten Darstellung erhalten bleiben.
 
+Auch Text- und Auswahlfelder fremder PDFs (amtliche Landesformulare) erhalten
+beim Befüllen eine eigene Darstellung mit dieser Schrift. Feldgröße,
+Schriftgröße (`/DA`, `0` = automatisch verkleinern), Textfarbe und Ausrichtung
+(`/Q`) werden übernommen, mehrzeilige Felder umbrochen. Bereits befüllte
+Felder ohne Darstellung (etwa aus einem anderen Programm) werden beim nächsten
+Speichern nachgezogen, sodass Druckausgabe und Abgabe keine leeren Felder
+zeigen. Ein Wert, der nicht ins Feld passt oder Zeichen außerhalb der Schrift
+enthält, wird mit dem Feldnamen abgewiesen. `NeedAppearances` wird nur noch
+gesetzt (wenn eine Darstellung nicht erzeugt werden kann), nie von `true` auf
+`false` zurückgesetzt. Darstellungen und Schriftkopien früherer Befüllungen
+werden beim Ersetzen entfernt.
+
 Platzhalternamen bezeichnen PDF-Eingabefelder. Bereits gedruckte Zeichenfolgen
 wie `<Vorname>` in einem PDF-Seiteninhalt oder einer gescannten Bildseite werden
 nicht durch eine Textersetzung gesucht oder entfernt. Bei solchen Dokumenten

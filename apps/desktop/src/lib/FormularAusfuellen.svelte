@@ -186,6 +186,29 @@
     void laden();
   });
 
+  // Abweichungen ermittelt der Core; hier nur Anzeige und Übernahme.
+  const veraltet = $derived(
+    new Map((analyse?.veraltet ?? []).map((v) => [v.feld, v])),
+  );
+  /** Noch nicht übernommen: Eingabe entspricht weiter dem alten Wert. */
+  function offenVeraltet(name: string) {
+    const v = veraltet.get(name);
+    return v && werte[name] === v.wert ? v : undefined;
+  }
+  const offeneVeraltete = $derived(
+    [...veraltet.values()].filter((v) => werte[v.feld] === v.wert),
+  );
+  function anzeige(w: Feldwert) {
+    return typeof w === "boolean" ? (w ? "angekreuzt" : "nicht angekreuzt") : w;
+  }
+  function uebernehmen(name: string) {
+    const v = veraltet.get(name);
+    if (v) werte[name] = v.aktuell;
+  }
+  function alleUebernehmen() {
+    for (const v of offeneVeraltete) werte[v.feld] = v.aktuell;
+  }
+
   const sichtbar = $derived(
     (analyse?.felder ?? []).filter(
       (f) =>
@@ -283,6 +306,17 @@
         </p>{/each}
     </fieldset>
   {/if}
+  {#if offeneVeraltete.length}
+    <div class="hinweisbox" role="status">
+      {offeneVeraltete.length === 1
+        ? "Ein Feld weicht"
+        : `${offeneVeraltete.length} Felder weichen`} von den aktuellen Projektdaten
+      ab und ist als veraltet markiert.
+      <button type="button" class="sekundaer" onclick={alleUebernehmen}
+        >Alle aktuellen Werte übernehmen</button
+      >
+    </div>
+  {/if}
   <label class="zeile"
     ><input type="checkbox" bind:checked={nurLeere} /> Nur leere Felder anzeigen</label
   >
@@ -335,11 +369,16 @@
     <form class="spalte pdf-eingabemaske" onsubmit={absenden}>
       <div class="formularfelder">
         {#each sichtbar as f (f.name)}
-          <label class:vorschlag={f.name in analyse.vorschlag} title={f.name}>
+          {@const alt = offenVeraltet(f.name)}
+          <label
+            class:vorschlag={f.name in analyse.vorschlag}
+            class:veraltet={!!alt}
+            title={f.name}
+          >
             <span
               >{f.beschriftung ?? f.name}{f.name in analyse.vorschlag
                 ? " · aus Projektdaten"
-                : ""}</span
+                : ""}{alt ? " · veraltet" : ""}</span
             >
             {#if f.art === "ankreuzfeld"}
               <input
@@ -366,6 +405,15 @@
                 disabled={f.schreibgeschuetzt}
               />
             {/if}
+            {#if alt}<span class="hinweis"
+                >Aktuell in den Projektdaten: „{anzeige(alt.aktuell)}“
+                <button
+                  type="button"
+                  class="sekundaer"
+                  disabled={f.schreibgeschuetzt}
+                  onclick={() => uebernehmen(f.name)}>Übernehmen</button
+                ></span
+              >{/if}
           </label>
         {:else}
           <p class="meta">Alle Felder sind ausgefüllt.</p>
