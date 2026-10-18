@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, SubsecRound, Utc};
-use core_lib::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer, Rolle};
+use core_lib::benutzer::{
+    Benutzer, BenutzerAenderung, BenutzerId, Kennwortdaten, Kennwortstatus, NeuerBenutzer, Rolle,
+};
 use core_lib::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
@@ -389,7 +391,27 @@ fn benutzer_from_row(row: &PgRow) -> CoreResult<Benutzer> {
         rolle: Rolle::from_str(&rolle)?,
         aktiv: row.try_get("aktiv").map_err(db_err)?,
         erstellt_am: row.try_get("erstellt_am").map_err(db_err)?,
+        kennwort: kennwortstatus(
+            row.try_get::<Option<String>, _>("kennwort_hash")
+                .map_err(db_err)?
+                .is_some(),
+            row.try_get("kennwort_aendern").map_err(db_err)?,
+        ),
+        anmeldesperre_bis: row.try_get("gesperrt_bis").map_err(db_err)?,
+        letzte_anmeldung: row.try_get("letzte_anmeldung").map_err(db_err)?,
     })
+}
+
+fn kennwortstatus(hash_vorhanden: bool, aendern: bool) -> Kennwortstatus {
+    match (hash_vorhanden, aendern) {
+        (false, _) => Kennwortstatus::Keines,
+        (true, true) => Kennwortstatus::Erstkennwort,
+        (true, false) => Kennwortstatus::Gesetzt,
+    }
+}
+
+fn benutzer_fehlt(id: BenutzerId) -> CoreError {
+    CoreError::NotFound(format!("Benutzer {id}"))
 }
 
 fn protokoll_from_row(row: &PgRow) -> CoreResult<Protokolleintrag> {
@@ -426,6 +448,9 @@ impl BenutzerRepository for PostgresDatabase {
             // Postgres speichert Mikrosekunden; so ist der Rückgabewert
             // gleich dem, was später gelesen wird.
             erstellt_am: Utc::now().trunc_subsecs(6),
+            kennwort: Kennwortstatus::Keines,
+            anmeldesperre_bis: None,
+            letzte_anmeldung: None,
         };
         sqlx::query(
             "INSERT INTO benutzer (id, anmeldename, anzeigename, rolle, aktiv, erstellt_am)
@@ -492,6 +517,95 @@ impl BenutzerRepository for PostgresDatabase {
         .map_err(db_err)?
         .ok_or_else(|| CoreError::NotFound(format!("Benutzer {}", a.id)))?;
         benutzer_from_row(&row)
+    }
+
+    async fn kennwortdaten(&self, id: BenutzerId) -> CoreResult<Kennwortdaten> {
+        let row = sqlx::query(
+            "SELECT kennwort_hash, fehlversuche, gesperrt_bis FROM benutzer WHERE id = $1",
+        )
+        .bind(id.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| benutzer_fehlt(id))?;
+        let fehlversuche: i32 = row.try_get("fehlversuche").map_err(db_err)?;
+        Ok(Kennwortdaten {
+            hash: row.try_get("kennwort_hash").map_err(db_err)?,
+            fehlversuche: u32::try_from(fehlversuche.max(0)).unwrap_or(u32::MAX),
+            gesperrt_bis: row.try_get("gesperrt_bis").map_err(db_err)?,
+        })
+    }
+
+    async fn kennwort_speichern(
+        &self,
+        id: BenutzerId,
+        hash: &str,
+        erstkennwort: bool,
+        zeit: DateTime<Utc>,
+    ) -> CoreResult<()> {
+        let r = sqlx::query(
+            "UPDATE benutzer SET kennwort_hash = $1, kennwort_aendern = $2,
+                 kennwort_geaendert_am = $3, fehlversuche = 0, gesperrt_bis = NULL
+             WHERE id = $4",
+        )
+        .bind(hash)
+        .bind(erstkennwort)
+        .bind(zeit.trunc_subsecs(6))
+        .bind(id.0)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        if r.rows_affected() == 0 {
+            return Err(benutzer_fehlt(id));
+        }
+        Ok(())
+    }
+
+    async fn fehlversuch_zaehlen(&self, id: BenutzerId) -> CoreResult<u32> {
+        // Obergrenze verhindert einen Überlauf der INTEGER-Spalte.
+        let n: i32 = sqlx::query_scalar(
+            "UPDATE benutzer SET fehlversuche = LEAST(fehlversuche, 1000000) + 1
+             WHERE id = $1 RETURNING fehlversuche",
+        )
+        .bind(id.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| benutzer_fehlt(id))?;
+        Ok(u32::try_from(n.max(0)).unwrap_or(u32::MAX))
+    }
+
+    async fn anmeldesperre_setzen(
+        &self,
+        id: BenutzerId,
+        bis: Option<DateTime<Utc>>,
+    ) -> CoreResult<()> {
+        let r = sqlx::query("UPDATE benutzer SET gesperrt_bis = $1 WHERE id = $2")
+            .bind(bis.map(|b| b.trunc_subsecs(6)))
+            .bind(id.0)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        if r.rows_affected() == 0 {
+            return Err(benutzer_fehlt(id));
+        }
+        Ok(())
+    }
+
+    async fn anmeldung_vermerken(&self, id: BenutzerId, zeit: DateTime<Utc>) -> CoreResult<()> {
+        let r = sqlx::query(
+            "UPDATE benutzer SET fehlversuche = 0, gesperrt_bis = NULL, letzte_anmeldung = $1
+             WHERE id = $2",
+        )
+        .bind(zeit.trunc_subsecs(6))
+        .bind(id.0)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        if r.rows_affected() == 0 {
+            return Err(benutzer_fehlt(id));
+        }
+        Ok(())
     }
 }
 

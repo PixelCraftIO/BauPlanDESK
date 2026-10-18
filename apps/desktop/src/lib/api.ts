@@ -88,6 +88,37 @@ export interface Benutzer {
   rolle: Rolle;
   aktiv: boolean;
   erstellt_am: string;
+  /** Fehlt bei älteren Antworten (= keines). */
+  kennwort?: Kennwortstatus;
+  anmeldesperre_bis?: string | null;
+  letzte_anmeldung?: string | null;
+}
+
+export type Kennwortstatus = "keines" | "erstkennwort" | "gesetzt";
+
+export const KENNWORTSTATUS: Record<Kennwortstatus, string> = {
+  keines: "kein Kennwort",
+  erstkennwort: "Erstkennwort (muss geändert werden)",
+  gesetzt: "eigenes Kennwort",
+};
+
+/** Optionen des Anmeldedialogs; die Regeln stehen in core-lib (anmeldung.rs). */
+export interface Anmeldeoptionen {
+  uebergang_moeglich: boolean;
+  rechnerkonto: string;
+  erster_administrator: boolean;
+}
+
+export interface Anmeldestatus {
+  /** Netzwerkbetrieb: Anmeldung mit Anmeldename und Kennwort. */
+  kennwortanmeldung: boolean;
+  benutzer: Benutzer | null;
+  /** Angemeldet, aber zuerst ein eigenes Kennwort setzen. */
+  kennwort_aendern: Benutzer | null;
+  bisheriges_kennwort_noetig: boolean;
+  optionen: Anmeldeoptionen | null;
+  /** Hinweis für Eingabefelder; geprüft wird in core-lib. */
+  kennwort_mindestlaenge: number;
 }
 
 export interface DocumentLock {
@@ -120,6 +151,9 @@ export const AKTIONEN: Record<string, string> = {
   formular_ausgefuellt: "Formular ausgefüllt",
   benutzer_angelegt: "Benutzer angelegt",
   benutzer_geaendert: "Benutzer geändert",
+  angemeldet: "Angemeldet",
+  anmeldung_fehlgeschlagen: "Anmeldung fehlgeschlagen",
+  kennwort_geaendert: "Kennwort geändert",
   lizenz_eingespielt: "Lizenz eingespielt",
   bauantrag_geaendert: "Bauantrag geändert",
   einreichung_erstellt: "Einreichungspaket erstellt",
@@ -1224,6 +1258,15 @@ export const api = {
     invoke<DocumentLock[]>("sperren_auflisten", { projektId }),
   protokoll: (projektId: string) =>
     invoke<Protokolleintrag[]>("protokoll", { projektId }),
+  anmeldestatus: () => invoke<Anmeldestatus>("anmeldestatus"),
+  anmelden: (anmeldename: string, kennwort: string) =>
+    invoke<Anmeldestatus>("anmelden", { anmeldename, kennwort }),
+  anmeldenUebergang: () => invoke<Anmeldestatus>("anmelden_uebergang"),
+  kennwortAendern: (bisher: string | null, neu: string) =>
+    invoke<Anmeldestatus>("kennwort_aendern", { bisher, neu }),
+  abmelden: () => invoke<Anmeldestatus>("abmelden"),
+  erstkennwortVergeben: (benutzerId: string, erstkennwort: string) =>
+    invoke<Benutzer>("erstkennwort_vergeben", { benutzerId, erstkennwort }),
   benutzerAuflisten: () => invoke<Benutzer[]>("benutzer_auflisten"),
   benutzerAnlegen: (neu: {
     anmeldename: string;
