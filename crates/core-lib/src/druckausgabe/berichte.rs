@@ -155,13 +155,13 @@ pub(super) async fn erstellen(
             z.push(titel(nachweisstatus(n)));
             z.push(text(format!(
                 "Berechnungsdatum: {} · {}",
-                n.stand.erstellt_am.format("%d.%m.%Y"),
+                crate::kalender::datum_deutsch(n.stand.erstellt_am).format("%d.%m.%Y"),
                 land(n.stand.land)
             )));
             if let Some(f) = &n.freigabe {
                 z.push(text(format!(
                     "Bürofreigabe vom {}: {}",
-                    f.freigegeben_am.format("%d.%m.%Y"),
+                    crate::kalender::datum_deutsch(f.freigegeben_am).format("%d.%m.%Y"),
                     f.bemerkung
                 )));
             }

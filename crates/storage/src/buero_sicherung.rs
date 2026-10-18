@@ -155,7 +155,8 @@ pub fn erstellen(
             pfad: dump,
             erwartet: None,
         }];
-        quellen.extend(sicherung::verzeichnis(root, "dateien")?);
+        // Nur `data/` und `meta/`; `tmp/` ändert sich bei laufender Arbeit.
+        quellen.extend(sicherung::dateiablage(root, "dateien", Default::default())?);
         if config.is_dir() {
             quellen.extend(sicherung::verzeichnis(config, "einstellungen")?);
         }

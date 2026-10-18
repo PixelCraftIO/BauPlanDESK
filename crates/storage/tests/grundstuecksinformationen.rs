@@ -740,6 +740,7 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         anforderungen: vec![],
         dokumentbeziehungen: vec![],
         abgaben: vec![],
+        externe_einreichungen: vec![],
         bescheide: vec![],
         ereignisse: vec![],
     };
@@ -772,6 +773,17 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
             },
         )
         .await
-        .unwrap_err();
-    assert!(fremd.to_string().contains("Verfahren"), "{fremd}");
+        .unwrap();
+    // Ein nicht (mehr) vorhandener Bezug wird aufgehoben und gemeldet, ohne
+    // still ein anderes Verfahren zu wählen.
+    assert_eq!(fremd.datenstand.bezug.verfahren_id, None);
+    assert!(
+        fremd
+            .hinweise
+            .iter()
+            .any(|h| h.contains("Verfahren ist nicht mehr vorhanden")),
+        "{:?}",
+        fremd.hinweise
+    );
+    assert_eq!(fremd.datenstand.werte.wert("verfahren.aktenzeichen"), None);
 }

@@ -49,6 +49,19 @@ pub async fn verfahren_abgabe(
         .await?)
 }
 #[tauri::command]
+pub async fn verfahren_externe_einreichung(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    basis: i64,
+    wunsch: core_lib::verfahren::externe_einreichung::ExterneEinreichungswunsch,
+) -> Result<Fachstand, CmdError> {
+    Ok(state
+        .core
+        .verfahren_externe_einreichung(projekt_id, id, basis, wunsch, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
 pub async fn verfahren_xbau_erfassen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

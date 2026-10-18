@@ -301,6 +301,11 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         }),
         Versand,
     );
+    // Eine nachgetragene externe Einreichung ist eine Übermittlung.
+    wenn(
+        alt.externe_einreichungen != a.externe_einreichungen,
+        Versand,
+    );
     for b in &a.bescheide {
         match alt.bescheide.iter().find(|v| v.id == b.id) {
             None => wenn(true, Bescheid),

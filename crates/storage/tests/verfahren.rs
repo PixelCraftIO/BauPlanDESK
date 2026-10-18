@@ -1,6 +1,5 @@
 //! Durchgehendes Musterverfahren, referenzielle Grenzen und unveränderliche Abgaben.
 use bytes::Bytes;
-use chrono::Utc;
 use core_lib::{
     CoreError, CoreServices,
     benutzer::Benutzer,
@@ -39,6 +38,7 @@ fn leer() -> Verfahrensakte {
         anforderungen: vec![],
         dokumentbeziehungen: vec![],
         abgaben: vec![],
+        externe_einreichungen: vec![],
         bescheide: vec![],
         ereignisse: vec![],
     }
@@ -161,7 +161,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         version: 1,
     };
     let kommunikation = Uuid::new_v4();
-    let heute = Utc::now().date_naive();
+    let heute = core_lib::kalender::heute();
     a.kommunikation.push(Kommunikation {
         id: kommunikation,
         art: Kommunikationsart::Brief,
@@ -474,7 +474,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     // und wird nicht entfernt (siehe berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln).
     a.bescheide[0].zugestellt = Some(heute + chrono::Duration::days(1));
     let err = ablehnen(&a, f.revision).await;
-    assert!(err.contains("begründeter Berichtigung"), "{err}");
+    assert!(err.contains("nicht in der Zukunft"), "{err}");
     a.bescheide[0].zugestellt = None;
     let err = ablehnen(&a, f.revision).await;
     assert!(err.contains("Folgebescheid"), "{err}");
@@ -1185,7 +1185,7 @@ async fn ruecknahme_braucht_datum_und_schreiben_und_bleibt_abgeschlossen() {
         id: schreiben,
         art: Kommunikationsart::Brief,
         eingehend: false,
-        datum: Utc::now().date_naive(),
+        datum: core_lib::kalender::heute(),
         betreff: "Rücknahme des Bauantrags".into(),
         beteiligte: "Bauamt".into(),
         inhalt: String::new(),
@@ -1193,7 +1193,7 @@ async fn ruecknahme_braucht_datum_und_schreiben_und_bleibt_abgeschlossen() {
         bezuege: vec![],
     });
     a.ruecknahme = Some(Ruecknahme {
-        datum: Utc::now().date_naive(),
+        datum: core_lib::kalender::heute(),
         kommunikation: schreiben,
     });
     let f = versuch(&a, f.revision).await.unwrap();
@@ -1236,7 +1236,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         )
         .await
         .unwrap();
-    let heute = Utc::now().date_naive();
+    let heute = core_lib::kalender::heute();
     let vid = Uuid::new_v4();
     let f = speichern(&core, p.id, vid, 0, &leer(), &user).await;
     let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
@@ -1882,4 +1882,265 @@ async fn ruecknahme_rueckweisung_und_zurueckgenommene_akte() {
         "{err}"
     );
     assert!(core.verfahren_termine(p, heute).await.unwrap().is_empty());
+}
+#[tokio::test]
+async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wortlaut() {
+    use core_lib::verfahren::externe_einreichung::{
+        Einreichungsweg, ExterneEinreichung, ExterneEinreichungswunsch, gueltige_externe,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let storage =
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        storage,
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Altakte".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let heute = core_lib::kalender::heute();
+    let morgen = heute + chrono::Duration::days(1);
+    let mut refs = Vec::new();
+    for name in [
+        "Lageplan.pdf",
+        "Entwurf.pdf",
+        "Einlieferungsbeleg.pdf",
+        "Bescheid.pdf",
+    ] {
+        let d = core
+            .store_document(p.id, None, None, name, Bytes::from(pdf(name)), &user)
+            .await
+            .unwrap();
+        refs.push(Dokumentbezug {
+            dokument_id: d.document_id,
+            version: d.version,
+        });
+    }
+    let [plan, anderer, quittung, bescheid] = <[Dokumentbezug; 4]>::try_from(refs).unwrap();
+    let vid = Uuid::new_v4();
+    let f = speichern(&core, p.id, vid, 0, &leer(), &user).await;
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let versuch = |a: &Verfahrensakte, revision: i64| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        let pid = p.id;
+        async move {
+            core.fachobjekt_speichern(pid, ObjektArt::Verfahren, vid, revision, a, user)
+                .await
+        }
+    };
+    // Ohne Einreichung kein Status „Eingereicht“.
+    a.status = Verfahrensstatus::Eingereicht;
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("externe Einreichung"), "{err}");
+    a.status = Verfahrensstatus::Vorbereitung;
+    let wunsch = ExterneEinreichungswunsch {
+        id: Uuid::new_v4(),
+        datum: "2024-03-01".parse().unwrap(),
+        weg: Einreichungsweg::Post,
+        beleg: Some(quittung.clone()),
+        bemerkung: "Per Einschreiben an das Bauamt".into(),
+        dokumente: vec![plan.clone()],
+        berichtigt: None,
+    };
+    // Über die allgemeine Speicherung lässt sich keine Einreichung behaupten.
+    a.externe_einreichungen.push(ExterneEinreichung {
+        id: wunsch.id,
+        datum: wunsch.datum,
+        weg: wunsch.weg,
+        beleg: None,
+        bemerkung: String::new(),
+        dokumente: vec![],
+        berichtigt: None,
+        erfasst_am: chrono::Utc::now(),
+        erfasst_von: user.id.0,
+    });
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("Externe Einreichung nachtragen"), "{err}");
+    let mut kuenftig = wunsch.clone();
+    kuenftig.datum = morgen;
+    assert!(
+        core.verfahren_externe_einreichung(p.id, vid, f.revision, kuenftig, &user)
+            .await
+            .is_err()
+    );
+    let mut sonstig = wunsch.clone();
+    sonstig.weg = Einreichungsweg::Sonstiges;
+    sonstig.bemerkung = " ".into();
+    assert!(
+        core.verfahren_externe_einreichung(p.id, vid, f.revision, sonstig, &user)
+            .await
+            .is_err()
+    );
+    let f = core
+        .verfahren_externe_einreichung(p.id, vid, f.revision, wunsch.clone(), &user)
+        .await
+        .unwrap();
+    // Wiederholung ist wirkungslos, abweichende Angaben unter gleicher Kennung nicht.
+    assert_eq!(
+        core.verfahren_externe_einreichung(p.id, vid, f.revision, wunsch.clone(), &user)
+            .await
+            .unwrap()
+            .revision,
+        f.revision
+    );
+    let mut anders = wunsch.clone();
+    anders.bemerkung = "Anders".into();
+    assert!(
+        core.verfahren_externe_einreichung(p.id, vid, f.revision, anders, &user)
+            .await
+            .is_err()
+    );
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    assert_eq!(a.externe_einreichungen.len(), 1);
+    assert_eq!(a.externe_einreichungen[0].erfasst_von, user.id.0);
+    assert!(a.abgaben.is_empty());
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Externe Einreichung nachgetragen: Post am 2024-03-01")
+    );
+    a.status = Verfahrensstatus::Eingereicht;
+    // Fachliche Daten tatsächlicher Vorgänge liegen nicht in der Zukunft.
+    let schreiben = Uuid::new_v4();
+    a.kommunikation.push(Kommunikation {
+        id: schreiben,
+        art: Kommunikationsart::Brief,
+        eingehend: true,
+        datum: morgen,
+        betreff: "Nachforderung".into(),
+        beteiligte: "Bauamt".into(),
+        inhalt: String::new(),
+        original: None,
+        bezuege: vec![],
+    });
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("nicht in der Zukunft"), "{err}");
+    a.kommunikation[0].datum = heute;
+    a.nachforderungen.push(Nachforderung {
+        id: Uuid::new_v4(),
+        kommunikation: schreiben,
+        punkte: vec![Forderungspunkt {
+            id: Uuid::new_v4(),
+            titel: "Brandschutznachweis vorlegen".into(),
+            grundlage: "Art. 62 BayBO".into(),
+            verantwortlich: None,
+            frist: None,
+            status: Punktstatus::Offen,
+            antwort: String::new(),
+            dokumente: vec![],
+            abgaben: vec![],
+            bestaetigung: None,
+        }],
+    });
+    let neuer_bescheid = |genehmigt: Dokumentbezug, zugestellt| Bescheid {
+        id: Uuid::new_v4(),
+        entscheidung: Entscheidung::Genehmigt,
+        datum: heute,
+        zugestellt,
+        original: bescheid.clone(),
+        genehmigte_unterlagen: vec![genehmigt],
+        auflagen: vec![Auflage {
+            id: Uuid::new_v4(),
+            art: Nebenbestimmungsart::Auflage,
+            titel: "Stellplätze vor Nutzungsaufnahme herstellen".into(),
+            ausloeser: "Nutzungsaufnahme".into(),
+            verantwortlich: None,
+            frist: None,
+            erledigt: false,
+            nachweise: vec![],
+        }],
+        ersetzt: None,
+    };
+    // Genehmigt werden nur Unterlagen, die der Behörde vorlagen.
+    a.bescheide.push(neuer_bescheid(anderer, None));
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("externen Einreichung"), "{err}");
+    a.bescheide[0] = neuer_bescheid(plan.clone(), Some(morgen));
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("Zustelldatum"), "{err}");
+    a.bescheide[0].zugestellt = Some(heute);
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    // Wortlaut behördlicher Einträge bleibt fest, Bearbeitungsangaben nicht.
+    let mut geaendert = a.clone();
+    geaendert.nachforderungen[0].punkte[0].titel = "Brandschutz später".into();
+    let err = versuch(&geaendert, f.revision)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Wortlaut"), "{err}");
+    let mut geaendert = a.clone();
+    geaendert.nachforderungen[0].punkte[0].grundlage = "keine".into();
+    assert!(versuch(&geaendert, f.revision).await.is_err());
+    let mut geaendert = a.clone();
+    geaendert.bescheide[0].auflagen[0].titel = "Stellplätze irgendwann".into();
+    let err = versuch(&geaendert, f.revision)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Wortlaut"), "{err}");
+    a.nachforderungen[0].punkte[0].status = Punktstatus::InArbeit;
+    a.nachforderungen[0].punkte[0].antwort = "Prüfstatiker beauftragt".into();
+    a.nachforderungen[0].punkte[0].verantwortlich = Some(user.id.0);
+    a.bescheide[0].auflagen[0].verantwortlich = Some(user.id.0);
+    let f = versuch(&a, f.revision).await.unwrap();
+    // Berichtigung als Folgeeintrag; ein Eintrag wird nur einmal berichtigt.
+    let berichtigung = ExterneEinreichungswunsch {
+        id: Uuid::new_v4(),
+        datum: "2024-03-04".parse().unwrap(),
+        bemerkung: "Eingangsstempel der Behörde zeigt den 04.03.2024".into(),
+        berichtigt: Some(wunsch.id),
+        ..wunsch.clone()
+    };
+    let f = core
+        .verfahren_externe_einreichung(p.id, vid, f.revision, berichtigung, &user)
+        .await
+        .unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let gueltig: Vec<_> = gueltige_externe(&a, heute).cloned().collect();
+    assert_eq!(gueltig.len(), 1);
+    assert_eq!(gueltig[0].datum.to_string(), "2024-03-04");
+    let zweite = ExterneEinreichungswunsch {
+        id: Uuid::new_v4(),
+        bemerkung: "Nochmals".into(),
+        berichtigt: Some(wunsch.id),
+        ..wunsch.clone()
+    };
+    assert!(
+        core.verfahren_externe_einreichung(p.id, vid, f.revision, zweite, &user)
+            .await
+            .is_err()
+    );
+    // Die Übersicht führt die externe Einreichung als Abgabe.
+    let uebersicht = core.projektuebersicht(p.id, &user).await.unwrap();
+    assert!(
+        uebersicht
+            .abgaben
+            .iter()
+            .any(|b| b.status == "Extern eingereicht" && b.datum == Some(gueltig[0].datum))
+    );
+    // Ältere Akten ohne das Feld bleiben lesbar; leer wird es nicht geschrieben.
+    let json = serde_json::to_value(leer()).unwrap();
+    assert!(json.get("externe_einreichungen").is_none());
+    let alt: Verfahrensakte = serde_json::from_value(json).unwrap();
+    assert!(alt.externe_einreichungen.is_empty());
 }

@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { heuteDeutsch } from "./kalender";
   import { kategorieStandText } from "./kategorien";
   import PaketPruefstand from "./PaketPruefstand.svelte";
-  import { editorAnmelden } from "./editoren";
   import { projektNavigation } from "./projektNavigation.svelte";
   import { onMount, tick } from "svelte";
-  import { ask, save } from "@tauri-apps/plugin-dialog";
+  import { save } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, type Einreichung } from "./api";
   let {
     projektId,
@@ -19,18 +17,14 @@
   let chronik = $state<Einreichung[]>([]);
   let laeuft = $state(false),
     hinweis = $state<string | null>(null);
-  let bestaetigung = $state<Einreichung | null>(null),
-    datum = $state(""),
-    notiz = $state("");
   export function istBeschaeftigt() {
     return laeuft;
   }
+  // Pakete sind nur noch lesbar; es gibt keinen Entwurf.
   export function hatAenderungen() {
-    return !!bestaetigung;
+    return false;
   }
-  export function verwerfen() {
-    bestaetigung = null;
-  }
+  export function verwerfen() {}
   async function laden() {
     if (laeuft) return;
     laeuft = true;
@@ -82,48 +76,15 @@
       laeuft = false;
     }
   }
-  function zurBestaetigung(e: Einreichung) {
-    bestaetigung = e;
-    datum = heuteDeutsch();
-    notiz = "";
-  }
-  async function bestaetigen(event: SubmitEvent) {
-    event.preventDefault();
-    if (!bestaetigung) return;
-    const e = bestaetigung;
-    if (
-      !(await ask(
-        `Die ${e.stand.dokumente.length} Unterlagen dieses Paketstands wurden am ${datum} an ${e.stand.empfaenger} übermittelt? Die Bestätigung hält diesen Einreichungsstand fest.`,
-        { title: "Einreichung bestätigen", kind: "info" },
-      ))
-    )
-      return;
-    laeuft = true;
-    try {
-      await api.einreichungBestaetigen(e.stand.id, e.version, datum, notiz);
-      bestaetigung = null;
-      hinweis = "Einreichung mit Datum und Dateiversionen bestätigt.";
-    } catch (err) {
-      onfehler(fehlertext(err));
-    } finally {
-      laeuft = false;
-      await laden();
-    }
-  }
-  editorAnmelden("einreichungen", {
-    hatAenderungen: hatAenderungen,
-    istBeschaeftigt: istBeschaeftigt,
-    speichern: async () => false,
-    hinweis: "Einreichungsbestätigung zuerst abschließen oder abbrechen.",
-  });
 </script>
 
 <h2>Frühere Einreichungspakete</h2>
 <p class="meta">
   Neue Einreichungen und Nachreichungen entstehen als Abgabestand der
   Verfahrensakte, mit Behörde, Aktenzeichen und eingefrorenen Unterlagen. Die
-  Pakete hier bleiben unverändert lesbar und exportierbar; ihr
-  Einreichungsdatum lässt sich weiterhin bestätigen.
+  Pakete hier bleiben unverändert lesbar und exportierbar. Sie werden nicht
+  mehr bestätigt: Eine außerhalb der App erfolgte Einreichung wird in der
+  Verfahrensakte unter „Externe Einreichung nachtragen“ erfasst.
 </p>
 {#if navigation}<div class="knoepfe links">
     <button
@@ -138,34 +99,6 @@
     >
   </div>{/if}
 {#if hinweis}<p role="status">{hinweis}</p>{/if}
-{#if bestaetigung}<form onsubmit={bestaetigen} class="hinweisbox">
-    <h3>Einreichung bestätigen: {bestaetigung.stand.titel}</h3>
-    <fieldset disabled={laeuft}>
-      <div class="raster">
-        <label
-          >Einreichungsdatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Einreichungsdatum"
-            type="date"
-            bind:value={datum}
-            required
-            max={heuteDeutsch()}
-          /></label
-        ><label
-          >Übermittlungsweg / Aktenzeichen / Notiz<input
-            bind:value={notiz}
-            maxlength="4000"
-            placeholder="z. B. Bauportal, Aktenzeichen …"
-          /></label
-        >
-      </div>
-      <div class="knoepfe">
-        <button
-          class="sekundaer"
-          type="button"
-          onclick={() => (bestaetigung = null)}>Abbrechen</button
-        ><button type="submit">Einreichung bestätigen</button>
-      </div>
-    </fieldset>
-  </form>{/if}
 <h3>Chronik der Paketstände</h3>
 {#if !chronik.length}<p class="meta">
     In diesem Projekt gibt es keine früheren Einreichungspakete.
@@ -174,7 +107,7 @@
     <summary
       >{e.stand.titel} · {e.stand.empfaenger} · {e.einreichung
         ? `Eingereicht am ${e.einreichung.datum}`
-        : "Vorbereitet, noch nicht eingereicht"} · {e.stand.dokumente.length} Unterlagen</summary
+        : "Ohne bestätigte Einreichung"} · {e.stand.dokumente.length} Unterlagen</summary
     >
     <p class="meta">
       Erstellt von {e.stand.erstellt_von} am {new Date(
@@ -205,11 +138,7 @@
     <div class="knoepfe links">
       <button class="sekundaer" disabled={laeuft} onclick={() => exportieren(e)}
         >Dieses ZIP erneut exportieren …</button
-      >{#if !e.einreichung}<button
-          disabled={laeuft || !darfAblegen}
-          onclick={() => zurBestaetigung(e)}
-          >Einreichungsdatum erfassen …</button
-        >{/if}
+      >
     </div>
   </details>{/each}
 

@@ -34,6 +34,14 @@ export const xbau = {
     id: string,
     verfahren: string,
     basis: number,
+    /** Bestätigtes Zugangs- bzw. Versanddatum; ohne Angabe der Erfassungstag. */
+    zugang: string | null = null,
   ) =>
-    invoke<Fachstand>("xbau_in_verfahren", { projektId, id, verfahren, basis }),
+    invoke<Fachstand>("xbau_in_verfahren", {
+      projektId,
+      id,
+      verfahren,
+      basis,
+      zugang,
+    }),
 };

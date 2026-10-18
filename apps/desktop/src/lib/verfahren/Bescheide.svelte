@@ -21,17 +21,20 @@
     projektId,
     art,
     alt = [],
+    auflagenAlt = [],
     ohneZustellung = [],
     onberichtigen,
   }: {
     eintraege: Bescheid[];
     dateien: DocumentVersion[];
-    /** Dokumentversionen aus versendeten oder eingegangenen Abgabeständen. */
+    /** Dokumentversionen aus versendeten Abgabeständen und externen Einreichungen. */
     abgegeben: DocumentVersion[];
     benutzer: Benutzer[];
     projektId: string;
     art: Verfahrensart;
     alt?: string[];
+    /** Gespeicherte Nebenbestimmungen; ihr Wortlaut bleibt laut Core unverändert. */
+    auflagenAlt?: string[];
     /** Gespeicherte Bescheide, deren Zustelldatum noch einmal nachgetragen werden darf. */
     ohneZustellung?: string[];
     onberichtigen: (g: Berichtigungsgegenstand, grund: string) => void;
@@ -115,11 +118,13 @@
             type="date"
             disabled={fest}
             required
+            max={heute()}
             bind:value={b.datum}
           /></label
         ><label
           >Zustelldatum<input
             type="date"
+            max={heute()}
             disabled={fest &&
               !ohneZustellung.includes(b.id) &&
               !zustellungOffen[b.id]}
@@ -176,8 +181,8 @@
           bind:werte={b.genehmigte_unterlagen}
           label="Ausdrücklich genehmigte Unterlagen"
         />{:else}<p class="hinweis">
-          Genehmigte Unterlagen stammen aus einem versendeten Abgabestand.
-          Versand im Register Abgaben erfassen.
+          Genehmigte Unterlagen stammen aus einem versendeten Abgabestand oder
+          einer externen Einreichung. Beides im Register Abgabestände erfassen.
         </p>{/if}
     </fieldset>
     {#if f}<section aria-label="Berechnete Fristen">
@@ -220,15 +225,20 @@
             >Nebenbestimmung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Nebenbestimmung"
               required
               maxlength="500"
+              readonly={auflagenAlt.includes(p.id)}
               bind:value={p.titel}
             /></label
           ><label
             >Fälligkeit / Auslöser<input
               maxlength="4000"
+              readonly={auflagenAlt.includes(p.id)}
               bind:value={p.ausloeser}
             /></label
           ><Zustaendigkeit {benutzer} bind:wert={p.verantwortlich} />
         </div>
+        {#if auflagenAlt.includes(p.id)}<p class="meta">
+            Wortlaut aus dem Bescheid, nach dem Speichern unveränderlich.
+          </p>{/if}
         <Fristfeld {dateien} bind:wert={p.frist} /><Dokumentliste
           {dateien}
           bind:werte={p.nachweise}

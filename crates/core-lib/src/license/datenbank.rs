@@ -110,7 +110,7 @@ impl DatenbankLizenz {
 
     /// Lizenz bzw. Testversion, noch ohne Arbeitsplätze.
     async fn grundzustand(&self) -> CoreResult<(Lizenzzustand, Option<Lizenz>, Option<AboStatus>)> {
-        let heute = Utc::now().date_naive();
+        let heute = crate::kalender::heute();
         if let Some(text) = self.einstellung(LIZENZ).await? {
             return Ok(match self.pruefer.pruefen(text.as_bytes()) {
                 Ok(l) => match l.gueltig_bis {
@@ -194,7 +194,9 @@ impl DatenbankLizenz {
             }
         } else {
             match ticket.lizenz.gueltig_bis {
-                Some(bis) if bis < jetzt.date_naive() => Lizenzzustand::Abgelaufen { seit: bis },
+                Some(bis) if bis < crate::kalender::datum_deutsch(jetzt) => {
+                    Lizenzzustand::Abgelaufen { seit: bis }
+                }
                 _ => Lizenzzustand::Lizenziert,
             }
         };
@@ -498,7 +500,7 @@ impl LicenseProvider for DatenbankLizenz {
         self.repo.einstellung_setzen(ABO_SCHLUESSEL, "").await?;
         self.repo.einstellung_setzen(ABO_LIZENZ, "").await?;
         if let Some(bis) = lizenz.gueltig_bis
-            && bis < Utc::now().date_naive()
+            && bis < crate::kalender::heute()
         {
             return Err(CoreError::License(format!(
                 "Diese Lizenz ist am {} abgelaufen.",
