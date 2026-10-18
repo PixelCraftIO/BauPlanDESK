@@ -176,10 +176,17 @@ impl CoreServices {
             eintraege,
         })
     }
-    pub async fn druckausgabe(
+    pub async fn druckausgabe(&self, p: ProjectId, a: Druckauftrag) -> CoreResult<Druckergebnis> {
+        self.druckausgabe_mit_planindex(p, a, &Default::default())
+            .await
+    }
+    /// Wie [`Self::druckausgabe`]; das Inhaltsverzeichnis nennt zusätzlich den
+    /// Planindex der Dokumentversionen (Anlagenverzeichnis eines Abgabestands).
+    pub(crate) async fn druckausgabe_mit_planindex(
         &self,
         p: ProjectId,
         mut a: Druckauftrag,
+        planindizes: &std::collections::HashMap<(DocumentId, i64), String>,
     ) -> CoreResult<Druckergebnis> {
         if a.quellen.is_empty()
             || a.quellen.len() > 100
@@ -276,7 +283,10 @@ impl CoreServices {
                             titel: format!("{} · Version {}", meta.file_name, version),
                             kategorie,
                             name: meta.file_name,
-                            version: version.to_string(),
+                            version: match planindizes.get(&(*dokument_id, *version)) {
+                                Some(i) => format!("{version} · Index {i}"),
+                                None => version.to_string(),
+                            },
                         },
                         doc,
                     )

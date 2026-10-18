@@ -144,11 +144,17 @@ fn archiv(core: &CoreServices, p: &Project, e: &NachweisEingabe) -> CoreResult<V
         NachweisEingabe::Nutzung { plan, .. } => {
             let mut regeln = Vec::new();
             for b in &plan.berechnungen {
+                // Bei einem Bebauungsplan nur die Fassung des Plans, ohne Rückfall.
                 let fassung = p
                     .planungsrecht
-                    .bau_nvo
-                    .or(b.eingabe.aufstellung.as_ref().map(|a| a.bau_nvo))
-                    .ok_or_else(|| CoreError::InvalidInput("BauNVO festlegen".into()))?;
+                    .massgebende_bau_nvo(b.eingabe.aufstellung.as_ref().map(|a| a.bau_nvo))
+                    .ok_or_else(|| {
+                        CoreError::InvalidInput(if p.planungsrecht.mit_bebauungsplan() {
+                            "BauNVO festlegen: Fassung des Bebauungsplans in den Rechtsgrundlagen erfassen".into()
+                        } else {
+                            "BauNVO festlegen".into()
+                        })
+                    })?;
                 let r = crate::baunvo::regelwerk(fassung);
                 if regeln.iter().any(|a: &RegelArchiv| a.id == r.id) {
                     continue;
@@ -186,6 +192,26 @@ fn grundlagen(p: &Project, regeln: &[RegelArchiv]) -> CoreResult<ContentHash> {
     );
     if !mit_plan && r.rechtsgrundlage != Some(crate::domain::Rechtsgrundlage::Par35) {
         daten["massstab_ohne_plan"] = serde_json::json!({"version": 2, "umgebung": r.umgebung});
+    }
+    // Maßstab 3 im Plan-Fall: Ohne BauNVO-Fassung kein Urteil, Baufensterfläche nur
+    // Information, Lage aus den Baugrenzen, beim einfachen Plan ergänzend die Umgebung.
+    // Nur betroffene Projekte erhalten einen neuen Fingerprint.
+    if mit_plan {
+        if r.bau_nvo.is_none() {
+            daten["massstab_plan_ohne_fassung"] = serde_json::json!(3);
+        }
+        if r.festgesetzte_werte.ueberbaubare_flaeche_m2.is_some() {
+            daten["baufensterflaeche_ohne_urteil"] = serde_json::json!(3);
+        }
+        if let Some(g) = &r.baugrenzen {
+            daten["baugrenzen"] = serde_json::to_value(g).map_err(json_err)?;
+        }
+        if r.bebauungsplan_art == crate::domain::BebauungsplanArt::Einfach
+            && r.ergaenzende_grundlage == Some(crate::domain::Rechtsgrundlage::Par34)
+        {
+            daten["umgebung_ergaenzend"] =
+                serde_json::json!({"version": 3, "umgebung": r.umgebung});
+        }
     }
     hash(&daten)
 }

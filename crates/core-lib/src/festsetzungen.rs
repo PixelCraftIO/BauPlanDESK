@@ -193,8 +193,14 @@ pub struct NutzungsPruefung {
     pub aufstellung: Option<crate::flaechen::FlaechenErgebnis>,
     pub projekt_version: i64,
     pub kennzahlen: Kennzahlen,
+    /// Reihenfolge fest: grz, grz_gesamt, gfz, bmz, grundflaeche,
+    /// geschossflaeche, baufensterflaeche (nur Information, nie ein Urteil),
+    /// vollgeschosse (bei mehreren Gebäuden je Gebäude am Ende),
+    /// baufenster_lage (Urteil aus dem Umrissvergleich, sonst „nicht geprüft“).
     pub nachweise: Vec<Nachweis>,
     pub bebauungsplan: bool,
+    /// Fachliche Hinweise, z. B. fehlende BauNVO-Fassung des Plans.
+    pub hinweise: Vec<String>,
 }
 
 pub fn pruefe(
@@ -226,12 +232,7 @@ pub fn pruefe_mit_regeln(
             "Kennzahlen außerhalb des darstellbaren Zahlenbereichs".into(),
         ));
     }
-    let mit_plan = matches!(
-        p.bebauungsplan_art,
-        BebauungsplanArt::Qualifiziert
-            | BebauungsplanArt::Einfach
-            | BebauungsplanArt::Vorhabenbezogen
-    );
+    let mit_plan = p.mit_bebauungsplan();
     let f = if mit_plan {
         p.festgesetzte_werte.clone()
     } else {
@@ -240,26 +241,43 @@ pub fn pruefe_mit_regeln(
     let o = f.baugebiet.unwrap_or(e.gebiet).orientierungswerte();
     let innenbereich =
         !mit_plan && p.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par34);
+    // Einfacher Bebauungsplan mit ergänzendem § 34 BauGB (§ 30 Abs. 3): Nicht
+    // festgesetzte Maße richten sich nach der näheren Umgebung.
+    let ergaenzend_innen = p.bebauungsplan_art == BebauungsplanArt::Einfach
+        && p.ergaenzende_grundlage == Some(crate::domain::Rechtsgrundlage::Par34);
     let umgebung = p.umgebung.clone().unwrap_or_default();
     // In einem Plan keine unbekannten Festsetzungen durch Orientierungswerte ersetzen.
     // Im Innenbereich ist das Einfügen maßgebend, nicht § 17 BauNVO.
-    let (grz, gfz, bmz, quelle) =
+    let massstab = |fest: Option<f64>, umg: Option<f64>, orientierung: Option<f64>| {
         if !mit_plan && p.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par35) {
-            (None, None, None, Quelle::Keine)
+            (None, Quelle::Keine)
         } else if mit_plan {
-            (f.grz, f.gfz, f.bmz, Quelle::Festsetzung)
+            match (fest, umg) {
+                (Some(v), _) => (Some(v), Quelle::Festsetzung),
+                (None, Some(v)) if ergaenzend_innen => (Some(v), Quelle::Umgebung),
+                _ => (None, Quelle::Festsetzung),
+            }
         } else if innenbereich {
-            (umgebung.grz, umgebung.gfz, None, Quelle::Umgebung)
+            (umg, Quelle::Umgebung)
         } else {
-            (Some(o.grz), o.gfz, o.bmz, Quelle::Orientierungswert)
-        };
-    let (vollgeschosse_soll, vollgeschosse_quelle) = if innenbereich {
+            (orientierung, Quelle::Orientierungswert)
+        }
+    };
+    let (grz, quelle_grz) = massstab(f.grz, umgebung.grz, Some(o.grz));
+    let (gfz, quelle_gfz) = massstab(f.gfz, umgebung.gfz, o.gfz);
+    let (bmz, quelle_bmz) = massstab(f.bmz, None, o.bmz);
+    let umgebung_vollgeschosse = innenbereich
+        || (f.vollgeschosse.is_none() && ergaenzend_innen && umgebung.vollgeschosse.is_some());
+    let (vollgeschosse_soll, vollgeschosse_quelle) = if umgebung_vollgeschosse {
         (umgebung.vollgeschosse, Quelle::Umgebung)
     } else {
         (f.vollgeschosse, Quelle::Festsetzung)
     };
+    let vollgeschosse_zwingend =
+        vollgeschosse_quelle == Quelle::Festsetzung && f.geschossigkeit == Geschossigkeit::Zwingend;
+    // § 19 Abs. 4 BauNVO knüpft an die festgesetzte Grundfläche an, nicht an Umgebungswerte.
     let basis_gesamt = match (
-        grz,
+        f.grz,
         f.grundflaeche_m2
             .map(|gr| gr / e.mass.grundstuecksflaeche_m2),
     ) {
@@ -267,13 +285,26 @@ pub fn pruefe_mit_regeln(
         (Some(a), None) | (None, Some(a)) => Some(a),
         _ => None,
     };
+    let mut hinweise = Vec::new();
+    // Bei einem Bebauungsplan gilt die Fassung des Plans; ohne sie kein Urteil.
+    let fassung_fehlt = mit_plan && p.bau_nvo.is_none();
+    if fassung_fehlt {
+        hinweise.push(match &e.aufstellung {
+            Some(a) => format!(
+                "BauNVO-Fassung des Bebauungsplans erfassen. Bis dahin keine GRZ-II-Bewertung und kein Urteil zu den Flächenmaßen; Flächen vorläufig nach BauNVO {} angerechnet.",
+                a.bau_nvo.jahr()
+            ),
+            None => "BauNVO-Fassung des Bebauungsplans erfassen. Bis dahin keine GRZ-II-Bewertung und kein Urteil zu den Flächenmaßen.".into(),
+        });
+    }
     let regel = crate::baunvo::aus_katalog(
         regeln,
-        p.bau_nvo
+        p.massgebende_bau_nvo(e.aufstellung.as_ref().map(|a| a.bau_nvo))
             .or(e.aufstellung.as_ref().map(|a| a.bau_nvo))
             .unwrap_or(crate::flaechen::BauNvo::V2017),
     )?;
-    let historisch = !regel.grz_ii || aufstellung.as_ref().is_some_and(|a| !a.grz_ii);
+    let historisch =
+        fassung_fehlt || !regel.grz_ii || aufstellung.as_ref().is_some_and(|a| !a.grz_ii);
     // § 19 Abs. 4 BauNVO begrenzt die zulässige Grundfläche eines Plans; ohne Plan gibt es keine GRZ-II-Grenze.
     let grz_gesamt = if historisch || !mit_plan {
         None
@@ -302,13 +333,46 @@ pub fn pruefe_mit_regeln(
             zwingend,
         )
     };
+    // § 23 BauNVO betrifft die Lage im Baufenster. Die Fläche des Baufensters
+    // ist nur eine Information; das Urteil liefert der Umrissvergleich.
+    let mut baufensterflaeche = n(
+        "baufensterflaeche",
+        Some(e.mass.grundflaeche_m2),
+        f.ueberbaubare_flaeche_m2,
+        Quelle::Festsetzung,
+        false,
+    );
+    baufensterflaeche.eingehalten = None;
+    let lage = match (&p.baugrenzen, mit_plan) {
+        (Some(g), true) => match crate::cad::baugrenzen::pruefe(g) {
+            Ok(b) => {
+                let mut l = nachweis(
+                    "baufenster_lage",
+                    Some(b.ausserhalb_m2),
+                    Some(0.0),
+                    Quelle::Festsetzung,
+                    false,
+                );
+                l.eingehalten = Some(b.eingehalten);
+                l.gegenstand = Some("Vorhaben".into());
+                l.flaechenueberschreitung_m2 = Some(b.ausserhalb_m2);
+                l
+            }
+            Err(err) => {
+                hinweise.push(format!("Lage im Baufenster nicht geprüft: {err}"));
+                nachweis("baufenster_lage", None, None, Quelle::Keine, false)
+            }
+        },
+        _ => nachweis("baufenster_lage", None, None, Quelle::Keine, false),
+    };
     let mut r = NutzungsPruefung {
         aufstellung,
         projekt_version,
         kennzahlen: k.clone(),
         bebauungsplan: mit_plan,
+        hinweise,
         nachweise: vec![
-            n("grz", Some(k.grz), grz, quelle, false),
+            n("grz", Some(k.grz), grz, quelle_grz, false),
             n(
                 "grz_gesamt",
                 if historisch { None } else { Some(k.grz_gesamt) },
@@ -316,8 +380,8 @@ pub fn pruefe_mit_regeln(
                 quelle_gesamt,
                 false,
             ),
-            n("gfz", Some(k.gfz), gfz, quelle, false),
-            n("bmz", k.bmz, bmz, quelle, false),
+            n("gfz", Some(k.gfz), gfz, quelle_gfz, false),
+            n("bmz", k.bmz, bmz, quelle_bmz, false),
             n(
                 "grundflaeche",
                 Some(e.mass.grundflaeche_m2),
@@ -332,20 +396,15 @@ pub fn pruefe_mit_regeln(
                 Quelle::Festsetzung,
                 false,
             ),
-            n(
-                "baufensterflaeche",
-                Some(e.mass.grundflaeche_m2),
-                f.ueberbaubare_flaeche_m2,
-                Quelle::Festsetzung,
-                false,
-            ),
+            baufensterflaeche,
             n(
                 "vollgeschosse",
                 e.vollgeschosse.map(f64::from),
                 vollgeschosse_soll.map(f64::from),
                 vollgeschosse_quelle,
-                !innenbereich && f.geschossigkeit == Geschossigkeit::Zwingend,
+                vollgeschosse_zwingend,
             ),
+            lage,
         ],
     };
     if let Some(a) = &r.aufstellung
@@ -362,7 +421,7 @@ pub fn pruefe_mit_regeln(
                 } else {
                     Quelle::Keine
                 },
-                !innenbereich && f.geschossigkeit == Geschossigkeit::Zwingend,
+                vollgeschosse_zwingend,
             );
             n.gegenstand = Some(id.clone());
             r.nachweise.push(n);
@@ -385,6 +444,14 @@ pub fn pruefe_mit_regeln(
             || (fehlende_geschosse && matches!(n.art, "gfz" | "geschossflaeche" | "vollgeschosse"))
         {
             *n = nachweis(n.art, None, n.soll, n.quelle, n.zwingend);
+        }
+        if fassung_fehlt
+            && matches!(
+                n.art,
+                "grz" | "gfz" | "bmz" | "grundflaeche" | "geschossflaeche"
+            )
+        {
+            n.eingehalten = None;
         }
         if matches!(n.art, "grz" | "grz_gesamt" | "gfz") {
             n.flaechenueberschreitung_m2 = n
@@ -444,9 +511,143 @@ mod tests {
     fn plan(f: Festsetzungen) -> Planungsrecht {
         Planungsrecht {
             bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+            rechtsgrundlage: Some(crate::domain::Rechtsgrundlage::Par30),
+            bau_nvo: Some(crate::flaechen::BauNvo::V2017),
             festgesetzte_werte: f,
             ..Default::default()
         }
+    }
+    fn art<'a>(r: &'a NutzungsPruefung, art: &str) -> &'a Nachweis {
+        r.nachweise.iter().find(|n| n.art == art).unwrap()
+    }
+    fn rechteck(x: f64, y: f64, w: f64, h: f64) -> Vec<crate::cad::Punkt> {
+        use crate::cad::Punkt;
+        vec![
+            Punkt(x, y),
+            Punkt(x + w, y),
+            Punkt(x + w, y + h),
+            Punkt(x, y + h),
+        ]
+    }
+    #[test]
+    fn plan_ohne_baunvo_fassung_ohne_urteil_und_ohne_rueckfall_auf_die_aufstellung() {
+        let mut recht = plan(Festsetzungen {
+            grz: Some(0.3),
+            gfz: Some(0.6),
+            vollgeschosse: Some(2),
+            ..Default::default()
+        });
+        recht.bau_nvo = None;
+        let mut e = eingabe();
+        e.aufstellung = Some(crate::flaechen::FlaechenAufstellung {
+            bau_nvo: crate::flaechen::BauNvo::V2017,
+            bauteile: vec![],
+            geschosse: vec![],
+            nichtvollgeschoss_faktor: 0.0,
+            nichtvollgeschoss_festsetzung: String::new(),
+            grundstueck: None,
+        });
+        for e in [eingabe(), e] {
+            let r = pruefe(&e, &recht, 1).unwrap();
+            let ii = art(&r, "grz_gesamt");
+            assert_eq!((ii.ist, ii.soll, ii.eingehalten), (None, None, None));
+            for a in ["grz", "gfz", "bmz", "grundflaeche", "geschossflaeche"] {
+                assert_eq!(art(&r, a).eingehalten, None, "{a}");
+            }
+            // Ist und Soll bleiben als Information sichtbar.
+            assert_eq!(art(&r, "grz").soll, Some(0.3));
+            assert!(r.hinweise[0].contains("BauNVO-Fassung des Bebauungsplans erfassen"));
+        }
+        // Mit Fassung wie bisher.
+        recht.bau_nvo = Some(crate::flaechen::BauNvo::V2017);
+        let r = pruefe(&eingabe(), &recht, 1).unwrap();
+        assert_eq!(art(&r, "grz").eingehalten, Some(false));
+        assert!((art(&r, "grz_gesamt").soll.unwrap() - 0.45).abs() < 1e-9);
+        assert!(r.hinweise.is_empty());
+        // Ohne Plan unverändert: keine Pflicht zur Fassung.
+        let r = pruefe(&eingabe(), &Planungsrecht::default(), 1).unwrap();
+        assert!(r.hinweise.is_empty());
+    }
+    #[test]
+    fn baufensterflaeche_nur_information_lage_aus_baugrenzen() {
+        let mut recht = plan(Festsetzungen {
+            ueberbaubare_flaeche_m2: Some(400.0),
+            ..Default::default()
+        });
+        let r = pruefe(&eingabe(), &recht, 1).unwrap();
+        let fl = art(&r, "baufensterflaeche");
+        assert_eq!(
+            (fl.ist, fl.soll, fl.eingehalten),
+            (Some(320.0), Some(400.0), None)
+        );
+        let lage = art(&r, "baufenster_lage");
+        assert_eq!(
+            (lage.soll, lage.eingehalten, lage.quelle),
+            (None, None, Quelle::Keine)
+        );
+        recht.baugrenzen = Some(crate::cad::baugrenzen::BaugrenzenGeometrie {
+            dokument_id: crate::domain::DocumentId::new(),
+            dokument_version: 1,
+            einheit: crate::cad::Laengeneinheit::Meter,
+            baufenster: rechteck(0., 0., 30., 30.),
+            vorhaben: rechteck(28., 0., 4., 10.),
+        });
+        let r = pruefe(&eingabe(), &recht, 1).unwrap();
+        let lage = art(&r, "baufenster_lage");
+        assert_eq!(lage.eingehalten, Some(false));
+        assert!((lage.ist.unwrap() - 20.0).abs() < 1e-8);
+        assert_eq!(lage.quelle, Quelle::Festsetzung);
+        // Die große Baufensterfläche ergibt trotzdem kein „eingehalten“.
+        assert_eq!(art(&r, "baufensterflaeche").eingehalten, None);
+        recht.baugrenzen.as_mut().unwrap().vorhaben = rechteck(1., 1., 10., 10.);
+        assert_eq!(
+            art(&pruefe(&eingabe(), &recht, 1).unwrap(), "baufenster_lage").eingehalten,
+            Some(true)
+        );
+        // Ohne Plan keine Baugrenze als Maßstab.
+        recht.bebauungsplan_art = BebauungsplanArt::Kein;
+        recht.rechtsgrundlage = Some(crate::domain::Rechtsgrundlage::Par34);
+        assert_eq!(
+            art(&pruefe(&eingabe(), &recht, 1).unwrap(), "baufenster_lage").eingehalten,
+            None
+        );
+    }
+    #[test]
+    fn einfacher_plan_mit_ergaenzendem_par34_nutzt_umgebung_fuer_nicht_festgesetzte_masse() {
+        let mut recht = plan(Festsetzungen {
+            gfz: Some(0.6),
+            ..Default::default()
+        });
+        recht.bebauungsplan_art = BebauungsplanArt::Einfach;
+        recht.umgebung = Some(Umgebungsreferenz {
+            grz: Some(0.25),
+            gfz: Some(1.5),
+            vollgeschosse: Some(2),
+            grundlage: "Musterweg 3–9".into(),
+        });
+        // Ohne ergänzende Grundlage keine Umgebungswerte.
+        let r = pruefe(&eingabe(), &recht, 1).unwrap();
+        assert_eq!(art(&r, "grz").soll, None);
+        recht.ergaenzende_grundlage = Some(crate::domain::Rechtsgrundlage::Par34);
+        let r = pruefe(&eingabe(), &recht, 1).unwrap();
+        let grz = art(&r, "grz");
+        assert_eq!(
+            (grz.soll, grz.quelle, grz.eingehalten),
+            (Some(0.25), Quelle::Umgebung, None)
+        );
+        // Festsetzung geht der Umgebung vor.
+        let gfz = art(&r, "gfz");
+        assert_eq!(
+            (gfz.soll, gfz.quelle, gfz.eingehalten),
+            (Some(0.6), Quelle::Festsetzung, Some(false))
+        );
+        let vg = art(&r, "vollgeschosse");
+        assert_eq!(
+            (vg.soll, vg.quelle, vg.eingehalten),
+            (Some(2.0), Quelle::Umgebung, None)
+        );
+        // Keine GRZ-II-Grenze aus Umgebungswerten.
+        assert_eq!(art(&r, "grz_gesamt").soll, None);
     }
     #[test]
     fn grz_ii_grenze_stammt_aus_explizitem_katalog() {

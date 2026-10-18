@@ -49,6 +49,12 @@
   const mitPlan = $derived(
     !["kein", "ungeklaert"].includes(eingabe.bebauungsplan_art),
   );
+  // Einfacher Plan mit ergänzendem § 34 BauGB: nicht festgesetzte Maße nach der Umgebung.
+  const umgebungErfassen = $derived(
+    (!mitPlan && eingabe.rechtsgrundlage === "par34") ||
+      (eingabe.bebauungsplan_art === "einfach" &&
+        eingabe.ergaenzende_grundlage === "par34"),
+  );
   const aussenbereich = $derived(
     eingabe.rechtsgrundlage === "par35" ||
       (eingabe.bebauungsplan_art === "einfach" &&
@@ -121,7 +127,13 @@
           name: projekt.name,
           bundesland: land,
           grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
-          planungsrecht: structuredClone($state.snapshot(eingabe)),
+          planungsrecht: {
+            ...structuredClone($state.snapshot(eingabe)),
+            // Angezeigt wird bei einem Plan „§ 30 BauGB“; ältere Stände übernehmen das.
+            ...(bereich === "grundlagen" && mitPlan
+              ? { rechtsgrundlage: "par30" as const }
+              : {}),
+          },
         },
       );
       gespeichert = grundlagen(p);
@@ -200,6 +212,9 @@
                 eingabe.rechtsgrundlage = "par30";
               else if (eingabe.rechtsgrundlage === "par30")
                 eingabe.rechtsgrundlage = null;
+              // Die Kopplung prüft der Core beim Speichern; hier nur die Auswahl leeren.
+              if (eingabe.bebauungsplan_art !== "einfach")
+                eingabe.ergaenzende_grundlage = null;
             }}
           >
             <option value="ungeklaert">Noch ungeklärt</option><option
@@ -237,7 +252,7 @@
               >{/each}</select
           ></label
         >
-        {#if eingabe.bebauungsplan_art === "einfach"}
+        {#if eingabe.bebauungsplan_art === "einfach" || eingabe.ergaenzende_grundlage}
           <label
             >Ergänzende Beurteilung (§ 30 Abs. 3 BauGB)
             <select bind:value={eingabe.ergaenzende_grundlage}>
@@ -267,16 +282,17 @@
           Bebauungsplan klären und dessen Art angeben.
         </p>
       {/if}
-      {#if eingabe.rechtsgrundlage === "par34"}<p class="meta">
+      {#if umgebungErfassen}<p class="meta">
           Einfügen in die Eigenart der näheren Umgebung, Erschließung und
           weitere Voraussetzungen unter „Beurteilung“ dokumentieren.
         </p>
-        {#if !mitPlan}
+        {#if umgebungErfassen}
           <h3>Vergleichswerte der näheren Umgebung</h3>
           <p class="meta">
             Die Berechnungen stellen GRZ, GFZ und Vollgeschosse diesen Werten
-            gegenüber. Die Orientierungswerte des § 17 BauNVO gelten hier nicht.
-            Ob sich das Vorhaben einfügt, bleibt Ihre fachliche Beurteilung.
+            gegenüber{mitPlan ? ", soweit der Plan sie nicht festsetzt" : ""}.
+            Die Orientierungswerte des § 17 BauNVO gelten hier nicht. Ob sich
+            das Vorhaben einfügt, bleibt Ihre fachliche Beurteilung.
           </p>
           {#if eingabe.umgebung}
             <div class="raster">
@@ -430,7 +446,7 @@
             /></label
           >
           <label
-            >Überbaubare Grundstücksfläche / Baufenster (m²)<input
+            >Baufensterfläche (m², nur Information)<input
               type="number"
               min="0"
               step="any"

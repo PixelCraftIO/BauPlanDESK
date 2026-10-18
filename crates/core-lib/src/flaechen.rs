@@ -16,6 +16,16 @@ pub enum BauNvo {
     V2017,
 }
 impl BauNvo {
+    /// Jahr der Fassung, z. B. „1977“.
+    pub fn jahr(self) -> &'static str {
+        match self {
+            Self::V1962 => "1962",
+            Self::V1968 => "1968",
+            Self::V1977 => "1977",
+            Self::V1990 => "1990",
+            Self::V2017 => "2017",
+        }
+    }
     pub fn modern(self) -> bool {
         crate::baunvo::regelwerk(self).grz_ii
     }

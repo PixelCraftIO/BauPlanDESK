@@ -3,6 +3,7 @@
 pub mod abgabe;
 pub mod externe_einreichung;
 pub mod fristen;
+pub mod planindex;
 pub mod profile;
 mod pruefung;
 pub mod suche;

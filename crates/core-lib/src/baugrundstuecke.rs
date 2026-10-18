@@ -406,6 +406,7 @@ mod tests {
     fn planrecht() -> Planungsrecht {
         Planungsrecht {
             bebauungsplan_art: crate::domain::BebauungsplanArt::Qualifiziert,
+            bau_nvo: Some(crate::flaechen::BauNvo::V2017),
             festgesetzte_werte: Festsetzungen {
                 grz: Some(0.3),
                 gfz: Some(0.6),

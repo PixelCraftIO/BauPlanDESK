@@ -544,6 +544,26 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     );
     let (_, a) = core.verfahrensakte(p.id, vid).await.unwrap();
     assert_eq!(a.bescheide[0].genehmigte_unterlagen[0], ref2);
+    // Planindex und Einreichungsstatus aus der gespeicherten Akte.
+    let unterlagen = core.verfahren_planunterlagen(p.id, vid).await.unwrap();
+    let lage = unterlagen
+        .iter()
+        .find(|u| u.dokument_id == plan.document_id)
+        .unwrap();
+    assert_eq!(
+        lage.status,
+        core_lib::verfahren::planindex::Einreichungsstatus::Genehmigt
+    );
+    let v2 = lage.staende.iter().find(|s| s.version == 2).unwrap();
+    assert_eq!(v2.bescheid, Some(besch));
+    assert_eq!(v2.planindex, lage.planindex);
+    assert!(lage.hinweise.is_empty(), "{:?}", lage.hinweise);
+    assert!(
+        a.abgaben
+            .iter()
+            .flat_map(|b| &b.dokumente)
+            .all(|d| d.planindex.is_some())
+    );
     assert_eq!(a.nachforderungen[0].punkte[2].status, Punktstatus::Offen);
     core.suchtext_speichern(
         p.id,
@@ -768,7 +788,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     if let Ok(ziel) = std::env::var("BAUPROJEKT_VERFAHREN_ARTEFAKTE") {
         let ziel = std::path::Path::new(&ziel);
         std::fs::create_dir_all(ziel).unwrap();
-        std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"verfahren":f,"akte":a,"dateien":core.list_documents(p.id).await.unwrap(),"benutzer":user,"erinnerungen":core.verfahren_erinnerungen(p.id,heute).await.unwrap(),"fristen":core.bescheidfristen(p.id,&fristen::Fristauftrag{art:a.art.clone(),bescheide:a.bescheide.clone()}).await.unwrap(),"treffer":treffer,"uebersicht":uebersicht})).unwrap()).unwrap();
+        std::fs::write(ziel.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"verfahren":f,"akte":a,"dateien":core.list_documents(p.id).await.unwrap(),"benutzer":user,"erinnerungen":core.verfahren_erinnerungen(p.id,heute).await.unwrap(),"fristen":core.bescheidfristen(p.id,&fristen::Fristauftrag{art:a.art.clone(),bescheide:a.bescheide.clone()}).await.unwrap(),"treffer":treffer,"uebersicht":uebersicht,"planunterlagen":core.verfahren_planunterlagen(p.id,vid).await.unwrap()})).unwrap()).unwrap();
         std::fs::write(ziel.join("akte.zip"), export).unwrap();
     }
     drop(core);

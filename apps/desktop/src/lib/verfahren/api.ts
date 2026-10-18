@@ -17,7 +17,17 @@ import type {
   Bescheidfristen,
   Einreichungsweg,
   ExterneEinreichungswunsch,
+  Einreichungsstatus,
+  Planunterlage,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Einreichungsstatus::bezeichnung` im Core. */
+export const EINREICHUNG: Record<Einreichungsstatus, string> = {
+  entwurf: "Entwurf",
+  eingereicht: "Eingereicht",
+  nachgereicht: "Nachgereicht",
+  genehmigt: "Genehmigt",
+  ersetzt: "Ersetzt",
+};
 /** Bezeichnungen wie `Verfahrensstatus::bezeichnung` im Core. */
 export const STATUS: Record<Verfahrensstatus, string> = {
   vorbereitung: "In Vorbereitung",
@@ -105,6 +115,9 @@ export const verfahrenApi = {
       projektId,
       auftrag,
     }),
+  /** Planindex und Einreichungsstatus, im Core aus der gespeicherten Akte abgeleitet. */
+  planunterlagen: (projektId: string, id: string) =>
+    invoke<Planunterlage[]>("verfahren_planunterlagen", { projektId, id }),
   erinnerungen: (projektId: string, heute: string) =>
     invoke<Erinnerung[]>("verfahren_erinnerungen", { projektId, heute }),
   suche: (projektId: string, suche: string) =>

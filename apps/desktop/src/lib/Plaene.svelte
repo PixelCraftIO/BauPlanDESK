@@ -128,21 +128,17 @@
           name: projekt.name,
           bundesland: projekt.bundesland,
           grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
+          // Die Lage im Baufenster bewertet der Core aus diesen Umrissen
+          // (§ 23 BauNVO); die gemessene Fläche ist keine Festsetzung.
           planungsrecht: {
             ...structuredClone($state.snapshot(projekt.planungsrecht)),
             baugrenzen: g,
-            festgesetzte_werte: {
-              ...structuredClone(
-                $state.snapshot(projekt.planungsrecht.festgesetzte_werte),
-              ),
-              ueberbaubare_flaeche_m2: r.baufenster_m2,
-            },
           },
         });
         onprojekt(p);
         gespeichertSignatur = stand;
         geoHinweis =
-          "Umrisse dem Projekt zugeordnet; Baufensterfläche in die Festsetzungen übernommen.";
+          "Umrisse dem Projekt zugeordnet; die Lage im Baufenster erscheint im GRZ-Nachweis.";
       }
     } catch (e) {
       grenzpruefung = null;
