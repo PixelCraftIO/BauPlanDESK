@@ -91,6 +91,9 @@
   const gebuehrenBauherr = $derived(antrag?.gebuehrenpflichtiger == null);
 
   function uebernehmen(g: GespeicherterBauantrag) {
+    // Ältere Anträge ohne Verfahrensart: wie die Auswahl „keine Angabe“, damit
+    // die Auswahlliste den Antrag nicht als geändert erscheinen lässt.
+    g.antrag.verfahrensart ??= "";
     gespeichert = g;
     antrag = structuredClone(g.antrag);
   }
@@ -390,6 +393,30 @@
           bind:value={antrag.anzahl_gebaeude}
         />
       </label>
+      {#if gespeichert.verfahrensarten}
+        <label
+          >Verfahrensart ({gespeichert.verfahrensarten.name})
+          <select bind:value={antrag.verfahrensart}>
+            <option value="">keine Angabe</option>
+            {#each gespeichert.verfahrensarten.eintraege as e}
+              <option value={e.code}>{e.beschreibung || e.code}</option>
+            {/each}
+          </select>
+        </label>
+      {:else if antrag.verfahrensart}
+        <p class="meta">
+          Verfahrensart {antrag.verfahrensart}: Die Codeliste des Landes ist
+          nicht geladen.
+          <button type="button" onclick={() => (antrag!.verfahrensart = "")}
+            >Angabe entfernen</button
+          >
+        </p>
+      {:else}
+        <p class="meta">
+          Verfahrensart: Für die Angabe in der XBau-Nachricht die Codeliste
+          des Landes aus dem XRepository in den Codelisten-Ordner legen.
+        </p>
+      {/if}
     </fieldset>
 
     <fieldset disabled={!darf}>

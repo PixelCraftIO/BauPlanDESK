@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
-use crate::xbau::{Anschrift, Beteiligter};
+use crate::xbau::{Anschrift, Beteiligter, Kommunikation, WeitereRolle, WeitererBeteiligter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -209,6 +209,24 @@ impl Kundendaten {
                 )));
             }
         }
+        // Diese Angaben gehen in Behördennachrichten (XBau), deren Schemas
+        // nur Zeichen nach DIN 91379 zulassen. Früh melden statt erst beim Export.
+        for (feld, wert) in [
+            ("Vorname", &self.vorname),
+            ("Familienname", &self.familienname),
+            ("Firma", &self.firma),
+            ("Ansprechpartner", &self.ansprechpartner),
+            ("Straße", &self.anschrift.strasse),
+            ("Hausnummer", &self.anschrift.hausnummer),
+            ("Postleitzahl", &self.anschrift.postleitzahl),
+            ("Ort", &self.anschrift.ort),
+            ("Telefon", &self.telefon),
+            ("E-Mail", &self.email),
+        ] {
+            if let Some(m) = crate::xbau::din91379::meldung(feld, wert) {
+                return Err(CoreError::InvalidInput(m));
+            }
+        }
         Ok(())
     }
 
@@ -231,21 +249,31 @@ impl Kundendaten {
                 vorname,
                 familienname,
                 anschrift,
+                kommunikation,
                 ..
             } => Self {
                 typ: Kundentyp::Person,
                 vorname: vorname.clone(),
                 familienname: familienname.clone(),
                 anschrift: anschrift.clone(),
+                telefon: kommunikation.telefon.clone(),
+                email: kommunikation.email.clone(),
                 ..Self::default()
             },
             Beteiligter::Organisation {
-                name, anschrift, ..
+                name,
+                anschrift,
+                ansprechpartner,
+                kommunikation,
+                ..
             } => Self {
                 typ: Kundentyp::Organisation,
                 kategorie: Kundenkategorie::Sonstige,
                 firma: name.clone(),
+                ansprechpartner: ansprechpartner.clone(),
                 anschrift: anschrift.clone(),
+                telefon: kommunikation.telefon.clone(),
+                email: kommunikation.email.clone(),
                 ..Self::default()
             },
         }
@@ -292,17 +320,24 @@ impl Kunde {
     /// Akteur-ID und bleibt damit über alle Nachrichten hinweg gleich.
     pub fn als_beteiligter(&self) -> Beteiligter {
         let d = &self.daten;
+        let kommunikation = Kommunikation {
+            telefon: d.telefon.trim().into(),
+            email: d.email.trim().into(),
+        };
         match d.typ {
             Kundentyp::Person => Beteiligter::Person {
                 id: self.id.0,
                 vorname: d.vorname.clone(),
                 familienname: d.familienname.clone(),
                 anschrift: d.anschrift.clone(),
+                kommunikation,
             },
             Kundentyp::Organisation => Beteiligter::Organisation {
                 id: self.id.0,
                 name: d.firma.clone(),
                 anschrift: d.anschrift.clone(),
+                ansprechpartner: d.ansprechpartner.trim().into(),
+                kommunikation,
             },
         }
     }
@@ -426,6 +461,60 @@ pub fn zustimmungshinweise(bauherren: &[Kunde], beteiligte: &[Projektbeteiligter
         .collect()
 }
 
+/// Weitere Beteiligte der XBau-Antragsnachricht aus einem eingefrorenen Stand:
+/// Bevollmächtigte, Eigentümer der Vorhabenflurstücke
+/// (`eigentuemer_kunden`) und Projektbeteiligte als Grundstückseigentümer,
+/// Erbbauberechtigte und Fachplaner, je Rolle und Kunde einmal.
+/// `bauherren` liefert die Angaben von Eigentümern, die zugleich Bauherr
+/// sind. Ein Eigentümer ohne Kundenangaben im Stand ist ein Fehler, keine
+/// stille Lücke.
+pub fn antragsbeteiligte(
+    projekt: &crate::domain::Project,
+    bauherren: &[Beteiligter],
+    beteiligte: &[Projektbeteiligter],
+) -> CoreResult<Vec<WeitererBeteiligter>> {
+    let mut liste: Vec<(WeitereRolle, Uuid, Beteiligter)> = Vec::new();
+    let mut aufnehmen = |rolle, b: Beteiligter| {
+        if !liste.iter().any(|(r, id, _)| *r == rolle && *id == b.id()) {
+            liste.push((rolle, b.id(), b));
+        }
+    };
+    for b in beteiligte
+        .iter()
+        .filter(|b| b.rolle == Beteiligtenrolle::Bevollmaechtigter)
+    {
+        aufnehmen(WeitereRolle::Bevollmaechtigter, b.kunde.als_beteiligter());
+    }
+    let infos = crate::grundstuecksinformationen::informationen(&projekt.planungsrecht);
+    for (f, k) in infos.vorhabeneigentuemer() {
+        let b = beteiligte
+            .iter()
+            .find(|b| b.kunde.id == k)
+            .map(|b| b.kunde.als_beteiligter())
+            .or_else(|| bauherren.iter().find(|b| b.id() == k.0).cloned())
+            .ok_or_else(|| {
+                CoreError::InvalidInput(format!(
+                    "Eigentümer von Flurstück {} ist weder Bauherr noch Projektbeteiligter. Unter Beteiligte oder Flurstücke die Zuordnung prüfen.",
+                    f.bezeichnung()
+                ))
+            })?;
+        aufnehmen(WeitereRolle::Grundstueckseigentuemer, b);
+    }
+    for b in beteiligte {
+        let rolle = match b.rolle {
+            Beteiligtenrolle::Grundstueckseigentuemer => WeitereRolle::Grundstueckseigentuemer,
+            Beteiligtenrolle::Erbbauberechtigter => WeitereRolle::Erbbauberechtigter,
+            Beteiligtenrolle::Fachplaner => WeitereRolle::Fachplaner,
+            Beteiligtenrolle::Bevollmaechtigter => continue,
+        };
+        aufnehmen(rolle, b.kunde.als_beteiligter());
+    }
+    Ok(liste
+        .into_iter()
+        .map(|(rolle, _, beteiligter)| WeitererBeteiligter { rolle, beteiligter })
+        .collect())
+}
+
 /// Sortiert nach Anzeigename, ohne Rücksicht auf Groß- und Kleinschreibung.
 pub fn sortieren(kunden: &mut [Kunde]) {
     kunden.sort_by_cached_key(|k| (k.anzeigename().to_lowercase(), k.id));
@@ -468,6 +557,98 @@ mod tests {
             k.email = schlecht.into();
             assert!(k.pruefen().is_err(), "{schlecht}");
         }
+    }
+
+    #[test]
+    fn zeichen_ausserhalb_din_91379_werden_beim_speichern_genannt() {
+        let mut k = person("Иван", "Petrov");
+        let e = k.pruefen().unwrap_err().to_string();
+        assert!(e.contains("Vorname:") && e.contains("DIN 91379"), "{e}");
+        k.vorname = "Iwan".into();
+        assert!(k.pruefen().is_ok());
+        // Notizen gehen in keine Nachricht und bleiben frei.
+        k.notizen = "Grüße – Ж".into();
+        assert!(k.pruefen().is_ok());
+    }
+
+    fn kunde(daten: Kundendaten) -> Kunde {
+        Kunde {
+            id: KundeId::new(),
+            daten,
+            version: 1,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn antragsbeteiligte_aus_rollen_und_flurstuecken() {
+        use crate::grundstuecksinformationen::{FlurstuecksInfo, Grundstuecksinformationen};
+        let bauherr = kunde(person("Anna", "Bau"));
+        let eigen = kunde(person("Erna", "Eigen"));
+        let vollmacht = kunde(person("Otto", "Vollmacht"));
+        let planer = kunde(person("Frieda", "Statik"));
+        let fl = |id: &str, eigentuemer: Vec<KundeId>| FlurstuecksInfo {
+            id: id.into(),
+            gemarkung: "G".into(),
+            gemarkungsnummer: String::new(),
+            flur: "1".into(),
+            nummer: "1".into(),
+            flaeche_m2: 100.,
+            grundbuchbezirk: String::new(),
+            grundbuchblatt: String::new(),
+            laufende_nummer: None,
+            grundbuchauszug: None,
+            eigentuemer: String::new(),
+            eigentuemer_kunden: eigentuemer,
+            bemerkung: String::new(),
+            rolle: Default::default(),
+        };
+        let mut projekt = crate::domain::Project {
+            id: crate::domain::ProjectId::new(),
+            name: "P".into(),
+            bundesland: crate::domain::Bundesland::By,
+            grundstuecksflaeche_m2: None,
+            planungsrecht: Default::default(),
+            version: 1,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        projekt.planungsrecht.grundstuecksinformationen = Some(Grundstuecksinformationen {
+            flurstuecke: vec![fl("a", vec![bauherr.id, eigen.id]), fl("b", vec![eigen.id])],
+        });
+        let beteiligte = vec![
+            Projektbeteiligter {
+                rolle: Beteiligtenrolle::Fachplaner,
+                kunde: planer.clone(),
+            },
+            Projektbeteiligter {
+                rolle: Beteiligtenrolle::Grundstueckseigentuemer,
+                kunde: eigen.clone(),
+            },
+            Projektbeteiligter {
+                rolle: Beteiligtenrolle::Bevollmaechtigter,
+                kunde: vollmacht.clone(),
+            },
+        ];
+        let bauherren = vec![bauherr.als_beteiligter()];
+        let liste = antragsbeteiligte(&projekt, &bauherren, &beteiligte).unwrap();
+        let ids: Vec<_> = liste
+            .iter()
+            .map(|b| (b.rolle, b.beteiligter.id()))
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                (WeitereRolle::Bevollmaechtigter, vollmacht.id.0),
+                (WeitereRolle::Grundstueckseigentuemer, bauherr.id.0),
+                (WeitereRolle::Grundstueckseigentuemer, eigen.id.0),
+                (WeitereRolle::Fachplaner, planer.id.0),
+            ]
+        );
+        // Eigentümer ohne Kundenangaben im Stand: Fehler statt Lücke.
+        let err = antragsbeteiligte(&projekt, &[], &beteiligte).unwrap_err();
+        assert!(err.to_string().contains("Flurstück"), "{err}");
     }
 
     #[test]
