@@ -205,6 +205,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         }],
         dokumentbeziehungen: vec![],
         abgaben: vec![],
+        externe_einreichungen: vec![],
         bescheide: vec![],
         ereignisse: vec![],
     };
@@ -321,7 +322,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
             .any(|a| a.id == paket.stand.id && a.status.contains("Nur exportiert"))
     );
     assert!(nur_export.empfaenger.is_empty());
-    c.einreichung_bestaetigen(
+    c.einreichung_bestaetigen_altbestand(
         paket.stand.id,
         paket.version,
         tag,

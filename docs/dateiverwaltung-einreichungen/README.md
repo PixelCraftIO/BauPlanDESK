@@ -51,9 +51,13 @@ Einreichungspakete unverändert:
 - Die Chronik nennt je Paket die festgehaltenen Unterlagen, Versionen, Prüfsummen
   und die Kategorie zum Zeitpunkt des Pakets.
 - **Dieses ZIP erneut exportieren** liefert dieselben Bytes wie beim Erstellen.
-- **Einreichungsdatum erfassen** bestätigt ein noch unbestätigtes Paket einmalig
-  mit Datum, Benutzer, Bestätigungszeit und Notiz. Export allein bestätigt keine
-  Einreichung.
+- Pakete werden **nicht mehr bestätigt**. „Eingereicht“ hat eine einzige
+  Quelle, die Verfahrensakte: ein versendeter Abgabestand oder eine dort
+  nachgetragene **externe Einreichung** (siehe
+  [Verfahrensakte](../verfahrensakte/README.md#externe-einreichung)). Früher
+  bestätigte Pakete zeigen ihre Bestätigung weiter an. Der Core lehnt
+  `einreichung_bestaetigen` ab; die Server-Route bleibt für ältere Clients
+  bestehen und liefert diese Meldung (HTTP 422), der Desktop-Befehl entfällt.
 
 Das ZIP enthält die Dateiversionen unter
 `Unterlagen/<Dokument-ID>/v<Version>-<Dateiname>` sowie `Einreichungsstand.json` mit
@@ -66,9 +70,9 @@ bestätigten Pakete eines Empfängers zusammengestellt; das tatsächliche
 Einreichungsdatum bestimmt die Reihenfolge, bei gleichem Datum die
 Bestätigungszeit, danach die Paket-ID.
 
-Das Bestätigen erfordert Bearbeitungsrechte und eine gültige Lizenz. Eine
-begonnene Bestätigung muss vor dem Schließen abgeschlossen oder abgebrochen
-werden.
+Ein Paket ohne Bestätigung erscheint in der Projektübersicht mit dem Hinweis,
+eine tatsächliche Einreichung als externe Einreichung in der Verfahrensakte
+nachzutragen.
 
 ## Architektur und Migration
 

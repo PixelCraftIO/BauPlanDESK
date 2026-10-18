@@ -37,6 +37,9 @@ with sync_playwright() as pw:
  area().get_by_role('button',name='Datei und Anlagen prüfen',exact=True).click();expect(area()).to_contain_text('libxml2/xmllint');expect(area().get_by_role('button',name='Im Nachrichtenjournal erfassen',exact=True)).to_be_disabled()
  area().get_by_label('Ich habe Projekt, Richtung und Beteiligte mit dem Original abgeglichen.',exact=True).check();area().get_by_role('button',name='Im Nachrichtenjournal erfassen',exact=True).click();expect(area()).to_contain_text('Dadurch wird kein Versand bestätigt.')
  area().get_by_label('Verfahrensakte',exact=True).select_option(wf['verfahren'][0]['objekt']);area().get_by_role('button',name='Als Kommunikation übernehmen',exact=True).click();expect(area()).to_contain_text('Als Kommunikation in der Verfahrensakte erfasst.')
+ # Datum der Kommunikation ist der bestätigbare Zugang, vorbelegt mit dem Erfassungstag.
+ uebernahme=page.evaluate('window.calls.find(c=>c.cmd==="xbau_in_verfahren").args')
+ assert uebernahme['zugang'] and len(uebernahme['zugang'])==10,uebernahme
  # Bei Prüfungsfehlern bleibt keine alte erfolgreiche Vorschau stehen.
  page.evaluate('window.xbauFail=true');area().get_by_role('button',name='Datei und Anlagen prüfen',exact=True).click();expect(area().get_by_role('alert')).to_contain_text('Testfehler');expect(area().get_by_role('button',name='Im Nachrichtenjournal erfassen',exact=True)).to_have_count(0);page.evaluate('window.xbauFail=false')
  # Entwurf ist nach Bereichswechsel erhalten und projektgebunden.

@@ -739,6 +739,7 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         anforderungen: vec![],
         dokumentbeziehungen: vec![],
         abgaben: vec![],
+        externe_einreichungen: vec![],
         bescheide: vec![],
         ereignisse: vec![],
     };

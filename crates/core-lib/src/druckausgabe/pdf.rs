@@ -421,7 +421,7 @@ pub(super) fn paket(
             text(""),
             text(
                 a.datum
-                    .unwrap_or(datum.date_naive())
+                    .unwrap_or(crate::kalender::datum_deutsch(datum))
                     .format("%d.%m.%Y")
                     .to_string(),
             ),
@@ -524,7 +524,12 @@ pub(super) fn paket(
     let cat = out.add_object(dictionary! {"Type"=>"Catalog","Pages"=>root});
     out.trailer.set("Root", cat);
     // Entfernt u.a. nicht ausgewählte Seiten, ursprüngliche Formfelder und Katalog-Aktionen.
-    super::layout::briefbogen(&mut out, projekt, &a, a.datum.unwrap_or(datum.date_naive()))?;
+    super::layout::briefbogen(
+        &mut out,
+        projekt,
+        &a,
+        a.datum.unwrap_or(crate::kalender::datum_deutsch(datum)),
+    )?;
     out.prune_objects();
     Ok(Druckergebnis {
         pdf: speichern(out)?,

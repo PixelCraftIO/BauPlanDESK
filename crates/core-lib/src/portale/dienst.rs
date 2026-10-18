@@ -388,6 +388,10 @@ impl CoreServices {
                     "XBau-Original oder Behörden-/Verfahrensbezug passt nicht",
                 ));
             }
+            // Dieselbe Nachricht kommt projektweit nur einmal in eine Akte.
+            if let Some(v) = self.xbau_verwendungen(p, id).await?.into_iter().next() {
+                return Err(fehler(v.meldung()));
+            }
         }
         let cid = pruefung::kommunikation_id(w.id);
         a.kommunikation.push(Kommunikation {

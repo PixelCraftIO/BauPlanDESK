@@ -312,7 +312,7 @@ impl CoreServices {
                             .unwrap_or(&d.file_name)
                             .to_string(),
                         versionsnummer: d.version,
-                        datum: d.created_at.date_naive(),
+                        datum: crate::kalender::datum_deutsch(d.created_at),
                         anlageart: wahl.map(|a| a.anlageart.clone()).unwrap_or_default(),
                         dateiname: name.clone(),
                     }
