@@ -220,7 +220,18 @@ impl CoreServices {
                 UebersichtsZiel::neu("rechtsgrundlagen"),
             );
         }
-        if projekt.planungsrecht.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par30)
+        if let Err(e) = projekt.planungsrecht.einordnung_pruefen() {
+            s.punkt(
+                "einordnung",
+                Grundlagen,
+                Handeln,
+                "Planungsrechtliche Einordnung widersprüchlich",
+                e.to_string(),
+                UebersichtsZiel::neu("rechtsgrundlagen"),
+            );
+        }
+        if (projekt.planungsrecht.mit_bebauungsplan()
+            || projekt.planungsrecht.rechtsgrundlage == Some(crate::domain::Rechtsgrundlage::Par30))
             && projekt.planungsrecht.bau_nvo.is_none()
         {
             s.punkt("baunvo",Grundlagen,Handeln,"BauNVO-Fassung des Bebauungsplans festlegen","Ohne zeitlich passende Grundlage können Nutzungsnachweise nicht zuverlässig eingeordnet werden.",UebersichtsZiel::neu("rechtsgrundlagen"));

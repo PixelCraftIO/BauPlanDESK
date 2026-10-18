@@ -75,7 +75,10 @@ pub fn ermitteln(p: &Project) -> CoreResult<Vec<GrundstueckKontext>> {
             let basis = if grund.gemeinschaftsanteile.is_empty() {
                 Some(g.bauland_m2)
             } else if mit_plan {
-                if let Some(fassung) = p.planungsrecht.bau_nvo.or(aufstellung.map(|a| a.bau_nvo)) {
+                if let Some(fassung) = p
+                    .planungsrecht
+                    .massgebende_bau_nvo(aufstellung.map(|a| a.bau_nvo))
+                {
                     Some(
                         grund
                             .berechne(crate::baunvo::regelwerk(fassung))?

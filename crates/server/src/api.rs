@@ -11,7 +11,6 @@ use axum::{Extension, Json, Router};
 pub mod zugang;
 use core_lib::benutzer::Benutzer;
 use core_lib::cad::{Laengeneinheit, Messung, Punkt};
-use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use core_lib::domain::{
     Bundesland, DocumentId, DocumentVersion, NewProject, Project, ProjectId, ProjectUpdate,
 };
@@ -214,6 +213,10 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/verfahren/{verfahren}/abgaben/{abgabe}/{format}",
             get(verfahren_artefakt),
         )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/planunterlagen",
+            get(verfahren_planunterlagen),
+        )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
         .route("/projekte/{id}/termine.ics", get(verfahren_termine_ics))
@@ -301,7 +304,6 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/abstandsnachweise/{nachweis}/{format}",
             get(abstandsexport),
         )
-        .route("/berechnung/mass-der-nutzung", post(mass_der_nutzung))
         .route("/berechnung/aufmass", post(aufmass))
         .route(
             "/projekte/{id}/nutzung/pruefen",
@@ -512,22 +514,6 @@ async fn abstandsflaeche(
     Json(req): Json<AbstandsflaecheRequest>,
 ) -> ApiResult<Berechnung<AbstandsflaecheErgebnis>> {
     let r = core.abstandsflaeche(req.land, &req.input)?;
-    Ok(Json(r))
-}
-
-#[derive(Deserialize)]
-struct MassDerNutzungRequest {
-    gebiet: Baugebiet,
-    #[serde(flatten)]
-    eingabe: MassDerNutzung,
-    festsetzungen: Option<Orientierungswerte>,
-}
-
-async fn mass_der_nutzung(
-    State(ApiState { core, .. }): State<ApiState>,
-    Json(req): Json<MassDerNutzungRequest>,
-) -> ApiResult<Pruefergebnis> {
-    let r = core.mass_der_nutzung(&req.eingabe, req.gebiet, req.festsetzungen)?;
     Ok(Json(r))
 }
 
@@ -1184,6 +1170,12 @@ async fn verfahren_xbau_erfassen(
         core.verfahren_xbau_erfassen(ProjectId(p), id, abgabe, &wer)
             .await?,
     ))
+}
+async fn verfahren_planunterlagen(
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Vec<core_lib::verfahren::planindex::Planunterlage>> {
+    Ok(Json(core.verfahren_planunterlagen(ProjectId(p), id).await?))
 }
 async fn verfahren_artefakt(
     State(ApiState { core }): State<ApiState>,

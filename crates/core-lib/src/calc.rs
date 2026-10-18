@@ -1,5 +1,10 @@
 //! Bundesrechtliche Kennzahlen nach BauNVO (§§ 17, 19, 20, 21).
 //!
+//! Hier werden nur Kennzahlen gerechnet und Orientierungswerte bereitgestellt.
+//! Ein Urteil gegen Festsetzungen, § 19 Abs. 4 BauNVO oder die Umgebung bildet
+//! ausschließlich [`crate::festsetzungen::pruefe`]; § 17 BauNVO richtet sich an
+//! die planende Gemeinde und ist kein Zulässigkeitsmaßstab.
+//!
 //! Bundesrecht ändert sich selten und gilt überall gleich, daher ist es nativ
 //! in Rust umgesetzt. Landesrecht (Abstandsflächen etc.) liegt in Skripten,
 //! siehe [`crate::lbo`].
@@ -120,18 +125,6 @@ pub struct Kennzahlen {
     pub bmz: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Pruefergebnis {
-    pub kennzahlen: Kennzahlen,
-    pub grenzwerte: Orientierungswerte,
-    /// § 19 Abs. 4 S. 2 BauNVO: Überschreitung bis 50 %, höchstens 0,8
-    pub grz_gesamt_max: f64,
-    pub grz_eingehalten: bool,
-    pub grz_gesamt_eingehalten: bool,
-    pub gfz_eingehalten: Option<bool>,
-    pub bmz_eingehalten: Option<bool>,
-}
-
 pub fn kennzahlen(m: &MassDerNutzung) -> CoreResult<Kennzahlen> {
     let flaeche = m.grundstuecksflaeche_m2;
     if !(flaeche.is_finite() && flaeche > 0.0) {
@@ -159,34 +152,6 @@ pub fn kennzahlen(m: &MassDerNutzung) -> CoreResult<Kennzahlen> {
     })
 }
 
-/// Prüft gegen die Orientierungswerte des § 17 BauNVO. Ein Bebauungsplan
-/// kann abweichende Werte festsetzen; diese können über `grenzwerte`
-/// übergeben werden.
-pub fn pruefe(
-    m: &MassDerNutzung,
-    gebiet: Baugebiet,
-    grenzwerte: Option<Orientierungswerte>,
-) -> CoreResult<Pruefergebnis> {
-    let k = kennzahlen(m)?;
-    let g = grenzwerte.unwrap_or_else(|| gebiet.orientierungswerte());
-    let regel = crate::baunvo::regelwerk(crate::flaechen::BauNvo::V2017);
-    let grz_gesamt_max = (g.grz * regel.grz_ii_faktor)
-        .min(regel.grz_ii_kappung)
-        .max(g.grz);
-    Ok(Pruefergebnis {
-        grz_eingehalten: k.grz <= g.grz + f64::EPSILON,
-        grz_gesamt_eingehalten: k.grz_gesamt <= grz_gesamt_max + f64::EPSILON,
-        gfz_eingehalten: g.gfz.map(|max| k.gfz <= max + f64::EPSILON),
-        bmz_eingehalten: match (k.bmz, g.bmz) {
-            (Some(ist), Some(max)) => Some(ist <= max + f64::EPSILON),
-            _ => None,
-        },
-        grz_gesamt_max,
-        grenzwerte: g,
-        kennzahlen: k,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,26 +165,12 @@ mod tests {
             geschossflaeche_m2: 300.0,
             baumasse_m3: None,
         };
-        let r = pruefe(&m, Baugebiet::WA, None).unwrap();
-        assert!((r.kennzahlen.grz - 0.25).abs() < 1e-9);
-        assert!((r.kennzahlen.grz_gesamt - 0.45).abs() < 1e-9);
-        assert!((r.kennzahlen.gfz - 0.5).abs() < 1e-9);
-        assert!((r.grz_gesamt_max - 0.6).abs() < 1e-9);
-        assert!(r.grz_eingehalten && r.grz_gesamt_eingehalten);
-        assert_eq!(r.gfz_eingehalten, Some(true));
-    }
-
-    #[test]
-    fn grz_ueberschritten() {
-        let m = MassDerNutzung {
-            grundstuecksflaeche_m2: 400.0,
-            grundflaeche_m2: 200.0,
-            grundflaeche_nebenanlagen_m2: 0.0,
-            geschossflaeche_m2: 400.0,
-            baumasse_m3: None,
-        };
-        let r = pruefe(&m, Baugebiet::WR, None).unwrap();
-        assert!(!r.grz_eingehalten);
+        let k = kennzahlen(&m).unwrap();
+        assert!((k.grz - 0.25).abs() < 1e-9);
+        assert!((k.grz_gesamt - 0.45).abs() < 1e-9);
+        assert!((k.gfz - 0.5).abs() < 1e-9);
+        assert_eq!(k.bmz, None);
+        assert_eq!(Baugebiet::WA.orientierungswerte().grz, 0.4);
     }
 
     #[test]

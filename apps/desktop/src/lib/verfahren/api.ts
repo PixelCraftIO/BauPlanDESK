@@ -18,9 +18,19 @@ import type {
   Ereignisart,
   Berichtigungsgegenstand,
   Aktenereignis,
+  Einreichungsstatus,
+  Planunterlage,
   Einreichungsweg,
   ExterneEinreichungswunsch,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Einreichungsstatus::bezeichnung` im Core. */
+export const EINREICHUNG: Record<Einreichungsstatus, string> = {
+  entwurf: "Entwurf",
+  eingereicht: "Eingereicht",
+  nachgereicht: "Nachgereicht",
+  genehmigt: "Genehmigt",
+  ersetzt: "Ersetzt",
+};
 /** Bezeichnungen wie `Verfahrensstatus::bezeichnung` im Core. */
 export const STATUS: Record<Verfahrensstatus, string> = {
   vorbereitung: "In Vorbereitung",
@@ -150,6 +160,9 @@ export const verfahrenApi = {
       projektId,
       auftrag,
     }),
+  /** Planindex und Einreichungsstatus, im Core aus der gespeicherten Akte abgeleitet. */
+  planunterlagen: (projektId: string, id: string) =>
+    invoke<Planunterlage[]>("verfahren_planunterlagen", { projektId, id }),
   termineIcs: (projektId: string, ziel: string) =>
     invoke<void>("verfahren_termine_ics", { projektId, ziel }),
   erinnerungen: (projektId: string, heute: string) =>

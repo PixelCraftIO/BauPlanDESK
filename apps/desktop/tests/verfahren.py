@@ -17,7 +17,7 @@ window.procedures=[copy(window.wf.verfahren)];window.procedureFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  if(cmd==='fachobjekte'&&args.art!=='verfahren')return original(cmd,args);
  if(cmd==='fachobjekt_speichern'&&args.art!=='verfahren')return original(cmd,args);
- if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_bescheidfristen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export','verfahren_termine_ics','plugin:dialog|save'].includes(cmd))return original(cmd,args);
+ if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_bescheidfristen','verfahren_planunterlagen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export','verfahren_termine_ics','plugin:dialog|save'].includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:copy(args)});
  switch(cmd){
  case 'fachobjekte':return copy(window.procedures);
@@ -28,6 +28,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  }
  case 'verfahren_erinnerungen':return copy(window.wf.erinnerungen);
  case 'verfahren_bescheidfristen':return copy(window.wf.fristen);
+ case 'verfahren_planunterlagen':return copy(window.wf.planunterlagen??[]);
  case 'plugin:dialog|save':return '/tmp/Verfahrenstermine.ics';
  case 'verfahren_termine_ics':return null;
  case 'verfahren_suche':return copy(window.wf.treffer);

@@ -681,14 +681,17 @@ export interface NutzungsEingabe {
 export interface NutzungsPruefung {
   aufstellung: FlaechenErgebnis | null;
   projekt_version: number;
-  kennzahlen: Pruefergebnis["kennzahlen"];
+  kennzahlen: Kennzahlen;
   bebauungsplan: boolean;
+  /** Fachliche Hinweise des Core, z. B. fehlende BauNVO-Fassung des Plans. */
+  hinweise: string[];
   nachweise: {
     art: string;
     gegenstand?: string | null;
     ist: number | null;
     soll: number | null;
     quelle: "festsetzung" | "orientierungswert" | "bau_nvo19" | "umgebung" | "keine";
+    /** baufensterflaeche: nur Information; baufenster_lage: Urteil aus den Baugrenzen. */
     zwingend: boolean;
     eingehalten: boolean | null;
     abweichung: number | null;
@@ -827,19 +830,11 @@ export interface MassDerNutzung {
   baumasse_m3: number | null;
 }
 
-export interface Pruefergebnis {
-  kennzahlen: {
-    grz: number;
-    grz_gesamt: number;
-    gfz: number;
-    bmz: number | null;
-  };
-  grenzwerte: { grz: number; gfz: number | null; bmz: number | null };
-  grz_gesamt_max: number;
-  grz_eingehalten: boolean;
-  grz_gesamt_eingehalten: boolean;
-  gfz_eingehalten: boolean | null;
-  bmz_eingehalten: boolean | null;
+export interface Kennzahlen {
+  grz: number;
+  grz_gesamt: number;
+  gfz: number;
+  bmz: number | null;
 }
 
 export type Feldart =
@@ -1409,12 +1404,6 @@ export const api = {
     invoke<BaugrenzenPruefung>("baugrenzen_pruefen", { geometrie }),
   aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>
     invoke<Messung>("aufmass", { punkte, geschlossen, einheit }),
-  massDerNutzung: (eingabe: MassDerNutzung, gebiet: Baugebiet) =>
-    invoke<Pruefergebnis>("mass_der_nutzung", {
-      eingabe,
-      gebiet,
-      festsetzungen: null,
-    }),
   abstandsflaeche: (
     land: Bundesland,
     eingabe: { wandhoehe_m: number; gebiet: Baugebiet },

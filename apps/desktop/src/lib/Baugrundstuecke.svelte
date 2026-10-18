@@ -146,7 +146,8 @@
     bmz: "BMZ",
     grundflaeche: "Grundfläche",
     geschossflaeche: "Geschossfläche",
-    baufensterflaeche: "Baufensterfläche",
+    baufensterflaeche: "Baufensterfläche (Information)",
+    baufenster_lage: "Lage im Baufenster (§ 23 BauNVO, m² außerhalb)",
     vollgeschosse: "Vollgeschosse",
   };
   // Orientierungs- und Umgebungswerte zeigen nur die Abweichung; der Core wertet sie nicht als Verstoß.
@@ -160,7 +161,9 @@
   const relevanteNachweise = $derived(
     (nachweis?.nachweise ?? []).filter((n) =>
       bereich === "grz"
-        ? ["grz", "grz_gesamt", "grundflaeche"].includes(n.art)
+        ? ["grz", "grz_gesamt", "grundflaeche", "baufenster_lage"].includes(
+            n.art,
+          )
         : bereich === "gfz"
           ? ["gfz", "geschossflaeche"].includes(n.art)
           : bereich === "geschosse"
@@ -604,6 +607,9 @@
       );
     }}>Nicht zugeordnete Berechnungen entfernen</button
   >{/if}
+{#each nachweis?.hinweise ?? [] as h}<p class="hinweisbox" role="status">
+    {h}
+  </p>{/each}
 {#if relevanteNachweise.length}<table class="ergebnistabelle">
     <thead
       ><tr
@@ -620,7 +626,9 @@
           ><td>{z(n.ist)}</td><td>{z(n.soll)}</td><td
             >{quellenTitel[n.quelle]}</td
           ><td class:verstoss={n.eingehalten === false}
-            >{z(n.abweichung ?? n.ueberschreitung)}</td
+            >{n.art === "baufenster_lage" && n.ist == null
+              ? "Nicht geprüft"
+              : z(n.abweichung ?? n.ueberschreitung)}</td
           ></tr
         >{/each}</tbody
     >

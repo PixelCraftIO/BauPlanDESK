@@ -4,6 +4,7 @@ pub mod abgabe;
 pub mod chronik;
 pub mod externe_einreichung;
 pub mod fristen;
+pub mod planindex;
 pub mod profile;
 mod pruefung;
 mod regeln;

@@ -199,6 +199,37 @@ Berechnung nennt ihren `regelstand` (aktuell `2026-10-18`; Berlin wurde dabei
 von 3 auf 2 Jahre berichtigt, die Werte für Sachsen sind nur über eine
 Sekundärquelle bestätigt).
 
+## Planindex und Einreichungsstatus
+
+`crates/core-lib/src/verfahren/planindex.rs` (`ableiten`) leitet je Dokument aus
+der gespeicherten Akte ab:
+
+- **Planindex:** Jede Version, die erstmals in einem versendeten oder
+  eingegangenen Abgabestand enthalten war, erhält den nächsten Buchstaben
+  (A, B, …, Z, AA). Reihenfolge: Datum des maßgebenden Versandereignisses, dann
+  Erstellung des Abgabestands. Vorbereitete, zurückgewiesene und ungeklärte Stände
+  vergeben keinen Index.
+- **Einreichungsstatus:** Entwurf (nicht eingereicht), Eingereicht (mit dem ersten
+  versendeten Stand), Nachgereicht (später), Genehmigt (genehmigte Unterlage eines
+  nicht ersetzten Bescheids) und Ersetzt (später eingereichte Version oder
+  eingereichte Fassung aus einer Dokumentbeziehung; eine genehmigte Fassung bleibt
+  genehmigt, bis der Nachfolger genehmigt ist). Eine neuere, nicht eingereichte
+  DMS-Version wird als offene Version genannt.
+
+Das Register „Abgaben“ zeigt die Tabelle für den gespeicherten Stand
+(`GET /api/projekte/{id}/verfahren/{verfahren}/planunterlagen`, Desktop-Befehl
+`verfahren_planunterlagen`). Beim Festhalten eines Abgabestands nennt das
+Inhaltsverzeichnis der Druckausgabe (Anlagenverzeichnis) „Version · Index“; der
+dort ausgewiesene Index wird im Abgabedokument als `planindex` eingefroren. Weicht
+er später von der Ableitung ab (etwa wenn ein anderer Stand zuerst versendet
+wurde), meldet die Ableitung das als Hinweis. Die XBau-Anlage enthält weiter nur
+die DMS-Versionsnummer; ein Feld für den Planindex gehört zum XBau-Inhalt.
+
+Der bisherige Unterlagenstatus der Projektunterlagen (Entwurf, Prüfung,
+Freigegeben) bleibt unverändert als manuelle Bürofreigabe erhalten; er steuert
+weiter die interne Freigabe vor der Einreichung. Der Revisionsindex der
+Dokumentdaten bleibt die Kennung des Planverfassers.
+
 ## Suche und Wiedervorlagen
 
 **Organisation → Suche / Wiedervorlagen** zeigt fällige Termine ab ihrem

@@ -128,7 +128,17 @@ in **Maß der Nutzung** automatisch aus dem gespeicherten Projekt gelesen.
 Vollgeschosse können als Höchstzahl oder zwingende Zahl angegeben werden.
 Die Ergebnisse zeigen Ist, Soll, Quelle und absolute/prozentuale Überschreitung.
 Fehlende Planfestsetzungen bleiben ungeprüft; ohne Bebauungsplan werden ausdrücklich
-gekennzeichnete Orientierungswerte nach § 17 BauNVO verwendet. Berechnungseingaben
+gekennzeichnete Orientierungswerte nach § 17 BauNVO ohne Urteil verwendet. Bei einem
+Bebauungsplan ohne erfasste BauNVO-Fassung gibt es keine GRZ-II-Bewertung und kein
+Urteil zu den Flächenmaßen, sondern den Hinweis, die Fassung zu erfassen; die Fassung
+der Flächenaufstellung ist dort keine Grundlage. Die Baufensterfläche ist nur eine
+Information; die Lage im Baufenster (§ 23 BauNVO) bewertet der Core aus den
+zugeordneten Umrissen, ohne Umrisse heißt sie „nicht geprüft“. Beim einfachen
+Bebauungsplan mit ergänzendem § 34 BauGB werden nicht festgesetzte Maße den
+erfassten Umgebungswerten gegenübergestellt (ohne Urteil). Planart und
+Rechtsgrundlage prüft der Core beim Speichern (z. B. kein § 34 bei einem
+qualifizierten Plan); ältere widersprüchliche Stände bleiben ladbar und werden in
+der Projektübersicht gemeldet. Berechnungseingaben
 können je Projekt gespeichert werden; nach Änderungen werden alte Ergebnisse
 nicht mehr als aktuell dargestellt.
 
@@ -139,15 +149,19 @@ Zusätzlich wird der größte Überstand an den Gebäudeeckpunkten in Metern gez
 dieser ist kein Maximum aller Kantenpunkte. Die Prüfung unterstützt auch konkave
 Umrisse. Ein reiner Zahlenvergleich von Grundfläche und Baufensterfläche prüft
 die Lage des Gebäudes nicht. Die Zuordnung wird zusammen mit Plan-Dokument,
-Version und Zeichnungseinheit gespeichert; die Baufensterfläche kann damit in
-die Festsetzungen übernommen werden. Eine neue Planversion erfordert eine neue
+Version und Zeichnungseinheit gespeichert und liefert im GRZ-Nachweis die Zeile
+„Lage im Baufenster“; die gemessene Fläche wird nicht mehr in die Festsetzungen
+geschrieben (bereits gespeicherte Werte bleiben lesbar). Eine neue Planversion erfordert eine neue
 Zuordnung. Pro Prüfung werden ein Baufenster und ein Gebäudeumriss verwendet;
 Ausnahmen, Befreiungen und besondere Bauteilregelungen werden fachlich beurteilt.
 
 Der Server stellt die projektbezogene Nutzung unter
 `POST /api/projekte/{id}/nutzung/pruefen` (NutzungsEingabe mit `mass`, `gebiet`
 und optional `vollgeschosse`) und den geometrischen Vergleich unter
-`POST /api/berechnung/baugrenzen` (BaugrenzenGeometrie) bereit.
+`POST /api/berechnung/baugrenzen` (BaugrenzenGeometrie) bereit. Die frühere
+Schnittstelle `POST /api/berechnung/mass-der-nutzung` (und der Desktop-Befehl
+`mass_der_nutzung`) ist entfallen: Sie urteilte nach § 17 BauNVO und fest nach der
+Fassung 2017. Ersatz ist die projektbezogene Prüfung oben.
 
 ## LBO-Engine
 
