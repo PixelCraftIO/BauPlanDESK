@@ -169,6 +169,7 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/mitglieder",
             get(mitglieder).post(mitglied_setzen),
         )
+        .route("/projekte/{id}/recht", get(projektrecht))
         .route(
             "/projekte/{id}/grundstueckskontext",
             get(grundstueckskontext),
@@ -958,6 +959,14 @@ async fn bereitschaft(
     }
     let (_, db, speicher) = stand.as_ref().expect("Gesundheitsprüfung wurde ausgeführt");
     (if *db&&*speicher {StatusCode::OK}else{StatusCode::SERVICE_UNAVAILABLE},Json(serde_json::json!({"datenbank":if *db{"bereit"}else{"nicht_bereit"},"speicher":if *speicher{"bereit"}else{"nicht_bereit"},"pruefung":"Lesen und Schreiben, Cache höchstens 30 Sekunden"}))).into_response()
+}
+/// Eigenes wirksames Projektrecht (Core-Regel aus `zugriff.rs`).
+async fn projektrecht(
+    Extension(b): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<core_lib::zugriff::ProjektRecht> {
+    Ok(Json(core.eigenes_projektrecht(ProjectId(id), &b).await?))
 }
 async fn mitglieder(
     Extension(b): Extension<Benutzer>,

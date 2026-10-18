@@ -15,6 +15,7 @@
   import { FACHMODULE } from "./fachmodule/register";
   import { projektEditoren } from "./editoren";
   import { untrack } from "svelte";
+  import { melden } from "./projektEreignisse";
   import {
     api,
     fehlertext,
@@ -58,6 +59,7 @@
     info,
     ich,
     darf,
+    darfMitglieder = false,
     importAusloeser,
     onprojekt,
     ondialog,
@@ -69,6 +71,8 @@
     info: AppInfo | null;
     ich: Benutzer | null;
     darf: (min: "bearbeitung" | "projektleitung") => boolean;
+    /** Projektmitglieder verwalten (Projektrecht „Leitung“). */
+    darfMitglieder?: boolean;
     importAusloeser: number;
     onprojekt: (p: Project) => void;
     ondialog: (
@@ -157,8 +161,9 @@
         .catch(melde),
     );
   });
+  /** Gespeicherte Formulare: alle Bereiche dieser Akte laden ihre Dokumente neu. */
   export async function dokumenteAktualisieren() {
-    await dokumentEditor?.aktualisieren();
+    melden({ projektId: projekt.id, bereich: "dokumente" });
   }
   export function hatAenderungen() {
     return editoren.hatAenderungen();
@@ -343,7 +348,7 @@
       <button class="sekundaer" onclick={() => ondialog("beteiligte")}
         >Weitere Beteiligte …</button
       >
-      {#if darf("projektleitung")}
+      {#if darfMitglieder}
         <button class="sekundaer" onclick={() => ondialog("mitglieder")}>Projektmitglieder …</button>
       {/if}
       <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}
@@ -526,6 +531,7 @@
         bind:this={dokumentEditor}
         projektId={projekt.id}
         benutzer={ich}
+        aktiv={aktiv && ansicht === "dokumente"}
         {importAusloeser}
         onplan={(id) => {
           planDokument = id;

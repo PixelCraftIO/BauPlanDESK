@@ -83,20 +83,56 @@ impl CoreServices {
         if aktuell.rolle == Rolle::Administrator {
             return Ok(());
         }
-        let f = self
+        let recht = self
+            .mitgliedsrecht(p, wer)
+            .await?
+            .ok_or_else(|| CoreError::Forbidden("Keine Projektmitgliedschaft".into()))?;
+        if recht < min {
+            return Err(CoreError::Forbidden(
+                "Projektberechtigung reicht nicht aus".into(),
+            ));
+        }
+        Ok(())
+    }
+    /// Wirksames Projektrecht des Benutzers nach derselben Regel wie
+    /// [`Self::projekt_zugriff`]: Administratoren haben `Leitung`, Mitglieder
+    /// ihr eingetragenes Recht. Wer das Projekt nicht lesen darf (deaktiviertes
+    /// Konto, keine Mitgliedschaft, Recht `Kein`), erhält wie beim Öffnen
+    /// `Forbidden`. Die Oberfläche richtet Bearbeitungs- und Leitungsfunktionen
+    /// danach aus; geprüft wird weiterhin an der Servicegrenze.
+    pub async fn eigenes_projektrecht(
+        &self,
+        p: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<ProjektRecht> {
+        self.projekt_zugriff(p, wer, ProjektRecht::Lesen).await?;
+        self.repos.projects.get(p).await?;
+        if self.repos.benutzer.get(wer.id).await?.rolle == Rolle::Administrator {
+            return Ok(ProjektRecht::Leitung);
+        }
+        Ok(self
+            .mitgliedsrecht(p, wer)
+            .await?
+            .unwrap_or(ProjektRecht::Kein))
+    }
+    /// Gespeichertes Recht der Mitgliedschaft, tolerant gelesen über
+    /// [`gespeichertes_recht`]; `None` ohne Mitgliedschaft.
+    async fn mitgliedsrecht(
+        &self,
+        p: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<Option<ProjektRecht>> {
+        let Some(f) = self
             .repos
             .commit
             .fachstaende(p, "mitgliedschaften")
             .await?
             .into_iter()
             .find(|f| f.objekt == wer.id.to_string())
-            .ok_or_else(|| CoreError::Forbidden("Keine Projektmitgliedschaft".into()))?;
-        if gespeichertes_recht(&f.daten)? < min {
-            return Err(CoreError::Forbidden(
-                "Projektberechtigung reicht nicht aus".into(),
-            ));
-        }
-        Ok(())
+        else {
+            return Ok(None);
+        };
+        gespeichertes_recht(&f.daten).map(Some)
     }
     pub async fn projekte_fuer_benutzer(&self, wer: &Benutzer) -> CoreResult<Vec<Project>> {
         let mut result = Vec::new();

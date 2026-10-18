@@ -39,14 +39,9 @@
     grz_ii: "GRZ II – Zusatzfläche",
     keine: "Nicht angerechnet",
   });
-  const faktor = $derived(
-    regel.nichtvollgeschoss_planabweichung
-      ? (festsetzungen.nichtvollgeschoss_faktor ??
-          (aufstellung.nichtvollgeschoss_festsetzung.trim()
-            ? aufstellung.nichtvollgeschoss_faktor
-            : regel.nichtvollgeschoss_faktor))
-      : regel.nichtvollgeschoss_faktor,
-  );
+  // Wirksamer Faktor aus dem Core-Ergebnis (Regelwerk und, nur mit
+  // Bebauungsplan, Planfestsetzung). Vor der ersten Prüfung unbekannt.
+  const faktor = $derived(ergebnis?.nichtvollgeschoss_faktor ?? null);
   import { plattformApi } from "./plattformApi";
   import { fehlertext } from "./api";
   import type { GebaeudeGrundlagen } from "./generated/plattform";
@@ -199,13 +194,17 @@
       zusammenfassen.
     </p>
     <p class="hinweisbox">
-      {faktor === 0
-        ? "Nichtvollgeschosse werden nach diesem Regelwerk nicht auf die GFZ angerechnet."
-        : `Aufenthaltsräume, Umfassungswände und zugehörige Erschließung in Nichtvollgeschossen werden mit ${z(faktor * 100)} % angerechnet.`}
-      {regel.nichtvollgeschoss_planabweichung &&
-      festsetzungen.nichtvollgeschoss_faktor != null
-        ? "Die abweichende Festsetzung stammt aus den Projekt-Rechtsgrundlagen."
-        : "Der Ansatz wird automatisch aus der BauNVO-Konfiguration übernommen."}
+      {#if faktor === null}
+        Der Anrechnungsansatz für Nichtvollgeschosse wird bei der Prüfung aus
+        dem Regelwerk und gegebenenfalls der Planfestsetzung ermittelt.
+      {:else}
+        {faktor === 0
+          ? "Nichtvollgeschosse werden nach diesem Regelwerk nicht auf die GFZ angerechnet."
+          : `Aufenthaltsräume, Umfassungswände und zugehörige Erschließung in Nichtvollgeschossen werden mit ${z(faktor * 100)} % angerechnet.`}
+        {faktor !== regel.nichtvollgeschoss_faktor
+          ? "Der Ansatz folgt einer abweichenden Planfestsetzung (Stand der letzten Prüfung)."
+          : "Der Ansatz folgt der BauNVO-Konfiguration (Stand der letzten Prüfung)."}
+      {/if}
     </p>
     {#each aufstellung.geschosse as g, i}
       <fieldset>
@@ -264,7 +263,7 @@
               ></select
             ></label
           >
-          {#if g.vollgeschoss || faktor > 0}<label
+          {#if g.vollgeschoss || faktor !== 0}<label
               >Geschossfläche nach Außenmaßen (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Geschossfläche nach Außenmaßen (m²)"
                 type="number"
                 min="0"
@@ -274,7 +273,7 @@
                 required
               /></label
             >{/if}
-          {#if !g.vollgeschoss && faktor > 0}
+          {#if !g.vollgeschoss && faktor !== 0}
             <label
               >Aufenthaltsräume (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Aufenthaltsräume (m²)"
                 type="number"
@@ -303,7 +302,7 @@
               /></label
             >
           {/if}
-          {#if !g.vollgeschoss && faktor > 0 && g.teilflaechen_geprueft !== undefined}<label><input type="checkbox" bind:checked={g.teilflaechen_geprueft} />Aufenthaltsräume, Wände und Erschließung vollständig geprüft</label>{/if}
+          {#if !g.vollgeschoss && faktor !== 0 && g.teilflaechen_geprueft !== undefined}<label><input type="checkbox" bind:checked={g.teilflaechen_geprueft} />Aufenthaltsräume, Wände und Erschließung vollständig geprüft</label>{/if}
         </div>
         {#if g.flaeche_aus_grundlagen}<p class="meta">Geschossfläche aus Gebäude/Geschosse. <button type="button" class="link" onclick={() => { g.flaeche_aus_grundlagen = undefined; }}>Flächenverknüpfung lösen</button></p>{/if}
         {#if ergebnis && ergebnis.geschosse[i] !== undefined}<p class="meta">

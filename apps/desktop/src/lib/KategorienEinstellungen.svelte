@@ -33,7 +33,14 @@
   }
   onMount(laden);
   export function istBeschaeftigt() {
-    return laeuft || bearbeitung !== null;
+    return laeuft;
+  }
+  /** Stand beim Öffnen der Bearbeitung, um echte Änderungen zu erkennen. */
+  let bearbeitungStart = "";
+  const bearbeitungStand = () => JSON.stringify({ name, eltern, aktiv });
+  /** Eine geöffnete, geänderte Kategorie zählt als ungespeicherte Eingabe. */
+  export function hatAenderungen() {
+    return bearbeitung !== null && bearbeitungStand() !== bearbeitungStart;
   }
   function bearbeiten(id: string) {
     const k = katalog?.kategorien.find((k) => k.id === id);
@@ -41,12 +48,24 @@
     name = k?.name ?? "";
     eltern = k?.eltern_id ?? "";
     aktiv = k?.aktiv ?? true;
+    bearbeitungStart = bearbeitungStand();
     fehler = "";
     meldung = "";
   }
-  async function speichern(e: SubmitEvent) {
-    e.preventDefault();
+  /** Für Strg+S und Beenden: `true`, wenn nichts mehr offen ist. */
+  export async function speichernOffen(): Promise<boolean> {
+    if (laeuft) return false;
+    if (!hatAenderungen()) return true;
+    await speichern();
+    return bearbeitung === null;
+  }
+  async function speichern(e?: SubmitEvent) {
+    e?.preventDefault();
     if (!katalog || bearbeitung === null) return;
+    if (!name.trim()) {
+      fehler = "Bitte einen Namen für die Kategorie angeben.";
+      return;
+    }
     laeuft = true;
     fehler = "";
     const id = bearbeitung || `eigen_${crypto.randomUUID()}`;

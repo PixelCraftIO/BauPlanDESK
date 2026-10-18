@@ -29,6 +29,7 @@
   import FormularAusfuellen from "./FormularAusfuellen.svelte";
   import Historie from "./Historie.svelte";
   import Dokumentdaten from "./Dokumentdaten.svelte";
+  import { abonnieren, melden } from "./projektEreignisse";
   let metadaten = $state<DocumentVersion | null>(null),
     metaDirty = $state(false),
     metaBusy = $state(false);
@@ -54,12 +55,15 @@
   let {
     projektId,
     benutzer,
+    aktiv = false,
     importAusloeser,
     onplan,
     onfehler,
   }: {
     projektId: string;
     benutzer: Benutzer;
+    /** Sichtbar: beim Einblenden wird die Liste neu geladen. */
+    aktiv?: boolean;
     importAusloeser: number;
     onplan: (dokumentId: string) => void;
     onfehler: (m: string) => void;
@@ -303,7 +307,15 @@
   export async function aktualisieren() {
     await laden();
   }
-  async function laden() {
+  /** Stand der zuletzt geladenen Liste (Dokument und Version). */
+  let listenStand = "";
+  /**
+   * Lädt Dateiliste, Sperren und Kategorien. Hat sich die Liste nach einer
+   * eigenen Aktion geändert, erfahren es die übrigen Bereiche der Akte
+   * (Bauantrag-Anlagen, Fachberechnungen); `melden = false` für Ladevorgänge,
+   * die selbst auf eine Meldung oder das Einblenden reagieren.
+   */
+  async function laden(meldenNachAenderung = true) {
     try {
       const [v, s, k, z] = await Promise.all([
         api.dokumente(projektId),
@@ -311,6 +323,10 @@
         api.kategorienkatalog(),
         api.dokumentkategorien(projektId),
       ]);
+      const stand = v.map((d) => `${d.document_id}:${d.version}`).sort().join();
+      if (meldenNachAenderung && listenStand && stand !== listenStand)
+        melden({ projektId, bereich: "dokumente", quelle: "dokumente" });
+      listenStand = stand;
       versionen = v;
       kategorien = k.kategorien;
       zuordnungen = z;
@@ -430,7 +446,20 @@
 
   $effect(() => {
     void projektId;
-    laden();
+    untrack(() => laden(false));
+  });
+  // Andere Bereiche (Druckausgabe, Formulare, E-Mail-Anhänge) haben abgelegt.
+  $effect(() =>
+    abonnieren(projektId, ["dokumente"], (e) => {
+      if (e.quelle !== "dokumente") void laden(false);
+    }),
+  );
+  // Beim Einblenden neu laden, z. B. nach Ablagen an anderen Arbeitsplätzen.
+  let warSichtbar = untrack(() => aktiv);
+  $effect(() => {
+    const sichtbar = aktiv;
+    if (sichtbar && !warSichtbar) untrack(() => laden(false));
+    warSichtbar = sichtbar;
   });
 
   // Menü "Datei → Dokument importieren" zählt diesen Wert hoch.
@@ -468,7 +497,7 @@
 </script>
 
 <div class="werkzeugleiste dateiaktionen">
-  <button class="sekundaer" disabled={laeuft} onclick={laden}
+  <button class="sekundaer" disabled={laeuft} onclick={() => laden()}
     >Dateiliste aktualisieren</button
   >
   <KategorieAuswahl

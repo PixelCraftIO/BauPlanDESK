@@ -55,9 +55,22 @@ impl ObjektArt {
     }
 }
 impl CoreServices {
+    /// Fachstände eines Moduls in der aktuellen Datenform: Ältere Datensätze
+    /// werden über den typisierten Struct gelesen, damit Felder mit
+    /// `#[serde(default)]` (z. B. `schritte`, `antragsangaben` der
+    /// Verfahrensakte) ergänzt sind. So vergleichen Verbraucher Original und
+    /// Eingabe in derselben Form, wie sie eine Speicherung ablegen würde. Die
+    /// Normalisierung schreibt nichts zurück und ändert keine Revision.
     pub async fn fachobjekte(&self, p: ProjectId, art: ObjektArt) -> CoreResult<Vec<Fachstand>> {
         self.repos.projects.get(p).await?;
-        self.repos.commit.fachstaende(p, art.modul()).await
+        Ok(self
+            .repos
+            .commit
+            .fachstaende(p, art.modul())
+            .await?
+            .into_iter()
+            .map(|f| normalisiert(art, f))
+            .collect())
     }
     pub async fn fachverlauf(
         &self,
@@ -168,6 +181,42 @@ impl CoreServices {
         );
         self.repos.commit.fachstand(f, basis, audit).await
     }
+}
+/// Liest einen Fachstand über den typisierten Struct seines Moduls und gibt ihn
+/// in aktueller Form zurück. Datensätze einer neueren Schemaversion und solche,
+/// die sich nicht lesen lassen, bleiben unverändert: Die Speichergrenze meldet
+/// den Fehler dann ausdrücklich, statt ihn hier durch Standardwerte zu verdecken.
+pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
+    fn rund<T: serde::de::DeserializeOwned + Serialize>(
+        v: &serde_json::Value,
+    ) -> Option<serde_json::Value> {
+        serde_json::to_value(serde_json::from_value::<T>(v.clone()).ok()?).ok()
+    }
+    if f.schema_version != 1 {
+        return f;
+    }
+    let neu = match art {
+        ObjektArt::Stellplaetze
+        | ObjektArt::Wohnflaechen
+        | ObjektArt::Din277
+        | ObjektArt::Vollgeschosse
+        | ObjektArt::Hoehen
+        | ObjektArt::Freiflaechen
+        | ObjektArt::Entwaesserung
+        | ObjektArt::Ueberbaubarkeit => rund::<crate::berechnungen::FachPlan>(&f.daten),
+        ObjektArt::Abstandsflaechen => rund::<crate::abstandsflaechen::AbstandsPlan>(&f.daten),
+        ObjektArt::Verfahren => rund::<crate::verfahren::Verfahrensakte>(&f.daten),
+        ObjektArt::Projektorganisation => rund::<objekte::Projektorganisation>(&f.daten),
+        ObjektArt::Gebaeude => rund::<objekte::Gebaeude>(&f.daten),
+        ObjektArt::Aufgaben => rund::<objekte::Aufgabe>(&f.daten),
+        ObjektArt::Unterlagen => rund::<objekte::Unterlage>(&f.daten),
+        ObjektArt::Dokumentdaten => rund::<objekte::Dokumentdaten>(&f.daten),
+        ObjektArt::Raumbuch => rund::<objekte::Raumbuch>(&f.daten),
+    };
+    if let Some(neu) = neu {
+        f.daten = neu;
+    }
+    f
 }
 fn json_err(e: serde_json::Error) -> CoreError {
     CoreError::InvalidInput(e.to_string())

@@ -14,6 +14,7 @@
   import Druckknopf from "../Druckknopf.svelte";
   import { plattformApi, type Datensatz } from "../plattformApi";
   import { berechnungsApi } from "./api";
+  import { abonnieren } from "../projektEreignisse";
   import type {
     BerechnungsArt,
     BerechnungsVorlage,
@@ -43,7 +44,10 @@
     grund = $state<GrundstueckKontext[]>([]),
     gebaeude = $state<Datensatz<Gebaeude>[]>([]),
     dateien = $state<DocumentVersion[]>([]),
-    nachweise = $state<NachweisAnsicht[]>([]);
+    nachweise = $state<NachweisAnsicht[]>([]),
+    raumbuecher = $state<
+      Datensatz<import("../generated/plattform").Raumbuch>[]
+    >([]);
   let bereich = $state("daten"),
     result = $state<FachErgebnis | null>(null),
     resultSignatur = $state(""),
@@ -61,8 +65,27 @@
         (p) => p.bezeichnung,
       ),
   );
+  /**
+   * Stand der verknüpften Quellen: Projektversion (Baugrundstücke) und
+   * Revisionen der Gebäude und Raumbücher. Ändert er sich, gilt der Prüfbericht
+   * als veraltet, auch wenn die eigenen Eingaben gleich geblieben sind.
+   */
+  const quellenStand = $derived(
+    JSON.stringify([
+      projekt.version,
+      gebaeude.map((g) => [g.objekt, g.revision]),
+      raumbuecher.map((r) => [r.objekt, r.revision]),
+    ]),
+  );
+  const signatur = (plan: unknown) =>
+    JSON.stringify(plan) + "|" + quellenStand;
   const aktuelleVorschau = $derived(
-    !!result && !!s.eingabe && JSON.stringify(s.eingabe) === resultSignatur,
+    !!result && !!s.eingabe && signatur(s.eingabe) === resultSignatur,
+  );
+  const eingabenGleich = $derived(
+    !!result &&
+      !!s.eingabe &&
+      resultSignatur.startsWith(JSON.stringify(s.eingabe) + "|"),
   );
   const z = (n: number | null) =>
     n === null
@@ -125,6 +148,9 @@
     untrack(() => {
       eingabefehler = [];
       pruefversuch = false;
+      // Der Prüfbericht gehört zum bisherigen Eintrag.
+      result = null;
+      resultSignatur = "";
     });
   });
   function formatPruefen() {
@@ -223,27 +249,53 @@
       setzen(src.k.wert);
     }
   }
+  /** Ladefehler der Auswahllisten; nicht still als leere Liste anzeigen. */
+  let quellenFehler = $state<string | null>(null),
+    grundFehler = $state<string | null>(null);
   onMount(async () => {
     try {
-      const [v, g, d, n] = await Promise.all([
-        berechnungsApi.vorlagen(),
-        plattformApi.liste<Gebaeude>(projekt.id, "gebaeude"),
-        api.dokumente(projekt.id),
-        plattformApi.nachweise(projekt.id),
-      ]);
+      const v = await berechnungsApi.vorlagen();
       vorlage = v.find((v) => v.plan.modul === modul) ?? null;
-      gebaeude = g;
-      dateien = d;
-      nachweise = n;
-      try {
-        grund = await api.grundstueckskontext(projekt.id);
-      } catch {
-        grund = [];
-      }
     } catch (e) {
       s.fehler = fehlertext(e);
     }
   });
+  async function quellenLaden() {
+    try {
+      const [g, d, n] = await Promise.all([
+        plattformApi.liste<Gebaeude>(projekt.id, "gebaeude"),
+        api.dokumente(projekt.id),
+        plattformApi.nachweise(projekt.id),
+      ]);
+      gebaeude = g;
+      dateien = d;
+      nachweise = n;
+      quellenFehler = null;
+    } catch (e) {
+      quellenFehler = fehlertext(e);
+    }
+  }
+  async function grundLaden() {
+    try {
+      grund = await api.grundstueckskontext(projekt.id);
+      grundFehler = null;
+    } catch (e) {
+      grundFehler = fehlertext(e);
+    }
+  }
+  onMount(() => void quellenLaden());
+  // Baugrundstücke hängen am Projektstand.
+  $effect(() => {
+    void projekt.version;
+    untrack(() => void grundLaden());
+  });
+  // Gebäude, Nachweise oder Dokumente anderer Bereiche dieser Akte geändert.
+  $effect(() =>
+    abonnieren(projekt.id, ["dokumente", "fachobjekte", "nachweise"], (e) => {
+      void quellenLaden();
+      if (e.bereich === "fachobjekte") void raumbuecherLaden();
+    }),
+  );
   async function pruefen() {
     if (!s.eingabe || busy || !formatPruefen()) return;
     busy = true;
@@ -255,18 +307,15 @@
       );
       if (darf) s.eingabe = r.plan;
       result = r.ergebnis;
-      resultSignatur = JSON.stringify(darf ? r.plan : s.eingabe);
+      resultSignatur = signatur(darf ? r.plan : s.eingabe);
     } catch (e) {
       s.fehler = fehlertext(e);
     } finally {
       busy = false;
     }
   }
-  let raumbuecher = $state<
-    Datensatz<import("../generated/plattform").Raumbuch>[]
-  >([]);
   let raumbuchId = $state("");
-  onMount(async () => {
+  async function raumbuecherLaden() {
     if (["wohnflaechen", "din277"].includes(modul)) {
       try {
         raumbuecher = await plattformApi.liste(projekt.id, "raumbuch");
@@ -274,7 +323,8 @@
         s.fehler = fehlertext(e);
       }
     }
-  });
+  }
+  onMount(raumbuecherLaden);
   async function raumimport() {
     if (!s.eingabe || !raumbuchId) return;
     busy = true;
@@ -451,7 +501,13 @@
                 >Raumfakten übernehmen (Teilflächen ersetzen)</button
               >
             </details>{/if}
-          {#if !grund.length}<p class="hinweisbox">
+          {#if quellenFehler}<p class="fehlertext" role="alert">
+              Gebäude, Dokumente oder Nachweise konnten nicht geladen werden: {quellenFehler}
+            </p>{/if}
+          {#if grundFehler}<p class="fehlertext" role="alert">
+              Baugrundstücke konnten nicht geladen werden: {grundFehler}
+            </p>
+          {:else if !grund.length}<p class="hinweisbox">
               Für einen vollständigen Nachweis zuerst die
               Baugrundstücksermittlung prüfen und speichern. Eingaben können
               bereits erfasst werden.
@@ -652,7 +708,9 @@
       {#if result}<section aria-label="Berechnungsergebnis">
           <h3>Prüfbericht</h3>
           {#if !aktuelleVorschau}<p class="hinweisbox">
-              Eingaben geändert. Vorschau erneut berechnen.
+              {eingabenGleich
+                ? "Verknüpfte Gebäude-, Raumbuch- oder Grundstücksdaten haben sich geändert."
+                : "Eingaben geändert."} Vorschau erneut berechnen.
             </p>{/if}
           <p class:fehlertext={!result.vollstaendig}>
             {result.vollstaendig

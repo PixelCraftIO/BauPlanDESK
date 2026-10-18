@@ -6,6 +6,7 @@
   import { editorAnmelden } from "./editoren";
   import type { Ansicht } from "./projektSitzung";
   import type { FachSitzung } from "./FachSitzung.svelte";
+  import { ask } from "@tauri-apps/plugin-dialog";
   let {
     titel,
     s,
@@ -133,6 +134,25 @@
     speichern: () =>
       zusatzBeschaeftigt?.() ? Promise.resolve(false) : s.speichern(),
   });
+  /** „Entwurf verwerfen“ löscht auch die lokale Sicherung: vorher nachfragen. */
+  async function verwerfen() {
+    if (
+      (s.hatAenderungen() || s.gerettet) &&
+      !(await ask(
+        s.hatAenderungen()
+          ? "Die ungespeicherten Änderungen verwerfen?"
+          : "Den lokal gesicherten Entwurf endgültig verwerfen?",
+        {
+          title: titel,
+          kind: "warning",
+          okLabel: "Verwerfen",
+          cancelLabel: "Weiter bearbeiten",
+        },
+      ))
+    )
+      return;
+    s.verwerfen();
+  }
 </script>
 
 <h2>{titel}</h2>
@@ -142,7 +162,7 @@
     Ein lokaler Entwurf wurde nach der letzten Sitzung gefunden. <button
       class="link"
       onclick={() => s.wiederherstellen()}>Entwurf wiederherstellen</button
-    ><button class="link" onclick={() => s.verwerfen()}
+    ><button class="link" onclick={verwerfen}
       >Entwurf verwerfen</button
     >
   </div>{/if}
@@ -251,7 +271,7 @@
         type="button"
         class="sekundaer"
         disabled={gesperrt}
-        onclick={() => s.verwerfen()}
+        onclick={verwerfen}
         >{s.hatAenderungen() ? "Entwurf verwerfen" : "Schließen"}</button
       >
     </div>
