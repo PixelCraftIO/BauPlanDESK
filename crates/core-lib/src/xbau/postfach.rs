@@ -8,10 +8,34 @@ use crate::{
     plattform::objekte::Dokumentbezug,
     zugriff::ProjektRecht,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 const MODUL: &str = "xbau_nachrichten";
+/// Kennung der Kommunikation, mit der eine XBau-Nachricht in eine
+/// Verfahrensakte übernommen wird; gleiche Nachricht, gleiche Kennung.
+pub fn kommunikation_id(nachricht: Uuid) -> Uuid {
+    Uuid::new_v5(&nachricht, b"bauprojektio-xbau-kommunikation")
+}
+/// Fundstelle einer XBau-Nachricht in einer Verfahrensakte.
+pub(crate) struct Verwendung {
+    pub bezeichnung: String,
+    /// Portalrückmeldung, über die die Nachricht erfasst ist.
+    pub portal: Option<Uuid>,
+}
+impl Verwendung {
+    pub(crate) fn meldung(&self) -> String {
+        format!(
+            "Diese XBau-Nachricht ist bereits {} in der Verfahrensakte „{}“ erfasst",
+            if self.portal.is_some() {
+                "als Portalrückmeldung"
+            } else {
+                "als Kommunikation"
+            },
+            self.bezeichnung
+        )
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Richtung {
@@ -336,16 +360,56 @@ impl CoreServices {
         alt.nachricht.belege.push(b);
         self.xbau_commit(p, id, basis, alt.nachricht, wer).await
     }
+    /// Akten des Projekts, in denen eine XBau-Nachricht bereits steht: als
+    /// übernommene Kommunikation oder als Portalrückmeldung.
+    pub(crate) async fn xbau_verwendungen(
+        &self,
+        p: ProjectId,
+        nachricht: Uuid,
+    ) -> CoreResult<Vec<Verwendung>> {
+        let mut r = Vec::new();
+        for f in self.repos.commit.fachstaende(p, "verfahren").await? {
+            let a: crate::verfahren::Verfahrensakte =
+                serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
+            if a.kommunikation
+                .iter()
+                .any(|c| c.id == kommunikation_id(nachricht))
+            {
+                r.push(Verwendung {
+                    bezeichnung: a.bezeichnung.clone(),
+                    portal: None,
+                });
+            }
+            for v in a.portal.iter().flat_map(|p| &p.vorgaenge) {
+                for m in &v.rueckmeldungen {
+                    if m.xbau_nachricht == Some(nachricht) {
+                        r.push(Verwendung {
+                            bezeichnung: a.bezeichnung.clone(),
+                            portal: Some(m.id),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(r)
+    }
     /// Bewusste, wiederholbare Übernahme als Kommunikation. Keine automatische
     /// Frist-/Bescheidentscheidung und kein aus XML abgeleiteter Versandstatus.
+    ///
+    /// Datum der Kommunikation ist der Zugang (Eingang) bzw. Versand (Ausgang)
+    /// als Ortsdatum: das bestätigte `zugang`, sonst der Tag der Erfassung im
+    /// Journal, nie das Erstelldatum des XML. Eine Nachricht steht projektweit
+    /// höchstens einmal in einer Akte, gleich ob über Postfach oder Portal.
     pub async fn xbau_in_verfahren(
         &self,
         p: ProjectId,
         id: Uuid,
         verfahren: Uuid,
         basis: i64,
+        zugang: Option<NaiveDate>,
         wer: &Benutzer,
     ) -> CoreResult<Fachstand> {
+        use crate::verfahren::{Bezug, Kommunikation, Kommunikationsart};
         self.projekt_zugriff(p, wer, ProjektRecht::Bearbeiten)
             .await?;
         self.pruefe(wer, Recht::ProjektBearbeiten).await?;
@@ -357,9 +421,12 @@ impl CoreServices {
             .ok_or_else(|| fehler("Nachricht nicht gefunden"))?
             .nachricht;
         let (stand, mut akte) = self.verfahrensakte(p, verfahren).await?;
-        let c = Uuid::new_v5(&id, b"bauprojektio-xbau-kommunikation");
+        let c = kommunikation_id(id);
         if akte.kommunikation.iter().any(|a| a.id == c) {
             return Ok(stand);
+        }
+        if let Some(v) = self.xbau_verwendungen(p, id).await?.into_iter().next() {
+            return Err(fehler(v.meldung()));
         }
         if stand.revision != basis {
             return Err(CoreError::VersionConflict {
@@ -368,23 +435,121 @@ impl CoreServices {
             });
         }
         let k = &n.pruefung.kopf;
-        let behoerde = if n.richtung == Richtung::Eingang {
-            &k.absender
-        } else {
-            &k.empfaenger
-        };
+        let eingang = n.richtung == Richtung::Eingang;
+        let behoerde = if eingang { &k.absender } else { &k.empfaenger };
         if !akte.behoerde.kennung.trim().is_empty() && akte.behoerde.kennung.trim() != behoerde {
             return Err(fehler(
                 "Behördenkennung passt nicht zur ausgewählten Verfahrensakte",
             ));
         }
-        if let Some(az) = &k.aktenzeichen
-            && !akte.aktenzeichen.trim().is_empty()
-            && akte.aktenzeichen.trim() != az
-        {
-            return Err(fehler("Aktenzeichen passt nicht zur Verfahrensakte"));
+        // Die Antragsreferenz ist die Vorgangskennung des Bauantrags; führt die
+        // Akte XBau-Abgaben, muss eine davon dazu passen.
+        if let Some(r) = k.antragsreferenz {
+            let mut xbau = akte
+                .abgaben
+                .iter()
+                .filter(|b| b.artefakte.iter().any(|f| f.format == "xbau"))
+                .peekable();
+            if xbau.peek().is_some() && !xbau.any(|b| b.grundlagen.antrag.vorgang == r) {
+                return Err(fehler(
+                    "Antragsreferenz der Nachricht gehört zu keinem XBau-Abgabestand dieser Verfahrensakte",
+                ));
+            }
         }
-        akte.kommunikation.push(crate::verfahren::Kommunikation{id:c,art:crate::verfahren::Kommunikationsart::Portal,eingehend:n.richtung==Richtung::Eingang,datum:k.erstellt.date_naive(),betreff:format!("XBau: {}",k.titel),beteiligte:format!("{} → {}",k.absender,k.empfaenger),inhalt:format!("{}\nNachrichten-ID: {}\nAntragsreferenz: {}\nAktenzeichen: {}\n{} Anlagen. XML erstellt am {}. Als Datei erfasst am {}.\nXSD-geprüft. Übermittlung, Authentizität, Fristen und Rechtswirkung gesondert anhand der Originale und Belege prüfen.",k.element,k.id,k.antragsreferenz.map(|s|s.to_string()).unwrap_or_default(),k.aktenzeichen.as_deref().unwrap_or(""),n.pruefung.anlagen.len(),k.erstellt,n.erfasst_am),original:Some(n.original),bezuege:vec![]});
+        let heute = crate::kalender::heute();
+        let erstellt = crate::kalender::datum_deutsch(k.erstellt);
+        let erfasst = crate::kalender::datum_deutsch(n.erfasst_am);
+        let datum = zugang.unwrap_or(erfasst);
+        if datum > heute {
+            return Err(fehler("Zugangsdatum darf nicht in der Zukunft liegen"));
+        }
+        if datum < erstellt {
+            return Err(fehler(format!(
+                "Zugangsdatum liegt vor der Erstellung der Nachricht am {}",
+                erstellt.format("%d.%m.%Y")
+            )));
+        }
+        if eingang && datum > erfasst {
+            return Err(fehler(format!(
+                "Zugangsdatum liegt nach der Erfassung im Nachrichtenjournal am {}",
+                erfasst.format("%d.%m.%Y")
+            )));
+        }
+        let mut hinweise = Vec::new();
+        match k.aktenzeichen.as_deref().map(str::trim) {
+            Some(az) if !az.is_empty() && eingang && akte.aktenzeichen.trim().is_empty() => {
+                akte.aktenzeichen = az.into();
+                hinweise.push(format!(
+                    "Aktenzeichen {az} aus der Nachricht in die Akte übernommen."
+                ));
+            }
+            Some(az) if !az.is_empty() && akte.aktenzeichen.trim() != az => {
+                hinweise.push(format!(
+                    "Hinweis: Aktenzeichen der Nachricht ({az}) weicht vom Aktenzeichen der Akte ({}) ab. Maßgebend bleibt die Akte; Zuordnung prüfen.",
+                    akte.aktenzeichen.trim()
+                ));
+            }
+            _ => {}
+        }
+        // Bezug auf die eigene Abgabe oder eine bereits übernommene Nachricht.
+        let mut bezuege = Vec::new();
+        if let Some(b) = k.bezugsnachricht {
+            let portal = akte
+                .portal
+                .iter()
+                .flat_map(|p| &p.vorgaenge)
+                .flat_map(|v| &v.rueckmeldungen)
+                .find(|r| r.xbau_nachricht == Some(b))
+                .map(|r| crate::portale::pruefung::kommunikation_id(r.id));
+            if akte.abgaben.iter().any(|a| a.id == b) {
+                bezuege.push(Bezug::Abgabe { id: b });
+            } else if akte
+                .kommunikation
+                .iter()
+                .any(|c| c.id == kommunikation_id(b))
+            {
+                bezuege.push(Bezug::Kommunikation {
+                    id: kommunikation_id(b),
+                });
+            } else if let Some(id) = portal {
+                bezuege.push(Bezug::Kommunikation { id });
+            } else {
+                hinweise.push(format!(
+                    "Bezugsnachricht {b} ist in dieser Akte nicht erfasst."
+                ));
+            }
+        }
+        let inhalt = format!(
+            "{}\nNachrichten-ID: {}\nAntragsreferenz: {}\nAktenzeichen: {}\nBezugsnachricht: {}\n{} Anlagen. XML erstellt am {}. Als Datei erfasst am {}. {} am {}{}.\n{}{}XSD-geprüft. Übermittlung, Authentizität, Fristen und Rechtswirkung gesondert anhand der Originale und Belege prüfen.",
+            k.element,
+            k.id,
+            k.antragsreferenz.map(|s| s.to_string()).unwrap_or_default(),
+            k.aktenzeichen.as_deref().unwrap_or(""),
+            k.bezugsnachricht.map(|s| s.to_string()).unwrap_or_default(),
+            n.pruefung.anlagen.len(),
+            k.erstellt,
+            n.erfasst_am,
+            if eingang { "Zugang" } else { "Versand" },
+            datum.format("%d.%m.%Y"),
+            if zugang.is_some() {
+                " (bestätigt)"
+            } else {
+                " (Tag der Erfassung)"
+            },
+            hinweise.join("\n"),
+            if hinweise.is_empty() { "" } else { "\n" },
+        );
+        akte.kommunikation.push(Kommunikation {
+            id: c,
+            art: Kommunikationsart::Portal,
+            eingehend: eingang,
+            datum,
+            betreff: format!("XBau: {}", k.titel),
+            beteiligte: format!("{} → {}", k.absender, k.empfaenger),
+            inhalt,
+            original: Some(n.original),
+            bezuege,
+        });
         self.verfahren_commit(p, verfahren, basis, akte, wer, false)
             .await
     }

@@ -3,6 +3,13 @@
 Jede `*.json`-Datei beschreibt, wie ein amtliches PDF-Formular mit
 Projektdaten befüllt wird (siehe `crates/core-lib/src/formular/vorlage.rs`).
 
+* `land`: Bundesland der Zuordnung (z. B. `"BY"`). Ohne `land` gilt sie
+  bundesweit. Erkannt werden nur Zuordnungen für das Bundesland des Projekts
+  oder bundesweite; bei gleich vielen Erkennungsfeldern gewinnt die
+  landesspezifische, danach die kleinere `id` (nicht die Ladereihenfolge).
+* `version`: wird mit `id` in jeder ausgefüllten Formularversion gespeichert
+  (`formularinstanz.zuordnung`). Beim erneuten Bearbeiten bleibt diese
+  Zuordnung maßgebend, solange sie geladen ist und passt.
 * `erkennung`: Feldnamen, an denen das Formular erkannt wird.
 * `zuordnung`: Formularfeld → Quelle. Eine Quelle ist ein Schlüssel aus dem
   Projektkontext oder, mit führendem `'`, ein fester Text.
@@ -41,6 +48,20 @@ Verfügbare Schlüssel (Zahlen mit Dezimalkomma, leere Angaben fehlen):
 
 Das Tagesdatum gehört nicht zum Datenstand: Ein Formular gilt nach
 Mitternacht nicht als geändert.
+
+**Veraltete Werte:** Ausgefüllte Felder mit Projektdatenquelle werden mit den
+aktuellen Projektdaten verglichen. Weicht ein Wert ab (z. B. nach geänderter
+Bauherrenanschrift), meldet die Formularanalyse ihn unter `veraltet`; die
+Eingabemaske markiert das Feld und bietet die Übernahme des aktuellen Werts an.
+Wird trotzdem gespeichert, hält die Formularinstanz die Abweichungen unter
+`veraltet` fest. Eine Abgabe mit einer solchen Formularversion erhält einen
+Hinweis, wird aber nicht abgebrochen. Feste Texte (`'…`), `datum.heute` und
+Felder ohne aktuellen Projektwert werden nicht verglichen; bewusst manuell
+abweichende Werte bleiben als Abweichung sichtbar.
+
+**Entfernte Quellen:** Wurde das gespeicherte Baugrundstück, der Bauherr oder
+das Verfahren entfernt, öffnet das Formular ohne diesen Bezug und mit einem
+Hinweis; eine Ersatzquelle wird nicht still gewählt.
 
 Die Feldnamen der amtlichen Formulare liest die App selbst aus
 (Dokumente → „Formular ausfüllen …“ zeigt alle Felder). Die enthaltene

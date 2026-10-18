@@ -229,7 +229,7 @@ async fn kategorien_ueber_versionen_vorlagen_pakete_und_neustart() {
         .unwrap();
     assert_eq!(wiederholt.stand.kategorien, paket.stand.kategorien);
     let bestaetigt = core
-        .einreichung_bestaetigen(
+        .einreichung_bestaetigen_altbestand(
             paket.stand.id,
             1,
             d.created_at.date_naive(),

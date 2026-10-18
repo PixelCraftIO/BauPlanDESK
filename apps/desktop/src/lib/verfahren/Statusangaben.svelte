@@ -28,6 +28,7 @@
             aria-label="Vollständigkeit bestätigt am"
             type="date"
             required
+            max={heute()}
             bind:value={vollstaendigkeit.datum}
           /></label
         ><label
@@ -65,6 +66,7 @@
             aria-label="Zurückgenommen am"
             type="date"
             required
+            max={heute()}
             bind:value={ruecknahme.datum}
           /></label
         ><label

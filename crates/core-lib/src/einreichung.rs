@@ -209,18 +209,8 @@ pub fn packen(stand: &PaketStand, inhalte: &[Vec<u8>]) -> CoreResult<Vec<u8>> {
     .map_err(|e| CoreError::Storage(e.to_string()))?;
     for (d, bytes) in stand.dokumente.iter().zip(inhalte) {
         d.sha256.verify(bytes)?;
-        let name: String = d
-            .file_name
-            .chars()
-            .map(|c| {
-                if c.is_control() || "/\\:*?\"<>|".contains(c) {
-                    '_'
-                } else {
-                    c
-                }
-            })
-            .take(150)
-            .collect();
+        let name =
+            crate::dateiname::portabel(&d.file_name, 150).unwrap_or_else(|| "Unterlage".into());
         zip.start_file(
             format!("Unterlagen/{}/v{}-{}", d.document_id.0, d.version, name),
             opt,

@@ -54,6 +54,8 @@ with sync_playwright() as p:
  expect(page.get_by_role('textbox',name='Vollständigkeit bestätigt am',exact=True)).to_have_value(wf['verfahren']['daten']['vollstaendigkeit']['datum'])
  tab('Nachforderungen');expect(page.get_by_text('0 von 3 Punkten abgeschlossen',exact=True)).to_be_visible()
  expect(page.get_by_role('textbox',name='Forderung',exact=True)).to_have_count(3)
+ # Wortlaut gespeicherter Forderungspunkte ist schreibgeschützt.
+ expect(page.get_by_role('textbox',name='Forderung',exact=True).first).not_to_be_editable()
  # Eine neue Antwort lässt andere Forderungspunkte unverändert; Speicherfehler erhält sie.
  antwort=page.get_by_role('textbox',name='Antwort / Begründung',exact=True).nth(2)
  antwort.fill('Ergänzender Nachweis wird vorbereitet')
@@ -65,6 +67,7 @@ with sync_playwright() as p:
  tab('Bescheide / Auflagen');expect(page.get_by_role('heading',name='Bescheide und genehmigte Unterlagen')).to_be_visible()
  expect(page.get_by_role('listitem').filter(has_text='Lageplan.pdf · Version 2')).to_be_visible()
  expect(page.get_by_role('textbox',name='Nebenbestimmung',exact=True).first).to_have_value('Nachweis vor Baubeginn')
+ expect(page.get_by_role('textbox',name='Nebenbestimmung',exact=True).first).not_to_be_editable()
  # Nebenbestimmungen sind typisiert; ein Hinweis kennt keine Erfüllung.
  expect(page.get_by_role('combobox',name='Art',exact=True).first.locator('option:checked')).to_have_text('Bedingung')
  expect(page.get_by_text('Ein Hinweis begründet keine Pflicht',exact=False)).to_be_visible()
@@ -79,6 +82,9 @@ with sync_playwright() as p:
  expect(page.get_by_role('button',name='Verfahrensschritt erfassen',exact=True)).to_be_disabled()
  tab('Abgabestände');expect(page.locator('summary').filter(has_text=wf['akte']['abgaben'][0]['titel']+' · eingegangen')).to_be_visible();expect(page.get_by_role('button',name='PDF exportieren',exact=True)).to_be_visible()
  expect(page.get_by_role('cell',name='eingegangen',exact=True)).to_be_visible()
+ # Altakten erhalten die Einreichung außerhalb der App über einen eigenen Weg.
+ expect(page.get_by_role('heading',name='Externe Einreichungen',exact=True)).to_be_visible()
+ expect(page.get_by_role('button',name='Externe Einreichung nachtragen …',exact=True)).to_be_visible()
  # Frühere Versandereignisse werden in der UI vor versehentlicher Bearbeitung geschützt.
  page.get_by_text('Ereignis bearbeiten / ansehen',exact=False).first.click()
  expect(page.get_by_role('textbox',name='Notiz / Begründung',exact=True).first).to_be_disabled()

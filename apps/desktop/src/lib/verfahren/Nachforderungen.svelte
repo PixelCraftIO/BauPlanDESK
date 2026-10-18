@@ -9,11 +9,14 @@
     akte,
     dateien,
     benutzer,
+    alt = [],
   }: {
     eintraege: Nachforderung[];
     akte: Verfahrensakte;
     dateien: DocumentVersion[];
     benutzer: Benutzer[];
+    /** Gespeicherte Forderungspunkte; ihr Wortlaut bleibt laut Core unverändert. */
+    alt?: string[];
   } = $props();
   let original = $state("");
   function neu() {
@@ -67,16 +70,23 @@
         open={p.status !== "bestaetigt"}
       >
         <summary>{p.titel || "Neuer Punkt"} · {p.status}</summary>
+        {#if alt.includes(p.id)}<p class="meta">
+            Wortlaut und Grundlage aus dem behördlichen Schreiben bleiben nach
+            dem Speichern unverändert. Ein abweichender Wortlaut ist ein neuer
+            Punkt; der bisherige wird begründet als entfallen geführt.
+          </p>{/if}
         <div class="raster">
           <label
             >Forderung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Forderung"
               required
               maxlength="500"
+              readonly={alt.includes(p.id)}
               bind:value={p.titel}
             /></label
           ><label
             >Grundlage / Fundstelle<input
               maxlength="4000"
+              readonly={alt.includes(p.id)}
               bind:value={p.grundlage}
             /></label
           ><Zustaendigkeit {benutzer} bind:wert={p.verantwortlich} /><label

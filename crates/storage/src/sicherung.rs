@@ -1,12 +1,20 @@
 //! Integritätsgeprüfte Sicherungsarchive. Wiederherstellung ausschließlich in ein neues Verzeichnis.
+//!
+//! Archivnamen sind immer portabel. Dateien, deren Name unter Windows oder in
+//! ZIP-Archiven nicht zulässig ist (z. B. ältere DMS-Schlüssel mit `:` oder
+//! Punkt am Ende), werden im Archiv prozentkodiert abgelegt
+//! (Manifest-Schema 2) und beim Wiederherstellen unter ihrem ursprünglichen
+//! Namen geschrieben. Der Abgleich mit der Datenbank erfolgt über den
+//! ursprünglichen Storage-Schlüssel; es geht keine Datei verloren.
 use core_lib::{
     CoreError, CoreResult,
+    repository::Repositories,
     storage::{ContentHash, StorageKey},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -14,6 +22,8 @@ use std::{
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 #[derive(Debug, Clone)]
 pub struct Sicherungsquelle {
+    /// Ursprünglicher relativer Name, z. B. `dateien/data/projekte/…`. Ein
+    /// nicht portabler Name wird erst beim Archivieren kodiert.
     pub name: String,
     pub pfad: PathBuf,
     pub erwartet: Option<ContentHash>,
@@ -21,6 +31,7 @@ pub struct Sicherungsquelle {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Sicherungsdatei {
+    /// Name im Archiv; ab Schema 2 mit [`archivname`] kodiert.
     pub name: String,
     pub sha256: ContentHash,
     pub bytes: u64,
@@ -28,6 +39,9 @@ pub struct Sicherungsdatei {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Sicherungsmanifest {
+    /// 1: Archivnamen sind die ursprünglichen Namen. 2: Archivnamen sind mit
+    /// [`archivname`] kodiert. Archive ohne kodierungsbedürftige Namen werden
+    /// weiterhin mit Schema 1 geschrieben und bleiben für ältere Versionen lesbar.
     pub schema_version: u32,
     pub erstellt_unix: u64,
     pub dateien: Vec<Sicherungsdatei>,
@@ -56,6 +70,59 @@ fn name_pruefen(name: &str) -> CoreResult<()> {
         ));
     }
     Ok(())
+}
+/// Zeichen, die im Archivnamen als `%XX` stehen. `%` selbst gehört dazu,
+/// damit die Kodierung umkehrbar bleibt.
+const KODIERT: &[char] = &['%', ':', '*', '?', '"', '<', '>', '|'];
+fn hex(c: char, out: &mut String) {
+    out.push_str(&format!("%{:02X}", c as u32));
+}
+/// Portabler Archivname: kodiert unzulässige Zeichen, Punkt/Leerzeichen am
+/// Segmentende und reservierte Gerätenamen. Für portable Namen ohne `%`
+/// ist das Ergebnis unverändert.
+pub fn archivname(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for (i, segment) in name.split('/').enumerate() {
+        if i > 0 {
+            out.push('/');
+        }
+        let reserviert = core_lib::dateiname::reservierter_name(segment);
+        let letzter = segment.char_indices().last().map(|(p, _)| p);
+        for (p, c) in segment.char_indices() {
+            let kodieren = KODIERT.contains(&c)
+                || c.is_control()
+                || (reserviert && p == 0)
+                || (Some(p) == letzter && matches!(c, ' ' | '.'));
+            if kodieren && c.is_ascii() {
+                hex(c, &mut out);
+            } else {
+                out.push(c);
+            }
+        }
+    }
+    out
+}
+/// Umkehrung von [`archivname`]. Nur die von [`archivname`] erzeugten
+/// Kodierungen werden akzeptiert, insbesondere kein kodierter Pfadtrenner.
+pub fn originalname(archiv: &str) -> CoreResult<String> {
+    let mut out = String::with_capacity(archiv.len());
+    let mut it = archiv.chars();
+    while let Some(c) = it.next() {
+        if c != '%' {
+            out.push(c);
+            continue;
+        }
+        let code: String = it.by_ref().take(2).collect();
+        let zeichen = (code.len() == 2 && code.chars().all(|c| c.is_ascii_hexdigit()))
+            .then(|| u8::from_str_radix(&code, 16).ok())
+            .flatten()
+            .map(char::from)
+            .filter(|c| *c != '/' && *c != '\\' && c.is_ascii())
+            .ok_or_else(|| err("Ungültige Kodierung im Sicherungspfad"))?;
+        out.push(zeichen);
+    }
+    StorageKey::new(&out)?;
+    Ok(out)
 }
 fn neu(p: &Path) -> CoreResult<File> {
     let mut o = OpenOptions::new();
@@ -120,7 +187,8 @@ pub fn verzeichnis(root: &Path, prefix: &str) -> CoreResult<Vec<Sicherungsquelle
                 .ok_or_else(|| err("Dateiname ist nicht UTF-8"))?
                 .replace('\\', "/");
             let name = format!("{prefix}/{rel}");
-            name_pruefen(&name)?;
+            // Nur Pfadsicherheit; nicht portable Namen kodiert `erstellen`.
+            StorageKey::new(&name)?;
             out.push(Sicherungsquelle {
                 name,
                 pfad: pfad.into(),
@@ -139,6 +207,77 @@ pub fn verzeichnis(root: &Path, prefix: &str) -> CoreResult<Vec<Sicherungsquelle
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
 }
+/// Unterverzeichnisse einer [`crate::LocalStorage`]-Ablage, die gesichert
+/// werden. `tmp/` enthält nur Zwischendateien laufender Speichervorgänge und
+/// wird ausgelassen, damit gleichzeitiges Arbeiten die Sicherung nicht abbricht.
+pub const ABLAGE_INHALT: [&str; 2] = ["data", "meta"];
+
+/// Sicherungsquellen einer Dateiablage im Layout von [`crate::LocalStorage`]
+/// (`data/<schlüssel>`, `meta/<schlüssel>.json`) unter `prefix/data/…` bzw.
+/// `prefix/meta/…`. Jeder Storage-Schlüssel aus `erwartet` muss als Datei
+/// vorliegen; sein SHA-256 wird beim Archivieren geprüft. Fehlende Referenzen
+/// sind ein Fehler, damit keine unvollständige Sicherung entsteht.
+pub fn dateiablage(
+    root: &Path,
+    prefix: &str,
+    mut erwartet: BTreeMap<String, ContentHash>,
+) -> CoreResult<Vec<Sicherungsquelle>> {
+    let mut quellen = Vec::new();
+    for teil in ABLAGE_INHALT {
+        let pfad = root.join(teil);
+        if pfad.is_dir() {
+            quellen.extend(verzeichnis(&pfad, &format!("{prefix}/{teil}"))?);
+        }
+    }
+    let daten = format!("{prefix}/data/");
+    for q in &mut quellen {
+        if let Some(schluessel) = q.name.strip_prefix(&daten)
+            && let Some(h) = erwartet.remove(schluessel)
+        {
+            q.erwartet = Some(h);
+        }
+    }
+    if let Some(erster) = erwartet.keys().next() {
+        return Err(err(format!(
+            "{} Datenbankreferenzen fehlen in der Dateiablage (z. B. {erster}). Die Sicherung wird nicht als vollständig ausgegeben.",
+            erwartet.len()
+        )));
+    }
+    Ok(quellen)
+}
+
+/// Storage-Schlüssel und SHA-256 aller Dateien, auf die die Datenbank
+/// verweist: sämtliche Dokumentversionen, die inhaltsadressierten
+/// Formularquellen der Formularinstanzen und Einreichungspakete.
+pub async fn dms_referenzen(repos: &Repositories) -> CoreResult<BTreeMap<String, ContentHash>> {
+    let mut erwartet = BTreeMap::new();
+    for p in repos.projects.list().await? {
+        for d in repos.documents.list_for_project(p.id).await? {
+            erwartet.insert(d.storage_key.clone(), d.sha256.clone());
+            if let Some(z) = repos
+                .commit
+                .dokumentzusatz(d.document_id, d.version, "formularinstanz")
+                .await?
+            {
+                if z.schema_version != 1 {
+                    return Err(CoreError::InvalidInput(
+                        "Unbekannte Formularinstanzversion; Sicherung mit neuerer Anwendung erstellen"
+                            .into(),
+                    ));
+                }
+                let i: core_lib::formular::instanz::FormularInstanz =
+                    serde_json::from_value(z.daten)
+                        .map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+                erwartet.insert(i.vorlagen_storage_key, i.vorlagen_hash);
+            }
+        }
+        for e in repos.einreichungen.auflisten(p.id).await? {
+            erwartet.insert(e.zip_key, e.zip_hash);
+        }
+    }
+    Ok(erwartet)
+}
+
 pub fn erstellen(ziel: &Path, quellen: &[Sicherungsquelle]) -> CoreResult<Sicherungsmanifest> {
     if ziel.exists() {
         return Err(err(
@@ -156,24 +295,27 @@ pub fn erstellen(ziel: &Path, quellen: &[Sicherungsquelle]) -> CoreResult<Sicher
         let optionen =
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         let mut ids = HashSet::new();
+        let namen: Vec<String> = quellen.iter().map(|q| archivname(&q.name)).collect();
+        let kodiert = quellen.iter().zip(&namen).any(|(q, n)| &q.name != n);
         let mut manifest = Sicherungsmanifest {
-            schema_version: 1,
+            schema_version: if kodiert { 2 } else { 1 },
             erstellt_unix: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(err)?
                 .as_secs(),
             dateien: vec![],
         };
-        for q in quellen {
-            name_pruefen(&q.name)?;
-            if !ids.insert(&q.name) {
+        for (q, name) in quellen.iter().zip(&namen) {
+            StorageKey::new(&q.name)?;
+            name_pruefen(name)?;
+            if !ids.insert(name.as_str()) {
                 return Err(err("Doppelter Sicherungspfad"));
             }
             let m = fs::symlink_metadata(&q.pfad).map_err(err)?;
             if !m.is_file() || m.is_symlink() {
                 return Err(err("Sicherungsquelle ist keine reguläre Datei"));
             }
-            zip.start_file(&q.name, optionen).map_err(err)?;
+            zip.start_file(name.as_str(), optionen).map_err(err)?;
             let (bytes, sha256) = kopieren(File::open(&q.pfad).map_err(err)?, &mut zip, m.len())?;
             if bytes != m.len() || q.erwartet.as_ref().is_some_and(|h| h != &sha256) {
                 return Err(err(format!(
@@ -182,7 +324,7 @@ pub fn erstellen(ziel: &Path, quellen: &[Sicherungsquelle]) -> CoreResult<Sicher
                 )));
             }
             manifest.dateien.push(Sicherungsdatei {
-                name: q.name.clone(),
+                name: name.clone(),
                 sha256,
                 bytes,
             });
@@ -216,13 +358,19 @@ fn manifest(zip: &mut ZipArchive<File>) -> CoreResult<Sicherungsmanifest> {
         return Err(err("Sicherungsmanifest ist zu groß"));
     }
     let m: Sicherungsmanifest = serde_json::from_slice(&raw).map_err(err)?;
-    if m.schema_version != 1 || m.dateien.len() > 100_000 || zip.len() != m.dateien.len() + 1 {
+    if !matches!(m.schema_version, 1 | 2)
+        || m.dateien.len() > 100_000
+        || zip.len() != m.dateien.len() + 1
+    {
         return Err(err("Unbekanntes oder unvollständiges Sicherungsformat"));
     }
     let mut names = HashSet::new();
     let mut total = 0u64;
     for f in &m.dateien {
         name_pruefen(&f.name)?;
+        if m.schema_version == 2 {
+            originalname(&f.name)?;
+        }
         if !names.insert(&f.name) {
             return Err(err("Doppelte Manifestdatei"));
         }
@@ -274,7 +422,21 @@ pub fn wiederherstellen(pfad: &Path, ziel: &Path) -> CoreResult<Sicherungsmanife
         let mut zip = ZipArchive::new(File::open(pfad).map_err(err)?).map_err(err)?;
         let m = manifest(&mut zip)?;
         for f in &m.dateien {
-            let target = tmp.join(&f.name);
+            let original = if m.schema_version == 2 {
+                originalname(&f.name)?
+            } else {
+                f.name.clone()
+            };
+            // Unter Windows lässt sich ein nicht portabler Name nicht anlegen
+            // (z. B. würde `:` einen alternativen Datenstrom erzeugen).
+            if cfg!(windows) && original != f.name {
+                return Err(err(format!(
+                    "{original} kann unter Windows nicht wiederhergestellt werden. Sicherung auf Linux/macOS wiederherstellen."
+                )));
+            }
+            let target = original
+                .split('/')
+                .fold(tmp.clone(), |p, segment| p.join(segment));
             fs::create_dir_all(target.parent().ok_or_else(|| err("Verzeichnis fehlt"))?)
                 .map_err(err)?;
             let mut out = neu(&target)?;

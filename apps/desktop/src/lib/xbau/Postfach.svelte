@@ -45,6 +45,24 @@
   let hinweis = $state("");
   let suche = $state("");
   let verfahrensId = $state("");
+  /** Zugangs- bzw. Versanddatum; vorbelegt mit dem Tag der Journalerfassung. */
+  let zugang = $state("");
+  const ortsdatum = (iso: string) => {
+    const d = new Date(iso);
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, "0"),
+      String(d.getDate()).padStart(2, "0"),
+    ].join("-");
+  };
+  $effect(() => {
+    zugang = aktiv ? ortsdatum(aktiv.nachricht.erfasst_am) : "";
+  });
+  const zielakte = $derived(
+    verfahren.find((v) => v.objekt === verfahrensId)?.daten as
+      | { aktenzeichen?: string }
+      | undefined,
+  );
   let generation = 0;
   const aktiv = $derived(nachrichten.find((n) => n.id === auswahl));
   const original = $derived(
@@ -243,7 +261,13 @@
     laeuft = true;
     fehler = "";
     try {
-      await xbau.verfahren(projekt.id, aktiv.id, v.objekt, v.revision);
+      await xbau.verfahren(
+        projekt.id,
+        aktiv.id,
+        v.objekt,
+        v.revision,
+        zugang || null,
+      );
       await laden();
       hinweis =
         "Als Kommunikation in der Verfahrensakte erfasst. Fristen und fachliche Folgen dort anhand des Originals bearbeiten.";
@@ -449,10 +473,36 @@
                 )}</option
               >{/each}</select
           ></label
+        ><label
+          >{n.richtung === "eingang" ? "Zugang am" : "Versendet am"}<input
+            aria-label="Zugangsdatum"
+            type="date"
+            min={ortsdatum(n.pruefung.kopf.erstellt)}
+            max={n.richtung === "eingang"
+              ? ortsdatum(n.erfasst_am)
+              : ortsdatum(new Date().toISOString())}
+            bind:value={zugang}
+          /></label
         ><button onclick={uebernehmen} disabled={!darf || !verfahrensId}
           >Als Kommunikation übernehmen</button
         >
       </div>
+      <p class="meta">
+        Die Kommunikation erhält das Zugangsdatum, nicht das Erstelldatum des
+        XML ({ortsdatum(n.pruefung.kopf.erstellt)}). Dieselbe Nachricht steht
+        projektweit nur in einer Akte, auch wenn sie im Portalbereich erfasst
+        wurde.
+      </p>
+      {#if zielakte && n.pruefung.kopf.aktenzeichen?.trim()}<p
+          class="hinweisbox"
+          role="status"
+        >
+          {#if !zielakte.aktenzeichen?.trim()}Das Aktenzeichen {n.pruefung.kopf.aktenzeichen.trim()}
+            der Behörde wird in die Akte übernommen.{:else if zielakte.aktenzeichen.trim() !== n.pruefung.kopf.aktenzeichen.trim()}Aktenzeichen
+            der Nachricht ({n.pruefung.kopf.aktenzeichen.trim()}) weicht von der
+            Akte ({zielakte.aktenzeichen.trim()}) ab. Maßgebend bleibt die Akte;
+            Zuordnung prüfen.{:else}Aktenzeichen stimmt mit der Akte überein.{/if}
+        </p>{/if}
       <h4>Anlagen</h4>
       <div class="tabelle">
         <table class="ergebnistabelle">

@@ -17,24 +17,12 @@ pub struct Projektdatei {
     pub relativer_pfad: String,
     pub dokument: DocumentVersion,
 }
-fn dateiname(value: &str) -> String {
-    let clean: String = value
-        .chars()
-        .take(100)
-        .map(|c| {
-            if c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect();
-    let clean = clean.trim_matches([' ', '.']);
-    if clean.is_empty() {
-        "Projekt".into()
-    } else {
-        clean.into()
-    }
+/// Längster Datei- bzw. Ordnername im Projektordner und Aktenexport in Byte.
+pub const MAX_NAME_BYTES: usize = 120;
+/// Portabler Name für Projektordner und Aktenexport; gekürzt wird nur der
+/// Stamm, die Endung bleibt erhalten (siehe [`crate::dateiname`]).
+pub fn dateiname(value: &str) -> String {
+    crate::dateiname::portabel(value, MAX_NAME_BYTES).unwrap_or_else(|| "Projekt".into())
 }
 /// Wählt den gewünschten Dokumentstand unabhängig vom Ablage-Backend.
 pub fn versionen(dokumente: Vec<DocumentVersion>, historie: bool) -> Vec<DocumentVersion> {
@@ -105,5 +93,12 @@ mod tests {
         assert!(!result.ordner.contains('/'));
         assert!(!result.ordner.contains(':'));
         assert!(result.ordner.ends_with(&p.id.to_string()));
+    }
+    #[test]
+    fn lange_namen_behalten_die_endung() {
+        let name = dateiname(&format!("{} Lageplan 1:500.pdf", "Ü".repeat(100)));
+        assert!(name.len() <= MAX_NAME_BYTES);
+        assert!(name.ends_with(".pdf"));
+        assert!(!name.contains(':'));
     }
 }

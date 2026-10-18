@@ -44,7 +44,12 @@ fn postgres_und_dateien_in_neues_profil_wiederherstellen() {
         for p in [&root, &cfg, &forms] {
             std::fs::create_dir(p).unwrap();
         }
-        std::fs::write(root.join("plan.pdf"), b"Originaler Planstand").unwrap();
+        // Layout einer LocalStorage-Ablage; `tmp/` gehört nicht in die Sicherung.
+        for sub in ["data", "meta", "tmp"] {
+            std::fs::create_dir(root.join(sub)).unwrap();
+        }
+        std::fs::write(root.join("data/plan.pdf"), b"Originaler Planstand").unwrap();
+        std::fs::write(root.join("tmp/halb.pdf"), b"Unfertige Speicherung").unwrap();
         std::fs::write(forms.join("bauantrag.pdf"), b"Originale Vorlage").unwrap();
         let archiv = dir.path().join("Buero.zip");
         let mut source = url.clone();
@@ -61,9 +66,10 @@ fn postgres_und_dateien_in_neues_profil_wiederherstellen() {
             "Genehmigter Plan Version 2"
         );
         assert_eq!(
-            std::fs::read(restored.join("dateien/plan.pdf")).unwrap(),
+            std::fs::read(restored.join("dateien/data/plan.pdf")).unwrap(),
             b"Originaler Planstand"
         );
+        assert!(!restored.join("dateien/tmp/halb.pdf").exists());
         assert!(restored.join("Formularvorlagen/bauantrag.pdf").is_file());
         let config: serde_json::Value = serde_json::from_slice(
             &std::fs::read(restored.join("einstellungen/config.json")).unwrap(),
