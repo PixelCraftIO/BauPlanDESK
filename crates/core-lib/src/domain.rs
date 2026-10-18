@@ -453,10 +453,16 @@ pub enum Aktion {
     KundeGeloescht,
     BauherrenGeaendert,
     BeteiligteGeaendert,
+    /// Anmeldung am Arbeitsplatz (Kennwort oder einmaliger Übergang).
+    Angemeldet,
+    /// Falsches Kennwort, gesperrtes oder unbekanntes Konto.
+    AnmeldungFehlgeschlagen,
+    /// Eigenes Kennwort geändert oder Erstkennwort vergeben.
+    KennwortGeaendert,
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 21] = [
+    const ALLE: [Aktion; 24] = [
         Self::ProjektAngelegt,
         Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
@@ -478,6 +484,9 @@ impl Aktion {
         Self::KundeGeloescht,
         Self::BauherrenGeaendert,
         Self::BeteiligteGeaendert,
+        Self::Angemeldet,
+        Self::AnmeldungFehlgeschlagen,
+        Self::KennwortGeaendert,
     ];
 
     pub fn code(self) -> &'static str {
@@ -503,6 +512,9 @@ impl Aktion {
             Self::KundeGeloescht => "kunde_geloescht",
             Self::BauherrenGeaendert => "bauherren_geaendert",
             Self::BeteiligteGeaendert => "beteiligte_geaendert",
+            Self::Angemeldet => "angemeldet",
+            Self::AnmeldungFehlgeschlagen => "anmeldung_fehlgeschlagen",
+            Self::KennwortGeaendert => "kennwort_geaendert",
         }
     }
 }

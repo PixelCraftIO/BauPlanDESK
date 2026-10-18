@@ -51,6 +51,11 @@ Bauherrnzuordnung, Kundenladefehler, Konflikt mit fehlgeschlagenem Neuladen,
 wirksame Lizenzrolle, Projektmitglieder samt Versionskonflikt und das Öffnen eines
 Altprojekts mit abweichender BauNVO ohne unbeabsichtigten Entwurf. Der Test nutzt
 ebenfalls `BAUPROJEKT_UI_URL` und optional `BAUPROJEKT_CHROMIUM`.
+`python apps/desktop/tests/anmeldung.py` prüft den Anmeldedialog im Netzwerkbetrieb:
+keine Anwendungsaufrufe vor der Anmeldung, Fehlversuch, Erstkennwort ersetzen,
+einmaliger Übergang über das Rechnerkonto und *Abmelden / Benutzer wechseln*. Der
+gemeinsame Testtransport meldet sonst den Testbenutzer im Einzelplatzbetrieb an
+(`anmeldestatus`).
 `node --test apps/desktop/tests/kalender.test.mjs` prüft die Datumsgrenzen für
 Einreichungsfelder und Exportnamen ohne Abhängigkeit von der Rechnerzeitzone.
 

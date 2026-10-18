@@ -592,6 +592,21 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         zip.by_name(&format!("Dokumente/{}/v3-Lageplan.pdf", plan.document_id.0))
             .is_ok()
     );
+    // Fortlaufender Export in eine Datei liefert dieselben Einträge wie der
+    // Export im Arbeitsspeicher.
+    let datei = core
+        .verfahren_aktenexport_in(p.id, tempfile::tempfile().unwrap())
+        .await
+        .unwrap();
+    let datei_zip = zip::ZipArchive::new(datei).unwrap();
+    let mut namen_datei: Vec<_> = datei_zip
+        .file_names()
+        .map(|n| n.unwrap().into_owned())
+        .collect();
+    let mut namen_speicher: Vec<_> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
+    namen_datei.sort();
+    namen_speicher.sort();
+    assert_eq!(namen_datei, namen_speicher);
     let mut manipuliert = a.clone();
     manipuliert.abgaben[0].titel = "Geändert".into();
     assert!(

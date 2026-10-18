@@ -2,6 +2,12 @@
 //! bleiben im DMS. Extraktionsherkunft wird sichtbar gespeichert.
 use super::*;
 use crate::storage::ContentHash;
+use std::io::{Seek, Write};
+/// Grenze (unkomprimiert) für den Aktenexport im Arbeitsspeicher.
+pub const MAX_AKTENEXPORT_SPEICHER: u64 = 512 * 1024 * 1024;
+/// Grenze (unkomprimiert) für den fortlaufend geschriebenen Aktenexport. Sie hält
+/// das Archiv sicher unter 4 GiB (ohne ZIP64-Abhängigkeit beim Empfänger).
+pub const MAX_AKTENEXPORT_DATEI: u64 = 2 * 1024 * 1024 * 1024;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Textquelle {
@@ -212,9 +218,39 @@ impl CoreServices {
         Ok(r)
     }
     /// Vollständiger portabler Aktenexport inklusive aller Dateiversionen,
-    /// Fachhistorien und unveränderlicher Abgabe-Artefakte.
+    /// Fachhistorien und unveränderlicher Abgabe-Artefakte, im Arbeitsspeicher
+    /// (höchstens [`MAX_AKTENEXPORT_SPEICHER`] unkomprimiert). Für Downloads und
+    /// Dateiexporte [`Self::verfahren_aktenexport_in`] verwenden.
     pub async fn verfahren_aktenexport(&self, p: ProjectId) -> CoreResult<Vec<u8>> {
-        use std::io::{Cursor, Write};
+        Ok(self
+            .aktenexport_schreiben(
+                p,
+                std::io::Cursor::new(Vec::new()),
+                MAX_AKTENEXPORT_SPEICHER,
+            )
+            .await?
+            .into_inner())
+    }
+    /// Wie [`Self::verfahren_aktenexport`], schreibt das ZIP aber fortlaufend in
+    /// `ziel` (z. B. eine temporäre Datei des Adapters). Im Speicher liegt jeweils
+    /// nur eine Datei; Grenze [`MAX_AKTENEXPORT_DATEI`] unkomprimiert. Gibt das
+    /// abgeschlossene Ziel zurück. Bei Fehlern ist der Inhalt von `ziel` unbrauchbar.
+    pub async fn verfahren_aktenexport_in<W: Write + Seek + Send>(
+        &self,
+        p: ProjectId,
+        ziel: W,
+    ) -> CoreResult<W> {
+        self.aktenexport_schreiben(p, ziel, MAX_AKTENEXPORT_DATEI)
+            .await
+    }
+    async fn aktenexport_schreiben<W: Write + Seek + Send>(
+        &self,
+        p: ProjectId,
+        ziel: W,
+        grenze: u64,
+    ) -> CoreResult<W> {
+        // Höchstens wenige Exporte gleichzeitig je Prozess.
+        let _platz = crate::exportgrenze::platz().await?;
         let projekt = self.get_project(p).await?;
         let docs = self.list_documents(p).await?;
         if docs.len() > 8000 {
@@ -283,14 +319,17 @@ impl CoreServices {
             }
         }
         let manifest = serde_json::json!({"schema_version":1,"projekt":projekt,"dokumente":docs,"dokumentzusatz":zusaetze,"kategorienkatalog":self.kategorienkatalog().await?,"fachhistorie":historie,"abgabe_artefakte":artefakte,"einreichungen":einreichungen,"bauantrag":self.bauantrag(p).await?,"bauherren":self.bauherren(p).await?,"protokoll":self.repos.protokoll.list_for_project(p,100000).await?});
-        let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let mut z = zip::ZipWriter::new(ziel);
         let opt = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
         let mut sum = 0u64;
         let mut put = |name: String, data: &[u8]| -> CoreResult<()> {
             sum = sum.saturating_add(data.len() as u64);
-            if sum > 512 * 1024 * 1024 {
-                return Err(fehler("Aktenexport über 512 MB"));
+            if sum > grenze {
+                return Err(fehler(format!(
+                    "Aktenexport über {} MB",
+                    grenze / (1024 * 1024)
+                )));
             }
             z.start_file(name, opt).map_err(|e| fehler(e.to_string()))?;
             z.write_all(data).map_err(|e| fehler(e.to_string()))?;
@@ -352,6 +391,6 @@ impl CoreServices {
                 &self.einreichung_zip(e.stand.id).await?.1,
             )?;
         }
-        Ok(z.finish().map_err(|e| fehler(e.to_string()))?.into_inner())
+        z.finish().map_err(|e| fehler(e.to_string()))
     }
 }

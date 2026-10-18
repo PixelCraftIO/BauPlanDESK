@@ -701,7 +701,8 @@ pub async fn arbeitsplatz_belegen(state: State<'_, AppState>) -> CmdResult<Lizen
 
 #[tauri::command]
 pub async fn kunden_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Kunde>> {
-    Ok(state.core.kunden_auflisten().await?)
+    // Sichtbarkeitsregel liegt im Core (Rolle bzw. sichtbare Projekte).
+    Ok(state.core.kunden_fuer_benutzer(&state.benutzer()).await?)
 }
 
 #[tauri::command]

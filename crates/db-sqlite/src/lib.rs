@@ -9,7 +9,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, SubsecRound, Utc};
-use core_lib::benutzer::{Benutzer, BenutzerAenderung, BenutzerId, NeuerBenutzer, Rolle};
+use core_lib::benutzer::{
+    Benutzer, BenutzerAenderung, BenutzerId, Kennwortdaten, Kennwortstatus, NeuerBenutzer, Rolle,
+};
 use core_lib::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
@@ -117,7 +119,7 @@ impl SqliteDatabase {
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
-            .map_err(|e| CoreError::Database(e.to_string()))?;
+            .map_err(migrationsfehler)?;
         Ok(Self { pool })
     }
 
@@ -138,6 +140,16 @@ impl SqliteDatabase {
             bauantraege: this.clone(),
             kunden: this,
         }
+    }
+}
+
+/// Ältere Programmversion an einer bereits weiter migrierten Datenbank: klare
+/// Meldung statt rohem sqlx-Fehler. sqlx prüft vor dem Anwenden; nichts wurde verändert.
+fn migrationsfehler(e: sqlx::migrate::MigrateError) -> CoreError {
+    match e {
+        sqlx::migrate::MigrateError::VersionMissing(v) => CoreError::datenbank_neuer(v),
+        sqlx::migrate::MigrateError::VersionMismatch(v) => CoreError::datenbankstand_abweichend(v),
+        e => CoreError::Database(e.to_string()),
     }
 }
 
@@ -480,7 +492,27 @@ fn benutzer_from_row(row: &SqliteRow) -> CoreResult<Benutzer> {
         rolle: Rolle::from_str(&rolle)?,
         aktiv: row.try_get("aktiv").map_err(db_err)?,
         erstellt_am: row.try_get("erstellt_am").map_err(db_err)?,
+        kennwort: kennwortstatus(
+            row.try_get::<Option<String>, _>("kennwort_hash")
+                .map_err(db_err)?
+                .is_some(),
+            row.try_get("kennwort_aendern").map_err(db_err)?,
+        ),
+        anmeldesperre_bis: row.try_get("gesperrt_bis").map_err(db_err)?,
+        letzte_anmeldung: row.try_get("letzte_anmeldung").map_err(db_err)?,
     })
+}
+
+fn kennwortstatus(hash_vorhanden: bool, aendern: bool) -> Kennwortstatus {
+    match (hash_vorhanden, aendern) {
+        (false, _) => Kennwortstatus::Keines,
+        (true, true) => Kennwortstatus::Erstkennwort,
+        (true, false) => Kennwortstatus::Gesetzt,
+    }
+}
+
+fn benutzer_fehlt(id: BenutzerId) -> CoreError {
+    CoreError::NotFound(format!("Benutzer {id}"))
 }
 
 fn protokoll_from_row(row: &SqliteRow) -> CoreResult<Protokolleintrag> {
@@ -522,6 +554,9 @@ impl BenutzerRepository for SqliteDatabase {
             // Postgres speichert Mikrosekunden; so ist der Rückgabewert
             // gleich dem, was später gelesen wird.
             erstellt_am: Utc::now().trunc_subsecs(6),
+            kennwort: Kennwortstatus::Keines,
+            anmeldesperre_bis: None,
+            letzte_anmeldung: None,
         };
         sqlx::query(
             "INSERT INTO benutzer (id, anmeldename, anzeigename, rolle, aktiv, erstellt_am)
@@ -588,6 +623,94 @@ impl BenutzerRepository for SqliteDatabase {
         .map_err(db_err)?
         .ok_or_else(|| CoreError::NotFound(format!("Benutzer {}", a.id)))?;
         benutzer_from_row(&row)
+    }
+
+    async fn kennwortdaten(&self, id: BenutzerId) -> CoreResult<Kennwortdaten> {
+        let row = sqlx::query(
+            "SELECT kennwort_hash, fehlversuche, gesperrt_bis FROM benutzer WHERE id = ?",
+        )
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| benutzer_fehlt(id))?;
+        let fehlversuche: i64 = row.try_get("fehlversuche").map_err(db_err)?;
+        Ok(Kennwortdaten {
+            hash: row.try_get("kennwort_hash").map_err(db_err)?,
+            fehlversuche: u32::try_from(fehlversuche.max(0)).unwrap_or(u32::MAX),
+            gesperrt_bis: row.try_get("gesperrt_bis").map_err(db_err)?,
+        })
+    }
+
+    async fn kennwort_speichern(
+        &self,
+        id: BenutzerId,
+        hash: &str,
+        erstkennwort: bool,
+        zeit: DateTime<Utc>,
+    ) -> CoreResult<()> {
+        let r = sqlx::query(
+            "UPDATE benutzer SET kennwort_hash = ?, kennwort_aendern = ?,
+                 kennwort_geaendert_am = ?, fehlversuche = 0, gesperrt_bis = NULL
+             WHERE id = ?",
+        )
+        .bind(hash)
+        .bind(erstkennwort)
+        .bind(zeit.trunc_subsecs(6))
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        if r.rows_affected() == 0 {
+            return Err(benutzer_fehlt(id));
+        }
+        Ok(())
+    }
+
+    async fn fehlversuch_zaehlen(&self, id: BenutzerId) -> CoreResult<u32> {
+        let n: i64 = sqlx::query_scalar(
+            "UPDATE benutzer SET fehlversuche = MIN(fehlversuche, 1000000) + 1
+             WHERE id = ? RETURNING fehlversuche",
+        )
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| benutzer_fehlt(id))?;
+        Ok(u32::try_from(n.max(0)).unwrap_or(u32::MAX))
+    }
+
+    async fn anmeldesperre_setzen(
+        &self,
+        id: BenutzerId,
+        bis: Option<DateTime<Utc>>,
+    ) -> CoreResult<()> {
+        let r = sqlx::query("UPDATE benutzer SET gesperrt_bis = ? WHERE id = ?")
+            .bind(bis.map(|b| b.trunc_subsecs(6)))
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        if r.rows_affected() == 0 {
+            return Err(benutzer_fehlt(id));
+        }
+        Ok(())
+    }
+
+    async fn anmeldung_vermerken(&self, id: BenutzerId, zeit: DateTime<Utc>) -> CoreResult<()> {
+        let r = sqlx::query(
+            "UPDATE benutzer SET fehlversuche = 0, gesperrt_bis = NULL, letzte_anmeldung = ?
+             WHERE id = ?",
+        )
+        .bind(zeit.trunc_subsecs(6))
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        if r.rows_affected() == 0 {
+            return Err(benutzer_fehlt(id));
+        }
+        Ok(())
     }
 }
 
@@ -1205,6 +1328,38 @@ mod tests {
         assert_eq!(p.grundstuecksflaeche_m2, Some(800.0));
         assert_eq!(p.version, 1);
         assert_eq!(p.planungsrecht, Default::default());
+    }
+
+    #[tokio::test]
+    async fn aeltere_version_bricht_an_neuerer_datenbank_verstaendlich_ab() {
+        let dir = tempfile::tempdir().unwrap();
+        let pfad = dir.path().join("gemeinsam.db");
+        let db = SqliteDatabase::open(&pfad).await.unwrap();
+        // Eine neuere Programmversion hat einen weiteren Datenbankstand angewendet.
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time) VALUES (99999, 'zukunft', CURRENT_TIMESTAMP, 1, x'00', 0)",
+        )
+        .execute(&db.pool)
+        .await
+        .unwrap();
+        db.schliessen().await;
+        let fehler = SqliteDatabase::open(&pfad).await.err().unwrap().to_string();
+        assert!(
+            fehler.contains("mit einer neueren BauProjektIO-Version aktualisiert")
+                && fehler.contains("99999"),
+            "{fehler}"
+        );
+        // Unverändert: der fremde Stand bleibt, keine eigene Migration zurückgenommen.
+        let pool = SqlitePoolOptions::new()
+            .connect_with(SqliteConnectOptions::new().filename(&pfad))
+            .await
+            .unwrap();
+        let n: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE version=99999")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(n, 1);
     }
 
     #[tokio::test]
