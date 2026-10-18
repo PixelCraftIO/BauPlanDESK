@@ -1480,17 +1480,42 @@ async fn eingereichte_akte(
         .verfahren_abgabe_festhalten(p.id, vid, f.revision, w, &user)
         .await
         .unwrap();
+    // Versand frühestens am Tag des Festhaltens; eine frühere Einreichung wird
+    // als externe Einreichung nachgetragen.
+    let f = if d0 < core_lib::kalender::heute() {
+        core.verfahren_externe_einreichung(
+            p.id,
+            vid,
+            f.revision,
+            core_lib::verfahren::externe_einreichung::ExterneEinreichungswunsch {
+                id: Uuid::new_v4(),
+                datum: d0,
+                weg: core_lib::verfahren::externe_einreichung::Einreichungsweg::Post,
+                beleg: None,
+                bemerkung: String::new(),
+                dokumente: vec![dok.clone()],
+                berichtigt: None,
+            },
+            &user,
+        )
+        .await
+        .unwrap()
+    } else {
+        f
+    };
     let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
-    a.abgaben[0].versand.push(Versandereignis {
-        id: Uuid::new_v4(),
-        status: Versandstatus::Versendet,
-        datum: d0,
-        weg: "Post".into(),
-        referenz: "Einschreiben".into(),
-        notiz: "Antrag versendet".into(),
-        beleg: None,
-        berichtigt: None,
-    });
+    if d0 >= core_lib::kalender::heute() {
+        a.abgaben[0].versand.push(Versandereignis {
+            id: Uuid::new_v4(),
+            status: Versandstatus::Versendet,
+            datum: d0,
+            weg: "Post".into(),
+            referenz: "Einschreiben".into(),
+            notiz: "Antrag versendet".into(),
+            beleg: None,
+            berichtigt: None,
+        });
+    }
     a.status = Verfahrensstatus::Eingereicht;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
     (dir, core, user, p.id, vid, f, dok)
@@ -1809,7 +1834,9 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
 #[tokio::test]
 async fn ruecknahme_rueckweisung_und_zurueckgenommene_akte() {
     let heute = core_lib::kalender::heute();
-    let d0 = heute - chrono::Duration::days(30);
+    // Versand am Tag des Festhaltens, damit die Rückweisung die einzige
+    // Einreichung betrifft.
+    let d0 = heute;
     let (_dir, core, user, p, vid, f, _dok) = eingereichte_akte(Bundesland::Nw, d0).await;
     let versuch = |a: &Verfahrensakte, revision: i64| {
         let a = serde_json::to_value(a).unwrap();
@@ -2079,6 +2106,8 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
     let err = versuch(&a, f.revision).await.unwrap_err().to_string();
     assert!(err.contains("Zustelldatum"), "{err}");
     a.bescheide[0].zugestellt = Some(heute);
+    // Ein Entscheidungsbescheid wird mit dem Stand „Entschieden“ gespeichert.
+    a.status = Verfahrensstatus::Entschieden;
     let f = versuch(&a, f.revision).await.unwrap();
     let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
     // Wortlaut behördlicher Einträge bleibt fest, Bearbeitungsangaben nicht.
