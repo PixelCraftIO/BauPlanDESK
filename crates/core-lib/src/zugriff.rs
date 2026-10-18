@@ -49,7 +49,7 @@ impl CoreServices {
         wer: &Benutzer,
         min: ProjektRecht,
     ) -> CoreResult<()> {
-        let aktuell = self.repos.benutzer.get(wer.id).await?;
+        let aktuell = self.angemeldeter_benutzer(wer).await?;
         if !aktuell.aktiv {
             return Err(CoreError::Forbidden("Benutzerkonto ist deaktiviert".into()));
         }

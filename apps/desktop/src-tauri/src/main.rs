@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod abstandsflaechen;
+mod anmeldung;
 mod berechnungen;
 mod bibliothek;
 mod bootstrap;
@@ -166,6 +167,12 @@ fn main() {
             commands::benutzer_auflisten,
             commands::benutzer_anlegen,
             commands::benutzer_aendern,
+            anmeldung::anmeldestatus,
+            anmeldung::anmelden,
+            anmeldung::anmelden_uebergang,
+            anmeldung::kennwort_aendern,
+            anmeldung::abmelden,
+            anmeldung::erstkennwort_vergeben,
             commands::lizenz_status,
             commands::lizenz_einspielen,
             commands::lizenz_aktivieren,

@@ -137,6 +137,27 @@ impl Recht {
     }
 }
 
+/// Stand des Anmeldekennworts eines Kontos. Der Hash selbst gehört nicht
+/// dazu und verlässt die Datenbankschicht nur über [`Kennwortdaten`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Kennwortstatus {
+    /// Noch kein Kennwort (Bestand vor der Kennwortanmeldung, Einzelplatz).
+    #[default]
+    Keines,
+    /// Von einem Administrator vergeben; muss bei der Anmeldung geändert werden.
+    Erstkennwort,
+    /// Vom Benutzer selbst gesetzt.
+    Gesetzt,
+}
+
+impl Kennwortstatus {
+    /// Ein Hash ist gespeichert (Erst- oder eigenes Kennwort).
+    pub fn vorhanden(self) -> bool {
+        self != Self::Keines
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Benutzer {
     pub id: BenutzerId,
@@ -146,12 +167,53 @@ pub struct Benutzer {
     pub rolle: Rolle,
     pub aktiv: bool,
     pub erstellt_am: DateTime<Utc>,
+    /// Ergänzt mit der Kennwortanmeldung; fehlt in älteren Daten (= keines).
+    #[serde(default)]
+    pub kennwort: Kennwortstatus,
+    /// Nach zu vielen Fehlversuchen keine Anmeldung bis zu diesem Zeitpunkt.
+    #[serde(default)]
+    pub anmeldesperre_bis: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub letzte_anmeldung: Option<DateTime<Utc>>,
+}
+
+/// Gespeicherte Kennwortangaben eines Kontos, nur für [`crate::anmeldung`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Kennwortdaten {
+    /// Argon2id im PHC-Format, `None` ohne Kennwort.
+    pub hash: Option<String>,
+    /// Fehleingaben in Folge seit der letzten erfolgreichen Anmeldung.
+    pub fehlversuche: u32,
+    pub gesperrt_bis: Option<DateTime<Utc>>,
 }
 
 impl Benutzer {
+    /// Platzhalter für „niemand angemeldet“ (Anmeldedialog im Netzwerkmodus).
+    /// Jede Rechteprüfung im Core lehnt ihn ab; er steht in keiner Datenbank.
+    pub fn nicht_angemeldet() -> Self {
+        Self {
+            id: BenutzerId(Uuid::nil()),
+            anmeldename: String::new(),
+            anzeigename: "Nicht angemeldet".into(),
+            rolle: Rolle::Lesen,
+            aktiv: false,
+            erstellt_am: DateTime::<Utc>::UNIX_EPOCH,
+            kennwort: Kennwortstatus::Keines,
+            anmeldesperre_bis: None,
+            letzte_anmeldung: None,
+        }
+    }
+
+    pub fn ist_angemeldet(&self) -> bool {
+        !self.id.0.is_nil()
+    }
+
     /// Fehler [`CoreError::Forbidden`], wenn die Rolle das Recht nicht hat
     /// oder der Benutzer deaktiviert ist.
     pub fn pruefe(&self, recht: Recht) -> CoreResult<()> {
+        if !self.ist_angemeldet() {
+            return Err(CoreError::Forbidden(NICHT_ANGEMELDET.into()));
+        }
         if !self.aktiv {
             return Err(CoreError::Forbidden(format!(
                 "Das Benutzerkonto „{}“ ist deaktiviert.",
@@ -169,6 +231,8 @@ impl Benutzer {
         Ok(())
     }
 }
+
+pub(crate) const NICHT_ANGEMELDET: &str = "Bitte melden Sie sich zuerst an.";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeuerBenutzer {
@@ -211,7 +275,35 @@ mod tests {
             rolle,
             aktiv: true,
             erstellt_am: Utc::now(),
+            kennwort: Kennwortstatus::Keines,
+            anmeldesperre_bis: None,
+            letzte_anmeldung: None,
         }
+    }
+
+    #[test]
+    fn nicht_angemeldet_darf_nichts() {
+        let b = Benutzer::nicht_angemeldet();
+        assert!(!b.ist_angemeldet());
+        let e = b.pruefe(Recht::ProjektBearbeiten).unwrap_err();
+        assert!(e.to_string().contains("melden Sie sich"), "{e}");
+    }
+
+    #[test]
+    fn aeltere_benutzerdaten_ohne_kennwortfelder_bleiben_lesbar() {
+        let b: Benutzer = serde_json::from_value(serde_json::json!({
+            "id": "6f1c8f9e-2d43-4f0a-9a33-0b8f8e0f2c11",
+            "anmeldename": "anna",
+            "anzeigename": "Anna",
+            "rolle": "bearbeitung",
+            "aktiv": true,
+            "erstellt_am": "2026-01-01T00:00:00Z"
+        }))
+        .unwrap();
+        assert_eq!(b.kennwort, Kennwortstatus::Keines);
+        assert_eq!(b.anmeldesperre_bis, None);
+        let json = serde_json::to_value(&b).unwrap();
+        assert_eq!(json["kennwort"], "keines");
     }
 
     #[test]
