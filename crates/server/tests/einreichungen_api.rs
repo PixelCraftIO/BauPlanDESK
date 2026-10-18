@@ -121,26 +121,26 @@ async fn bestehende_pakete_bestaetigen_vergleichen_und_unveraendertes_zip() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let response = router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .header(
-                    "authorization",
-                    "Bearer isolierter-http-testzugang-12345678901234567890",
-                )
-                .method("POST")
-                .uri(&uri)
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({"basis":1,"datum":"2026-01-02","notiz":""}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CONFLICT);
+    // Pakete werden nicht mehr bestätigt; ältere Clients erhalten eine klare Meldung.
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let meldung = String::from_utf8(
+        to_bytes(response.into_body(), 100000)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(meldung.contains("Externe Einreichung"), "{meldung}");
+    // Bereits früher bestätigte Pakete bleiben lesbar und vergleichbar.
+    core.einreichung_bestaetigen_altbestand(
+        e.stand.id,
+        1,
+        "2026-01-01".parse().unwrap(),
+        "Bauportal".into(),
+        &user,
+    )
+    .await
+    .unwrap();
     core.store_document(
         p.id,
         Some(d.document_id),

@@ -15,6 +15,8 @@ import type {
   Nebenbestimmungsart,
   Fristauftrag,
   Bescheidfristen,
+  Einreichungsweg,
+  ExterneEinreichungswunsch,
 } from "../generated/plattform";
 /** Bezeichnungen wie `Verfahrensstatus::bezeichnung` im Core. */
 export const STATUS: Record<Verfahrensstatus, string> = {
@@ -40,6 +42,15 @@ export const NEBENBESTIMMUNG: Record<Nebenbestimmungsart, string> = {
   widerrufsvorbehalt: "Widerrufsvorbehalt",
   auflagenvorbehalt: "Auflagenvorbehalt",
   hinweis: "Hinweis",
+};
+/** Bezeichnungen wie `Einreichungsweg::bezeichnung` im Core. */
+export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
+  post: "Post",
+  portal: "Portal",
+  persoenlich: "Persönlich",
+  email: "E-Mail",
+  fax: "Fax",
+  sonstiges: "Sonstiger Weg",
 };
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
@@ -71,6 +82,18 @@ export const verfahrenApi = {
     ziel: string,
   ) =>
     invoke<void>("verfahren_export", { projektId, id, abgabe, format, ziel }),
+  externeEinreichung: (
+    projektId: string,
+    id: string,
+    basis: number,
+    wunsch: ExterneEinreichungswunsch,
+  ) =>
+    invoke<Fachstand>("verfahren_externe_einreichung", {
+      projektId,
+      id,
+      basis,
+      wunsch,
+    }),
   xbauErfassen: (projektId: string, id: string, abgabe: string) =>
     invoke<Nachrichtenstand>("verfahren_xbau_erfassen", {
       projektId,

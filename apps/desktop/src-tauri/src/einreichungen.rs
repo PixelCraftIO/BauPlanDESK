@@ -1,6 +1,5 @@
 //! IPC-Adapter zum unabhängigen Einreichungsmodul.
 use crate::{bootstrap::AppState, commands::CmdError};
-use chrono::NaiveDate;
 use core_lib::{
     CoreError,
     domain::ProjectId,
@@ -41,27 +40,6 @@ pub async fn einreichungs_vergleich(
     Ok(state
         .core
         .einreichungs_vergleich(projekt_id, &empfaenger)
-        .await?)
-}
-#[tauri::command]
-pub async fn einreichung_bestaetigen(
-    state: State<'_, AppState>,
-    id: Uuid,
-    basis: i64,
-    datum: NaiveDate,
-    notiz: String,
-) -> Result<Einreichung, CmdError> {
-    state
-        .core
-        .einreichung_zugriff(
-            id,
-            &state.benutzer(),
-            core_lib::zugriff::ProjektRecht::Bearbeiten,
-        )
-        .await?;
-    Ok(state
-        .core
-        .einreichung_bestaetigen(id, basis, datum, notiz, &state.benutzer())
         .await?)
 }
 #[tauri::command]

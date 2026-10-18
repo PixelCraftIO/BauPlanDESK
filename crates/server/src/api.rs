@@ -202,6 +202,10 @@ fn routen(core: CoreServices) -> Router {
             post(verfahren_abgabe),
         )
         .route(
+            "/projekte/{id}/verfahren/{verfahren}/externe-einreichung",
+            post(verfahren_externe_einreichung),
+        )
+        .route(
             "/projekte/{id}/verfahren/{verfahren}/abgaben/{abgabe}/xbau-journal",
             post(verfahren_xbau_erfassen),
         )
@@ -1144,6 +1148,23 @@ async fn verfahren_abgabe(
             .await?,
     ))
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExterneEinreichungAuftrag {
+    basis: i64,
+    wunsch: core_lib::verfahren::externe_einreichung::ExterneEinreichungswunsch,
+}
+async fn verfahren_externe_einreichung(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<ExterneEinreichungAuftrag>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.verfahren_externe_einreichung(ProjectId(p), id, w.basis, w.wunsch, &wer)
+            .await?,
+    ))
+}
 async fn verfahren_xbau_erfassen(
     State(ApiState { core }): State<ApiState>,
     Extension(wer): Extension<Benutzer>,
@@ -1383,6 +1404,9 @@ async fn xbau_beleg(
 struct XbauVerfahrenswunsch {
     basis: i64,
     verfahren: Uuid,
+    /// Bestätigtes Zugangs- bzw. Versanddatum; fehlt es, gilt der Erfassungstag.
+    #[serde(default)]
+    zugang: Option<chrono::NaiveDate>,
 }
 async fn xbau_verfahren(
     Extension(wer): Extension<Benutzer>,
@@ -1391,7 +1415,7 @@ async fn xbau_verfahren(
     Json(w): Json<XbauVerfahrenswunsch>,
 ) -> ApiResult<core_lib::commit::Fachstand> {
     Ok(Json(
-        core.xbau_in_verfahren(ProjectId(p), id, w.verfahren, w.basis, &wer)
+        core.xbau_in_verfahren(ProjectId(p), id, w.verfahren, w.basis, w.zugang, &wer)
             .await?,
     ))
 }

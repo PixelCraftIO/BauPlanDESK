@@ -269,7 +269,11 @@
                   ></select
                 ></label
               ><label
-                >Ereignisdatum<input type="date" bind:value={e.datum} /></label
+                >Ereignisdatum<input
+                  type="date"
+                  max={heute()}
+                  bind:value={e.datum}
+                /></label
               ><label>Übermittlungsweg<input bind:value={e.weg} /></label><label
                 >Übermittlungsreferenz<input bind:value={e.referenz} /></label
               ><label

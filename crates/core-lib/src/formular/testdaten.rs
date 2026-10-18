@@ -12,7 +12,13 @@ pub fn musterformular() -> Vec<u8> {
     let page_id = doc.new_object_id();
 
     let ap = |doc: &mut Document, an: &str| {
-        let leer = doc.add_object(Stream::new(dictionary! {}, Vec::new()));
+        let leer = doc.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject", "Subtype" => "Form",
+                "BBox" => vec![0.into(), 0.into(), 100.into(), 20.into()],
+            },
+            Vec::new(),
+        ));
         let mut n = Dictionary::new();
         n.set(an, Object::Reference(leer));
         n.set("Off", Object::Reference(leer));

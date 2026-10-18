@@ -63,7 +63,8 @@ Die Ausgabe schreibt weder DMS-Versionen noch Kategorien, Einreichungen oder
 Projektstände. PDF-Formularfelder werden anhand vorhandener Darstellungen als
 Druckkopie eingefroren, sodass identische Feldnamen verschiedener Vorlagen keine
 Werte vermischen. Gefüllte Felder ohne druckbare Darstellung führen zu einem
-Fehler mit Handlungsanweisung. Druckkopien übernehmen keine Gültigkeit digitaler
+Fehler mit Handlungsanweisung; das erneute Befüllen mit der Formularfunktion
+erzeugt die fehlende Darstellung (siehe [PDF-Ablage](pdf-ablage/README.md)). Druckkopien übernehmen keine Gültigkeit digitaler
 Originalsignaturen. Grenzen: 100 Unterlagen, 300 Seiten, 64 MB je Quelldatei,
 128 MB Gesamtquelldaten/Ausgabedatei, 25 MP je Foto. Fehler oder Abbruch beim
 Speichern erhalten Auswahl und Vorschau. Es gibt keine Datenmigration.

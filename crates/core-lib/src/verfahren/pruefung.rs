@@ -249,13 +249,13 @@ pub(super) async fn pruefen(
             }
         }
     }
-    let versendet = |b: &&abgabe::Abgabestand| {
-        matches!(
-            abgabe::versandstand(b),
-            Some(abgabe::Versandstatus::Versendet | abgabe::Versandstatus::Eingegangen)
-        )
-    };
-    let eingereicht = a.abgaben.iter().any(|b| versendet(&b));
+    let heute = crate::kalender::heute();
+    zukunft_pruefen(a, alt, heute)?;
+    externe_einreichung::pruefen(a, alt, kontext, heute, &mut dokumente)?;
+    // Tatsächlich eingereicht: versendeter Abgabestand oder nachgetragene
+    // externe Einreichung, jeweils nicht in der Zukunft.
+    let eingereicht = externe_einreichung::eingereicht(a, heute);
+    let vorgelegt = externe_einreichung::eingereichte_dokumente(a, heute);
     for b in &a.bescheide {
         // Neue Bescheide setzen eine tatsächliche Einreichung voraus und
         // genehmigen nur Unterlagen, die der Behörde vorlagen. Ältere Bescheide
@@ -263,17 +263,15 @@ pub(super) async fn pruefen(
         if !alt.is_some_and(|a| a.bescheide.iter().any(|v| v.id == b.id)) {
             if !eingereicht {
                 return Err(fehler(
-                    "Ein Bescheid setzt einen versendeten Abgabestand voraus. Versand im Register Abgaben erfassen.",
+                    "Ein Bescheid setzt eine Einreichung voraus. Versand im Register Abgaben erfassen oder eine externe Einreichung nachtragen.",
                 ));
             }
-            if b.genehmigte_unterlagen.iter().any(|d| {
-                !a.abgaben
-                    .iter()
-                    .filter(versendet)
-                    .any(|v| v.dokumente.iter().any(|e| &e.dokument == d))
-            }) {
+            if b.genehmigte_unterlagen
+                .iter()
+                .any(|d| !vorgelegt.contains(&d))
+            {
                 return Err(fehler(
-                    "Genehmigte Unterlagen müssen aus einem versendeten Abgabestand stammen",
+                    "Genehmigte Unterlagen müssen aus einem versendeten Abgabestand oder einer externen Einreichung stammen",
                 ));
             }
         }
@@ -348,6 +346,17 @@ pub(super) async fn pruefen(
         let existiert = alt.is_some_and(|a| a.abgaben.iter().any(|v| v.id == b.id));
         if !existiert && kontext != AktenCommit::Abgabe {
             return Err(fehler("Abgabestände über Zusammenstellung festhalten"));
+        }
+        let bisher = alt
+            .and_then(|a| a.abgaben.iter().find(|v| v.id == b.id))
+            .map(|v| v.versand.len())
+            .unwrap_or(0);
+        for e in b.versand.iter().skip(bisher) {
+            if e.datum < crate::kalender::datum_deutsch(b.erstellt_am) {
+                return Err(fehler(
+                    "Ein Versandereignis darf nicht vor dem Festhalten des Abgabestands liegen. Eine frühere Einreichung als externe Einreichung nachtragen.",
+                ));
+            }
         }
         for e in &b.versand {
             text(&e.notiz, 4000)?;
@@ -469,6 +478,15 @@ pub(super) async fn pruefen(
                 return Err(fehler("Nachforderungsoriginal bleibt unverändert"));
             }
             behalten(&n.punkte, &neu.punkte, |v| v.id)?;
+            // Wortlaut und Grundlage stammen aus dem behördlichen Schreiben.
+            for v in &n.punkte {
+                let p = neu.punkte.iter().find(|p| p.id == v.id).expect("geprüft");
+                if p.titel != v.titel || p.grundlage != v.grundlage {
+                    return Err(fehler(
+                        "Wortlaut und Grundlage eines gespeicherten Forderungspunkts bleiben unverändert. Abweichenden Wortlaut als neuen Punkt erfassen und den bisherigen begründet als entfallen führen.",
+                    ));
+                }
+            }
         }
         for b in &alt.bescheide {
             let n = a.bescheide.iter().find(|n| n.id == b.id).expect("geprüft");
@@ -484,6 +502,15 @@ pub(super) async fn pruefen(
                 ));
             }
             behalten(&b.auflagen, &n.auflagen, |v| v.id)?;
+            // Wortlaut und Auslöser stammen aus dem Bescheid.
+            for v in &b.auflagen {
+                let f = n.auflagen.iter().find(|f| f.id == v.id).expect("geprüft");
+                if f.titel != v.titel || f.ausloeser != v.ausloeser {
+                    return Err(fehler(
+                        "Wortlaut und Auslöser einer gespeicherten Nebenbestimmung bleiben unverändert. Ein abweichender Wortlaut ist ein Folgebescheid.",
+                    ));
+                }
+            }
         }
         if a.ereignisse.len() < alt.ereignisse.len()
             || a.ereignisse[..alt.ereignisse.len()] != alt.ereignisse
@@ -575,7 +602,7 @@ fn status_pruefen(
         Zurueckgenommen => {}
         _ if !eingereicht => {
             return Err(fehler(format!(
-                "Status „{}“ setzt einen versendeten Abgabestand voraus",
+                "Status „{}“ setzt einen versendeten Abgabestand oder eine nachgetragene externe Einreichung voraus",
                 a.status.bezeichnung()
             )));
         }
@@ -607,6 +634,63 @@ fn frist(f: &Option<Frist>, docs: &mut Vec<Dokumentbezug>) -> CoreResult<()> {
             return Err(fehler("Erinnerung höchstens 365 Tage im Voraus"));
         }
         docs.extend(f.beleg.iter().cloned());
+    }
+    Ok(())
+}
+/// Fachliche Daten tatsächlicher Vorgänge liegen nicht nach dem heutigen
+/// Ortsdatum. Geprüft werden nur neue oder geänderte Angaben, damit ältere
+/// Akten bearbeitbar bleiben. Fristen dürfen in der Zukunft liegen.
+fn zukunft_pruefen(
+    a: &Verfahrensakte,
+    alt: Option<&Verfahrensakte>,
+    heute: NaiveDate,
+) -> CoreResult<()> {
+    let zukunft = |was: &str| {
+        Err(fehler(format!(
+            "{was} darf nicht in der Zukunft liegen (heute ist der {})",
+            heute.format("%d.%m.%Y")
+        )))
+    };
+    for c in &a.kommunikation {
+        if c.datum > heute && !alt.is_some_and(|a| a.kommunikation.iter().any(|v| v.id == c.id)) {
+            return zukunft("Das Datum der Kommunikation");
+        }
+    }
+    for b in &a.abgaben {
+        let bisher = alt
+            .and_then(|a| a.abgaben.iter().find(|v| v.id == b.id))
+            .map(|v| v.versand.len())
+            .unwrap_or(0);
+        if b.versand.iter().skip(bisher).any(|e| e.datum > heute) {
+            return zukunft("Ein Versand-, Eingangs- oder Rückweisungsdatum");
+        }
+    }
+    for b in &a.bescheide {
+        let vorher = alt.and_then(|a| a.bescheide.iter().find(|v| v.id == b.id));
+        if vorher.is_none() && b.datum > heute {
+            return zukunft("Das Bescheiddatum");
+        }
+        if b.zugestellt.is_some_and(|d| d > heute)
+            && vorher.is_none_or(|v| v.zugestellt != b.zugestellt)
+        {
+            return zukunft("Das Zustelldatum");
+        }
+    }
+    if let Some(v) = &a.vollstaendigkeit
+        && v.datum > heute
+        && alt.is_none_or(|alt| alt.vollstaendigkeit.as_ref() != Some(v))
+    {
+        return zukunft("Das Datum der Vollständigkeitsbestätigung");
+    }
+    if let Some(r) = &a.ruecknahme
+        && r.datum > heute
+        && alt.is_none_or(|alt| alt.ruecknahme.as_ref() != Some(r))
+    {
+        return zukunft("Das Rücknahmedatum");
+    }
+    let bisher = alt.map(|a| a.ereignisse.len()).unwrap_or(0);
+    if a.ereignisse.iter().skip(bisher).any(|e| e.datum > heute) {
+        return zukunft("Das Datum eines Aktenereignisses");
     }
     Ok(())
 }

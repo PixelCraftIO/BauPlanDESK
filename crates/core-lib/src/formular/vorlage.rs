@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use super::pdf::{Feldart, Feldwert, Formularfeld};
@@ -49,7 +48,10 @@ impl Projektkontext {
         {
             k.baugebiet(g);
         }
-        k.setze("datum.heute", Local::now().format("%d.%m.%Y").to_string());
+        k.setze(
+            "datum.heute",
+            crate::kalender::heute().format("%d.%m.%Y").to_string(),
+        );
         k.leere_entfernen();
         k
     }
@@ -272,6 +274,12 @@ pub struct Formularvorlage {
 }
 
 impl Formularvorlage {
+    /// Gilt die Zuordnung für ein Projekt in `land`? Zuordnungen ohne Land
+    /// gelten bundesweit.
+    pub fn gilt_fuer(&self, land: Bundesland) -> bool {
+        self.land.is_none_or(|l| l == land)
+    }
+
     pub fn passt_zu(&self, felder: &[Formularfeld]) -> bool {
         !self.erkennung.is_empty()
             && self
@@ -281,9 +289,42 @@ impl Formularvorlage {
     }
 }
 
+/// Quelle eines Felds: Zuordnung der Vorlage, sonst der Feldname selbst.
+fn quelle<'a>(feld: &'a Formularfeld, vorlage: Option<&'a Formularvorlage>) -> &'a str {
+    vorlage
+        .and_then(|v| v.zuordnung.get(&feld.name))
+        .map(String::as_str)
+        .unwrap_or(&feld.name)
+}
+
+/// Feldwert für `text` passend zur Feldart; `None`, wenn das Feld den Wert
+/// nicht aufnehmen kann (z. B. unbekannte Option).
+fn feldwert(feld: &Formularfeld, text: &str) -> Option<Feldwert> {
+    match feld.art {
+        Feldart::Text => Some(Feldwert::Text(text.to_owned())),
+        Feldart::Auswahl | Feldart::Optionsfeld if feld.optionen.iter().any(|o| o == text) => {
+            Some(Feldwert::Text(text.to_owned()))
+        }
+        Feldart::Ankreuzfeld => Some(Feldwert::Ja(!matches!(
+            text.trim().to_lowercase().as_str(),
+            "" | "0" | "nein" | "false"
+        ))),
+        _ => None,
+    }
+}
+
+fn ausgefuellt(wert: Option<&Feldwert>) -> bool {
+    match wert {
+        Some(Feldwert::Text(t)) => !t.trim().is_empty(),
+        Some(Feldwert::Ja(an)) => *an,
+        None => false,
+    }
+}
+
 /// Erzeugt Vorschläge für Feldwerte. Ohne Vorlage werden nur Felder befüllt,
 /// deren Name exakt einem Schlüssel des Kontexts entspricht (für eigene
-/// Formulare). Bereits ausgefüllte Felder bleiben unangetastet.
+/// Formulare). Bereits ausgefüllte Felder bleiben unangetastet; weichen sie
+/// von den Projektdaten ab, meldet [`veraltete_werte`] sie.
 pub fn vorschlag(
     felder: &[Formularfeld],
     vorlage: Option<&Formularvorlage>,
@@ -291,35 +332,74 @@ pub fn vorschlag(
 ) -> BTreeMap<String, Feldwert> {
     let mut werte = BTreeMap::new();
     for feld in felder {
-        let ausgefuellt = match &feld.wert {
-            Some(Feldwert::Text(t)) => !t.trim().is_empty(),
-            Some(Feldwert::Ja(an)) => *an,
-            None => false,
-        };
-        if feld.schreibgeschuetzt || ausgefuellt {
+        if feld.schreibgeschuetzt || ausgefuellt(feld.wert.as_ref()) {
             continue;
         }
-        let quelle = vorlage
-            .and_then(|v| v.zuordnung.get(&feld.name))
-            .map(String::as_str)
-            .unwrap_or(&feld.name);
+        let quelle = quelle(feld, vorlage);
         let Some(text) = quelle.strip_prefix('\'').or_else(|| kontext.wert(quelle)) else {
             continue;
         };
-        let wert = match feld.art {
-            Feldart::Text => Feldwert::Text(text.to_owned()),
-            Feldart::Auswahl | Feldart::Optionsfeld if feld.optionen.iter().any(|o| o == text) => {
-                Feldwert::Text(text.to_owned())
-            }
-            Feldart::Ankreuzfeld => Feldwert::Ja(!matches!(
-                text.trim().to_lowercase().as_str(),
-                "" | "0" | "nein" | "false"
-            )),
-            _ => continue,
-        };
-        werte.insert(feld.name.clone(), wert);
+        if let Some(wert) = feldwert(feld, text) {
+            werte.insert(feld.name.clone(), wert);
+        }
     }
     werte
+}
+
+/// Ein ausgefülltes Feld, dessen Wert nicht (mehr) dem Wert aus den aktuellen
+/// Projektdaten entspricht, etwa nach Änderung der Bauherrenanschrift.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VeralteterFeldwert {
+    /// Vollqualifizierter Feldname.
+    pub feld: String,
+    /// Schlüssel im [`Projektkontext`], aus dem das Feld befüllt wird.
+    pub quelle: String,
+    /// Eingetragener Wert.
+    pub wert: Feldwert,
+    /// Wert aus den aktuellen Projektdaten.
+    pub aktuell: Feldwert,
+}
+
+/// Vergleicht ausgefüllte Felder mit dem aktuellen Kontext. Gemeldet wird
+/// jedes Feld mit Projektdatenquelle, dessen Wert vom aktuellen Projektwert
+/// abweicht. Feste Texte der Vorlage (`'…`), das Tagesdatum und Felder ohne
+/// aktuellen Projektwert werden nicht verglichen. `werte` überlagert die im
+/// PDF stehenden Feldwerte (z. B. ungespeicherte Eingaben).
+pub fn veraltete_werte(
+    felder: &[Formularfeld],
+    werte: &BTreeMap<String, Feldwert>,
+    vorlage: Option<&Formularvorlage>,
+    kontext: &Projektkontext,
+) -> Vec<VeralteterFeldwert> {
+    let mut out = Vec::new();
+    for feld in felder {
+        let wert = werte.get(&feld.name).or(feld.wert.as_ref());
+        if feld.schreibgeschuetzt || !ausgefuellt(wert) {
+            continue;
+        }
+        let quelle = quelle(feld, vorlage);
+        if quelle.starts_with('\'') || quelle == "datum.heute" {
+            continue;
+        }
+        let (Some(wert), Some(aktuell)) =
+            (wert, kontext.wert(quelle).and_then(|t| feldwert(feld, t)))
+        else {
+            continue;
+        };
+        let gleich = match (wert, &aktuell) {
+            (Feldwert::Text(a), Feldwert::Text(b)) => a.trim() == b.trim(),
+            (a, b) => a == b,
+        };
+        if !gleich {
+            out.push(VeralteterFeldwert {
+                feld: feld.name.clone(),
+                quelle: quelle.to_owned(),
+                wert: wert.clone(),
+                aktuell,
+            });
+        }
+    }
+    out
 }
 
 /// Alle bekannten Formularvorlagen, geladen aus `formulare/*.json`.
@@ -367,12 +447,47 @@ impl Formularkatalog {
         &self.vorlagen
     }
 
-    /// Die Vorlage mit den meisten passenden Erkennungsfeldern.
+    /// Die Vorlage mit den meisten passenden Erkennungsfeldern, ohne Rücksicht
+    /// auf das Land. Für Projekte [`Self::erkenne_fuer`] verwenden.
     pub fn erkenne(&self, felder: &[Formularfeld]) -> Option<&Formularvorlage> {
         self.vorlagen
             .iter()
             .filter(|v| v.passt_zu(felder))
             .max_by_key(|v| v.erkennung.len())
+    }
+
+    /// Erkennung für ein Projekt in `land`: nur Zuordnungen dieses Landes oder
+    /// bundesweite. Es gewinnt die Vorlage mit den meisten Erkennungsfeldern,
+    /// bei Gleichstand die landesspezifische, danach die kleinere `id` –
+    /// unabhängig von der Ladereihenfolge.
+    pub fn erkenne_fuer(
+        &self,
+        felder: &[Formularfeld],
+        land: Bundesland,
+    ) -> Option<&Formularvorlage> {
+        self.vorlagen
+            .iter()
+            .filter(|v| v.gilt_fuer(land) && v.passt_zu(felder))
+            .max_by(|a, b| {
+                (a.erkennung.len(), a.land.is_some())
+                    .cmp(&(b.erkennung.len(), b.land.is_some()))
+                    .then_with(|| b.id.cmp(&a.id))
+            })
+    }
+
+    /// Zuordnung für ein Formular: die zuvor verwendete (`bisher`), solange sie
+    /// noch geladen ist, zum Land passt und das Formular erkennt; sonst
+    /// [`Self::erkenne_fuer`].
+    pub fn zuordnung_fuer(
+        &self,
+        felder: &[Formularfeld],
+        land: Bundesland,
+        bisher: Option<&str>,
+    ) -> Option<&Formularvorlage> {
+        bisher
+            .and_then(|id| self.vorlagen.iter().find(|v| v.id == id))
+            .filter(|v| v.gilt_fuer(land) && v.passt_zu(felder))
+            .or_else(|| self.erkenne_fuer(felder, land))
     }
 }
 
@@ -425,6 +540,78 @@ mod tests {
         assert!(!werte.contains_key("Gebaeudeklasse"));
         // Vorschläge lassen sich direkt eintragen.
         crate::formular::pdf::befuellen(&musterformular(), &werte).unwrap();
+    }
+
+    #[test]
+    fn erkennung_nach_bundesland() {
+        let felder = felder_lesen(&musterformular()).unwrap();
+        let mut bw = vorlage();
+        bw.id = "bw".into();
+        bw.land = Some(Bundesland::Bw);
+        let mut bund = vorlage();
+        bund.id = "bund".into();
+        bund.land = None;
+        // Ladereihenfolge entscheidet nicht mehr.
+        for katalog in [
+            Formularkatalog::new(vec![vorlage(), bw.clone(), bund.clone()]),
+            Formularkatalog::new(vec![bund.clone(), bw.clone(), vorlage()]),
+        ] {
+            assert_eq!(
+                katalog.erkenne_fuer(&felder, Bundesland::By).unwrap().id,
+                "test"
+            );
+            assert_eq!(
+                katalog.erkenne_fuer(&felder, Bundesland::Bw).unwrap().id,
+                "bw"
+            );
+            assert_eq!(
+                katalog.erkenne_fuer(&felder, Bundesland::He).unwrap().id,
+                "bund"
+            );
+            // Eine gespeicherte Zuordnung bleibt maßgebend, wenn sie passt.
+            assert_eq!(
+                katalog
+                    .zuordnung_fuer(&felder, Bundesland::By, Some("bund"))
+                    .unwrap()
+                    .id,
+                "bund"
+            );
+            assert_eq!(
+                katalog
+                    .zuordnung_fuer(&felder, Bundesland::By, Some("bw"))
+                    .unwrap()
+                    .id,
+                "test"
+            );
+        }
+        let nur_bw = Formularkatalog::new(vec![bw]);
+        assert!(nur_bw.erkenne_fuer(&felder, Bundesland::By).is_none());
+    }
+
+    #[test]
+    fn abweichende_feldwerte_werden_als_veraltet_gemeldet() {
+        let mut felder = felder_lesen(&musterformular()).unwrap();
+        for f in &mut felder {
+            match f.name.as_str() {
+                "Bauherr_Name" => f.wert = Some(Feldwert::Text("Alter Name".into())),
+                "Grundstueck.Flaeche" => f.wert = Some(Feldwert::Text(" 640,00 ".into())),
+                "Vorhaben" => f.wert = Some(Feldwert::Text("Umbau".into())),
+                _ => {}
+            }
+        }
+        let v = vorlage();
+        let kontext = Projektkontext::aus_projekt(&projekt());
+        let veraltet = veraltete_werte(&felder, &BTreeMap::new(), Some(&v), &kontext);
+        assert_eq!(veraltet.len(), 1, "{veraltet:?}");
+        assert_eq!(veraltet[0].feld, "Bauherr_Name");
+        assert_eq!(veraltet[0].quelle, "projekt.name");
+        assert_eq!(veraltet[0].aktuell, Feldwert::Text("EFH Muster".into()));
+        // Ungespeicherte Eingaben überlagern den PDF-Wert.
+        let eingabe = BTreeMap::from([(
+            "Bauherr_Name".to_owned(),
+            Feldwert::Text("EFH Muster".into()),
+        )]);
+        assert!(veraltete_werte(&felder, &eingabe, Some(&v), &kontext).is_empty());
     }
 
     #[test]

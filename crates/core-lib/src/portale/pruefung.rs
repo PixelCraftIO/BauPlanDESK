@@ -7,7 +7,7 @@ use std::collections::HashSet;
 pub(super) fn versand_id(id: Uuid) -> Uuid {
     Uuid::new_v5(&id, b"bauprojektio.portal.versand")
 }
-pub(super) fn kommunikation_id(id: Uuid) -> Uuid {
+pub(crate) fn kommunikation_id(id: Uuid) -> Uuid {
     Uuid::new_v5(&id, b"bauprojektio.portal.kommunikation")
 }
 pub(super) fn projektion(e: &Portalereignis, z: &Portalziel) -> Versandereignis {
