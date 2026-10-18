@@ -21,6 +21,19 @@ pub const ANLAGEN: &str = "urn:xoev-de:xbau:codeliste:anlagen";
 pub const MIMETYPES: &str = "urn:xoev-de:xbau:codeliste:xbau-mimetypes";
 /// Verzeichnisdienste für Behördenkennungen (DVDV).
 pub const VERZEICHNISDIENST: &str = "urn:xoev-de:kosit:codeliste:verzeichnisdienst";
+/// Kommunikationskanäle (XÖV-Codeliste Erreichbarkeit), Typ 3.
+pub const ERREICHBARKEIT: &str = "urn:de:xoev:codeliste:erreichbarkeit";
+
+/// Kennung der Landes-Codeliste der bauordnungsrechtlichen Verfahrensarten
+/// (`Code.Verfahrensart`, Typ 4), z. B. `urn:xoev-de:xbau:hh:codeliste:verfahrensart`
+/// für Hamburg. XBau gibt keine bundesweite Liste vor; die Länder
+/// veröffentlichen ihre Liste im XRepository unter diesem Schema.
+pub fn verfahrensart_uri(land: crate::domain::Bundesland) -> String {
+    format!(
+        "urn:xoev-de:xbau:{}:codeliste:verfahrensart",
+        land.code().to_ascii_lowercase()
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Codeeintrag {
@@ -230,6 +243,28 @@ impl Codelisten {
                 "Die Codeliste „{name}“ ({uri}) fehlt. Bitte die aktuelle Version als Genericode-Datei vom XRepository (www.xrepository.de) herunterladen und in den Codelisten-Ordner legen."
             ))
         })
+    }
+
+    /// Prüft den gewählten Code der Verfahrensart gegen die Landesliste.
+    /// Leerer Code = keine Angabe, dann `Ok(None)`.
+    pub fn verfahrensart(
+        &self,
+        land: crate::domain::Bundesland,
+        code: &str,
+    ) -> CoreResult<Option<(&Codeliste, String)>> {
+        let code = code.trim();
+        if code.is_empty() {
+            return Ok(None);
+        }
+        let uri = verfahrensart_uri(land);
+        let liste = self.benoetigt(&uri, &format!("Verfahrensart {}", land.name()))?;
+        if !liste.enthaelt(code) {
+            return Err(CoreError::InvalidInput(format!(
+                "Verfahrensart: Der Code {code} steht nicht in der Codeliste {} (Version {}).",
+                liste.uri, liste.version
+            )));
+        }
+        Ok(Some((liste, code.to_string())))
     }
 
     /// Für den Bauantrag benötigte Listen, die nicht geladen sind.

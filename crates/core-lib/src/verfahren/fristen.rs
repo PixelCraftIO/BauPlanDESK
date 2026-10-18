@@ -27,29 +27,101 @@ pub struct Fristberechnung {
 pub struct Bescheidfristen {
     pub bescheid: Uuid,
     pub rechtsbehelfsfrist: Option<Fristberechnung>,
+    /// Frist für den Baubeginn (Erlöschen der Genehmigung).
     pub geltungsdauer: Option<Fristberechnung>,
-    /// Warum eine Frist nicht berechnet wurde.
+    /// Frist für die Fertigstellung, wo die Landesbauordnung eine eigene
+    /// Frist kennt (Berlin).
+    pub fertigstellung: Option<Fristberechnung>,
+    /// Warum eine Frist nicht berechnet wurde, und Hinweise nach Verfahrensart.
     pub hinweise: Vec<String>,
+    /// Stand der Fristregeln, nach dem gerechnet wurde.
+    pub regelstand: String,
 }
 
-/// Geltungsdauer der Baugenehmigung in Jahren nach der Landesbauordnung.
-const GELTUNGSDAUER: [(Bundesland, u32, &str); 16] = [
-    (Bundesland::Bw, 3, "LBO Baden-Württemberg"),
-    (Bundesland::By, 4, "BayBO"),
-    (Bundesland::Be, 3, "BauO Bln"),
-    (Bundesland::Bb, 6, "BbgBO"),
-    (Bundesland::Hb, 3, "BremLBO"),
-    (Bundesland::Hh, 3, "HBauO"),
-    (Bundesland::He, 3, "HBO"),
-    (Bundesland::Mv, 3, "LBauO M-V"),
-    (Bundesland::Ni, 3, "NBauO"),
-    (Bundesland::Nw, 3, "BauO NRW"),
-    (Bundesland::Rp, 4, "LBauO Rheinland-Pfalz"),
-    (Bundesland::Sl, 3, "LBO Saarland"),
-    (Bundesland::Sn, 3, "SächsBO"),
-    (Bundesland::St, 3, "BauO LSA"),
-    (Bundesland::Sh, 3, "LBO Schleswig-Holstein"),
-    (Bundesland::Th, 3, "ThürBO"),
+/// Stand der Fristregeln. Bei einer Änderung der Tabelle oder der Regeln
+/// anheben; die Fristen werden nicht gespeichert und gelten sofort neu.
+pub const REGELSTAND: &str = "2026-10-18";
+
+/// Erlöschen der Baugenehmigung nach Landesbauordnung.
+struct Geltungsregel {
+    land: Bundesland,
+    /// Jahre bis zum Baubeginn.
+    jahre: u32,
+    /// Jahre bis zur Fertigstellung, falls das Land sie eigens regelt.
+    fertigstellung_jahre: Option<u32>,
+    quelle: &'static str,
+    hinweis: Option<&'static str>,
+}
+const fn regel(
+    land: Bundesland,
+    jahre: u32,
+    fertigstellung_jahre: Option<u32>,
+    quelle: &'static str,
+    hinweis: Option<&'static str>,
+) -> Geltungsregel {
+    Geltungsregel {
+        land,
+        jahre,
+        fertigstellung_jahre,
+        quelle,
+        hinweis,
+    }
+}
+
+/// Geltungsdauer der Baugenehmigung je Land (Regelstand [`REGELSTAND`]).
+/// Geprüft gegen die geltenden Fassungen am 18.10.2026:
+/// BW § 62 Abs. 1 LBO (Stand 16.3.2026), NW § 75 Abs. 1 BauO NRW (Abs. 1
+/// unverändert 2024), NI § 71 NBauO (Unterbrechung 3 Jahre), HH § 73 HBauO
+/// (Unterbrechung 1 Jahr, Hemmung bei Nachbarrechtsbehelf), BE § 73 Abs. 1
+/// BauO Bln (2 Jahre bis Baubeginn, 6 Jahre bis Fertigstellung; bis zum
+/// Regelstand 2026-10-18 fälschlich 3 Jahre), BB § 73 BbgBO (6 Jahre, keine
+/// Verlängerung), BY Art. 69 BayBO und RP § 74 LBauO (4 Jahre). SN nur über
+/// eine Sekundärquelle bestätigt, amtlicher Text nicht eingesehen; die übrigen
+/// Länder nach den bekannten Fassungen (3 Jahre).
+const GELTUNGSDAUER: [Geltungsregel; 16] = [
+    regel(
+        Bundesland::Bw,
+        3,
+        None,
+        "§ 62 Abs. 1 LBO Baden-Württemberg",
+        None,
+    ),
+    regel(Bundesland::By, 4, None, "Art. 69 BayBO", None),
+    regel(Bundesland::Be, 2, Some(6), "§ 73 Abs. 1 BauO Bln", None),
+    regel(
+        Bundesland::Bb,
+        6,
+        None,
+        "§ 73 BbgBO",
+        Some("Die BbgBO sieht keine Verlängerung der Geltungsdauer vor."),
+    ),
+    regel(Bundesland::Hb, 3, None, "BremLBO", None),
+    regel(
+        Bundesland::Hh,
+        3,
+        None,
+        "§ 73 HBauO",
+        Some(
+            "Die Genehmigung erlischt auch, wenn die Bauausführung ein Jahr unterbrochen \
+             wird. Rechtsbehelfe Dritter hemmen den Fristlauf (§ 73 HBauO).",
+        ),
+    ),
+    regel(Bundesland::He, 3, None, "HBO", None),
+    regel(Bundesland::Mv, 3, None, "LBauO M-V", None),
+    regel(
+        Bundesland::Ni,
+        3,
+        None,
+        "§ 71 NBauO",
+        Some("Die Genehmigung erlischt auch, wenn die Bauausführung drei Jahre unterbrochen wird."),
+    ),
+    regel(Bundesland::Nw, 3, None, "§ 75 Abs. 1 BauO NRW", None),
+    regel(Bundesland::Rp, 4, None, "§ 74 LBauO Rheinland-Pfalz", None),
+    regel(Bundesland::Sl, 3, None, "LBO Saarland", None),
+    regel(Bundesland::Sn, 3, None, "SächsBO", None),
+    regel(Bundesland::St, 3, None, "BauO LSA", None),
+    regel(Bundesland::Sh, 3, None, "LBO Schleswig-Holstein", None),
+    regel(Bundesland::Th, 3, None, "ThürBO", None),
 ];
 
 /// Monatsfrist nach §§ 187 Abs. 1, 188 Abs. 2 und 3 BGB: Ende am Tag gleicher
@@ -60,13 +132,61 @@ fn nach_monaten(beginn: NaiveDate, monate: u32) -> NaiveDate {
         .unwrap_or(NaiveDate::MAX)
 }
 
+const HINWEIS_NACHBAR: &str = "Während eines Widerspruchs oder einer Klage Dritter, etwa \
+    von Nachbarn, kann der Lauf der Geltungsdauer ruhen (z. B. OVG Hamburg, Beschluss \
+    2 Bs 179/14); das ist nicht berechnet.";
+const HINWEIS_WERKTAG: &str = "Das Ende wird nicht auf den nächsten Werktag verschoben; ob \
+    § 193 BGB für Erlöschensfristen gilt, ist umstritten.";
+
+fn genehmigt(b: &Bescheid) -> bool {
+    matches!(
+        b.entscheidung,
+        Entscheidung::Genehmigt | Entscheidung::TeilweiseGenehmigt
+    )
+}
+
 pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Bescheidfristen {
     let mut r = Bescheidfristen {
         bescheid: b.id,
         rechtsbehelfsfrist: None,
         geltungsdauer: None,
+        fertigstellung: None,
         hinweise: Vec::new(),
+        regelstand: REGELSTAND.into(),
     };
+    let genehmigt = genehmigt(b);
+    // Ein Verlängerungsbescheid nennt das neue Ende selbst.
+    if let Some(v) = &b.verlaengerung
+        && genehmigt
+    {
+        r.geltungsdauer = Some(Fristberechnung {
+            beginn: b.datum,
+            ende: v.bis,
+            grundlage: "Verlängerung der Geltungsdauer durch diesen Bescheid".into(),
+            hinweise: vec![
+                "Das Ende stammt aus dem Verlängerungsbescheid. Baubeginn in der Akte erfassen."
+                    .into(),
+                HINWEIS_NACHBAR.into(),
+            ],
+        });
+    }
+    match art {
+        Verfahrensart::Freistellung => r.hinweise.push(
+            "Genehmigungsfreistellung: Mit dem Vorhaben darf erst nach Ablauf der Wartefrist \
+             der Landesbauordnung nach Eingang der Unterlagen bei der Gemeinde begonnen werden, \
+             wenn sie kein Genehmigungsverfahren verlangt; die Wartefrist wird nicht berechnet. \
+             Ein späterer Baubeginn kann nach Landesrecht eine erneute Vorlage erfordern."
+                .into(),
+        ),
+        Verfahrensart::Vorbescheid if b.verlaengerung.is_none() && genehmigt => r.hinweise.push(
+            "Die Geltungsdauer des Vorbescheids richtet sich nach der Landesbauordnung und wird \
+             nicht berechnet. Das Ablaufdatum aus dem Bescheid als Befristung unter \
+             Nebenbestimmungen erfassen, damit es wiedervorgelegt wird; eine Verlängerung als \
+             Verlängerungsbescheid erfassen."
+                .into(),
+        ),
+        _ => {}
+    }
     let Some(zugestellt) = b.zugestellt else {
         r.hinweise.push(
             "Zustelldatum erfassen, um Rechtsbehelfsfrist und Geltungsdauer zu berechnen.".into(),
@@ -91,33 +211,59 @@ pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Beschei
                 .into(),
         ],
     });
-    let genehmigt = matches!(
-        b.entscheidung,
-        Entscheidung::Genehmigt | Entscheidung::TeilweiseGenehmigt
-    );
     let baugenehmigung = matches!(
         art,
         Verfahrensart::Bauantrag
             | Verfahrensart::Aenderungsantrag
             | Verfahrensart::Teilbaugenehmigung
     );
-    if genehmigt && baugenehmigung {
-        let (_, jahre, gesetz) = GELTUNGSDAUER
+    if genehmigt && baugenehmigung && b.verlaengerung.is_none() {
+        let g = GELTUNGSDAUER
             .iter()
-            .find(|(l, _, _)| *l == land)
+            .find(|g| g.land == land)
             .expect("Tabelle enthält jedes Bundesland");
+        let mut hinweise = vec![
+            "Die Genehmigung erlischt, wenn bis dahin nicht mit der Ausführung begonnen wurde. \
+             Baubeginn in der Akte erfassen; Unterbrechung der Bauausführung und Verlängerung \
+             auf Antrag nach der Landesbauordnung prüfen."
+                .into(),
+            HINWEIS_NACHBAR.into(),
+            HINWEIS_WERKTAG.into(),
+        ];
+        hinweise.extend(g.hinweis.map(String::from));
         r.geltungsdauer = Some(Fristberechnung {
             beginn: zugestellt,
-            ende: nach_monaten(zugestellt, jahre * 12),
-            grundlage: format!("{jahre} Jahre nach Erteilung ({gesetz})"),
-            hinweise: vec![
-                "Die Genehmigung erlischt, wenn bis dahin nicht mit der Ausführung begonnen wurde. \
-                 Unterbrechung der Bauausführung und Verlängerung auf Antrag nach der \
-                 Landesbauordnung prüfen."
-                    .into(),
-            ],
+            ende: nach_monaten(zugestellt, g.jahre * 12),
+            grundlage: format!(
+                "{} Jahre nach Erteilung bis zum Baubeginn ({})",
+                g.jahre, g.quelle
+            ),
+            hinweise,
         });
-    } else if genehmigt {
+        if let Some(jahre) = g.fertigstellung_jahre {
+            r.fertigstellung = Some(Fristberechnung {
+                beginn: zugestellt,
+                ende: nach_monaten(zugestellt, jahre * 12),
+                grundlage: format!(
+                    "{jahre} Jahre nach Erteilung bis zur Fertigstellung ({})",
+                    g.quelle
+                ),
+                hinweise: vec![
+                    "Die Genehmigung erlischt, wenn das Vorhaben bis dahin nicht fertiggestellt \
+                     ist. Fertigstellung in der Akte erfassen."
+                        .into(),
+                    HINWEIS_NACHBAR.into(),
+                    HINWEIS_WERKTAG.into(),
+                ],
+            });
+        }
+    } else if genehmigt
+        && b.verlaengerung.is_none()
+        && !matches!(
+            art,
+            Verfahrensart::Freistellung | Verfahrensart::Vorbescheid
+        )
+    {
         r.hinweise.push(
             "Geltungsdauer wird nur für Baugenehmigungen berechnet; für diese Verfahrensart \
              nach Landesrecht prüfen."
@@ -125,6 +271,36 @@ pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Beschei
         );
     }
     r
+}
+
+/// Fristen aller Bescheide einer Akte. Ein verlängerter Bescheid nennt seinen
+/// Verlängerungsbescheid; dessen Ende ist maßgebend.
+pub fn alle(land: Bundesland, art: &Verfahrensart, bescheide: &[Bescheid]) -> Vec<Bescheidfristen> {
+    bescheide
+        .iter()
+        .map(|b| {
+            let mut f = berechnen(land, art, b);
+            if let Some(n) = verlaengert_durch(bescheide, b.id) {
+                f.hinweise.push(format!(
+                    "Geltungsdauer durch Bescheid vom {} bis {} verlängert; maßgebend ist der \
+                     Verlängerungsbescheid.",
+                    n.datum.format("%d.%m.%Y"),
+                    n.verlaengerung
+                        .as_ref()
+                        .map(|v| v.bis.format("%d.%m.%Y").to_string())
+                        .unwrap_or_default()
+                ));
+            }
+            f
+        })
+        .collect()
+}
+
+/// Genehmigender Verlängerungsbescheid, der die Geltungsdauer von `id` verlängert.
+pub fn verlaengert_durch(bescheide: &[Bescheid], id: Uuid) -> Option<&Bescheid> {
+    bescheide
+        .iter()
+        .find(|n| genehmigt(n) && n.verlaengerung.as_ref().is_some_and(|v| v.bescheid == id))
 }
 
 impl CoreServices {
@@ -138,11 +314,7 @@ impl CoreServices {
             return Err(fehler("Höchstens 100 Bescheide je Berechnung"));
         }
         let land = self.get_project(p).await?.bundesland;
-        Ok(auftrag
-            .bescheide
-            .iter()
-            .map(|b| berechnen(land, &auftrag.art, b))
-            .collect())
+        Ok(alle(land, &auftrag.art, &auftrag.bescheide))
     }
 }
 
@@ -150,6 +322,7 @@ impl CoreServices {
 mod tests {
     use super::*;
     use crate::plattform::objekte::Dokumentbezug;
+    use crate::verfahren::Verlaengerung;
 
     fn bescheid(entscheidung: Entscheidung, zugestellt: Option<&str>) -> Bescheid {
         Bescheid {
@@ -164,6 +337,7 @@ mod tests {
             genehmigte_unterlagen: Vec::new(),
             auflagen: Vec::new(),
             ersetzt: None,
+            verlaengerung: None,
         }
     }
     fn tag(s: &str) -> NaiveDate {
@@ -216,11 +390,60 @@ mod tests {
         );
         assert!(offen.rechtsbehelfsfrist.is_none() && offen.geltungsdauer.is_none());
         assert!(offen.hinweise[0].contains("Zustelldatum"));
+        // Jedes Land genau einmal.
+        for land in Bundesland::ALL {
+            assert_eq!(GELTUNGSDAUER.iter().filter(|g| g.land == land).count(), 1);
+        }
+        assert_eq!(offen.regelstand, REGELSTAND);
+    }
+
+    #[test]
+    fn berlin_zwei_jahre_bis_baubeginn_und_sechs_bis_fertigstellung() {
+        let b = bescheid(Entscheidung::Genehmigt, Some("2026-03-10"));
+        let be = berechnen(Bundesland::Be, &Verfahrensart::Bauantrag, &b);
+        let g = be.geltungsdauer.unwrap();
+        assert_eq!(g.ende, tag("2028-03-10"));
         assert!(
-            GELTUNGSDAUER
-                .iter()
-                .all(|(l, _, _)| Bundesland::ALL.contains(l))
+            g.grundlage.contains("§ 73 Abs. 1 BauO Bln"),
+            "{}",
+            g.grundlage
         );
-        assert_eq!(GELTUNGSDAUER.len(), Bundesland::ALL.len());
+        assert!(g.hinweise.iter().any(|h| h.contains("2 Bs 179/14")));
+        assert_eq!(be.fertigstellung.unwrap().ende, tag("2032-03-10"));
+        // Andere Länder kennen keine eigene Fertigstellungsfrist.
+        let bb = berechnen(Bundesland::Bb, &Verfahrensart::Bauantrag, &b);
+        assert!(bb.fertigstellung.is_none());
+        let g = bb.geltungsdauer.unwrap();
+        assert_eq!(g.ende, tag("2032-03-10"));
+        assert!(g.hinweise.iter().any(|h| h.contains("keine Verlängerung")));
+    }
+
+    #[test]
+    fn verlaengerung_ersetzt_das_ende_und_freistellung_nennt_wartefrist() {
+        let original = bescheid(Entscheidung::Genehmigt, Some("2026-03-10"));
+        let mut verlaengerung = bescheid(Entscheidung::Genehmigt, None);
+        verlaengerung.verlaengerung = Some(Verlaengerung {
+            bescheid: original.id,
+            bis: tag("2031-03-10"),
+        });
+        let f = alle(
+            Bundesland::Nw,
+            &Verfahrensart::Bauantrag,
+            &[original.clone(), verlaengerung.clone()],
+        );
+        assert!(f[0].hinweise.iter().any(|h| h.contains("verlängert")));
+        // Das neue Ende gilt auch ohne Zustelldatum des Verlängerungsbescheids.
+        assert_eq!(f[1].geltungsdauer.as_ref().unwrap().ende, tag("2031-03-10"));
+        assert!(f[1].rechtsbehelfsfrist.is_none());
+        assert_eq!(
+            verlaengert_durch(&[original.clone(), verlaengerung], original.id).map(|b| b.datum),
+            Some(tag("2026-01-01"))
+        );
+        let frei = berechnen(Bundesland::By, &Verfahrensart::Freistellung, &original);
+        assert!(frei.geltungsdauer.is_none());
+        assert!(frei.hinweise.iter().any(|h| h.contains("Wartefrist")));
+        let vor = berechnen(Bundesland::By, &Verfahrensart::Vorbescheid, &original);
+        assert!(vor.geltungsdauer.is_none());
+        assert!(vor.hinweise.iter().any(|h| h.contains("Befristung")));
     }
 }

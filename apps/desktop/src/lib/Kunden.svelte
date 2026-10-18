@@ -20,6 +20,8 @@
     type Project,
   } from "./api";
   import KundeFelder from "./KundeFelder.svelte";
+  import Abweichungen from "./Abweichungen.svelte";
+  import { abgleichen, pfadSetzen, type Abweichung } from "./abgleich";
 
   let {
     ich,
@@ -44,6 +46,24 @@
   let projekte = $state<Project[]>([]);
   let fehler = $state<string | null>(null);
   let laeuft = $state(false);
+  /** Felder, die nach einem Versionskonflikt auf beiden Seiten geändert sind. */
+  let abweichungen = $state<Abweichung[]>([]);
+  const FELDNAMEN: Record<string, string> = {
+    typ: "Art",
+    kategorie: "Kategorie",
+    kundennummer: "Kundennummer",
+    vorname: "Vorname",
+    familienname: "Familienname",
+    firma: "Firma / Organisation",
+    ansprechpartner: "Ansprechpartner",
+    "anschrift.strasse": "Straße",
+    "anschrift.hausnummer": "Hausnummer",
+    "anschrift.postleitzahl": "Postleitzahl",
+    "anschrift.ort": "Ort",
+    telefon: "Telefon",
+    email: "E-Mail",
+    notizen: "Notizen",
+  };
 
   const gefiltert = $derived(liste.filter((k) => (!kategorie || k.kategorie === kategorie) && kundePasst(k, suche)));
   const geaendert = $derived(
@@ -72,6 +92,7 @@
 
   async function zeigen(k: Kunde) {
     fehler = null;
+    abweichungen = [];
     gewaehlt = k;
     bearbeitung = kundendaten(k);
     projekte = [];
@@ -85,34 +106,68 @@
   async function neu() {
     if (!(await verwerfenErlaubt())) return;
     fehler = null;
+    abweichungen = [];
     gewaehlt = null;
     projekte = [];
     bearbeitung = { ...leereKundendaten(), kategorie: kategorie || "privat" };
   }
 
-  async function speichern(e: SubmitEvent) {
-    e.preventDefault();
-    if (!bearbeitung) return;
+  /** Speichert die Eingaben; `true` nur, wenn sie tatsächlich gespeichert sind. */
+  async function speichern(e?: SubmitEvent): Promise<boolean> {
+    e?.preventDefault();
+    if (!bearbeitung || laeuft) return false;
     laeuft = true;
     fehler = null;
+    const basis = gewaehlt;
     try {
-      const k = gewaehlt
-        ? await api.kundeAendern(gewaehlt.id, bearbeitung, gewaehlt.version)
+      const k = basis
+        ? await api.kundeAendern(basis.id, bearbeitung, basis.version)
         : await api.kundeAnlegen(bearbeitung);
       await laden();
       await zeigen(k);
+      return true;
     } catch (err) {
-      if (istKonflikt(err) && gewaehlt) {
-        await laden();
-        const aktuell = liste.find((k) => k.id === gewaehlt?.id);
-        if (aktuell) await zeigen(aktuell);
-        fehler = "Der Kunde wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
-      } else {
-        fehler = fehlertext(err);
-      }
+      if (istKonflikt(err) && basis) await konfliktAbgleichen(basis);
+      else fehler = fehlertext(err);
+      return false;
     } finally {
       laeuft = false;
     }
+  }
+
+  /**
+   * Versionskonflikt: Die aktuelle Fassung wird Grundlage (neue Version), die
+   * eigenen Eingaben bleiben stehen. Auf beiden Seiten geänderte Felder werden
+   * angezeigt, damit erneutes Speichern fremde Änderungen nicht unbemerkt ersetzt.
+   */
+  async function konfliktAbgleichen(basis: Kunde) {
+    const eigene = $state.snapshot(bearbeitung) as Kundendaten;
+    try {
+      liste = await api.kunden();
+    } catch (e) {
+      fehler = `Der Kunde wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung konnte nicht geladen werden: ${fehlertext(e)} Ihre Eingaben bleiben erhalten.`;
+      return;
+    }
+    const aktuell = liste.find((k) => k.id === basis.id);
+    if (!aktuell) {
+      fehler =
+        "Der Kunde wurde inzwischen an einem anderen Arbeitsplatz gelöscht. Ihre Eingaben bleiben sichtbar, können aber nicht mehr unter diesem Kunden gespeichert werden.";
+      return;
+    }
+    const ergebnis = abgleichen(kundendaten(basis), eigene, kundendaten(aktuell));
+    gewaehlt = aktuell;
+    bearbeitung = ergebnis.werte;
+    abweichungen = ergebnis.abweichungen;
+    fehler = `Der Kunde wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung ist jetzt Grundlage, Ihre Eingaben bleiben erhalten.${
+      ergebnis.abweichungen.length ? " Bitte die abweichenden Felder prüfen" : " Bitte prüfen"
+    } und erneut speichern.`;
+  }
+
+  function aktuellUebernehmen(pfad: string) {
+    const a = abweichungen.find((x) => x.pfad === pfad);
+    if (!a || !bearbeitung) return;
+    pfadSetzen(bearbeitung, pfad, a.aktuell);
+    abweichungen = abweichungen.filter((x) => x.pfad !== pfad);
   }
 
   async function loeschen() {
@@ -143,7 +198,12 @@
   }
   export function hatAenderungen() {return geaendert;}
   export function istBeschaeftigt() {return laeuft;}
-  export async function speichernBeimSchliessen() {if(laeuft)return false;await speichern(new Event("submit") as SubmitEvent);return !geaendert;}
+  /** Für Beenden und Strg+S: `false` lässt Ansicht und Eingaben geöffnet. */
+  export async function speichernBeimSchliessen() {
+    if (laeuft) return false;
+    if (!geaendert) return true;
+    return (await speichern()) && !geaendert;
+  }
 </script>
 
 <div class="kunden">
@@ -182,6 +242,12 @@
       <form class="spalte" onsubmit={speichern}>
         <h3>{gewaehlt ? kundenname(gewaehlt) : "Neuer Kunde"}</h3>
         <KundeFelder bind:daten={bearbeitung} gesperrt={!darf} />
+        <Abweichungen
+          {abweichungen}
+          titel={(pfad) => FELDNAMEN[pfad] ?? pfad}
+          gesperrt={!darf || laeuft}
+          onuebernehmen={aktuellUebernehmen}
+        />
         {#if gewaehlt}
           <p class="meta">Angelegt {new Date(gewaehlt.created_at).toLocaleDateString("de-DE")}, zuletzt geändert {new Date(gewaehlt.updated_at).toLocaleString("de-DE")}.</p>
         {/if}

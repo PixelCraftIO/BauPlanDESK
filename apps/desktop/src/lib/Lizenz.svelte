@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { open } from "@tauri-apps/plugin-dialog";
+  import { ask, open } from "@tauri-apps/plugin-dialog";
   import { EDITIONEN, api, datumDe, fehlertext, type Benutzer, type Lizenzstatus } from "./api";
 
   let {
@@ -75,7 +75,7 @@
   }
 
   async function abmelden() {
-    if (!confirm("Diesen Rechner beim Lizenzserver abmelden? Er kann danach nur noch lesen, bis er wieder bestätigt wird.")) return;
+    if (!(await ask("Diesen Rechner beim Lizenzserver abmelden? Er kann danach nur noch lesen, bis er wieder bestätigt wird.", { title: "Lizenz", kind: "warning", okLabel: "Abmelden", cancelLabel: "Abbrechen" }))) return;
     await ausfuehren(api.lizenzAbmelden, "Dieser Rechner ist abgemeldet; sein Platz ist frei.");
   }
 

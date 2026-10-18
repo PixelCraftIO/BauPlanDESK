@@ -167,6 +167,19 @@ pub async fn projekt_laden(state: State<'_, AppState>, id: ProjectId) -> CmdResu
     Ok(state.core.get_project(id).await?)
 }
 
+/// Eigenes wirksames Projektrecht im Projekt (Lesen/Bearbeiten/Leitung) nach
+/// der Core-Regel; die Oberfläche richtet Bearbeitungsfunktionen danach aus.
+#[tauri::command]
+pub async fn projekt_recht(
+    state: State<'_, AppState>,
+    id: ProjectId,
+) -> CmdResult<core_lib::zugriff::ProjektRecht> {
+    Ok(state
+        .core
+        .eigenes_projektrecht(id, &state.benutzer())
+        .await?)
+}
+
 /// Öffnet ein Projekt: merkt es unter "Zuletzt geöffnet", aktiviert die
 /// projektbezogenen Menüpunkte und setzt den Fenstertitel.
 #[tauri::command]

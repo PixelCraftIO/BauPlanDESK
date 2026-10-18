@@ -10,8 +10,12 @@ use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
 use uuid::Uuid;
 
 use super::codeliste::{ANLAGEN, Codelisten, MIMETYPES, VERZEICHNISDIENST};
+use super::inhalt::{self, Vorhabenangaben};
 use super::xml::XmlSchreiber;
-use super::{Anschrift, Bauantrag, Beteiligter, Buero, XBAU_VERSION, land_schluessel, mime_typ};
+use super::{
+    Anschrift, Bauantrag, Beteiligter, Buero, Kommunikation, XBAU_VERSION, land_schluessel,
+    mime_typ,
+};
 use crate::domain::Project;
 use crate::error::{CoreError, CoreResult};
 
@@ -37,6 +41,8 @@ pub struct Nachrichtendaten<'a> {
     /// Die dem Projekt zugeordneten Bauherren, siehe [`crate::kunden`].
     pub bauherren: &'a [Beteiligter],
     pub buero: &'a Buero,
+    /// Weitere Beteiligte, Gebäudeklasse, Nachtragsbezug und BauNVO-Flächen.
+    pub vorhaben: &'a Vorhabenangaben,
     pub anlagen: &'a [Anlagendatei],
     pub codelisten: &'a Codelisten,
     pub nachricht_id: Uuid,
@@ -147,6 +153,15 @@ fn schreiben(
     let wurzel = art.wurzel(bezug.is_some())?;
     let element = art.element(bezug.is_some())?;
     let mut fehlt = d.antrag.fehlende_angaben(d.buero, d.bauherren);
+    inhalt::fehlende(d.vorhaben, &mut fehlt);
+    for a in d.anlagen {
+        if a.anlageart.trim().is_empty() {
+            fehlt.push(format!(
+                "Art der Anlage für „{}“ (im Bauantrag unter Anlagen aufnehmen und die Art wählen)",
+                a.bezeichnung.trim()
+            ));
+        }
+    }
     let fragen: Vec<Vec<&str>> = match art {
         Antragsart::Vorbescheid { fragen } => fragen
             .iter()
@@ -169,6 +184,10 @@ fn schreiben(
     let verzeichnis = d
         .codelisten
         .benoetigt(VERZEICHNISDIENST, "Verzeichnisdienst")?;
+    let verfahrensart = d
+        .codelisten
+        .verfahrensart(d.projekt.bundesland, &d.antrag.verfahrensart)?;
+    let kanaele = inhalt::kanaele(d.codelisten);
     for a in d.anlagen {
         if !anlagen.enthaelt(&a.anlageart) {
             return Err(CoreError::InvalidInput(format!(
@@ -266,7 +285,36 @@ fn schreiben(
             .zu();
         for b in d.bauherren {
             x.auf(antragsteller, &[]);
-            akteur(&mut x, b);
+            akteur(&mut x, b, kanaele);
+            x.zu();
+        }
+    }
+    if !matches!(art, Antragsart::Genehmigungsfreistellung { .. }) {
+        // Nachtrag nur zur Baugenehmigung; der Vorbescheid kennt keinen.
+        let nachtrag = d
+            .vorhaben
+            .hauptgenehmigung
+            .as_deref()
+            .map(str::trim)
+            .filter(|a| !a.is_empty() && matches!(art, Antragsart::Baugenehmigung));
+        if verfahrensart.is_some() || nachtrag.is_some() {
+            x.auf("xbau:prozessmerkmale", &[]);
+            if let Some((liste, code)) = &verfahrensart {
+                x.auf(
+                    "xbau:verfahrensart",
+                    &[
+                        ("listURI", liste.uri.as_str()),
+                        ("listVersionID", liste.version.as_str()),
+                    ],
+                )
+                .text("code", code)
+                .zu();
+            }
+            if let Some(az) = nachtrag {
+                x.auf("xbau:nachtragsbaugenehmigung", &[])
+                    .text("xbau:vorgang", az)
+                    .zu();
+            }
             x.zu();
         }
     }
@@ -296,8 +344,13 @@ fn schreiben(
     x.auf("xbau:beteiligte", &[]);
     for b in d.bauherren {
         x.auf("xbau:bauherr", &[]).auf("xbau:bauherr", &[]);
-        akteur(&mut x, b);
+        akteur(&mut x, b, kanaele);
         x.zu().zu();
+    }
+    if let Some(b) = inhalt::bevollmaechtigter(d.vorhaben) {
+        x.auf("xbau:bevollmaechtigter", &[]);
+        akteur(&mut x, &b.beteiligter, kanaele);
+        x.zu();
     }
     // `fehlende_angaben` hat oben geprüft, dass es den Entwurfsverfasser gibt.
     let ev = d
@@ -314,7 +367,9 @@ fn schreiben(
             familienname: ev.familienname.clone(),
             // Geschäftsanschrift des Büros.
             anschrift: d.buero.anschrift.clone(),
+            kommunikation: Kommunikation::default(),
         },
+        None,
     );
     x.zu();
     x.auf("xbau:berechtigung", &[]);
@@ -344,6 +399,7 @@ fn schreiben(
             .zu();
     }
     x.zu().zu(); // berechtigung, entwurfsverfasser
+    inhalt::weitere_beteiligte(&mut x, d.vorhaben, kanaele);
     x.auf("xbau:gebuehrenpflichtiger", &[]);
     akteur(
         &mut x,
@@ -351,6 +407,7 @@ fn schreiben(
             .gebuehrenpflichtiger
             .as_ref()
             .unwrap_or(&d.bauherren[0]),
+        kanaele,
     );
     x.zu();
     x.zu(); // beteiligte
@@ -372,6 +429,22 @@ fn schreiben(
         )
         .text("code", m)
         .zu();
+    }
+    if let Some(g) = d.vorhaben.gebaeudeklasse {
+        x.auf("xbau:bauordnungsrechtlicheKlassifikation", &[])
+            .auf(
+                "xbau:gebaeudeklasse",
+                &[
+                    ("listURI", "urn:xoev-de:xbau:codeliste:gebaeudeklasse"),
+                    ("listVersionID", "3.0"),
+                ],
+            )
+            .text("code", &g.to_string())
+            .zu()
+            .zu();
+    }
+    if let Some(f) = &d.vorhaben.flaechen {
+        f.schreiben(&mut x);
     }
     x.zu(); // gegenstand
 
@@ -453,7 +526,7 @@ fn schreiben(
     }
 
     x.zu();
-    Ok(x.fertig())
+    x.fertig()
 }
 
 pub(crate) fn mime_pruefen(dateiname: &str, mimes: &super::Codeliste) -> CoreResult<()> {
@@ -470,13 +543,14 @@ pub(crate) fn mime_pruefen(dateiname: &str, mimes: &super::Codeliste) -> CoreRes
 }
 
 /// `xbauk:Akteur`: natürliche Person oder Organisation.
-fn akteur(x: &mut XmlSchreiber, b: &Beteiligter) {
+pub(super) fn akteur(x: &mut XmlSchreiber, b: &Beteiligter, kanaele: Option<&super::Codeliste>) {
     match b {
         Beteiligter::Person {
             id,
             vorname,
             familienname,
             anschrift,
+            kommunikation,
         } => {
             x.auf("natuerlichePerson", &[])
                 .text("id", &id.to_string())
@@ -490,28 +564,44 @@ fn akteur(x: &mut XmlSchreiber, b: &Beteiligter) {
                 .zu()
                 .auf("anschrift", &[]);
             anschrift_felder(x, anschrift);
-            x.zu().zu();
+            x.zu();
+            inhalt::kommunikation(x, kommunikation, kanaele);
+            x.zu();
         }
         Beteiligter::Organisation {
             id,
             name,
             anschrift,
-        } => organisation(x, *id, name, anschrift),
+            ansprechpartner,
+            kommunikation,
+        } => {
+            x.auf("organisation", &[])
+                .text("id", &id.to_string())
+                .auf("name", &[])
+                .text("name", name.trim())
+                .zu();
+            if !anschrift.ist_leer() {
+                x.auf("anschrift", &[]);
+                anschrift_felder(x, anschrift);
+                x.zu();
+            }
+            inhalt::kommunikation(x, kommunikation, kanaele);
+            // Der Ansprechpartner ist als Freitext erfasst: Er geht ungeteilt
+            // als Familienname, damit kein Name falsch zerlegt wird.
+            if !ansprechpartner.trim().is_empty() {
+                x.auf("ansprechpartner", &[])
+                    .auf("name", &[])
+                    .auf("familienname", &[])
+                    .text("name", ansprechpartner.trim())
+                    .zu()
+                    .auf("vorname", &[])
+                    .zu()
+                    .zu()
+                    .zu();
+            }
+            x.zu();
+        }
     }
-}
-
-fn organisation(x: &mut XmlSchreiber, id: Uuid, name: &str, anschrift: &Anschrift) {
-    x.auf("organisation", &[])
-        .text("id", &id.to_string())
-        .auf("name", &[])
-        .text("name", name.trim())
-        .zu();
-    if !anschrift.ist_leer() {
-        x.auf("anschrift", &[]);
-        anschrift_felder(x, anschrift);
-        x.zu();
-    }
-    x.zu();
 }
 
 /// Kinder einer Anschrift, in der Reihenfolge der Schemas.
@@ -588,11 +678,22 @@ pub(crate) mod tests {
                     vorname: "Anna".into(),
                     familienname: "Müller-Øresund".into(),
                     anschrift: anschrift.clone(),
+                    kommunikation: Kommunikation::default(),
                 },
                 Beteiligter::Organisation {
                     id: Uuid::new_v4(),
                     name: "Wohnbau Süd GmbH & Co. KG".into(),
-                    anschrift: Anschrift::default(),
+                    anschrift: Anschrift {
+                        strasse: "Leopoldstraße".into(),
+                        hausnummer: "1".into(),
+                        postleitzahl: "80802".into(),
+                        ort: "München".into(),
+                    },
+                    ansprechpartner: "Dr. Jens Weber".into(),
+                    kommunikation: Kommunikation {
+                        telefon: "+49 89 123456".into(),
+                        email: "bau@wohnbau-sued.example".into(),
+                    },
                 },
             ],
             grundstueck: Baugrundstueck {
@@ -630,7 +731,12 @@ pub(crate) mod tests {
         };
         let buero = Buero {
             name: "Architekturbüro Muster".into(),
-            anschrift: Anschrift::default(),
+            anschrift: Anschrift {
+                strasse: "Türkenstraße".into(),
+                hausnummer: "20".into(),
+                postleitzahl: "80333".into(),
+                ort: "München".into(),
+            },
             kennung: "arc:4711".into(),
             entwurfsverfasser: vec![crate::xbau::Entwurfsverfasser {
                 id: Uuid::new_v4(),
@@ -708,6 +814,13 @@ pub(crate) mod tests {
         d
     }
 
+    static OHNE_VORHABENANGABEN: Vorhabenangaben = Vorhabenangaben {
+        beteiligte: Vec::new(),
+        gebaeudeklasse: None,
+        hauptgenehmigung: None,
+        flaechen: None,
+    };
+
     fn daten<'a>(
         projekt: &'a Project,
         antrag: &'a Bauantrag,
@@ -721,6 +834,7 @@ pub(crate) mod tests {
             // Die Tests führen die Bauherren der Einfachheit halber im Antrag.
             bauherren: &antrag.bauherren,
             buero,
+            vorhaben: &OHNE_VORHABENANGABEN,
             anlagen,
             codelisten,
             nachricht_id: Uuid::new_v4(),
@@ -833,7 +947,14 @@ pub(crate) mod tests {
         antrag.gebuehrenpflichtiger = Some(Beteiligter::Organisation {
             id: Uuid::new_v4(),
             name: "Kämmerei".into(),
-            anschrift: Anschrift::default(),
+            anschrift: Anschrift {
+                strasse: "Marienplatz".into(),
+                hausnummer: "8".into(),
+                postleitzahl: "80331".into(),
+                ort: "München".into(),
+            },
+            ansprechpartner: String::new(),
+            kommunikation: Kommunikation::default(),
         });
         antrag.massnahmen = vec!["12".into(), "14".into()];
         let anlagen = anlagen();
@@ -973,5 +1094,266 @@ pub(crate) mod tests {
             )
             .is_err()
         );
+    }
+
+    fn liste(uri: &str, version: &str, eintraege: &[(&str, &str)]) -> Codeliste {
+        Codeliste {
+            uri: uri.into(),
+            version: version.into(),
+            name: uri.rsplit(':').next().unwrap_or_default().into(),
+            eintraege: eintraege
+                .iter()
+                .map(|(c, b)| Codeeintrag {
+                    code: (*c).into(),
+                    beschreibung: (*b).into(),
+                })
+                .collect(),
+        }
+    }
+
+    fn person(vorname: &str, familienname: &str) -> Beteiligter {
+        Beteiligter::Person {
+            id: Uuid::new_v4(),
+            vorname: vorname.into(),
+            familienname: familienname.into(),
+            anschrift: Anschrift::default(),
+            kommunikation: Kommunikation {
+                telefon: String::new(),
+                email: format!("{}@example.de", familienname.to_lowercase()),
+            },
+        }
+    }
+
+    fn vorhabenangaben() -> Vorhabenangaben {
+        use crate::xbau::{FlaechenBauNvo, WeitereRolle, WeitererBeteiligter};
+        let rollen = [
+            (WeitereRolle::Bevollmaechtigter, person("Paul", "Vollmacht")),
+            (
+                WeitereRolle::Bevollmaechtigter,
+                person("Petra", "Zweitvollmacht"),
+            ),
+            (
+                WeitereRolle::Grundstueckseigentuemer,
+                person("Erna", "Eigen"),
+            ),
+            (WeitereRolle::Erbbauberechtigter, person("Ernst", "Erbbau")),
+            (WeitereRolle::Fachplaner, person("Frieda", "Statik")),
+        ];
+        Vorhabenangaben {
+            beteiligte: rollen
+                .into_iter()
+                .map(|(rolle, beteiligter)| WeitererBeteiligter { rolle, beteiligter })
+                .collect(),
+            gebaeudeklasse: Some(4),
+            hauptgenehmigung: Some("BG-2025-0815".into()),
+            flaechen: Some(FlaechenBauNvo {
+                anzahl_vollgeschosse: Some(3),
+                zulaessige_vollgeschosse: Some(3),
+                flaeche_baugrundstueck_m2: Some(812.0),
+                grundflaeche_m2: Some(243.6),
+                grz_soll: Some(0.4),
+                grz_geplant: Some(0.3),
+                geschossflaeche_m2: Some(730.8),
+                gfz_soll: Some(1.2),
+                gfz_geplant: Some(0.9),
+                ..Default::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn vollstaendiger_inhalt_ist_schemakonform() {
+        let (projekt, mut ba, buero) = beispiel();
+        ba.verfahrensart = "2".into();
+        let anlagen = anlagen();
+        let mut c = test_codelisten();
+        c.hinzufuegen(liste(
+            "urn:xoev-de:xbau:by:codeliste:verfahrensart",
+            "1.0",
+            &[
+                ("1", "Baugenehmigungsverfahren"),
+                ("2", "Vereinfachtes Verfahren"),
+            ],
+        ));
+        c.hinzufuegen(liste(
+            crate::xbau::codeliste::ERREICHBARKEIT,
+            "3",
+            &[
+                ("01", "E-Mail"),
+                ("02", "Telefon (Festnetz)"),
+                ("03", "Mobiltelefon"),
+            ],
+        ));
+        let v = vorhabenangaben();
+        let d = Nachrichtendaten {
+            vorhaben: &v,
+            ..daten(&projekt, &ba, &buero, &anlagen, &c)
+        };
+        let xml = baugenehmigung_antrag(&d).unwrap();
+        let k: String = xml.lines().map(str::trim).collect();
+        assert!(k.contains("<xbau:prozessmerkmale><xbau:verfahrensart listURI=\"urn:xoev-de:xbau:by:codeliste:verfahrensart\" listVersionID=\"1.0\"><code>2</code></xbau:verfahrensart><xbau:nachtragsbaugenehmigung><xbau:vorgang>BG-2025-0815</xbau:vorgang>"), "{xml}");
+        // Nur ein Bevollmächtigter als eigenes Element, der zweite mit Rolle 01.
+        assert_eq!(xml.matches("<xbau:bevollmaechtigter>").count(), 1);
+        assert!(k.contains("<xbau:bevollmaechtigter><natuerlichePerson>"));
+        assert_eq!(xml.matches("<xbau:weitereBeteiligte>").count(), 4);
+        for code in ["01", "02", "06"] {
+            assert!(
+                k.contains(&format!("listVersionID=\"2.0\"><code>{code}</code>")),
+                "{code}"
+            );
+        }
+        assert!(
+            k.contains("<xbau:nichtGelisteterWert>Erbbauberechtigter</xbau:nichtGelisteterWert>")
+        );
+        assert!(k.contains("<xbau:gebaeudeklasse listURI=\"urn:xoev-de:xbau:codeliste:gebaeudeklasse\" listVersionID=\"3.0\"><code>4</code>"));
+        assert!(k.contains("<xbau:grundflaechen><xbau:grundflaeche>243.60</xbau:grundflaeche><xbau:grundflaechenzahlSoll>0.40</xbau:grundflaechenzahlSoll><xbau:grundflaechenzahlGeplant>0.30</xbau:grundflaechenzahlGeplant></xbau:grundflaechen>"));
+        assert!(!xml.contains("xbau:baumassen"), "ohne Werte keine Gruppe");
+        // Organisation mit Erreichbarkeit und Ansprechpartner.
+        assert!(k.contains("<kommunikation><kanal listVersionID=\"3\"><code>02</code></kanal><kennung>+49 89 123456</kennung></kommunikation>"));
+        assert!(k.contains("<ansprechpartner><name><familienname><name>Dr. Jens Weber</name></familienname><vorname></vorname></name></ansprechpartner>"));
+        gegen_schema_pruefen(&xml);
+
+        // Ohne Codeliste Erreichbarkeit: Kanal als Zusatz.
+        let ohne = test_codelisten();
+        let ba2 = Bauantrag {
+            verfahrensart: String::new(),
+            ..ba.clone()
+        };
+        let d = Nachrichtendaten {
+            vorhaben: &v,
+            ..daten(&projekt, &ba2, &buero, &anlagen, &ohne)
+        };
+        let xml = baugenehmigung_antrag(&d).unwrap();
+        let k: String = xml.lines().map(str::trim).collect();
+        assert!(k.contains("<kennung>+49 89 123456</kennung><zusatz>Telefon</zusatz>"));
+        assert!(!xml.contains("xbau:verfahrensart"));
+        gegen_schema_pruefen(&xml);
+        // Nachreichung und Vorbescheid tragen die Prozessmerkmale ebenfalls,
+        // der Vorbescheid ohne Nachtragsbezug.
+        let geaendert =
+            baugenehmigung_aenderung(&d, &bezugskopf("baugenehmigung.antrag.0200", &ba2)).unwrap();
+        assert!(geaendert.contains("<xbau:nachtragsbaugenehmigung>"));
+        gegen_schema_pruefen(&geaendert);
+        let fragen = vec!["Ist ein drittes Vollgeschoss zulässig?".to_string()];
+        let vb = antrag(&d, Antragsart::Vorbescheid { fragen: &fragen }).unwrap();
+        assert!(!vb.contains("nachtragsbaugenehmigung"));
+        gegen_schema_pruefen(&vb);
+        let gf = antrag(
+            &d,
+            Antragsart::Genehmigungsfreistellung {
+                als_bauantrag_weiterfuehren: false,
+            },
+        )
+        .unwrap();
+        assert!(!gf.contains("prozessmerkmale"));
+        gegen_schema_pruefen(&gf);
+    }
+
+    #[test]
+    fn verfahrensart_wird_gegen_die_landesliste_geprueft() {
+        let (projekt, mut ba, buero) = beispiel();
+        let anlagen = anlagen();
+        let mut c = test_codelisten();
+        ba.verfahrensart = "2".into();
+        let err = baugenehmigung_antrag(&daten(&projekt, &ba, &buero, &anlagen, &c))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("urn:xoev-de:xbau:by:codeliste:verfahrensart"),
+            "{err}"
+        );
+        c.hinzufuegen(liste(
+            "urn:xoev-de:xbau:by:codeliste:verfahrensart",
+            "1.0",
+            &[("1", "Baugenehmigungsverfahren")],
+        ));
+        let err = baugenehmigung_antrag(&daten(&projekt, &ba, &buero, &anlagen, &c))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Code 2"), "{err}");
+    }
+
+    #[test]
+    fn anschriften_zeichen_und_anlagenart_werden_vor_dem_export_geprueft() {
+        let (projekt, mut ba, mut buero) = beispiel();
+        if let Beteiligter::Person { anschrift, .. } = &mut ba.bauherren[0] {
+            anschrift.ort.clear();
+            anschrift.strasse = "Улица".into();
+        }
+        buero.anschrift.postleitzahl.clear();
+        let mut anlagen = anlagen();
+        anlagen[0].anlageart.clear();
+        anlagen[0].bezeichnung = "Lageplan.pdf".into();
+        let mut v = vorhabenangaben();
+        if let Beteiligter::Person { familienname, .. } = &mut v.beteiligte[2].beteiligter {
+            *familienname = "Σωκράτης".into();
+        }
+        let c = test_codelisten();
+        let d = Nachrichtendaten {
+            vorhaben: &v,
+            ..daten(&projekt, &ba, &buero, &anlagen, &c)
+        };
+        let err = baugenehmigung_antrag(&d).unwrap_err().to_string();
+        for teil in [
+            "1. Bauherr: Anschrift (Ort)",
+            "1. Bauherr: Straße: enthält Zeichen",
+            "„У“ (U+0423)",
+            "Büro: Anschrift (Postleitzahl)",
+            "Grundstückseigentümer Erna",
+            "Art der Anlage für „Lageplan.pdf“",
+        ] {
+            assert!(err.contains(teil), "{teil} fehlt in: {err}");
+        }
+        assert!(!err.contains("Die Art  steht"), "{err}");
+    }
+
+    #[test]
+    fn flaechen_nur_aus_festsetzungen_als_soll() {
+        use crate::festsetzungen::{Nachweis, NutzungsPruefung, Quelle};
+        let n = |art: &'static str, ist, soll, quelle| Nachweis {
+            gegenstand: None,
+            art,
+            ist: Some(ist),
+            soll: Some(soll),
+            quelle,
+            zwingend: false,
+            eingehalten: None,
+            abweichung: None,
+            ueberschreitung: None,
+            ueberschreitung_prozent: None,
+            flaechenueberschreitung_m2: None,
+        };
+        let pruefung = |quelle| NutzungsPruefung {
+            aufstellung: None,
+            projekt_version: 1,
+            kennzahlen: crate::calc::Kennzahlen {
+                grz: 0.3,
+                grz_gesamt: 0.45,
+                gfz: 0.9,
+                bmz: None,
+            },
+            nachweise: vec![
+                n("grz", 0.3, 0.4, quelle),
+                n("gfz", 0.9, 1.2, quelle),
+                n("vollgeschosse", 3.0, 3.0, quelle),
+                n("vollgeschosse", 2.0, 3.0, quelle),
+            ],
+            bebauungsplan: quelle == Quelle::Festsetzung,
+            hinweise: Vec::new(),
+        };
+        let f = crate::xbau::FlaechenBauNvo::aus_pruefung(&pruefung(Quelle::Festsetzung), 812.0)
+            .unwrap();
+        assert_eq!((f.grz_soll, f.grz_geplant), (Some(0.4), Some(0.3)));
+        // Je Gebäude verschiedene Vollgeschosse: keine Gesamtangabe.
+        assert_eq!(f.anzahl_vollgeschosse, None);
+        let f =
+            crate::xbau::FlaechenBauNvo::aus_pruefung(&pruefung(Quelle::Orientierungswert), 812.0)
+                .unwrap();
+        assert_eq!(
+            (f.grz_soll, f.gfz_soll),
+            (None, None),
+            "Orientierungswert ist kein Soll"
+        );
+        assert_eq!(f.gfz_geplant, Some(0.9));
     }
 }

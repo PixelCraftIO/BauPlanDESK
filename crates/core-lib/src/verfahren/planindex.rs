@@ -409,6 +409,7 @@ mod tests {
                 .collect(),
             auflagen: vec![],
             ersetzt: None,
+            verlaengerung: None,
         }
     }
     fn stand(l: &[Planunterlage], d: DocumentId, v: i64) -> &Planstand {

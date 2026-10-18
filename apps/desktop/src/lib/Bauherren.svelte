@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import {
     anschriftZeile,
     api,
@@ -54,9 +56,9 @@
       fehler = fehlertext(e);
     }
   }
-  $effect(() => {
-    laden();
-  });
+  // Nur beim Öffnen laden: Eine neue Projektversion (z. B. nach einem
+  // Konflikt) darf die eigene Auswahl nicht ersetzen.
+  onMount(laden);
 
   function verschieben(i: number, um: number) {
     const j = i + um;
@@ -86,17 +88,53 @@
     fehler = null;
     try {
       onprojekt(await api.bauherrenSetzen(projekt.id, gewaehlt.map((k) => k.id), projekt.version));
+      gespeichert = gewaehlt.map((k) => k.id);
       onschliessen();
     } catch (e) {
-      if (istKonflikt(e)) {
-        fehler = "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Bitte den Dialog schließen und erneut öffnen.";
-        onprojekt(await api.projektOeffnen(projekt.id));
-      } else {
-        fehler = fehlertext(e);
-      }
+      if (istKonflikt(e)) await konfliktNachladen();
+      else fehler = fehlertext(e);
     } finally {
       laeuft = false;
     }
+  }
+
+  /**
+   * Versionskonflikt: Die aktuelle Projektfassung wird Grundlage, die eigene
+   * Auswahl bleibt stehen und kann erneut gespeichert werden.
+   */
+  async function konfliktNachladen() {
+    try {
+      const [p, aktuell] = await Promise.all([api.projektOeffnen(projekt.id), api.bauherren(projekt.id)]);
+      onprojekt(p);
+      gespeichert = aktuell.map((k) => k.id);
+      const namen = aktuell.map(kundenname).join(", ") || "kein Bauherr";
+      fehler = geaendert
+        ? `Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Ihre Auswahl bleibt erhalten. Dort gespeichert ist jetzt: ${namen}. „Speichern“ ersetzt diese Zuordnung durch Ihre Auswahl.`
+        : `Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die dort gespeicherte Zuordnung (${namen}) entspricht bereits Ihrer Auswahl.`;
+    } catch (ladeFehler) {
+      fehler = `Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung konnte nicht geladen werden: ${fehlertext(ladeFehler)} Ihre Auswahl bleibt erhalten; bitte erneut speichern.`;
+    }
+  }
+
+  const neuerKundeBegonnen = $derived(!!neu && JSON.stringify(neu) !== JSON.stringify(leereKundendaten()));
+  export function hatAenderungen() {
+    return darf && (geaendert || neuerKundeBegonnen);
+  }
+  export function istBeschaeftigt() {
+    return laeuft;
+  }
+  /** Rückfrage vor dem Verwerfen (Escape, Abbrechen, Menübefehle). */
+  export async function schliessenErlaubt() {
+    return (
+      !laeuft &&
+      (!hatAenderungen() ||
+        (await ask("Die geänderte Bauherrenzuordnung wurde noch nicht gespeichert. Verwerfen?", {
+          title: "Bauherren",
+          kind: "warning",
+          okLabel: "Verwerfen",
+          cancelLabel: "Weiter bearbeiten",
+        })))
+    );
   }
 </script>
 
@@ -154,7 +192,7 @@
 
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
   <div class="knoepfe">
-    <button type="button" class="sekundaer" onclick={onschliessen}>{darf ? "Abbrechen" : "Schließen"}</button>
+    <button type="button" class="sekundaer" onclick={async () => { if (await schliessenErlaubt()) onschliessen(); }}>{darf ? "Abbrechen" : "Schließen"}</button>
     {#if darf}<button type="button" onclick={speichern} disabled={laeuft || !geaendert || !!neu}>Speichern</button>{/if}
   </div>
 </div>

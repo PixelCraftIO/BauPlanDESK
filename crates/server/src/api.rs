@@ -168,6 +168,7 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/mitglieder",
             get(mitglieder).post(mitglied_setzen),
         )
+        .route("/projekte/{id}/recht", get(projektrecht))
         .route(
             "/projekte/{id}/grundstueckskontext",
             get(grundstueckskontext),
@@ -218,6 +219,7 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
+        .route("/projekte/{id}/termine.ics", get(verfahren_termine_ics))
         .route("/projekte/{id}/aktensuche", get(verfahren_suche))
         .route(
             "/projekte/{id}/suchtext",
@@ -944,6 +946,14 @@ async fn bereitschaft(
     let (_, db, speicher) = stand.as_ref().expect("Gesundheitsprüfung wurde ausgeführt");
     (if *db&&*speicher {StatusCode::OK}else{StatusCode::SERVICE_UNAVAILABLE},Json(serde_json::json!({"datenbank":if *db{"bereit"}else{"nicht_bereit"},"speicher":if *speicher{"bereit"}else{"nicht_bereit"},"pruefung":"Lesen und Schreiben, Cache höchstens 30 Sekunden"}))).into_response()
 }
+/// Eigenes wirksames Projektrecht (Core-Regel aus `zugriff.rs`).
+async fn projektrecht(
+    Extension(b): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<core_lib::zugriff::ProjektRecht> {
+    Ok(Json(core.eigenes_projektrecht(ProjectId(id), &b).await?))
+}
 async fn mitglieder(
     Extension(b): Extension<Benutzer>,
     State(ApiState { core }): State<ApiState>,
@@ -1194,6 +1204,27 @@ async fn verfahren_erinnerungen(
     Ok(Json(
         core.verfahren_erinnerungen(ProjectId(p), q.heute).await?,
     ))
+}
+/// Laufende Verfahrenstermine als Kalenderdatei (RFC 5545), Leserecht.
+async fn verfahren_termine_ics(
+    State(ApiState { core }): State<ApiState>,
+    Path(p): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "text/calendar; charset=utf-8",
+            ),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=Verfahrenstermine.ics",
+            ),
+        ],
+        core.verfahren_termine_ics(ProjectId(p), core_lib::kalender::heute())
+            .await?,
+    )
+        .into_response())
 }
 async fn bescheidfristen(
     State(ApiState { core }): State<ApiState>,

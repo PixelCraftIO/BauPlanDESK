@@ -15,11 +15,20 @@
     Anforderungskatalog,
     Fachstand,
     Dokumentbezug,
+    Berichtigungsgegenstand,
+    Ereignisart,
     ExterneEinreichungswunsch,
   } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
-  import { leer, verfahrenApi, heute, STATUS } from "./api";
+  import {
+    leer,
+    verfahrenApi,
+    heute,
+    STATUS,
+    EREIGNISART,
+    berichtigungsereignis,
+  } from "./api";
   import Statusangaben from "./Statusangaben.svelte";
   import Schritte from "./Schritte.svelte";
   import Kommunikation from "./Kommunikation.svelte";
@@ -64,7 +73,28 @@
     notiz = $state(""),
     notizDatum = $state(heute()),
     notizBeleg = $state<Dokumentbezug | null>(null),
-    notizBerichtigt = $state<string | null>(null);
+    notizBerichtigt = $state<string | null>(null),
+    chronikArt = $state<Ereignisart | "">("");
+  /**
+   * Merkt eine begründete Berichtigung für die nächste Speicherung vor; eine
+   * frühere, noch ungespeicherte Berichtigung desselben Werts wird ersetzt.
+   */
+  function berichtigen(
+    a: Verfahrensakte,
+    g: Berichtigungsgegenstand,
+    grund: string,
+  ) {
+    const gespeichert = s.original?.ereignisse.length ?? 0;
+    const gleich = (x?: Berichtigungsgegenstand) =>
+      !!x && JSON.stringify(x) === JSON.stringify(g);
+    a.ereignisse = [
+      ...a.ereignisse.slice(0, gespeichert),
+      ...a.ereignisse
+        .slice(gespeichert)
+        .filter((e) => !gleich(e.berichtigung?.gegenstand)),
+      berichtigungsereignis(g, grund, benutzerId),
+    ];
+  }
   /** Nur Unterlagen aus versendeten Abgaben und externen Einreichungen dürfen
    * als genehmigt gelten; die Auswahl ist eine Vorschau, der Core prüft
    * verbindlich (auch Datum und Berichtigungen). */
@@ -271,9 +301,17 @@
           </div>
           <Statusangaben
             status={a.status}
+            art={a.art}
             kommunikation={a.kommunikation}
             bind:vollstaendigkeit={a.vollstaendigkeit}
             bind:ruecknahme={a.ruecknahme}
+            bind:ausfuehrung={a.ausfuehrung}
+            gespeichert={{
+              vollstaendigkeit: s.original?.vollstaendigkeit,
+              ruecknahme: s.original?.ruecknahme,
+              ausfuehrung: s.original?.ausfuehrung,
+            }}
+            onberichtigen={(g, grund) => berichtigen(a, g, grund)}
           />
           <Antragsangaben art={a.art} bind:angaben={a.antragsangaben} />
         </fieldset>
@@ -380,6 +418,7 @@
             ohneZustellung={s.original?.bescheide
               .filter((v) => !v.zugestellt)
               .map((v) => v.id) ?? []}
+            onberichtigen={(g, grund) => berichtigen(a, g, grund)}
           />
         </fieldset>
       {:else if tab === "beziehungen"}<h3>Korrektur- und Ersatzbeziehungen</h3>
@@ -460,19 +499,38 @@
             }}>Ereignis erfassen</button
           >
         </fieldset>
+        <h4>Zeitleiste</h4>
+        <label
+          >Art der Änderung<select bind:value={chronikArt}
+            ><option value="">Alle</option
+            >{#each Object.entries(EREIGNISART) as [wert, titel]}<option
+                value={wert}>{titel}</option
+              >{/each}</select
+          ></label
+        >
         <table class="ergebnistabelle">
           <thead
-            ><tr><th>Ereignisdatum</th><th>Erfasst</th><th>Ereignis</th></tr
+            ><tr
+              ><th>Ereignisdatum</th><th>Erfasst</th><th>Art</th><th
+                >Ereignis</th
+              ></tr
             ></thead
           ><tbody
-            >{#each a.ereignisse as e}<tr
+            >{#each [...a.ereignisse]
+              .reverse()
+              .filter((e) => !chronikArt || (e.arten ?? []).includes(chronikArt)) as e (e.id)}<tr
                 ><td>{e.datum}</td><td
                   >{new Date(e.erfasst_am).toLocaleString("de-DE")}</td
+                ><td
+                  >{(e.arten ?? []).length
+                    ? (e.arten ?? []).map((x) => EREIGNISART[x]).join(", ")
+                    : "Notiz / älterer Eintrag"}</td
                 ><td
                   >{e.text}{a.ereignisse.some((n) => n.berichtigt === e.id)
                     ? " (berichtigt)"
                     : ""}</td
                 ></tr
+              >{:else}<tr><td colspan="4">Keine Ereignisse dieser Art.</td></tr
               >{/each}</tbody
           >
         </table>{/if}

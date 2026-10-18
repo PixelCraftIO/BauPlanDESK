@@ -21,6 +21,7 @@ fn leer() -> Verfahrensakte {
         status: Verfahrensstatus::Vorbereitung,
         vollstaendigkeit: None,
         ruecknahme: None,
+        ausfuehrung: None,
         schritte: Vec::new(),
         behoerde: Behoerde {
             id: Uuid::new_v4(),
@@ -394,6 +395,24 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     let err = ablehnen(&a, f.revision).await;
     assert!(err.contains("nicht in die Vorbereitung"), "{err}");
     a.status = Verfahrensstatus::Vollstaendig;
+    // Vor der Entscheidung warten eingereichte Antworten auf Bestätigung.
+    let vorher = core.projektuebersicht(p.id, &user).await.unwrap();
+    assert_eq!(vorher.verfahren[0].offene_punkte, 3);
+    for p in a.nachforderungen[0].punkte.iter().take(2) {
+        let wartend = vorher
+            .punkte
+            .iter()
+            .find(|h| h.ziel.eintrag == Some(p.id) && h.ziel.objekt == Some(vid))
+            .unwrap();
+        assert_eq!(
+            wartend.dringlichkeit,
+            core_lib::projektuebersicht::Dringlichkeit::Warten
+        );
+        assert!(
+            wartend.faellig.is_none(),
+            "Eingereichte Antwort ist keine unbeantwortete überfällige Nachforderung"
+        );
+    }
     // Genehmigt wird nur, was der Behörde mit einem versendeten Stand vorlag.
     let mut versuch = a.clone();
     versuch.bescheide.push(Bescheid {
@@ -405,6 +424,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         genehmigte_unterlagen: vec![ref1.clone()],
         auflagen: vec![],
         ersetzt: None,
+        verlaengerung: None,
     });
     let err = ablehnen(&versuch, f.revision).await;
     assert!(err.contains("aus einem versendeten Abgabestand"), "{err}");
@@ -433,6 +453,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
             nachweise: vec![],
         }],
         ersetzt: None,
+        verlaengerung: None,
     });
     a.status = Verfahrensstatus::Entschieden;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
@@ -449,10 +470,34 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
             .text
             .contains("Zustellung des Bescheids")
     );
+    // Ein erfasstes Zustelldatum ändert sich nur mit begründeter Berichtigung
+    // und wird nicht entfernt (siehe berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln).
     a.bescheide[0].zugestellt = Some(heute + chrono::Duration::days(1));
     let err = ablehnen(&a, f.revision).await;
     assert!(err.contains("nicht in der Zukunft"), "{err}");
+    a.bescheide[0].zugestellt = None;
+    let err = ablehnen(&a, f.revision).await;
+    assert!(err.contains("Folgebescheid"), "{err}");
     a.bescheide[0].zugestellt = Some(heute);
+    // Verfahrensänderungen erscheinen mit eigener Aktion im Projektprotokoll.
+    let protokoll = core.protokoll(p.id, 50).await.unwrap();
+    for aktion in [
+        core_lib::domain::Aktion::VerfahrenAngelegt,
+        core_lib::domain::Aktion::VerfahrenNachforderung,
+        core_lib::domain::Aktion::VerfahrenAbgabe,
+        core_lib::domain::Aktion::VerfahrensstatusGeaendert,
+        core_lib::domain::Aktion::VerfahrenBescheid,
+    ] {
+        assert!(
+            protokoll.iter().any(|e| e.eintrag.aktion == aktion),
+            "{aktion:?} fehlt im Protokoll"
+        );
+    }
+    assert!(
+        a.ereignisse
+            .iter()
+            .any(|e| e.arten.contains(&chronik::Ereignisart::Zustellung))
+    );
     // Fristen folgen aus Zustellung und Bundesland des Projekts.
     let fristen = core
         .bescheidfristen(
@@ -760,31 +805,54 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     let akte = uebersicht.verfahren.iter().find(|v| v.id == vid).unwrap();
     assert_eq!(akte.entscheidung, Some(Entscheidung::Genehmigt));
     assert_eq!(akte.offene_auflagen, 1);
-    assert_eq!(akte.offene_punkte, 3); // Zwei Antworten warten auf Bestätigung, ein Punkt ist wieder offen.
-    assert!(uebersicht.punkte.iter().any(
+    // Mit der Entscheidung enden die Nachforderungen; die Bedingung bleibt offen.
+    assert_eq!(akte.offene_punkte, 0);
+    assert!(!uebersicht.punkte.iter().any(
         |p| p.ziel.objekt == Some(vid) && p.ziel.register.as_deref() == Some("nachforderungen")
     ));
+    assert!(
+        !core
+            .verfahren_erinnerungen(p.id, heute)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.art == termine::Terminart::Forderungspunkt)
+    );
+    // Berechnete Bescheidfristen sind Termine; sie erscheinen ab ihrem Vorlauf.
+    let liste = core.verfahren_termine(p.id, heute).await.unwrap();
+    let rb = liste
+        .iter()
+        .find(|t| t.art == termine::Terminart::Rechtsbehelfsfrist)
+        .unwrap();
+    assert_eq!(rb.objekt, a.bescheide[0].id);
+    assert!(
+        liste
+            .iter()
+            .any(|t| t.art == termine::Terminart::Geltungsdauer)
+    );
+    let am_ende = core
+        .projektuebersicht_am(p.id, rb.datum, &user)
+        .await
+        .unwrap();
+    assert!(am_ende.punkte.iter().any(|h| h.id.starts_with("termin:")
+        && h.titel.contains("Rechtsbehelfsfrist")
+        && h.dringlichkeit == core_lib::projektuebersicht::Dringlichkeit::Heute));
+    let danach = core
+        .projektuebersicht_am(p.id, rb.datum + chrono::Duration::days(1), &user)
+        .await
+        .unwrap();
+    assert!(
+        !danach
+            .punkte
+            .iter()
+            .any(|h| h.titel.contains("Rechtsbehelfsfrist"))
+    );
     assert!(
         uebersicht
             .empfaenger
             .iter()
             .any(|e| e.dokumente.iter().any(|d| d.eingereichte_version == 2))
     );
-    for p in a.nachforderungen[0].punkte.iter().take(2) {
-        let wartend = uebersicht
-            .punkte
-            .iter()
-            .find(|h| h.ziel.eintrag == Some(p.id) && h.ziel.objekt == Some(vid))
-            .unwrap();
-        assert_eq!(
-            wartend.dringlichkeit,
-            core_lib::projektuebersicht::Dringlichkeit::Warten
-        );
-        assert!(
-            wartend.faellig.is_none(),
-            "Eingereichte Antwort ist keine unbeantwortete überfällige Nachforderung"
-        );
-    }
     if let Ok(ziel) = std::env::var("BAUPROJEKT_VERFAHREN_ARTEFAKTE") {
         let ziel = std::path::Path::new(&ziel);
         std::fs::create_dir_all(ziel).unwrap();
@@ -1229,6 +1297,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         kommunikation: antwort.id,
         frist: Some(frist(heute + chrono::Duration::days(10))),
         stellungnahme: None,
+        folgeschreiben: None,
         verantwortlich: Some(user.id.0),
     };
     a.schritte.push(schritt.clone());
@@ -1281,6 +1350,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         kommunikation: gemeinde.id,
         frist: None,
         stellungnahme: None,
+        folgeschreiben: None,
         verantwortlich: None,
     };
     a.schritte.push(zurueck.clone());
@@ -1304,6 +1374,561 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
             .iter()
             .any(|e| e.objekt == zurueck.id && e.titel.contains("Ende der Zurückstellung"))
     );
+    // Nach dem Fristende ist die Zurückstellung nicht überfällig: Die
+    // Wiedervorlage endet, die Übersicht wartet auf die Entscheidung.
+    let ende = heute + chrono::Duration::days(366);
+    assert!(
+        !core
+            .verfahren_erinnerungen(p.id, ende)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.objekt == zurueck.id)
+    );
+    let ue = core.projektuebersicht_am(p.id, ende, &user).await.unwrap();
+    let punkt = ue
+        .punkte
+        .iter()
+        .find(|h| h.ziel.eintrag == Some(zurueck.id))
+        .unwrap();
+    assert_eq!(
+        punkt.dringlichkeit,
+        core_lib::projektuebersicht::Dringlichkeit::Warten
+    );
+    assert!(punkt.titel.contains("Entscheidung erwarten"));
+    // Ein Folgeschreiben der Behörde beendet die Zurückstellung vorzeitig.
+    let mut a = a;
+    let folge = brief(true, "Zurückstellung aufgehoben");
+    a.kommunikation.push(folge.clone());
+    a.schritte[1].folgeschreiben = Some(a.schritte[1].kommunikation);
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("weiteres eingegangenes"), "{err}");
+    a.schritte[0].folgeschreiben = Some(folge.id);
+    a.schritte[1].folgeschreiben = None;
+    let err = versuch(&a, f.revision).await.unwrap_err().to_string();
+    assert!(err.contains("nur eine Zurückstellung"), "{err}");
+    a.schritte[0].folgeschreiben = None;
+    a.schritte[1].folgeschreiben = Some(folge.id);
+    versuch(&a, f.revision).await.unwrap();
+    assert!(
+        !core
+            .verfahren_erinnerungen(p.id, spaeter)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.objekt == zurueck.id)
+    );
+}
+
+/// Akte nach Versand in einem Land, mit eingegangenem Schreiben vom `d0`.
+async fn eingereichte_akte(
+    land: Bundesland,
+    d0: chrono::NaiveDate,
+) -> (
+    tempfile::TempDir,
+    CoreServices,
+    Benutzer,
+    ProjectId,
+    Uuid,
+    Fachstand,
+    Dokumentbezug,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let storage =
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        storage,
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Fristen".into(),
+                bundesland: land,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let plan = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Bauantrag.pdf",
+            Bytes::from(pdf("Bauantrag")),
+            &user,
+        )
+        .await
+        .unwrap();
+    let dok = Dokumentbezug {
+        dokument_id: plan.document_id,
+        version: 1,
+    };
+    let vid = Uuid::new_v4();
+    let mut a = leer();
+    a.kommunikation.push(Kommunikation {
+        id: Uuid::new_v4(),
+        art: Kommunikationsart::Brief,
+        eingehend: true,
+        datum: d0,
+        betreff: "Eingangsbestätigung".into(),
+        beteiligte: "Bauamt".into(),
+        inhalt: String::new(),
+        original: None,
+        bezuege: vec![],
+    });
+    let f = speichern(&core, p.id, vid, 0, &a, &user).await;
+    let w = Abgabewunsch {
+        xbau_bezug: None,
+        id: Uuid::new_v4(),
+        titel: "Bauantrag".into(),
+        dokumente: vec![dok.clone()],
+        xbau: false,
+        druck: false,
+        anschreiben: String::new(),
+    };
+    let f = core
+        .verfahren_abgabe_festhalten(p.id, vid, f.revision, w, &user)
+        .await
+        .unwrap();
+    // Versand frühestens am Tag des Festhaltens; eine frühere Einreichung wird
+    // als externe Einreichung nachgetragen.
+    let f = if d0 < core_lib::kalender::heute() {
+        core.verfahren_externe_einreichung(
+            p.id,
+            vid,
+            f.revision,
+            core_lib::verfahren::externe_einreichung::ExterneEinreichungswunsch {
+                id: Uuid::new_v4(),
+                datum: d0,
+                weg: core_lib::verfahren::externe_einreichung::Einreichungsweg::Post,
+                beleg: None,
+                bemerkung: String::new(),
+                dokumente: vec![dok.clone()],
+                berichtigt: None,
+            },
+            &user,
+        )
+        .await
+        .unwrap()
+    } else {
+        f
+    };
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    if d0 >= core_lib::kalender::heute() {
+        a.abgaben[0].versand.push(Versandereignis {
+            id: Uuid::new_v4(),
+            status: Versandstatus::Versendet,
+            datum: d0,
+            weg: "Post".into(),
+            referenz: "Einschreiben".into(),
+            notiz: "Antrag versendet".into(),
+            beleg: None,
+            berichtigt: None,
+        });
+    }
+    a.status = Verfahrensstatus::Eingereicht;
+    let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
+    (dir, core, user, p.id, vid, f, dok)
+}
+
+fn berichtigung(gegenstand: chronik::Berichtigungsgegenstand, grund: &str) -> Aktenereignis {
+    Aktenereignis {
+        id: Uuid::new_v4(),
+        datum: chrono::Utc::now().date_naive(),
+        erfasst_am: chrono::Utc::now(),
+        erfasst_von: Uuid::nil(),
+        text: "Berichtigung".into(),
+        beleg: None,
+        berichtigt: None,
+        arten: vec![],
+        berichtigung: Some(chronik::Wertberichtigung {
+            gegenstand,
+            grund: grund.into(),
+            vorher: "vom Client".into(),
+            nachher: String::new(),
+        }),
+    }
+}
+
+#[tokio::test]
+async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
+    use chronik::Berichtigungsgegenstand as G;
+    use chrono::Duration;
+    let heute = core_lib::kalender::heute();
+    let d0 = heute - Duration::days(400);
+    let (_dir, core, user, p, vid, f, dok) = eingereichte_akte(Bundesland::Be, d0).await;
+    let versuch = |a: &Verfahrensakte, revision: i64| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        async move {
+            core.fachobjekt_speichern(p, ObjektArt::Verfahren, vid, revision, a, user)
+                .await
+        }
+    };
+    let fehler = |r: Result<Fachstand, CoreError>| r.unwrap_err().to_string();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let schreiben = a.kommunikation[0].id;
+    // Vollständigkeit ist nach dem Speichern nur mit Berichtigung änderbar.
+    a.status = Verfahrensstatus::Vollstaendig;
+    a.vollstaendigkeit = Some(Vollstaendigkeit {
+        datum: d0 + Duration::days(5),
+        kommunikation: schreiben,
+    });
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    a.vollstaendigkeit.as_mut().unwrap().datum = d0 + Duration::days(6);
+    let err = fehler(versuch(&a, f.revision).await);
+    assert!(err.contains("begründeter Berichtigung"), "{err}");
+    let mut ohne = a.clone();
+    ohne.vollstaendigkeit = None;
+    ohne.ereignisse
+        .push(berichtigung(G::Vollstaendigkeit, "Irrtümlich erfasst"));
+    let err = fehler(versuch(&ohne, f.revision).await);
+    assert!(err.contains("Bearbeitungsstand zusammen"), "{err}");
+    a.ereignisse.push(berichtigung(
+        G::Vollstaendigkeit,
+        "Datum aus dem Schreiben übernommen",
+    ));
+    let f = versuch(&a, f.revision).await.unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let e = a
+        .ereignisse
+        .iter()
+        .rev()
+        .find(|e| e.berichtigung.is_some())
+        .unwrap();
+    let b = e.berichtigung.as_ref().unwrap();
+    assert!(
+        b.vorher
+            .contains(&(d0 + Duration::days(5)).format("%d.%m.%Y").to_string())
+    );
+    assert!(
+        b.nachher
+            .contains(&(d0 + Duration::days(6)).format("%d.%m.%Y").to_string())
+    );
+    assert!(
+        e.text.contains("Grund: Datum aus dem Schreiben"),
+        "{}",
+        e.text
+    );
+    assert_eq!(e.arten, vec![chronik::Ereignisart::Berichtigung]);
+    // Ein Berichtigungsereignis ohne geänderten Wert wird abgewiesen.
+    let mut ohne_aenderung = a.clone();
+    ohne_aenderung
+        .ereignisse
+        .push(berichtigung(G::Ruecknahme, "Test"));
+    let err = fehler(versuch(&ohne_aenderung, f.revision).await);
+    assert!(err.contains("ohne geänderten"), "{err}");
+
+    // „Entschieden“ verlangt einen echten Entscheidungsbescheid, ein
+    // Entscheidungsbescheid verlangt „Entschieden“.
+    let d2 = heute - Duration::days(300);
+    let bescheid = |entscheidung| Bescheid {
+        id: Uuid::new_v4(),
+        entscheidung,
+        datum: d2,
+        zugestellt: Some(d2 + Duration::days(3)),
+        original: dok.clone(),
+        genehmigte_unterlagen: vec![dok.clone()],
+        auflagen: vec![],
+        ersetzt: None,
+        verlaengerung: None,
+    };
+    let mut v = a.clone();
+    v.bescheide.push(bescheid(Entscheidung::Genehmigt));
+    let err = fehler(versuch(&v, f.revision).await);
+    assert!(err.contains("Entscheidungsbescheid"), "{err}");
+    let mut v = a.clone();
+    v.bescheide.push(bescheid(Entscheidung::Sonstiges));
+    v.status = Verfahrensstatus::Entschieden;
+    let err = fehler(versuch(&v, f.revision).await);
+    assert!(err.contains("Genehmigung oder Ablehnung"), "{err}");
+    let mut v = a.clone();
+    let mut abgelehnt = bescheid(Entscheidung::Abgelehnt);
+    abgelehnt.genehmigte_unterlagen.clear();
+    abgelehnt.auflagen.push(Auflage {
+        id: Uuid::new_v4(),
+        art: Nebenbestimmungsart::Auflage,
+        titel: "Auflage".into(),
+        ausloeser: String::new(),
+        verantwortlich: None,
+        frist: None,
+        erledigt: false,
+        nachweise: vec![],
+    });
+    v.bescheide.push(abgelehnt);
+    v.status = Verfahrensstatus::Entschieden;
+    let err = fehler(versuch(&v, f.revision).await);
+    assert!(err.contains("ablehnender Bescheid"), "{err}");
+    let mut a = a;
+    let genehmigung = bescheid(Entscheidung::Genehmigt);
+    let gid = genehmigung.id;
+    a.bescheide.push(genehmigung);
+    a.status = Verfahrensstatus::Entschieden;
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+
+    // Berlin: zwei Jahre bis Baubeginn, sechs bis Fertigstellung, mit Vorlauf.
+    let zugestellt = d2 + Duration::days(3);
+    let geltung = zugestellt
+        .checked_add_months(chrono::Months::new(24))
+        .unwrap();
+    let fertig = zugestellt
+        .checked_add_months(chrono::Months::new(72))
+        .unwrap();
+    let liste = core.verfahren_termine(p, heute).await.unwrap();
+    let datum = |art| liste.iter().find(|t| t.art == art).map(|t| t.datum);
+    assert_eq!(datum(termine::Terminart::Geltungsdauer), Some(geltung));
+    assert_eq!(datum(termine::Terminart::Fertigstellung), Some(fertig));
+    // Die Rechtsbehelfsfrist ist abgelaufen und endet damit.
+    assert_eq!(datum(termine::Terminart::Rechtsbehelfsfrist), None);
+    let wv = |tag| {
+        let core = &core;
+        async move { core.verfahren_erinnerungen(p, tag).await.unwrap() }
+    };
+    let geltungs_wv = |e: &[Erinnerung]| {
+        e.iter()
+            .find(|e| e.art == termine::Terminart::Geltungsdauer)
+            .map(|e| e.ueberfaellig)
+    };
+    assert_eq!(geltungs_wv(&wv(geltung - Duration::days(100)).await), None);
+    assert_eq!(
+        geltungs_wv(&wv(geltung - Duration::days(30)).await),
+        Some(false)
+    );
+    assert_eq!(
+        geltungs_wv(&wv(geltung + Duration::days(10)).await),
+        Some(true)
+    );
+    let ics = core.verfahren_termine_ics(p, heute).await.unwrap();
+    assert!(ics.starts_with("BEGIN:VCALENDAR\r\n"));
+    assert_eq!(ics.matches("BEGIN:VEVENT").count(), liste.len());
+    assert!(ics.contains(&format!("DTSTART;VALUE=DATE:{}", geltung.format("%Y%m%d"))));
+
+    // Zustelldatum berichtigen verschiebt die Fristen und hinterlässt eine Spur.
+    a.bescheide[0].zugestellt = Some(zugestellt + Duration::days(1));
+    a.ereignisse.push(berichtigung(
+        G::Zustellung { bescheid: gid },
+        "Zustellungsurkunde nennt den Folgetag",
+    ));
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    assert!(a.ereignisse.iter().any(|e| {
+        e.text.contains("Zustelldatum des Bescheids vom")
+            && e.berichtigung
+                .as_ref()
+                .is_some_and(|b| b.vorher == zugestellt.format("%d.%m.%Y").to_string())
+    }));
+    assert_eq!(
+        core.verfahren_termine(p, heute)
+            .await
+            .unwrap()
+            .iter()
+            .find(|t| t.art == termine::Terminart::Geltungsdauer)
+            .map(|t| t.datum),
+        (zugestellt + Duration::days(1)).checked_add_months(chrono::Months::new(24))
+    );
+    assert!(
+        core.protokoll(p, 20)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.eintrag.aktion == core_lib::domain::Aktion::VerfahrenBerichtigt)
+    );
+
+    // Befristung erinnert vor dem Ablauf und endet danach; sie ist nicht erfüllbar.
+    let ablauf = heute + Duration::days(20);
+    let befristung = Auflage {
+        id: Uuid::new_v4(),
+        art: Nebenbestimmungsart::Befristung,
+        titel: "Fliegender Bau".into(),
+        ausloeser: "Befristet bis".into(),
+        verantwortlich: None,
+        frist: Some(Frist {
+            datum: ablauf,
+            ausloeser: "Bescheid".into(),
+            beleg: None,
+            erinnerung_tage: 30,
+            grund: "Befristung".into(),
+        }),
+        erledigt: true,
+        nachweise: vec![dok.clone()],
+    };
+    let mut vorbehalt = befristung.clone();
+    vorbehalt.id = Uuid::new_v4();
+    vorbehalt.art = Nebenbestimmungsart::Widerrufsvorbehalt;
+    vorbehalt.frist = None;
+    vorbehalt.erledigt = false;
+    a.bescheide[0].auflagen.push(befristung);
+    let err = fehler(versuch(&a, f.revision).await);
+    assert!(err.contains("keine erfüllbare Pflicht"), "{err}");
+    a.bescheide[0].auflagen[0].erledigt = false;
+    a.bescheide[0].auflagen.push(vorbehalt);
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let ablaeufe = |e: &[Erinnerung]| {
+        e.iter()
+            .filter(|e| e.art == termine::Terminart::Ablauf)
+            .count()
+    };
+    assert_eq!(ablaeufe(&wv(heute).await), 1);
+    assert_eq!(ablaeufe(&wv(ablauf + Duration::days(1)).await), 0);
+    let ue = core.projektuebersicht(p, &user).await.unwrap();
+    assert_eq!(ue.verfahren[0].offene_auflagen, 0);
+
+    // Ein Verlängerungsbescheid ersetzt die Geltungsdauer-Wiedervorlage.
+    let bis = geltung + Duration::days(365);
+    let mut verl = bescheid(Entscheidung::Genehmigt);
+    verl.datum = heute - Duration::days(1);
+    verl.zugestellt = None;
+    verl.genehmigte_unterlagen.clear();
+    verl.verlaengerung = Some(Verlaengerung { bescheid: gid, bis });
+    let vid2 = verl.id;
+    let mut zweite = verl.clone();
+    zweite.id = Uuid::new_v4();
+    let mut v = a.clone();
+    v.bescheide.extend([verl.clone(), zweite]);
+    let err = fehler(versuch(&v, f.revision).await);
+    assert!(err.contains("höchstens einmal"), "{err}");
+    a.bescheide.push(verl);
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let g: Vec<_> = core
+        .verfahren_termine(p, heute)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|t| t.art == termine::Terminart::Geltungsdauer)
+        .collect();
+    assert_eq!(g.len(), 1);
+    assert_eq!((g[0].objekt, g[0].datum), (vid2, bis));
+
+    // Der Baubeginn beendet die Geltungsdauer, nicht die Fertigstellungsfrist.
+    a.ausfuehrung = Some(Bauausfuehrung {
+        baubeginn: heute + Duration::days(1),
+        fertigstellung: None,
+    });
+    let err = fehler(versuch(&a, f.revision).await);
+    assert!(err.contains("Zukunft"), "{err}");
+    a.ausfuehrung = Some(Bauausfuehrung {
+        baubeginn: heute - Duration::days(10),
+        fertigstellung: None,
+    });
+    let f = versuch(&a, f.revision).await.unwrap();
+    let a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    assert!(
+        a.ereignisse
+            .last()
+            .unwrap()
+            .arten
+            .contains(&chronik::Ereignisart::Ausfuehrung)
+    );
+    let liste = core.verfahren_termine(p, heute).await.unwrap();
+    assert!(
+        !liste
+            .iter()
+            .any(|t| t.art == termine::Terminart::Geltungsdauer)
+    );
+    assert!(
+        liste
+            .iter()
+            .any(|t| t.art == termine::Terminart::Fertigstellung)
+    );
+    let mut v = a.clone();
+    v.ausfuehrung.as_mut().unwrap().baubeginn = heute - Duration::days(11);
+    let err = fehler(versuch(&v, f.revision).await);
+    assert!(err.contains("Baubeginn ist erfasst"), "{err}");
+}
+
+#[tokio::test]
+async fn ruecknahme_rueckweisung_und_zurueckgenommene_akte() {
+    let heute = core_lib::kalender::heute();
+    // Versand am Tag des Festhaltens, damit die Rückweisung die einzige
+    // Einreichung betrifft.
+    let d0 = heute;
+    let (_dir, core, user, p, vid, f, _dok) = eingereichte_akte(Bundesland::Nw, d0).await;
+    let versuch = |a: &Verfahrensakte, revision: i64| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        async move {
+            core.fachobjekt_speichern(p, ObjektArt::Verfahren, vid, revision, a, user)
+                .await
+        }
+    };
+    let fehler = |r: Result<Fachstand, CoreError>| r.unwrap_err().to_string();
+    let versand = |status, notiz: &str| Versandereignis {
+        id: Uuid::new_v4(),
+        status,
+        datum: heute,
+        weg: "Post".into(),
+        referenz: String::new(),
+        notiz: notiz.into(),
+        beleg: None,
+        berichtigt: None,
+    };
+    let a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    // Wird die einzige Abgabe zurückgewiesen, folgt der Bearbeitungsstand.
+    let mut v = a.clone();
+    v.abgaben[0].versand.push(versand(
+        Versandstatus::Zurueckgewiesen,
+        "Unterlagen zurückgesandt",
+    ));
+    let err = fehler(versuch(&v, f.revision).await);
+    assert!(err.contains("Bearbeitungsstand zusammen"), "{err}");
+    v.status = Verfahrensstatus::Vorbereitung;
+    let f = versuch(&v, f.revision).await.unwrap();
+    let mut v: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    v.abgaben[0]
+        .versand
+        .push(versand(Versandstatus::Versendet, "Erneut versendet"));
+    v.status = Verfahrensstatus::Eingereicht;
+    let f = versuch(&v, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    // Rücknahme nur zusammen mit dem Status.
+    let schreiben = a.kommunikation[0].id;
+    a.ruecknahme = Some(Ruecknahme {
+        datum: heute,
+        kommunikation: schreiben,
+    });
+    let err = fehler(versuch(&a, f.revision).await);
+    assert!(err.contains("nur zusammen"), "{err}");
+    a.status = Verfahrensstatus::Zurueckgenommen;
+    let f = versuch(&a, f.revision).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    a.nachforderungen.push(Nachforderung {
+        id: Uuid::new_v4(),
+        kommunikation: schreiben,
+        punkte: vec![Forderungspunkt {
+            id: Uuid::new_v4(),
+            titel: "Nach Rücknahme".into(),
+            grundlage: String::new(),
+            verantwortlich: None,
+            frist: None,
+            status: Punktstatus::Offen,
+            antwort: String::new(),
+            dokumente: vec![],
+            abgaben: vec![],
+            bestaetigung: None,
+        }],
+    });
+    let err = fehler(versuch(&a, f.revision).await);
+    assert!(
+        err.contains("zurückgenommenes Verfahren erhält keine"),
+        "{err}"
+    );
+    assert!(core.verfahren_termine(p, heute).await.unwrap().is_empty());
 }
 #[tokio::test]
 async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wortlaut() {
@@ -1491,6 +2116,7 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
             nachweise: vec![],
         }],
         ersetzt: None,
+        verlaengerung: None,
     };
     // Genehmigt werden nur Unterlagen, die der Behörde vorlagen.
     a.bescheide.push(neuer_bescheid(anderer, None));
@@ -1500,6 +2126,8 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
     let err = versuch(&a, f.revision).await.unwrap_err().to_string();
     assert!(err.contains("Zustelldatum"), "{err}");
     a.bescheide[0].zugestellt = Some(heute);
+    // Ein Entscheidungsbescheid wird mit dem Stand „Entschieden“ gespeichert.
+    a.status = Verfahrensstatus::Entschieden;
     let f = versuch(&a, f.revision).await.unwrap();
     let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
     // Wortlaut behördlicher Einträge bleibt fest, Bearbeitungsangaben nicht.

@@ -9,6 +9,8 @@
     type Buero,
   } from "./api";
   import AnschriftFelder from "./AnschriftFelder.svelte";
+  import { ask } from "@tauri-apps/plugin-dialog";
+  import { bueroGeaendert } from "./projektEreignisse";
 
   let { ich, onschliessen }: { ich: Benutzer; onschliessen: () => void } = $props();
 
@@ -21,13 +23,38 @@
   });
   let fehler = $state<string | null>(null);
   let laeuft = $state(false);
+  /** Geladener Stand für die Erkennung ungespeicherter Änderungen. */
+  let geladen = $state<string | null>(null);
 
   $effect(() => {
     api
       .buero()
-      .then((b) => (buero = { ...b, entwurfsverfasser: b.entwurfsverfasser ?? [] }))
+      .then((b) => {
+        buero = { ...b, entwurfsverfasser: b.entwurfsverfasser ?? [] };
+        geladen = JSON.stringify(buero);
+      })
       .catch((e) => (fehler = fehlertext(e)));
   });
+
+  export function hatAenderungen() {
+    return darf && geladen !== null && JSON.stringify(buero) !== geladen;
+  }
+  export function istBeschaeftigt() {
+    return laeuft;
+  }
+  /** Rückfrage vor dem Verwerfen (Escape, Abbrechen, Menübefehle). */
+  export async function schliessenErlaubt() {
+    return (
+      !laeuft &&
+      (!hatAenderungen() ||
+        (await ask("Die Büroangaben wurden noch nicht gespeichert. Verwerfen?", {
+          title: "Büroangaben",
+          kind: "warning",
+          okLabel: "Verwerfen",
+          cancelLabel: "Weiter bearbeiten",
+        })))
+    );
+  }
 
   function personHinzufuegen() {
     buero.entwurfsverfasser.push({
@@ -47,6 +74,8 @@
     fehler = null;
     try {
       await api.bueroSpeichern(buero);
+      geladen = JSON.stringify(buero);
+      bueroGeaendert();
       onschliessen();
     } catch (err) {
       fehler = fehlertext(err);
@@ -111,7 +140,13 @@
   {#if !darf}<p class="meta">Büroangaben ändern kann die Projektleitung.</p>{/if}
   {#if fehler}<p class="fehlertext">{fehler}</p>{/if}
   <div class="knoepfe">
-    <button type="button" class="sekundaer" onclick={onschliessen}>{darf ? "Abbrechen" : "Schließen"}</button>
+    <button
+      type="button"
+      class="sekundaer"
+      onclick={async () => {
+        if (await schliessenErlaubt()) onschliessen();
+      }}>{darf ? "Abbrechen" : "Schließen"}</button
+    >
     {#if darf}<button type="submit" disabled={laeuft}>Speichern</button>{/if}
   </div>
 </form>

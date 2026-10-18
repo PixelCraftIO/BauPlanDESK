@@ -103,6 +103,11 @@ pub struct FlaechenErgebnis {
     pub geschosse_vorhanden: bool,
     pub bauteile: Vec<BauteilAnsatz>,
     pub geschosse: Vec<f64>,
+    /// Wirksamer Anrechnungsfaktor für Nichtvollgeschosse (0..1), nach
+    /// Regelwerk und gegebenenfalls übernommener Planfestsetzung. Ältere
+    /// gespeicherte Ergebnisse kennen ihn nicht (`None`).
+    #[serde(default)]
+    pub nichtvollgeschoss_faktor: Option<f64>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BauteilAnsatz {
@@ -313,6 +318,7 @@ impl FlaechenAufstellung {
             geschosse_vorhanden: !self.geschosse.is_empty(),
             bauteile: vec![],
             geschosse: vec![],
+            nichtvollgeschoss_faktor: Some(nichtvollgeschoss_faktor),
         };
         for b in &self.bauteile {
             wert(b.flaeche_m2)?;
@@ -659,6 +665,49 @@ mod tests {
             a.berechne(500.0, None).unwrap().mass.geschossflaeche_m2,
             122.5
         );
+    }
+    #[test]
+    fn wirksamer_nichtvollgeschossfaktor_steht_im_ergebnis() {
+        let regel = crate::baunvo::regelwerk(BauNvo::V1990).nichtvollgeschoss_faktor;
+        let mut a = aufstellung(BauNvo::V1990);
+        assert_eq!(
+            a.berechne(500.0, None).unwrap().nichtvollgeschoss_faktor,
+            Some(regel)
+        );
+        a.nichtvollgeschoss_faktor = 0.5;
+        a.nichtvollgeschoss_festsetzung = "Textfestsetzung 3".into();
+        assert_eq!(
+            a.berechne(500.0, None).unwrap().nichtvollgeschoss_faktor,
+            Some(0.5)
+        );
+        // Die Planfestsetzung der Rechtsgrundlagen gilt nur mit Bebauungsplan.
+        let e = crate::festsetzungen::NutzungsEingabe {
+            gebiet: crate::calc::Baugebiet::WA,
+            mass: crate::calc::MassDerNutzung {
+                grundstuecksflaeche_m2: 500.0,
+                grundflaeche_m2: 0.0,
+                grundflaeche_nebenanlagen_m2: 0.0,
+                geschossflaeche_m2: 0.0,
+                baumasse_m3: None,
+            },
+            vollgeschosse: None,
+            aufstellung: Some(aufstellung(BauNvo::V1990)),
+        };
+        let mut p = crate::domain::Planungsrecht::default();
+        p.festgesetzte_werte.nichtvollgeschoss_faktor = Some(0.5);
+        p.festgesetzte_werte.nichtvollgeschoss_festsetzung = "Textfestsetzung 3".into();
+        let ohne_plan = berechne_aufstellung(&e, &p).unwrap().unwrap();
+        assert_eq!(ohne_plan.nichtvollgeschoss_faktor, Some(regel));
+        p.bebauungsplan_art = crate::domain::BebauungsplanArt::Qualifiziert;
+        let mit_plan = berechne_aufstellung(&e, &p).unwrap().unwrap();
+        assert_eq!(mit_plan.nichtvollgeschoss_faktor, Some(0.5));
+        // Ältere gespeicherte Ergebnisse ohne das Feld bleiben lesbar.
+        let mut alt = serde_json::to_value(&mit_plan).unwrap();
+        alt.as_object_mut()
+            .unwrap()
+            .remove("nichtvollgeschoss_faktor");
+        let gelesen: FlaechenErgebnis = serde_json::from_value(alt).unwrap();
+        assert_eq!(gelesen.nichtvollgeschoss_faktor, None);
     }
     #[test]
     fn sonderansatz_nur_mit_begruendung() {
