@@ -28,7 +28,10 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    (§ 28 VwVfG) oder eine Zurückstellung nach § 15 BauGB an das eingegangene
    Schreiben binden. Die Anhörung erhält die Frist zur Stellungnahme und wird mit
    der ausgehenden Stellungnahme abgeschlossen; die Zurückstellung braucht ihr
-   Ende als Frist. Art und Schreiben bleiben nach dem Speichern unverändert.
+   Ende als Frist und endet mit diesem Datum oder vorher mit einem eingegangenen
+   Folgeschreiben der Behörde. Danach ist sie nicht „überfällig“, sondern die
+   Übersicht wartet auf die Entscheidung. Art und Schreiben bleiben nach dem
+   Speichern unverändert.
 7. **Abgabestände:** Exakte Dokumentversionen auswählen und verbindlich festhalten.
    ZIP, optional XBau-ZIP und Druck-PDF werden einmal erzeugt und gespeichert.
    Die XBau-Nachricht folgt der Verfahrensart (0200, 0210 oder 0600, siehe
@@ -62,18 +65,44 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    genehmigte Dokumentversionen festhalten. Ein Bescheid setzt einen versendeten
    oder eingegangenen Abgabestand oder eine externe Einreichung voraus;
    genehmigte Unterlagen stammen aus solchen Abgabeständen oder aus den
-   Unterlagen einer externen Einreichung. Ein fehlendes Zustelldatum lässt sich einmal
-   nachtragen, danach ist der Bescheid unveränderlich. Nebenbestimmungen sind
-   nach § 36 VwVfG typisiert (Auflage, Bedingung, Befristung, Widerrufs- und
-   Auflagenvorbehalt) und werden mit Auslöser, Zuständigkeit und Nachweis
-   überwacht; eine Befristung braucht ihr Ablaufdatum. Ein Hinweis begründet
-   keine Pflicht und wird weder erfüllt noch wiedervorgelegt. Ältere Einträge
-   gelten als Auflage. Wortlaut und Auslöser einer gespeicherten
-   Nebenbestimmung bleiben unverändert; ein abweichender Wortlaut ist ein
-   Folgebescheid. Ein späterer Entwurf ersetzt keine genehmigte Version.
-   Folgebescheide ersetzen ausdrücklich benannte Bescheide.
-11. **Korrekturen / Verfahrenschronik:** Dokumentersatz und Änderungsgründe
+   Unterlagen einer externen Einreichung. Ein fehlendes Zustelldatum lässt sich
+   nachtragen; ein erfasstes wird nur mit **begründeter Berichtigung** geändert
+   und nicht entfernt, sonst ist der Bescheid unveränderlich. Eine Genehmigung
+   oder Ablehnung wird zusammen mit dem Stand „Entschieden“ gespeichert.
+   Nebenbestimmungen sind nach § 36 VwVfG typisiert. Nur **Auflage und
+   Bedingung** sind Pflichten: Sie bleiben auch nach der Entscheidung bis zur
+   Erfüllung mit Beleg in den Wiedervorlagen (Bauausführung). **Befristung,
+   Widerrufs- und Auflagenvorbehalt** sind nicht erfüllbar: Mit Frist erinnern
+   sie vor dem Ablauf und enden mit dem Ablaufdatum, ohne Frist werden sie nur
+   geführt; eine Befristung braucht ihr Ablaufdatum. Ein Hinweis begründet keine
+   Pflicht. Ein ablehnender Bescheid trägt nur Hinweise. Ältere Einträge gelten
+   als Auflage. Wortlaut und Auslöser einer gespeicherten Nebenbestimmung
+   bleiben unverändert; ein abweichender Wortlaut ist ein Folgebescheid. Ein
+   späterer Entwurf ersetzt keine genehmigte Version.
+   Folgebescheide ersetzen ausdrücklich benannte Bescheide; ein
+   **Verlängerungsbescheid** nennt den verlängerten Bescheid und das neue Ende
+   der Geltungsdauer (je Bescheid höchstens eine Verlängerung, weitere beziehen
+   sich auf die letzte).
+11. **Bauausführung:** Baubeginn und Fertigstellung im Register Verfahren
+   erfassen (setzt eine Einreichung voraus, nicht in der Zukunft). Der Baubeginn
+   beendet die Wiedervorlage der Geltungsdauer, die Fertigstellung die der
+   Fertigstellungsfrist. Gespeicherte Daten ändern sich nur mit Berichtigung.
+12. **Korrekturen / Verfahrenschronik:** Dokumentersatz und Änderungsgründe
     verknüpfen, fachliche Ereignisse und sämtliche gespeicherten Stände nachsehen.
+    Die **Zeitleiste** zeigt jede Revision mit der vom Core abgeleiteten Art
+    (Bearbeitungsstand, Abgabe, Übermittlung, Bescheid, Zustellung,
+    Nebenbestimmung, Nachforderung, Anhörung/Zurückstellung, Bauausführung,
+    Berichtigung …) und lässt sich danach filtern.
+
+### Berichtigung erfasster Werte
+
+Zustelldatum, Vollständigkeitsbestätigung, Rücknahme, Baubeginn und
+Fertigstellung sind nach dem Speichern gesperrt. **… berichtigen** öffnet das Feld
+und verlangt einen Grund. Die Oberfläche legt dafür ein neues Aktenereignis mit
+`berichtigung: { gegenstand, grund }` an; der Core prüft, dass genau dieser Wert
+sich ändert, trägt alten und neuen Wert ein und schreibt den Text
+„Berichtigung …: alt → neu · Grund: …“. Eine Änderung ohne Berichtigung und eine
+Berichtigung ohne Änderung werden abgewiesen.
 
 ## Externe Einreichung
 
@@ -116,17 +145,27 @@ die Auswahl an.
 
 | Stand | Voraussetzung |
 | --- | --- |
-| In Vorbereitung | Ausgangsstand; nach der Einreichung kein Rückweg |
+| In Vorbereitung | Ausgangsstand; zurück nur, solange keine Einreichung erfasst ist |
 | Eingereicht, In behördlicher Prüfung, Ruhend | versendeter oder eingegangener Abgabestand oder externe Einreichung |
 | Unvollständig | zusätzlich ein offener Nachforderungspunkt |
 | Vollständig | zusätzlich die behördliche Bestätigung mit Datum und eingegangenem Schreiben |
-| Entschieden | zusätzlich ein Bescheid |
+| Entschieden | zusätzlich ein Bescheid mit Genehmigung, Teilgenehmigung oder Ablehnung (bei Freistellung und „Sonstiges“ jeder Bescheid) |
 | Zurückgenommen | Rücknahmedatum und zugehöriges Schreiben |
 
 Entschiedene und zurückgenommene Verfahren werden nicht wieder geöffnet; dafür
-ein Folgeverfahren anlegen. Jeder Wechsel, die Vollständigkeitsbestätigung und die
-Rücknahme erscheinen in der Verfahrenschronik. Bestehende Akten bleiben
-bearbeitbar: Die Voraussetzungen gelten erst beim nächsten Statuswechsel.
+ein Folgeverfahren anlegen. Eine Rücknahme wird nur zusammen mit dem Stand
+„Zurückgenommen“ gespeichert; eine zurückgenommene Akte erhält keine neuen
+Bescheide, Nebenbestimmungen, Nachforderungen, Anhörungen, Zurückstellungen
+oder Abgabestände mehr. Ist nach einer Rückweisung kein Stand mehr versendet,
+darf das Verfahren in die Vorbereitung zurück.
+
+Bleibt der Stand gleich, darf eine Speicherung einen bisher erfüllten Stand
+nicht ungültig machen: Wird etwa die einzige Abgabe zurückgewiesen, der letzte
+offene Forderungspunkt eines unvollständigen Verfahrens bestätigt oder die
+Vollständigkeitsbestätigung entfernt, verlangt der Core, den Bearbeitungsstand
+in derselben Speicherung anzupassen. Jeder Wechsel, die Vollständigkeitsbestätigung
+und die Rücknahme erscheinen in der Verfahrenschronik. Ältere, schon
+widersprüchliche Akten bleiben bearbeitbar.
 
 ## Berechnete Fristen
 
@@ -141,21 +180,50 @@ Projekts:
   sind nicht berücksichtigt; die Oberfläche nennt das.
 - **Geltungsdauer:** nur für Bauantrag, Änderungsantrag und Teilbaugenehmigung
   mit (teilweiser) Genehmigung. Die Tabelle in `crates/core-lib/src/verfahren/fristen.rs`
-  führt die Jahre je Landesbauordnung (Bayern und Rheinland-Pfalz 4,
-  Brandenburg 6, sonst 3). Unterbrechung und Verlängerung bleiben eine Prüfung
-  nach Landesrecht.
+  führt die Jahre je Landesbauordnung mit Quelle (Bayern und Rheinland-Pfalz 4,
+  Brandenburg 6 ohne Verlängerung, Berlin 2 bis zum Baubeginn, sonst 3) und
+  landesrechtliche Hinweise (Unterbrechung in Hamburg und Niedersachsen). Das
+  Ende wird nicht auf einen Werktag verschoben. Während eines Widerspruchs oder
+  einer Klage Dritter kann die Frist ruhen (z. B. OVG Hamburg 2 Bs 179/14); das
+  nennt die Oberfläche, berechnet es aber nicht. Ein Verlängerungsbescheid
+  ersetzt das Ende.
+- **Fertigstellung:** in Berlin zusätzlich sechs Jahre nach Erteilung bis zur
+  Fertigstellung (§ 73 Abs. 1 BauO Bln).
+- **Vorbescheid und Freistellung:** ohne berechnete Frist. Beim Vorbescheid
+  rät der Hinweis, sein Ablaufdatum als Befristung zu erfassen; die Freistellung weist auf
+  die nicht berechnete Wartefrist nach Eingang bei der Gemeinde hin.
 
 Die Werte werden bei jeder Anzeige neu berechnet und nicht in der Akte
-gespeichert, damit eine korrigierte Regel sofort für alle Bescheide gilt.
+gespeichert, damit eine korrigierte Regel sofort für alle Bescheide gilt. Jede
+Berechnung nennt ihren `regelstand` (aktuell `2026-10-18`; Berlin wurde dabei
+von 3 auf 2 Jahre berichtigt, die Werte für Sachsen sind nur über eine
+Sekundärquelle bestätigt).
 
 ## Suche und Wiedervorlagen
 
-**Organisation → Suche / Wiedervorlagen** zeigt fällige Forderungspunkte,
-Nebenbestimmungen, offene Anhörungen und das Ende einer Zurückstellung,
-einschließlich eingereichter, noch nicht bestätigter Punkte.
-Auch nach einer Genehmigung bleiben offene Pflichten sichtbar. Zurückgenommene
-Verfahren und ausdrücklich ersetzte Bescheide erzeugen keine aktiven Erinnerungen.
-Der Projektarbeitsstand verweist ebenfalls auf offene Punkte und Verfahrensfristen.
+**Organisation → Suche / Wiedervorlagen** zeigt fällige Termine ab ihrem
+Vorlauf. Wiedervorlagen, Projektübersicht und Kalenderexport lesen dieselbe
+Ableitung (`core-lib::verfahren::termine`):
+
+| Termin | Vorlauf | endet |
+| --- | --- | --- |
+| Forderungspunkt mit Frist | eigener | mit Bestätigung, Entfallen oder der Entscheidung über das Verfahren |
+| Auflage / Bedingung mit Frist | eigener | mit Erfüllung (auch nach der Entscheidung) |
+| Befristung / Vorbehalt mit Frist | eigener | mit dem Ablaufdatum, nie überfällig |
+| Anhörung | eigener | mit Stellungnahme oder Entscheidung |
+| Ende der Zurückstellung | eigener | mit dem Fristende, einem Folgeschreiben oder der Entscheidung |
+| Rechtsbehelfsfrist | 14 Tage | mit ihrem Ablauf |
+| Geltungsdauer | 90 Tage | mit erfasstem Baubeginn oder Verlängerungsbescheid; danach überfällig |
+| Fertigstellungsfrist (Berlin) | 90 Tage | mit erfasster Fertigstellung |
+
+Zurückgenommene Verfahren, ablehnende und ausdrücklich ersetzte Bescheide
+erzeugen keine Termine. Der Projektarbeitsstand verweist ebenfalls auf offene
+Punkte und Verfahrensfristen.
+
+**Termine als Kalender (ICS) exportieren** schreibt alle laufenden Termine aller
+Verfahren als Kalenderdatei nach RFC 5545: ganztägige Einträge, gefaltete Zeilen,
+maskierte Texte, eine Erinnerung mit dem Vorlauf und eine stabile UID je Termin,
+sodass ein erneuter Import Einträge aktualisiert statt verdoppelt.
 
 Die Suche umfasst Kommunikation, Anforderungen, Antworten, Aktenereignisse,
 Nebenbestimmungen, Dateinamen aller Versionen und indexierte Dokumentinhalte.
@@ -241,7 +309,16 @@ Tauri und HTTP verwenden dieselben Core-Anwendungsfälle. Die neuen HTTP-Wege
 liegen unter `/api/projekte/{id}/...`: `verfahrensprofil`,
 `verfahren/{verfahren}/profil`, `verfahren/{verfahren}/abgabe`,
 `verfahren/{verfahren}/abgaben/{abgabe}/{format}`, `erinnerungen`, `aktensuche`,
-`suchtext`, `aktenexport`, `druckausgabe/unterlage`.
+`suchtext`, `aktenexport`, `termine.ics` (GET, Leserecht), `druckausgabe/unterlage`.
+
+Das Projektprotokoll führt Verfahrensänderungen mit eigenen Aktionen
+(`verfahren_angelegt`, `verfahrensstatus_geaendert`, `verfahren_abgabe`,
+`verfahren_bescheid`, `verfahren_nachforderung`, `verfahren_schritt`,
+`verfahren_ausfuehrung`, `verfahren_berichtigt`, sonst `verfahren_geaendert`),
+abgeleitet aus dem Aktenereignis der Revision; bei mehreren Änderungen gilt die
+gewichtigste, der Protokolltext nennt alle. Ältere Programmstände an derselben
+Datenbank kennen diese Aktionen nicht und können das Protokoll erst nach dem
+Update lesen.
 E-Mail-Anhänge: `POST /api/dokumente/{id}/email/{version}/anhaenge/{index}`.
 Lesen und Schreiben respektieren Projektzugriffe; fachliche Freigaben bleiben
 Projektleitung/Büroleitung vorbehalten. OCR läuft lokal im Desktopadapter.

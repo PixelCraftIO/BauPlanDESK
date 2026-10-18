@@ -15,6 +15,9 @@ import type {
   Nebenbestimmungsart,
   Fristauftrag,
   Bescheidfristen,
+  Ereignisart,
+  Berichtigungsgegenstand,
+  Aktenereignis,
   Einreichungsweg,
   ExterneEinreichungswunsch,
 } from "../generated/plattform";
@@ -43,6 +46,48 @@ export const NEBENBESTIMMUNG: Record<Nebenbestimmungsart, string> = {
   auflagenvorbehalt: "Auflagenvorbehalt",
   hinweis: "Hinweis",
 };
+/** Bezeichnungen wie `chronik::Ereignisart::bezeichnung` im Core. */
+export const EREIGNISART: Record<Ereignisart, string> = {
+  angelegt: "Verfahren angelegt",
+  status: "Bearbeitungsstand",
+  vollstaendigkeit: "Vollständigkeit",
+  ruecknahme: "Rücknahme",
+  kommunikation: "Kommunikation",
+  nachforderung: "Nachforderung",
+  schritt: "Anhörung / Zurückstellung",
+  abgabe: "Abgabestand",
+  versand: "Übermittlung",
+  bescheid: "Bescheid",
+  zustellung: "Zustellung",
+  nebenbestimmung: "Nebenbestimmung",
+  ausfuehrung: "Bauausführung",
+  berichtigung: "Berichtigung",
+  notiz: "Notiz",
+  angaben: "Verfahrensangaben",
+};
+/** Nebenbestimmungsarten mit erfüllbarer Pflicht (`Nebenbestimmungsart::pflicht`). */
+export const PFLICHT: Nebenbestimmungsart[] = ["auflage", "bedingung"];
+/**
+ * Neues Aktenereignis mit begründeter Berichtigung. Alten und neuen Wert sowie
+ * den Text trägt der Core beim Speichern ein und prüft, dass sich der Wert
+ * tatsächlich ändert.
+ */
+export function berichtigungsereignis(
+  gegenstand: Berichtigungsgegenstand,
+  grund: string,
+  benutzerId: string,
+): Aktenereignis {
+  return {
+    id: crypto.randomUUID(),
+    datum: heute(),
+    erfasst_am: new Date().toISOString(),
+    erfasst_von: benutzerId,
+    text: `Berichtigung: ${grund}`,
+    beleg: null,
+    berichtigt: null,
+    berichtigung: { gegenstand, grund, vorher: "", nachher: "" },
+  };
+}
 /** Bezeichnungen wie `Einreichungsweg::bezeichnung` im Core. */
 export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
   post: "Post",
@@ -105,6 +150,8 @@ export const verfahrenApi = {
       projektId,
       auftrag,
     }),
+  termineIcs: (projektId: string, ziel: string) =>
+    invoke<void>("verfahren_termine_ics", { projektId, ziel }),
   erinnerungen: (projektId: string, heute: string) =>
     invoke<Erinnerung[]>("verfahren_erinnerungen", { projektId, heute }),
   suche: (projektId: string, suche: string) =>

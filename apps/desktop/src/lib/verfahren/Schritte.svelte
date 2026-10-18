@@ -90,13 +90,27 @@
     </p>
     <Fristfeld {dateien} bind:wert={v.frist} />
     <div class="raster">
-      <label
-        >Stellungnahme<select bind:value={v.stellungnahme}
-          ><option value={null}>Noch keine</option
-          >{#each ausgehend as k (k.id)}<option value={k.id}
-              >{k.datum} · {k.betreff}</option
-            >{/each}</select
-        ></label
-      ><Zustaendigkeit {benutzer} bind:wert={v.verantwortlich} />
+      {#if v.art === "anhoerung"}<label
+          >Stellungnahme<select bind:value={v.stellungnahme}
+            ><option value={null}>Noch keine</option
+            >{#each ausgehend as k (k.id)}<option value={k.id}
+                >{k.datum} · {k.betreff}</option
+              >{/each}</select
+          ></label
+        >{:else}<label
+          >Beendet durch Folgeschreiben<select
+            value={v.folgeschreiben ?? ""}
+            onchange={(e) =>
+              (v.folgeschreiben = e.currentTarget.value || undefined)}
+            ><option value="">Noch keines</option
+            >{#each eingehend.filter((k) => k.id !== v.kommunikation) as k (k.id)}<option
+                value={k.id}>{k.datum} · {k.betreff}</option
+              >{/each}</select
+          ></label
+        >{/if}<Zustaendigkeit {benutzer} bind:wert={v.verantwortlich} />
     </div>
+    {#if v.art === "zurueckstellung"}<p class="meta">
+        Die Wiedervorlage endet mit dem Fristende oder einem Folgeschreiben der
+        Behörde; danach steht ihre Entscheidung aus.
+      </p>{/if}
   </fieldset>{/each}

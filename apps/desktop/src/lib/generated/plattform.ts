@@ -175,7 +175,23 @@ export type Auflage = { id: string,
  * Ältere Akten ohne diese Angabe lesen sie als Auflage.
  */
 art: Nebenbestimmungsart, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>, };
-export type Bescheid = { id: string, entscheidung: Entscheidung, datum: string, zugestellt: string | null, original: Dokumentbezug, genehmigte_unterlagen: Array<Dokumentbezug>, auflagen: Array<Auflage>, ersetzt: string | null, };
+export type Verlaengerung = {
+/**
+ * Bescheid, dessen Geltungsdauer verlängert wird (Genehmigung oder
+ * frühere Verlängerung).
+ */
+bescheid: string,
+/**
+ * Neues Ende der Geltungsdauer laut Verlängerungsbescheid.
+ */
+bis: string, };
+export type Bauausfuehrung = { baubeginn: string, fertigstellung?: string, };
+export type Bescheid = { id: string, entscheidung: Entscheidung, datum: string, zugestellt: string | null, original: Dokumentbezug, genehmigte_unterlagen: Array<Dokumentbezug>, auflagen: Array<Auflage>, ersetzt: string | null,
+/**
+ * Verlängerungsbescheid: verlängert die Geltungsdauer eines früheren
+ * Bescheids dieser Akte. Ältere Bescheide lesen die Angabe leer.
+ */
+verlaengerung?: Verlaengerung, };
 export type Schrittart = "anhoerung" | "zurueckstellung";
 export type Verfahrensschritt = { id: string, art: Schrittart, kommunikation: string,
 /**
@@ -185,12 +201,53 @@ frist: Frist | null,
 /**
  * Ausgehende Stellungnahme dieser Akte; beendet die Wiedervorlage einer Anhörung.
  */
-stellungnahme: string | null, verantwortlich: string | null, };
+stellungnahme: string | null, verantwortlich: string | null,
+/**
+ * Zurückstellung: eingegangenes Folgeschreiben der Behörde, das sie vor
+ * ihrem Fristende beendet. Ältere Akten lesen die Angabe leer.
+ */
+folgeschreiben?: string, };
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
-export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null, };
-export type Erinnerung = { verfahren: string, objekt: string, titel: string, datum: string, ueberfaellig: boolean, verantwortlich: string | null, };
+export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben";
+export type Berichtigungsgegenstand = { "art": "zustellung", bescheid: string, } | { "art": "vollstaendigkeit" } | { "art": "ruecknahme" } | { "art": "baubeginn" } | { "art": "fertigstellung" };
+export type Wertberichtigung = { gegenstand: Berichtigungsgegenstand, grund: string, vorher: string, nachher: string, };
+export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null,
+/**
+ * Vom Core abgeleitete Art der Verfahrensänderung (Zeitleiste). Manuell
+ * erfasste Ereignisse und ältere Einträge haben keine.
+ */
+arten?: Array<Ereignisart>,
+/**
+ * Begründete Berichtigung eines erfassten Werts; alter und neuer Wert
+ * werden vom Core eingetragen.
+ */
+berichtigung?: Wertberichtigung, };
+export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung";
+export type Termin = { verfahren: string, verfahrensbezeichnung: string,
+/**
+ * Akteneintrag, zu dem der Termin gehört (Punkt, Nebenbestimmung, Schritt
+ * oder Bescheid).
+ */
+objekt: string, art: Terminart, titel: string, datum: string,
+/**
+ * Erinnerung so viele Tage vor dem Datum.
+ */
+vorlauf_tage: number, verantwortlich: string | null,
+/**
+ * Der Termin endet mit seinem Datum und wird danach nicht überfällig.
+ */
+endet_mit_ablauf: boolean,
+/**
+ * Kurze Erläuterung, z. B. die Rechtsgrundlage einer berechneten Frist.
+ */
+hinweis: string, };
+export type Erinnerung = { verfahren: string, objekt: string, titel: string, datum: string, ueberfaellig: boolean, verantwortlich: string | null,
+/**
+ * Art der Wiedervorlage; bestimmt, wann sie endet.
+ */
+art: Terminart, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -199,7 +256,11 @@ antragsangaben: Antragsangaben, status: Verfahrensstatus,
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */
-vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>,
+vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme,
+/**
+ * Baubeginn und Fertigstellung; ältere Akten lesen die Angabe leer.
+ */
+ausfuehrung?: Bauausfuehrung, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>,
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */
@@ -257,11 +318,24 @@ export type Fristberechnung = {
  * Tag des fristauslösenden Ereignisses; er wird nicht mitgezählt (§ 187 Abs. 1 BGB).
  */
 beginn: string, ende: string, grundlage: string, hinweise: Array<string>, };
-export type Bescheidfristen = { bescheid: string, rechtsbehelfsfrist: Fristberechnung | null, geltungsdauer: Fristberechnung | null,
+export type Bescheidfristen = { bescheid: string, rechtsbehelfsfrist: Fristberechnung | null,
 /**
- * Warum eine Frist nicht berechnet wurde.
+ * Frist für den Baubeginn (Erlöschen der Genehmigung).
  */
-hinweise: Array<string>, };
+geltungsdauer: Fristberechnung | null,
+/**
+ * Frist für die Fertigstellung, wo die Landesbauordnung eine eigene
+ * Frist kennt (Berlin).
+ */
+fertigstellung: Fristberechnung | null,
+/**
+ * Warum eine Frist nicht berechnet wurde, und Hinweise nach Verfahrensart.
+ */
+hinweise: Array<string>,
+/**
+ * Stand der Fristregeln, nach dem gerechnet wurde.
+ */
+regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };

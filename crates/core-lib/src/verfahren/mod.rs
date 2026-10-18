@@ -1,11 +1,14 @@
 //! Fachliche Verfahrensakte. Eine Akte wird mit Ereignis und Revision atomar
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
+pub mod chronik;
 pub mod externe_einreichung;
 pub mod fristen;
 pub mod profile;
 mod pruefung;
+mod regeln;
 pub mod suche;
+pub mod termine;
 use crate::plattform::objekte::Dokumentbezug;
 use crate::{
     CoreError, CoreResult, CoreServices,
@@ -243,6 +246,12 @@ impl Nebenbestimmungsart {
             Self::Hinweis => "Hinweis",
         }
     }
+    /// Auflage und Bedingung verlangen ein Tun und werden mit Beleg erfüllt.
+    /// Befristung und Vorbehalte sind Ablauf- bzw. Kenntnishinweise; ein
+    /// Hinweis begründet nichts.
+    pub fn pflicht(&self) -> bool {
+        matches!(self, Self::Auflage | Self::Bedingung)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -269,6 +278,31 @@ pub struct Bescheid {
     pub genehmigte_unterlagen: Vec<Dokumentbezug>,
     pub auflagen: Vec<Auflage>,
     pub ersetzt: Option<Uuid>,
+    /// Verlängerungsbescheid: verlängert die Geltungsdauer eines früheren
+    /// Bescheids dieser Akte. Ältere Bescheide lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub verlaengerung: Option<Verlaengerung>,
+}
+/// Verlängerung der Geltungsdauer durch einen Bescheid der Behörde.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Verlaengerung {
+    /// Bescheid, dessen Geltungsdauer verlängert wird (Genehmigung oder
+    /// frühere Verlängerung).
+    pub bescheid: Uuid,
+    /// Neues Ende der Geltungsdauer laut Verlängerungsbescheid.
+    pub bis: NaiveDate,
+}
+/// Tatsächliche Bauausführung. Der Baubeginn beendet die Wiedervorlage der
+/// Geltungsdauer, die Fertigstellung die einer Fertigstellungsfrist.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Bauausfuehrung {
+    pub baubeginn: NaiveDate,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub fertigstellung: Option<NaiveDate>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
@@ -299,6 +333,11 @@ pub struct Verfahrensschritt {
     /// Ausgehende Stellungnahme dieser Akte; beendet die Wiedervorlage einer Anhörung.
     pub stellungnahme: Option<Uuid>,
     pub verantwortlich: Option<Uuid>,
+    /// Zurückstellung: eingegangenes Folgeschreiben der Behörde, das sie vor
+    /// ihrem Fristende beendet. Ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folgeschreiben: Option<Uuid>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
@@ -338,6 +377,16 @@ pub struct Aktenereignis {
     pub text: String,
     pub beleg: Option<Dokumentbezug>,
     pub berichtigt: Option<Uuid>,
+    /// Vom Core abgeleitete Art der Verfahrensänderung (Zeitleiste). Manuell
+    /// erfasste Ereignisse und ältere Einträge haben keine.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<chronik::Ereignisart>>", optional)]
+    pub arten: Vec<chronik::Ereignisart>,
+    /// Begründete Berichtigung eines erfassten Werts; alter und neuer Wert
+    /// werden vom Core eingetragen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub berichtigung: Option<chronik::Wertberichtigung>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -358,6 +407,10 @@ pub struct Verfahrensakte {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub ruecknahme: Option<Ruecknahme>,
+    /// Baubeginn und Fertigstellung; ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ausfuehrung: Option<Bauausfuehrung>,
     pub behoerde: Behoerde,
     pub aktenzeichen: String,
     pub verantwortlich: Option<Uuid>,
@@ -387,6 +440,8 @@ pub struct Erinnerung {
     pub datum: NaiveDate,
     pub ueberfaellig: bool,
     pub verantwortlich: Option<Uuid>,
+    /// Art der Wiedervorlage; bestimmt, wann sie endet.
+    pub art: termine::Terminart,
 }
 fn fehler(t: impl Into<String>) -> CoreError {
     CoreError::InvalidInput(t.into())
@@ -532,6 +587,7 @@ impl CoreServices {
             e.erfasst_von = wer.id.0;
             e.erfasst_am = Utc::now();
         }
+        chronik::berichtigungen_ausfuellen(original.as_ref(), &mut a, bisher);
         pruefung::pruefen(self, p, id, &a, original.as_ref(), wer, kontext).await?;
         if original.as_ref() == Some(&a) {
             return Ok(alt.expect("vorhandener Stand"));
@@ -545,15 +601,29 @@ impl CoreServices {
                     a.status.bezeichnung()
                 ));
             }
-            if alt.vollstaendigkeit != a.vollstaendigkeit
-                && let Some(v) = &a.vollstaendigkeit
-            {
-                details.push(format!("Vollständigkeit bestätigt am {}", v.datum));
+            if alt.vollstaendigkeit != a.vollstaendigkeit {
+                details.push(match &a.vollstaendigkeit {
+                    Some(v) => format!("Vollständigkeit bestätigt am {}", v.datum),
+                    None => "Vollständigkeitsbestätigung entfernt".into(),
+                });
             }
-            if alt.ruecknahme != a.ruecknahme
-                && let Some(r) = &a.ruecknahme
-            {
-                details.push(format!("Antrag zurückgenommen am {}", r.datum));
+            if alt.ruecknahme != a.ruecknahme {
+                details.push(match &a.ruecknahme {
+                    Some(r) => format!("Antrag zurückgenommen am {}", r.datum),
+                    None => "Rücknahme entfernt".into(),
+                });
+            }
+            if alt.ausfuehrung != a.ausfuehrung {
+                details.push(match &a.ausfuehrung {
+                    Some(x) => format!(
+                        "Baubeginn {}{}",
+                        x.baubeginn,
+                        x.fertigstellung
+                            .map(|f| format!(", Fertigstellung {f}"))
+                            .unwrap_or_default()
+                    ),
+                    None => "Angaben zur Bauausführung entfernt".into(),
+                });
             }
             for n in &a.nachforderungen {
                 for p in &n.punkte {
@@ -616,6 +686,14 @@ impl CoreServices {
                         v.art.bezeichnung()
                     ));
                 }
+                if v.folgeschreiben.is_some()
+                    && vorher.is_none_or(|n| n.folgeschreiben != v.folgeschreiben)
+                {
+                    details.push(format!(
+                        "{} durch Folgeschreiben beendet",
+                        v.art.bezeichnung()
+                    ));
+                }
             }
             if alt.aktenzeichen != a.aktenzeichen {
                 details.push(format!(
@@ -668,15 +746,26 @@ impl CoreServices {
             for b in &a.bescheide {
                 match alt.bescheide.iter().find(|n| n.id == b.id) {
                     None => details.push(format!(
-                        "Bescheid erfasst: {:?} am {}",
-                        b.entscheidung, b.datum
+                        "Bescheid erfasst: {:?} am {}{}",
+                        b.entscheidung,
+                        b.datum,
+                        b.verlaengerung
+                            .as_ref()
+                            .map(|v| format!(", verlängert die Geltungsdauer bis {}", v.bis))
+                            .unwrap_or_default()
                     )),
                     Some(v) if v.zugestellt != b.zugestellt => {
                         if let Some(z) = b.zugestellt {
-                            details.push(format!(
-                                "Zustellung des Bescheids vom {} nachgetragen: {z}",
-                                b.datum
-                            ));
+                            details.push(match v.zugestellt {
+                                None => format!(
+                                    "Zustellung des Bescheids vom {} nachgetragen: {z}",
+                                    b.datum
+                                ),
+                                Some(alt) => format!(
+                                    "Zustellung des Bescheids vom {} berichtigt: {alt} → {z}",
+                                    b.datum
+                                ),
+                            });
                         }
                     }
                     _ => {}
@@ -704,6 +793,7 @@ impl CoreServices {
                 }
             }
         }
+        let arten = chronik::arten(original.as_ref(), &a);
         let text = if basis == 0 {
             "Verfahren angelegt".into()
         } else {
@@ -725,6 +815,8 @@ impl CoreServices {
             text: text.chars().take(4000).collect(),
             beleg: None,
             berichtigt: None,
+            arten: arten.clone(),
+            berichtigung: None,
         });
 
         let daten = serde_json::to_value(&a).map_err(|e| fehler(e.to_string()))?;
@@ -745,79 +837,18 @@ impl CoreServices {
             revision: basis,
             daten,
         };
+        // Das Projektprotokoll führt die Verfahrensänderung mit eigener Aktion,
+        // abgeleitet aus dem Aktenereignis dieser Revision.
         let audit = Self::audit(
             wer,
-            crate::domain::Aktion::ProjektGeaendert,
+            chronik::aktion(&arten),
             Some(p),
             None,
-            format!("Verfahren {}: Revision {}", a.bezeichnung, basis + 1),
+            format!("Verfahren {}: {}", a.bezeichnung, text)
+                .chars()
+                .take(2000)
+                .collect(),
         );
         self.repos.commit.fachstand(f, basis, audit).await
-    }
-    pub async fn verfahren_erinnerungen(
-        &self,
-        p: ProjectId,
-        heute: NaiveDate,
-    ) -> CoreResult<Vec<Erinnerung>> {
-        self.get_project(p).await?;
-        let mut r = Vec::new();
-        for f in self.repos.commit.fachstaende(p, "verfahren").await? {
-            let a: Verfahrensakte =
-                serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
-            let vid = Uuid::parse_str(&f.objekt).map_err(|e| fehler(e.to_string()))?;
-            if a.status == Verfahrensstatus::Zurueckgenommen {
-                continue;
-            }
-            let mut add =
-                |objekt: Uuid, titel: &str, frist: &Option<Frist>, verantwortlich: Option<Uuid>| {
-                    if let Some(f) = frist
-                        && heute
-                            >= f.datum
-                                .checked_sub_signed(chrono::Duration::days(i64::from(
-                                    f.erinnerung_tage,
-                                )))
-                                .unwrap_or(f.datum)
-                    {
-                        r.push(Erinnerung {
-                            verfahren: vid,
-                            objekt,
-                            titel: format!("{} · {titel}", a.bezeichnung),
-                            datum: f.datum,
-                            ueberfaellig: f.datum < heute,
-                            verantwortlich,
-                        });
-                    }
-                };
-            for n in &a.nachforderungen {
-                for p in &n.punkte {
-                    if !matches!(p.status, Punktstatus::Bestaetigt | Punktstatus::Entfallen) {
-                        add(p.id, &p.titel, &p.frist, p.verantwortlich);
-                    }
-                }
-            }
-            for b in &a.bescheide {
-                if a.bescheide.iter().any(|neu| neu.ersetzt == Some(b.id)) {
-                    continue;
-                }
-                for p in &b.auflagen {
-                    if !p.erledigt && p.art != Nebenbestimmungsart::Hinweis {
-                        add(p.id, &p.titel, &p.frist, p.verantwortlich);
-                    }
-                }
-            }
-            if !a.status.abgeschlossen() {
-                for v in &a.schritte {
-                    if v.art == Schrittart::Zurueckstellung || v.stellungnahme.is_none() {
-                        let titel = match v.art {
-                            Schrittart::Anhoerung => "Stellungnahme zur Anhörung",
-                            Schrittart::Zurueckstellung => "Ende der Zurückstellung",
-                        };
-                        add(v.id, titel, &v.frist, v.verantwortlich);
-                    }
-                }
-            }
-        }
-        r.sort_by_key(|e| e.datum);
-        Ok(r)
     }
 }
