@@ -21,9 +21,13 @@ pub struct AppState {
     pub core: CoreServices,
     pub config_dir: std::path::PathBuf,
     pub data_dir: std::path::PathBuf,
-    /// Angemeldeter Benutzer (Betriebssystem-Anmeldung). Wird neu gelesen,
-    /// wenn ein Administrator ihn ändert.
+    /// Angemeldeter Benutzer. Einzelplatz: Betriebssystem-Anmeldung beim
+    /// Start. Netzwerk: [`Benutzer::nicht_angemeldet`] bis zur Anmeldung im
+    /// Dialog (siehe [`crate::anmeldung`]). Wird neu gelesen, wenn ein
+    /// Administrator ihn ändert.
     pub benutzer: RwLock<Benutzer>,
+    /// Angemeldet, aber noch ohne eigenes Kennwort (Erstkennwort/Übergang).
+    pub ausstehend: RwLock<Option<Benutzer>>,
     /// Name dieses Rechners für die Zählung der Lizenz-Arbeitsplätze.
     pub arbeitsplatz: String,
     pub config: AppConfig,
@@ -41,6 +45,11 @@ impl AppState {
             .read()
             .expect("Benutzer-Lock vergiftet")
             .clone()
+    }
+
+    /// Netzwerkbetrieb: Anmeldung mit Anmeldename und Kennwort.
+    pub fn kennwortanmeldung(&self) -> bool {
+        matches!(self.config, AppConfig::Netzwerk { .. })
     }
 }
 
@@ -140,18 +149,27 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         },
         _ => tracing::info!("Kein Lizenzserver eingebaut: nur Lizenzdateien möglich."),
     }
-    let core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
+    let mut core = CoreServices::new(repos, storage, lbo, Arc::new(lizenz))
         .mit_xbau_pruefer(storage::xbau::XmlLintPruefer::standard())
         .mit_formularen(init_formulare(app, &data_dir)?)
         .mit_codelisten(init_codelisten(app, &data_dir)?);
-    // Anmeldung über das Betriebssystem. Im Netzwerkmodus teilen sich alle
-    // Arbeitsplätze die Benutzertabelle; die erste Anmeldung wird Administrator.
-    let benutzer = core
-        .anmelden(&whoami::username(), &whoami::realname())
-        .await?;
-    tracing::info!(benutzer = %benutzer.anmeldename, rolle = ?benutzer.rolle, "angemeldet");
-    // Bauherren aus Bauanträgen älterer Versionen in die Kundendatenbank.
-    match core.bauherren_uebernehmen(&benutzer).await {
+    let netzwerk = matches!(config, AppConfig::Netzwerk { .. });
+    let (benutzer, wartung) = if netzwerk {
+        // Alle Arbeitsplätze teilen sich die Benutzertabelle; jeder meldet
+        // sich im Anmeldedialog mit Anmeldename und Kennwort an.
+        core = core.mit_kennwortpflicht();
+        (Benutzer::nicht_angemeldet(), core.systembenutzer().await?)
+    } else {
+        // Einzelplatz: Anmeldung über das Betriebssystem, ohne Kennwort.
+        let b = core
+            .anmelden(&whoami::username(), &whoami::realname())
+            .await?;
+        tracing::info!(benutzer = %b.anmeldename, rolle = ?b.rolle, "angemeldet");
+        (b.clone(), b)
+    };
+    // Bauherren aus Bauanträgen älterer Versionen in die Kundendatenbank;
+    // im Netzwerkbetrieb vor jeder Anmeldung als Systemkonto.
+    match core.bauherren_uebernehmen(&wartung).await {
         Ok(0) => {}
         Ok(n) => tracing::info!(projekte = n, "Bauherren in die Kundendatenbank übernommen"),
         // Kein Grund, die App nicht zu starten: Speichern des Bauantrags
@@ -168,6 +186,7 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
         config_dir,
         data_dir,
         benutzer: RwLock::new(benutzer),
+        ausstehend: RwLock::new(None),
         arbeitsplatz,
         config,
         cache,

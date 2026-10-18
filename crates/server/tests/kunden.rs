@@ -134,6 +134,66 @@ async fn kunden_pflegen_und_zuordnen() {
         [k.id, erika.id]
     );
 
+    // Sichtbarkeit: Leser ohne Projekt sehen keine Kundendaten; mit Leserecht
+    // nur die Kunden ihrer Projekte. Wer Kunden pflegt, sieht alle.
+    let ohne_projekt = core
+        .kunde_anlegen(
+            Kundendaten {
+                vorname: "Otto".into(),
+                familienname: "Ohneprojekt".into(),
+                ..Kundendaten::default()
+            },
+            &ben,
+        )
+        .await
+        .unwrap();
+    assert!(core.kunden_fuer_benutzer(&leser).await.unwrap().is_empty());
+    assert!(matches!(
+        core.kunde_fuer_benutzer(k.id, &leser).await,
+        Err(CoreError::Forbidden(_))
+    ));
+    core.projektmitglied_setzen(
+        p.id,
+        core_lib::zugriff::ProjektMitglied {
+            benutzer_id: leser.id,
+            recht: core_lib::zugriff::ProjektRecht::Lesen,
+        },
+        0,
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let mut sichtbar: Vec<_> = core
+        .kunden_fuer_benutzer(&leser)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|k| k.id)
+        .collect();
+    sichtbar.sort();
+    let mut erwartet = vec![k.id, erika.id];
+    erwartet.sort();
+    assert_eq!(sichtbar, erwartet);
+    assert_eq!(
+        core.kunde_fuer_benutzer(erika.id, &leser).await.unwrap().id,
+        erika.id
+    );
+    assert!(matches!(
+        core.kunde_fuer_benutzer(ohne_projekt.id, &leser).await,
+        Err(CoreError::Forbidden(_))
+    ));
+    assert_eq!(core.kunden_fuer_benutzer(&ben).await.unwrap().len(), 3);
+    assert_eq!(
+        core.kunde_fuer_benutzer(ohne_projekt.id, &ben)
+            .await
+            .unwrap()
+            .id,
+        ohne_projekt.id
+    );
+    core.kunde_loeschen(ohne_projekt.id, ohne_projekt.version, &chefin)
+        .await
+        .unwrap();
+
     // Eine Änderung am Kunden steht im Protokoll des Projekts.
     let mut daten = k.daten.clone();
     daten.anschrift.ort = "München".into();

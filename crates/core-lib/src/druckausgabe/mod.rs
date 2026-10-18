@@ -376,6 +376,10 @@ impl CoreServices {
     }
 }
 
+/// Höchstgröße einer abgelegten Druckausgabe (PDF). Adapter richten ihre
+/// Transportgrenze (z. B. HTTP-Body-Limit) danach aus.
+pub const MAX_DRUCKPDF: usize = 128 * 1024 * 1024;
+
 impl CoreServices {
     /// Übernimmt exakt die geprüfte Druckkopie als versionierte Projektunterlage.
     /// Die Vorgangskennung verhindert eine zweite Datei nach einem Antwortverlust.
@@ -389,7 +393,7 @@ impl CoreServices {
     ) -> CoreResult<crate::domain::DocumentVersion> {
         self.projekt_zugriff(p, wer, crate::zugriff::ProjektRecht::Bearbeiten)
             .await?;
-        if pdf.len() > 128 * 1024 * 1024 || !pdf.starts_with(b"%PDF-") || name.len() > 400 {
+        if pdf.len() > MAX_DRUCKPDF || !pdf.starts_with(b"%PDF-") || name.len() > 400 {
             return Err(fehler("Ungültige PDF-Ausgabe"));
         }
         let d = lopdf::Document::load_mem(&pdf).map_err(fehler)?;

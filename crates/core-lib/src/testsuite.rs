@@ -4,10 +4,10 @@
 //! Datenbank auf. So verhalten sich beide Backends nachweislich gleich,
 //! vor allem beim Optimistic Locking und bei Sperren.
 
-use chrono::Utc;
+use chrono::{SubsecRound, Utc};
 
 use crate::CoreError;
-use crate::benutzer::{BenutzerAenderung, NeuerBenutzer, Rolle};
+use crate::benutzer::{BenutzerAenderung, BenutzerId, Kennwortstatus, NeuerBenutzer, Rolle};
 use crate::domain::{
     Aktion, Bundesland, DocumentId, DocumentVersion, NeuerProtokolleintrag, NewProject,
     ProjectUpdate,
@@ -31,6 +31,7 @@ pub async fn repositories(repos: Repositories) {
     dokumente(&repos).await;
     sperren(&repos).await;
     benutzer(&repos).await;
+    kennwoerter(&repos).await;
     protokoll(&repos).await;
     lizenz(&repos).await;
     bauantraege(&repos).await;
@@ -324,6 +325,90 @@ async fn benutzer(repos: &Repositories) {
         ("Chefin Muster", Rolle::Projektleitung, false)
     );
     assert!(b.list().await.unwrap().iter().any(|x| x.id == chef.id));
+}
+
+async fn kennwoerter(repos: &Repositories) {
+    let b = &repos.benutzer;
+    let anna = b
+        .create(NeuerBenutzer {
+            anmeldename: eindeutig("anna"),
+            anzeigename: "Anna".into(),
+            rolle: Rolle::Bearbeitung,
+        })
+        .await
+        .unwrap();
+    assert_eq!(anna.kennwort, Kennwortstatus::Keines);
+    let d = b.kennwortdaten(anna.id).await.unwrap();
+    assert_eq!((d.hash, d.fehlversuche, d.gesperrt_bis), (None, 0, None));
+
+    // Fehlversuche zählen atomar hoch, Sperre wird gespeichert.
+    assert_eq!(b.fehlversuch_zaehlen(anna.id).await.unwrap(), 1);
+    assert_eq!(b.fehlversuch_zaehlen(anna.id).await.unwrap(), 2);
+    let bis = (Utc::now() + chrono::Duration::minutes(1)).trunc_subsecs(6);
+    b.anmeldesperre_setzen(anna.id, Some(bis)).await.unwrap();
+    let d = b.kennwortdaten(anna.id).await.unwrap();
+    assert_eq!((d.fehlversuche, d.gesperrt_bis), (2, Some(bis)));
+    assert_eq!(b.get(anna.id).await.unwrap().anmeldesperre_bis, Some(bis));
+
+    // Erstkennwort: Hash gespeichert, Zähler und Sperre zurückgesetzt.
+    b.kennwort_speichern(anna.id, "$argon2id$erst", true, Utc::now())
+        .await
+        .unwrap();
+    let d = b.kennwortdaten(anna.id).await.unwrap();
+    assert_eq!(
+        (d.hash.as_deref(), d.fehlversuche, d.gesperrt_bis),
+        (Some("$argon2id$erst"), 0, None)
+    );
+    let gelesen = b.get(anna.id).await.unwrap();
+    assert_eq!(gelesen.kennwort, Kennwortstatus::Erstkennwort);
+    assert_eq!(
+        b.by_anmeldename(&anna.anmeldename).await.unwrap(),
+        Some(gelesen.clone())
+    );
+    assert!(b.list().await.unwrap().contains(&gelesen));
+
+    // Eigenes Kennwort
+    b.kennwort_speichern(anna.id, "$argon2id$eigen", false, Utc::now())
+        .await
+        .unwrap();
+    assert_eq!(
+        b.get(anna.id).await.unwrap().kennwort,
+        Kennwortstatus::Gesetzt
+    );
+
+    // Erfolgreiche Anmeldung setzt Zähler zurück und merkt die Zeit.
+    b.fehlversuch_zaehlen(anna.id).await.unwrap();
+    let jetzt = Utc::now().trunc_subsecs(6);
+    b.anmeldung_vermerken(anna.id, jetzt).await.unwrap();
+    let d = b.kennwortdaten(anna.id).await.unwrap();
+    assert_eq!((d.fehlversuche, d.gesperrt_bis), (0, None));
+    assert_eq!(b.get(anna.id).await.unwrap().letzte_anmeldung, Some(jetzt));
+
+    // Stammdatenänderung lässt das Kennwort unberührt.
+    let geaendert = b
+        .update(BenutzerAenderung {
+            id: anna.id,
+            anzeigename: "Anna Muster".into(),
+            rolle: Rolle::Lesen,
+            aktiv: true,
+        })
+        .await
+        .unwrap();
+    assert_eq!(geaendert.kennwort, Kennwortstatus::Gesetzt);
+
+    let fremd = BenutzerId::new();
+    assert!(matches!(
+        b.kennwortdaten(fremd).await,
+        Err(CoreError::NotFound(_))
+    ));
+    assert!(matches!(
+        b.kennwort_speichern(fremd, "x", false, Utc::now()).await,
+        Err(CoreError::NotFound(_))
+    ));
+    assert!(matches!(
+        b.fehlversuch_zaehlen(fremd).await,
+        Err(CoreError::NotFound(_))
+    ));
 }
 
 async fn protokoll(repos: &Repositories) {

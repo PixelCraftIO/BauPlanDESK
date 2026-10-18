@@ -99,6 +99,17 @@ window.__TAURI_INTERNALS__ = {
         wechsel_erlaubt: window.testUser.rolle === "administrator",
         hinweis: "Testablage",
       };
+    // Start.svelte fragt vor der Anwendung den Anmeldestatus ab; Standard ist
+    // der Einzelplatzbetrieb mit angemeldetem Testbenutzer.
+    if (cmd === "anmeldestatus")
+      return window.testAnmeldung ?? {
+        kennwortanmeldung: false,
+        benutzer: window.testUser,
+        kennwort_aendern: null,
+        bisheriges_kennwort_noetig: false,
+        optionen: null,
+        kennwort_mindestlaenge: 10,
+      };
     if (cmd === "app_info")
       return {
         version: "0.1.0",

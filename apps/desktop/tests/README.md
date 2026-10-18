@@ -59,6 +59,12 @@ Der Testtransport beantwortet Rückfragen (`ask`/`confirm`) standardmäßig mit
 Bestätigen; `window.rueckfrage = false` wählt „Abbrechen“, gestellte Fragen
 stehen in `window.rueckfragen`. `projekt_recht` liefert `leitung`, je Projekt
 überschreibbar über `window.testProjektRecht = { [projektId]: "lesen" }`.
+
+`python apps/desktop/tests/anmeldung.py` prüft den Anmeldedialog im Netzwerkbetrieb:
+keine Anwendungsaufrufe vor der Anmeldung, Fehlversuch, Erstkennwort ersetzen,
+einmaliger Übergang über das Rechnerkonto und *Abmelden / Benutzer wechseln*. Der
+gemeinsame Testtransport meldet sonst den Testbenutzer im Einzelplatzbetrieb an
+(`anmeldestatus`).
 `node --test apps/desktop/tests/kalender.test.mjs` prüft die Datumsgrenzen für
 Einreichungsfelder und Exportnamen ohne Abhängigkeit von der Rechnerzeitzone.
 

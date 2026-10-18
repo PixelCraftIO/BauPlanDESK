@@ -18,3 +18,4 @@ uuid.workspace = true
 [dev-dependencies]
 core-lib = { workspace = true, features = ["testdaten"] }
 tokio.workspace = true
+tempfile.workspace = true

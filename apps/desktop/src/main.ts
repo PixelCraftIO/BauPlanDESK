@@ -1,5 +1,6 @@
 import { mount } from "svelte";
-import App from "./App.svelte";
+import Start from "./Start.svelte";
 import "./app.css";
 
-export default mount(App, { target: document.getElementById("app")! });
+// Start zeigt im Netzwerkbetrieb zuerst die Anmeldung, danach die Anwendung.
+export default mount(Start, { target: document.getElementById("app")! });

@@ -23,6 +23,8 @@ serde.workspace = true
 serde_json.workspace = true
 storage = { workspace = true, features = ["s3"] }
 tokio = { workspace = true, features = ["net", "signal"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tempfile.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
@@ -34,5 +36,4 @@ bytes.workspace = true
 chrono.workspace = true
 ed25519-dalek.workspace = true
 core-lib = { workspace = true, features = ["testdaten"] }
-tempfile.workspace = true
 zip.workspace = true

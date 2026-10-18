@@ -228,11 +228,24 @@ für kleine Büros, PostgreSQL für größere) und demselben Storage. Die Regeln
 stehen in [`core-lib`](crates/core-lib/src/benutzer.rs) und gelten so für
 Desktop-App und Server gleich.
 
-- **Anmeldung** über das Benutzerkonto des Betriebssystems (`whoami`).
-  `BUERO\Daniel`, `daniel@buero.local` und `daniel` sind dasselbe Konto. Wer
-  sich als Erster anmeldet, wird Administrator, alle Späteren bekommen die
-  Rolle *Lesen*, bis ein Administrator sie hochstuft (*Bearbeiten →
-  Benutzerverwaltung …* oder Klick auf den Namen in der Statusleiste).
+- **Anmeldung im Netzwerkbetrieb** mit Anmeldename und Kennwort im
+  Anmeldedialog beim Start; jeder Benutzer kann an jedem Arbeitsplatz arbeiten
+  (*Anwendung → Abmelden / Benutzer wechseln …*). Kennwörter liegen nur als
+  Argon2id-Hash in der Datenbank, nach wiederholten Fehlversuchen wird die
+  Anmeldung vorübergehend gesperrt. Administratoren vergeben Erstkennwörter, die
+  bei der ersten Anmeldung zu ändern sind. Für Büros aus älteren Versionen: Solange
+  kein Administrator ein Kennwort hat, meldet sich ein Administrator einmalig über
+  das Benutzerkonto des Rechners an und setzt sofort sein Kennwort. Details,
+  Übergang und Grenzen: [Benutzeranmeldung](docs/benutzeranmeldung.md).
+- **Anmeldung im Einzelplatzbetrieb** wie bisher über das Benutzerkonto des
+  Betriebssystems (`whoami`), ohne Kennwort. `BUERO\Daniel`,
+  `daniel@buero.local` und `daniel` sind dasselbe Konto. Wer sich als Erster
+  anmeldet, wird Administrator, alle Späteren bekommen die Rolle *Lesen*, bis ein
+  Administrator sie hochstuft (Benutzerverwaltung oder Klick auf den Namen in der
+  Statusleiste).
+- **Grenze:** Die Arbeitsplätze verbinden sich direkt mit der Datenbank. Rechte
+  und Kennwörter gelten gegenüber der Anwendung, nicht gegenüber jemandem, der die
+  Datenbank-Zugangsdaten aus der `config.json` direkt verwendet.
 - **Rollen** (aufsteigend): *Lesen* (ansehen, rechnen), *Bearbeitung*
   (Projektdaten ändern, Dokumente ablegen und sperren), *Projektleitung*
   (Projekte anlegen, Sperren anderer aufheben), *Administrator* (Benutzer

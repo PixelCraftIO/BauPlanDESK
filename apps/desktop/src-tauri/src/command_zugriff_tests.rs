@@ -58,6 +58,7 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
         config_dir: root.path().join("config"),
         data_dir: root.path().into(),
         benutzer: RwLock::new(planer.clone()),
+        ausstehend: RwLock::new(None),
         arbeitsplatz: "Test".into(),
         config: Default::default(),
         cache: None,

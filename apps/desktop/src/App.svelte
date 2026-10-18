@@ -478,6 +478,22 @@
     }
   }
 
+  /** Abmelden / Benutzer wechseln: Neuladen verwirft alle Ansichten und
+   *  zeigt den Anmeldedialog; offene Eingaben vorher sichern lassen. */
+  async function abmelden() {
+    if (updateBlockiert()) {
+      hinweis =
+        "Vor dem Abmelden alle Projekt- und Kundeneingaben speichern oder verwerfen und laufende Aktionen sowie Dialoge abschließen. Ihre Eingaben bleiben geöffnet.";
+      return;
+    }
+    try {
+      await api.abmelden();
+      location.reload();
+    } catch (e) {
+      melde(e);
+    }
+  }
+
   /** Editor des geöffneten Dialogs mit ungespeicherten Eingaben. */
   function dialogEditor():
     | { istBeschaeftigt(): boolean; schliessenErlaubt(): Promise<boolean> }
@@ -536,6 +552,9 @@
         break;
       case "anwendung.einstellungen":
         globalAnsicht = "verwaltung";
+        break;
+      case "anwendung.abmelden":
+        void abmelden();
         break;
       case "datei.neu":
         neuesProjekt();

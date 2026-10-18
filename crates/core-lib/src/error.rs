@@ -43,3 +43,25 @@ pub enum CoreError {
     #[error("Lizenzfehler: {0}")]
     License(String),
 }
+
+impl CoreError {
+    /// Start gegen eine gemeinsame Datenbank, die bereits einen Datenbankstand
+    /// (Migration) kennt, den diese Programmversion nicht hat. Die Datenbank wird
+    /// dabei nicht verändert; ältere Arbeitsplätze müssen erst aktualisiert werden.
+    pub fn datenbank_neuer(datenbankstand: i64) -> Self {
+        Self::Database(format!(
+            "Diese Datenbank wurde mit einer neueren BauProjektIO-Version aktualisiert \
+             (Datenbankstand {datenbankstand}). Bitte BauProjektIO auf diesem Arbeitsplatz \
+             bzw. Server aktualisieren. Die Datenbank wurde nicht verändert."
+        ))
+    }
+    /// Ein bereits angewendeter Datenbankstand weicht inhaltlich von dem dieser
+    /// Programmversion ab (veränderte Migration).
+    pub fn datenbankstand_abweichend(datenbankstand: i64) -> Self {
+        Self::Database(format!(
+            "Der Datenbankstand {datenbankstand} dieser Datenbank passt nicht zu dieser \
+             BauProjektIO-Version. Bitte die Administration bzw. den Support verständigen; \
+             die Datenbank wurde nicht verändert."
+        ))
+    }
+}
