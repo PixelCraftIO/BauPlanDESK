@@ -78,9 +78,12 @@ pub async fn einreichung_exportieren(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
-    let (_, zip) = state.core.einreichung_zip(id).await?;
-    tokio::fs::write(ziel, zip)
+    let teil = crate::verfahren::teildatei(&ziel);
+    let datei = std::fs::File::create(&teil).map_err(|e| CoreError::Storage(e.to_string()))?;
+    let ergebnis = state
+        .core
+        .einreichung_zip_schreiben(id, datei)
         .await
-        .map_err(|e| CoreError::Storage(e.to_string()))?;
-    Ok(())
+        .and_then(|(_, f)| f.sync_all().map_err(|e| CoreError::Storage(e.to_string())));
+    crate::verfahren::teildatei_abschliessen(&teil, &ziel, ergebnis).await
 }

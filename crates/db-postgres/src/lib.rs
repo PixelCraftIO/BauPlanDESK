@@ -45,7 +45,7 @@ impl PostgresDatabase {
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
-            .map_err(|e| CoreError::Database(e.to_string()))?;
+            .map_err(migrationsfehler)?;
         Ok(Self { pool })
     }
 
@@ -72,6 +72,17 @@ impl PostgresDatabase {
             },
             Err(e) => e,
         }
+    }
+}
+
+/// Ältere Programmversion an einer bereits weiter migrierten gemeinsamen
+/// Datenbank (Büro mit einzeln aktualisierten Arbeitsplätzen): klare Meldung statt
+/// rohem sqlx-Fehler. sqlx prüft vor dem Anwenden; nichts wurde verändert.
+fn migrationsfehler(e: sqlx::migrate::MigrateError) -> CoreError {
+    match e {
+        sqlx::migrate::MigrateError::VersionMissing(v) => CoreError::datenbank_neuer(v),
+        sqlx::migrate::MigrateError::VersionMismatch(v) => CoreError::datenbankstand_abweichend(v),
+        e => CoreError::Database(e.to_string()),
     }
 }
 

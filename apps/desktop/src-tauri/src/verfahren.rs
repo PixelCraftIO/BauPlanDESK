@@ -137,11 +137,40 @@ pub async fn verfahren_aktenexport(
         .core
         .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
         .await?;
-    let b = state.core.verfahren_aktenexport(projekt_id).await?;
-    tokio::fs::write(ziel, b)
+    // Fortlaufend in eine Teildatei neben dem Ziel; erst nach Erfolg umbenennen.
+    let teil = teildatei(&ziel);
+    let datei = std::fs::File::create(&teil).map_err(|e| CoreError::Storage(e.to_string()))?;
+    let ergebnis = state
+        .core
+        .verfahren_aktenexport_in(projekt_id, datei)
         .await
-        .map_err(|e| CoreError::Storage(e.to_string()))?;
-    Ok(())
+        .and_then(|f| f.sync_all().map_err(|e| CoreError::Storage(e.to_string())));
+    teildatei_abschliessen(&teil, &ziel, ergebnis).await
+}
+/// Pfad der Teildatei, in die ein Export geschrieben wird (`Ziel.zip.teil`).
+pub(crate) fn teildatei(ziel: &std::path::Path) -> PathBuf {
+    let mut name = ziel
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
+    name.push(".teil");
+    ziel.with_file_name(name)
+}
+/// Benennt die Teildatei nach Erfolg in das Ziel um, sonst wird sie entfernt.
+pub(crate) async fn teildatei_abschliessen(
+    teil: &std::path::Path,
+    ziel: &std::path::Path,
+    ergebnis: Result<(), CoreError>,
+) -> Result<(), CmdError> {
+    match ergebnis {
+        Ok(()) => Ok(tokio::fs::rename(teil, ziel)
+            .await
+            .map_err(|e| CoreError::Storage(e.to_string()))?),
+        Err(e) => {
+            let _ = tokio::fs::remove_file(teil).await;
+            Err(e.into())
+        }
+    }
 }
 #[tauri::command]
 pub async fn verfahren_ocr(png_base64: String) -> Result<String, CmdError> {

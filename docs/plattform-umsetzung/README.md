@@ -39,6 +39,20 @@ bauprojekt-server zugang-anlegen buero-admin administrator /absoluter/privater/p
 
 Der Token steht ausschließlich in der neu angelegten Datei, unter Unix mit Modus 0600. Die Zugangsliste speichert nur SHA-256. Wiederholte Bereitstellung für denselben Benutzer widerruft dessen frühere Tokens. HTTP-Aufrufe verwenden `Authorization: Bearer …`; außerhalb von localhost ist TLS erforderlich. Tokens gehören weder in das Repository noch in Browser-LocalStorage. Mitgliedschaften werden über `/api/v1/projekte/{id}/mitglieder` von berechtigten Projektleitern vergeben. Der Desktop nutzt derzeit weiterhin seine bisherigen lokalen/DB-Adapter; ein vollständiger Servermodus ist noch offen.
 
+### Prüfung von Projekt-, Dokument- und Einreichungspfaden
+
+Die Zugangs-Middleware prüft die Projektberechtigung auf den **dekodierten** Pfadsegmenten, also mit derselben Sicht wie der Router, der Pfadparameter vor dem Handler dekodiert. Eine prozentkodierte ID (`/api/projekte/%33…`) wird wie die unkodierte geprüft. Unter `/api/…` und `/api/v1/…` gilt: Steht nach `projekte`, `dokumente` oder `einreichungen` keine lesbare UUID oder ist der Pfad ungültig kodiert, antwortet der Server mit 400, ohne den Handler zu erreichen. Alle projektbezogenen Routen (auch `…/verfahren/{v}/portale/…`) tragen die Projekt-ID an zweiter Stelle; Projekt- oder Dokumentkennungen in Query-Parametern und Bodies (z. B. `vorgang`, `Dokumentbezug`) prüft der Core zusätzlich gegen das Projekt des Pfads. `HEAD` gilt als schreibende Methode und verlangt daher Bearbeitungsrecht.
+
+### Fehlermeldungen, Upload-Grenzen und Exporte
+
+- 5xx-Antworten enthalten nur „Interner Serverfehler …“ und eine `kennung` (UUID). Die Fehlerdetails (Pfade, Datenbankmeldungen) stehen mit derselben Kennung im Serverprotokoll. 4xx-Meldungen bleiben fachlich aussagekräftig.
+- Body-Grenzen: `POST /projekte/{id}/druckausgabe/unterlage` nimmt bis `druckausgabe::MAX_DRUCKPDF` (128 MiB) an, wie der Core. Fachobjekte und Suchtexte (Core-Grenze 2 MiB Inhalt) erlauben 4 MiB Body für Hülle und Escapes. Alle anderen Routen behalten die axum-Vorgabe von 2 MB; Lizenzdateien und JSON-Aufträge liegen deutlich darunter.
+- Aktenexport (`GET /projekte/{id}/aktenexport`) und Einreichungs-ZIP (`GET /einreichungen/{id}/zip`) werden in eine anonyme temporäre Datei geschrieben (Verzeichnis über `TMPDIR`) und gestreamt; das Gesamtarchiv liegt nicht im Speicher. Je Prozess laufen höchstens `exportgrenze::MAX_GLEICHZEITIGE_EXPORTE` (2) große Exporte gleichzeitig, weitere warten. Der Aktenexport in eine Datei ist bis 2 GiB unkomprimiert möglich (Archiv sicher unter 4 GiB), der Speicherweg `verfahren_aktenexport` bleibt bei 512 MB. Der Desktop schreibt beide Exporte über eine Teildatei `Ziel.teil` und benennt sie erst nach Erfolg um.
+
+### Sichtbarkeit von Kundendaten
+
+`GET /kunden`, `GET /kunden/{id}` und der Desktop-Befehl `kunden_auflisten` verwenden die Core-Regel in `zugriff.rs`: Wer Kunden pflegen darf (Bearbeitung, Projektleitung, Administration), sieht die gesamte Kundendatenbank. Benutzer mit der Rolle Lesen sehen nur Kunden, die als Bauherr oder Beteiligter in einem Projekt eingetragen sind, das sie lesen dürfen; ein anderer Kunde liefert 403.
+
 
 ## Sicherungen und Profile
 

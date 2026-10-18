@@ -127,14 +127,32 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
             return (code, "Anmeldung erforderlich oder Zugang nicht verfügbar").into_response();
         }
     };
-    let path = r
-        .uri()
-        .path()
+    // Gleiche Sicht wie der Router: axum dekodiert Pfadparameter vor dem
+    // Handler. Die Prüfung arbeitet daher auf den dekodierten Segmenten, sonst
+    // umgeht eine prozentkodierte ID (`%33…`) die Projektprüfung.
+    let roh = r.uri().path();
+    let path = roh
         .strip_prefix("/api/v1/")
-        .or_else(|| r.uri().path().strip_prefix("/api/"))
+        .or_else(|| roh.strip_prefix("/api/"))
         .unwrap_or("");
-    let teile: Vec<_> = path.split('/').collect();
-    let id = teile.get(1).and_then(|s| Uuid::parse_str(s).ok());
+    let Some(teile) = path
+        .split('/')
+        .map(prozent_dekodieren)
+        .collect::<Option<Vec<String>>>()
+    else {
+        return (StatusCode::BAD_REQUEST, "Ungültig kodierter Pfad").into_response();
+    };
+    let teile: Vec<&str> = teile.iter().map(String::as_str).collect();
+    let id = match (teile.first().copied(), teile.get(1)) {
+        (Some("projekte" | "dokumente" | "einreichungen"), Some(s)) => match Uuid::parse_str(s) {
+            Ok(id) => Some(id),
+            // Ohne lesbare ID ist keine Projektprüfung möglich: nicht durchlassen.
+            Err(_) => {
+                return (StatusCode::BAD_REQUEST, "Ungültige Kennung im Pfad").into_response();
+            }
+        },
+        _ => None,
+    };
     let projekt = match (teile.first().copied(), id) {
         (Some("projekte"), Some(id)) => Some(ProjectId(id)),
         (Some("dokumente"), Some(id)) => {
@@ -188,6 +206,31 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
     }
     r.extensions_mut().insert(b);
     next.run(r).await
+}
+/// Dekodiert ein Pfadsegment wie axum (`%XX`, UTF-8). `None` bei ungültiger
+/// Kodierung; `+` bleibt im Pfad unverändert.
+fn prozent_dekodieren(segment: &str) -> Option<String> {
+    let b = segment.as_bytes();
+    if !b.contains(&b'%') {
+        return Some(segment.to_owned());
+    }
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = b.get(i + 1..i + 3)?;
+            if !hex.iter().all(u8::is_ascii_hexdigit) {
+                return None;
+            }
+            let wert = u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?;
+            out.push(wert);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
 }
 pub fn gesichert(core: CoreServices, quelle: ZugangQuelle) -> Router {
     let state = ZugangState {

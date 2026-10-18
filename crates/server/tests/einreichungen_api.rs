@@ -176,6 +176,7 @@ async fn bestehende_pakete_bestaetigen_vergleichen_und_unveraendertes_zip() {
     );
     assert_eq!(v[0].zuletzt_eingereicht.as_ref().unwrap().version, 1);
     let response = router
+        .clone()
         .oneshot(
             Request::builder()
                 .header(
@@ -188,8 +189,41 @@ async fn bestehende_pakete_bestaetigen_vergleichen_und_unveraendertes_zip() {
         )
         .await
         .unwrap();
+    // Gestreamte Antwort mit korrekter Länge.
+    assert_eq!(
+        response.headers()["content-length"],
+        before.len().to_string()
+    );
     assert_eq!(
         to_bytes(response.into_body(), 100000).await.unwrap(),
         before
     );
+    // Druckausgaben über dem axum-Standard (2 MB) erreichen die Core-Prüfung
+    // (hier: kein PDF → 422) statt mit 413 abzubrechen; über 128 MB bleibt 413.
+    let druck = |groesse: usize| {
+        Request::builder()
+            .header(
+                "authorization",
+                "Bearer isolierter-http-testzugang-12345678901234567890",
+            )
+            .method("POST")
+            .uri(format!(
+                "/api/projekte/{}/druckausgabe/unterlage?name=Plan&vorgang={}",
+                p.id,
+                uuid::Uuid::new_v4()
+            ))
+            .body(Body::from(vec![b'x'; groesse]))
+            .unwrap()
+    };
+    let response = router
+        .clone()
+        .oneshot(druck(3 * 1024 * 1024))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let response = router
+        .oneshot(druck(core_lib::druckausgabe::MAX_DRUCKPDF + 1))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
