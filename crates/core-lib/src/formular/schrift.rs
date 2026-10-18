@@ -87,6 +87,91 @@ pub(crate) fn einbetten(doc: &mut Document, texte: &[&str]) -> CoreResult<Object
     let unicode = doc.add_object(Stream::new(dictionary! {}, cmap.into_bytes()));
     Ok(doc.add_object(dictionary!{"Type"=>"Font","Subtype"=>"Type0","BaseFont"=>"DejaVuSans","Encoding"=>"Identity-H","DescendantFonts"=>vec![cid.into()],"ToUnicode"=>unicode}))
 }
+/// Prüft, ob `text` mit der eingebetteten Schrift dargestellt werden kann
+/// (alle Zeichen vorhanden, keine Steuerzeichen außer Zeilenumbrüchen).
+pub(crate) fn darstellbar(text: &str) -> CoreResult<()> {
+    let f = face()?;
+    for c in text.chars() {
+        if matches!(c, '\r' | '\n') {
+            continue;
+        }
+        if c.is_control() {
+            return Err(fehler(
+                "Steuerzeichen außer Zeilenumbrüchen sind nicht zulässig",
+            ));
+        }
+        glyph(&f, c)?;
+    }
+    Ok(())
+}
+
+/// Textfarbe aus dem `/DA`-Eintrag eines Formularfelds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Farbe {
+    Grau(f32),
+    Rgb(f32, f32, f32),
+    Cmyk(f32, f32, f32, f32),
+}
+impl Farbe {
+    fn operation(self) -> Operation {
+        match self {
+            Farbe::Grau(g) => Operation::new("g", vec![g.into()]),
+            Farbe::Rgb(r, g, b) => Operation::new("rg", vec![r.into(), g.into(), b.into()]),
+            Farbe::Cmyk(c, m, y, k) => {
+                Operation::new("k", vec![c.into(), m.into(), y.into(), k.into()])
+            }
+        }
+    }
+    /// Operator für den `/DA`-Eintrag, z. B. `0 g`.
+    pub(crate) fn da(self) -> String {
+        match self {
+            Farbe::Grau(g) => format!("{g} g"),
+            Farbe::Rgb(r, g, b) => format!("{r} {g} {b} rg"),
+            Farbe::Cmyk(c, m, y, k) => format!("{c} {m} {y} {k} k"),
+        }
+    }
+}
+/// Darstellung eines Textfelds: Schriftgröße (Obergrenze, bei Platzmangel
+/// wird verkleinert), Farbe und Ausrichtung (`/Q`: 0 links, 1 zentriert,
+/// 2 rechts).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Textstil {
+    pub groesse: f32,
+    pub farbe: Farbe,
+    pub ausrichtung: i64,
+}
+impl Textstil {
+    pub(crate) fn standard(groesse: f32) -> Self {
+        Self {
+            groesse,
+            farbe: Farbe::Grau(0.),
+            ausrichtung: 0,
+        }
+    }
+}
+fn einzug(ausrichtung: i64, width: f32, textbreite: f32) -> f32 {
+    match ausrichtung {
+        1 => ((width - textbreite) / 2.).max(2.),
+        2 => (width - 2. - textbreite).max(2.),
+        _ => 2.,
+    }
+}
+fn formular_xobject(
+    doc: &mut Document,
+    width: f32,
+    height: f32,
+    font: Option<ObjectId>,
+    data: Vec<u8>,
+) -> ObjectId {
+    let mut d = dictionary! {"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),width.into(),height.into()]};
+    if let Some(font) = font {
+        d.set(
+            "Resources",
+            dictionary! {"Font"=>dictionary!{"BauUnicode"=>font}},
+        );
+    }
+    doc.add_object(Stream::new(d, data))
+}
 pub(crate) fn darstellung(
     doc: &mut Document,
     text: &str,
@@ -96,17 +181,42 @@ pub(crate) fn darstellung(
     font: ObjectId,
     mehrzeilig: bool,
 ) -> CoreResult<ObjectId> {
+    darstellung_mit_stil(
+        doc,
+        text,
+        width,
+        height,
+        Textstil::standard(size),
+        font,
+        mehrzeilig,
+    )
+}
+/// Erzeugt die Normaldarstellung (`/AP /N`) eines Textfelds mit der
+/// eingebetteten Unicode-Schrift. Ein leerer Text ergibt eine leere Darstellung.
+pub(crate) fn darstellung_mit_stil(
+    doc: &mut Document,
+    text: &str,
+    width: f32,
+    height: f32,
+    stil: Textstil,
+    font: ObjectId,
+    mehrzeilig: bool,
+) -> CoreResult<ObjectId> {
+    let size = stil.groesse;
     if [width, height, size]
         .iter()
         .any(|v| !v.is_finite() || *v <= 0.)
     {
         return Err(fehler("Ungültige Feld- oder Schriftgröße"));
     }
-    if mehrzeilig {
-        return mehrzeilige_darstellung(doc, text, width, height, size, font);
-    }
-    if text.contains(['\r', '\n']) {
+    if !mehrzeilig && text.contains(['\r', '\n']) {
         return Err(fehler("Einzeiliges Feld erlaubt keine Zeilenumbrüche"));
+    }
+    if text.is_empty() {
+        return Ok(formular_xobject(doc, width, height, None, Vec::new()));
+    }
+    if mehrzeilig {
+        return mehrzeilige_darstellung(doc, text, width, height, stil, font);
     }
     let f = face()?;
     let metrics = f.metrics(Size::unscaled(), LocationRef::default());
@@ -142,8 +252,14 @@ pub(crate) fn darstellung(
             "Tf",
             vec![Object::Name(b"BauUnicode".to_vec()), size.into()],
         ),
-        Operation::new("g", vec![0.into()]),
-        Operation::new("Td", vec![2.into(), baseline.into()]),
+        stil.farbe.operation(),
+        Operation::new(
+            "Td",
+            vec![
+                einzug(stil.ausrichtung, width, advance * size).into(),
+                baseline.into(),
+            ],
+        ),
         Operation::new(
             "Tj",
             vec![Object::String(codes, lopdf::StringFormat::Hexadecimal)],
@@ -152,7 +268,7 @@ pub(crate) fn darstellung(
         Operation::new("Q", vec![]),
     ];
     let data = Content { operations }.encode().map_err(fehler)?;
-    Ok(doc.add_object(Stream::new(dictionary!{"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),width.into(),height.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"BauUnicode"=>font}}},data)))
+    Ok(formular_xobject(doc, width, height, Some(font), data))
 }
 
 /// Explizite Umbrüche und automatische Wortumbrüche; Text bleibt unverändert im Feldwert.
@@ -161,9 +277,10 @@ fn mehrzeilige_darstellung(
     text: &str,
     width: f32,
     height: f32,
-    size: f32,
+    stil: Textstil,
     font: ObjectId,
 ) -> CoreResult<ObjectId> {
+    let size = stil.groesse;
     let f = face()?;
     let metrics = f.metrics(Size::unscaled(), LocationRef::default());
     let gm = f.glyph_metrics(Size::unscaled(), LocationRef::default());
@@ -246,19 +363,19 @@ fn mehrzeilige_darstellung(
             "Tf",
             vec![Object::Name(b"BauUnicode".to_vec()), size.into()],
         ),
-        Operation::new("g", vec![0.into()]),
-        Operation::new(
-            "Td",
-            vec![
-                2.into(),
-                (height - 2. - size * metrics.ascent / units).into(),
-            ],
-        ),
+        stil.farbe.operation(),
     ];
+    let mut x_vorher = 0.;
     for (i, zeile) in zeilen.iter().enumerate() {
-        if i > 0 {
-            ops.push(Operation::new("Td", vec![0.into(), (-size * 1.2).into()]));
-        }
+        let breite: f32 = zeile.chars().map(|c| zeichen[&c].1 * size).sum();
+        let x = einzug(stil.ausrichtung, width, breite);
+        let y = if i == 0 {
+            height - 2. - size * metrics.ascent / units
+        } else {
+            -size * 1.2
+        };
+        ops.push(Operation::new("Td", vec![(x - x_vorher).into(), y.into()]));
+        x_vorher = x;
         let codes = zeile
             .chars()
             .flat_map(|c| zeichen[&c].0.to_be_bytes())
@@ -270,7 +387,7 @@ fn mehrzeilige_darstellung(
     }
     ops.extend([Operation::new("ET", vec![]), Operation::new("Q", vec![])]);
     let data = Content { operations: ops }.encode().map_err(fehler)?;
-    Ok(doc.add_object(Stream::new(dictionary!{"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),width.into(),height.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"BauUnicode"=>font}}},data)))
+    Ok(formular_xobject(doc, width, height, Some(font), data))
 }
 
 /// Breite in PDF-Punkten für die gemeinsame Berichtsausgabe.

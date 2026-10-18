@@ -619,4 +619,50 @@ mod tests {
                 .contains("ohne Druckdarstellung")
         );
     }
+    #[test]
+    fn befuelltes_fremdes_formular_wird_mit_texten_eingefroren() {
+        let pdf = crate::formular::pdf::befuellen(
+            &crate::formular::testdaten::musterformular(),
+            &std::collections::BTreeMap::from([
+                (
+                    "Bauherr_Name".into(),
+                    crate::formular::Feldwert::Text("Daniel Müller".into()),
+                ),
+                (
+                    "Grundstueck.Flaeche".into(),
+                    crate::formular::Feldwert::Text("640,00".into()),
+                ),
+                ("Sonderbau".into(), crate::formular::Feldwert::Ja(true)),
+            ]),
+        )
+        .unwrap();
+        let mut d = Document::load_mem(&pdf).unwrap();
+        formulare_einfrieren(&mut d).unwrap();
+        let seite = *d.get_pages().values().next().unwrap();
+        let page = d.get_dictionary(seite).unwrap();
+        assert!(page.get(b"Annots").unwrap().as_array().unwrap().is_empty());
+        let xobjects = page
+            .get(b"Resources")
+            .unwrap()
+            .as_dict()
+            .unwrap()
+            .get(b"XObject")
+            .unwrap()
+            .as_dict()
+            .unwrap();
+        // Beide Textfelder sind als Darstellung mit eingebetteter Schrift übernommen.
+        let mit_schrift = xobjects
+            .iter()
+            .filter(|(_, v)| {
+                d.get_object(v.as_reference().unwrap())
+                    .unwrap()
+                    .as_stream()
+                    .unwrap()
+                    .dict
+                    .get(b"Resources")
+                    .is_ok()
+            })
+            .count();
+        assert_eq!(mit_schrift, 2);
+    }
 }

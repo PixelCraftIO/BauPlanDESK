@@ -307,7 +307,9 @@ impl CoreServices {
         for d in &docs {
             let pfad = format!(
                 "Dokumente/{}/v{}-{}",
-                d.document_id.0, d.version, d.file_name
+                d.document_id.0,
+                d.version,
+                crate::projektablage::dateiname(&d.file_name)
             );
             index.push_str(&format!(
                 "{} · Version {} · {}\n",
