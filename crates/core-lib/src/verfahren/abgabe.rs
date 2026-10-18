@@ -239,11 +239,16 @@ impl CoreServices {
         }
         // Abgeleitete Anforderungen nach dem aktuellen Stand des Projekts.
         hinweise.extend(self.anforderungen_abgleichen(p, vid, &mut a).await?);
-        for d in &docs {
+        for (d, daten) in docs.iter().zip(&inhalte) {
             let aktuell = self.repos.documents.latest(d.document_id).await?;
             if aktuell.version != d.version {
                 hinweise.push(format!("{}: ausgewählt ist Version {}, im DMS existiert Version {}. Historischen Stand bewusst prüfen.", d.file_name, d.version, aktuell.version));
             }
+            // Formularwerte gegen die aktuellen Projektdaten; nur Hinweis.
+            hinweise.extend(
+                self.formular_hinweis(d.document_id, d.version, &d.file_name, daten)
+                    .await,
+            );
         }
         for r in &a.anforderungen {
             if r.erforderlich == Erforderlichkeit::Ungeklaert {
@@ -318,7 +323,7 @@ impl CoreServices {
                             .unwrap_or(&d.file_name)
                             .to_string(),
                         versionsnummer: d.version,
-                        datum: d.created_at.date_naive(),
+                        datum: crate::kalender::datum_deutsch(d.created_at),
                         anlageart: wahl.map(|a| a.anlageart.clone()).unwrap_or_default(),
                         dateiname: name.clone(),
                     }

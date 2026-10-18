@@ -163,3 +163,199 @@ fn falscher_hash_und_pfadmanipulation_veraendern_keine_bestehenden_daten() {
         assert_eq!(std::fs::read(&original).unwrap(), b"Erhalten");
     }
 }
+/// Ablauf der Einzelplatzsicherung: Datenbankreferenzen werden über den
+/// Storage-Schlüssel mit `data/` abgeglichen, `tmp/` bleibt außen vor, und ein
+/// älterer, nicht portabler Schlüssel blockiert die Sicherung nicht mehr.
+#[tokio::test]
+async fn einzelplatzsicherung_mit_dokument_formularvorlage_und_altem_schluessel() {
+    use core_lib::{
+        domain::{DocumentId, DocumentVersion},
+        storage::{Storage, StorageKey},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let dms = temp.path().join("DMS");
+    let db = db_sqlite::SqliteDatabase::open(&temp.path().join("live.db"))
+        .await
+        .unwrap();
+    let ablage = Arc::new(storage::LocalStorage::new(dms.clone(), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        ablage.clone(),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("sicherung", "Planer").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Einzelplatz".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: Some(500.),
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let formular = core
+        .formular_aus_bibliothek(
+            p.id,
+            "Antrag.pdf",
+            &musterformular(),
+            &BTreeMap::from([("Bauherr_Name".into(), Feldwert::Text("Daniel".into()))]),
+            &user,
+        )
+        .await
+        .unwrap();
+    // Neue Namen sind portabel.
+    let neu = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan M 1:500.pdf.",
+            bytes::Bytes::from_static(b"%PDF-neu"),
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(neu.file_name, "Lageplan M 1_500.pdf");
+    // Älterer Datenstand: Schlüssel mit Doppelpunkt und Punkt am Ende.
+    let alt_key = format!(
+        "projekte/{}/dokumente/{}/{}-Ansicht 1:100.",
+        p.id,
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4()
+    );
+    let meta = ablage
+        .save(
+            &StorageKey::new(alt_key.clone()).unwrap(),
+            bytes::Bytes::from_static(b"%PDF-alt"),
+        )
+        .await
+        .unwrap();
+    let alt = core
+        .repos
+        .documents
+        .add_version(
+            DocumentVersion {
+                document_id: DocumentId::default(),
+                project_id: p.id,
+                version: 0,
+                file_name: "Ansicht 1:100.".into(),
+                storage_key: alt_key.clone(),
+                sha256: meta.sha256,
+                size_bytes: meta.size_bytes,
+                created_by: "Altbestand".into(),
+                created_at: chrono::Utc::now(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    // Laufender Speichervorgang eines Kollegen.
+    std::fs::write(dms.join("tmp/laufend"), b"halb geschrieben").unwrap();
+
+    let snapshot = temp.path().join("bauprojekt.db");
+    db.sichern(&snapshot).await.unwrap();
+    let kopie = db_sqlite::SqliteDatabase::open(&snapshot).await.unwrap();
+    let erwartet = sicherung::dms_referenzen(&kopie.repositories())
+        .await
+        .unwrap();
+    kopie.schliessen().await;
+    assert!(erwartet.contains_key(&alt_key));
+    assert!(erwartet.keys().any(|k| k.starts_with("formularvorlagen/")));
+    let mut quellen = vec![Sicherungsquelle {
+        name: "bauprojekt.db".into(),
+        pfad: snapshot.clone(),
+        erwartet: None,
+    }];
+    let dateien = sicherung::dateiablage(&dms, "dateien", erwartet.clone()).unwrap();
+    assert!(dateien.iter().all(|q| !q.name.starts_with("dateien/tmp/")));
+    assert_eq!(
+        dateien.iter().filter(|q| q.erwartet.is_some()).count(),
+        erwartet.len()
+    );
+    quellen.extend(dateien);
+    let zip = temp.path().join("einzelplatz.zip");
+    let manifest = sicherung::erstellen(&zip, &quellen).unwrap();
+    assert_eq!(manifest.schema_version, 2);
+    assert!(
+        manifest
+            .dateien
+            .iter()
+            .any(|f| f.name.ends_with("Ansicht 1%3A100%2E"))
+    );
+    sicherung::pruefen(&zip).unwrap();
+
+    // Eine fehlende Referenz macht die Sicherung unvollständig.
+    let mut fehlend = erwartet.clone();
+    fehlend.insert("projekte/fehlt.pdf".into(), ContentHash::of(b"x"));
+    assert!(
+        sicherung::dateiablage(&dms, "dateien", fehlend)
+            .unwrap_err()
+            .to_string()
+            .contains("Datenbankreferenzen fehlen")
+    );
+
+    let ziel = temp.path().join("Profil");
+    sicherung::wiederherstellen(&zip, &ziel).unwrap();
+    let restored = db_sqlite::SqliteDatabase::open(&ziel.join("bauprojekt.db"))
+        .await
+        .unwrap();
+    let core2 = CoreServices::new(
+        restored.repositories(),
+        Arc::new(storage::LocalStorage::new(ziel.join("dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    assert_eq!(
+        core2
+            .load_version(alt.document_id, 1)
+            .await
+            .unwrap()
+            .1
+            .as_ref(),
+        b"%PDF-alt"
+    );
+    assert_eq!(
+        core2
+            .load_version(neu.document_id, 1)
+            .await
+            .unwrap()
+            .1
+            .as_ref(),
+        b"%PDF-neu"
+    );
+    let i = core2
+        .formular_instanz(formular.document_id, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(i.feldwerte["Bauherr_Name"], Feldwert::Text("Daniel".into()));
+    assert!(!ziel.join("dateien/tmp/laufend").exists());
+}
+
+#[test]
+fn archivnamen_sind_portabel_und_umkehrbar() {
+    for name in [
+        "dateien/data/projekte/a/b-Lageplan 1:500.pdf",
+        "dateien/data/x/Was? <neu>|*\".pdf",
+        "dateien/data/x/Ende. ",
+        "dateien/data/x/100%.pdf",
+        "Formularvorlagen/CON.pdf",
+        "einstellungen/config.json",
+    ] {
+        let a = sicherung::archivname(name);
+        assert!(!a.contains([':', '?', '<', '>', '|', '*', '"']), "{a}");
+        assert!(!a.split('/').any(|s| s.ends_with([' ', '.'])), "{a}");
+        assert_eq!(sicherung::originalname(&a).unwrap(), name);
+    }
+    assert_eq!(
+        sicherung::archivname("einstellungen/config.json"),
+        "einstellungen/config.json"
+    );
+    for kaputt in ["a/%2F/b", "a/%2E%2E/b", "a/%zz", "a/%4", "a/%5C/b"] {
+        assert!(sicherung::originalname(kaputt).is_err(), "{kaputt}");
+    }
+}

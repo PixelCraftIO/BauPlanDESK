@@ -324,6 +324,15 @@ dialog:has(.formularfelder) {
 .formularfelder label.vorschlag select {
   border-color: var(--accent);
 }
+.formularfelder label.veraltet input,
+.formularfelder label.veraltet select,
+.formularfelder label.veraltet textarea {
+  border-color: var(--warning-text);
+  background: var(--warn-bg);
+}
+.formularfelder label.veraltet > span:first-child {
+  color: var(--warning-text);
+}
 .formularfelder input[type="checkbox"] {
   align-self: flex-start;
 }

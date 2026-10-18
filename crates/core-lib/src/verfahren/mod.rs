@@ -1,6 +1,7 @@
 //! Fachliche Verfahrensakte. Eine Akte wird mit Ereignis und Revision atomar
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
+pub mod externe_einreichung;
 pub mod fristen;
 pub mod planindex;
 pub mod profile;
@@ -371,6 +372,11 @@ pub struct Verfahrensakte {
     pub anforderungen: Vec<Anforderung>,
     pub dokumentbeziehungen: Vec<Dokumentbeziehung>,
     pub abgaben: Vec<abgabe::Abgabestand>,
+    /// Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese
+    /// Angabe lesen sie leer; leer wird sie nicht geschrieben.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<externe_einreichung::ExterneEinreichung>>", optional)]
+    pub externe_einreichungen: Vec<externe_einreichung::ExterneEinreichung>,
     pub bescheide: Vec<Bescheid>,
     pub ereignisse: Vec<Aktenereignis>,
 }
@@ -612,6 +618,37 @@ impl CoreServices {
                     ));
                 }
             }
+            if alt.aktenzeichen != a.aktenzeichen {
+                details.push(format!(
+                    "Aktenzeichen: {} → {}",
+                    if alt.aktenzeichen.is_empty() {
+                        "–"
+                    } else {
+                        &alt.aktenzeichen
+                    },
+                    if a.aktenzeichen.is_empty() {
+                        "–"
+                    } else {
+                        &a.aktenzeichen
+                    }
+                ));
+            }
+            for e in a
+                .externe_einreichungen
+                .iter()
+                .skip(alt.externe_einreichungen.len())
+            {
+                details.push(format!(
+                    "Externe Einreichung nachgetragen: {} am {}{}",
+                    e.weg.bezeichnung(),
+                    e.datum,
+                    if e.berichtigt.is_some() {
+                        " (Berichtigung)"
+                    } else {
+                        ""
+                    }
+                ));
+            }
             for c in &a.kommunikation {
                 if !alt.kommunikation.iter().any(|n| n.id == c.id) {
                     details.push(format!("Kommunikation erfasst: {}", c.betreff));
@@ -683,7 +720,7 @@ impl CoreServices {
         };
         a.ereignisse.push(Aktenereignis {
             id: Uuid::new_v4(),
-            datum: Utc::now().date_naive(),
+            datum: crate::kalender::heute(),
             erfasst_am: Utc::now(),
             erfasst_von: wer.id.0,
             text: text.chars().take(4000).collect(),

@@ -3,7 +3,7 @@
 mod dienst;
 mod paket;
 pub mod profile;
-mod pruefung;
+pub(crate) mod pruefung;
 use crate::{
     CoreError, CoreResult,
     domain::Bundesland,

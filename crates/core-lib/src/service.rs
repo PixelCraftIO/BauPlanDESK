@@ -64,6 +64,8 @@ pub struct FormularAnalyse {
     /// Vorgeschlagene Werte aus den Projektdaten.
     pub vorschlag: BTreeMap<String, Feldwert>,
     pub quellen: formular::instanz::FormularQuellen,
+    /// Ausgefüllte Felder, deren Wert von den aktuellen Projektdaten abweicht.
+    pub veraltet: Vec<formular::VeralteterFeldwert>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -72,6 +74,8 @@ pub struct FormularSchema {
     pub vorlage: Option<VorlageInfo>,
     pub vorschlag: BTreeMap<String, Feldwert>,
     pub quellen: formular::instanz::FormularQuellen,
+    /// Ausgefüllte Felder, deren Wert von den aktuellen Projektdaten abweicht.
+    pub veraltet: Vec<formular::VeralteterFeldwert>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -1461,14 +1465,23 @@ impl CoreServices {
         wahl: Option<formular::instanz::FormularBezug>,
     ) -> CoreResult<FormularAnalyse> {
         let (dokument, pdf) = self.load_document(id).await?;
+        let instanz = self.formular_instanz(id, dokument.version).await?;
         let bezug = wahl.unwrap_or(
-            self.formular_instanz(id, dokument.version)
-                .await?
-                .map(|i| i.quellen.datenstand.bezug)
+            instanz
+                .as_ref()
+                .map(|i| i.quellen.datenstand.bezug.clone())
                 .unwrap_or_default(),
         );
         let schema = self
-            .formular_schema_mit_bezug(dokument.project_id, &pdf, bezug)
+            .formular_schema_intern(
+                dokument.project_id,
+                &pdf,
+                bezug,
+                instanz
+                    .as_ref()
+                    .and_then(|i| i.zuordnung.as_ref())
+                    .map(|z| z.id.as_str()),
+            )
             .await?;
         Ok(FormularAnalyse {
             dokument,
@@ -1476,6 +1489,7 @@ impl CoreServices {
             vorlage: schema.vorlage,
             vorschlag: schema.vorschlag,
             quellen: schema.quellen,
+            veraltet: schema.veraltet,
         })
     }
 
@@ -1494,13 +1508,32 @@ impl CoreServices {
         pdf: &[u8],
         bezug: formular::instanz::FormularBezug,
     ) -> CoreResult<FormularSchema> {
+        self.formular_schema_intern(projekt_id, pdf, bezug, None)
+            .await
+    }
+    /// Zuordnung nach Bundesland des Projekts; eine bereits verwendete
+    /// Zuordnung (`bisher`) bleibt maßgebend, solange sie passt.
+    async fn formular_schema_intern(
+        &self,
+        projekt_id: ProjectId,
+        pdf: &[u8],
+        bezug: formular::instanz::FormularBezug,
+        bisher: Option<&str>,
+    ) -> CoreResult<FormularSchema> {
         let quellen = self.formular_quellen(projekt_id, bezug).await?;
         let felder = formular::pdf::felder_lesen(pdf)?;
         if felder.is_empty() {
             return Err(CoreError::InvalidInput("Diese Vorlage hat noch keine Eingabefelder. Bitte in der Formularbibliothek Felder definieren.".into()));
         }
-        let vorlage = self.formulare.erkenne(&felder);
+        let land = self.repos.projects.get(projekt_id).await?.bundesland;
+        let vorlage = self.formulare.zuordnung_fuer(&felder, land, bisher);
         Ok(FormularSchema {
+            veraltet: formular::vorlage::veraltete_werte(
+                &felder,
+                &BTreeMap::new(),
+                vorlage,
+                &quellen.datenstand.werte,
+            ),
             vorschlag: formular::vorlage::vorschlag(&felder, vorlage, &quellen.datenstand.werte),
             vorlage: vorlage.map(|v| VorlageInfo {
                 id: v.id.clone(),
@@ -1587,7 +1620,7 @@ impl CoreServices {
         self.pruefe(wer, Recht::DokumentAblegen).await?;
         let data = formular::pdf::befuellen(pdf, werte)?;
         let instanz = self
-            .formular_instanz_zusatz(projekt, name, pdf, werte, stand)
+            .formular_instanz_zusatz(projekt, name, pdf, werte, stand, None)
             .await?;
         self.ablegen_vorgang(
             projekt,
@@ -1646,7 +1679,17 @@ impl CoreServices {
         }
         alle.extend(werte.clone());
         let instanz = self
-            .formular_instanz_zusatz(d.project_id, &vorlagen_name, &quelle, &alle, stand)
+            .formular_instanz_zusatz(
+                d.project_id,
+                &vorlagen_name,
+                &quelle,
+                &alle,
+                stand,
+                bisher
+                    .as_ref()
+                    .and_then(|i| i.zuordnung.as_ref())
+                    .map(|z| z.id.as_str()),
+            )
             .await?;
         let data = formular::pdf::befuellen(&pdf, werte)?;
         self.ablegen_vorgang(
@@ -1851,22 +1894,12 @@ fn validate_project(name: &str, flaeche: Option<f64>) -> CoreResult<()> {
     Ok(())
 }
 
+/// Letzter Pfadanteil als portabler DMS-Name (siehe [`crate::dateiname`]).
+/// Gilt für alle neuen Versionen, auch Druckausgaben und E-Mail-Anhänge.
 fn sanitize_file_name(name: &str) -> CoreResult<String> {
-    let cleaned: String = name
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or_default()
-        .chars()
-        .map(|c| if c.is_control() { '_' } else { c })
-        .collect();
-    let cleaned = cleaned.trim().trim_start_matches('.').to_owned();
-    if cleaned.is_empty() {
-        Err(CoreError::InvalidInput(format!(
-            "ungültiger Dateiname: {name:?}"
-        )))
-    } else {
-        Ok(cleaned)
-    }
+    let letzter = name.rsplit(['/', '\\']).next().unwrap_or_default();
+    crate::dateiname::portabel(letzter, crate::dateiname::MAX_DMS_BYTES)
+        .ok_or_else(|| CoreError::InvalidInput(format!("ungültiger Dateiname: {name:?}")))
 }
 
 /// Flurstücke des Projekts in XBau-Kodierung; leer, solange keine erfasst sind.
@@ -1886,5 +1919,11 @@ mod tests {
         assert_eq!(sanitize_file_name("C:\\plaene\\EG.dxf").unwrap(), "EG.dxf");
         assert_eq!(sanitize_file_name("../../etc/passwd").unwrap(), "passwd");
         assert!(sanitize_file_name("..").is_err());
+        assert_eq!(
+            sanitize_file_name("Lageplan M 1:500.pdf.").unwrap(),
+            "Lageplan M 1_500.pdf"
+        );
+        let lang = sanitize_file_name(&format!("{}.pdf", "x".repeat(400))).unwrap();
+        assert!(lang.len() <= crate::dateiname::MAX_DMS_BYTES && lang.ends_with(".pdf"));
     }
 }

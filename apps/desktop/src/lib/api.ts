@@ -826,12 +826,21 @@ export interface FormularQuellen {
   verfahren: { id: string; bezeichnung: string }[];
   hinweise: string[];
 }
+/** Ausgefülltes Feld, dessen Wert von den aktuellen Projektdaten abweicht (Core-Abgleich). */
+export interface VeralteterFeldwert {
+  feld: string;
+  quelle: string;
+  wert: Feldwert;
+  aktuell: Feldwert;
+}
 export interface FormularAnalyse {
   quellen?: FormularQuellen;
   dokument: DocumentVersion;
   felder: Formularfeld[];
   vorlage: { id: string; titel: string; version: string } | null;
   vorschlag: Record<string, Feldwert>;
+  /** Fehlt bei älteren Servern. */
+  veraltet?: VeralteterFeldwert[];
 }
 
 export type Laengeneinheit =
@@ -1158,13 +1167,6 @@ export const api = {
       projektId,
       empfaenger,
     }),
-  einreichungBestaetigen: (
-    id: string,
-    basis: number,
-    datum: string,
-    notiz: string,
-  ) =>
-    invoke<Einreichung>("einreichung_bestaetigen", { id, basis, datum, notiz }),
   einreichungExportieren: (id: string, ziel: string) =>
     invoke<void>("einreichung_exportieren", { id, ziel }),
   formularbibliothek: () => invoke<Formularbibliothek>("formularbibliothek"),

@@ -25,7 +25,7 @@ Wirksamkeit eines Bescheids oder die Annahme eines Antrags.
 | Prüfung | XML-Struktur, XSD, Identitäten, Dateinamen, Anlagenvollständigkeit sowie angegebene Größen und SHA-256-Werte |
 | Journal | Projektgebunden, Original als unveränderliche DMS-Version, Prüfzeitpunkt, Hash, Erfassender; Wiederholung derselben Nachrichten-ID/Inhalt/Richtung erzeugt keinen zweiten Journaleintrag |
 | Anlagen | Einzeln mit Herkunft und Hash als Projektdatei übernehmen; wiederholbare, identische Übernahme erzeugt keine neue Datei oder Version |
-| Verfahrensakte | Bewusste, wiederholbare Übernahme als Kommunikation mit Originalbezug; Behördenkennung und vorhandenes Aktenzeichen werden abgeglichen |
+| Verfahrensakte | Bewusste, wiederholbare Übernahme als Kommunikation mit Originalbezug und Zugangsdatum; Behördenkennung und Antragsreferenz werden geprüft, ein leeres Aktenzeichen der Akte wird übernommen, Bezüge zur Abgabe entstehen aus der Bezugsnachricht; jede Nachricht projektweit nur einmal |
 | Versandbelege | Manuell dokumentierter Versand, Transportquittung, fachliche Annahme, Rückweisung; Originalbeleg zwingend, Berichtigung ergänzt Historie |
 | Aktenexport | Journalhistorie, Originalversionen und Anlagenherkunft sind im vollständigen Aktenexport enthalten |
 | Transport | **Kein implementierter FIT-Connect-, OSCI- oder XTA-Adapter; kein automatischer Versand/Empfang** |
@@ -72,7 +72,26 @@ Projekt ablegen und im Nachrichtenjournal erfassen. Eine Transportquittung ist
 von einer fachlichen Annahme zu unterscheiden.
 
 Eine ausgewählte Nachricht lässt sich als Kommunikation in eine vorhandene
-Verfahrensakte übernehmen. Bescheid, Auflagen, Nachforderungen und Fristen
+Verfahrensakte übernehmen:
+
+- **Datum** ist der Zugang (Eingang) bzw. Versand (Ausgang) als deutsches
+  Ortsdatum, nicht das Erstelldatum des XML. Vorbelegt ist der Tag der Erfassung
+  im Journal; der Benutzer bestätigt oder ändert ihn. Das Datum liegt nicht nach
+  heute, nicht vor der Erstellung der Nachricht und bei einem Eingang nicht nach
+  der Journalerfassung. Die Kommunikation nennt, ob das Datum bestätigt wurde.
+- **Aktenzeichen:** Ist das der Akte leer, übernimmt ein Eingang das Aktenzeichen
+  der Behörde aus der Nachricht (mit Eintrag in der Verfahrenschronik). Weicht es
+  ab, bleibt die Akte maßgebend; die Kommunikation enthält einen Hinweis, die
+  Oberfläche zeigt ihn vor der Übernahme.
+- **Bezüge:** Nennt die Nachricht als Bezugsnachricht die eigene Abgabe, erhält
+  die Kommunikation den Bezug auf diesen Abgabestand, sonst auf eine bereits
+  übernommene Nachricht. Führt die Akte XBau-Abgaben, muss die Antragsreferenz
+  zu einer davon passen.
+- **Keine Doppelung:** Dieselbe Nachrichten-ID steht projektweit höchstens einmal
+  in einer Akte, gleich ob über das Postfach oder als Portalrückmeldung erfasst.
+  Die wiederholte Übernahme in dieselbe Akte bleibt wirkungslos.
+
+Bescheid, Auflagen, Nachforderungen und Fristen
 werden **nicht automatisch aus unbestätigtem XML gesetzt**. Diese fachlichen
 Folgen anhand des Originals in den vorhandenen Bereichen dokumentieren. Eine
 Verfahrenszuordnung ist keine behördliche Verifikation. Belege haben derzeit

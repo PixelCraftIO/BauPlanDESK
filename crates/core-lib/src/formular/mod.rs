@@ -17,4 +17,4 @@ pub mod testdaten;
 pub mod vorlage;
 
 pub use pdf::{Feldart, Feldwert, Formularfeld};
-pub use vorlage::{Formularkatalog, Formularvorlage, Projektkontext};
+pub use vorlage::{Formularkatalog, Formularvorlage, Projektkontext, VeralteterFeldwert};

@@ -63,6 +63,7 @@
           >Ereignisdatum<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Ereignisdatum"
             type="date"
             required
+            max={heute()}
             bind:value={c.datum}
           /></label
         ><label

@@ -177,7 +177,7 @@ async fn archivierte_nachrichten_lesen_ohne_neue_datei_oder_version() {
         )
         .await
         .unwrap();
-    core.einreichung_bestaetigen(
+    core.einreichung_bestaetigen_altbestand(
         paket.stand.id,
         1,
         v2.created_at.date_naive(),
