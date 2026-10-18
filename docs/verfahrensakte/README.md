@@ -145,11 +145,7 @@ die Auswahl an.
 
 | Stand | Voraussetzung |
 | --- | --- |
-<<<<<<< HEAD
-| In Vorbereitung | Ausgangsstand; zurück nur, solange weder ein Stand versendet oder eingegangen ist noch eine externe Einreichung vorliegt |
-=======
 | In Vorbereitung | Ausgangsstand; zurück nur, solange keine Einreichung erfasst ist |
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 | Eingereicht, In behördlicher Prüfung, Ruhend | versendeter oder eingegangener Abgabestand oder externe Einreichung |
 | Unvollständig | zusätzlich ein offener Nachforderungspunkt |
 | Vollständig | zusätzlich die behördliche Bestätigung mit Datum und eingegangenem Schreiben |

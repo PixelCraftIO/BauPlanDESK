@@ -301,11 +301,7 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         }),
         Versand,
     );
-<<<<<<< HEAD
-    // Eine nachgetragene externe Einreichung ist ebenfalls eine Übermittlung.
-=======
     // Eine nachgetragene externe Einreichung ist eine Übermittlung.
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     wenn(
         alt.externe_einreichungen != a.externe_einreichungen,
         Versand,
@@ -397,33 +393,6 @@ mod tests {
         ] {
             assert_eq!(a.code().parse::<Aktion>().unwrap(), a);
         }
-    }
-
-    #[test]
-    fn externe_einreichung_ist_eine_uebermittlung() {
-        let alt: Verfahrensakte = serde_json::from_value(serde_json::json!({
-            "bezeichnung": "Bauantrag", "art": "bauantrag", "status": "vorbereitung",
-            "behoerde": {"id": Uuid::nil(), "name": "", "kennung": "", "kontakt": ""}, "aktenzeichen": "",
-            "verantwortlich": null, "vorgaenger": null, "profil": null, "kommunikation": [],
-            "nachforderungen": [], "anforderungen": [], "dokumentbeziehungen": [],
-            "abgaben": [], "bescheide": [], "ereignisse": []
-        }))
-        .unwrap();
-        let mut a = alt.clone();
-        a.externe_einreichungen
-            .push(super::super::externe_einreichung::ExterneEinreichung {
-                id: Uuid::new_v4(),
-                datum: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
-                weg: super::super::externe_einreichung::Einreichungsweg::Post,
-                beleg: None,
-                bemerkung: String::new(),
-                dokumente: vec![],
-                berichtigt: None,
-                erfasst_am: chrono::Utc::now(),
-                erfasst_von: Uuid::nil(),
-            });
-        assert_eq!(arten(Some(&alt), &a), vec![Ereignisart::Versand]);
-        assert_eq!(aktion(&arten(Some(&alt), &a)), Aktion::VerfahrenAbgabe);
     }
 
     #[test]

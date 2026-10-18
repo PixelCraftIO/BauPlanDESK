@@ -15,15 +15,6 @@ import type {
   Nebenbestimmungsart,
   Fristauftrag,
   Bescheidfristen,
-<<<<<<< HEAD
-  Einreichungsweg,
-  ExterneEinreichungswunsch,
-  Einreichungsstatus,
-  Planunterlage,
-  Ereignisart,
-  Berichtigungsgegenstand,
-  Aktenereignis,
-=======
   Ereignisart,
   Berichtigungsgegenstand,
   Aktenereignis,
@@ -31,7 +22,6 @@ import type {
   Planunterlage,
   Einreichungsweg,
   ExterneEinreichungswunsch,
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 } from "../generated/plattform";
 /** Bezeichnungen wie `Einreichungsstatus::bezeichnung` im Core. */
 export const EINREICHUNG: Record<Einreichungsstatus, string> = {
@@ -66,18 +56,6 @@ export const NEBENBESTIMMUNG: Record<Nebenbestimmungsart, string> = {
   auflagenvorbehalt: "Auflagenvorbehalt",
   hinweis: "Hinweis",
 };
-<<<<<<< HEAD
-/** Bezeichnungen wie `Einreichungsweg::bezeichnung` im Core. */
-export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
-  post: "Post",
-  portal: "Portal",
-  persoenlich: "Persönlich",
-  email: "E-Mail",
-  fax: "Fax",
-  sonstiges: "Sonstiger Weg",
-};
-=======
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 /** Bezeichnungen wie `chronik::Ereignisart::bezeichnung` im Core. */
 export const EREIGNISART: Record<Ereignisart, string> = {
   angelegt: "Verfahren angelegt",
@@ -120,8 +98,6 @@ export function berichtigungsereignis(
     berichtigung: { gegenstand, grund, vorher: "", nachher: "" },
   };
 }
-<<<<<<< HEAD
-=======
 /** Bezeichnungen wie `Einreichungsweg::bezeichnung` im Core. */
 export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
   post: "Post",
@@ -131,7 +107,6 @@ export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
   fax: "Fax",
   sonstiges: "Sonstiger Weg",
 };
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
   profilAnwenden: (

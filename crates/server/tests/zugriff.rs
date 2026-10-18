@@ -102,8 +102,6 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/projekte/{}", fremd.id), true).await,
         StatusCode::FORBIDDEN
     );
-<<<<<<< HEAD
-=======
     // Eigenes Projektrecht: dieselbe Regel wie die Zugriffsprüfung.
     let recht = app
         .clone()
@@ -126,7 +124,6 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/projekte/{}/recht", fremd.id), true).await,
         StatusCode::FORBIDDEN
     );
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     // Prozentkodierte IDs werden wie dekodierte geprüft (axum dekodiert für den Handler).
     for prefix in ["/api", "/api/v1"] {
         assert_eq!(
@@ -216,31 +213,6 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
             );
         }
     }
-<<<<<<< HEAD
-    // Eigenes Projektrecht: dieselbe Regel wie die Zugriffsprüfung.
-    let recht = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri(format!("/api/projekte/{}/recht", p.id))
-                .header("authorization", format!("Bearer {TOKEN}"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(recht.status(), StatusCode::OK);
-    let recht = axum::body::to_bytes(recht.into_body(), 1024).await.unwrap();
-    assert_eq!(
-        serde_json::from_slice::<ProjektRecht>(&recht).unwrap(),
-        ProjektRecht::Lesen
-    );
-    assert_eq!(
-        status(&app, &format!("/api/projekte/{}/recht", fremd.id), true).await,
-        StatusCode::FORBIDDEN
-    );
-=======
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     assert_eq!(
         status(&app, "/api/berechnungsvorlagen", true).await,
         StatusCode::OK

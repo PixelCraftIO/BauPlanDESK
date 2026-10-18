@@ -1500,13 +1500,8 @@ async fn eingereichte_akte(
         .verfahren_abgabe_festhalten(p.id, vid, f.revision, w, &user)
         .await
         .unwrap();
-<<<<<<< HEAD
-    // Ein Versand kann nicht vor dem Festhalten liegen; eine frühere Einreichung
-    // wird wie in der Praxis als externe Einreichung nachgetragen.
-=======
     // Versand frühestens am Tag des Festhaltens; eine frühere Einreichung wird
     // als externe Einreichung nachgetragen.
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     let f = if d0 < core_lib::kalender::heute() {
         core.verfahren_externe_einreichung(
             p.id,
@@ -1517,11 +1512,7 @@ async fn eingereichte_akte(
                 datum: d0,
                 weg: core_lib::verfahren::externe_einreichung::Einreichungsweg::Post,
                 beleg: None,
-<<<<<<< HEAD
-                bemerkung: "Einschreiben".into(),
-=======
                 bemerkung: String::new(),
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
                 dokumente: vec![dok.clone()],
                 berichtigt: None,
             },
@@ -1530,22 +1521,6 @@ async fn eingereichte_akte(
         .await
         .unwrap()
     } else {
-<<<<<<< HEAD
-        let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
-        a.abgaben[0].versand.push(Versandereignis {
-            id: Uuid::new_v4(),
-            status: Versandstatus::Versendet,
-            datum: d0,
-            weg: "Post".into(),
-            referenz: "Einschreiben".into(),
-            notiz: "Antrag versendet".into(),
-            beleg: None,
-            berichtigt: None,
-        });
-        speichern(&core, p.id, vid, f.revision, &a, &user).await
-    };
-    let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
-=======
         f
     };
     let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
@@ -1561,7 +1536,6 @@ async fn eingereichte_akte(
             berichtigt: None,
         });
     }
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     a.status = Verfahrensstatus::Eingereicht;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
     (dir, core, user, p.id, vid, f, dok)
@@ -1570,11 +1544,7 @@ async fn eingereichte_akte(
 fn berichtigung(gegenstand: chronik::Berichtigungsgegenstand, grund: &str) -> Aktenereignis {
     Aktenereignis {
         id: Uuid::new_v4(),
-<<<<<<< HEAD
-        datum: core_lib::kalender::heute(),
-=======
         datum: chrono::Utc::now().date_naive(),
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
         erfasst_am: chrono::Utc::now(),
         erfasst_von: Uuid::nil(),
         text: "Berichtigung".into(),
@@ -1884,15 +1854,10 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
 #[tokio::test]
 async fn ruecknahme_rueckweisung_und_zurueckgenommene_akte() {
     let heute = core_lib::kalender::heute();
-<<<<<<< HEAD
-    // Heute versendet: Die Zurückweisung der einzigen Abgabe hebt die Einreichung auf.
-    let (_dir, core, user, p, vid, f, _dok) = eingereichte_akte(Bundesland::Nw, heute).await;
-=======
     // Versand am Tag des Festhaltens, damit die Rückweisung die einzige
     // Einreichung betrifft.
     let d0 = heute;
     let (_dir, core, user, p, vid, f, _dok) = eingereichte_akte(Bundesland::Nw, d0).await;
->>>>>>> d6827f5e993c875089dcc484db5b709b09a4196c
     let versuch = |a: &Verfahrensakte, revision: i64| {
         let a = serde_json::to_value(a).unwrap();
         let core = &core;
