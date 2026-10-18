@@ -160,8 +160,25 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
             .iter()
             .all(|v| v.status == VergleichsStatus::Neu)
     );
+    // Pakete werden nicht mehr bestätigt; „eingereicht“ kommt nur aus der Verfahrensakte.
+    let gesperrt = core
+        .einreichung_bestaetigen(
+            erster.stand.id,
+            1,
+            "2026-01-01".parse().unwrap(),
+            "".into(),
+            &user,
+        )
+        .await
+        .unwrap_err();
+    assert!(gesperrt.to_string().contains("Externe Einreichung"));
     assert!(
-        core.einreichung_bestaetigen(
+        core.einreichungen(p.id).await.unwrap()[0]
+            .einreichung
+            .is_none()
+    );
+    assert!(
+        core.einreichung_bestaetigen_altbestand(
             erster.stand.id,
             1,
             "2099-01-01".parse().unwrap(),
@@ -171,7 +188,7 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
         .await
         .is_err()
     );
-    core.einreichung_bestaetigen(
+    core.einreichung_bestaetigen_altbestand(
         erster.stand.id,
         1,
         "2026-01-01".parse().unwrap(),
@@ -285,7 +302,7 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
             .version,
         1
     );
-    core.einreichung_bestaetigen(
+    core.einreichung_bestaetigen_altbestand(
         zweiter.stand.id,
         1,
         "2026-01-02".parse().unwrap(),
@@ -356,7 +373,7 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
         )
         .await
         .unwrap();
-    core.einreichung_bestaetigen(
+    core.einreichung_bestaetigen_altbestand(
         historisch.stand.id,
         1,
         "2025-12-01".parse().unwrap(),
@@ -397,7 +414,7 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
         .unwrap();
     assert_eq!(bytes, b"DWG Stand 1");
     assert!(matches!(
-        core.einreichung_bestaetigen(
+        core.einreichung_bestaetigen_altbestand(
             erster.stand.id,
             1,
             "2026-01-03".parse().unwrap(),
@@ -408,7 +425,7 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
         Err(CoreError::VersionConflict { .. })
     ));
     assert!(
-        core.einreichung_bestaetigen(
+        core.einreichung_bestaetigen_altbestand(
             erster.stand.id,
             2,
             "2026-01-03".parse().unwrap(),

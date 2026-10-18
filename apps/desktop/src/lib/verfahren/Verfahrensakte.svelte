@@ -15,6 +15,7 @@
     Anforderungskatalog,
     Fachstand,
     Dokumentbezug,
+    ExterneEinreichungswunsch,
   } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
@@ -26,6 +27,7 @@
   import Bescheide from "./Bescheide.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
+  import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
   import Profil from "./Profil.svelte";
   import Zustaendigkeit from "./Zustaendigkeit.svelte";
   import Antragsangaben from "./Antragsangaben.svelte";
@@ -63,14 +65,22 @@
     notizDatum = $state(heute()),
     notizBeleg = $state<Dokumentbezug | null>(null),
     notizBerichtigt = $state<string | null>(null);
-  /** Nur Unterlagen aus versendeten Abgaben dürfen als genehmigt gelten; der Core prüft dasselbe. */
+  /** Nur Unterlagen aus versendeten Abgaben und externen Einreichungen dürfen
+   * als genehmigt gelten; die Auswahl ist eine Vorschau, der Core prüft
+   * verbindlich (auch Datum und Berichtigungen). */
   function abgegeben(a: Verfahrensakte) {
+    const extern = a.externe_einreichungen ?? [];
     const enthalten = a.abgaben
       .filter(
         (b) =>
           b.versandstatus === "versendet" || b.versandstatus === "eingegangen",
       )
-      .flatMap((b) => b.dokumente.map((d) => d.dokument));
+      .flatMap((b) => b.dokumente.map((d) => d.dokument))
+      .concat(
+        extern
+          .filter((e) => !extern.some((n) => n.berichtigt === e.id))
+          .flatMap((e) => e.dokumente),
+      );
     return dateien.filter((d) =>
       enthalten.some(
         (e) => e.dokument_id === d.document_id && e.version === d.version,
@@ -135,6 +145,12 @@
   }
   const festhalten = (w: Abgabewunsch) =>
     aktion((b) => verfahrenApi.abgabe(projekt.id, s.id!, b, w));
+  async function extern(w: ExterneEinreichungswunsch) {
+    await aktion((b) =>
+      verfahrenApi.externeEinreichung(projekt.id, s.id!, b, w),
+    );
+    return !s.fehler;
+  }
   const profil = (p: Vorhabenprofil, k: Anforderungskatalog) =>
     aktion((b) => verfahrenApi.profilAnwenden(projekt.id, s.id!, b, p, k));
   const tabs = [
@@ -303,6 +319,9 @@
             akte={a}
             {dateien}
             {benutzer}
+            alt={s.original?.nachforderungen.flatMap((n) =>
+              n.punkte.map((p) => p.id),
+            ) ?? []}
           />
         </fieldset>
       {:else if tab === "schritte"}<fieldset disabled={!darf}>
@@ -340,6 +359,11 @@
             })}
           onfesthalten={festhalten}
           onbusy={(b) => (s.laeuft = b)}
+        /><ExterneEinreichungen
+          eintraege={a.externe_einreichungen ?? []}
+          {dateien}
+          {darf}
+          onnachtragen={extern}
         />
       {:else if tab === "bescheide"}<fieldset disabled={!darf}>
           <Bescheide
@@ -350,6 +374,9 @@
             projektId={projekt.id}
             art={a.art}
             alt={s.original?.bescheide.map((v) => v.id) ?? []}
+            auflagenAlt={s.original?.bescheide.flatMap((b) =>
+              b.auflagen.map((p) => p.id),
+            ) ?? []}
             ohneZustellung={s.original?.bescheide
               .filter((v) => !v.zugestellt)
               .map((v) => v.id) ?? []}
@@ -394,7 +421,11 @@
       {:else if tab === "chronik"}<h3>Verfahrenschronik</h3>
         <fieldset disabled={!darf}>
           <label
-            >Ereignisdatum<input type="date" bind:value={notizDatum} /></label
+            >Ereignisdatum<input
+              type="date"
+              max={heute()}
+              bind:value={notizDatum}
+            /></label
           ><label
             >Ereignis / Berichtigung<textarea
               maxlength="4000"

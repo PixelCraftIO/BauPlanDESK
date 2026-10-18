@@ -2,7 +2,6 @@ use super::*;
 use crate::{
     CoreServices,
     benutzer::{Benutzer, Recht},
-    domain::Aktion,
     storage::StorageKey,
 };
 use bytes::Bytes;
@@ -30,7 +29,7 @@ impl CoreServices {
     }
     /// Neue Einreichungspakete entstehen nur noch für Testdaten. Einreichen
     /// und Nachreichen laufen über die Abgabestände der Verfahrensakte;
-    /// bestehende Pakete bleiben lesbar, exportierbar und bestätigbar.
+    /// bestehende Pakete und ihre Bestätigungen bleiben lesbar und exportierbar.
     #[cfg(feature = "testdaten")]
     pub async fn einreichung_erstellen(
         &self,
@@ -139,7 +138,7 @@ impl CoreServices {
         };
         let audit = Self::audit(
             wer,
-            Aktion::EinreichungErstellt,
+            crate::domain::Aktion::EinreichungErstellt,
             Some(projekt),
             None,
             format!(
@@ -217,7 +216,29 @@ impl CoreServices {
         Ok(s)
     }
 
+    /// Einreichungspakete werden nicht mehr bestätigt: „Eingereicht“ hat eine
+    /// einzige Quelle, die Verfahrensakte (versendeter Abgabestand oder
+    /// externe Einreichung). Bereits bestätigte Pakete bleiben lesbar.
     pub async fn einreichung_bestaetigen(
+        &self,
+        id: Uuid,
+        _basis: i64,
+        _datum: NaiveDate,
+        _notiz: String,
+        wer: &Benutzer,
+    ) -> CoreResult<Einreichung> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        self.repos.einreichungen.laden(id).await?;
+        Err(CoreError::InvalidInput(
+            "Frühere Einreichungspakete werden nicht mehr bestätigt. Die Einreichung in der \
+             Verfahrensakte als Versand eines Abgabestands oder mit „Externe Einreichung \
+             nachtragen“ erfassen."
+                .into(),
+        ))
+    }
+    /// Bestätigung im früheren Verfahren, nur zum Aufbau von Altbeständen in Tests.
+    #[cfg(feature = "testdaten")]
+    pub async fn einreichung_bestaetigen_altbestand(
         &self,
         id: Uuid,
         basis: i64,
@@ -255,7 +276,7 @@ impl CoreServices {
         e.version += 1;
         let audit = Self::audit(
             wer,
-            Aktion::EinreichungBestaetigt,
+            crate::domain::Aktion::EinreichungBestaetigt,
             Some(e.stand.projekt_id),
             None,
             format!(

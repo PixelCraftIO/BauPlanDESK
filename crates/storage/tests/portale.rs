@@ -88,7 +88,8 @@ fn ereignis(id: Uuid, beleg: Dokumentbezug, docs: Vec<Dokumentbezug>) -> Portale
     Portalereigniswunsch {
         id,
         art: Portalereignisart::AbgabeBelegt,
-        datum: "2026-01-05".parse().unwrap(),
+        // Ein Versand liegt nicht vor dem Festhalten des Abgabestands.
+        datum: core_lib::kalender::heute(),
         referenz: "PORTAL-2026-42".into(),
         notiz: "Originalbeleg und konkrete Dateiliste abgeglichen".into(),
         beleg: Some(beleg),

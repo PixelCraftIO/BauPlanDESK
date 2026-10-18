@@ -1129,13 +1129,6 @@ export const api = {
       projektId,
       empfaenger,
     }),
-  einreichungBestaetigen: (
-    id: string,
-    basis: number,
-    datum: string,
-    notiz: string,
-  ) =>
-    invoke<Einreichung>("einreichung_bestaetigen", { id, basis, datum, notiz }),
   einreichungExportieren: (id: string, ziel: string) =>
     invoke<void>("einreichung_exportieren", { id, ziel }),
   formularbibliothek: () => invoke<Formularbibliothek>("formularbibliothek"),

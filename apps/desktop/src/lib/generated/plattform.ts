@@ -203,7 +203,12 @@ vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme, behoerde: Behoerde
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */
-schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>,
+/**
+ * Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese
+ * Angabe lesen sie leer; leer wird sie nicht geschrieben.
+ */
+externe_einreichungen?: Array<ExterneEinreichung>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };
@@ -218,6 +223,34 @@ export type Abgabestand = { id: string, auftrag_hash: string, titel: string, ers
  */
 versandstatus: Versandstatus | null, };
 export type Abgabewunsch = { xbau_bezug?: string, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
+export type Einreichungsweg = "post" | "portal" | "persoenlich" | "email" | "fax" | "sonstiges";
+export type ExterneEinreichung = { id: string,
+/**
+ * Tag der Einreichung bei der Behörde (Ortsdatum); nie nach dem Erfassungstag.
+ */
+datum: string, weg: Einreichungsweg,
+/**
+ * Einlieferungs-, Eingangs- oder Portalbeleg, falls vorhanden.
+ */
+beleg: Dokumentbezug | null, bemerkung: string,
+/**
+ * Dokumentversionen der Projektablage, die nachweislich eingereicht wurden.
+ * Leer, wenn die eingereichten Unterlagen nicht in der Ablage liegen.
+ */
+dokumente: Array<Dokumentbezug>,
+/**
+ * Frühere externe Einreichung dieser Akte, die dieser Eintrag berichtigt.
+ */
+berichtigt: string | null,
+/**
+ * Vom Core gesetzt.
+ */
+erfasst_am: string,
+/**
+ * Vom Core gesetzt.
+ */
+erfasst_von: string, };
+export type ExterneEinreichungswunsch = { id: string, datum: string, weg: Einreichungsweg, beleg: Dokumentbezug | null, bemerkung: string, dokumente: Array<Dokumentbezug>, berichtigt: string | null, };
 export type Fristauftrag = { art: Verfahrensart, bescheide: Array<Bescheid>, };
 export type Fristberechnung = {
 /**

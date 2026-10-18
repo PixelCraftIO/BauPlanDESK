@@ -64,10 +64,11 @@ pub async fn xbau_in_verfahren(
     id: Uuid,
     verfahren: Uuid,
     basis: i64,
+    zugang: Option<chrono::NaiveDate>,
 ) -> Result<Fachstand, CmdError> {
     Ok(state
         .core
-        .xbau_in_verfahren(projekt_id, id, verfahren, basis, &state.benutzer())
+        .xbau_in_verfahren(projekt_id, id, verfahren, basis, zugang, &state.benutzer())
         .await?)
 }
 

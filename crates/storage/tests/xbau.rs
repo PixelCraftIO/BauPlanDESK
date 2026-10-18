@@ -403,22 +403,102 @@ async fn nachrichten_journal_rechte_historie_belege_und_verfahrensakte() {
     )
     .await
     .unwrap();
+    let heute = core_lib::kalender::heute();
+    // Zugang nie in der Zukunft und nie vor der Erstellung der Nachricht.
+    for falsch in [
+        heute + chrono::Duration::days(1),
+        "2026-01-01".parse().unwrap(),
+    ] {
+        assert!(
+            core.xbau_in_verfahren(p.id, id, vid, 1, Some(falsch), &admin)
+                .await
+                .is_err()
+        );
+    }
     let f = core
-        .xbau_in_verfahren(p.id, id, vid, 1, &admin)
+        .xbau_in_verfahren(p.id, id, vid, 1, None, &admin)
         .await
         .unwrap();
     akte = serde_json::from_value(f.daten.clone()).unwrap();
     assert_eq!(akte.kommunikation.len(), 1);
+    // Ohne bestätigten Zugang gilt der Tag der Erfassung, nicht das XML-Erstelldatum.
+    assert_eq!(akte.kommunikation[0].datum, heute);
+    assert!(akte.kommunikation[0].inhalt.contains("Tag der Erfassung"));
     assert_eq!(akte.kommunikation[0].original, Some(original));
     assert!(akte.abgaben.is_empty());
     assert!(akte.bescheide.is_empty());
     assert!(akte.nachforderungen.is_empty());
     assert_eq!(
-        core.xbau_in_verfahren(p.id, id, vid, 1, &admin)
+        core.xbau_in_verfahren(p.id, id, vid, 1, None, &admin)
             .await
             .unwrap()
             .revision,
         f.revision
+    );
+    // Eine zweite Akte ohne Aktenzeichen übernimmt das der Behörde aus der
+    // Nachricht; dieselbe Nachricht kommt nicht ein zweites Mal in eine Akte.
+    let mut zweite = akte.clone();
+    zweite.bezeichnung = "Zweites Verfahren".into();
+    zweite.aktenzeichen = String::new();
+    zweite.kommunikation.clear();
+    zweite.ereignisse.clear();
+    let vid2 = Uuid::new_v4();
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Verfahren,
+        vid2,
+        0,
+        serde_json::to_value(&zweite).unwrap(),
+        &admin,
+    )
+    .await
+    .unwrap();
+    let doppelt = core
+        .xbau_in_verfahren(p.id, id, vid2, 1, None, &admin)
+        .await
+        .unwrap_err();
+    assert!(doppelt.to_string().contains("bereits"), "{doppelt}");
+    let id2 = Uuid::new_v4();
+    let d3 = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Eingang2.xml",
+            Bytes::from(nachricht(id2, Uuid::new_v4())),
+            &admin,
+        )
+        .await
+        .unwrap();
+    core.xbau_aufnehmen(
+        p.id,
+        Nachrichtenaufnahme {
+            original: Dokumentbezug {
+                dokument_id: d3.document_id,
+                version: d3.version,
+            },
+            richtung: Richtung::Eingang,
+            zuordnung_bestaetigt: true,
+        },
+        &admin,
+    )
+    .await
+    .unwrap();
+    let f2 = core
+        .xbau_in_verfahren(p.id, id2, vid2, 1, Some(heute), &admin)
+        .await
+        .unwrap();
+    let zweite: core_lib::verfahren::Verfahrensakte = serde_json::from_value(f2.daten).unwrap();
+    assert_eq!(zweite.aktenzeichen, "BA-2026-42");
+    assert_eq!(zweite.kommunikation[0].datum, heute);
+    assert!(zweite.kommunikation[0].inhalt.contains("(bestätigt)"));
+    assert!(
+        zweite
+            .ereignisse
+            .last()
+            .unwrap()
+            .text
+            .contains("Aktenzeichen: – → BA-2026-42")
     );
     assert_eq!(
         core.repos
@@ -438,9 +518,10 @@ async fn nachrichten_journal_rechte_historie_belege_und_verfahrensakte() {
         .read_to_string(&mut json)
         .unwrap();
     assert!(json.contains("xbau_nachrichten"));
+    // Die Oberflächenprüfung arbeitet mit der ersten Nachricht samt Beleg.
     if let Ok(out) = std::env::var("BAUPROJEKT_XBAU_ARTEFAKTE") {
         let out = std::path::PathBuf::from(out);
         std::fs::create_dir_all(&out).unwrap();
-        std::fs::write(out.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"benutzer":admin,"leser":leser,"nachrichten":core.xbau_nachrichten(p.id,&admin).await.unwrap(),"dateien":core.list_documents(p.id).await.unwrap(),"verfahren":[f],"typen":katalog(),"pruefung":n.nachricht.pruefung})).unwrap()).unwrap();
+        std::fs::write(out.join("workflow.json"),serde_json::to_vec_pretty(&serde_json::json!({"projekt":p,"benutzer":admin,"leser":leser,"nachrichten":core.xbau_nachrichten(p.id,&admin).await.unwrap().into_iter().filter(|m| m.id==id).collect::<Vec<_>>(),"dateien":core.list_documents(p.id).await.unwrap(),"verfahren":[f],"typen":katalog(),"pruefung":n.nachricht.pruefung})).unwrap()).unwrap();
     }
 }

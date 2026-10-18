@@ -558,6 +558,18 @@ impl CoreServices {
                 entscheidung: letzter_bescheid.map(|b| b.entscheidung.clone()),
                 entscheidungsdatum: letzter_bescheid.map(|b| b.datum),
             });
+            for e in crate::verfahren::externe_einreichung::gueltige_externe(&a, heute) {
+                s.abgaben.push(AbgabeUeberblick {
+                    id: e.id,
+                    titel: format!("Externe Einreichung · {}", e.weg.bezeichnung()),
+                    empfaenger: a.behoerde.name.clone(),
+                    quelle: a.bezeichnung.clone(),
+                    status: "Extern eingereicht".into(),
+                    datum: Some(e.datum),
+                    dokumente: e.dokumente.len(),
+                    ziel: ziel("abgaben").eintrag(e.id),
+                });
+            }
             for b in &a.abgaben {
                 let stand = versandstand(b);
                 let datum = crate::verfahren::abgabe::letztes_versandereignis(b).map(|e| e.datum);
@@ -735,7 +747,7 @@ impl CoreServices {
                 ziel: UebersichtsZiel::neu("einreichungen").eintrag(e.stand.id),
             });
             if e.einreichung.is_none() {
-                s.punkt(format!("paket:{}",e.stand.id),Einreichungen,Pruefen,e.stand.titel,"Das Paket wurde exportiert; eine tatsächliche Einreichung wurde noch nicht bestätigt.",UebersichtsZiel::neu("einreichungen").eintrag(e.stand.id));
+                s.punkt(format!("paket:{}",e.stand.id),Einreichungen,Pruefen,e.stand.titel,"Früheres Paket ohne bestätigte Einreichung. Eine tatsächliche Einreichung in der Verfahrensakte als externe Einreichung nachtragen.",UebersichtsZiel::neu("einreichungen").eintrag(e.stand.id));
             }
         }
         if s.verfahren.is_empty() {

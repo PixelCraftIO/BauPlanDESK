@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use super::pdf::{Feldart, Feldwert, Formularfeld};
@@ -50,7 +49,10 @@ impl Projektkontext {
         {
             k.baugebiet(g);
         }
-        k.setze("datum.heute", Local::now().format("%d.%m.%Y").to_string());
+        k.setze(
+            "datum.heute",
+            crate::kalender::heute().format("%d.%m.%Y").to_string(),
+        );
         k.leere_entfernen();
         k
     }

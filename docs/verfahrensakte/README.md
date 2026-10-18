@@ -46,24 +46,68 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
    nur einmal.
 8. **Übermittlung:** Versand, Eingang oder Zurückweisung einzeln mit Datum,
    Übermittlungsweg, Referenz und Beleg erfassen. Export bedeutet keinen Versand.
+   Das Datum liegt nicht nach heute und nicht vor dem Festhalten des
+   Abgabestands; eine frühere Einreichung wird als externe Einreichung
+   nachgetragen.
    Bestätigter Eingang benötigt einen Dokumentbeleg. Frühere Versandereignisse
    bleiben unveränderlich; begründete Berichtigungen sind eigene Ereignisse.
 9. **Antwort zuordnen:** Ein eingereichter Forderungspunkt braucht einen tatsächlich
    versandten/eingegangenen Abgabestand, der seine Antwortunterlagen enthält.
    Eine behördliche Bestätigung benötigt eine weitere eingehende Kommunikation.
+   Wortlaut und Grundlage eines gespeicherten Forderungspunkts bleiben
+   unverändert; änderbar sind Bearbeitungsstand, Zuständigkeit, Frist, Antwort
+   und Unterlagen. Ein abweichender Wortlaut ist ein neuer Punkt, der bisherige
+   wird begründet als entfallen geführt.
 10. **Bescheide / Auflagen:** Originalbescheid, Zustellung und ausdrücklich
    genehmigte Dokumentversionen festhalten. Ein Bescheid setzt einen versendeten
-   oder eingegangenen Abgabestand voraus; genehmigte Unterlagen werden nur aus
-   solchen Abgabeständen ausgewählt. Ein fehlendes Zustelldatum lässt sich einmal
+   oder eingegangenen Abgabestand oder eine externe Einreichung voraus;
+   genehmigte Unterlagen stammen aus solchen Abgabeständen oder aus den
+   Unterlagen einer externen Einreichung. Ein fehlendes Zustelldatum lässt sich einmal
    nachtragen, danach ist der Bescheid unveränderlich. Nebenbestimmungen sind
    nach § 36 VwVfG typisiert (Auflage, Bedingung, Befristung, Widerrufs- und
    Auflagenvorbehalt) und werden mit Auslöser, Zuständigkeit und Nachweis
    überwacht; eine Befristung braucht ihr Ablaufdatum. Ein Hinweis begründet
    keine Pflicht und wird weder erfüllt noch wiedervorgelegt. Ältere Einträge
-   gelten als Auflage. Ein späterer Entwurf ersetzt keine genehmigte Version.
+   gelten als Auflage. Wortlaut und Auslöser einer gespeicherten
+   Nebenbestimmung bleiben unverändert; ein abweichender Wortlaut ist ein
+   Folgebescheid. Ein späterer Entwurf ersetzt keine genehmigte Version.
    Folgebescheide ersetzen ausdrücklich benannte Bescheide.
 11. **Korrekturen / Verfahrenschronik:** Dokumentersatz und Änderungsgründe
     verknüpfen, fachliche Ereignisse und sämtliche gespeicherten Stände nachsehen.
+
+## Externe Einreichung
+
+Für Anträge, die auf Papier, persönlich, per Fax oder im Portal ohne Abgabestand
+der App eingereicht wurden (vor allem Altakten), im Register **Abgabestände**
+„Externe Einreichung nachtragen …“ wählen: Tag der Einreichung, Weg (Post,
+Portal, persönlich, E-Mail, Fax, sonstiger Weg mit Bemerkung), optional Beleg und
+Bemerkung sowie optional die eingereichten Dokumentversionen der Ablage. Der Core
+(`verfahren::externe_einreichung`, Befehl `verfahren_externe_einreichung`,
+Server `POST /api/projekte/{id}/verfahren/{verfahren}/externe-einreichung`) setzt
+Erfassungszeit und Benutzer; die allgemeine Speicherung der Akte nimmt keine
+neuen Einträge an.
+
+- Die Einreichung zählt wie ein versendeter Abgabestand als eingereicht
+  (Statuswechsel, Bescheid). Sie friert keine Projektdaten ein, erzeugt keine
+  Ausgabedateien und ist in der Übersicht als „Extern eingereicht“ gekennzeichnet.
+- Als genehmigte Unterlagen eines Bescheids kommen nur die dort genannten
+  Dokumentversionen in Frage; ohne sie ist nur eine Ablehnung oder sonstige
+  Entscheidung erfassbar.
+- Gespeicherte Einträge sind unveränderlich. Eine begründete Berichtigung ist ein
+  Folgeeintrag und ersetzt den berichtigten Eintrag; jeder Eintrag wird höchstens
+  einmal berichtigt.
+- Antworten auf Forderungspunkte laufen weiter über Abgabestände.
+
+## Datumsangaben
+
+Kalendertage fachlicher Vorgänge gelten als deutsches Ortsdatum
+(`kalender::heute`), auch für Aktenereignisse, Anschreiben der Druckausgabe,
+Berichtsdaten, XBau-Anlagendatum, Formularwert `datum.heute` und Lizenzablauf.
+Versand, Eingang, Zurückweisung, Kommunikation, Bescheid, Zustellung,
+Vollständigkeit, Rücknahme, externe Einreichung und Chronikereignisse dürfen
+nicht nach heute liegen; geprüft werden neue oder geänderte Angaben, ältere
+Akten bleiben bearbeitbar. Fristen dürfen in der Zukunft liegen. Ein künftig
+datierter Versand zählt nicht als Einreichung.
 
 ## Bearbeitungsstand
 
@@ -73,7 +117,7 @@ die Auswahl an.
 | Stand | Voraussetzung |
 | --- | --- |
 | In Vorbereitung | Ausgangsstand; nach der Einreichung kein Rückweg |
-| Eingereicht, In behördlicher Prüfung, Ruhend | versendeter oder eingegangener Abgabestand |
+| Eingereicht, In behördlicher Prüfung, Ruhend | versendeter oder eingegangener Abgabestand oder externe Einreichung |
 | Unvollständig | zusätzlich ein offener Nachforderungspunkt |
 | Vollständig | zusätzlich die behördliche Bestätigung mit Datum und eingegangenem Schreiben |
 | Entschieden | zusätzlich ein Bescheid |
