@@ -276,6 +276,7 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
     // bereits vor dem Parsen oder Ausführen eines Auftrags.
     for suffix in [
         "erinnerungen?heute=2026-10-15",
+        "termine.ics",
         "aktensuche?suche=Plan",
         "aktenexport",
         "verfahrensprofil",

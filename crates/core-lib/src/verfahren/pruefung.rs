@@ -255,7 +255,7 @@ pub(super) async fn pruefen(
             Some(abgabe::Versandstatus::Versendet | abgabe::Versandstatus::Eingegangen)
         )
     };
-    let eingereicht = a.abgaben.iter().any(|b| versendet(&b));
+    let eingereicht = ist_eingereicht(a);
     for b in &a.bescheide {
         // Neue Bescheide setzen eine tatsächliche Einreichung voraus und
         // genehmigen nur Unterlagen, die der Behörde vorlagen. Ältere Bescheide
@@ -283,6 +283,7 @@ pub(super) async fn pruefen(
             b.entscheidung,
             Entscheidung::Genehmigt | Entscheidung::TeilweiseGenehmigt
         ) && b.genehmigte_unterlagen.is_empty()
+            && b.verlaengerung.is_none()
         {
             return Err(fehler(
                 "Genehmigung benötigt den ausdrücklich zugeordneten genehmigten Unterlagenstand",
@@ -336,6 +337,8 @@ pub(super) async fn pruefen(
         return Err(fehler("Entschiedenes Verfahren benötigt einen Bescheid"));
     }
     status_pruefen(a, alt, eingereicht)?;
+    regeln::pruefen(a, alt, eingereicht)?;
+    chronik::berichtigungen_pruefen(alt, a)?;
     for d in &a.dokumentbeziehungen {
         text(&d.grund, 4000)?;
         if d.vorher == d.nachher {
@@ -474,9 +477,11 @@ pub(super) async fn pruefen(
             let n = a.bescheide.iter().find(|n| n.id == b.id).expect("geprüft");
             let mut kopie = n.clone();
             kopie.auflagen = b.auflagen.clone();
-            // Ein später bekanntes Zustelldatum darf einmal nachgetragen werden.
-            if b.zugestellt.is_none() {
-                kopie.zugestellt = None;
+            // Ein später bekanntes Zustelldatum darf nachgetragen, ein erfasstes
+            // nur mit begründeter Berichtigung geändert, aber nicht entfernt werden
+            // (chronik::berichtigungen_pruefen).
+            if b.zugestellt.is_none() || n.zugestellt.is_some() {
+                kopie.zugestellt = b.zugestellt;
             }
             if &kopie != b {
                 return Err(fehler(
@@ -519,8 +524,20 @@ pub(super) async fn pruefen(
     }
     Ok(())
 }
+/// Gilt die Akte als eingereicht? Ein Abgabestand ist versendet oder eingegangen.
+pub(super) fn ist_eingereicht(a: &Verfahrensakte) -> bool {
+    a.abgaben.iter().any(|b| {
+        matches!(
+            abgabe::versandstand(b),
+            Some(abgabe::Versandstatus::Versendet | abgabe::Versandstatus::Eingegangen)
+        )
+    })
+}
 /// Übergangsregeln des Verfahrensstatus. Bedingungen eines Status werden beim
-/// Wechsel geprüft, damit ältere Akten bearbeitbar bleiben.
+/// Wechsel geprüft. Bleibt der Status, darf eine Speicherung einen bisher
+/// erfüllten Stand nicht ungültig machen (etwa Rückweisung der einzigen
+/// Abgabe oder Entfernen der Vollständigkeitsbestätigung); ältere, schon
+/// widersprüchliche Akten bleiben bearbeitbar.
 fn status_pruefen(
     a: &Verfahrensakte,
     alt: Option<&Verfahrensakte>,
@@ -548,6 +565,18 @@ fn status_pruefen(
     }
     let vorher = alt.map(|a| &a.status);
     if vorher == Some(&a.status) {
+        let alt = alt.expect("gleicher Status setzt alten Stand voraus");
+        if status_bedingung(alt, ist_eingereicht(alt)).is_ok()
+            && let Err(e) = status_bedingung(a, eingereicht)
+        {
+            return Err(fehler(format!(
+                "{} Bearbeitungsstand zusammen mit dieser Änderung anpassen.",
+                match e {
+                    CoreError::InvalidInput(m) => m,
+                    e => e.to_string(),
+                }
+            )));
+        }
         return Ok(());
     }
     if let Some(v) = vorher {
@@ -561,12 +590,19 @@ fn status_pruefen(
                 }
             )));
         }
-        if a.status == Vorbereitung {
+        // Ohne versendeten Stand (etwa nach Rückweisung der einzigen Abgabe)
+        // ist der Antrag nicht eingereicht und darf zurück in die Vorbereitung.
+        if a.status == Vorbereitung && eingereicht {
             return Err(fehler(
                 "Ein eingereichtes Verfahren kehrt nicht in die Vorbereitung zurück",
             ));
         }
     }
+    status_bedingung(a, eingereicht)
+}
+/// Voraussetzungen des aktuellen Bearbeitungsstands.
+fn status_bedingung(a: &Verfahrensakte, eingereicht: bool) -> CoreResult<()> {
+    use Verfahrensstatus::*;
     match a.status {
         Vorbereitung => {}
         Zurueckgenommen if a.ruecknahme.is_none() => {
@@ -575,7 +611,7 @@ fn status_pruefen(
         Zurueckgenommen => {}
         _ if !eingereicht => {
             return Err(fehler(format!(
-                "Status „{}“ setzt einen versendeten Abgabestand voraus",
+                "Status „{}“ setzt einen versendeten Abgabestand voraus.",
                 a.status.bezeichnung()
             )));
         }
@@ -587,12 +623,18 @@ fn status_pruefen(
                 .any(|p| !matches!(p.status, Punktstatus::Bestaetigt | Punktstatus::Entfallen)) =>
         {
             return Err(fehler(
-                "Status „Unvollständig“ benötigt eine Nachforderung mit offenen Punkten",
+                "Status „Unvollständig“ benötigt eine Nachforderung mit offenen Punkten.",
             ));
         }
         Vollstaendig if a.vollstaendigkeit.is_none() => {
             return Err(fehler(
-                "Status „Vollständig“ benötigt die behördliche Bestätigung mit Datum",
+                "Status „Vollständig“ benötigt die behördliche Bestätigung mit Datum.",
+            ));
+        }
+        Entschieden if !regeln::entscheidungsbescheid(a) => {
+            return Err(fehler(
+                "Status „Entschieden“ benötigt einen Bescheid mit Genehmigung oder Ablehnung; \
+                 eine sonstige Mitteilung oder Verlängerung genügt nicht.",
             ));
         }
         _ => {}

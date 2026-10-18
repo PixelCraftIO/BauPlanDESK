@@ -191,6 +191,7 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
+        .route("/projekte/{id}/termine.ics", get(verfahren_termine_ics))
         .route("/projekte/{id}/aktensuche", get(verfahren_suche))
         .route("/projekte/{id}/suchtext", post(suchtext_speichern))
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
@@ -1129,6 +1130,27 @@ async fn verfahren_erinnerungen(
     Ok(Json(
         core.verfahren_erinnerungen(ProjectId(p), q.heute).await?,
     ))
+}
+/// Laufende Verfahrenstermine als Kalenderdatei (RFC 5545), Leserecht.
+async fn verfahren_termine_ics(
+    State(ApiState { core }): State<ApiState>,
+    Path(p): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "text/calendar; charset=utf-8",
+            ),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=Verfahrenstermine.ics",
+            ),
+        ],
+        core.verfahren_termine_ics(ProjectId(p), core_lib::kalender::heute())
+            .await?,
+    )
+        .into_response())
 }
 async fn bescheidfristen(
     State(ApiState { core }): State<ApiState>,

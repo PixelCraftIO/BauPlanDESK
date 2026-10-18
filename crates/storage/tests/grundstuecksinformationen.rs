@@ -723,6 +723,7 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         status: Verfahrensstatus::Vorbereitung,
         vollstaendigkeit: None,
         ruecknahme: None,
+        ausfuehrung: None,
         schritte: Vec::new(),
         behoerde: Behoerde {
             id: uuid::Uuid::new_v4(),

@@ -17,7 +17,7 @@ window.procedures=[copy(window.wf.verfahren)];window.procedureFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  if(cmd==='fachobjekte'&&args.art!=='verfahren')return original(cmd,args);
  if(cmd==='fachobjekt_speichern'&&args.art!=='verfahren')return original(cmd,args);
- if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_bescheidfristen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export'].includes(cmd))return original(cmd,args);
+ if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_bescheidfristen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export','verfahren_termine_ics','plugin:dialog|save'].includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:copy(args)});
  switch(cmd){
  case 'fachobjekte':return copy(window.procedures);
@@ -28,6 +28,8 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  }
  case 'verfahren_erinnerungen':return copy(window.wf.erinnerungen);
  case 'verfahren_bescheidfristen':return copy(window.wf.fristen);
+ case 'plugin:dialog|save':return '/tmp/Verfahrenstermine.ics';
+ case 'verfahren_termine_ics':return null;
  case 'verfahren_suche':return copy(window.wf.treffer);
  case 'dokumente_auflisten':return copy(window.wf.dateien);
  case 'dokument_historie':return copy(window.wf.dateien.filter(d=>d.document_id===args.dokumentId));
@@ -74,6 +76,10 @@ with sync_playwright() as p:
  expect(page.get_by_role('region',name='Berechnete Fristen')).to_contain_text('Geltungsdauer der Genehmigung')
  # Ein gespeicherter Bescheid mit Zustelldatum bleibt unveränderlich.
  expect(page.get_by_text('Zustelldatum',exact=True).locator('input')).to_be_disabled()
+ # Eine Berichtigung öffnet das Feld erst mit Grund; der Core trägt alten und neuen Wert ein.
+ page.get_by_role('button',name='Zustelldatum berichtigen',exact=True).first.click()
+ expect(page.get_by_text('Zustelldatum',exact=True).locator('input')).to_be_enabled()
+ expect(page.get_by_role('button',name='Berichtigung vormerken',exact=True)).to_be_disabled()
  page.screenshot(path=str(out/'genehmigter-stand.png'))
  tab('Anhörung / Zurückstellung');expect(page.get_by_role('heading',name='Anhörung und Zurückstellung')).to_be_visible()
  expect(page.get_by_role('button',name='Verfahrensschritt erfassen',exact=True)).to_be_disabled()
@@ -83,7 +89,15 @@ with sync_playwright() as p:
  page.get_by_text('Ereignis bearbeiten / ansehen',exact=False).first.click()
  expect(page.get_by_role('textbox',name='Notiz / Begründung',exact=True).first).to_be_disabled()
  tab('Verfahrenschronik');expect(page.get_by_role('heading',name='Verfahrenschronik',exact=True)).to_be_visible()
+ # Zeitleiste mit vom Core abgeleiteter Art jeder Revision, filterbar.
+ expect(page.get_by_role('columnheader',name='Art',exact=True)).to_be_visible()
+ page.get_by_role('combobox',name='Art der Änderung',exact=True).select_option('bescheid')
+ expect(page.get_by_role('cell',name='Bescheid',exact=False).first).to_be_visible()
  view('Suche / Wiedervorlagen');expect(page.get_by_role('cell',name='Nachweis vor Baubeginn',exact=False)).to_be_visible()
+ # Termine gehen als Kalenderdatei über den Core-Befehl hinaus.
+ page.get_by_role('button',name='Termine als Kalender (ICS) exportieren',exact=True).click()
+ page.wait_for_function("window.calls.some(c=>c.cmd==='verfahren_termine_ics')")
+ expect(page.get_by_role('status').filter(has_text='Kalenderdatei exportiert')).to_be_visible()
  page.get_by_role('textbox',name='Suchbegriff',exact=True).fill('Nachforderung');page.get_by_role('button',name='Akte durchsuchen',exact=True).click()
  expect(page.get_by_role('cell',name='Dokumentinhalt',exact=True)).to_be_visible()
  d=next(d for d in wf['dateien'] if d['file_name']=='Lageplan.pdf' and d['version']==2)

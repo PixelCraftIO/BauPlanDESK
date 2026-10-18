@@ -130,6 +130,15 @@ export const AKTIONEN: Record<string, string> = {
   kunde_geloescht: "Kunde gelöscht",
   bauherren_geaendert: "Bauherren geändert",
   beteiligte_geaendert: "Beteiligte geändert",
+  verfahren_angelegt: "Verfahren angelegt",
+  verfahren_geaendert: "Verfahrensakte geändert",
+  verfahrensstatus_geaendert: "Verfahrensstand geändert",
+  verfahren_abgabe: "Abgabe / Übermittlung erfasst",
+  verfahren_bescheid: "Bescheid erfasst / geändert",
+  verfahren_nachforderung: "Nachforderung bearbeitet",
+  verfahren_schritt: "Anhörung / Zurückstellung bearbeitet",
+  verfahren_ausfuehrung: "Bauausführung erfasst",
+  verfahren_berichtigt: "Verfahrensangabe berichtigt",
 };
 
 // --- XBau ------------------------------------------------------------------

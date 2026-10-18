@@ -365,10 +365,21 @@ pub enum Aktion {
     KundeGeloescht,
     BauherrenGeaendert,
     BeteiligteGeaendert,
+    /// Verfahrensakte: Aktionen werden aus dem Aktenereignis der Revision
+    /// abgeleitet (siehe `verfahren::chronik::aktion`).
+    VerfahrenAngelegt,
+    VerfahrenGeaendert,
+    VerfahrensstatusGeaendert,
+    VerfahrenAbgabe,
+    VerfahrenBescheid,
+    VerfahrenNachforderung,
+    VerfahrenSchritt,
+    VerfahrenAusfuehrung,
+    VerfahrenBerichtigt,
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 21] = [
+    const ALLE: [Aktion; 30] = [
         Self::ProjektAngelegt,
         Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
@@ -390,6 +401,15 @@ impl Aktion {
         Self::KundeGeloescht,
         Self::BauherrenGeaendert,
         Self::BeteiligteGeaendert,
+        Self::VerfahrenAngelegt,
+        Self::VerfahrenGeaendert,
+        Self::VerfahrensstatusGeaendert,
+        Self::VerfahrenAbgabe,
+        Self::VerfahrenBescheid,
+        Self::VerfahrenNachforderung,
+        Self::VerfahrenSchritt,
+        Self::VerfahrenAusfuehrung,
+        Self::VerfahrenBerichtigt,
     ];
 
     pub fn code(self) -> &'static str {
@@ -415,6 +435,15 @@ impl Aktion {
             Self::KundeGeloescht => "kunde_geloescht",
             Self::BauherrenGeaendert => "bauherren_geaendert",
             Self::BeteiligteGeaendert => "beteiligte_geaendert",
+            Self::VerfahrenAngelegt => "verfahren_angelegt",
+            Self::VerfahrenGeaendert => "verfahren_geaendert",
+            Self::VerfahrensstatusGeaendert => "verfahrensstatus_geaendert",
+            Self::VerfahrenAbgabe => "verfahren_abgabe",
+            Self::VerfahrenBescheid => "verfahren_bescheid",
+            Self::VerfahrenNachforderung => "verfahren_nachforderung",
+            Self::VerfahrenSchritt => "verfahren_schritt",
+            Self::VerfahrenAusfuehrung => "verfahren_ausfuehrung",
+            Self::VerfahrenBerichtigt => "verfahren_berichtigt",
         }
     }
 }
