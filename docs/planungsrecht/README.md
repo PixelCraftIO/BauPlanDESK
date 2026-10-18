@@ -22,6 +22,37 @@ In „Pläne“ lassen sich geschlossene Polygone als Baufenster und Vorhaben
 zuordnen. Die Differenzfläche wird rot dargestellt und in m² und Prozent
 berechnet. Die Zuordnung ist an DMS-Dokument und Version gebunden.
 
+## Maßstäbe der Nutzungsprüfung (Maßstab 3)
+
+Die Bewertung liegt in `crates/core-lib/src/festsetzungen.rs`
+(`pruefe`); die Oberfläche zeigt nur deren Ergebnis.
+
+* **BauNVO-Fassung im Plan-Fall:** Maßgebend ist allein die erfasste Fassung des
+  Bebauungsplans (`Planungsrecht::massgebende_bau_nvo`). Fehlt sie, entfällt die
+  GRZ-II-Bewertung, GRZ, GFZ, BMZ, Grundfläche und Geschossfläche erhalten kein
+  Urteil, und `hinweise` nennt „BauNVO-Fassung des Bebauungsplans erfassen“. Das
+  Archivieren eines Nutzungsnachweises verlangt die Fassung („BauNVO festlegen“).
+  Ohne Plan bleibt die Fassung der Flächenaufstellung Berechnungsgrundlage.
+* **Baufenster:** `baufensterflaeche` vergleicht Flächen nur informativ und urteilt
+  nie. `baufenster_lage` (am Ende der Nachweisliste) trägt das Urteil des
+  Umrissvergleichs aus `cad/baugrenzen.rs` mit der Fläche außerhalb in m²; ohne
+  zugeordnete Umrisse bleibt sie „nicht geprüft“.
+* **Einfacher Plan mit ergänzendem § 34 BauGB:** Für nicht festgesetzte GRZ, GFZ
+  und Vollgeschosse werden die erfassten Umgebungswerte (Quelle „Umgebung“, ohne
+  Urteil) herangezogen; Festsetzungen gehen vor. Die GRZ-II-Grenze knüpft nur an
+  festgesetzte Werte an.
+* **Planart und Rechtsgrundlage:** `Planungsrecht::einordnung_pruefen` lehnt ab:
+  Bebauungsplan mit § 34/§ 35 als Rechtsgrundlage, „kein Bebauungsplan“ mit § 30
+  und eine ergänzende Grundlage außerhalb des einfachen Plans. Geprüft wird beim
+  Speichern der Grundlagen und beim Anlegen; `update_project` prüft die Einordnung
+  nur, wenn sie sich ändert. Ältere widersprüchliche Projekte bleiben ladbar; die
+  Projektübersicht meldet „Planungsrechtliche Einordnung widersprüchlich“ und bei
+  einem Plan ohne Fassung „BauNVO-Fassung des Bebauungsplans festlegen“.
+* **Aktualität:** Gespeicherte Nachweisstände betroffener Planprojekte (ohne
+  Fassung, mit Baufensterfläche, mit Baugrenzen oder einfacher Plan mit
+  ergänzendem § 34) erhalten einen neuen Grundlagen-Fingerprint und gelten als
+  veraltet. Andere Projekte behalten ihren Stand.
+
 ## Screenshots aus der nativen Anwendung
 
 Alle dargestellten Projekte, Personen und Planfestsetzungen sind Testdaten.

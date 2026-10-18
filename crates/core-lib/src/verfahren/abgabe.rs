@@ -34,6 +34,13 @@ pub struct Abgabedokument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub kategorie: Option<crate::dokumentkategorien::KategorieStand>,
+    /// Beim Festhalten im Anlagenverzeichnis ausgewiesener Planindex (Index bei
+    /// Einreichung als nächster Stand). Maßgebend ist die Ableitung in
+    /// [`super::planindex::ableiten`]; Abweichungen meldet sie. Fehlt in älteren
+    /// Abgabeständen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub planindex: Option<String>,
     pub dokument: Dokumentbezug,
     pub name: String,
     pub sha256: String,
@@ -253,6 +260,8 @@ impl CoreServices {
             }
         }
         let kategorien = self.kategoriesnapshots(p).await?;
+        // Index, den die Unterlagen bei Einreichung dieses Stands erhalten.
+        let planindizes = super::planindex::index_bei_einreichung(&a, &w.dokumente);
         let mut stand = Abgabestand {
             id: w.id,
             auftrag_hash,
@@ -262,7 +271,9 @@ impl CoreServices {
             grundlagen,
             dokumente: docs
                 .iter()
-                .map(|d| Abgabedokument {
+                .zip(&planindizes)
+                .map(|(d, index)| Abgabedokument {
+                    planindex: Some(index.clone()),
                     kategorie: kategorien
                         .get(&d.document_id.0.to_string())
                         .cloned()
@@ -361,8 +372,14 @@ impl CoreServices {
             ausgaben.push(("xbau", "XBau.zip", bytes));
         }
         if w.druck {
+            let indizes = w
+                .dokumente
+                .iter()
+                .zip(&planindizes)
+                .map(|(d, i)| ((d.dokument_id, d.version), i.clone()))
+                .collect();
             let druck = self
-                .druckausgabe(
+                .druckausgabe_mit_planindex(
                     p,
                     crate::druckausgabe::Druckauftrag {
                         gestaltung: None,
@@ -385,6 +402,7 @@ impl CoreServices {
                             })
                             .collect(),
                     },
+                    &indizes,
                 )
                 .await?;
             ausgaben.push(("pdf", "Druckausgabe.pdf", druck.pdf));

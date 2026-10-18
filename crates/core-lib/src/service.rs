@@ -10,7 +10,6 @@ use serde::Serialize;
 
 use crate::benutzer::{self, Benutzer, BenutzerAenderung, NeuerBenutzer, Recht, Rolle};
 use crate::cad::{self, Laengeneinheit, Messung, Plan, Punkt};
-use crate::calc::{self, Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use crate::domain::{
     Aktion, Bundesland, DocumentId, DocumentLock, DocumentVersion, NeuerProtokolleintrag,
     NewProject, Project, ProjectId, ProjectUpdate, Protokolleintrag,
@@ -430,7 +429,7 @@ impl CoreServices {
         validate_project(&update.name, update.grundstuecksflaeche_m2)?;
         let vorher = self.repos.projects.get(update.id).await?;
         if let Some(p) = &update.planungsrecht {
-            p.validate()?;
+            p.validate_gegen(&vorher.planungsrecht)?;
             crate::grundstuecksinformationen::dokumente_pruefen(self, update.id, p).await?;
             crate::grundstuecksinformationen::aenderungen_pruefen_im_projekt(
                 self,
@@ -1790,15 +1789,6 @@ impl CoreServices {
         g: &crate::cad::baugrenzen::BaugrenzenGeometrie,
     ) -> CoreResult<crate::cad::baugrenzen::BaugrenzenPruefung> {
         crate::cad::baugrenzen::pruefe(g)
-    }
-
-    pub fn mass_der_nutzung(
-        &self,
-        eingabe: &MassDerNutzung,
-        gebiet: Baugebiet,
-        festsetzungen: Option<Orientierungswerte>,
-    ) -> CoreResult<Pruefergebnis> {
-        calc::pruefe(eingabe, gebiet, festsetzungen)
     }
 
     pub fn messen(

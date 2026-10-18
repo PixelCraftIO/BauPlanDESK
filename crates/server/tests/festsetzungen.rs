@@ -41,6 +41,7 @@ async fn gespeicherte_werte_steuern_nachweise_und_leser_darf_sie_nicht_aendern()
                 grundstuecksflaeche_m2: Some(800.),
                 planungsrecht: Planungsrecht {
                     bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+                    bau_nvo: Some(core_lib::flaechen::BauNvo::V2017),
                     festgesetzte_werte: Festsetzungen {
                         grz: Some(0.3),
                         gfz: Some(0.6),
@@ -356,6 +357,7 @@ async fn mehrere_baugrundstuecke_bleiben_getrennt_gespeichert_und_berechnet() {
                 grundstuecksflaeche_m2: Some(900.),
                 planungsrecht: Planungsrecht {
                     bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+                    bau_nvo: Some(core_lib::flaechen::BauNvo::V2017),
                     baugrundstuecke: Some(plan.clone()),
                     festgesetzte_werte: Festsetzungen {
                         grz: Some(0.3),

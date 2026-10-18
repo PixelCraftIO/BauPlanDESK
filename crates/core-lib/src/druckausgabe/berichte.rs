@@ -123,6 +123,9 @@ struct Pruefung {
     kennzahlen: crate::calc::Kennzahlen,
     aufstellung: Option<crate::flaechen::FlaechenErgebnis>,
     nachweise: Vec<Vergleich>,
+    /// Fehlt in Nachweisständen vor Maßstab 3.
+    #[serde(default)]
+    hinweise: Vec<String>,
 }
 #[derive(Deserialize)]
 struct Vergleich {
@@ -464,11 +467,14 @@ pub(super) async fn erstellen(
                             formeln,
                         ));
                         if let Some(a) = &eingabe.eingabe.aufstellung {
-                            z.push(text(format!(
-                                "BauNVO: {}",
-                                format!("{:?}", n.stand.rechtskontext.bau_nvo.unwrap_or(a.bau_nvo))
-                                    .trim_start_matches('V')
-                            )));
+                            let recht = &n.stand.rechtskontext;
+                            z.push(text(match recht.massgebende_bau_nvo(Some(a.bau_nvo)) {
+                                Some(f) => format!("BauNVO: {}", f.jahr()),
+                                None => format!(
+                                    "BauNVO: Fassung des Bebauungsplans nicht erfasst (Flächen vorläufig nach {} angerechnet)",
+                                    a.bau_nvo.jahr()
+                                ),
+                            }));
                             if matches!(fach, NutzungsArt::Grz) {
                                 z.push(titel("Bauteilaufstellung"));
                                 let mut reihen = Vec::new();
@@ -560,11 +566,16 @@ pub(super) async fn erstellen(
                             }
                         }
                         z.push(titel("Vergleich mit Vorgaben"));
+                        for h in &g.pruefung.hinweise {
+                            z.push(text(format!("Hinweis: {h}")));
+                        }
                         let mut vergleiche = Vec::new();
                         for v in g.pruefung.nachweise {
                             let relevant = match fach {
                                 NutzungsArt::Grz => {
-                                    v.art.contains("grz") || v.art == "grundflaeche"
+                                    v.art.contains("grz")
+                                        || v.art == "grundflaeche"
+                                        || v.art == "baufenster_lage"
                                 }
                                 NutzungsArt::Gfz => {
                                     v.art.contains("gfz") || v.art == "geschossflaeche"
@@ -936,6 +947,8 @@ fn vergleichname(a: &str) -> &str {
         "grundflaeche" => "Grundfläche (m²)",
         "geschossflaeche" => "Geschossfläche (m²)",
         "vollgeschosse" => "Vollgeschosse",
+        "baufensterflaeche" => "Baufensterfläche (Information)",
+        "baufenster_lage" => "Lage im Baufenster (m² außerhalb)",
         _ => a,
     }
 }

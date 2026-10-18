@@ -8,7 +8,6 @@ use bytes::Bytes;
 use core_lib::CoreError;
 use core_lib::benutzer::{Benutzer, BenutzerAenderung, NeuerBenutzer};
 use core_lib::cad::{Laengeneinheit, Messung, Punkt};
-use core_lib::calc::{Baugebiet, MassDerNutzung, Orientierungswerte, Pruefergebnis};
 use core_lib::domain::{
     Bundesland, DocumentId, DocumentLock, DocumentVersion, NewProject, Project, ProjectId,
     ProjectUpdate, Protokolleintrag,
@@ -492,18 +491,6 @@ pub fn abstandsflaeche(
     eingabe: AbstandsflaecheInput,
 ) -> CmdResult<Berechnung<AbstandsflaecheErgebnis>> {
     Ok(state.core.abstandsflaeche(land, &eingabe)?)
-}
-
-#[tauri::command]
-pub fn mass_der_nutzung(
-    state: State<'_, AppState>,
-    eingabe: MassDerNutzung,
-    gebiet: Baugebiet,
-    festsetzungen: Option<Orientierungswerte>,
-) -> CmdResult<Pruefergebnis> {
-    Ok(state
-        .core
-        .mass_der_nutzung(&eingabe, gebiet, festsetzungen)?)
 }
 
 /// Lädt einen DXF-Plan aus dem DMS für den Plan-Viewer.

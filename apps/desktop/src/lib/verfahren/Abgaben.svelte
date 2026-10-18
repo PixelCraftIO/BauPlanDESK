@@ -7,11 +7,12 @@
     Behoerde,
     Dokumentbezug,
     Nachrichtenstand,
+    Planunterlage,
   } from "../generated/plattform";
   import { xbau as xbauApi } from "../xbau/api";
   import Dokumentliste from "./Dokumentliste.svelte";
   import Dokumentfeld from "./Dokumentfeld.svelte";
-  import { verfahrenApi, heute } from "./api";
+  import { verfahrenApi, heute, EINREICHUNG } from "./api";
   let {
     eintraege = $bindable(),
     dateien,
@@ -117,6 +118,19 @@
     }
   }
   const status = (b: Abgabestand) => b.versandstatus ?? "Vorbereitet";
+  // Planindex und Einreichungsstatus leitet der Core aus der gespeicherten Akte ab.
+  let planunterlagen = $state<Planunterlage[]>([]);
+  $effect(() => {
+    // Ohne gespeicherte Abgabestände gibt es weder Index noch Status.
+    if (!JSON.stringify(gespeichert) || !gespeichert.length) {
+      planunterlagen = [];
+      return;
+    }
+    verfahrenApi
+      .planunterlagen(projektId, verfahrenId)
+      .then((u) => (planunterlagen = u))
+      .catch((e) => (fehler = fehlertext(e)));
+  });
 </script>
 
 <h3>Abgabestände und Übermittlungsbelege</h3>
@@ -162,6 +176,47 @@
     onclick={festhalten}>Abgabestand verbindlich festhalten</button
   >
 </fieldset>
+{#if planunterlagen.length}<section aria-label="Planindex und Einreichungsstatus">
+    <h4>Planindex und Einreichungsstatus</h4>
+    <p class="meta">
+      Abgeleitet aus versendeten Abgabeständen und Bescheiden der gespeicherten
+      Akte. Der Revisionsindex der Dokumentdaten und der Bürostatus der
+      Unterlagen bleiben davon getrennt.
+    </p>
+    <table class="ergebnistabelle">
+      <thead
+        ><tr
+          ><th>Unterlage</th><th>Planindex</th><th>Status</th><th
+            >Versionen</th
+          ></tr
+        ></thead
+      ><tbody
+        >{#each planunterlagen as u (u.dokument_id)}<tr
+            ><td
+              >{u.name || u.dokument_id}{#each u.hinweise as h}<p
+                  class="meta"
+                  role="status"
+                >
+                  {h}
+                </p>{/each}</td
+            ><td>{u.planindex ?? "–"}</td><td
+              >{EINREICHUNG[u.status]}{#if u.offene_version != null}<span
+                  class="meta"
+                >
+                  · Version {u.offene_version} noch nicht eingereicht</span
+                >{/if}</td
+            ><td
+              >{u.staende
+                .map(
+                  (s) =>
+                    `V${s.version}${s.planindex ? ` (${s.planindex})` : ""}: ${EINREICHUNG[s.status]}`,
+                )
+                .join(" · ")}</td
+            ></tr
+          >{/each}</tbody
+      >
+    </table>
+  </section>{/if}
 {#each eintraege as b (b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
       >{b.titel} · {status(b)} · {new Date(b.erstellt_am).toLocaleString(
@@ -170,7 +225,8 @@
     >
     <ul>
       {#each b.dokumente as d}<li>
-          {d.name} · Version {d.dokument.version}
+          {d.name} · Version {d.dokument.version}{#if d.planindex}
+            · im Anlagenverzeichnis Index {d.planindex}{/if}
         </li>{/each}
     </ul>
     {#if b.hinweise.length}<aside class="hinweisbox">

@@ -2,6 +2,7 @@
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
 pub mod fristen;
+pub mod planindex;
 pub mod profile;
 mod pruefung;
 pub mod suche;

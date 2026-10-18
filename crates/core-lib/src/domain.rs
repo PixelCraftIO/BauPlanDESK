@@ -151,6 +151,16 @@ pub enum BebauungsplanArt {
     Vorhabenbezogen,
 }
 
+impl BebauungsplanArt {
+    /// Ein Bebauungsplan liegt vor (qualifiziert, einfach oder vorhabenbezogen).
+    pub fn mit_plan(self) -> bool {
+        matches!(
+            self,
+            Self::Qualifiziert | Self::Einfach | Self::Vorhabenbezogen
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AussenbereichsVorhaben {
@@ -190,7 +200,90 @@ pub struct Planungsrecht {
 }
 
 impl Planungsrecht {
+    /// Ein Bebauungsplan ist als Planart erfasst.
+    pub fn mit_bebauungsplan(&self) -> bool {
+        self.bebauungsplan_art.mit_plan()
+    }
+
+    /// Maßgebende BauNVO-Fassung für Anrechnung und GRZ-II-Grenze.
+    ///
+    /// Bei einem Bebauungsplan gilt nur die erfasste Fassung des Plans; die
+    /// Fassung einer Flächenaufstellung ist dort keine Grundlage. Ohne Plan
+    /// dient sie als Berechnungsgrundlage. `None`: Fassung ist zu erfassen.
+    pub fn massgebende_bau_nvo(
+        &self,
+        aufstellung: Option<crate::flaechen::BauNvo>,
+    ) -> Option<crate::flaechen::BauNvo> {
+        if self.mit_bebauungsplan() {
+            self.bau_nvo
+        } else {
+            self.bau_nvo.or(aufstellung)
+        }
+    }
+
+    /// Widerspruchsfreie Kopplung von Planart, Rechtsgrundlage und ergänzender
+    /// Grundlage (§ 30 Abs. 1 bis 3 BauGB).
+    pub fn einordnung_pruefen(&self) -> CoreResult<()> {
+        if self.ergaenzende_grundlage == Some(Rechtsgrundlage::Par30) {
+            return Err(CoreError::InvalidInput(
+                "Ergänzend ist § 34 oder § 35 BauGB anzugeben".into(),
+            ));
+        }
+        if self.mit_bebauungsplan()
+            && matches!(
+                self.rechtsgrundlage,
+                Some(Rechtsgrundlage::Par34 | Rechtsgrundlage::Par35)
+            )
+        {
+            return Err(CoreError::InvalidInput(
+                "Bei einem Bebauungsplan ist § 30 BauGB die Rechtsgrundlage; § 34 oder § 35 BauGB nur ergänzend beim einfachen Bebauungsplan angeben".into(),
+            ));
+        }
+        if self.bebauungsplan_art == BebauungsplanArt::Kein
+            && self.rechtsgrundlage == Some(Rechtsgrundlage::Par30)
+        {
+            return Err(CoreError::InvalidInput(
+                "§ 30 BauGB setzt einen Bebauungsplan voraus; Planart angeben oder § 34/§ 35 BauGB wählen".into(),
+            ));
+        }
+        if self.ergaenzende_grundlage.is_some()
+            && self.bebauungsplan_art != BebauungsplanArt::Einfach
+        {
+            return Err(CoreError::InvalidInput(
+                "Eine ergänzende Grundlage (§ 30 Abs. 3 BauGB) gibt es nur beim einfachen Bebauungsplan".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Prüfung beim Speichern eines vollständigen Stands. Eine bereits
+    /// gespeicherte, unveränderte Einordnung wird nicht erneut abgewiesen, damit
+    /// ältere widersprüchliche Projekte bearbeitbar bleiben; die
+    /// Projektübersicht weist darauf hin.
+    pub fn validate_gegen(&self, vorher: &Planungsrecht) -> CoreResult<()> {
+        let unveraendert = (
+            self.bebauungsplan_art,
+            self.rechtsgrundlage,
+            self.ergaenzende_grundlage,
+        ) == (
+            vorher.bebauungsplan_art,
+            vorher.rechtsgrundlage,
+            vorher.ergaenzende_grundlage,
+        );
+        self.inhalt_pruefen()?;
+        if unveraendert {
+            Ok(())
+        } else {
+            self.einordnung_pruefen()
+        }
+    }
+
     pub fn validate(&self) -> CoreResult<()> {
+        self.inhalt_pruefen()?;
+        self.einordnung_pruefen()
+    }
+
+    fn inhalt_pruefen(&self) -> CoreResult<()> {
         self.festgesetzte_werte.validate()?;
         if let Some(u) = &self.umgebung {
             u.validate()?;
@@ -218,11 +311,6 @@ impl Planungsrecht {
         }
         if let Some(g) = &self.baugrenzen {
             g.validate()?;
-        }
-        if self.ergaenzende_grundlage == Some(Rechtsgrundlage::Par30) {
-            return Err(CoreError::InvalidInput(
-                "Ergänzend ist § 34 oder § 35 BauGB anzugeben".into(),
-            ));
         }
         if !self.plan_rechtskraft.is_empty()
             && (self.plan_rechtskraft.len() != 10
@@ -466,6 +554,74 @@ mod planungsrecht_tests {
         }))
         .unwrap();
         assert!(u.planungsrecht.is_none());
+    }
+
+    #[test]
+    fn planart_und_rechtsgrundlage_sind_im_kern_gekoppelt() {
+        let mut p = Planungsrecht {
+            bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+            rechtsgrundlage: Some(Rechtsgrundlage::Par34),
+            ..Default::default()
+        };
+        assert!(p.validate().is_err());
+        p.rechtsgrundlage = Some(Rechtsgrundlage::Par30);
+        assert!(p.validate().is_ok());
+        p.rechtsgrundlage = None;
+        assert!(p.validate().is_ok());
+        p.ergaenzende_grundlage = Some(Rechtsgrundlage::Par34);
+        assert!(p.validate().is_err(), "ergänzend nur beim einfachen Plan");
+        p.bebauungsplan_art = BebauungsplanArt::Einfach;
+        assert!(p.validate().is_ok());
+        let kein = Planungsrecht {
+            bebauungsplan_art: BebauungsplanArt::Kein,
+            rechtsgrundlage: Some(Rechtsgrundlage::Par30),
+            ..Default::default()
+        };
+        assert!(kein.validate().is_err());
+        // Noch ungeklärte Planart mit § 30 bleibt zulässig (Übersicht weist darauf hin).
+        let offen = Planungsrecht {
+            rechtsgrundlage: Some(Rechtsgrundlage::Par30),
+            ..Default::default()
+        };
+        assert!(offen.validate().is_ok());
+    }
+
+    #[test]
+    fn bestehende_widerspruechliche_einordnung_bleibt_lesbar_und_bearbeitbar() {
+        let alt: Planungsrecht = serde_json::from_value(serde_json::json!({
+            "bebauungsplan_art": "qualifiziert", "rechtsgrundlage": "par34", "plan_nummer": "7"
+        }))
+        .unwrap();
+        assert!(alt.einordnung_pruefen().is_err());
+        let mut neu = alt.clone();
+        neu.plan_nummer = "7a".into();
+        // Andere Angaben dürfen gespeichert werden, solange die Einordnung unverändert bleibt.
+        assert!(neu.validate_gegen(&alt).is_ok());
+        neu.bebauungsplan_art = BebauungsplanArt::Vorhabenbezogen;
+        assert!(neu.validate_gegen(&alt).is_err());
+        neu.rechtsgrundlage = Some(Rechtsgrundlage::Par30);
+        assert!(neu.validate_gegen(&alt).is_ok());
+    }
+
+    #[test]
+    fn massgebende_baunvo_ohne_rueckfall_im_plan() {
+        use crate::flaechen::BauNvo;
+        let mut p = Planungsrecht {
+            bebauungsplan_art: BebauungsplanArt::Einfach,
+            ..Default::default()
+        };
+        assert_eq!(p.massgebende_bau_nvo(Some(BauNvo::V2017)), None);
+        p.bau_nvo = Some(BauNvo::V1977);
+        assert_eq!(
+            p.massgebende_bau_nvo(Some(BauNvo::V2017)),
+            Some(BauNvo::V1977)
+        );
+        p.bebauungsplan_art = BebauungsplanArt::Kein;
+        p.bau_nvo = None;
+        assert_eq!(
+            p.massgebende_bau_nvo(Some(BauNvo::V1990)),
+            Some(BauNvo::V1990)
+        );
     }
 
     #[test]

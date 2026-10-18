@@ -190,6 +190,45 @@ export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderli
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
 export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null, };
+export type Einreichungsstatus = "entwurf" | "eingereicht" | "nachgereicht" | "genehmigt" | "ersetzt";
+export type Planstand = { version: number, planindex: string | null, status: Einreichungsstatus,
+/**
+ * Datum der ersten Einreichung dieser Version.
+ */
+eingereicht_am: string | null,
+/**
+ * Versendete Abgabestände, die diese Version enthielten, in Einreichungsfolge.
+ */
+abgaben: Array<string>,
+/**
+ * Wirksamer Bescheid, der diese Version genehmigt.
+ */
+bescheid: string | null, ersetzt_durch: Dokumentbezug | null, };
+export type Planunterlage = { dokument_id: DocumentId,
+/**
+ * Dateiname aus dem jüngsten Abgabestand.
+ */
+name: string,
+/**
+ * Zuletzt vergebener Planindex; `None`, solange nichts eingereicht ist.
+ */
+planindex: string | null,
+/**
+ * Status der zuletzt eingereichten Version, sonst Entwurf.
+ */
+status: Einreichungsstatus,
+/**
+ * Neuere, noch nicht eingereichte Version (DMS oder vorbereiteter Abgabestand).
+ */
+offene_version: number | null,
+/**
+ * Nach Version aufsteigend.
+ */
+staende: Array<Planstand>,
+/**
+ * Abweichungen, z. B. ein im Anlagenverzeichnis anders ausgewiesener Index.
+ */
+hinweise: Array<string>, };
 export type Erinnerung = { verfahren: string, objekt: string, titel: string, datum: string, ueberfaellig: boolean, verantwortlich: string | null, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
@@ -210,7 +249,14 @@ export type Anforderungskatalog = { id: string, version: string, titel: string, 
 export type Profilstand = { vorhaben: Vorhabenprofil, katalog: Anforderungskatalog, bestaetigt_von: string | null, bestaetigt_am: string | null, };
 export type Versandstatus = "versendet" | "eingegangen" | "zurueckgewiesen" | "ungeklaert";
 export type Versandereignis = { id: string, status: Versandstatus, datum: string, weg: string, referenz: string, notiz: string, beleg: Dokumentbezug | null, berichtigt: string | null, };
-export type Abgabedokument = { kategorie?: KategorieStand, dokument: Dokumentbezug, name: string, sha256: string, bytes: number, };
+export type Abgabedokument = { kategorie?: KategorieStand,
+/**
+ * Beim Festhalten im Anlagenverzeichnis ausgewiesener Planindex (Index bei
+ * Einreichung als nächster Stand). Maßgebend ist die Ableitung in
+ * [`super::planindex::ableiten`]; Abweichungen meldet sie. Fehlt in älteren
+ * Abgabeständen.
+ */
+planindex?: string, dokument: Dokumentbezug, name: string, sha256: string, bytes: number, };
 export type Artefakt = { format: string, dateiname: string, storage_key: string, sha256: string, bytes: number, };
 export type Abgabestand = { id: string, auftrag_hash: string, titel: string, erstellt_am: string, erstellt_von: string, grundlagen: JsonValue, dokumente: Array<Abgabedokument>, anforderungen: Array<Anforderung>, hinweise: Array<string>, artefakte: Array<Artefakt>, versand: Array<Versandereignis>,
 /**

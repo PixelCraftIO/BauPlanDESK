@@ -79,6 +79,18 @@ pub async fn verfahren_export(
     Ok(())
 }
 #[tauri::command]
+pub async fn verfahren_planunterlagen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<Vec<core_lib::verfahren::planindex::Planunterlage>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_planunterlagen(projekt_id, id).await?)
+}
+#[tauri::command]
 pub async fn verfahren_erinnerungen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
