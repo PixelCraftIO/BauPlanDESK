@@ -54,6 +54,47 @@ jede Zeile ein Textabsatz. Der Abgabestand friert Verfahrensart und Angaben ein.
 XBau-Ausgänge entstehen nur noch aus Abgabeständen der Verfahrensakte; das
 Postfach führt dorthin.
 
+## Inhalt der Antragsnachricht
+
+Neben Bauherren, Entwurfsverfasser, Gebührenpflichtigem, Maßnahme, Flurstücken
+und Anlagen schreibt die Antragsnachricht aus dem eingefrorenen Abgabestand:
+
+| Angabe | Quelle | XBau |
+| --- | --- | --- |
+| Bevollmächtigter | Projektbeteiligte mit Rolle „Bevollmächtigter“; der erste als `bevollmaechtigter`, weitere als `weitereBeteiligte` (Rolle 01) | `beteiligte` |
+| Grundstückseigentümer | Eigentümer der Vorhabenflurstücke (`eigentuemer_kunden`, auch wenn sie Bauherr sind) und Beteiligte mit dieser Rolle, je Kunde einmal | `weitereBeteiligte`, Rolle 02, Fachrichtung 99 |
+| Erbbauberechtigter | Projektbeteiligte | `weitereBeteiligte`, Rolle als nicht gelisteter Wert |
+| Fachplaner | Projektbeteiligte; die Fachrichtung ist nicht erfasst | `weitereBeteiligte`, Rolle 06, Fachrichtung „nicht angegeben“ |
+| Telefon, E-Mail | Kundendaten | `kommunikation`; mit geladener Codeliste `urn:de:xoev:codeliste:erreichbarkeit` als Kanal-Code, sonst Kanal als Zusatz |
+| Ansprechpartner einer Organisation | Kundendaten (Freitext, ungeteilt als Familienname) | `organisation/ansprechpartner` |
+| Verfahrensart | Auswahl im Bauantrag aus der Landes-Codeliste `urn:xoev-de:xbau:<land>:codeliste:verfahrensart` (nur wenn geladen) | `prozessmerkmale/verfahrensart` |
+| Nachtrag zur Baugenehmigung | Änderungsantrag: Aktenzeichen des Vorgängerverfahrens | `prozessmerkmale/nachtragsbaugenehmigung` (nur 0200/0202) |
+| Gebäudeklasse | Vorhabenprofil der Akte | `bauordnungsrechtlicheKlassifikation/gebaeudeklasse` |
+| Flächen nach BauNVO | Aktuelle Nutzungsprüfung genau eines Baugrundstücks: maßgebende Grundstücksfläche, GR, GF, BM, GRZ, GFZ, BMZ (geplant), Vollgeschosse; Soll-Werte nur aus Festsetzungen | `bauvorhabenDatenblatt/flaechen/flaechen.BauNVO` |
+
+Flächen werden nicht übermittelt, wenn die Baugrundstücksermittlung veraltet ist
+oder das Vorhaben mehrere Baugrundstücke hat (XBau kennt eine Flächenangabe je
+Bauvorhaben); der Abgabestand nennt das als Hinweis. Ohne Berechnung entfällt
+die Angabe ohne Hinweis. Ein Änderungsantrag ohne Vorgängerverfahren mit
+Aktenzeichen erhält ebenfalls einen Hinweis.
+
+Nicht übermittelt werden Abweichungen/Befreiungen, Baulasten und Nachbarn: Das
+Datenmodell erfasst weder beantragte Abweichungen noch Baulasterklärungen
+(Art, Baulastgeber) noch die Zustimmung von Nachbarn, und die dafür nötigen
+Landes-Codelisten (Abweichungsart, Art der Baulast) sind nicht eingebunden.
+
+**Prüfung vor dem Export** (`fehlende_angaben`): zustellfähige Anschrift (Straße,
+Postleitzahl, Ort) von Bauherren, Gebührenpflichtigem und Büro; Art jeder
+Anlage mit Dateinamen in der Meldung; Zeichen außerhalb DIN 91379 (Datentyp C)
+in Namen, Anschriften und Bezeichnungen mit Feld und Zeichen. Die Kundenpflege
+lehnt solche Zeichen schon beim Speichern ab. Steuerzeichen in Freitexten meldet
+der Export, statt sie still zu entfernen.
+
+**Größen:** Ein Abgabestand umfasst höchstens 128 MiB Unterlagen (dieselbe
+Grenze wie der entpackte Inhalt eines XBau-Pakets). Mit XBau-Ausgabe darf jede
+Unterlage höchstens 64 MiB groß sein und das gepackte Paket ebenfalls; beides
+wird vor der Schemaprüfung mit Größenangabe gemeldet.
+
 ## Bedienung
 
 Im Projekt **Unterlagen → XBau-Nachrichten** öffnen. Ein Original importieren

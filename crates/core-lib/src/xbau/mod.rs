@@ -13,6 +13,8 @@
 mod antrag;
 pub mod austausch;
 pub mod codeliste;
+pub mod din91379;
+mod inhalt;
 pub mod paket;
 pub mod postfach;
 mod xml;
@@ -30,6 +32,7 @@ pub use antrag::{
     baugenehmigung_antrag,
 };
 pub use codeliste::{Codeeintrag, Codeliste, Codelisten};
+pub use inhalt::{FlaechenBauNvo, Vorhabenangaben, WeitereRolle, WeitererBeteiligter};
 
 /// Version des XBau-Standards, die der Export erzeugt.
 pub const XBAU_VERSION: &str = "2.7";
@@ -56,7 +59,22 @@ impl Anschrift {
     }
 }
 
-/// Bauherr oder Gebührenpflichtiger: natürliche Person oder Organisation.
+/// Erreichbarkeit eines Beteiligten (XBau `Kommunikation`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Kommunikation {
+    pub telefon: String,
+    pub email: String,
+}
+
+impl Kommunikation {
+    pub fn ist_leer(&self) -> bool {
+        self.telefon.trim().is_empty() && self.email.trim().is_empty()
+    }
+}
+
+/// Bauherr, Gebührenpflichtiger oder weiterer Beteiligter: natürliche Person
+/// oder Organisation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "art", rename_all = "snake_case")]
 pub enum Beteiligter {
@@ -70,6 +88,9 @@ pub enum Beteiligter {
         familienname: String,
         #[serde(default)]
         anschrift: Anschrift,
+        /// Fehlt in älteren Bauanträgen und Abgabeständen.
+        #[serde(default, skip_serializing_if = "Kommunikation::ist_leer")]
+        kommunikation: Kommunikation,
     },
     Organisation {
         #[serde(default = "Uuid::new_v4")]
@@ -78,11 +99,46 @@ pub enum Beteiligter {
         name: String,
         #[serde(default)]
         anschrift: Anschrift,
+        /// Ansprechpartner als Freitext (Name der Person); fehlt in älteren
+        /// Bauanträgen und Abgabeständen.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        ansprechpartner: String,
+        #[serde(default, skip_serializing_if = "Kommunikation::ist_leer")]
+        kommunikation: Kommunikation,
     },
 }
 
 impl Beteiligter {
+    pub fn id(&self) -> Uuid {
+        match self {
+            Self::Person { id, .. } | Self::Organisation { id, .. } => *id,
+        }
+    }
+
+    pub fn anschrift(&self) -> &Anschrift {
+        match self {
+            Self::Person { anschrift, .. } | Self::Organisation { anschrift, .. } => anschrift,
+        }
+    }
+
+    /// Name, Anschrift und Zeichenvorrat. Die Anschrift muss zustellfähig
+    /// sein (XBau verlangt sie für Bauherren und Gebührenpflichtige).
     fn fehlende(&self, wer: &str, fehlt: &mut Vec<String>) {
+        self.namen_pruefen(wer, fehlt);
+        let a = self.anschrift();
+        for (feld, wert) in [
+            ("Straße", &a.strasse),
+            ("Postleitzahl", &a.postleitzahl),
+            ("Ort", &a.ort),
+        ] {
+            if wert.trim().is_empty() {
+                fehlt.push(format!("{wer}: Anschrift ({feld})"));
+            }
+        }
+    }
+
+    /// Name und Zeichenvorrat (DIN 91379) ohne Pflicht zur Anschrift.
+    fn namen_pruefen(&self, wer: &str, fehlt: &mut Vec<String>) {
         match self {
             Self::Person {
                 vorname,
@@ -102,7 +158,50 @@ impl Beteiligter {
                 }
             }
         }
+        for (feld, wert) in self.texte() {
+            fehlt.extend(din91379::meldung(&format!("{wer}: {feld}"), wert));
+        }
     }
+
+    /// Alle Texte, die in die XBau-Nachricht gehen, mit Feldnamen.
+    fn texte(&self) -> Vec<(&'static str, &str)> {
+        let mut t = match self {
+            Self::Person {
+                vorname,
+                familienname,
+                ..
+            } => vec![
+                ("Vorname", vorname.as_str()),
+                ("Familienname", familienname.as_str()),
+            ],
+            Self::Organisation {
+                name,
+                ansprechpartner,
+                ..
+            } => vec![
+                ("Name der Organisation", name.as_str()),
+                ("Ansprechpartner", ansprechpartner.as_str()),
+            ],
+        };
+        t.extend(anschrift_texte(self.anschrift()));
+        let k = match self {
+            Self::Person { kommunikation, .. } | Self::Organisation { kommunikation, .. } => {
+                kommunikation
+            }
+        };
+        t.push(("Telefon", k.telefon.as_str()));
+        t.push(("E-Mail", k.email.as_str()));
+        t
+    }
+}
+
+fn anschrift_texte(a: &Anschrift) -> [(&'static str, &str); 4] {
+    [
+        ("Straße", a.strasse.as_str()),
+        ("Hausnummer", a.hausnummer.as_str()),
+        ("Postleitzahl", a.postleitzahl.as_str()),
+        ("Ort", a.ort.as_str()),
+    ]
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -185,6 +284,11 @@ pub struct Bauantrag {
     pub anzahl_gebaeude: u32,
     pub grundstueck: Baugrundstueck,
     pub anlagen: Vec<Anlagenwahl>,
+    /// Bauordnungsrechtliche Verfahrensart als Code der Landes-Codeliste
+    /// [`codeliste::verfahrensart_uri`]; leer = nicht angegeben. Fehlt in
+    /// älteren Bauanträgen.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub verfahrensart: String,
 }
 
 impl Default for Bauantrag {
@@ -203,6 +307,7 @@ impl Default for Bauantrag {
                 flurstuecke: vec![Flurstueck::default()],
             },
             anlagen: Vec::new(),
+            verfahrensart: String::new(),
         }
     }
 }
@@ -221,7 +326,8 @@ impl Bauantrag {
     }
 
     /// Pflichtangaben, die für den Export noch fehlen (leer = vollständig).
-    /// `bauherren` sind die dem Projekt zugeordneten Bauherren.
+    /// `bauherren` sind die dem Projekt zugeordneten Bauherren. Genannt werden
+    /// auch Texte mit Zeichen außerhalb DIN 91379, die das Schema ablehnt.
     pub fn fehlende_angaben(&self, buero: &Buero, bauherren: &[Beteiligter]) -> Vec<String> {
         let mut fehlt = Vec::new();
         if buero.name.trim().is_empty() {
@@ -229,6 +335,22 @@ impl Bauantrag {
         }
         if buero.kennung.trim().is_empty() {
             fehlt.push("Büro: Absenderkennung".into());
+        }
+        // Die Büroanschrift ist die Geschäftsanschrift des Entwurfsverfassers.
+        for (feld, wert) in [
+            ("Straße", &buero.anschrift.strasse),
+            ("Postleitzahl", &buero.anschrift.postleitzahl),
+            ("Ort", &buero.anschrift.ort),
+        ] {
+            if wert.trim().is_empty() {
+                fehlt.push(format!("Büro: Anschrift ({feld})"));
+            }
+        }
+        for (feld, wert) in [("Name", buero.name.as_str())]
+            .into_iter()
+            .chain(anschrift_texte(&buero.anschrift))
+        {
+            fehlt.extend(din91379::meldung(&format!("Büro: {feld}"), wert));
         }
         match self.entwurfsverfasser_von(buero) {
             Some(e) => e.fehlende(&mut fehlt),
@@ -243,6 +365,14 @@ impl Bauantrag {
         if self.bauaufsicht.kennung.trim().is_empty() {
             fehlt.push("Bauaufsichtsbehörde: Behördenkennung (DVDV)".into());
         }
+        fehlt.extend(din91379::meldung(
+            "Bauaufsichtsbehörde: Name",
+            &self.bauaufsicht.name,
+        ));
+        fehlt.extend(din91379::meldung(
+            "Bezeichnung des Bauvorhabens",
+            &self.bezeichnung,
+        ));
         if bauherren.is_empty() {
             fehlt.push("Bauherr".into());
         }
@@ -265,6 +395,12 @@ impl Bauantrag {
                 fehlt.push(format!("Art der Maßnahme: unbekannter Code {m}"));
             }
         }
+        for (feld, wert) in anschrift_texte(&self.grundstueck.anschrift) {
+            fehlt.extend(din91379::meldung(
+                &format!("Grundstück: Anschrift ({feld})"),
+                wert,
+            ));
+        }
         if self.grundstueck.flurstuecke.is_empty() {
             fehlt.push("Flurstück".into());
         }
@@ -280,13 +416,24 @@ impl Bauantrag {
             if f.zaehler.trim().is_empty() {
                 fehlt.push(format!("{wer}: Flurstücksnummer"));
             }
+            for (feld, wert) in [
+                ("Gemarkung", &f.gemarkung),
+                ("Flur", &f.flur),
+                ("Flurstücksnummer", &f.zaehler),
+                ("Nenner", &f.nenner),
+            ] {
+                fehlt.extend(din91379::meldung(&format!("{wer}: {feld}"), wert));
+            }
         }
         if self.anlagen.is_empty() {
             fehlt.push("mindestens eine Anlage (Bauvorlage)".into());
         }
-        for a in &self.anlagen {
+        for (i, a) in self.anlagen.iter().enumerate() {
             if a.anlageart.trim().is_empty() {
-                fehlt.push(format!("Anlage {}: Art der Anlage", a.bezeichnung.trim()));
+                fehlt.push(match a.bezeichnung.trim() {
+                    "" => format!("{}. Anlage: Art der Anlage wählen", i + 1),
+                    b => format!("Anlage „{b}“: Art der Anlage wählen"),
+                });
             }
         }
         fehlt
@@ -373,6 +520,16 @@ impl Entwurfsverfasser {
     }
 
     fn fehlende(&self, fehlt: &mut Vec<String>) {
+        for (feld, wert) in [
+            ("Vorname", &self.vorname),
+            ("Familienname", &self.familienname),
+            ("Berufsbezeichnung", &self.berufsbezeichnung),
+        ] {
+            fehlt.extend(din91379::meldung(
+                &format!("Entwurfsverfasser: {feld}"),
+                wert,
+            ));
+        }
         if self.vorname.trim().is_empty() {
             fehlt.push("Entwurfsverfasser: Vorname".into());
         }
@@ -409,6 +566,11 @@ pub struct GespeicherterBauantrag {
     /// `true`: Die Flurstücke stammen aus den Grundstücksinformationen des
     /// Projekts und werden dort bearbeitet; die Liste im Antrag ist nur Anzeige.
     pub flurstuecke_zentral: bool,
+    /// Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts
+    /// ([`codeliste::verfahrensart_uri`]), sofern geladen; daraus wird
+    /// [`Bauantrag::verfahrensart`] gewählt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verfahrensarten: Option<Codeliste>,
 }
 
 /// Art der Maßnahme (XBau-interne Codeliste `baumassnahmeart`, Version 2.0).
