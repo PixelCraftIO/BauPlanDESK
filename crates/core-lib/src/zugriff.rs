@@ -14,11 +14,38 @@ pub enum ProjektRecht {
     Bearbeiten,
     Leitung,
 }
+/// Eingabevertrag (Desktop/Server) einer Projektmitgliedschaft; bleibt an der
+/// API-Grenze streng. Gespeicherte Mitgliedschaften liest die Zugriffsprüfung
+/// tolerant über [`gespeichertes_recht`], damit eine neuere Programmversion an
+/// derselben Datenbank Felder ergänzen kann, ohne ältere Arbeitsplätze mit einem
+/// Datenbankfehler auszusperren.
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct ProjektMitglied {
     pub benutzer_id: BenutzerId,
     pub recht: ProjektRecht,
+}
+const MITGLIED_FELDER: [&str; 2] = ["benutzer_id", "recht"];
+/// Liest nur das für die Zugriffsprüfung nötige Recht aus einer gespeicherten
+/// Mitgliedschaft; unbekannte weitere Felder werden ignoriert. Ein unbekanntes
+/// Recht (neuere Version) gewährt nichts: Zugriff verweigert, mit Hinweis.
+fn gespeichertes_recht(daten: &serde_json::Value) -> CoreResult<ProjektRecht> {
+    let recht = daten.get("recht").ok_or_else(|| {
+        CoreError::Database("Projektmitgliedschaft ohne Recht gespeichert".into())
+    })?;
+    serde_json::from_value(recht.clone()).map_err(|_| {
+        CoreError::Forbidden(format!(
+            "Die Projektberechtigung {recht} stammt aus einer neueren BauProjektIO-Version. \
+             Bitte BauProjektIO aktualisieren."
+        ))
+    })
+}
+/// Enthält die gespeicherte Mitgliedschaft Angaben, die diese Version nicht kennt?
+fn aus_neuerer_version(daten: &serde_json::Value) -> bool {
+    daten
+        .as_object()
+        .is_some_and(|o| o.keys().any(|k| !MITGLIED_FELDER.contains(&k.as_str())))
+        || matches!(gespeichertes_recht(daten), Err(CoreError::Forbidden(_)))
 }
 impl CoreServices {
     pub async fn einreichung_zugriff(
@@ -49,7 +76,7 @@ impl CoreServices {
         wer: &Benutzer,
         min: ProjektRecht,
     ) -> CoreResult<()> {
-        let aktuell = self.repos.benutzer.get(wer.id).await?;
+        let aktuell = self.angemeldeter_benutzer(wer).await?;
         if !aktuell.aktiv {
             return Err(CoreError::Forbidden("Benutzerkonto ist deaktiviert".into()));
         }
@@ -64,9 +91,7 @@ impl CoreServices {
             .into_iter()
             .find(|f| f.objekt == wer.id.to_string())
             .ok_or_else(|| CoreError::Forbidden("Keine Projektmitgliedschaft".into()))?;
-        let m: ProjektMitglied =
-            serde_json::from_value(f.daten).map_err(|e| CoreError::Database(e.to_string()))?;
-        if m.recht < min {
+        if gespeichertes_recht(&f.daten)? < min {
             return Err(CoreError::Forbidden(
                 "Projektberechtigung reicht nicht aus".into(),
             ));
@@ -109,6 +134,24 @@ impl CoreServices {
             ));
         }
         let objekt = m.benutzer_id.to_string();
+        // Eine von einer neueren Version gespeicherte Mitgliedschaft nicht mit dem
+        // eigenen, kleineren Format überschreiben (Felder gingen still verloren).
+        if let Some(alt) = self
+            .repos
+            .commit
+            .fachstaende(p, "mitgliedschaften")
+            .await?
+            .into_iter()
+            .find(|f| f.objekt == objekt)
+            && aus_neuerer_version(&alt.daten)
+        {
+            return Err(CoreError::InvalidInput(
+                "Diese Projektberechtigung wurde mit einer neueren BauProjektIO-Version \
+                 gespeichert. Bitte BauProjektIO aktualisieren; die Berechtigung wurde nicht \
+                 geändert."
+                    .into(),
+            ));
+        }
         let daten = serde_json::to_value(m).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
         self.repos
             .commit
@@ -131,5 +174,82 @@ impl CoreServices {
                 ),
             )
             .await
+    }
+
+    // --- Sichtbarkeit von Kundendaten (Bauherren, Beteiligte; DSGVO) ---------
+    //
+    // Regel: Wer Kunden pflegen darf (Recht `KundenBearbeiten`, also Bearbeitung,
+    // Projektleitung, Administration), sieht die gesamte Kundendatenbank. Alle
+    // anderen sehen nur Kunden, die als Bauherr oder Beteiligter in einem Projekt
+    // eingetragen sind, das sie lesen dürfen. Adapter verwenden ausschließlich
+    // [`Self::kunden_fuer_benutzer`] und [`Self::kunde_fuer_benutzer`].
+
+    /// Darf `wer` die gesamte Kundendatenbank sehen? Maßgebend ist die aktuell
+    /// gespeicherte Rolle; deaktivierte Konten sehen nichts.
+    async fn alle_kunden_sichtbar(&self, wer: &Benutzer) -> CoreResult<bool> {
+        let aktuell = self.repos.benutzer.get(wer.id).await?;
+        if !aktuell.aktiv {
+            return Err(CoreError::Forbidden("Benutzerkonto ist deaktiviert".into()));
+        }
+        Ok(aktuell.rolle.darf(Recht::KundenBearbeiten) && wer.rolle.darf(Recht::KundenBearbeiten))
+    }
+    /// Kunden aus den Projekten, die `wer` lesen darf.
+    async fn kunden_aus_sichtbaren_projekten(
+        &self,
+        wer: &Benutzer,
+    ) -> CoreResult<std::collections::HashSet<crate::kunden::KundeId>> {
+        let mut ids = std::collections::HashSet::new();
+        for p in self.projekte_fuer_benutzer(wer).await? {
+            ids.extend(self.bauherren(p.id).await?.into_iter().map(|k| k.id));
+            ids.extend(self.beteiligte(p.id).await?.into_iter().map(|b| b.kunde.id));
+        }
+        Ok(ids)
+    }
+    /// Kundenliste in der Sicht von `wer` (siehe Regel oben).
+    pub async fn kunden_fuer_benutzer(
+        &self,
+        wer: &Benutzer,
+    ) -> CoreResult<Vec<crate::kunden::Kunde>> {
+        if self.alle_kunden_sichtbar(wer).await? {
+            return self.kunden_auflisten().await;
+        }
+        let ids = self.kunden_aus_sichtbaren_projekten(wer).await?;
+        let mut k = self.kunden_auflisten().await?;
+        k.retain(|k| ids.contains(&k.id));
+        Ok(k)
+    }
+    /// Einzelner Kunde in der Sicht von `wer`; sonst `Forbidden`.
+    pub async fn kunde_fuer_benutzer(
+        &self,
+        id: crate::kunden::KundeId,
+        wer: &Benutzer,
+    ) -> CoreResult<crate::kunden::Kunde> {
+        if !self.alle_kunden_sichtbar(wer).await? {
+            let sichtbar = self
+                .repos
+                .kunden
+                .projekte_des_kunden(id)
+                .await?
+                .into_iter()
+                .map(|p| p.id)
+                .collect::<Vec<_>>();
+            let mut erlaubt = false;
+            for p in sichtbar {
+                if self
+                    .projekt_zugriff(p, wer, ProjektRecht::Lesen)
+                    .await
+                    .is_ok()
+                {
+                    erlaubt = true;
+                    break;
+                }
+            }
+            if !erlaubt {
+                return Err(CoreError::Forbidden(
+                    "Kunde ist in keinem sichtbaren Projekt eingetragen".into(),
+                ));
+            }
+        }
+        self.kunde(id).await
     }
 }

@@ -24,6 +24,8 @@ pub mod id {
     pub const ZOOM_RESET: &str = "ansicht.zoom_reset";
     pub const UPDATES: &str = "hilfe.updates";
     pub const BEENDEN: &str = "datei.beenden";
+    /// Nur im Netzwerkbetrieb (Anmeldung mit Kennwort).
+    pub const ABMELDEN: &str = "anwendung.abmelden";
     pub const RUECKGAENGIG: &str = "bearbeiten.rueckgaengig";
     pub const WIEDERHOLEN: &str = "bearbeiten.wiederholen";
     pub const ZULETZT_PREFIX: &str = "zuletzt:";
@@ -206,6 +208,18 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             None,
             true,
         )?);
+    if app
+        .state::<crate::bootstrap::AppState>()
+        .kennwortanmeldung()
+    {
+        // Das Frontend prüft offene Eingaben und zeigt danach den Anmeldedialog.
+        datei = datei.separator().item(&item(
+            id::ABMELDEN,
+            "Abmelden / Benutzer wechseln …",
+            None,
+            true,
+        )?);
+    }
     // Unter macOS steht "Beenden" im App-Menü. Unter Windows/Linux ein
     // eigener Eintrag, weil das vordefinierte "Quit" unter Linux fehlt.
     if !cfg!(target_os = "macos") {

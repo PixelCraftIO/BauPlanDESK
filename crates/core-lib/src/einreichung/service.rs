@@ -274,4 +274,19 @@ impl CoreServices {
             .await?;
         Ok((e, data))
     }
+    /// Schreibt das gespeicherte Einreichungs-ZIP nach `ziel` (Download, Datei).
+    /// Gleichzeitige Exporte sind je Prozess begrenzt; das Paket liegt dabei nur
+    /// einmal im Speicher und wird nach dem Schreiben freigegeben.
+    pub async fn einreichung_zip_schreiben<W: std::io::Write + Send>(
+        &self,
+        id: Uuid,
+        mut ziel: W,
+    ) -> CoreResult<(Einreichung, W)> {
+        let _platz = crate::exportgrenze::platz().await?;
+        let (e, data) = self.einreichung_zip(id).await?;
+        ziel.write_all(&data)
+            .and_then(|_| ziel.flush())
+            .map_err(|f| CoreError::Storage(format!("Einreichungspaket nicht geschrieben: {f}")))?;
+        Ok((e, ziel))
+    }
 }

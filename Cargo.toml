@@ -70,6 +70,8 @@ mail-parser = { version = "0.11.9", features = ["full_encoding"] }
 cfb = "0.14"
 encoding_rs = "0.8"
 getrandom = "0.3"
+# Passwort-Hashes der Benutzeranmeldung (Argon2id, MIT/Apache-2.0)
+argon2 = { version = "0.5", default-features = false, features = ["alloc", "password-hash", "std"] }
 # XBau: Genericode-Codelisten lesen (MIT), ZIP-Pakete (MIT, Deflate über zlib-rs, Zlib)
 quick-xml = "0.42"
 zip = { version = "9.0.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
@@ -79,3 +81,11 @@ codegen-units = 1
 lto = true
 opt-level = 3
 strip = true
+
+# Argon2id braucht ohne Optimierung mehrere Sekunden je Kennwortprüfung;
+# auch Debug-Builds und Tests prüfen Kennwörter in normaler Zeit.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

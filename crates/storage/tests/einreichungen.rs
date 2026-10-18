@@ -153,6 +153,11 @@ async fn dateiarbeit_paketstaende_nachreichungen_und_neustart() {
         4
     );
     let originalzip = core.einreichung_zip(erster.stand.id).await.unwrap().1;
+    let (_, geschrieben) = core
+        .einreichung_zip_schreiben(erster.stand.id, Vec::new())
+        .await
+        .unwrap();
+    assert_eq!(geschrieben, originalzip.to_vec());
     assert!(
         core.einreichungs_vergleich(p.id, "Bauamt")
             .await
