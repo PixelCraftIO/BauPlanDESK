@@ -79,6 +79,7 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
         };
     }
     verboten!(c::projekt_laden(app.state(), fremd.id));
+    verboten!(c::projekt_recht(app.state(), fremd.id));
     verboten!(c::dokumente_auflisten(app.state(), fremd.id));
     verboten!(c::bauherren(app.state(), fremd.id));
     verboten!(c::beteiligte(app.state(), fremd.id));
@@ -140,6 +141,10 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
     assert_eq!(
         c::projekt_laden(app.state(), fremd.id).await.unwrap().id,
         fremd.id
+    );
+    assert_eq!(
+        c::projekt_recht(app.state(), fremd.id).await.unwrap(),
+        ProjektRecht::Lesen
     );
     assert_eq!(
         c::dokumente_auflisten(app.state(), fremd.id)

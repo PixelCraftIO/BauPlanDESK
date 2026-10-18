@@ -82,6 +82,28 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         status(&app, &format!("/api/projekte/{}", fremd.id), true).await,
         StatusCode::FORBIDDEN
     );
+    // Eigenes Projektrecht: dieselbe Regel wie die Zugriffsprüfung.
+    let recht = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/projekte/{}/recht", p.id))
+                .header("authorization", format!("Bearer {TOKEN}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(recht.status(), StatusCode::OK);
+    let recht = axum::body::to_bytes(recht.into_body(), 1024).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<ProjektRecht>(&recht).unwrap(),
+        ProjektRecht::Lesen
+    );
+    assert_eq!(
+        status(&app, &format!("/api/projekte/{}/recht", fremd.id), true).await,
+        StatusCode::FORBIDDEN
+    );
     assert_eq!(
         status(&app, "/api/berechnungsvorlagen", true).await,
         StatusCode::OK

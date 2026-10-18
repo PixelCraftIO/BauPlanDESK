@@ -5,6 +5,7 @@ import type {
   Druckposition,
   Druckquelle,
 } from "./generated/plattform";
+import { nachErfolg } from "./projektEreignisse";
 export type { Druckquelle };
 export interface Druckvorschau {
   pdf_base64: string;
@@ -27,12 +28,15 @@ export const druckApi = {
     pdfBase64: string,
     vorgang: string,
   ) =>
-    invoke<import("./api").DocumentVersion>("druckausgabe_ablegen", {
-      projektId,
-      name,
-      pdfBase64,
-      vorgang,
-    }),
+    nachErfolg(
+      invoke<import("./api").DocumentVersion>("druckausgabe_ablegen", {
+        projektId,
+        name,
+        pdfBase64,
+        vorgang,
+      }),
+      { projektId, bereich: "dokumente" },
+    ),
   katalog: (projektId: string) =>
     invoke<Druckkatalog>("druckkatalog", { projektId }),
   erstellen: (projektId: string, auftrag: Druckauftrag) =>

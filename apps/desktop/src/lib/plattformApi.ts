@@ -9,6 +9,7 @@ import type {
   RaumSummen,
   JsonValue,
 } from "./generated/plattform";
+import { nachErfolg } from "./projektEreignisse";
 export type Datensatz<T> = Omit<Fachstand, "daten"> & { daten: T };
 export const plattformApi = {
   mitglieder: (projektId: string) =>
@@ -43,13 +44,16 @@ export const plattformApi = {
     basis: number,
     daten: T,
   ) =>
-    invoke<Datensatz<T>>("fachobjekt_speichern", {
-      projektId,
-      art,
-      id,
-      basis,
-      daten,
-    }),
+    nachErfolg(
+      invoke<Datensatz<T>>("fachobjekt_speichern", {
+        projektId,
+        art,
+        id,
+        basis,
+        daten,
+      }),
+      { projektId, bereich: "fachobjekte" },
+    ),
   nachweise: (projektId: string) =>
     invoke<NachweisAnsicht[]>("nachweise", { projektId }),
   nachweisErstellen: (
@@ -58,16 +62,25 @@ export const plattformApi = {
     bezeichnung: string,
     eingabe: NachweisEingabe,
   ) =>
-    invoke<Nachweisstand>("nachweis_erstellen", {
-      projektId,
-      id,
-      bezeichnung,
-      eingabe,
-    }),
+    nachErfolg(
+      invoke<Nachweisstand>("nachweis_erstellen", {
+        projektId,
+        id,
+        bezeichnung,
+        eingabe,
+      }),
+      { projektId, bereich: "nachweise" },
+    ),
   freigeben: (projektId: string, id: string, bemerkung: string) =>
-    invoke<Freigabe>("nachweis_freigeben", { projektId, id, bemerkung }),
+    nachErfolg(
+      invoke<Freigabe>("nachweis_freigeben", { projektId, id, bemerkung }),
+      { projektId, bereich: "nachweise" },
+    ),
   wiederholen: (projektId: string, id: string) =>
-    invoke<JsonValue>("nachweis_wiederholen", { projektId, id }),
+    nachErfolg(
+      invoke<JsonValue>("nachweis_wiederholen", { projektId, id }),
+      { projektId, bereich: "nachweise" },
+    ),
   raumsummen: (projektId: string, id: string) =>
     invoke<RaumSummen>("raumbuch_summen", { projektId, id }),
 };

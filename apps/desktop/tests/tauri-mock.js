@@ -69,6 +69,14 @@ window.__TAURI_INTERNALS__ = {
     }
     if (cmd === "plugin:dialog|save" || cmd === "plugin:dialog|open")
       return null;
+    // Rückfragen (ask/confirm): standardmäßig bestätigen; `window.rueckfrage`
+    // = false wählt „Abbrechen“. Gestellte Fragen stehen in `window.rueckfragen`.
+    if (cmd === "plugin:dialog|message") {
+      (window.rueckfragen ??= []).push(args.message);
+      const [ja, nein] = args.buttons?.OkCancelCustom ??
+        (args.buttons === "OkCancel" ? ["Ok", "Cancel"] : ["Yes", "No"]);
+      return window.rueckfrage === false ? nein : ja;
+    }
     if (["fachobjekte","fachverlauf","nachweise"].includes(cmd)) return [];
     if(cmd==='projektuebersicht')return {projekt_id:args.projektId,projekt_version:initial.version,ermittelt_am:initial.created_at,stichtag:'2026-10-16',zahlen:{offene_aufgaben:0,fehlende_unterlagen:0,nachweise_pruefen:0,offene_nachforderungen:0,offene_auflagen:0,ueberfaellig:0},punkte:[],verfahren:[],abgaben:[],empfaenger:[],hinweise:['Fiktive leere Übersicht für diesen Browsertransport.']};
     if (cmd === "projektstatus") return {ermittelt_am:initial.created_at,offene_aufgaben:0,ueberfaellige_aufgaben:0,erforderliche_unterlagen:0,fehlende_unterlagen:0,ungepruefte_unterlagen:0,nachweise:0,veraltete_nachweise:0,offene_freigaben:0,exportierte_pakete:0,bestaetigte_einreichungen:0,hinweise:[]};
@@ -118,6 +126,9 @@ window.__TAURI_INTERNALS__ = {
     if (cmd === "projekt_schliessen") return;
     if (cmd === "projekt_laden" || cmd === "projekt_oeffnen")
       return copy(window.testProjects.find((p) => p.id === args.id));
+    // Eigenes Projektrecht (core-lib zugriff.rs); je Projekt überschreibbar.
+    if (cmd === "projekt_recht")
+      return window.testProjektRecht?.[args.id] ?? "leitung";
     if (
       [
         "bauherren",

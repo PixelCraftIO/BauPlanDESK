@@ -49,8 +49,16 @@ frühere Dokumentationsaufnahmen beim erneuten Testen erhalten bleiben.
 `python apps/desktop/tests/fehler-regressionen.py` prüft Neuanlage mit fehlgeschlagener
 Bauherrnzuordnung, Kundenladefehler, Konflikt mit fehlgeschlagenem Neuladen,
 wirksame Lizenzrolle, Projektmitglieder samt Versionskonflikt und das Öffnen eines
-Altprojekts mit abweichender BauNVO ohne unbeabsichtigten Entwurf. Der Test nutzt
+Altprojekts mit abweichender BauNVO ohne unbeabsichtigten Entwurf. Außerdem
+Versionskonflikte bei Projektdaten, Bauherren und Kunden (Eingaben bleiben,
+„Alle speichern und beenden“ schließt nicht), Rückfragen bei Escape und
+Menübefehlen, Strg+S je Ansicht und das Projektrecht „Lesen“. Der Test nutzt
 ebenfalls `BAUPROJEKT_UI_URL` und optional `BAUPROJEKT_CHROMIUM`.
+
+Der Testtransport beantwortet Rückfragen (`ask`/`confirm`) standardmäßig mit
+Bestätigen; `window.rueckfrage = false` wählt „Abbrechen“, gestellte Fragen
+stehen in `window.rueckfragen`. `projekt_recht` liefert `leitung`, je Projekt
+überschreibbar über `window.testProjektRecht = { [projektId]: "lesen" }`.
 `node --test apps/desktop/tests/kalender.test.mjs` prüft die Datumsgrenzen für
 Einreichungsfelder und Exportnamen ohne Abhängigkeit von der Rechnerzeitzone.
 

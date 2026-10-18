@@ -28,6 +28,7 @@
     type Projektbeteiligter,
   } from "./api";
   import AnschriftFelder from "./AnschriftFelder.svelte";
+  import { abonnieren, bueroAbonnieren } from "./projektEreignisse";
   import BeteiligterFelder from "./BeteiligterFelder.svelte";
 
   let {
@@ -63,6 +64,24 @@
   let kunden = $state<Kunde[]>([]);
   let entwurfsverfasser = $state<Entwurfsverfasser[]>([]);
   let laeuft = $state(false);
+  /** Ladefehler je Auswahlliste: nicht still als leere Liste anzeigen. */
+  let ladefehler = $state<{
+    beteiligte?: string;
+    kunden?: string;
+    buero?: string;
+    dokumente?: string;
+  }>({});
+  const beteiligteLesen = () =>
+    api.beteiligte(projekt.id).then(
+      (t) => {
+        ladefehler.beteiligte = undefined;
+        return t;
+      },
+      (e) => {
+        ladefehler.beteiligte = fehlertext(e);
+        return beteiligte;
+      },
+    );
 
   const geaendert = $derived(
     !!antrag &&
@@ -101,13 +120,14 @@
         api.dokumente(projekt.id),
         api.xbauCodelisten(),
         api.bauherren(projekt.id),
-        api.beteiligte(projekt.id).catch(() => []),
+        beteiligteLesen(),
         entwurfsverfasserLaden(),
       ]);
       uebernehmen(g);
       bauherren = b;
       beteiligte = t;
       dokumente = neuesteVersionen(d);
+      ladefehler.dokumente = undefined;
       anlagenarten = listen.find((l) => l.uri === CODELISTE_ANLAGEN) ?? null;
     } catch (e) {
       onfehler(fehlertext(e));
@@ -126,27 +146,48 @@
     const v = projekt.version;
     if (v === geladeneVersion) return;
     geladeneVersion = v;
-    untrack(async () => {
-      try {
-        const [g, b, t] = await Promise.all([
-          api.bauantrag(projekt.id),
-          api.bauherren(projekt.id),
-          api.beteiligte(projekt.id).catch(() => beteiligte),
-        ]);
-        bauherren = b;
-        beteiligte = t;
-        if (!geaendert) uebernehmen(g);
-        else if (gespeichert)
-          gespeichert = {
-            ...gespeichert,
-            fehlende_angaben: g.fehlende_angaben,
-            hinweise: g.hinweise,
-          };
-      } catch (e) {
-        onfehler(fehlertext(e));
-      }
-    });
+    untrack(stammdatenAbgleichen);
   });
+  async function stammdatenAbgleichen() {
+    try {
+      const [g, b, t] = await Promise.all([
+        api.bauantrag(projekt.id),
+        api.bauherren(projekt.id),
+        beteiligteLesen(),
+      ]);
+      bauherren = b;
+      beteiligte = t;
+      if (!geaendert) uebernehmen(g);
+      else if (gespeichert)
+        gespeichert = {
+          ...gespeichert,
+          fehlende_angaben: g.fehlende_angaben,
+          hinweise: g.hinweise,
+        };
+    } catch (e) {
+      onfehler(fehlertext(e));
+    }
+  }
+  // Büroangaben gespeichert (die Projektversion ändert sich dabei nicht):
+  // Entwurfsverfasser und fehlende Angaben neu ermitteln.
+  $effect(() =>
+    bueroAbonnieren(() => {
+      void entwurfsverfasserLaden();
+      void stammdatenAbgleichen();
+    }),
+  );
+  // Andere Bereiche haben Dokumente abgelegt: Anlagenauswahl aktualisieren.
+  $effect(() =>
+    abonnieren(projekt.id, ["dokumente"], () => void dokumenteLaden()),
+  );
+  async function dokumenteLaden() {
+    try {
+      dokumente = neuesteVersionen(await api.dokumente(projekt.id));
+      ladefehler.dokumente = undefined;
+    } catch (e) {
+      ladefehler.dokumente = fehlertext(e);
+    }
+  }
 
   async function neuLaden() {
     if (
@@ -172,13 +213,21 @@
   // Die Büroangaben können sich im Dialog geändert haben. Fehlen sie, bleibt
   // die Maske nutzbar; die fehlenden Angaben nennen den Entwurfsverfasser.
   async function entwurfsverfasserLaden() {
-    entwurfsverfasser = await api
-      .buero()
-      .then((b) => b.entwurfsverfasser ?? [])
-      .catch(() => entwurfsverfasser);
+    try {
+      entwurfsverfasser = (await api.buero()).entwurfsverfasser ?? [];
+      ladefehler.buero = undefined;
+    } catch (e) {
+      ladefehler.buero = fehlertext(e);
+    }
   }
   async function kundenLaden() {
-    if (kunden.length === 0) kunden = await api.kunden().catch(() => []);
+    if (kunden.length > 0) return;
+    try {
+      kunden = await api.kunden();
+      ladefehler.kunden = undefined;
+    } catch (e) {
+      ladefehler.kunden = fehlertext(e);
+    }
   }
 
   async function speichern(): Promise<boolean> {
@@ -384,6 +433,9 @@
           <span class="meta">{beteiligtenrolleName(b.rolle)}</span>
         </div>
       {/each}
+      {#if ladefehler.beteiligte}<p class="fehlertext" role="alert">
+          Weitere Beteiligte konnten nicht geladen werden: {ladefehler.beteiligte}
+        </p>{/if}
       <button type="button" class="sekundaer" onclick={onbeteiligte}
         >Eigentümer und weitere Beteiligte …</button
       >
@@ -424,11 +476,17 @@
               >{/each}
           </select>
         </label>
+        {#if ladefehler.kunden}<p class="fehlertext" role="alert">
+            Kunden konnten nicht geladen werden: {ladefehler.kunden}
+          </p>{/if}
       {/if}
     </fieldset>
 
     <fieldset disabled={!darf}>
       <legend>Entwurfsverfasser</legend>
+      {#if ladefehler.buero}<p class="fehlertext" role="alert">
+          Büroangaben konnten nicht geladen werden: {ladefehler.buero}
+        </p>{/if}
       {#if entwurfsverfasser.length === 0}
         <p class="meta">
           In den Büroangaben ist noch keine bauvorlageberechtigte Person
@@ -568,6 +626,9 @@
           nur als Code eingetragen werden, und eine XBau-Abgabe ist nicht möglich.
         </p>
       {/if}
+      {#if ladefehler.dokumente}<p class="fehlertext" role="alert">
+          Die Dokumentliste konnte nicht aktualisiert werden: {ladefehler.dokumente}
+        </p>{/if}
       {#if dokumente.length === 0}
         <p class="meta">
           Noch keine Dokumente im Projekt. Bauvorlagen zuerst unter „Dokumente“
