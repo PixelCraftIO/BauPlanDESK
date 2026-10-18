@@ -117,6 +117,39 @@ native Menüaktionen und normales Fensterschließen gesperrt. Betriebssystem-
 Abstürze oder erzwungenes Beenden sind davon nicht erfasst. Ein Update ersetzt
 keine Datensicherung und führt keine automatische Datenrücksetzung durch.
 
+## Gemischte Versionen an einer gemeinsamen Datenbank
+
+Im Büro aktualisiert sich jeder Arbeitsplatz einzeln. Der erste Arbeitsplatz
+bzw. Server mit einer neuen Version führt deren Datenbankmigrationen beim Start
+aus. Startet danach eine **ältere** Version gegen diese Datenbank, erkennt sie
+den ihr unbekannten Datenbankstand, verändert nichts und bricht mit der Meldung
+„Diese Datenbank wurde mit einer neueren BauProjektIO-Version aktualisiert
+(Datenbankstand …). Bitte BauProjektIO auf diesem Arbeitsplatz bzw. Server
+aktualisieren. Die Datenbank wurde nicht verändert.“ ab (SQLite und
+PostgreSQL gleich, `CoreError::datenbank_neuer`). Eine inhaltlich abweichende,
+bereits angewendete Migration meldet `datenbankstand_abweichend`. Neuere
+Versionen migrieren weiter wie bisher. Updates mit Migrationen deshalb für alle
+Arbeitsplätze und den Server gemeinsam einplanen.
+
+**Gespeicherte JSON-Daten und `deny_unknown_fields`.** Viele Fachtypen dienen
+zugleich als API-Eingabevertrag und als gespeicherter Fachstand. Sie bleiben
+streng (`deny_unknown_fields`), damit Tippfehler und veraltete Clients an der
+API-Grenze auffallen. Entscheidung:
+
+- Gespeicherte Daten, die **jede** Anfrage durchlaufen, werden tolerant gelesen.
+  Das betrifft die Projektmitgliedschaften in der Zugriffsprüfung
+  (`zugriff.rs`): gelesen wird nur das Recht, zusätzliche Felder einer neueren
+  Version werden ignoriert. Ein unbekanntes Recht gewährt keinen Zugriff
+  (403 mit Hinweis auf die neuere Version), statt mit einem Datenbankfehler alle
+  Anfragen scheitern zu lassen. Eine ältere Version überschreibt eine solche
+  Mitgliedschaft nicht (die neuen Angaben gingen sonst still verloren).
+- Für die übrigen gespeicherten Fachstände bleibt das strenge Lesen bewusst
+  bestehen: Eine ältere Version, die neuere Felder verwerfen würde, könnte sie
+  beim nächsten Speichern still löschen. Wer einen gespeicherten Typ um Felder
+  erweitert, die ältere Versionen nicht verstehen, liefert daher zusätzlich eine
+  Migration (gegebenenfalls ohne Tabellenänderung) aus. Ältere Arbeitsplätze
+  stoppen dann beim Start mit der obigen Meldung statt im laufenden Betrieb.
+
 ## Tatsächlich ausgeführte Prüfungen
 
 - Rust: Schlüssel-/Quellenkonfiguration und Desktop-Kommandobuild.

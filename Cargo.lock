@@ -1140,6 +1140,7 @@ dependencies = [
  "core-lib",
  "serde_json",
  "sqlx",
+ "tempfile",
  "tokio",
  "uuid",
 ]
@@ -4943,6 +4944,7 @@ dependencies = [
  "storage",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tower",
  "tracing",
  "tracing-subscriber",

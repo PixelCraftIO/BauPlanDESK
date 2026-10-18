@@ -36,6 +36,8 @@ tracing.workspace = true
 uuid.workspace = true
 zip.workspace = true
 ts-rs.workspace = true
+# Nur Synchronisationsprimitive (Exportbegrenzung), keine Laufzeit und kein Dateisystem.
+tokio = { version = "1", default-features = false, features = ["sync"] }
 
 [features]
 # Stellt Beispiel-PDFs für Tests anderer Crates bereit.

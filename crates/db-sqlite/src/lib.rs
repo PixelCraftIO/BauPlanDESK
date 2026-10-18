@@ -117,7 +117,7 @@ impl SqliteDatabase {
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
-            .map_err(|e| CoreError::Database(e.to_string()))?;
+            .map_err(migrationsfehler)?;
         Ok(Self { pool })
     }
 
@@ -138,6 +138,16 @@ impl SqliteDatabase {
             bauantraege: this.clone(),
             kunden: this,
         }
+    }
+}
+
+/// Ältere Programmversion an einer bereits weiter migrierten Datenbank: klare
+/// Meldung statt rohem sqlx-Fehler. sqlx prüft vor dem Anwenden; nichts wurde verändert.
+fn migrationsfehler(e: sqlx::migrate::MigrateError) -> CoreError {
+    match e {
+        sqlx::migrate::MigrateError::VersionMissing(v) => CoreError::datenbank_neuer(v),
+        sqlx::migrate::MigrateError::VersionMismatch(v) => CoreError::datenbankstand_abweichend(v),
+        e => CoreError::Database(e.to_string()),
     }
 }
 
@@ -1205,6 +1215,38 @@ mod tests {
         assert_eq!(p.grundstuecksflaeche_m2, Some(800.0));
         assert_eq!(p.version, 1);
         assert_eq!(p.planungsrecht, Default::default());
+    }
+
+    #[tokio::test]
+    async fn aeltere_version_bricht_an_neuerer_datenbank_verstaendlich_ab() {
+        let dir = tempfile::tempdir().unwrap();
+        let pfad = dir.path().join("gemeinsam.db");
+        let db = SqliteDatabase::open(&pfad).await.unwrap();
+        // Eine neuere Programmversion hat einen weiteren Datenbankstand angewendet.
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time) VALUES (99999, 'zukunft', CURRENT_TIMESTAMP, 1, x'00', 0)",
+        )
+        .execute(&db.pool)
+        .await
+        .unwrap();
+        db.schliessen().await;
+        let fehler = SqliteDatabase::open(&pfad).await.err().unwrap().to_string();
+        assert!(
+            fehler.contains("mit einer neueren BauProjektIO-Version aktualisiert")
+                && fehler.contains("99999"),
+            "{fehler}"
+        );
+        // Unverändert: der fremde Stand bleibt, keine eigene Migration zurückgenommen.
+        let pool = SqlitePoolOptions::new()
+            .connect_with(SqliteConnectOptions::new().filename(&pfad))
+            .await
+            .unwrap();
+        let n: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE version=99999")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(n, 1);
     }
 
     #[tokio::test]
