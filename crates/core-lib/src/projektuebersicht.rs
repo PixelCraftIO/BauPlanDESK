@@ -446,11 +446,9 @@ impl CoreServices {
                         s.termin(None, r.verantwortlich);
                     }
                 }
-                for n in &a.nachforderungen {
-                    for r in &n.punkte {
-                        if matches!(r.status, Punktstatus::Bestaetigt | Punktstatus::Entfallen) {
-                            continue;
-                        }
+                // Mit der Entscheidung enden Nachforderungen; Auflagen bleiben.
+                {
+                    for r in crate::verfahren::termine::offene_forderungspunkte(&a) {
                         offen += 1;
                         let warten = r.status == Punktstatus::Eingereicht;
                         let datum = if warten {
@@ -479,16 +477,27 @@ impl CoreServices {
                 }
                 for r in a.schritte.iter().filter(|_| !a.status.abgeschlossen()) {
                     let anhoerung = r.art == crate::verfahren::Schrittart::Anhoerung;
-                    if anhoerung && r.stellungnahme.is_some() {
+                    if (anhoerung && r.stellungnahme.is_some())
+                        || (!anhoerung && r.folgeschreiben.is_some())
+                    {
                         continue;
                     }
                     let datum = r.frist.as_ref().map(|f| f.datum);
+                    // Nach ihrem Ende ist die Zurückstellung nicht überfällig:
+                    // Die Entscheidung der Behörde steht aus.
+                    let abgelaufen = !anhoerung && datum.is_some_and(|d| d < heute);
                     s.punkt(
                         format!("schritt:{vid}:{}", r.id),
                         Verfahren,
-                        frist(datum, heute, if anhoerung { Handeln } else { Warten }),
+                        if abgelaufen {
+                            Warten
+                        } else {
+                            frist(datum, heute, if anhoerung { Handeln } else { Warten })
+                        },
                         if anhoerung {
                             "Stellungnahme zur Anhörung abgeben"
+                        } else if abgelaufen {
+                            "Zurückstellung beendet – Entscheidung erwarten"
                         } else {
                             "Zurückstellung läuft"
                         },
@@ -497,23 +506,20 @@ impl CoreServices {
                             a.bezeichnung,
                             if anhoerung {
                                 "Die Behörde hört vor ihrer Entscheidung an; Stellungnahme als ausgehende Kommunikation zuordnen"
+                            } else if abgelaufen {
+                                "Die Zurückstellung ist abgelaufen; die Behörde hat nun zu entscheiden"
                             } else {
                                 "Die Entscheidung ist bis zum Fristende zurückgestellt"
                             }
                         ),
                         ziel("schritte").eintrag(r.id),
                     );
-                    s.termin(datum, r.verantwortlich);
+                    s.termin(if abgelaufen { None } else { datum }, r.verantwortlich);
                 }
-                for b in a
-                    .bescheide
-                    .iter()
-                    .filter(|b| !a.bescheide.iter().any(|n| n.ersetzt == Some(b.id)))
+                // Nur Auflagen und Bedingungen sind Pflichten; Befristung und
+                // Vorbehalte erscheinen als Ablauftermin (siehe unten).
                 {
-                    for r in &b.auflagen {
-                        if r.erledigt || r.art == crate::verfahren::Nebenbestimmungsart::Hinweis {
-                            continue;
-                        }
+                    for (_, r) in crate::verfahren::termine::offene_pflichten(&a) {
                         auflagen += 1;
                         let datum = r.frist.as_ref().map(|f| f.datum);
                         s.punkt(
@@ -532,6 +538,35 @@ impl CoreServices {
                         s.termin(datum, r.verantwortlich);
                     }
                 }
+            }
+            // Ablauf von Befristungen und berechnete Bescheidfristen ab ihrem Vorlauf.
+            for t in crate::verfahren::termine::termine(&a, vid, projekt.bundesland) {
+                use crate::verfahren::termine::Terminart as T;
+                if !matches!(
+                    t.art,
+                    T::Ablauf | T::Rechtsbehelfsfrist | T::Geltungsdauer | T::Fertigstellung
+                ) || t.erinnerung(heute).is_none()
+                {
+                    continue;
+                }
+                let sonst = if matches!(t.art, T::Geltungsdauer | T::Fertigstellung) {
+                    Handeln
+                } else {
+                    Pruefen
+                };
+                s.punkt(
+                    format!("termin:{vid}:{}:{:?}", t.objekt, t.art),
+                    Verfahren,
+                    if t.endet_mit_ablauf && t.datum > heute {
+                        sonst
+                    } else {
+                        frist(Some(t.datum), heute, sonst)
+                    },
+                    t.titel.clone(),
+                    format!("{} · {}", a.bezeichnung, t.hinweis),
+                    ziel("bescheide").eintrag(t.objekt),
+                );
+                s.termin(Some(t.datum), t.verantwortlich);
             }
             let bescheide = a
                 .bescheide

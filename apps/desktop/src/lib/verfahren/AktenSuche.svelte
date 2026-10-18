@@ -109,6 +109,26 @@
       busy = false;
     }
   }
+  async function kalenderExport() {
+    busy = true;
+    fehler = "";
+    try {
+      const ziel = await save({
+        title: "Verfahrenstermine als Kalender exportieren",
+        defaultPath: "Verfahrenstermine.ics",
+        filters: [{ name: "Kalender (ICS)", extensions: ["ics"] }],
+      });
+      if (ziel) {
+        await verfahrenApi.termineIcs(projekt.id, ziel);
+        meldung =
+          "Laufende Fristen und Termine als Kalenderdatei exportiert. Ein erneuter Import aktualisiert die Einträge.";
+      }
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      busy = false;
+    }
+  }
   async function benachrichtigungen() {
     if (!("Notification" in window)) {
       meldung =
@@ -134,6 +154,8 @@
   <div class="knoepfe links">
     <button class="sekundaer" disabled={busy} onclick={aktualisieren}
       >Wiedervorlagen aktualisieren</button
+    ><button class="sekundaer" disabled={busy} onclick={kalenderExport}
+      >Termine als Kalender (ICS) exportieren</button
     ><button class="sekundaer" onclick={benachrichtigungen}
       >Systembenachrichtigungen aktivieren</button
     ><label
@@ -142,8 +164,10 @@
     >
   </div>
   <p class="meta">
-    Fristen werden manuell fachlich bestätigt. Erinnerungen erscheinen ab dem
-    eingestellten Vorlauf. Systemhinweise benötigen eine geöffnete Anwendung und
+    Fristen werden manuell fachlich bestätigt; Rechtsbehelfsfrist, Geltungsdauer
+    und Fertigstellungsfrist berechnet die Anwendung aus dem Bescheid.
+    Erinnerungen erscheinen ab dem eingestellten Vorlauf; Ablauftermine enden
+    mit ihrem Datum. Systemhinweise benötigen eine geöffnete Anwendung und
     eine erteilte Berechtigung.
   </p>
   <table class="ergebnistabelle">
@@ -151,7 +175,13 @@
     ><tbody
       >{#each erinnerungen.filter((e) => !nurEigene || e.verantwortlich === benutzerId) as e}<tr
           ><td>{e.titel}</td><td>{e.datum}</td><td
-            >{e.ueberfaellig ? "Überfällig" : "Wiedervorlage"}</td
+            >{e.ueberfaellig
+              ? "Überfällig"
+              : e.art === "ablauf" ||
+                  e.art === "rechtsbehelfsfrist" ||
+                  e.art === "zurueckstellung"
+                ? "Läuft ab"
+                : "Wiedervorlage"}</td
           ></tr
         >{:else}<tr><td colspan="3">Keine fälligen Vorgänge.</td></tr
         >{/each}</tbody

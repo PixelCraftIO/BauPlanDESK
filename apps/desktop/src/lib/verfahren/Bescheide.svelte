@@ -2,15 +2,17 @@
   import type {
     Bescheid,
     Bescheidfristen,
+    Berichtigungsgegenstand,
     Fristberechnung,
     Verfahrensart,
   } from "../generated/plattform";
+  import Berichtigen from "./Berichtigen.svelte";
   import type { DocumentVersion, Benutzer } from "../api";
   import Dokumentfeld from "./Dokumentfeld.svelte";
   import Dokumentliste from "./Dokumentliste.svelte";
   import Fristfeld from "./Fristfeld.svelte";
   import Zustaendigkeit from "./Zustaendigkeit.svelte";
-  import { heute, verfahrenApi, NEBENBESTIMMUNG } from "./api";
+  import { heute, verfahrenApi, NEBENBESTIMMUNG, PFLICHT } from "./api";
   let {
     eintraege = $bindable(),
     dateien,
@@ -21,6 +23,7 @@
     alt = [],
     auflagenAlt = [],
     ohneZustellung = [],
+    onberichtigen,
   }: {
     eintraege: Bescheid[];
     dateien: DocumentVersion[];
@@ -34,7 +37,12 @@
     auflagenAlt?: string[];
     /** Gespeicherte Bescheide, deren Zustelldatum noch einmal nachgetragen werden darf. */
     ohneZustellung?: string[];
+    onberichtigen: (g: Berichtigungsgegenstand, grund: string) => void;
   } = $props();
+  /** Bescheide, deren gespeichertes Zustelldatum gerade berichtigt wird. */
+  let zustellungOffen = $state<Record<string, boolean>>({});
+  const genehmigend = (b: Bescheid) =>
+    b.entscheidung === "genehmigt" || b.entscheidung === "teilweise_genehmigt";
   // Fristen berechnet der Core aus Zustellung, Entscheidung und Bundesland,
   // auch für noch nicht gespeicherte Angaben.
   let fristen = $state<Bescheidfristen[]>([]);
@@ -76,6 +84,11 @@
 /><button type="button" class="sekundaer" disabled={!original} onclick={neu}
   >Bescheid erfassen</button
 >
+<p class="meta">
+  Eine Genehmigung oder Ablehnung wird zusammen mit dem Bearbeitungsstand
+  „Entschieden“ gespeichert. Ein Verlängerungsbescheid verlängert die
+  Geltungsdauer eines früheren Bescheids.
+</p>
 {#snippet fristzeile(titel: string, w: Fristberechnung | null)}
   {#if w}<p>
       <strong>{titel}: bis {w.ende}</strong> · {w.grundlage}
@@ -112,11 +125,21 @@
           >Zustelldatum<input
             type="date"
             max={heute()}
-            disabled={fest && !ohneZustellung.includes(b.id)}
+            disabled={fest &&
+              !ohneZustellung.includes(b.id) &&
+              !zustellungOffen[b.id]}
             value={b.zugestellt ?? ""}
             onchange={(e) => (b.zugestellt = e.currentTarget.value || null)}
           /></label
-        ><label
+        >{#if fest && !ohneZustellung.includes(b.id)}<Berichtigen
+            bezeichnung="Zustelldatum"
+            bind:offen={
+              () => !!zustellungOffen[b.id],
+              (v) => (zustellungOffen[b.id] = v)
+            }
+            onvormerken={(g) =>
+              onberichtigen({ art: "zustellung", bescheid: b.id }, g)}
+          />{/if}<label
           >Ersetzt früheren Bescheid<select
             disabled={fest}
             bind:value={b.ersetzt}
@@ -125,7 +148,32 @@
                 value={n.id}>{n.datum} · {n.entscheidung}</option
               >{/each}</select
           ></label
-        >
+        >{#if !fest || b.verlaengerung}<label
+            >Verlängert die Geltungsdauer von<select
+              disabled={fest}
+              value={b.verlaengerung?.bescheid ?? ""}
+              onchange={(e) =>
+                (b.verlaengerung = e.currentTarget.value
+                  ? {
+                      bescheid: e.currentTarget.value,
+                      bis: b.verlaengerung?.bis ?? heute(),
+                    }
+                  : undefined)}
+              ><option value="">Kein Verlängerungsbescheid</option
+              >{#each eintraege.filter((n) => n.id !== b.id && genehmigend(n)) as n}<option
+                  value={n.id}>{n.datum} · {n.entscheidung}</option
+                >{/each}</select
+            ></label
+          >{#if b.verlaengerung}<label
+              >Verlängert bis<span class="pflicht" aria-hidden="true"> *</span
+              ><input
+                aria-label="Verlängert bis"
+                type="date"
+                required
+                disabled={fest}
+                bind:value={b.verlaengerung.bis}
+              /></label
+            >{/if}{/if}
       </div>
     <fieldset disabled={fest}>
       {#if abgegeben.length || b.genehmigte_unterlagen.length}<Dokumentliste
@@ -141,6 +189,7 @@
         <h4>Berechnete Fristen</h4>
         {@render fristzeile("Rechtsbehelfsfrist", f.rechtsbehelfsfrist)}
         {@render fristzeile("Geltungsdauer der Genehmigung", f.geltungsdauer)}
+        {@render fristzeile("Frist zur Fertigstellung", f.fertigstellung)}
         {#each f.hinweise as h}<p class="meta">{h}</p>{/each}
       </section>{/if}
     <h4>Nebenbestimmungen / offene Pflichten</h4>
@@ -196,10 +245,13 @@
           label="Erfüllungsbelege"
         />{#if p.art === "hinweis"}<p class="meta">
             Ein Hinweis begründet keine Pflicht und wird nicht wiedervorgelegt.
-          </p>{:else}<label
+          </p>{:else if PFLICHT.includes(p.art ?? "auflage") || p.erledigt}<label
             ><input type="checkbox" bind:checked={p.erledigt} />Erfüllt (Beleg
             erforderlich)</label
-          >{/if}{#if p.art === "befristung"}<p class="meta">
+          >{:else}<p class="meta">
+            Keine erfüllbare Pflicht: Mit Frist erinnert sie vor dem Ablauf und
+            endet danach, ohne Frist wird sie nur zur Kenntnis geführt.
+          </p>{/if}{#if p.art === "befristung"}<p class="meta">
             Die Frist ist das Ablaufdatum der Befristung.
           </p>{/if}
       </fieldset>{/each}

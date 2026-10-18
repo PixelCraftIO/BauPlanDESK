@@ -236,25 +236,8 @@ impl CoreServices {
             if a.status == crate::verfahren::Verfahrensstatus::Zurueckgenommen {
                 continue;
             }
-            let punkte = a
-                .nachforderungen
-                .iter()
-                .flat_map(|n| &n.punkte)
-                .filter(|p| {
-                    !matches!(
-                        p.status,
-                        crate::verfahren::Punktstatus::Bestaetigt
-                            | crate::verfahren::Punktstatus::Entfallen
-                    )
-                })
-                .count();
-            let pflichten = a
-                .bescheide
-                .iter()
-                .filter(|b| !a.bescheide.iter().any(|n| n.ersetzt == Some(b.id)))
-                .flat_map(|b| &b.auflagen)
-                .filter(|a| !a.erledigt && a.art != crate::verfahren::Nebenbestimmungsart::Hinweis)
-                .count();
+            let punkte = crate::verfahren::termine::offene_forderungspunkte(&a).count();
+            let pflichten = crate::verfahren::termine::offene_pflichten(&a).count();
             let unklar = a
                 .anforderungen
                 .iter()

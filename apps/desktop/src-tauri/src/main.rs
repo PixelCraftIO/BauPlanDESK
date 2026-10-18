@@ -94,6 +94,7 @@ fn main() {
             verfahren::verfahren_erinnerungen,
             verfahren::verfahren_planunterlagen,
             verfahren::verfahren_bescheidfristen,
+            verfahren::verfahren_termine_ics,
             verfahren::verfahren_suche,
             verfahren::suchtext_speichern,
             verfahren::verfahren_aktenexport,

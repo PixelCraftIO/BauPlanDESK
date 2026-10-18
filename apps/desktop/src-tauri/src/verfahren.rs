@@ -127,6 +127,26 @@ pub async fn verfahren_bescheidfristen(
         .await?;
     Ok(state.core.bescheidfristen(projekt_id, &auftrag).await?)
 }
+/// Schreibt die laufenden Verfahrenstermine als Kalenderdatei (ICS).
+#[tauri::command]
+pub async fn verfahren_termine_ics(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ziel: PathBuf,
+) -> Result<(), CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    let ics = state
+        .core
+        .verfahren_termine_ics(projekt_id, core_lib::kalender::heute())
+        .await?;
+    tokio::fs::write(ziel, ics)
+        .await
+        .map_err(|e| CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
 #[tauri::command]
 pub async fn verfahren_suche(
     state: State<'_, AppState>,
