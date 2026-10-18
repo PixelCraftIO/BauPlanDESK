@@ -72,6 +72,21 @@ pub struct Abgabegrundlagen {
     /// Abgabeständen.
     #[serde(default)]
     pub aktenzeichen: Option<String>,
+    /// Gebäudeklasse aus dem Vorhabenprofil der Akte beim Festhalten; fehlt
+    /// in älteren Abgabeständen und ohne Profil.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gebaeudeklasse: Option<u32>,
+    /// Änderungsantrag: Aktenzeichen des Vorgängerverfahrens (erteilte
+    /// Baugenehmigung) beim Festhalten; fehlt in älteren Abgabeständen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hauptgenehmigung: Option<String>,
+}
+/// Größte Summe der Unterlagen eines Abgabestands. Dieselbe Grenze gilt für
+/// den entpackten Inhalt eines XBau-Pakets, damit eine Abgabe mit XBau nicht
+/// erst nach dem Zusammenstellen scheitert.
+pub const MAX_ABGABE: u64 = crate::xbau::austausch::MAX_ENTPACKT;
+fn megabyte(b: u64) -> String {
+    format!("{:.1}", b as f64 / (1024.0 * 1024.0)).replace('.', ",")
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Abgabestand {
@@ -191,6 +206,20 @@ impl CoreServices {
             };
         }
         let aktenzeichen = a.aktenzeichen.trim().to_string();
+        // Ein Änderungsantrag ist ein Nachtrag zur Baugenehmigung des
+        // Vorgängerverfahrens; XBau nennt deren Aktenzeichen.
+        let hauptgenehmigung = match (&a.art, a.vorgaenger) {
+            (Verfahrensart::Aenderungsantrag, Some(v)) => self
+                .verfahrensakte(p, v)
+                .await
+                .ok()
+                .map(|(_, v)| v.aktenzeichen.trim().to_string())
+                .filter(|az| !az.is_empty()),
+            _ => None,
+        };
+        if w.xbau && a.art == Verfahrensart::Aenderungsantrag && hauptgenehmigung.is_none() {
+            hinweise.push("Änderungsantrag ohne Bezug auf die erteilte Baugenehmigung: In der Akte das Vorgängerverfahren mit Aktenzeichen eintragen, damit die XBau-Nachricht den Nachtrag zuordnet.".into());
+        }
         let grundlagen = Abgabegrundlagen {
             bauherren: self.bauherren_fuer_antrag(p, &antrag).await?,
             buero: self.buero().await?,
@@ -201,6 +230,8 @@ impl CoreServices {
             antragsangaben: a.antragsangaben.clone(),
             behoerde: Some(a.behoerde.clone()),
             aktenzeichen: Some(aktenzeichen.clone()),
+            gebaeudeklasse: a.profil.as_ref().and_then(|p| p.vorhaben.gebaeudeklasse),
+            hauptgenehmigung,
         };
         let fragen = grundlagen.antragsangaben.fragen();
         let xbau_art = if w.xbau {
@@ -223,8 +254,19 @@ impl CoreServices {
                 .find(|v| v.version == d.version && v.project_id == p)
                 .ok_or_else(|| fehler("Abgabeunterlage gehört nicht zum Projekt"))?;
             summe = summe.saturating_add(meta.size_bytes);
-            if summe > 128 * 1024 * 1024 {
-                return Err(fehler("Abgabestand größer als 128 MB"));
+            if summe > MAX_ABGABE {
+                return Err(fehler(format!(
+                    "Die Unterlagen sind zusammen größer als {} MB. Abgabe aufteilen.",
+                    megabyte(MAX_ABGABE)
+                )));
+            }
+            if w.xbau && meta.size_bytes > crate::xbau::austausch::MAX_PAKET {
+                return Err(fehler(format!(
+                    "{} ist {} MB groß; eine XBau-Anlage darf höchstens {} MB groß sein. Datei verkleinern oder Abgabe ohne XBau festhalten.",
+                    meta.file_name,
+                    megabyte(meta.size_bytes),
+                    megabyte(crate::xbau::austausch::MAX_PAKET)
+                )));
             }
             let (_, daten) = self.load_version(d.dokument_id, d.version).await?;
             docs.push(meta);
@@ -252,6 +294,25 @@ impl CoreServices {
                 ));
             }
         }
+        // Weitere XBau-Inhalte aus dem eingefrorenen Stand und dem aktuellen,
+        // nicht veralteten Berechnungsstand des Projekts.
+        let vorhaben = if w.xbau {
+            let g = &grundlagen;
+            let (flaechen, hinweis) = crate::xbau::FlaechenBauNvo::aus_projekt(&g.projekt);
+            hinweise.extend(hinweis);
+            crate::xbau::Vorhabenangaben {
+                beteiligte: crate::kunden::antragsbeteiligte(
+                    &g.projekt,
+                    &g.bauherren,
+                    &g.beteiligte,
+                )?,
+                gebaeudeklasse: g.gebaeudeklasse,
+                hauptgenehmigung: g.hauptgenehmigung.clone(),
+                flaechen,
+            }
+        } else {
+            crate::xbau::Vorhabenangaben::default()
+        };
         let kategorien = self.kategoriesnapshots(p).await?;
         let mut stand = Abgabestand {
             id: w.id,
@@ -318,6 +379,7 @@ impl CoreServices {
                 antrag: &stand.grundlagen.antrag,
                 bauherren: &stand.grundlagen.bauherren,
                 buero: &stand.grundlagen.buero,
+                vorhaben: &vorhaben,
                 anlagen: &anlagen,
                 codelisten: &self.codelisten,
                 nachricht_id: w.id,
@@ -357,6 +419,13 @@ impl CoreServices {
                     .map(|(n, b)| (n.clone(), b.as_ref()))
                     .collect::<Vec<_>>(),
             )?;
+            if bytes.len() as u64 > crate::xbau::austausch::MAX_PAKET {
+                return Err(fehler(format!(
+                    "Das XBau-Paket wäre {} MB groß; zulässig sind höchstens {} MB. Unterlagen auf mehrere Abgaben aufteilen (Nachreichung) oder Abgabe ohne XBau festhalten.",
+                    megabyte(bytes.len() as u64),
+                    megabyte(crate::xbau::austausch::MAX_PAKET)
+                )));
+            }
             crate::xbau::austausch::pruefen("XBau.zip", &bytes, self.xbau_pruefer.as_ref()).await?;
             ausgaben.push(("xbau", "XBau.zip", bytes));
         }

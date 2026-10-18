@@ -923,6 +923,16 @@ impl CoreServices {
         let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
         fehlende_angaben.extend(self.codelisten.fehlende());
         fehlende_angaben.extend(self.anlagen_pruefen(&antrag).await?);
+        if let Err(e) = self
+            .codelisten
+            .verfahrensart(p.bundesland, &antrag.verfahrensart)
+        {
+            fehlende_angaben.push(e.to_string());
+        }
+        let verfahrensarten = self
+            .codelisten
+            .liste(&crate::xbau::codeliste::verfahrensart_uri(p.bundesland))
+            .cloned();
         let mut hinweise = kunden::zustimmungshinweise(
             &self.repos.kunden.bauherren(project).await?,
             &self.repos.kunden.beteiligte(project).await?,
@@ -948,6 +958,7 @@ impl CoreServices {
             fehlende_angaben,
             hinweise,
             flurstuecke_zentral,
+            verfahrensarten,
         })
     }
 

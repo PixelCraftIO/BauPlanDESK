@@ -148,6 +148,12 @@ export const leereAnschrift = (): Anschrift => ({
   ort: "",
 });
 
+/** Erreichbarkeit eines Beteiligten; fehlt in älteren Daten. */
+export interface Kommunikation {
+  telefon: string;
+  email: string;
+}
+
 export type Beteiligter =
   | {
       art: "person";
@@ -155,8 +161,17 @@ export type Beteiligter =
       vorname: string;
       familienname: string;
       anschrift: Anschrift;
+      kommunikation?: Kommunikation;
     }
-  | { art: "organisation"; id: string; name: string; anschrift: Anschrift };
+  | {
+      art: "organisation";
+      id: string;
+      name: string;
+      anschrift: Anschrift;
+      /** Ansprechpartner als Freitext. */
+      ansprechpartner?: string;
+      kommunikation?: Kommunikation;
+    };
 
 export interface Flurstueck {
   gemarkung: string;
@@ -182,6 +197,8 @@ export interface Bauantrag {
   anzahl_gebaeude: number;
   grundstueck: { anschrift: Anschrift; flurstuecke: Flurstueck[] };
   anlagen: Anlagenwahl[];
+  /** Code der Landes-Codeliste der Verfahrensarten; leer/fehlend = keine Angabe. */
+  verfahrensart?: string;
 }
 
 export interface GespeicherterBauantrag {
@@ -194,6 +211,8 @@ export interface GespeicherterBauantrag {
   hinweise?: string[];
   /** Flurstücke stammen aus den Grundstücksinformationen und sind hier nur Anzeige. */
   flurstuecke_zentral?: boolean;
+  /** Geladene Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts. */
+  verfahrensarten?: Codeliste;
 }
 
 // --- Kunden ------------------------------------------------------------------
@@ -346,12 +365,15 @@ export function alsBeteiligter(k: Kunde): Beteiligter {
         vorname: k.vorname,
         familienname: k.familienname,
         anschrift: { ...k.anschrift },
+        kommunikation: { telefon: k.telefon, email: k.email },
       }
     : {
         art: "organisation",
         id: k.id,
         name: k.firma,
         anschrift: { ...k.anschrift },
+        ansprechpartner: k.ansprechpartner,
+        kommunikation: { telefon: k.telefon, email: k.email },
       };
 }
 

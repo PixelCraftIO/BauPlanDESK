@@ -10,7 +10,6 @@ use super::pdf::{Feldart, Feldwert, Formularfeld};
 use crate::calc::Baugebiet;
 use crate::domain::{BebauungsplanArt, Bundesland, Project};
 use crate::error::{CoreError, CoreResult};
-use crate::festsetzungen::{Festsetzungen, NutzungsEingabe, NutzungsPruefung};
 use crate::grundstuecksinformationen::FlurstuecksInfo;
 use crate::grundstueckskontext::GrundstueckKontext;
 use crate::kunden::{Kunde, Kundentyp};
@@ -105,7 +104,7 @@ impl Projektkontext {
                 .join("; "),
         );
         let mut hinweise = Vec::new();
-        match nutzung(p, g) {
+        match crate::grundstueckskontext::nutzung(p, g) {
             Ok(Some((pruefung, eingabe, eigene))) => {
                 let k = &pruefung.kennzahlen;
                 self.setze("kennzahlen.grz", zahl(k.grz, 2));
@@ -234,49 +233,6 @@ fn mit_plan(p: &Project) -> bool {
             | BebauungsplanArt::Einfach
             | BebauungsplanArt::Vorhabenbezogen
     )
-}
-
-/// Aktuelle Nutzungsprüfung eines Baugrundstücks aus den gespeicherten
-/// Eingaben, mit Eingabe und eigenen Festsetzungen. `None`, solange keine
-/// Berechnung erfasst ist.
-fn nutzung(
-    p: &Project,
-    g: &GrundstueckKontext,
-) -> CoreResult<Option<(NutzungsPruefung, NutzungsEingabe, Option<Festsetzungen>)>> {
-    match crate::grundstuecksinformationen::plan(&p.planungsrecht)? {
-        Some(plan) => {
-            let Some(b) = plan
-                .berechnungen
-                .iter()
-                .find(|b| b.schluessel == g.schluessel)
-            else {
-                return Ok(None);
-            };
-            let pruefung = plan
-                .pruefe(&p.planungsrecht, p.version)?
-                .baugrundstuecke
-                .into_iter()
-                .find(|n| n.grundstueck.schluessel == g.schluessel)
-                .ok_or_else(|| {
-                    CoreError::InvalidInput("Berechnung des Baugrundstücks fehlt".into())
-                })?
-                .pruefung;
-            Ok(Some((
-                pruefung,
-                b.eingabe.clone(),
-                b.eigene_festsetzungen.clone(),
-            )))
-        }
-        None => p
-            .planungsrecht
-            .berechnung
-            .as_ref()
-            .map(|e| {
-                crate::festsetzungen::pruefe(e, &p.planungsrecht, p.version)
-                    .map(|r| (r, e.clone(), None))
-            })
-            .transpose(),
-    }
 }
 
 /// Deutsche Zahlendarstellung ohne Tausenderpunkte, z. B. `640,00`.

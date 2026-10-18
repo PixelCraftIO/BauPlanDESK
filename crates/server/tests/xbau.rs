@@ -145,6 +145,7 @@ async fn bauantrag_erfassen_und_exportieren() {
             Kundendaten {
                 vorname: "Anna".into(),
                 familienname: "Müller".into(),
+                anschrift: anschrift(),
                 ..Kundendaten::default()
             },
             &chefin,
@@ -833,6 +834,7 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
             Kundendaten {
                 vorname: "Anna".into(),
                 familienname: "Müller".into(),
+                anschrift: anschrift(),
                 ..Kundendaten::default()
             },
             &u,
@@ -842,6 +844,65 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     core.bauherren_setzen(p.id, vec![anna.id], p.version, &u)
         .await
         .unwrap();
+    // Weitere Beteiligte und die Bauherrin als Eigentümerin des Flurstücks a.
+    use core_lib::kunden::{Beteiligtenrolle, Beteiligtenzuordnung};
+    let mut kunden = Vec::new();
+    for (vorname, familienname) in [("Otto", "Vollmacht"), ("Erna", "Eigen")] {
+        kunden.push(
+            core.kunde_anlegen(
+                Kundendaten {
+                    vorname: vorname.into(),
+                    familienname: familienname.into(),
+                    telefon: "0221 4711".into(),
+                    ..Kundendaten::default()
+                },
+                &u,
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let p = core.get_project(p.id).await.unwrap();
+    core.beteiligte_setzen(
+        p.id,
+        vec![
+            Beteiligtenzuordnung {
+                rolle: Beteiligtenrolle::Bevollmaechtigter,
+                kunde: kunden[0].id,
+            },
+            Beteiligtenzuordnung {
+                rolle: Beteiligtenrolle::Grundstueckseigentuemer,
+                kunde: kunden[1].id,
+            },
+        ],
+        p.version,
+        &u,
+    )
+    .await
+    .unwrap();
+    let p = core.get_project(p.id).await.unwrap();
+    let mut recht = p.planungsrecht.clone();
+    recht
+        .grundstuecksinformationen
+        .as_mut()
+        .unwrap()
+        .flurstuecke[0]
+        .eigentuemer_kunden = vec![anna.id];
+    core.projekt_bereich_speichern(
+        p.clone(),
+        ProjektBereich::Grundstuecksinformationen,
+        ProjectUpdate {
+            id: p.id,
+            expected_version: p.version,
+            name: p.name.clone(),
+            bundesland: p.bundesland,
+            grundstuecksflaeche_m2: None,
+            planungsrecht: Some(recht),
+        },
+        &u,
+    )
+    .await
+    .unwrap();
     let bytes = xbau_abgabe(&core, p.id, plan.document_id, &u).await;
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
     let mut xml = String::new();
@@ -852,7 +913,18 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
     assert!(xml.contains("<zaehler>100</zaehler>"), "{xml}");
     assert!(xml.contains("<nenner>1</nenner>"));
     assert!(xml.contains("<zaehler>101</zaehler>"));
-    assert!(!xml.contains("999") && !xml.contains("Falschgemarkung"));
+    assert!(!xml.contains(">999<") && !xml.contains("Falschgemarkung"));
+    let k: String = xml.lines().map(str::trim).collect();
+    let bevollmaechtigt = &k[k.find("<xbau:bevollmaechtigter>").expect(&xml)..];
+    assert!(bevollmaechtigt.contains("<name>Vollmacht</name>"));
+    assert!(bevollmaechtigt.contains("<kennung>0221 4711</kennung><zusatz>Telefon</zusatz>"));
+    // Eigentümer: die Bauherrin aus dem Flurstück und die Beteiligte Erna.
+    assert_eq!(xml.matches("<xbau:weitereBeteiligte>").count(), 2, "{xml}");
+    assert_eq!(xml.matches("<code>02</code>").count(), 2);
+    assert!(k.contains(&format!(
+        "<xbau:weitereBeteiligte><xbau:beteiligter><natuerlichePerson><id>{}</id>",
+        anna.id
+    )));
 }
 
 #[tokio::test]
@@ -1042,10 +1114,19 @@ async fn xbau_abgabe(
         .to_vec()
 }
 
+fn anschrift() -> Anschrift {
+    Anschrift {
+        strasse: "Aachener Straße".into(),
+        hausnummer: "1".into(),
+        postleitzahl: "50674".into(),
+        ort: "Köln".into(),
+    }
+}
+
 fn buero(name: &str) -> Buero {
     Buero {
         name: name.into(),
-        anschrift: Anschrift::default(),
+        anschrift: anschrift(),
         kennung: "arc:4711".into(),
         entwurfsverfasser: vec![Entwurfsverfasser {
             id: uuid::Uuid::new_v4(),
