@@ -24,7 +24,30 @@ window.__TAURI_INTERNALS__.invoke = async (cmd,args={}) => {
     const p={...structuredClone(window.fixture),...args.projekt,id:'aaf2bbea-56ee-444a-82c2-0a79092cc613'};
     window.testProjects.push(p);return p;
   }
-  if(cmd==='bauherren_setzen') throw {art:'datenbank',meldung:'Zuordnung fehlgeschlagen'};
+  if(cmd==='bauherren_setzen') {
+    if(window.bauherrenKonflikt) throw {art:'konflikt',meldung:'Versionskonflikt'};
+    throw {art:'datenbank',meldung:'Zuordnung fehlgeschlagen'};
+  }
+  if(cmd==='kunde_projekte') return [];
+  if(cmd==='kunde_aendern') {
+    window.calls.push({cmd,args});
+    if(window.kundeKonflikt) {
+      // Ein anderer Arbeitsplatz hat inzwischen die Telefonnummer geändert.
+      window.kundeKonflikt=false;
+      window.customer={...window.customer,telefon:'0300 fremd',version:window.customer.version+1};
+      throw {art:'konflikt',meldung:'Versionskonflikt'};
+    }
+    if(args.version!==window.customer.version) throw {art:'konflikt',meldung:'Versionskonflikt'};
+    window.customer={...window.customer,...args.daten,version:window.customer.version+1};
+    return structuredClone(window.customer);
+  }
+  if(cmd==='projekt_aktualisieren' && window.projektKonflikt) {
+    // Ein anderer Arbeitsplatz hat inzwischen das Bundesland geändert.
+    window.projektKonflikt=false;
+    const p=window.testProjects.find(p=>p.id===args.aenderung.id);
+    p.version+=1;p.bundesland='HE';
+    throw {art:'konflikt',meldung:'Versionskonflikt'};
+  }
   if(cmd==='projekt_aktualisieren' && window.conflict) {
     window.reloadFailure=true;throw {art:'konflikt',meldung:'Versionskonflikt'};
   }
@@ -113,6 +136,96 @@ with sync_playwright() as p:
     tab.evaluate("window.emitNative('menu','bearbeiten.kunden')")
     expect(tab.get_by_role('dialog')).to_have_count(0)
     expect(tab.get_by_role('heading',name='Kunden / Bauherren',exact=True)).to_have_count(1)
+    tab.close()
+
+    # Projektdaten: Konflikt mit erfolgreichem Neuladen. Die eigene Eingabe
+    # bleibt, die fremde Änderung wird Grundlage, erneutes Speichern gelingt.
+    tab=page()
+    tab.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
+    bereich(tab,'Stammdaten')
+    tab.get_by_role('button',name='Bearbeiten …',exact=True).click()
+    dialog=tab.get_by_role('dialog',name='Projektdaten')
+    dialog.get_by_label('Projektname',exact=True).fill('Eigener Name')
+    tab.evaluate('window.projektKonflikt=true')
+    dialog.get_by_role('button',name='Speichern',exact=True).click()
+    expect(dialog.get_by_role('status').filter(has_text='anderen Arbeitsplatz')).to_be_visible()
+    expect(dialog.get_by_label('Projektname',exact=True)).to_have_value('Eigener Name')
+    expect(dialog.locator('select').first).to_have_value('HE')
+    dialog.get_by_role('button',name='Speichern',exact=True).click()
+    expect(dialog).to_have_count(0)
+    gespeichert=tab.evaluate('window.testProjects[0]')
+    assert gespeichert['name']=='Eigener Name' and gespeichert['bundesland']=='HE', gespeichert
+
+    # Bauherren: Konflikt bietet erneutes Speichern an, die Auswahl bleibt.
+    tab.get_by_role('button',name='Bauherren …',exact=True).click()
+    dialog=tab.get_by_role('dialog',name='Bauherren')
+    dialog.get_by_role('button',name='Ada Bauherr',exact=True).click()
+    tab.evaluate('window.bauherrenKonflikt=true')
+    dialog.get_by_role('button',name='Speichern',exact=True).click()
+    expect(dialog.get_by_role('alert')).to_contain_text('Ihre Auswahl bleibt erhalten')
+    expect(dialog.locator('ul.bauherren')).to_contain_text('Ada Bauherr')
+    expect(dialog.get_by_role('button',name='Speichern',exact=True)).to_be_enabled()
+
+    # Escape und Menübefehle fragen vor dem Verwerfen nach.
+    tab.evaluate('window.rueckfrage=false;window.rueckfragen=[]')
+    tab.keyboard.press('Escape')
+    expect(dialog).to_be_visible()
+    assert 'Bauherrenzuordnung' in tab.evaluate('window.rueckfragen.join()')
+    tab.evaluate("window.emitNative('menu','datei.neu')")
+    expect(tab.get_by_role('dialog',name='Neues Projekt')).to_have_count(0)
+    expect(dialog).to_be_visible()
+    expect(dialog.locator('ul.bauherren')).to_contain_text('Ada Bauherr')
+    tab.evaluate('window.rueckfrage=true')
+    tab.keyboard.press('Escape')
+    expect(tab.get_by_role('dialog')).to_have_count(0)
+
+    # Projektdaten: Escape mit Eingaben fragt ebenfalls nach.
+    tab.get_by_role('button',name='Bearbeiten …',exact=True).click()
+    dialog=tab.get_by_role('dialog',name='Projektdaten')
+    dialog.get_by_label('Projektname',exact=True).fill('Nicht verwerfen')
+    tab.evaluate('window.rueckfrage=false;window.rueckfragen=[]')
+    tab.keyboard.press('Escape')
+    expect(dialog.get_by_label('Projektname',exact=True)).to_have_value('Nicht verwerfen')
+    assert tab.evaluate('window.rueckfragen.length') == 1
+    tab.evaluate('window.rueckfrage=true')
+    dialog.get_by_role('button',name='Abbrechen',exact=True).click()
+    expect(tab.get_by_role('dialog')).to_have_count(0)
+
+    # Strg+S ohne speicherbare Ansicht: Hinweis statt stiller Hintergrundspeicherung.
+    tab.get_by_role('button',name='Projekte',exact=True).click()
+    tab.evaluate("window.emitNative('menu','anwendung.speichern')")
+    expect(tab.get_by_role('status').filter(has_text='nichts zu speichern')).to_be_visible()
+    tab.close()
+
+    # Kunden: Konflikt behält Eingaben, Strg+S speichert die sichtbare Seite und
+    # „Alle speichern und beenden“ schließt bei Konflikt nicht.
+    tab=page()
+    tab.get_by_role('button',name='Kunden / Bauherren',exact=True).click()
+    tab.get_by_role('option').filter(has_text='Ada Bauherr').click()
+    tab.get_by_label('Familienname',exact=True).fill('Bauherrin')
+    tab.evaluate('window.kundeKonflikt=true')
+    tab.evaluate("window.emitNative('menu','anwendung.speichern')")
+    expect(tab.locator('.kundendetail').get_by_role('alert')).to_contain_text('anderen Arbeitsplatz')
+    expect(tab.get_by_label('Familienname',exact=True)).to_have_value('Bauherrin')
+    expect(tab.get_by_label('Telefon',exact=True)).to_have_value('0300 fremd')
+    tab.evaluate('window.kundeKonflikt=true')
+    tab.evaluate('window.emitNative("tauri://close-requested")')
+    tab.get_by_role('button',name='Alle speichern und beenden',exact=True).click()
+    expect(tab.get_by_role('status').filter(has_text='Die Anwendung bleibt geöffnet')).to_be_visible()
+    assert not tab.evaluate('!!window.testDestroyed')
+    expect(tab.get_by_label('Familienname',exact=True)).to_have_value('Bauherrin')
+    tab.evaluate("window.emitNative('menu','anwendung.speichern')")
+    tab.wait_for_function("window.customer.version===4")
+    daten=tab.evaluate("window.calls.filter(c=>c.cmd==='kunde_aendern').at(-1).args.daten")
+    assert daten['familienname']=='Bauherrin' and daten['telefon']=='0300 fremd', daten
+    tab.close()
+
+    # Projektrecht „Lesen“ trotz globaler Administratorrolle: nur lesend.
+    tab=page("window.testProjektRecht={'"+fixture['id']+"':'lesen'};")
+    tab.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
+    bereich(tab,'Stammdaten')
+    expect(tab.get_by_role('button',name='Bearbeiten …',exact=True)).to_be_disabled()
+    expect(tab.get_by_role('button',name='Projektmitglieder …',exact=True)).to_have_count(0)
     assert not errors, errors
     browser.close()
-print('UI-Regressionen: einmalige Neuanlage, Folgefehler, Konflikt, Lizenzrolle, Mitglieder und reine Anzeige erfolgreich.')
+print('UI-Regressionen: einmalige Neuanlage, Folgefehler, Konflikte (Projekt, Bauherren, Kunden), Escape-Rückfragen, Strg+S, Lizenz- und Projektrechte, Mitglieder und reine Anzeige erfolgreich.')

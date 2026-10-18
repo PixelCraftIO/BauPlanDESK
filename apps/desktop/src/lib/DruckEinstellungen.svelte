@@ -22,18 +22,25 @@
     }
   });
   export function istBeschaeftigt() {
-    return busy || dirty;
+    return busy;
   }
-  async function speichern() {
-    if (!g) return;
+  /** Ungespeicherte Druckvorlage: zählt beim Beenden als ungespeicherte Eingabe. */
+  export function hatAenderungen() {
+    return darf && dirty;
+  }
+  export async function speichern(): Promise<boolean> {
+    if (!g || busy) return false;
+    if (!dirty) return true;
     busy = true;
     fehler = "";
     try {
       g = await druckApi.gestaltungSpeichern(g);
       original = JSON.stringify(g);
       meldung = "Bürostandard für künftige Druckausgaben gespeichert.";
+      return true;
     } catch (e) {
       fehler = fehlertext(e);
+      return false;
     } finally {
       busy = false;
     }

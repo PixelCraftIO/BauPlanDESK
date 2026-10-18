@@ -3,11 +3,14 @@
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { listen } from "@tauri-apps/api/event";
+  import type { ProjektRecht } from "./lib/generated/plattform";
   import {
     api,
     fehlertext,
+    imProjekt,
     istKonflikt,
     mindestens,
+    projektRechtMindestens,
     rollenName,
     type AppInfo,
     type Benutzer,
@@ -58,6 +61,8 @@
     ansicht: Ansicht;
     planDokument: string | null;
     importAusloeser: number;
+    /** Eigenes Projektrecht nach der Core-Regel (zugriff.rs). */
+    recht: ProjektRecht;
     editor?: Projektakte;
   };
   onMount(darstellungInitialisieren);
@@ -82,6 +87,10 @@
   let kundenBesucht = $state(false);
   let kundenEditor = $state<Kunden>();
   let mitgliederEditor = $state<Projektmitglieder>();
+  let bauherrenEditor = $state<BauherrenDialog>();
+  let beteiligteEditor = $state<BeteiligteDialog>();
+  let bueroEditor = $state<BueroDialog>();
+  let projektFormularEditor = $state<ProjektFormular>();
   let speicherortEditor = $state<Speicherorte>();
   let druckEditor = $state<DruckEinstellungen>();
   let kategorienEditor = $state<KategorienEinstellungen>();
@@ -122,6 +131,10 @@
         if (id) {
           await api.projektAktivieren(id);
           zuletzt = await api.zuletzt();
+          // Mitgliedschaften können sich an einem anderen Arbeitsplatz ändern.
+          const recht = await api.projektRecht(id);
+          const s = sitzungen.find((s) => s.projekt.id === id);
+          if (s) s.recht = recht;
         } else await api.projektSchliessen();
       } catch (e) {
         if (aktiveId === id) melde(e);
@@ -159,6 +172,7 @@
       ) ||
       kundenEditor?.hatAenderungen() ||
       kundenEditor?.istBeschaeftigt() ||
+      einstellungenGeaendert() ||
       ablageEditor?.istBeschaeftigt() ||
       druckEditor?.istBeschaeftigt() ||
       kategorienEditor?.istBeschaeftigt() ||
@@ -181,6 +195,23 @@
   });
   const darf = (min: "bearbeitung" | "projektleitung") =>
     !!ich && ich.aktiv && mindestens(ich.rolle, min);
+  /**
+   * Benutzer und Rechte, wie eine Projektakte sie sieht: Die globale Rolle wird
+   * durch das eigene Projektrecht begrenzt (Lesen ⇒ wie Rolle „Lesen“). Das
+   * Recht kommt aus dem Core; geprüft wird weiterhin an der Servicegrenze.
+   */
+  const ichIn = (s: Sitzung | undefined): Benutzer | null =>
+    ich && s ? imProjekt(ich, s.recht) : null;
+  const darfIn =
+    (s: Sitzung | undefined) => (min: "bearbeitung" | "projektleitung") => {
+      const b = ichIn(s);
+      return !!b && b.aktiv && mindestens(b.rolle, min);
+    };
+  /** Projektmitglieder verwalten: Projekt-Leitung und Rolle Projektleitung (Core). */
+  const darfMitglieder = (s: Sitzung | undefined) =>
+    !!s && projektRechtMindestens(s.recht, "leitung") && darf("projektleitung");
+  const einstellungenGeaendert = () =>
+    !!druckEditor?.hatAenderungen() || !!kategorienEditor?.hatAenderungen();
 
   const melde = (e: unknown) => (fehler = fehlertext(e));
 
@@ -192,13 +223,17 @@
       return;
     }
     try {
-      const p = await api.projektOeffnen(id);
+      const [p, recht] = await Promise.all([
+        api.projektOeffnen(id),
+        api.projektRecht(id),
+      ]);
       if (!sitzungen.some((s) => s.projekt.id === id))
         sitzungen.push({
           projekt: p,
           ansicht: "projektuebersicht",
           planDokument: null,
           importAusloeser: 0,
+          recht,
         });
       aktiveId = id;
       globalAnsicht = null;
@@ -251,16 +286,44 @@
       schliessLaeuft = false;
     }
   }
-  async function aktiveAkteSpeichern() {
-    if (!aktiv || speicherLaeuft) return;
+  /** Strg+S („anwendung.speichern“) speichert die sichtbare Ansicht. */
+  async function ansichtSpeichern() {
+    if (speicherLaeuft) return;
+    if (dialog) {
+      hinweis = "Bitte im geöffneten Dialog speichern.";
+      return;
+    }
     speicherLaeuft = true;
     try {
-      if (!(await aktiv.editor?.speichern()))
+      if (globalAnsicht === null && aktiv) {
+        if (!(await aktiv.editor?.speichern()))
+          hinweis =
+            "Bitte prüfen Sie die Angaben in der Projektakte. Die Eingaben bleiben erhalten.";
+      } else if (globalAnsicht === "kunden" && kundenEditor) {
+        if (!kundenEditor.hatAenderungen())
+          hinweis = "Die Kundendaten enthalten keine ungespeicherten Änderungen.";
+        else if (!(await kundenEditor.speichernBeimSchliessen()))
+          hinweis =
+            "Kundendaten konnten nicht gespeichert werden. Ihre Eingaben bleiben erhalten.";
+      } else if (globalAnsicht === "verwaltung") {
+        if (!einstellungenGeaendert())
+          hinweis =
+            "Die Einstellungen enthalten keine ungespeicherten Änderungen.";
+        else if (!(await einstellungenSpeichern()))
+          hinweis =
+            "Einstellungen konnten nicht vollständig gespeichert werden. Ihre Eingaben bleiben erhalten.";
+      } else {
         hinweis =
-          "Bitte prüfen Sie die Angaben in der Projektakte. Die Eingaben bleiben erhalten.";
+          "In dieser Ansicht gibt es nichts zu speichern. Strg+S speichert Projektakten, Kundendaten und Einstellungen.";
+      }
     } finally {
       speicherLaeuft = false;
     }
+  }
+  async function einstellungenSpeichern() {
+    const druck = (await druckEditor?.speichern()) ?? true;
+    const kategorien = (await kategorienEditor?.speichernOffen()) ?? true;
+    return druck && kategorien;
   }
   async function speichernUndBeenden() {
     beendenLaeuft = true;
@@ -282,7 +345,14 @@
         globalAnsicht = "kunden";
         beendenAngefragt = false;
         hinweis =
-          "Kundendaten konnten nicht gespeichert werden. Ihre Eingaben bleiben erhalten.";
+          "Kundendaten konnten nicht gespeichert werden. Die Anwendung bleibt geöffnet, Ihre Eingaben bleiben erhalten.";
+        return;
+      }
+      if (einstellungenGeaendert() && !(await einstellungenSpeichern())) {
+        globalAnsicht = "verwaltung";
+        beendenAngefragt = false;
+        hinweis =
+          "Einstellungen konnten nicht gespeichert werden. Die Anwendung bleibt geöffnet, Ihre Eingaben bleiben erhalten.";
         return;
       }
       await getCurrentWindow().destroy();
@@ -317,11 +387,20 @@
           fehler = `Projekt „${neu.name}“ wurde angelegt. Der Bauherr konnte nicht zugeordnet werden: ${fehlertext(e)} Bitte unter Bauherren zuordnen.`;
         }
       }
+      // Wer anlegt, wird Projekt-Leitung (Core); das tatsächliche Recht kommt
+      // trotzdem aus dem Core. Schlägt das Laden fehl, bleibt die Akte lesend.
+      let recht: ProjektRecht = "lesen";
+      try {
+        recht = await api.projektRecht(neu.id);
+      } catch (e) {
+        fehler = `Projekt „${neu.name}“ wurde angelegt. Die Projektberechtigung konnte nicht geladen werden: ${fehlertext(e)} Die Akte bleibt schreibgeschützt, bis sie erneut geöffnet wird.`;
+      }
       sitzungen.push({
         projekt: angelegt,
         ansicht: "projektuebersicht",
         planDokument: null,
         importAusloeser: 0,
+        recht,
       });
       aktiveId = neu.id;
       globalAnsicht = null;
@@ -344,10 +423,11 @@
       dialog = null;
     } catch (e) {
       if (istKonflikt(e)) {
-        // Optimistic Locking: jemand anderes hat das Projekt geändert.
+        // Optimistic Locking: jemand anderes hat das Projekt geändert. Das
+        // Formular übernimmt die neue Fassung als Grundlage, behält die
+        // Eingaben und zeigt beidseitig geänderte Felder (ProjektFormular).
         try {
           projektSetzen(await api.projektOeffnen(ziel.id));
-          fehler = "Das Projekt wurde inzwischen an einem anderen Arbeitsplatz geändert. Die aktuelle Fassung wurde geladen; bitte Änderungen erneut eintragen.";
         } catch (ladenFehler) {
           fehler = `Versionskonflikt. Die aktuelle Fassung konnte nicht geladen werden: ${fehlertext(ladenFehler)} Ihre Eingaben bleiben erhalten.`;
         }
@@ -414,15 +494,61 @@
     }
   }
 
-  function menue(id: string) {
-    if (installiere) return;
+  /** Editor des geöffneten Dialogs mit ungespeicherten Eingaben. */
+  function dialogEditor():
+    | { istBeschaeftigt(): boolean; schliessenErlaubt(): Promise<boolean> }
+    | undefined {
+    switch (dialog) {
+      case "mitglieder":
+        return mitgliederEditor;
+      case "bauherren":
+        return bauherrenEditor;
+      case "beteiligte":
+        return beteiligteEditor;
+      case "buero":
+        return bueroEditor;
+      case "neu":
+      case "projektdaten":
+        return projektFormularEditor;
+    }
+  }
+  /** Rückfrage, bevor ein Menübefehl den geöffneten Dialog ersetzt. */
+  async function dialogVerlassen(): Promise<boolean> {
+    if (!dialog) return true;
+    const editor = dialogEditor();
+    if (editor?.istBeschaeftigt()) {
+      hinweis = "Bitte warten, bis die Aktion im Dialog abgeschlossen ist.";
+      return false;
+    }
+    if (editor && !(await editor.schliessenErlaubt())) return false;
+    dialog = null;
+    return true;
+  }
+  // Diese Befehle lassen einen geöffneten Dialog unberührt.
+  const OHNE_DIALOGWECHSEL = new Set([
+    "anwendung.speichern",
+    "bearbeiten.rueckgaengig",
+    "bearbeiten.wiederholen",
+    "hilfe.updates",
+  ]);
+  let menueLaeuft = false;
+  async function menue(id: string) {
+    if (installiere || menueLaeuft) return;
+    if (dialog && !OHNE_DIALOGWECHSEL.has(id)) {
+      menueLaeuft = true;
+      try {
+        if (!(await dialogVerlassen())) return;
+      } finally {
+        menueLaeuft = false;
+      }
+    }
     if (id.startsWith("zuletzt:")) {
       oeffnen(id.slice("zuletzt:".length));
       return;
     }
     switch (id) {
       case "anwendung.speichern":
-        void aktiveAkteSpeichern();
+        void ansichtSpeichern();
         break;
       case "anwendung.einstellungen":
         globalAnsicht = "verwaltung";
@@ -530,7 +656,8 @@
         }
         if (
           sitzungen.some((s) => s.editor?.hatAenderungen()) ||
-          kundenEditor?.hatAenderungen()
+          kundenEditor?.hatAenderungen() ||
+          einstellungenGeaendert()
         ) {
           event.preventDefault();
           beendenAngefragt = true;
@@ -789,8 +916,9 @@
           bind:planDokument={s.planDokument}
           aktiv={!globalAnsicht && aktiveId === s.projekt.id}
           {info}
-          {ich}
-          {darf}
+          ich={ichIn(s)}
+          darf={darfIn(s)}
+          darfMitglieder={darfMitglieder(s)}
           importAusloeser={s.importAusloeser}
           onprojekt={projektSetzen}
           ondialog={(art) => {
@@ -810,7 +938,10 @@
       if (!beendenLaeuft) beendenAngefragt = false;
     }}
   >
-    <p>In Projektakten oder Kundendaten gibt es ungespeicherte Änderungen.</p>
+    <p>
+      In Projektakten, Kundendaten oder Einstellungen gibt es ungespeicherte
+      Änderungen.
+    </p>
     <div class="knoepfe">
       <button
         class="sekundaer"
@@ -856,7 +987,10 @@
         onclick={() => schliessZiel && entfernen(schliessZiel)}
         >Verwerfen und schließen</button
       ><button
-        disabled={schliessLaeuft || !darf("bearbeitung")}
+        disabled={schliessLaeuft ||
+          !darfIn(sitzungen.find((s) => s.projekt.id === schliessZiel))(
+            "bearbeitung",
+          )}
         onclick={speichernUndSchliessen}
         >{schliessLaeuft
           ? "Wird gespeichert …"
@@ -904,8 +1038,18 @@
     />
   </Dialog>
 {:else if dialog === "buero" && ich}
-  <Dialog titel="Büroangaben" breit onclose={() => (dialog = null)}>
-    <BueroDialog {ich} onschliessen={() => (dialog = null)} />
+  <Dialog
+    titel="Büroangaben"
+    breit
+    schliessenErlaubt={!bueroEditor?.istBeschaeftigt()}
+    onrequestclose={async () => bueroEditor?.schliessenErlaubt() ?? true}
+    onclose={() => (dialog = null)}
+  >
+    <BueroDialog
+      bind:this={bueroEditor}
+      {ich}
+      onschliessen={() => (dialog = null)}
+    />
   </Dialog>
 {:else if dialog === "mitglieder" && projekt}
   <Dialog
@@ -922,26 +1066,47 @@
     />
   </Dialog>
 {:else if dialog === "bauherren" && ich && projekt}
-  <Dialog titel="Bauherren" breit onclose={() => (dialog = null)}>
+  <Dialog
+    titel="Bauherren"
+    breit
+    schliessenErlaubt={!bauherrenEditor?.istBeschaeftigt()}
+    onrequestclose={async () => bauherrenEditor?.schliessenErlaubt() ?? true}
+    onclose={() => (dialog = null)}
+  >
     <BauherrenDialog
+      bind:this={bauherrenEditor}
       {projekt}
-      {ich}
+      ich={ichIn(aktiv) ?? ich}
       onprojekt={projektSetzen}
       onschliessen={() => (dialog = null)}
     />
   </Dialog>
 {:else if dialog === "beteiligte" && ich && projekt}
-  <Dialog titel="Weitere Beteiligte" breit onclose={() => (dialog = null)}>
+  <Dialog
+    titel="Weitere Beteiligte"
+    breit
+    schliessenErlaubt={!beteiligteEditor?.istBeschaeftigt()}
+    onrequestclose={async () => beteiligteEditor?.schliessenErlaubt() ?? true}
+    onclose={() => (dialog = null)}
+  >
     <BeteiligteDialog
+      bind:this={beteiligteEditor}
       {projekt}
-      {ich}
+      ich={ichIn(aktiv) ?? ich}
       onprojekt={projektSetzen}
       onschliessen={() => (dialog = null)}
     />
   </Dialog>
 {:else if dialog === "neu"}
-  <Dialog titel="Neues Projekt" onclose={() => (dialog = null)}>
+  <Dialog
+    titel="Neues Projekt"
+    schliessenErlaubt={!projektFormularEditor?.istBeschaeftigt()}
+    onrequestclose={async () =>
+      projektFormularEditor?.schliessenErlaubt() ?? true}
+    onclose={() => (dialog = null)}
+  >
     <ProjektFormular
+      bind:this={projektFormularEditor}
       start={{
         name: "",
         bundesland: projekt?.bundesland ?? "BY",
@@ -959,14 +1124,22 @@
     <ProjektOeffnen onoeffnen={oeffnen} onabbrechen={() => (dialog = null)} />
   </Dialog>
 {:else if dialog === "projektdaten" && projekt}
-  <Dialog titel="Projektdaten" onclose={() => (dialog = null)}>
+  <Dialog
+    titel="Projektdaten"
+    schliessenErlaubt={!projektFormularEditor?.istBeschaeftigt()}
+    onrequestclose={async () =>
+      projektFormularEditor?.schliessenErlaubt() ?? true}
+    onclose={() => (dialog = null)}
+  >
     <ProjektFormular
+      bind:this={projektFormularEditor}
       start={{
         name: projekt.name,
         bundesland: projekt.bundesland,
         grundstuecksflaeche_m2: projekt.grundstuecksflaeche_m2,
       }}
       knopf="Speichern"
+      fassungVerfolgen
       absenden={speichern}
       onabbrechen={() => (dialog = null)}
     />

@@ -3,6 +3,8 @@ export type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
 // Typisierte Hülle um die Tauri-Commands. Das Frontend rechnet nichts selbst;
 // alle Fachlogik liegt in core-lib (Rust).
 import { invoke } from "@tauri-apps/api/core";
+import type { ProjektRecht } from "./generated/plattform";
+import { melden } from "./projektEreignisse";
 
 export type Bundesland =
   | "BW"
@@ -80,6 +82,20 @@ export const rollenName = (r: Rolle) =>
 export const mindestens = (r: Rolle, min: Rolle) =>
   ROLLEN.findIndex((x) => x.code === r) >=
   ROLLEN.findIndex((x) => x.code === min);
+
+/** Reihenfolge wie core-lib `zugriff::ProjektRecht`; nur für die Oberfläche. */
+const PROJEKTRECHTE: ProjektRecht[] = ["kein", "lesen", "bearbeiten", "leitung"];
+export const projektRechtMindestens = (r: ProjektRecht, min: ProjektRecht) =>
+  PROJEKTRECHTE.indexOf(r) >= PROJEKTRECHTE.indexOf(min);
+
+/**
+ * Benutzer, wie ihn eine Projektakte für Knöpfe und Formulare sieht: Mit nur
+ * lesendem Projektrecht gilt die Rolle „Lesen“ (wie ohne Schreiblizenz).
+ * Maßgebend bleibt die Prüfung in core-lib.
+ */
+export function imProjekt(b: Benutzer, recht: ProjektRecht): Benutzer {
+  return projektRechtMindestens(recht, "bearbeiten") ? b : { ...b, rolle: "lesen" };
+}
 
 export interface Benutzer {
   id: string;
@@ -602,6 +618,8 @@ export interface FlaechenErgebnis {
   grz_ii: boolean;
   bauteile: { anrechnung: Anrechnung; flaeche_m2: number }[];
   geschosse: number[];
+  /** Wirksamer Anrechnungsfaktor für Nichtvollgeschosse (core-lib); ältere Ergebnisse ohne Angabe. */
+  nichtvollgeschoss_faktor?: number | null;
 }
 export interface FlaechenAbzug {
   art: string;
@@ -1063,9 +1081,16 @@ export interface BibliothekMaske {
   pdf_base64: string;
   seiten: PdfSeite[];
 }
+/** Legt eine Dokumentversion ab und meldet sie der zugehörigen Projektakte. */
+const ablage = (cmd: string, args: Record<string, unknown>) =>
+  invoke<DocumentVersion>(cmd, args).then((v) => {
+    melden({ projektId: v.project_id, bereich: "dokumente" });
+    return v;
+  });
+
 export const api = {
   emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
-  emailAnhangAblegen: (dokumentId: string, version: number, index: number) => invoke<DocumentVersion>("email_anhang_ablegen", { dokumentId, version, index }),
+  emailAnhangAblegen: (dokumentId: string, version: number, index: number) => ablage("email_anhang_ablegen", { dokumentId, version, index }),
   kategorienkatalog: () =>
     invoke<import("./generated/plattform").KategorienKatalog>("kategorienkatalog"),
   kategorienkatalogSpeichern: (
@@ -1113,7 +1138,7 @@ export const api = {
       { projektId },
     ),
   ausgabeWiederholen: (projektId: string, id: string) =>
-    invoke<DocumentVersion>("ausgabe_wiederholen", { projektId, id }),
+    ablage("ausgabe_wiederholen", { projektId, id }),
   sicherungsstatus: () =>
     invoke<{ lokal: boolean; profil: string; hinweis: string }>(
       "sicherungsstatus",
@@ -1168,7 +1193,7 @@ export const api = {
     werte: Record<string, Feldwert>,
     datenstand?: FormularDatenstand,
   ) =>
-    invoke<DocumentVersion>("formular_im_projekt_speichern", {
+    ablage("formular_im_projekt_speichern", {
       datenstand,
       dokumentId,
       basis,
@@ -1181,7 +1206,7 @@ export const api = {
   arbeitskopieOeffnen: (id: string) =>
     invoke<void>("arbeitskopie_oeffnen", { id }),
   arbeitskopieUebernehmen: (id: string) =>
-    invoke<DocumentVersion>("arbeitskopie_uebernehmen", { id }),
+    ablage("arbeitskopie_uebernehmen", { id }),
   einreichungen: (projektId: string) =>
     invoke<Einreichung[]>("einreichungen", { projektId }),
   einreichungsVergleich: (projektId: string, empfaenger: string) =>
@@ -1199,7 +1224,7 @@ export const api = {
   bibliothekVorschau: (vorlage: BibliotheksVorlage) =>
     invoke<BibliothekVorschau>("bibliothek_vorschau", { vorlage }),
   bibliothekUebernehmen: (vorlage: BibliotheksVorlage, projektId: string) =>
-    invoke<DocumentVersion>("bibliothek_uebernehmen", { vorlage, projektId }),
+    ablage("bibliothek_uebernehmen", { vorlage, projektId }),
   bibliothekVeroeffentlichen: (dokumentId: string, version: number) =>
     invoke<BibliotheksVorlage>("bibliothek_veroeffentlichen", {
       dokumentId,
@@ -1214,7 +1239,7 @@ export const api = {
     basis: number,
     felder: EigenesPdfFeld[],
   ) =>
-    invoke<DocumentVersion>("formular_vorlage_erstellen", {
+    ablage("formular_vorlage_erstellen", {
       dokumentId,
       basis,
       felder,
@@ -1236,6 +1261,8 @@ export const api = {
   projektAnlegen: (projekt: Projektwerte) =>
     invoke<Project>("projekt_anlegen", { projekt }),
   projektOeffnen: (id: string) => invoke<Project>("projekt_laden", { id }),
+  /** Eigenes wirksames Projektrecht nach der Core-Regel (zugriff.rs). */
+  projektRecht: (id: string) => invoke<ProjektRecht>("projekt_recht", { id }),
   projektAktivieren: (id: string) => invoke<Project>("projekt_oeffnen", { id }),
   projektSchliessen: () => invoke<void>("projekt_schliessen"),
   projektAktualisieren: (
@@ -1255,7 +1282,7 @@ export const api = {
     basis: number | null = null,
     kategorie: string | null = null,
   ) =>
-    invoke<DocumentVersion>("dokument_importieren", {
+    ablage("dokument_importieren", {
       projektId,
       dokumentId,
       basis,
@@ -1265,7 +1292,7 @@ export const api = {
   historie: (dokumentId: string) =>
     invoke<DocumentVersion[]>("dokument_historie", { dokumentId }),
   versionWiederherstellen: (dokumentId: string, version: number) =>
-    invoke<DocumentVersion>("version_wiederherstellen", {
+    ablage("version_wiederherstellen", {
       dokumentId,
       version,
     }),
