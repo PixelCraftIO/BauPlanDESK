@@ -1499,8 +1499,8 @@ async fn eingereichte_akte(
 fn berichtigung(gegenstand: chronik::Berichtigungsgegenstand, grund: &str) -> Aktenereignis {
     Aktenereignis {
         id: Uuid::new_v4(),
-        datum: Utc::now().date_naive(),
-        erfasst_am: Utc::now(),
+        datum: chrono::Utc::now().date_naive(),
+        erfasst_am: chrono::Utc::now(),
         erfasst_von: Uuid::nil(),
         text: "Berichtigung".into(),
         beleg: None,
@@ -2069,6 +2069,7 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
             nachweise: vec![],
         }],
         ersetzt: None,
+        verlaengerung: None,
     };
     // Genehmigt werden nur Unterlagen, die der Behörde vorlagen.
     a.bescheide.push(neuer_bescheid(anderer, None));
