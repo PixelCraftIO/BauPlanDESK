@@ -22,6 +22,82 @@ pub(super) enum Zeile {
         breiten: Vec<f32>,
         zeilen: Vec<Vec<String>>,
     },
+    /// Nummerierter Hauptabschnitt; `Text { titel: true }` wird darunter zum Unterabschnitt.
+    Abschnitt(String),
+    /// Hervorgehobener Hinweis für Status, Abweichungen und Vorbehalte.
+    Hinweis(String),
+    /// Unterschriftsfelder je Rolle: (Rolle, Name).
+    Unterschrift(Vec<(String, String)>),
+}
+pub(super) fn abschnitt(t: impl Into<String>) -> Zeile {
+    Zeile::Abschnitt(t.into())
+}
+pub(super) fn hinweis(t: impl Into<String>) -> Zeile {
+    Zeile::Hinweis(t.into())
+}
+/// Querbezüge innerhalb eines Pakets: Anlagennummern der beigefügten Grundlagen
+/// und die Personen für den Aufstellungsvermerk.
+#[derive(Default)]
+pub(super) struct Bezuege {
+    pub nachweise: std::collections::HashMap<uuid::Uuid, u32>,
+    pub raumbuecher: std::collections::HashMap<uuid::Uuid, u32>,
+    pub baugrundstueck: Option<u32>,
+    pub verfasser: Vec<(String, String)>,
+}
+impl Bezuege {
+    fn anlage(a: Option<&u32>) -> String {
+        a.map(|a| format!("Anlage {a}"))
+            .unwrap_or_else(|| "Nicht beigefügt".into())
+    }
+}
+/// Ergebnis eines Fachadapters.
+pub(super) struct Fachbericht {
+    pub titel: String,
+    pub zeilen: Vec<Zeile>,
+    /// Anlagen, auf denen dieser Bericht aufbaut.
+    pub verweise: Vec<u32>,
+    /// Stand für den Kopfblock.
+    pub stand: String,
+    /// Bezeichnung in Kopfblock und Anlagenverzeichnis (Fachtitel, ggf. mit
+    /// der vergebenen Nachweisbezeichnung).
+    pub verzeichnisname: String,
+}
+/// Amtlich verständlicher Titel je Nachweisart.
+pub(super) fn fachtitel(e: &NachweisEingabe) -> &'static str {
+    match e {
+        NachweisEingabe::Nutzung { fach, .. } => match fach {
+            NutzungsArt::Grz => "Nachweis der Grundflächenzahl (GRZ, § 19 BauNVO)",
+            NutzungsArt::Gfz => "Nachweis der Geschossflächenzahl (GFZ, § 20 BauNVO)",
+            NutzungsArt::Bmz => "Nachweis der Baumassenzahl (BMZ, § 21 BauNVO)",
+            NutzungsArt::Geschossigkeit => "Nachweis der Zahl der Vollgeschosse",
+        },
+        NachweisEingabe::AbstandProjekt { .. } => "Abstandsflächennachweis",
+        NachweisEingabe::Abstand { .. } => "Abstandsflächen – Tiefenvorprüfung",
+        NachweisEingabe::Fach { plan, .. } => plan.modul.titel(),
+    }
+}
+/// Fachtitel, ergänzt um eine aussagekräftige freie Bezeichnung.
+pub(super) fn benennung(fach: &str, bezeichnung: &str) -> String {
+    let b = bezeichnung.trim();
+    let einfach = |t: &str| {
+        t.to_lowercase()
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .collect::<String>()
+    };
+    let (f, k) = (einfach(fach), einfach(b));
+    // Leere oder rein wiederholende Bezeichnungen („GRZ“, „Grz Berechnung“).
+    let wiederholt = k.is_empty()
+        || f.contains(&k)
+        || ["berechnung", "nachweis"].iter().any(|w| {
+            k.strip_suffix(w)
+                .is_some_and(|r| !r.is_empty() && f.contains(r))
+        });
+    if wiederholt {
+        fach.into()
+    } else {
+        format!("{fach} – {b}")
+    }
 }
 pub(super) fn text(t: impl Into<String>) -> Zeile {
     Zeile::Text {
@@ -143,31 +219,31 @@ pub(super) async fn erstellen(
     p: &Project,
     q: &Druckquelle,
     staende: &[NachweisAnsicht],
-) -> CoreResult<(String, Vec<Zeile>)> {
-    let mut z = vec![text(format!(
-        "Bauvorhaben: {} · {}",
-        p.name,
-        land(p.bundesland)
-    ))];
+    bezuege: &Bezuege,
+) -> CoreResult<Fachbericht> {
+    let mut z = Vec::new();
+    let mut verweise = Vec::new();
+    let mut stand = format!("Projektstand {}", p.version);
+    let mut verzeichnisname: Option<String> = None;
     let name = match q {
         Druckquelle::Nachweis { id } => {
             let n = staende
                 .iter()
                 .find(|n| n.stand.id == *id)
                 .ok_or_else(|| fehler("Nachweis nicht im Projekt gefunden"))?;
-            z.push(titel(nachweisstatus(n)));
-            z.push(text(format!(
-                "Berechnungsdatum: {} · {}",
-                crate::kalender::datum_deutsch(n.stand.erstellt_am).format("%d.%m.%Y"),
-                land(n.stand.land)
-            )));
-            if let Some(f) = &n.freigabe {
-                z.push(text(format!(
-                    "Bürofreigabe vom {}: {}",
-                    crate::kalender::datum_deutsch(f.freigegeben_am).format("%d.%m.%Y"),
-                    f.bemerkung
-                )));
+            let datum = crate::kalender::datum_deutsch(n.stand.erstellt_am).format("%d.%m.%Y");
+            stand = format!("Nachweis vom {datum} · {}", nachweisstatus(n));
+            let mut warnung = Vec::new();
+            if !n.aktuell {
+                warnung.push("VERALTET: Die zugrunde liegenden Angaben wurden nach der Berechnung geändert. Vor einer Einreichung neu berechnen.");
             }
+            if !n.stand.vollstaendig {
+                warnung.push("UNVOLLSTÄNDIG: Offene Prüfpunkte sind unten ausgewiesen.");
+            }
+            if !warnung.is_empty() {
+                z.push(hinweis(warnung.join(" ")));
+            }
+            z.push(abschnitt("Angaben zum Nachweis"));
             let recht = &n.stand.rechtskontext;
             let grundlage = recht
                 .rechtsgrundlage
@@ -177,17 +253,44 @@ pub(super) async fn erstellen(
                     crate::domain::Rechtsgrundlage::Par35 => "§ 35 BauGB",
                 })
                 .unwrap_or("Nicht festgelegt");
-            z.push(text(format!("Planungsrechtliche Grundlage: {grundlage}")));
+            let mut paare = vec![
+                (
+                    "Bauvorhaben",
+                    format!("{} · {}", p.name, land(p.bundesland)),
+                ),
+                ("Nachweis", n.stand.bezeichnung.clone()),
+                (
+                    "Berechnungsdatum",
+                    format!("{datum} · {}", land(n.stand.land)),
+                ),
+                ("Status", nachweisstatus(n)),
+                ("Planungsrechtliche Grundlage", grundlage.into()),
+            ];
             if !recht.plan_bezeichnung.is_empty() || !recht.plan_nummer.is_empty() {
-                z.push(text(format!(
-                    "Bebauungsplan: {} · Nr. {} · Rechtskraft: {}",
-                    recht.plan_bezeichnung, recht.plan_nummer, recht.plan_rechtskraft
-                )));
+                paare.push((
+                    "Bebauungsplan",
+                    format!(
+                        "{} · Nr. {} · Rechtskraft: {}",
+                        recht.plan_bezeichnung, recht.plan_nummer, recht.plan_rechtskraft
+                    ),
+                ));
             }
+            if let Some(f) = &n.freigabe {
+                paare.push((
+                    "Bürofreigabe",
+                    format!(
+                        "{}: {}",
+                        crate::kalender::datum_deutsch(f.freigegeben_am).format("%d.%m.%Y"),
+                        f.bemerkung
+                    ),
+                ));
+            }
+            angaben(&mut z, paare);
             match &n.stand.eingabe {
                 NachweisEingabe::Fach { plan, .. } => {
                     let r: crate::berechnungen::FachErgebnis =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
+                    z.push(abschnitt("Regelgrundlagen"));
                     angaben(
                         &mut z,
                         vec![
@@ -211,6 +314,7 @@ pub(super) async fn erstellen(
                             ("Prüfvermerk", plan.regelkontext.pruefvermerk.clone()),
                         ],
                     );
+                    z.push(abschnitt("Eingangswerte und Rechengang"));
                     for t in &r.tabellen {
                         // A4 benötigt lesbare Spalten. Breite Fachverträge bleiben unverändert;
                         // der Druckadapter führt ihre erste Identifikationsspalte in jeder Teiltabelle fort.
@@ -241,7 +345,7 @@ pub(super) async fn erstellen(
                             z.push(tabelle(&sp, &breiten, t.zeilen.clone()));
                         }
                     }
-                    z.push(titel("Ergebnisse"));
+                    z.push(abschnitt("Ergebnisse"));
                     z.push(tabelle(
                         &["Kennzahl", "Wert", "Einheit"],
                         &[3., 1., 1.],
@@ -256,11 +360,20 @@ pub(super) async fn erstellen(
                             })
                             .collect(),
                     ));
-                    for h in &r.offen {
-                        z.push(text(format!("Offener Prüfpunkt: {h}")));
+                    if !r.offen.is_empty() || !r.hinweise.is_empty() {
+                        z.push(abschnitt("Offene Prüfpunkte und Hinweise"));
+                        for h in &r.offen {
+                            z.push(hinweis(format!("Offener Prüfpunkt: {h}")));
+                        }
+                        for h in &r.hinweise {
+                            z.push(text(h));
+                        }
                     }
-                    for h in &r.hinweise {
-                        z.push(text(h));
+                    if !plan.uebernahmen.is_empty()
+                        || !plan.fachquellen.is_empty()
+                        || !plan.quellen.is_empty()
+                    {
+                        z.push(abschnitt("Übernommene Grundlagen und Quellen"));
                     }
                     if !plan.uebernahmen.is_empty() {
                         z.push(titel("Übernommene Berechnungsgrundlagen"));
@@ -278,7 +391,11 @@ pub(super) async fn erstellen(
                                 .iter()
                                 .find(|k| k.id == u.kennzahl)
                                 .ok_or_else(|| fehler("Archivierte Quellkennzahl fehlt"))?;
+                            if let Some(a) = bezuege.nachweise.get(&u.nachweis_id) {
+                                verweise.push(*a);
+                            }
                             quellen.push(vec![
+                                Bezuege::anlage(bezuege.nachweise.get(&u.nachweis_id)),
                                 quelle.stand.bezeichnung.clone(),
                                 quelle
                                     .stand
@@ -295,12 +412,13 @@ pub(super) async fn erstellen(
                         }
                         z.push(tabelle(
                             &[
+                                "Anlage",
                                 "Quellnachweis",
                                 "Berechnungsstand",
                                 "Bezugsgröße",
                                 "Übernommener Wert",
                             ],
-                            &[2., 1.5, 2., 1.],
+                            &[0.8, 2., 1.5, 2., 1.],
                             quellen,
                         ));
                     }
@@ -313,7 +431,10 @@ pub(super) async fn erstellen(
                             .ok_or_else(|| fehler("Archivierte Raumdatenquelle fehlt"))?;
                         let raumbuch: crate::plattform::objekte::Raumbuch =
                             serde_json::from_value(quelle.daten).map_err(fehler)?;
-                        z.push(text(format!("Raumdatenquelle: {} · Revision {}. Raumklassifikation und Anrechnung erfolgen in diesem Nachweis.", raumbuch.bezeichnung, q.revision)));
+                        if let Some(a) = bezuege.raumbuecher.get(&q.objekt) {
+                            verweise.push(*a);
+                        }
+                        z.push(text(format!("Raumdatenquelle: {} · Revision {} ({}). Raumklassifikation und Anrechnung erfolgen in diesem Nachweis.", raumbuch.bezeichnung, q.revision, Bezuege::anlage(bezuege.raumbuecher.get(&q.objekt)))));
                     }
                     for d in &plan.quellen {
                         let m = core
@@ -352,7 +473,7 @@ pub(super) async fn erstellen(
                 } => {
                     let r: crate::lbo::Berechnung<crate::lbo::AbstandsflaecheErgebnis> =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
-                    z.push(titel(gegenstand));
+                    z.push(abschnitt(format!("Tiefenvorprüfung: {gegenstand}")));
                     z.push(text("Leistungsumfang: einfache Tiefenvorprüfung. Grundstücksgeometrie, Dach-/Geländeherleitung und besondere Verhältnisse sind hier nicht umfassend geprüft."));
                     angaben(
                         &mut z,
@@ -388,7 +509,10 @@ pub(super) async fn erstellen(
                         if index > 0 {
                             z.push(Zeile::Seitenwechsel);
                         }
-                        z.push(titel(&g.grundstueck.bezeichnung));
+                        z.push(abschnitt(format!(
+                            "Baugrundstück: {}",
+                            g.grundstueck.bezeichnung
+                        )));
                         let eingabe = plan
                             .berechnungen
                             .iter()
@@ -400,10 +524,15 @@ pub(super) async fn erstellen(
                             .as_ref()
                             .map(|a| &a.mass)
                             .unwrap_or(&eingabe.eingabe.mass);
+                        z.push(titel("Bezugsfläche, Rechenansatz und Ergebnis"));
                         z.push(text(format!(
-                            "Bezugsfläche: {} m²",
-                            zahl(mass.grundstuecksflaeche_m2)
+                            "Maßgebende Bezugsfläche: {} m² · Herleitung: Baugrundstücksermittlung ({})",
+                            zahl(mass.grundstuecksflaeche_m2),
+                            Bezuege::anlage(bezuege.baugrundstueck.as_ref())
                         )));
+                        if let Some(a) = bezuege.baugrundstueck {
+                            verweise.push(a);
+                        }
                         let k = &g.pruefung.kennzahlen;
                         let mut formeln = Vec::new();
                         match fach {
@@ -624,7 +753,7 @@ pub(super) async fn erstellen(
                     }
                 }
             }
-            z.push(titel("Regelgrundlagen und Prüfstand"));
+            z.push(abschnitt("Regelgrundlagen und Prüfstand"));
             let mut regeln = Vec::new();
             for r in &n.stand.regeln {
                 if r.format == "abstandsquellen-json-1" {
@@ -651,7 +780,11 @@ pub(super) async fn erstellen(
                 regeln,
             ));
             z.push(text("Die Ausgabe gibt den gespeicherten Berechnungsstand wieder. Offene Angaben, Abweichungen und ausstehende Freigaben sind vor einer Einreichung fachlich zu klären."));
-            n.stand.bezeichnung.clone()
+            // Einheitlicher Fachtitel; die freie Bezeichnung ergänzt ihn nur, wenn
+            // sie zusätzliche Information trägt.
+            let fach = fachtitel(&n.stand.eingabe);
+            verzeichnisname = Some(benennung(fach, &n.stand.bezeichnung));
+            fach.to_string()
         }
         Druckquelle::Baugrundstueck => {
             let g = crate::grundstueckskontext::ermitteln(p)?;
@@ -663,8 +796,8 @@ pub(super) async fn erstellen(
                 if index > 0 {
                     z.push(Zeile::Seitenwechsel);
                 }
-                z.push(titel(&g.bezeichnung));
-
+                z.push(abschnitt(format!("Baugrundstück: {}", g.bezeichnung)));
+                z.push(titel("Flurstücke und Flächenabzüge"));
                 if let Some(plan) = &plan {
                     for f in plan
                         .flurstuecke
@@ -770,6 +903,8 @@ pub(super) async fn erstellen(
                         .map(str::to_owned)
                 })
                 .unwrap_or_else(|| "Nicht bezeichnet".into());
+            stand = format!("Raumbuch Revision {revision}");
+            z.push(abschnitt("Raumaufstellung"));
             z.push(text(format!(
                 "Gebäude: {gebaeude} · Dokumentstand {revision}"
             )));
@@ -797,7 +932,8 @@ pub(super) async fn erstellen(
                     })
                     .collect(),
             ));
-            z.push(titel(format!(
+            z.push(abschnitt("Summen"));
+            z.push(text(format!(
                 "{} Räume · Gesamtfläche: {} m² · Volumen: {} m³",
                 s.anzahl,
                 zahl(s.flaeche_m2),
@@ -825,11 +961,12 @@ pub(super) async fn erstellen(
                 .max()
                 == Some(g.dokument_version);
             let r = crate::cad::baugrenzen::pruefe(g)?;
-            z.push(titel(if aktuell {
-                "Gespeicherte Baugrenzenzuordnung"
-            } else {
-                "VERALTET – neuere Planversion vorhanden"
-            }));
+            if !aktuell {
+                z.push(hinweis(
+                    "VERALTET: Für den Plan liegt eine neuere Version vor. Umrisse neu zuordnen und prüfen.",
+                ));
+            }
+            z.push(abschnitt("Lage im Baufenster (§ 23 BauNVO)"));
             z.push(text(format!(
                 "Plan: {} · Version {}",
                 d.file_name, g.dokument_version
@@ -870,18 +1007,35 @@ pub(super) async fn erstellen(
                     ),
                 ],
             );
-            z.push(text(if r.eingehalten {
-                "Baugrenze eingehalten"
+            z.push(abschnitt("Ergebnis"));
+            z.push(if r.eingehalten {
+                text("Baugrenze eingehalten")
             } else {
-                "Baugrenze überschritten – fachlich prüfen"
-            }));
+                hinweis("Baugrenze überschritten – fachlich prüfen")
+            });
             "Baugrenzenprüfung".into()
         }
         Druckquelle::Dokument { .. } => {
             return Err(fehler("Dokument benötigt den Dokumentadapter"));
         }
     };
-    Ok((name, z))
+    // Jede Berechnung schließt mit einem Aufstellungsvermerk ab.
+    z.push(abschnitt("Aufstellungsvermerk"));
+    z.push(text("Aufgestellt auf Grundlage der genannten Unterlagen, Eingaben und Regelstände. Das Blatt gibt den gespeicherten Berechnungsstand wieder; offene Angaben, Abweichungen und Vorbehalte sind ausgewiesen. Die Ausgabe ersetzt keine fachliche Prüfung."));
+    z.push(Zeile::Unterschrift(if bezuege.verfasser.is_empty() {
+        vec![("Aufgestellt (Entwurfsverfasser/in)".into(), String::new())]
+    } else {
+        bezuege.verfasser.clone()
+    }));
+    verweise.sort_unstable();
+    verweise.dedup();
+    Ok(Fachbericht {
+        verzeichnisname: verzeichnisname.unwrap_or_else(|| name.clone()),
+        titel: name,
+        zeilen: z,
+        verweise,
+        stand,
+    })
 }
 pub(super) fn email(m: &crate::email::EmailInhalt) -> Vec<Zeile> {
     let mut z = vec![titel(&m.betreff)];
@@ -985,4 +1139,24 @@ fn abzugsart(s: &str) -> String {
         _ => return s.replace('_', " "),
     }
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fachtitel_ersetzt_wiederholende_bezeichnungen() {
+        let grz = "Nachweis der Grundflächenzahl (GRZ, § 19 BauNVO)";
+        assert_eq!(benennung(grz, "Grz Berechnung"), grz);
+        assert_eq!(benennung(grz, "GRZ"), grz);
+        assert_eq!(benennung(grz, "  "), grz);
+        assert_eq!(
+            benennung(grz, "Variante B mit Tiefgarage"),
+            format!("{grz} – Variante B mit Tiefgarage")
+        );
+        assert_eq!(
+            benennung("Wohnflächenberechnung", "Wohnflächenberechnung"),
+            "Wohnflächenberechnung"
+        );
+    }
 }

@@ -219,7 +219,7 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
     .await
     .unwrap();
     quellen.push(Druckquelle::Nachweis { id });
-    let a=Druckauftrag{gestaltung:Some(core_lib::druckausgabe::Druckgestaltung {kopfzeile:"Planungsbüro Müller · Architektur und Genehmigungsplanung\n{Projekt}".into(), fusszeile:"Musterstraße 1 · 12345 Musterstadt · info@beispiel.de\nStand {Datum}".into(), ..Default::default()}), aktenzeichen:"BA-2026-042".into(),datum:chrono::NaiveDate::from_ymd_opt(2026,10,16),titel:"Bauantragsunterlagen".into(),absender:"Planungsbüro Müller\nMusterstraße 1".into(),empfaenger:"Bauamt Musterstadt\nBauaufsicht".into(),anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen\nDaniel Müller".into(),mit_anschreiben:true,inhaltsverzeichnis:true,projekt_version:p.version,quellen};
+    let a=Druckauftrag{gestaltung:Some(core_lib::druckausgabe::Druckgestaltung {kopfzeile:"Planungsbüro Müller · Architektur und Genehmigungsplanung\n{Projekt}".into(), fusszeile:"Musterstraße 1 · 12345 Musterstadt · info@beispiel.de\nStand {Datum}".into(), ..Default::default()}), aktenzeichen:"BA-2026-042".into(),datum:chrono::NaiveDate::from_ymd_opt(2026,10,16),titel:"Bauantragsunterlagen".into(),absender:"Planungsbüro Müller\nMusterstraße 1".into(),empfaenger:"Bauamt Musterstadt\nBauaufsicht".into(),anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen\nDaniel Müller".into(),mit_anschreiben:true,inhaltsverzeichnis:true,deckblatt:false,trennblaetter:false,aufgestellt_von:None,projekt_version:p.version,quellen};
     let vorher = core
         .repos
         .protokoll
@@ -255,6 +255,36 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
         595
     );
     assert!(!doc.get_page_content(pages[&4]).is_empty());
+    // Behördenpaket: Deckblatt vorn, Trennblatt vor jedem Original; die
+    // Anlage umfasst Trennblatt und unveränderte Originalseiten.
+    let paket = core
+        .druckausgabe(
+            p.id,
+            Druckauftrag {
+                deckblatt: true,
+                trennblaetter: true,
+                aufgestellt_von: None,
+                ..a.clone()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(paket.positionen[0].erste_seite, 4);
+    assert_eq!(paket.positionen[0].seiten, out.positionen[0].seiten + 1);
+    let pdoc = Document::load_mem(&paket.pdf).unwrap();
+    let ppages = pdoc.get_pages();
+    assert_eq!(
+        pdoc.get_dictionary(ppages[&5])
+            .unwrap()
+            .get(b"MediaBox")
+            .unwrap()
+            .as_array()
+            .unwrap()[2]
+            .as_i64()
+            .unwrap(),
+        842,
+        "Original bleibt unverändert im Querformat"
+    );
     assert_eq!(
         core.load_version(d.document_id, 1)
             .await
@@ -320,6 +350,8 @@ async fn einzel_und_stapel_mit_unveraenderten_originalen_und_exakten_staenden() 
         std::fs::create_dir_all(&ziel).unwrap();
         let ziel = std::path::Path::new(&ziel);
         let mut beispiel = a.clone();
+        beispiel.deckblatt = true;
+        beispiel.trennblaetter = true;
         beispiel.quellen = a.quellen.iter().take(3).cloned().collect();
         std::fs::write(
             ziel.join("beispiel.pdf"),
@@ -440,6 +472,7 @@ async fn weitere_fachberichte_beachten_revisionen_und_veraltete_planstaende() {
             Punkt(0., 10.),
         ],
         vorhaben: vec![Punkt(8., 2.), Punkt(12., 2.), Punkt(12., 6.), Punkt(8., 6.)],
+        grundstueck_schluessel: None,
     });
     let p = core
         .update_project(
@@ -473,6 +506,9 @@ async fn weitere_fachberichte_beachten_revisionen_und_veraltete_planstaende() {
         anschreiben: String::new(),
         mit_anschreiben: false,
         inhaltsverzeichnis: true,
+        deckblatt: false,
+        trennblaetter: false,
+        aufgestellt_von: None,
         projekt_version: p.version,
         quellen: vec![
             Druckquelle::Baugrenzen,

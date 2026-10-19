@@ -4,6 +4,7 @@
   import type { Gebaeude } from "./generated/plattform";
   import type { Datensatz } from "./plattformApi";
   import { plattformApi } from "./plattformApi";
+  import { abonnieren } from "./projektEreignisse";
   import { editorAnmelden } from "./editoren";
   import { onMount, untrack, tick } from "svelte";
   import {
@@ -14,6 +15,7 @@
     type BaugrundstueckGruppe,
     type BaugrundstuecksPruefung,
     type BaugrundstueckBerechnung,
+    type Einbindungshinweis,
   } from "./api";
   import type { BerechnungsBereich } from "./projektSitzung";
   import { regelwerk } from "./baunvo";
@@ -70,7 +72,15 @@
   const gruppenFingerprint = $derived(
     JSON.stringify([eingabe.flurstuecke, projekt.version]),
   );
-  const fingerprint = $derived(JSON.stringify([eingabe, projekt.version]));
+  let gebaeude = $state<Datensatz<Gebaeude>[]>([]);
+  // Gebäudeänderungen machen ein angezeigtes Ergebnis ebenfalls veraltet.
+  const fingerprint = $derived(
+    JSON.stringify([
+      eingabe,
+      projekt.version,
+      gebaeude.map((g) => [g.objekt, g.revision]),
+    ]),
+  );
   const gruppenAktuell = $derived(gruppenStand === gruppenFingerprint),
     aktuell = $derived(ergebnisStand === fingerprint);
   const quellenGeaendert = $derived(
@@ -188,6 +198,7 @@
     const f = projekt.planungsrecht.bau_nvo ?? "2021";
     return {
       schluessel: g.schluessel,
+      flurstueck_ids: g.flurstueck_ids,
       eigene_festsetzungen: null,
       eingabe: {
         gebiet: projekt.planungsrecht.festgesetzte_werte.baugebiet ?? "WA",
@@ -231,12 +242,26 @@
       gruppenStand = stand;
       if (!g.some((x) => x.schluessel === auswahl))
         auswahl = g[0]?.schluessel ?? "";
+      const neu: BaugrundstueckGruppe[] = [];
       for (const gruppe of g)
         if (
           !eingabe.berechnungen.some((b) => b.schluessel === gruppe.schluessel)
-        )
+        ) {
           eingabe.berechnungen.push(anlegen(gruppe));
+          neu.push(gruppe);
+        }
       if (nurVorgaben) gespeichert = structuredClone($state.snapshot(eingabe));
+      // Eindeutige Nachfolge laut Core (z. B. Flurstück hinzugekommen): Eingaben
+      // der bisherigen Berechnung in die neu angelegte übernehmen. Erscheint als
+      // ungespeicherte Änderung; Aufteilungen und Zusammenlegungen bleiben manuell.
+      const uebernommen = neu.flatMap((gruppe) =>
+        gruppe.vorgaenger?.length === 1 &&
+        eingabe.berechnungen.some((b) => b.schluessel === gruppe.vorgaenger![0])
+          ? [eingabenUebernehmen(gruppe.vorgaenger[0], gruppe.schluessel)]
+          : [],
+      );
+      if (uebernommen.length)
+        hinweis = `Die Grundstücksbildung hat sich geändert. Eingaben von ${uebernommen.length} bisherigen Berechnung(en) wurden dem jeweiligen Nachfolger zugeordnet. Bitte prüfen und speichern.`;
       return true;
     } catch (e) {
       fehler = fehlertext(e);
@@ -244,8 +269,37 @@
     }
   }
   onMount(async () => {
-    if (eingabe.flurstuecke.length) await ermitteln(true);
+    if (eingabe.flurstuecke.length && (await ermitteln(true)))
+      await gebaeudeEinbinden();
   });
+  let gebaeudeHinweise = $state<Einbindungshinweis[]>([]);
+  // Zugeordnete Gebäude übernimmt der Core; die Antwort gilt nur für den
+  // Eingabestand, für den sie angefordert wurde.
+  async function gebaeudeEinbinden() {
+    if (bereich === "grundstueck" || bereich === "volumen" || !gruppenAktuell)
+      return;
+    const stand = fingerprint;
+    try {
+      const r = await api.baugrundstueckeGebaeudeEinbinden(
+        projekt.id,
+        request(),
+      );
+      if (stand !== fingerprint) return;
+      for (const b of r.plan.berechnungen) {
+        const ziel = eingabe.berechnungen.find(
+          (x) => x.schluessel === b.schluessel,
+        )?.eingabe.aufstellung;
+        if (!ziel || !b.eingabe.aufstellung) continue;
+        if (JSON.stringify(ziel.bauteile) !== JSON.stringify(b.eingabe.aufstellung.bauteile))
+          ziel.bauteile = b.eingabe.aufstellung.bauteile;
+        if (JSON.stringify(ziel.geschosse) !== JSON.stringify(b.eingabe.aufstellung.geschosse))
+          ziel.geschosse = b.eingabe.aufstellung.geschosse;
+      }
+      gebaeudeHinweise = r.hinweise;
+    } catch (e) {
+      fehler = fehlertext(e);
+    }
+  }
   async function neuErmitteln() {
     laeuft = true;
     try {
@@ -265,18 +319,82 @@
   let nachweisHinweis = $state<string | null>(null),
     nachweisVorgang = "",
     nachweisStand = "";
-  let gebaeude = $state<Datensatz<Gebaeude>[]>([]);
   let grundkontexte = $state<import("./api").GrundstueckKontext[]>([]);
-  onMount(() => { api.grundstueckskontext(projekt.id).then((g) => { grundkontexte = g; }).catch((e) => { fehler = fehlertext(e); }); });
+  // Grundstückseinheiten hängen am gespeicherten Projektstand.
   $effect(() => {
-    void bereich;
+    void projekt.version;
     untrack(() => {
-      void plattformApi
-        .liste<Gebaeude>(projekt.id, "gebaeude")
-        .then((g) => (gebaeude = g))
-        .catch((e) => (fehler = fehlertext(e)));
+      api
+        .grundstueckskontext(projekt.id)
+        .then((g) => (grundkontexte = g))
+        .catch(() => (grundkontexte = []));
     });
   });
+  function gebaeudeLaden() {
+    return plattformApi
+      .liste<Gebaeude>(projekt.id, "gebaeude")
+      .then((g) => {
+        gebaeude = g;
+        return gebaeudeEinbinden();
+      })
+      .catch((e) => (fehler = fehlertext(e)));
+  }
+  $effect(() => {
+    void bereich;
+    untrack(() => void gebaeudeLaden());
+  });
+  // Gebäude/Geschosse in einem anderen Bereich dieser Akte geändert.
+  $effect(() =>
+    abonnieren(projekt.id, ["fachobjekte"], () => void gebaeudeLaden()),
+  );
+  // Nach geänderter Grundstücksbildung: übernommene Berechnungen (alt → neu),
+  // deren Gebäudezuordnungen nach dem Speichern übertragen werden.
+  let zuordnungen = $state<[string, string][]>([]);
+  let uebernahmeZiel = $state<Record<string, string>>({});
+  function eingabenUebernehmen(
+    altSchluessel: string,
+    zielSchluessel = uebernahmeZiel[altSchluessel],
+  ) {
+    const alt = eingabe.berechnungen.find((b) => b.schluessel === altSchluessel);
+    const ziel = eingabe.berechnungen.find((b) => b.schluessel === zielSchluessel);
+    if (!alt || !ziel) return false;
+    const a = structuredClone($state.snapshot(alt));
+    // Mit Gebäuden verknüpfte Einträge bindet der Core nach der Übertragung der
+    // Zuordnung erneut ein; hier nur die eigenen Eingaben übernehmen.
+    if (a.eingabe.aufstellung) {
+      a.eingabe.aufstellung.bauteile = a.eingabe.aufstellung.bauteile.filter(
+        (t) => !t.gebaeude_id,
+      );
+      a.eingabe.aufstellung.geschosse = a.eingabe.aufstellung.geschosse.filter(
+        (g) => !g.gebaeude_id,
+      );
+      a.eingabe.aufstellung.grundstueck =
+        ziel.eingabe.aufstellung?.grundstueck ?? a.eingabe.aufstellung.grundstueck;
+    }
+    a.eingabe.mass.grundstuecksflaeche_m2 = ziel.eingabe.mass.grundstuecksflaeche_m2;
+    ziel.eingabe = a.eingabe;
+    ziel.eigene_festsetzungen = a.eigene_festsetzungen;
+    eingabe.berechnungen = eingabe.berechnungen.filter(
+      (b) => b.schluessel !== altSchluessel,
+    );
+    zuordnungen = [...zuordnungen, [altSchluessel, ziel.schluessel]];
+    // Gebäude folgen ihren Flurstücken; nur Altbestand mit früherer
+    // Baugrundstückszuordnung wird nach dem Speichern übertragen.
+    hinweis = "Eingaben übernommen. Bitte prüfen und speichern.";
+    return true;
+  }
+  async function zuordnungenUebertragen() {
+    let anzahl = 0;
+    for (const [alt, neu] of zuordnungen)
+      anzahl += await plattformApi.gebaeudezuordnungUebertragen(
+        projekt.id,
+        alt,
+        neu,
+      );
+    zuordnungen = [];
+    if (anzahl) await gebaeudeLaden();
+    return anzahl;
+  }
   async function nachweisSpeichern() {
     if (!ergebnis || !aktuell) return;
     laeuft = true;
@@ -313,6 +431,7 @@
     fehler = null;
     try {
       if (!(await ermitteln())) return;
+      await gebaeudeEinbinden();
       const stand = fingerprint;
       const r = await api.projektBaugrundstueckePruefen(projekt.id, request());
       if (stand === fingerprint) {
@@ -356,7 +475,10 @@
       onprojekt(p);
       await tick();
       await ermitteln();
-      hinweis = "Baugrundstücke und Berechnungseingaben gespeichert.";
+      const uebertragen = await zuordnungenUebertragen();
+      hinweis = uebertragen
+        ? `Baugrundstücke und Berechnungseingaben gespeichert; ${uebertragen} Gebäudezuordnung(en) übertragen.`
+        : "Baugrundstücke und Berechnungseingaben gespeichert.";
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -551,9 +673,15 @@
     Flurstücke oder Grundlagen geändert. Die angezeigte Ermittlung ist veraltet;
     bitte neu ermitteln.
   </p>{/if}
-{#if !eingabe.flurstuecke.length}<p class="meta">
-    Zuerst unter Grundstücksinformationen → Flurstücke und Grundbuch die
-    Flurstücke erfassen und speichern.
+{#if !eingabe.flurstuecke.length}<p class="hinweisbox">
+    GRZ, GFZ und Geschossigkeit werden je Baugrundstück aus den Flurstücken
+    berechnet. Zuerst unter Grundstücksinformationen → Flurstücke und Grundbuch
+    die Flurstücke erfassen und speichern, danach hier die
+    Baugrundstücksermittlung speichern.
+    {#if projekt.grundstuecksflaeche_m2}Die bisher erfasste Projektfläche dient
+      nur als vorläufige Angabe. Gebäude, die ihr zugeordnet sind, werden bei
+      genau einem Baugrundstück automatisch übernommen; bei mehreren unter
+      Gebäude/Geschosse neu zuordnen.{/if}
   </p>{/if}
 {#if gruppe && berechnung?.eingabe.aufstellung}
   <label
@@ -581,8 +709,10 @@
           bind:value={berechnung.eingabe.mass.baumasse_m3}
         /></label
       >
-    {:else}<FlaechenFormular
+    {:else}{#each gebaeudeHinweise.filter((h) => h.schluessel === gruppe.schluessel) as h}<p class="hinweisbox" role="status">{h.text}</p>{/each}<FlaechenFormular
         {gebaeude}
+        einzigesGrundstueck={gruppen.length === 1}
+        flurstueckIds={gruppe.flurstueck_ids}
         projektId={projekt.id}
         grundstueckId={grundkontexte.find((g) => g.schluessel === gruppe.schluessel)?.id}
         bereich={bereich === "grz" ? "grz" : "gfz"}
@@ -596,8 +726,35 @@
     class="hinweisbox"
   >
     Die Grundstückszuordnung hat sich geändert. Verwaiste Berechnungen müssen
-    vor dem Speichern geprüft werden.
+    vor dem Speichern geprüft werden: entweder einem neuen Baugrundstück
+    ausdrücklich zuordnen oder entfernen.
   </p>
+  {#each eingabe.berechnungen.filter((b) => !gruppen.some((g) => g.schluessel === b.schluessel)) as alt (alt.schluessel)}<fieldset
+      disabled={!darf || laeuft}
+    >
+      <legend>Bisherige Berechnung</legend>
+      <p class="meta">
+        {alt.eingabe.aufstellung?.bauteile.filter((t) => !t.gebaeude_id).length ?? 0} eigene Bauteile,
+        {alt.eingabe.aufstellung?.geschosse.filter((g) => !g.gebaeude_id).length ?? 0} eigene Geschosse.
+        Mit Gebäuden verknüpfte Flächen werden nach dem Speichern über die übertragene
+        Gebäudezuordnung neu eingebunden.
+      </p>
+      <label
+        >Übernehmen in<select
+          aria-label="Übernehmen in"
+          bind:value={uebernahmeZiel[alt.schluessel]}
+          ><option value={undefined}>Baugrundstück wählen</option
+          >{#each gruppen as g}<option value={g.schluessel}>{g.bezeichnung}</option
+            >{/each}</select
+        ></label
+      >
+      <button
+        class="sekundaer"
+        disabled={!uebernahmeZiel[alt.schluessel]}
+        onclick={() => eingabenUebernehmen(alt.schluessel)}
+        >Eingaben übernehmen (ersetzt die Eingaben des Ziels)</button
+      >
+    </fieldset>{/each}
   <button
     class="sekundaer"
     disabled={!darf || laeuft}

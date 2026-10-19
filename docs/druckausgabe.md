@@ -33,6 +33,23 @@ möglich, wenn die Live-Vorschau die aktuellen Eingaben vollständig darstellt.
 Dieser Druck speichert keine neue Formularversion. Für die spätere gemeinsame
 Ausgabe das Formular zunächst im Projekt speichern.
 
+## Exportwege im Überblick
+
+| Weg | Inhalt | Zweck |
+| --- | --- | --- |
+| **Drucken / PDF-Ausgabe** (Unterlagen) | Zusammengestelltes PDF aus Berechnungen und Projektdateien; optional als neue DMS-Version ablegen | Berechnungsheft, Bauvorlagen zur Prüfung, Papierdruck |
+| **Abgabe in der Verfahrensakte** | Eingefrorener Abgabestand: `Unterlagen.zip` (exakte Dokumentversionen mit Prüfsummen), optional `Druckausgabe.pdf` (mit Deckblatt, Anlagenverzeichnis und Trennblättern) und `XBau.zip` | Einreichung bei der Bauaufsicht, nachvollziehbar je Abgabe |
+| **XBau-Postfach** | XBau-Nachrichten und Anlagen | Digitale Antragstellung nach XBau |
+| **Portale** | Portalpaket je Vorgang mit Dateizuordnung | Upload in Landesportale |
+| **Projektordner exportieren** | Projektdateien als Ordnerstruktur, optional mit Historie | Weitergabe, Archiv |
+| **Verfahrensakte exportieren** | Aktenexport (Verfahren, Schritte, Fristen, Dokumente) | Aktenführung, Archiv |
+| **Einzelexporte** | Dokumentversion, Einreichung, Abstandsflächennachweis (JSON/DXF/PDF) | Gezielte Weitergabe |
+| **Sicherung** | Projekt- und Bürosicherung | Wiederherstellung, kein Austauschformat |
+
+Berechnungen gelangen in eine Abgabe, indem das Berechnungsheft über **Drucken /
+PDF-Ausgabe** als DMS-Version abgelegt und in der Abgabe ausgewählt wird. Damit
+liegt der eingereichte Stand unveränderlich mit Version und Prüfsumme vor.
+
 ## Berechnungen und Erweiterbarkeit
 
 Baugrundstücksermittlung, gespeicherte Baugrenzenprüfung und Raumbücher besitzen

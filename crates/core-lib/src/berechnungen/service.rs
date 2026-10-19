@@ -97,7 +97,10 @@ impl CoreServices {
         if plan.gebaeudedaten_uebernehmen != Some(true) {
             return Ok(());
         }
-        if plan.modul != BerechnungsArt::Vollgeschosse {
+        if !matches!(
+            plan.modul,
+            BerechnungsArt::Vollgeschosse | BerechnungsArt::Hoehen
+        ) {
             return Err(err(
                 "Gebäudeübernahme wird für dieses Fachmodul nicht unterstützt",
             ));
@@ -113,6 +116,9 @@ impl CoreServices {
             .ok_or_else(|| err("Gebäude gehört nicht zum Projekt"))?;
         let g: crate::plattform::objekte::Gebaeude = decode(&stand.daten)?;
         let basis = g.grundlagen(id)?;
+        if plan.modul == BerechnungsArt::Hoehen {
+            return hoehen_einsetzen(plan, &g, &basis);
+        }
         let mut e: vollgeschosse::Eingabe = decode(&plan.eingaben)?;
         let vorher = (e.geschosse.clone(), e.teilflaechen.clone());
         let mut geschosse = Vec::new();
@@ -233,12 +239,14 @@ impl CoreServices {
                 }
             }
 
+            // Das Baugrundstück des Gebäudes folgt aus seinen Flurstücken.
             if let Some(id) = plan.grundstueck_id
-                && !g.grundstueck_ids.is_empty()
-                && !g.grundstueck_ids.contains(&id)
+                && let Some(grundplan) = crate::grundstuecksinformationen::plan(&p.planungsrecht)?
+                && !crate::plattform::einbindung::Lagebezug::neu(pid, &grundplan)
+                    .moeglich_id(&g, id)
             {
                 return Err(err(
-                    "Gebäude ist einer anderen Grundstückseinheit zugeordnet",
+                    "Das Gebäude steht laut seinen Flurstücken auf einer anderen Grundstückseinheit",
                 ));
             }
         }
@@ -380,6 +388,59 @@ impl CoreServices {
             .collect::<Vec<_>>();
         Ok(ContentHash::of(&serde_json::to_vec(&serde_json::json!({"plan":plan,"gespeichert":!daten.is_empty(),"fachquellen":fachquellen,"land":p.bundesland,"grund":g,"gebaeude":geb,"planrecht":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft)})).map_err(|e|err(e.to_string()))?))
     }
+}
+/// Traufe und First aus Gebäude/Geschosse als Höhenpunkte (m ü. NHN), bezogen
+/// auf die mittlere Geländehöhe des Gebäudes. Eigene Punkte bleiben erhalten;
+/// übernommene Punkte tragen die Kennung `gebaeude:<id>:<art>` und werden bei
+/// jeder Prüfung aktualisiert. Geänderte Werte setzen die Bezugsprüfung zurück.
+fn hoehen_einsetzen(
+    plan: &mut FachPlan,
+    g: &crate::plattform::objekte::Gebaeude,
+    basis: &crate::plattform::gebaeude::GebaeudeGrundlagen,
+) -> CoreResult<()> {
+    let h = &basis.hoehen_nhn;
+    let gelaende = h.gelaende_m.ok_or_else(|| {
+        err("Gebäudenullpunkt (m ü. NHN) und mittlere Geländehöhe in Gebäude/Geschosse ergänzen")
+    })?;
+    let praefix = format!("gebaeude:{}:", basis.gebaeude_id);
+    let mut e: hoehen::Eingabe = decode(&plan.eingaben)?;
+    let vorher = e.punkte.clone();
+    e.punkte.retain(|p| !p.id.starts_with(&praefix));
+    let herkunft = g
+        .geometrie
+        .as_ref()
+        .and_then(|g| g.herkunft.as_deref())
+        .filter(|h| !h.trim().is_empty())
+        .unwrap_or("Gebäude/Geschosse");
+    let mut neu = 0;
+    for (art, name, wert) in [
+        ("traufe", "Traufe", h.traufe_m),
+        ("first", "First", h.first_m),
+    ] {
+        let Some(wert) = wert else { continue };
+        neu += 1;
+        e.punkte.push(hoehen::Punkt {
+            id: format!("{praefix}{art}"),
+            bezeichnung: format!("{} · {name}", g.bezeichnung),
+            art: art.into(),
+            absolut_m: wert,
+            bezug_m: gelaende,
+            quelle: format!(
+                "Gebäude {} · {herkunft} · Nullpunkt + relative Höhe; Bezug mittlere Geländehöhe · {}",
+                g.bezeichnung,
+                crate::plattform::gebaeude::RECHENSTAND
+            ),
+        });
+    }
+    if neu == 0 {
+        return Err(err("Trauf- oder Firsthöhe in Gebäude/Geschosse ergänzen"));
+    }
+    if e.punkte != vorher {
+        e.bezug_geprueft = false;
+        plan.regelkontext.anwendbarkeit_bestaetigt = false;
+    }
+    plan.eingaben = serde_json::to_value(e).map_err(|e| err(e.to_string()))?;
+    Ok(())
 }
 fn setzen(v: &mut serde_json::Value, pfad: &str, wert: serde_json::Value) -> CoreResult<()> {
     let mut current = v;

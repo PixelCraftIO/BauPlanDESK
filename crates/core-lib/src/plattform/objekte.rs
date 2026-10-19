@@ -36,6 +36,20 @@ pub struct Gebaeude {
     #[ts(optional)]
     pub geometrie: Option<super::gebaeude::GebaeudeGeometrie>,
     pub bezeichnung: String,
+    /// Flurstücke (IDs der Grundstücksinformationen), auf denen das Gebäude
+    /// steht, bei Vereinigungsbaulast auch mehrere. Das Baugrundstück leitet der
+    /// Core je Berechnung daraus ab. Fehlt in älteren Ständen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<String>>")]
+    pub flurstueck_ids: Vec<String>,
+    /// `true`: Die Flurstücke stammen aus einer früheren Baugrundstückszuordnung
+    /// und sind noch auf die tatsächlich bebauten Flurstücke zu prüfen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub flurstuecke_zu_pruefen: Option<bool>,
+    /// Veraltet: frühere Zuordnung zu Baugrundstücken. Wird nur noch gelesen,
+    /// solange keine Flurstücke zugeordnet sind; neu wird sie nicht gesetzt.
+    #[serde(default)]
     pub grundstueck_ids: Vec<Uuid>,
     pub geschosse: Vec<GebaeudeGeschoss>,
     pub quelle: Option<Dokumentbezug>,
@@ -180,6 +194,7 @@ pub(super) async fn validieren(
     core: &CoreServices,
     p: &Project,
     art: ObjektArt,
+    objekt: Uuid,
     daten: serde_json::Value,
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
@@ -231,20 +246,61 @@ pub(super) async fn validieren(
             let g: Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
             text(&g.bezeichnung, 500)?;
             g.grundlagen(Uuid::nil())?;
-            if g.geschosse.len() > 200 || g.grundstueck_ids.len() > 100 {
+            if g.geschosse.len() > 200
+                || g.grundstueck_ids.len() > 100
+                || g.flurstueck_ids.len() > 1000
+            {
                 return Err(CoreError::InvalidInput(
                     "Zu viele Gebäudezuordnungen oder Geschosse".into(),
                 ));
             }
-            if !g.grundstueck_ids.is_empty() {
-                let grund = crate::grundstueckskontext::ermitteln(p)?;
-                for id in &g.grundstueck_ids {
-                    if !grund.iter().any(|k| k.id == *id) {
-                        return Err(CoreError::InvalidInput(
-                            "Gebäude verweist auf unbekanntes Baugrundstück".into(),
-                        ));
-                    }
+            let mut g = g;
+            if g.flurstueck_ids.is_empty() || g.flurstuecke_zu_pruefen == Some(false) {
+                g.flurstuecke_zu_pruefen = None;
+            }
+            if !g.flurstueck_ids.is_empty() {
+                // Die Flurstückszuordnung ersetzt die frühere Baugrundstückszuordnung.
+                g.grundstueck_ids.clear();
+                let mut ids = std::collections::HashSet::new();
+                if !g.flurstueck_ids.iter().all(|f| ids.insert(f)) {
+                    return Err(CoreError::InvalidInput(
+                        "Flurstück doppelt zugeordnet".into(),
+                    ));
                 }
+            }
+            // Nur neu hinzugefügte Zuordnungen müssen bestehen. Gespeicherte,
+            // inzwischen veraltete Angaben blockieren das Speichern anderer
+            // Gebäudeangaben nicht; sie werden in den Grundlagen und in GRZ/GFZ
+            // als veraltet angezeigt. Flurstücke sind unabhängig von der
+            // Baugrundstücksermittlung bekannt.
+            let vorher = core
+                .repos
+                .commit
+                .fachstaende(p.id, "gebaeude")
+                .await?
+                .into_iter()
+                .find(|f| f.objekt == objekt.to_string())
+                .and_then(|f| serde_json::from_value::<Gebaeude>(f.daten).ok());
+            let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+            for f in &g.flurstueck_ids {
+                if !infos.flurstuecke.iter().any(|i| &i.id == f)
+                    && !vorher
+                        .as_ref()
+                        .is_some_and(|v| v.flurstueck_ids.contains(f))
+                {
+                    return Err(CoreError::InvalidInput(
+                        "Gebäude verweist auf ein unbekanntes Flurstück".into(),
+                    ));
+                }
+            }
+            if g.grundstueck_ids.iter().any(|id| {
+                !vorher
+                    .as_ref()
+                    .is_some_and(|v| v.grundstueck_ids.contains(id))
+            }) {
+                return Err(CoreError::InvalidInput(
+                    "Gebäude über Flurstücke zuordnen; das Baugrundstück wird für die Berechnungen abgeleitet".into(),
+                ));
             }
             let mut ids = std::collections::HashSet::new();
             for s in &g.geschosse {
@@ -344,12 +400,32 @@ impl CoreServices {
         p: ProjectId,
         plan: &crate::baugrundstuecke::BaugrundstuecksPlan,
     ) -> CoreResult<crate::baugrundstuecke::BaugrundstuecksPlan> {
+        Ok(self.gebaeude_einbinden(p, plan).await?.plan)
+    }
+    /// Verknüpft alle eindeutig zugeordneten Gebäude mit ihren Baugrundstücken
+    /// und aktualisiert verknüpfte Flächen aus den Grundlagen.
+    pub async fn gebaeude_einbinden(
+        &self,
+        p: ProjectId,
+        plan: &crate::baugrundstuecke::BaugrundstuecksPlan,
+    ) -> CoreResult<super::einbindung::GebaeudeEinbindung> {
         let gebaeude = self.repos.commit.fachstaende(p, "gebaeude").await?;
-        let mut neu = plan.clone();
+        let quellen = gebaeude
+            .iter()
+            .map(|f| {
+                Ok((
+                    f.objekt
+                        .parse::<Uuid>()
+                        .map_err(|_| CoreError::InvalidInput("Gebäude-ID ungültig".into()))?,
+                    serde_json::from_value::<Gebaeude>(f.daten.clone()).map_err(json_err)?,
+                ))
+            })
+            .collect::<CoreResult<Vec<_>>>()?;
+        let super::einbindung::GebaeudeEinbindung { plan, hinweise } =
+            super::einbindung::einbinden(p, plan, &quellen);
+        let bezug = super::einbindung::Lagebezug::neu(p, &plan);
+        let mut neu = plan;
         for b in &mut neu.berechnungen {
-            // Auch bei veralteten Quellen muss der neue Plan speicherbar bleiben.
-            // Dieselbe stabile Identität wie im öffentlichen Grundstückskontext.
-            let grund_id = Some(Uuid::new_v5(&p.0, b.schluessel.as_bytes()));
             if let Some(a) = &mut b.eingabe.aufstellung {
                 let mut bauteil_ids = std::collections::HashSet::new();
                 for teil in &mut a.bauteile {
@@ -367,10 +443,8 @@ impl CoreServices {
                             })?;
                         let g: Gebaeude =
                             serde_json::from_value(f.daten.clone()).map_err(json_err)?;
-                        if g.grundstueck_ids.len() != 1
-                            || g.grundstueck_ids.first().copied() != grund_id
-                        {
-                            return Err(CoreError::InvalidInput("Flächenübernahme benötigt ein Gebäude mit eindeutiger Zuordnung zu diesem Baugrundstück; bei mehreren Grundstücken Flächen getrennt manuell aufteilen".into()));
+                        if !bezug.eindeutig(&g, &b.schluessel) {
+                            return Err(CoreError::InvalidInput("Flächenübernahme benötigt ein Gebäude, dessen Flurstücke eindeutig zu diesem Baugrundstück gehören; bei mehreren Grundstücken Flächen getrennt manuell aufteilen".into()));
                         }
                         let basis = g.grundlagen(id)?;
                         teil.flaeche_m2 = basis.grundflaeche_m2.ok_or_else(|| {
@@ -401,15 +475,13 @@ impl CoreServices {
                         })?;
                         let geb: Gebaeude =
                             serde_json::from_value(f.daten.clone()).map_err(json_err)?;
-                        if !geb.grundstueck_ids.is_empty()
-                            && !grund_id.is_some_and(|id| geb.grundstueck_ids.contains(&id))
-                        {
+                        if !bezug.moeglich(&geb, &b.schluessel) {
                             return Err(CoreError::InvalidInput(
                                 "Geschoss gehört zu einem anderen Baugrundstück".into(),
                             ));
                         }
                         if g.flaeche_aus_grundlagen == Some(true) {
-                            if geb.grundstueck_ids.len() != 1 {
+                            if !bezug.eindeutig(&geb, &b.schluessel) {
                                 return Err(CoreError::InvalidInput(
                                     "Geschossfläche für mehrere Grundstücke getrennt aufteilen"
                                         .into(),
@@ -485,6 +557,9 @@ impl CoreServices {
                 }
             }
         }
-        Ok(neu)
+        Ok(super::einbindung::GebaeudeEinbindung {
+            plan: neu,
+            hinweise,
+        })
     }
 }

@@ -13,10 +13,15 @@
     ergebnis,
     festsetzungen,
     bereich = "alle",
+    einzigesGrundstueck = false,
+    flurstueckIds = [],
   }: {
     projektId: string;
     grundstueckId?: string;
     bereich?: "alle" | "grz" | "gfz";
+    einzigesGrundstueck?: boolean;
+    /** Flurstücke dieses Baugrundstücks laut Ermittlung. */
+    flurstueckIds?: string[];
     gebaeude?: import("./plattformApi").Datensatz<
       import("./generated/plattform").Gebaeude
     >[];
@@ -50,7 +55,15 @@
   let importHinweis = $state("");
   let importLaeuft = $state(false);
   let einzelEinstufung = $state<boolean | null>(null);
-  const importGebaeude = $derived(gebaeude.filter((g) => g.daten.grundstueck_ids.length === 1 && g.daten.grundstueck_ids[0] === grundstueckId));
+  // Angebot zur erneuten Verknüpfung: Gebäude mit einem Flurstück dieses
+  // Grundstücks (Altbestand: frühere Zuordnung); ob die Lage eindeutig ist,
+  // prüft der Core beim Prüfen und Speichern.
+  const importGebaeude = $derived(gebaeude.filter((g) => {
+    const f = g.daten.flurstueck_ids ?? [];
+    if (f.length) return f.some((id) => flurstueckIds.includes(id));
+    if (grundstueckId && g.daten.grundstueck_ids.includes(grundstueckId)) return true;
+    return einzigesGrundstueck;
+  }));
   async function uebernehmen() {
     const haus = importGebaeude.find((g) => g.objekt === importId);
     if (!haus || importLaeuft) return;
@@ -87,11 +100,11 @@
 <section class="flaechenformular">
   {#if gebaeude.length}<fieldset>
     <legend>Bekannte Flächen aus Gebäude/Geschosse</legend>
-    <p class="meta">Verknüpfte Flächen werden beim Prüfen und Speichern aus den Grundlagen aktualisiert. Es werden nur Gebäude angeboten, die eindeutig diesem Baugrundstück zugeordnet sind. Bereits manuell erfasste Flächen vorher auf Doppelungen prüfen.</p>
+    <p class="meta">Gebäude, die diesem Baugrundstück zugeordnet sind, werden mit vollständigen Grundlagen automatisch übernommen und beim Prüfen und Speichern aktualisiert. Hier lässt sich ein Gebäude erneut verknüpfen, etwa nach „Verknüpfung lösen“ oder um die Einstufung eines Einzelgeschosses festzulegen. Bereits manuell erfasste Flächen auf Doppelungen prüfen.</p>
     <label>Gebäude<select bind:value={importId} onchange={() => { einzelEinstufung = null; importFehler = ""; importHinweis = ""; }}><option value="">Gebäude auswählen</option>{#each importGebaeude as haus}<option value={haus.objekt}>{haus.daten.bezeichnung}</option>{/each}</select></label>
     {#if bereich === "gfz" && importGebaeude.find((g) => g.objekt === importId)?.daten.geschosse.length === 0}<label>Geprüfte Einstufung des Einzelgeschosses<select bind:value={einzelEinstufung}><option value={null}>Noch zu prüfen</option><option value={true}>Vollgeschoss</option><option value={false}>Nichtvollgeschoss</option></select></label>{/if}
     <button type="button" class="sekundaer" disabled={!importId || importLaeuft} onclick={uebernehmen}>{bereich === "gfz" ? "Geschossflächen verknüpfen" : "Gebäudegrundfläche verknüpfen"}</button>
-    {#if !importGebaeude.length}<p class="meta">Für eine Übernahme das Gebäude unter Grundlagen genau diesem Baugrundstück zuordnen. Bei Gebäuden auf mehreren Grundstücken die Flächen getrennt aufteilen.</p>{/if}
+    {#if !importGebaeude.length}<p class="meta">Für eine Übernahme dem Gebäude unter Gebäude/Geschosse die Flurstücke zuordnen, auf denen es steht. Bei Gebäuden auf mehreren Baugrundstücken die Flächen getrennt aufteilen.</p>{/if}
     {#if importFehler}<p class="fehlertext" role="alert">{importFehler}</p>{/if}
     {#if importHinweis}<p class="meta" role="status">{importHinweis}</p>{/if}
   </fieldset>{/if}

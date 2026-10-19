@@ -142,10 +142,39 @@ fn koordinaten(p: &[APunkt]) -> String {
         .collect::<Vec<_>>()
         .join("; ")
 }
+/// Erzeugt [`planseite`] ein Blatt? Ohne Geometrie entfällt die Skizze.
+pub fn hat_planskizze(p: &AbstandsPlan, r: &AbstandsErgebnis) -> bool {
+    p.grundstuecke.iter().any(|g| !g.grenze.is_empty())
+        || p.flaechen.iter().any(|f| !f.polygon.is_empty())
+        || r.waende.iter().any(|w| !w.polygon.is_empty())
+        || !p.waende.is_empty()
+}
+/// Nur ASCII in der Standardschrift der Planskizze.
+fn ascii(t: &str) -> String {
+    t.chars()
+        .flat_map(|c| match c {
+            'ä' => "ae".chars().collect::<Vec<_>>(),
+            'ö' => "oe".chars().collect(),
+            'ü' => "ue".chars().collect(),
+            'Ä' => "Ae".chars().collect(),
+            'Ö' => "Oe".chars().collect(),
+            'Ü' => "Ue".chars().collect(),
+            'ß' => "ss".chars().collect(),
+            '–' | '—' => vec!['-'],
+            '·' => vec!['-'],
+            '(' | ')' | '\\' => vec![' '],
+            c if c.is_ascii() && !c.is_ascii_control() => vec![c],
+            _ => vec!['?'],
+        })
+        .take(110)
+        .collect()
+}
+/// `kennung`: Zuordnung im Paket, z. B. Anlage und Blatt; erscheint unter dem Titel.
 pub fn planseite(
     d: &mut lopdf::Document,
     p: &AbstandsPlan,
     r: &AbstandsErgebnis,
+    kennung: Option<&str>,
 ) -> CoreResult<()> {
     use lopdf::{Object, Stream, dictionary};
     let points = p
@@ -173,6 +202,12 @@ pub fn planseite(
     let mut out = format!(
         "q 0.6 w 0 0 0 RG BT /PlanFont 13 Tf 50 752 Td (Abstandsflaechen - Vektorplanskizze) Tj ET BT /PlanFont 10 Tf 50 732 Td (1:{nenner:.0} bei 100 Prozent PDF-Ausgabe; G/W/F siehe Bericht) Tj ET\n"
     );
+    if let Some(k) = kennung {
+        out.push_str(&format!(
+            "BT /PlanFont 10 Tf 50 718 Td ({}) Tj ET\n",
+            ascii(k)
+        ));
+    }
     let path = |pts: &[APunkt]| -> String {
         let mut s = String::new();
         for (i, v) in pts.iter().enumerate() {

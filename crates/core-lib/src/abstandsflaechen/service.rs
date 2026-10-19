@@ -39,7 +39,31 @@ impl CoreServices {
                 ));
             }
         }
+        let gebaeude = self.gebaeudenamen(p).await?;
+        for w in &plan.waende {
+            if let Some(id) = w.gebaeude_id
+                && !gebaeude.iter().any(|(g, _)| *g == id)
+            {
+                return Err(err(format!(
+                    "{}: verknüpftes Gebäude gehört nicht zum Projekt",
+                    w.bezeichnung
+                )));
+            }
+        }
         berechnen(plan)
+    }
+    /// Identität und Bezeichnung der Gebäude aus Gebäude/Geschosse.
+    async fn gebaeudenamen(&self, p: ProjectId) -> CoreResult<Vec<(Uuid, String)>> {
+        let mut r = vec![];
+        for f in self.repos.commit.fachstaende(p, "gebaeude").await? {
+            let g: crate::plattform::objekte::Gebaeude =
+                serde_json::from_value(f.daten).map_err(|e| err(e.to_string()))?;
+            r.push((
+                f.objekt.parse().map_err(|_| err("Gebäude-ID ungültig"))?,
+                g.bezeichnung,
+            ));
+        }
+        Ok(r)
     }
     pub(crate) async fn abstandsplan_vorbereiten(
         &self,
@@ -53,6 +77,16 @@ impl CoreServices {
             .await?;
         let mut neu: AbstandsPlan =
             serde_json::from_value(daten).map_err(|e| err(e.to_string()))?;
+        // Verknüpfte Wände tragen die aktuelle Bezeichnung ihres Gebäudes.
+        let gebaeude = self.gebaeudenamen(p).await?;
+        for w in &mut neu.waende {
+            if let Some((_, name)) = w
+                .gebaeude_id
+                .and_then(|id| gebaeude.iter().find(|(g, _)| *g == id))
+            {
+                w.gebaeude = name.clone();
+            }
+        }
         let alt = self
             .repos
             .commit

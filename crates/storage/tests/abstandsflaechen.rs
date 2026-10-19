@@ -100,6 +100,9 @@ async fn projekt_nachweis_pdf_quellen_und_unveraendertes_archiv() {
         anschreiben: String::new(),
         mit_anschreiben: false,
         inhaltsverzeichnis: false,
+        deckblatt: false,
+        trennblaetter: false,
+        aufgestellt_von: None,
         projekt_version: p.version,
         quellen: vec![Druckquelle::Nachweis { id: n.id }],
     };

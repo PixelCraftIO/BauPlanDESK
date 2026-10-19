@@ -25,6 +25,12 @@ export class EditorRegister {
       e.hatAenderungen(),
     );
   }
+  /** Ungespeicherte Änderungen in einem bestimmten Bereich dieser Akte. */
+  hatAenderungenIn(id: Ansicht) {
+    return [...this.editoren.values()].some(
+      (e) => e.id === id && e.editor.hatAenderungen(),
+    );
+  }
   istBeschaeftigt() {
     return [...this.editoren.values()].some(({ editor: e }) =>
       e.istBeschaeftigt(),
@@ -44,6 +50,10 @@ export function projektEditoren() {
   const register = new EditorRegister();
   setContext(SCHLUESSEL, register);
   return register;
+}
+/** Register der aktuellen Projektakte, sofern vorhanden. */
+export function editorRegister() {
+  return getContext<EditorRegister | undefined>(SCHLUESSEL);
 }
 export function editorAnmelden(id: Ansicht, editor: FachEditor) {
   const register = getContext<EditorRegister | undefined>(SCHLUESSEL);

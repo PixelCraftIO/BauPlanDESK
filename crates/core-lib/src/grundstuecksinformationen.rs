@@ -209,9 +209,35 @@ impl Grundstuecksinformationen {
         flaechen.peek()?;
         Some(flaechen.sum())
     }
-    /// Quellenstand der Baugrundstücksermittlung. Eigentümerzuordnungen und
-    /// Gemarkungsnummer ändern keine Fläche und lassen die Ermittlung aktuell.
+    /// Quellenstand der Baugrundstücksermittlung: nur Angaben, die Bildung und
+    /// Fläche der Baugrundstücke bestimmen (Vorhabenflurstücke mit Kataster-,
+    /// Grundbuch- und Flächenangaben). Nachbar- und Baulastflurstücke,
+    /// Bemerkungen, Grundbuchauszüge und Eigentümer lassen die Ermittlung aktuell.
     pub fn fingerprint(&self) -> CoreResult<ContentHash> {
+        let quelle: Vec<_> = self
+            .vorhaben()
+            .map(|f| {
+                (
+                    "v2",
+                    &f.id,
+                    &f.gemarkung,
+                    &f.flur,
+                    &f.nummer,
+                    f.flaeche_m2,
+                    &f.grundbuchbezirk,
+                    &f.grundbuchblatt,
+                    f.laufende_nummer,
+                )
+            })
+            .collect();
+        Ok(ContentHash::of(
+            &serde_json::to_vec(&quelle).map_err(|e| CoreError::InvalidInput(e.to_string()))?,
+        ))
+    }
+    /// Quellenstand bis Oktober 2026 über alle Flurstücksangaben. Bereits
+    /// gespeicherte Ermittlungen mit diesem Stand bleiben aktuell, solange sich
+    /// die Angaben nicht ändern; die nächste Speicherung schreibt [`Self::fingerprint`].
+    pub fn fingerprint_v1(&self) -> CoreResult<ContentHash> {
         let mut quelle = self.clone();
         for f in &mut quelle.flurstuecke {
             f.eigentuemer_kunden.clear();
@@ -351,8 +377,11 @@ pub fn quellen_aktuell(p: &Planungsrecht) -> CoreResult<bool> {
     if p.grundstuecksinformationen.is_none() {
         return Ok(true);
     }
-    Ok(ermittlung(p)?.and_then(|e| e.quellen_hash).as_ref()
-        == Some(&informationen(p).fingerprint()?))
+    let Some(gespeichert) = ermittlung(p)?.and_then(|e| e.quellen_hash) else {
+        return Ok(false);
+    };
+    let infos = informationen(p);
+    Ok(gespeichert == infos.fingerprint()? || gespeichert == infos.fingerprint_v1()?)
 }
 /// Neue Berechnungseingaben dürfen keine eigenen Katasterfakten unterschieben.
 pub fn pruefe_quellen(p: &Planungsrecht, b: &BaugrundstuecksPlan) -> CoreResult<()> {
@@ -593,6 +622,46 @@ mod tests {
         eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
         infos.flurstuecke[1].eigentuemer.clear();
         eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
+    }
+    #[test]
+    fn nur_flaechenrelevante_angaben_veralten_die_ermittlung() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        assert!(quellen_aktuell(&p).unwrap());
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        infos.flurstuecke[0].bemerkung = "Zufahrt über Nachbargrundstück".into();
+        let mut nachbar = infos.flurstuecke[0].clone();
+        nachbar.id = "nachbar".into();
+        nachbar.nummer = "999/1".into();
+        nachbar.rolle = FlurstuecksRolle::Nachbar;
+        infos.flurstuecke.push(nachbar);
+        assert!(
+            quellen_aktuell(&p).unwrap(),
+            "Bemerkung und Nachbar ohne Flächenbezug"
+        );
+        p.grundstuecksinformationen.as_mut().unwrap().flurstuecke[0].flaeche_m2 += 1.;
+        assert!(!quellen_aktuell(&p).unwrap(), "Flächenänderung");
+    }
+    #[test]
+    fn gespeicherter_alter_quellenstand_bleibt_gueltig() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let alt = p
+            .grundstuecksinformationen
+            .as_ref()
+            .unwrap()
+            .fingerprint_v1()
+            .unwrap();
+        p.baugrundstuecksermittlung.as_mut().unwrap().quellen_hash = Some(alt);
+        assert!(quellen_aktuell(&p).unwrap());
+        p.grundstuecksinformationen.as_mut().unwrap().flurstuecke[0].flaeche_m2 += 1.;
+        assert!(!quellen_aktuell(&p).unwrap());
     }
     #[test]
     fn flurstuecksnummer_und_gemarkungsnummer() {

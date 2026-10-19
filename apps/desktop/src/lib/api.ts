@@ -270,6 +270,8 @@ export interface GespeicherterBauantrag {
   hinweise?: string[];
   /** Flurstücke stammen aus den Grundstücksinformationen und sind hier nur Anzeige. */
   flurstuecke_zentral?: boolean;
+  /** Gebäudeanzahl stammt aus Gebäude/Geschosse und ist hier nur Anzeige. */
+  gebaeude_zentral?: boolean;
   /** Geladene Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts. */
   verfahrensarten?: Codeliste;
 }
@@ -651,6 +653,8 @@ export interface BaugrundstueckBerechnung {
   schluessel: string;
   eingabe: NutzungsEingabe;
   eigene_festsetzungen: Festsetzungen | null;
+  /** Flurstücke der Einheit beim letzten Speichern (für Umgruppierungen). */
+  flurstueck_ids?: string[];
 }
 export interface BaugrundstuecksPlan {
   flurstuecke: GrundstuecksFlurstueck[];
@@ -663,6 +667,17 @@ export interface BaugrundstueckGruppe {
   eigentumsflaeche_m2: number;
   abzuege_m2: number;
   bauland_m2: number;
+  /** Eindeutig beerbte, nicht mehr bestehende Berechnungen (Schlüssel). */
+  vorgaenger?: string[];
+}
+/** Gebäude/Geschosse, die (noch) nicht in GRZ/GFZ eines Baugrundstücks eingehen. */
+export interface Einbindungshinweis {
+  schluessel: string;
+  text: string;
+}
+export interface GebaeudeEinbindung {
+  plan: BaugrundstuecksPlan;
+  hinweise: Einbindungshinweis[];
 }
 export interface BaugrundstuecksPruefung {
   projekt_version: number;
@@ -707,6 +722,8 @@ export interface BaugrenzenGeometrie {
   einheit: Laengeneinheit;
   baufenster: Punkt[];
   vorhaben: Punkt[];
+  /** Schlüssel des Baugrundstücks, zu dem der Vorhabenumriss gehört. */
+  grundstueck_schluessel?: string | null;
 }
 
 export interface Aussenflaeche {
@@ -1397,6 +1414,14 @@ export const api = {
     eingabe: BaugrundstuecksPlan,
   ) =>
     invoke<BaugrundstuecksPruefung>("projekt_baugrundstuecke_pruefen", {
+      projektId,
+      eingabe,
+    }),
+  baugrundstueckeGebaeudeEinbinden: (
+    projektId: string,
+    eingabe: BaugrundstuecksPlan,
+  ) =>
+    invoke<GebaeudeEinbindung>("projekt_baugrundstuecke_gebaeude_einbinden", {
       projektId,
       eingabe,
     }),

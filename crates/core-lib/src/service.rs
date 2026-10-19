@@ -928,6 +928,12 @@ impl CoreServices {
         if flurstuecke_zentral {
             antrag.grundstueck.flurstuecke = zentral;
         }
+        // Ebenso die Gebäudeanzahl: erfasste Gebäude sind die einzige Quelle.
+        let gebaeude = self.repos.commit.fachstaende(project, "gebaeude").await?;
+        let gebaeude_zentral = !gebaeude.is_empty();
+        if gebaeude_zentral {
+            antrag.anzahl_gebaeude = u32::try_from(gebaeude.len()).unwrap_or(u32::MAX);
+        }
         let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
         let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
         fehlende_angaben.extend(self.codelisten.fehlende());
@@ -959,6 +965,24 @@ impl CoreServices {
                 }),
         );
         hinweise.extend(infos.baulasthinweise());
+        if antrag.grundstueck.anschrift.ist_leer() && !p.planungsrecht.standort.trim().is_empty() {
+            hinweise.push(format!(
+                "Anschrift des Baugrundstücks fehlt; unter Planungsrecht ist als Standort „{}“ erfasst.",
+                p.planungsrecht.standort.trim()
+            ));
+        }
+        // Bei genau einer Verfahrensakte ist der Bezug eindeutig; sonst prüft die Abgabe je Verfahren.
+        let akten: Vec<crate::verfahren::Verfahrensakte> = self
+            .repos
+            .commit
+            .fachstaende(project, "verfahren")
+            .await?
+            .into_iter()
+            .filter_map(|f| serde_json::from_value(f.daten).ok())
+            .collect();
+        if let [akte] = akten.as_slice() {
+            hinweise.extend(self.verfahrensart_abgleichen(&p, &antrag, akte));
+        }
         Ok(GespeicherterBauantrag {
             antrag,
             version,
@@ -967,6 +991,7 @@ impl CoreServices {
             fehlende_angaben,
             hinweise,
             flurstuecke_zentral,
+            gebaeude_zentral,
             verfahrensarten,
         })
     }
@@ -1842,6 +1867,18 @@ impl CoreServices {
         self.geschosszuordnung(projekt_id, eingabe)
             .await?
             .pruefe(&p.planungsrecht, p.version)
+    }
+
+    /// Plan mit allen eindeutig zugeordneten Gebäuden und Hinweisen zu Gebäuden,
+    /// die (noch) nicht in GRZ/GFZ eingehen können.
+    pub async fn projekt_baugrundstuecke_gebaeude_einbinden(
+        &self,
+        projekt_id: ProjectId,
+        eingabe: &crate::baugrundstuecke::BaugrundstuecksPlan,
+    ) -> CoreResult<crate::plattform::einbindung::GebaeudeEinbindung> {
+        let p = self.get_project(projekt_id).await?;
+        crate::grundstuecksinformationen::pruefe_quellen(&p.planungsrecht, eingabe)?;
+        self.gebaeude_einbinden(projekt_id, eingabe).await
     }
 
     pub fn baugrenzen_pruefen(

@@ -16,6 +16,8 @@
   } from "./generated/plattform";
   import { grundstuecksinformationen } from "./grundstuecksdaten";
   import { editorAnmelden } from "./editoren";
+  import { plattformApi } from "./plattformApi";
+  import { ask } from "@tauri-apps/plugin-dialog";
   let {
     projekt,
     darf,
@@ -169,6 +171,27 @@
     fehler = null;
     meldung = null;
     try {
+      // Entfernte Flurstücke, auf die Gebäude oder Abstandspläne verweisen,
+      // nur nach ausdrücklicher Bestätigung; die Verweise werden dann bereinigt.
+      const entfernt = gespeichert.flurstuecke
+        .map((f) => f.id)
+        .filter((id) => !eingabe.flurstuecke.some((f) => f.id === id));
+      const verweise = entfernt.length
+        ? await plattformApi.flurstuecksverweise(projekt.id, entfernt)
+        : [];
+      if (
+        verweise.length &&
+        !(await ask(
+          `Auf zu entfernende Flurstücke verweisen noch:\n${[...new Set(verweise.map((v) => v.bezeichnung))].join("\n")}\n\nDiese Verweise werden beim Speichern ebenfalls entfernt. Gebäude ohne Flurstück gehen danach nicht mehr in die Berechnungen ein; Abstandspläne sind neu zu prüfen.`,
+          {
+            title: "Flurstücke entfernen",
+            kind: "warning",
+            okLabel: "Verweise entfernen und speichern",
+            cancelLabel: "Abbrechen",
+          },
+        ))
+      )
+        return false;
       const p = await api.projektBereichSpeichern(
         structuredClone($state.snapshot(basis)),
         "grundstuecksinformationen",
@@ -193,6 +216,13 @@
       await tick();
       meldung =
         "Grundstücksinformationen gespeichert. Die Baugrundstücksermittlung verwendet diese Daten als Grundlage.";
+      if (verweise.length) {
+        const n = await plattformApi.flurstuecksverweiseEntfernen(
+          projekt.id,
+          entfernt,
+        );
+        meldung += ` Verweise in ${n} abhängigen Angaben entfernt.`;
+      }
     } catch (e) {
       fehler = fehlertext(e);
     } finally {

@@ -566,6 +566,9 @@ pub struct GespeicherterBauantrag {
     /// `true`: Die Flurstücke stammen aus den Grundstücksinformationen des
     /// Projekts und werden dort bearbeitet; die Liste im Antrag ist nur Anzeige.
     pub flurstuecke_zentral: bool,
+    /// `true`: [`Bauantrag::anzahl_gebaeude`] ist die Zahl der unter
+    /// Gebäude/Geschosse erfassten Gebäude und wird dort gepflegt.
+    pub gebaeude_zentral: bool,
     /// Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts
     /// ([`codeliste::verfahrensart_uri`]), sofern geladen; daraus wird
     /// [`Bauantrag::verfahrensart`] gewählt.

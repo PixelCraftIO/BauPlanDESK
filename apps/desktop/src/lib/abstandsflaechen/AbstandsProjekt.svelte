@@ -12,12 +12,14 @@
     AbstandsErgebnis,
     AbstandsWand,
     Dokumentbezug,
+    Gebaeude,
   } from "../generated/plattform";
   import Druckknopf from "../Druckknopf.svelte";
   import Dokumentliste from "../verfahren/Dokumentliste.svelte";
   import Dokumentfeld from "../verfahren/Dokumentfeld.svelte";
   import Punktliste from "./Punktliste.svelte";
   import Planbild from "./Planbild.svelte";
+  import { grundstuecksinformationen } from "../grundstuecksdaten";
   let {
     projekt,
     benutzerId,
@@ -81,16 +83,40 @@
   const wand = $derived(s.eingabe?.waende.find((w) => w.id === auswahl));
   let vorgang = "",
     vorgangStand = "";
+  let gebaeude = $state<import("../plattformApi").Datensatz<Gebaeude>[]>([]);
+  // Gleicher Adapter wie im Core, damit auch Altprojekte ihre Flurstücke zeigen.
+  const flurstuecke = $derived(grundstuecksinformationen($state.snapshot(projekt.planungsrecht)).flurstuecke);
+  let hoehenHinweis = $state("");
   onMount(async () => {
     try {
-      [katalog, dateien] = await Promise.all([
+      [katalog, dateien, gebaeude] = await Promise.all([
         invoke<AbstandsRegeln[]>("abstandsregeln"),
         api.dokumente(projekt.id),
+        plattformApi.liste<Gebaeude>(projekt.id, "gebaeude"),
       ]);
     } catch (e) {
       s.fehler = fehlertext(e);
     }
   });
+  /** Gelände und Traufe (m ü. NHN) des verknüpften Gebäudes als Wandhöhen. */
+  async function hoehenUebernehmen(w: AbstandsWand) {
+    hoehenHinweis = "";
+    const g = gebaeude.find((g) => g.objekt === w.gebaeude_id);
+    if (!g) return;
+    try {
+      const h = (await plattformApi.gebaeudeAuswerten(projekt.id, g.objekt, $state.snapshot(g.daten) as Gebaeude)).hoehen_nhn;
+      if (h.gelaende_m === null || h.traufe_m === null) {
+        hoehenHinweis = "Gebäudenullpunkt, mittlere Geländehöhe und Traufhöhe in Gebäude/Geschosse ergänzen.";
+        return;
+      }
+      w.gelaende_a_m = w.gelaende_b_m = h.gelaende_m;
+      w.abschluss_a_m = w.abschluss_b_m = h.traufe_m;
+      w.hoehenquelle = `Gebäude ${g.daten.bezeichnung}: mittlere Geländehöhe und Traufhöhe aus Gebäude/Geschosse (m ü. NHN)`;
+      hoehenHinweis = "Höhen übernommen. Gelände an den Wandenden, Giebel und abweichende Wandabschlüsse je Wand prüfen.";
+    } catch (e) {
+      hoehenHinweis = fehlertext(e);
+    }
+  }
   async function pruefen() {
     if (!s.eingabe) return;
     busy = true;
@@ -364,7 +390,25 @@
         {#if wand}{@const w = wand}
           <h4>{w.bezeichnung}</h4>
           <div class="raster">
-            <label>Gebäude<input bind:value={w.gebaeude} /></label><label
+            {#if gebaeude.length}<label
+                >Gebäude aus Gebäude/Geschosse<select
+                  value={w.gebaeude_id ?? ""}
+                  onchange={(e) => {
+                    const g = gebaeude.find((g) => g.objekt === e.currentTarget.value);
+                    w.gebaeude_id = g?.objekt;
+                    if (g) w.gebaeude = g.daten.bezeichnung;
+                  }}
+                  ><option value="">Nicht verknüpft</option
+                  >{#each gebaeude as g (g.objekt)}<option value={g.objekt}
+                      >{g.daten.bezeichnung}</option
+                    >{/each}</select
+                ></label
+              >{/if}
+            <label>Gebäude<input bind:value={w.gebaeude} readonly={!!w.gebaeude_id} /></label>{#if w.gebaeude_id}<div>
+                <button type="button" class="sekundaer" onclick={() => hoehenUebernehmen(w)}
+                  >Gelände und Traufe aus Gebäude übernehmen</button
+                >{#if hoehenHinweis}<p class="meta" role="status">{hoehenHinweis}</p>{/if}
+              </div>{/if}<label
               >Wandbezeichnung<input bind:value={w.bezeichnung} /></label
             ><label
               >Grundstückseinheit<select bind:value={w.grundstueck_id}
@@ -547,7 +591,7 @@
               ></textarea></label
             >
             <div class="knoepfe links">
-              {#each projekt.planungsrecht.grundstuecksinformationen?.flurstuecke ?? [] as f}<label
+              {#each flurstuecke as f (f.id)}<label
                   ><input
                     type="checkbox"
                     checked={g.flurstueck_ids.includes(f.id)}
@@ -556,6 +600,15 @@
                         ? [...g.flurstueck_ids, f.id]
                         : g.flurstueck_ids.filter((id) => id !== f.id))}
                   />{f.gemarkung} · {f.nummer}</label
+                >{/each}
+              {#each g.flurstueck_ids.filter((id) => !flurstuecke.some((f) => f.id === id)) as id (id)}<label
+                  class="veraltet"
+                  ><input
+                    type="checkbox"
+                    checked
+                    onchange={() =>
+                      (g.flurstueck_ids = g.flurstueck_ids.filter((x) => x !== id))}
+                  />Nicht mehr erfasstes Flurstück – Haken entfernen</label
                 >{/each}
             </div>
             <p class="meta">
@@ -841,6 +894,7 @@
 </Fachliste>
 
 <style>
+  .veraltet { color: var(--warning-text); font-style: italic; }
   nav {
     display: flex;
     gap: 0.4rem;

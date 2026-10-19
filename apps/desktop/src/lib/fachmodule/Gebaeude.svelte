@@ -2,6 +2,7 @@
   import { onMount, untrack } from "svelte";
   import type { Project, GrundstueckKontext } from "../api";
   import { api, fehlertext } from "../api";
+  import { grundstuecksinformationen } from "../grundstuecksdaten";
   import type {
     Gebaeude,
     NachweisAnsicht,
@@ -9,6 +10,7 @@
   } from "../generated/plattform";
   import { plattformApi } from "../plattformApi";
   import { FachSitzung } from "../FachSitzung.svelte";
+  import { editorRegister } from "../editoren";
   import Fachliste from "../Fachliste.svelte";
   import GrundlagenZahl from "./GrundlagenZahl.svelte";
   import GeschossMasse from "./GeschossMasse.svelte";
@@ -26,6 +28,8 @@
         benutzerId,
         () => ({
           bezeichnung: "",
+          // Bei genau einem Vorhabenflurstück ist die Lage eindeutig.
+          flurstueck_ids: vorhaben.length === 1 ? [vorhaben[0].id] : [],
           grundstueck_ids: [],
           geschosse: [],
           quelle: null,
@@ -99,14 +103,48 @@
         }));
     });
   }
+  // Gebäude stehen auf Flurstücken; das Baugrundstück ergibt sich erst aus der
+  // Baugrundstücksermittlung und wird hier nur zur Information angezeigt.
+  const flurstuecke = $derived(
+    grundstuecksinformationen($state.snapshot(projekt.planungsrecht)).flurstuecke,
+  );
+  const vorhaben = $derived(
+    flurstuecke.filter((f) => (f.rolle ?? "vorhaben") === "vorhaben"),
+  );
+  const flurName = (f: (typeof flurstuecke)[number]) =>
+    `${f.gemarkung || "Gemarkung"} · Flur ${f.flur || "—"} · ${f.nummer || "Flurstück"}`;
+  // Flurstücke stehen hier erst nach dem Speichern der Grundstücksinformationen.
+  const editoren = editorRegister();
+  const flurstueckEntwurf = $derived(
+    !!editoren?.hatAenderungenIn("flurstuecke"),
+  );
   let grund = $state<GrundstueckKontext[]>([]);
+  let grundGeladen = $state(false);
   onMount(async () => {
     try {
       grund = await api.grundstueckskontext(projekt.id);
-    } catch (e) {
-      s.fehler = fehlertext(e);
+      grundGeladen = true;
+    } catch {
+      // Ohne bestätigte Ermittlung entfällt nur die Anzeige des Baugrundstücks.
     }
   });
+  /** Baugrundstücke, zu denen die gewählten Flurstücke derzeit gehören. */
+  const einheiten = (g: Gebaeude) =>
+    grund.filter((k) =>
+      (g.flurstueck_ids ?? []).some((f) => k.flurstueck_ids.includes(f)),
+    );
+  /** Frühere Zuordnung zu Baugrundstücken (Altbestand ohne Flurstücke). */
+  const altEinheiten = (g: Gebaeude) =>
+    g.flurstueck_ids?.length
+      ? []
+      : grund.filter((k) => g.grundstueck_ids.includes(k.id));
+  function flurstueckSetzen(g: Gebaeude, id: string, an: boolean) {
+    const ids = g.flurstueck_ids ?? [];
+    g.flurstueck_ids = an ? [...ids, id] : ids.filter((x) => x !== id);
+    if (g.flurstueck_ids.length) g.grundstueck_ids = [];
+    // Eine bewusste Auswahl gilt als geprüft.
+    g.flurstuecke_zu_pruefen = undefined;
+  }
 </script>
 
 <Fachliste titel="Gebäude und Geschosse" {s} bereich="gebaeude" {darf}>
@@ -136,20 +174,36 @@
       <p class="meta">Fundamentsohle und Fußbodenhöhe sind unterschiedliche Angaben. Welches Gelände und welche Deckenlage für eine Vollgeschossprüfung maßgebend sind, wird im Nachweis anhand der geltenden Vorschrift geprüft.</p>
     </details>
     <fieldset>
-      <legend>Zugeordnete Baugrundstücke</legend>{#each grund as k (k.id)}<label
+      <legend>Lage auf Flurstücken</legend>
+      {#if flurstueckEntwurf}<p class="hinweisbox" role="status">Unter Grundstücksinformationen → Flurstücke und Grundbuch gibt es ungespeicherte Änderungen. Neue Flurstücke erscheinen hier erst nach dem Speichern.</p>{/if}
+      <p class="meta">Flurstücke wählen, auf denen das Gebäude steht. Bei einem Gebäude über mehrere Flurstücke (z. B. mit Vereinigungsbaulast) alle betroffenen Flurstücke wählen.</p>
+      {#each flurstuecke as f (f.id)}<label class:nebenflurstueck={(f.rolle ?? "vorhaben") !== "vorhaben"}
           ><input
             type="checkbox"
-            checked={g.grundstueck_ids.includes(k.id)}
-            onchange={(e) => {
-              g.grundstueck_ids = e.currentTarget.checked
-                ? [...g.grundstueck_ids, k.id]
-                : g.grundstueck_ids.filter((id) => id !== k.id);
-            }}
-          />{k.bezeichnung}</label
+            checked={(g.flurstueck_ids ?? []).includes(f.id)}
+            onchange={(e) => flurstueckSetzen(g, f.id, e.currentTarget.checked)}
+          />{flurName(f)}{(f.rolle ?? "vorhaben") !== "vorhaben" ? " (außerhalb des Vorhabengrundstücks)" : ""}</label
         >{:else}<p class="meta">
-          Zunächst Baugrundstücke ermitteln. Die Zuordnung kann anschließend
-          ergänzt werden.
+          Noch keine Flurstücke erfasst. Unter Grundstücksinformationen →
+          Flurstücke und Grundbuch ergänzen; die Zuordnung kann anschließend
+          erfolgen.
         </p>{/each}
+      {#each (g.flurstueck_ids ?? []).filter((id) => !flurstuecke.some((f) => f.id === id)) as id (id)}<label class="veraltet"
+          ><input type="checkbox" checked onchange={() => flurstueckSetzen(g, id, false)} />Nicht mehr erfasstes Flurstück – Haken entfernen</label
+        >{/each}
+      {#if !g.flurstueck_ids?.length && g.grundstueck_ids.length}<div class="hinweisbox" role="status">
+          {#if altEinheiten(g).length}Bisher dem Baugrundstück „{altEinheiten(g).map((k) => k.bezeichnung).join("“, „")}“ zugeordnet.
+            <button type="button" class="link" onclick={() => { g.flurstueck_ids = altEinheiten(g).flatMap((k) => k.flurstueck_ids); g.grundstueck_ids = []; g.flurstuecke_zu_pruefen = true; }}>Dessen Flurstücke übernehmen</button> und auf die tatsächlich bebauten Flurstücke reduzieren.
+          {:else}Die frühere Baugrundstückszuordnung besteht nicht mehr. Bitte die Flurstücke wählen.{/if}
+        </div>{/if}
+      {#if g.flurstuecke_zu_pruefen}<div class="hinweisbox" role="status">
+          Die Flurstücke wurden aus der früheren Baugrundstückszuordnung übernommen.
+          Bitte auf die tatsächlich bebauten Flurstücke reduzieren.
+          <button type="button" class="link" onclick={() => { g.flurstuecke_zu_pruefen = undefined; }}>Zuordnung ist geprüft</button>
+        </div>{/if}
+      {#if grundGeladen && einheiten(g).length === 1}<p class="meta">Baugrundstück laut Ermittlung: {einheiten(g)[0].bezeichnung}. Grundfläche und Geschosse gehen automatisch in dessen GRZ, GFZ und Geschossigkeit ein.</p>
+      {:else if grundGeladen && einheiten(g).length > 1}<p class="hinweisbox" role="status">Die gewählten Flurstücke gehören derzeit zu mehreren Baugrundstücken. Bei einer Vereinigungsbaulast die Flurstücke unter Berechnungen → Baugrundstücke gemeinsam zuordnen (abweichende Zuordnung mit Grundlage); sonst die Flächen dort je Grundstück getrennt erfassen.</p>
+      {:else if !g.flurstueck_ids?.length && !g.grundstueck_ids.length && vorhaben.length > 1}<p class="meta">Ohne Flurstückszuordnung geht das Gebäude nur bei genau einem Baugrundstück in die Berechnungen ein.</p>{/if}
     </fieldset>
     <h3>Geschosse</h3>
     <button type="button" class="sekundaer" onclick={quellstaende}
@@ -157,7 +211,22 @@
     >
     {#if !g.geschosse.length}<section class="einzelgeschoss">
       <h4>Einzelgeschoss · aus Gebäudegrundfläche</h4>
-      <p class="meta">Für eine eingeschossige Garage ist kein zusätzliches EG erforderlich. Die Vollgeschosseinstufung bleibt zunächst offen.</p>
+      <p class="meta">Für eine eingeschossige Garage ist kein zusätzliches EG erforderlich. Mit geprüfter Einstufung geht das Einzelgeschoss automatisch in GFZ und Geschossigkeit ein.</p>
+      <div class="raster">
+        <label>Einstufung<select
+            aria-label="Einstufung des Einzelgeschosses"
+            value={g.geometrie?.einzelgeschoss_vollgeschoss === undefined ? "" : String(g.geometrie.einzelgeschoss_vollgeschoss)}
+            onchange={(e) => { const v = e.currentTarget.value; (g.geometrie ??= {}).einzelgeschoss_vollgeschoss = v === "" ? undefined : v === "true"; }}
+            ><option value="">Noch zu prüfen</option><option value="true">Vollgeschoss</option><option value="false">Nichtvollgeschoss</option></select
+          ></label>
+        <label>Grundlage der Einstufung<input
+            value={g.geometrie?.einzelgeschoss_grundlage ?? ""}
+            required={g.geometrie?.einzelgeschoss_vollgeschoss !== undefined}
+            maxlength="4000"
+            placeholder="Anwendbare Vorschrift und Herleitung"
+            oninput={(e) => { (g.geometrie ??= {}).einzelgeschoss_grundlage = e.currentTarget.value || undefined; }}
+          /></label>
+      </div>
       <details><summary>Bekannte Höhen des Einzelgeschosses</summary><GeschossMasse einzelgeschoss masse={g.geometrie?.einzelgeschoss} onmasse={(m) => { (g.geometrie ??= {}).einzelgeschoss = m; }} /></details>
     </section>{/if}
     {#each g.geschosse as geschoss, i (geschoss.id)}<fieldset>
@@ -250,6 +319,8 @@
   summary { cursor: pointer; font-weight: 600; }
   .einzelgeschoss { margin-block: 1rem; padding: 1rem; border-inline-start: 3px solid var(--accent); background: var(--accent-soft); }
   .einzelgeschoss h4 { margin-top: 0; }
+  .veraltet { color: var(--warning-text); font-style: italic; }
+  .nebenflurstueck { color: var(--muted); }
   .grundlagen-auswertung { margin-block: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--border); font-variant-numeric: tabular-nums; }
   .tabellen-scroll { overflow-x: auto; }
 </style>

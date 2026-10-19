@@ -130,12 +130,11 @@ pub(super) fn umbruch(t: &str, breite: f32, size: f32) -> CoreResult<Vec<String>
     Ok(result)
 }
 pub(super) fn bericht(
-    projekt: &str,
     titel: &str,
+    kopf: Option<&super::layout::Blattkopf>,
     zeilen: &[Zeile],
-    _datum: DateTime<Utc>,
 ) -> CoreResult<Document> {
-    super::layout::bericht(projekt, titel, zeilen)
+    super::layout::bericht(titel, kopf, zeilen)
 }
 /// Seitenauswahl ist 1-basiert, geordnet und ohne doppelte Seiten.
 pub(super) fn auswahl(bytes: &[u8], seiten: &[u32]) -> CoreResult<Document> {
@@ -406,25 +405,129 @@ pub(super) fn formulare_einfrieren(d: &mut Document) -> CoreResult<()> {
     }
     Ok(())
 }
+/// Angaben für das Deckblatt eines Pakets.
+#[derive(Debug, Clone, Default)]
+pub(super) struct Deckblatt {
+    pub standort: String,
+    pub grundstueck: String,
+    pub bauherren: String,
+    pub entwurfsverfasser: String,
+}
+fn deckblatt(
+    projekt: &str,
+    a: &Druckauftrag,
+    d: &Deckblatt,
+    anlagen: usize,
+    datum: chrono::NaiveDate,
+) -> CoreResult<Document> {
+    use super::berichte::{Zeile, abschnitt, angaben};
+    let leer = |t: &str| {
+        if t.trim().is_empty() {
+            "Nicht angegeben".to_string()
+        } else {
+            t.trim().replace('\n', ", ")
+        }
+    };
+    let mut z = vec![abschnitt("Angaben zum Bauvorhaben")];
+    angaben(
+        &mut z,
+        vec![
+            ("Bauvorhaben", projekt.into()),
+            ("Standort", leer(&d.standort)),
+            ("Grundstück", leer(&d.grundstueck)),
+            ("Bauherr/in", leer(&d.bauherren)),
+            ("Entwurfsverfasser/in", leer(&d.entwurfsverfasser)),
+            ("Bauaufsichtsbehörde", leer(&a.empfaenger)),
+            ("Aktenzeichen / Bezug", leer(&a.aktenzeichen)),
+            ("Ausgabedatum", datum.format("%d.%m.%Y").to_string()),
+        ],
+    );
+    z.push(abschnitt("Umfang"));
+    z.push(text(format!(
+        "{anlagen} Anlage(n). Jede Anlage ist im Kopfblock jedes erzeugten Blatts mit Anlagennummer und Blattzählung gekennzeichnet; Originalunterlagen sind durch Trennblätter zugeordnet. Einzelheiten im Anlagenverzeichnis."
+    )));
+    z.push(abschnitt("Unterschriften"));
+    z.push(Zeile::Unterschrift(vec![
+        ("Bauherr/in".into(), d.bauherren.replace('\n', ", ")),
+        (
+            "Entwurfsverfasser/in".into(),
+            d.entwurfsverfasser.replace('\n', ", "),
+        ),
+    ]));
+    bericht(&a.titel, None, &z)
+}
+/// Trennblatt vor einer unverändert beigefügten Originalunterlage.
+fn trennblatt(projekt: &str, t: &Inhaltsangabe, seiten: usize) -> CoreResult<Document> {
+    use super::berichte::angaben;
+    let mut z = vec![text(
+        "Die folgende Unterlage ist im Original beigefügt. Format, Maßstab und Inhalt bleiben unverändert; sie trägt deshalb keinen eigenen Kopfblock. Die Zuordnung erfolgt über dieses Trennblatt und das Anlagenverzeichnis.",
+    )];
+    angaben(
+        &mut z,
+        vec![
+            ("Anlage", t.anlage.clone()),
+            ("Bezeichnung", t.name.clone()),
+            ("Art / Kategorie", t.kategorie.clone()),
+            ("Version / Stand", t.version.clone()),
+            (
+                "Umfang",
+                format!(
+                    "{seiten} Seite{} im Original",
+                    if seiten == 1 { "" } else { "n" }
+                ),
+            ),
+        ],
+    );
+    bericht(
+        &format!("Anlage {} – {}", t.anlage, t.name),
+        Some(&super::layout::Blattkopf {
+            bauvorhaben: projekt.into(),
+            gegenstand: t.name.clone(),
+            stand: t.version.clone(),
+            anlage: Some(t.anlage.clone()),
+            art: String::new(),
+            zusatzblaetter: 0,
+        }),
+        &z,
+    )
+}
 pub(super) fn paket(
     projekt: &str,
     a: Druckauftrag,
-    mut quellen: Vec<(Inhaltsangabe, Document)>,
+    quellen: Vec<(Inhaltsangabe, Document)>,
     datum: DateTime<Utc>,
+    deck: Option<Deckblatt>,
 ) -> CoreResult<Druckergebnis> {
+    let tag = a.datum.unwrap_or(crate::kalender::datum_deutsch(datum));
+    // Jede Anlage besteht aus ihren Dokumenten (ggf. mit Trennblatt davor).
+    let mut anlagen: Vec<(Inhaltsangabe, Vec<Document>)> = Vec::new();
+    for (t, d) in quellen {
+        let mut docs = Vec::new();
+        if a.trennblaetter && t.original {
+            docs.push(trennblatt(projekt, &t, d.get_pages().len())?);
+        }
+        docs.push(d);
+        anlagen.push((t, docs));
+    }
+    let seiten_von =
+        |docs: &[Document]| docs.iter().map(|d| d.get_pages().len() as u32).sum::<u32>();
     let mut vorlauf = Vec::new();
+    if a.deckblatt {
+        vorlauf.push(deckblatt(
+            projekt,
+            &a,
+            &deck.unwrap_or_default(),
+            anlagen.len(),
+            tag,
+        )?);
+    }
     if a.mit_anschreiben {
         let z = vec![
             text(&a.absender),
             text(""),
             text(&a.empfaenger),
             text(""),
-            text(
-                a.datum
-                    .unwrap_or(crate::kalender::datum_deutsch(datum))
-                    .format("%d.%m.%Y")
-                    .to_string(),
-            ),
+            text(tag.format("%d.%m.%Y").to_string()),
             text(""),
             super::berichte::titel(&a.titel),
             text(format!("Bauvorhaben: {projekt}")),
@@ -436,7 +539,7 @@ pub(super) fn paket(
             text(""),
             text(&a.anschreiben),
         ];
-        vorlauf.push(bericht(projekt, "Anschreiben", &z, datum)?);
+        vorlauf.push(bericht("Anschreiben", None, &z)?);
     }
     let vorne = vorlauf
         .iter()
@@ -446,13 +549,18 @@ pub(super) fn paket(
     let toc = |offset: u32| -> CoreResult<Document> {
         let mut seite = vorne + offset + 1;
         let mut rows = Vec::new();
-        for (i, (titel, d)) in quellen.iter().enumerate() {
-            let n = d.get_pages().len() as u32;
+        for (t, docs) in &anlagen {
+            let n = seiten_von(docs);
             rows.push(vec![
-                (i + 1).to_string(),
-                titel.kategorie.clone(),
-                titel.name.clone(),
-                titel.version.clone(),
+                t.anlage.clone(),
+                t.name.clone(),
+                t.kategorie.clone(),
+                t.version.clone(),
+                if t.bezug.is_empty() {
+                    "—".into()
+                } else {
+                    t.bezug.clone()
+                },
                 if n == 1 {
                     seite.to_string()
                 } else {
@@ -462,20 +570,34 @@ pub(super) fn paket(
             seite += n;
         }
         let z = vec![
-            text(format!("Bauvorhaben: {projekt}")),
+            text(
+                "Die Anlagen sind fortlaufend nummeriert. Erzeugte Blätter tragen Anlagennummer und Blattzählung im Kopfblock; „Bezug“ nennt die Anlagen, auf deren Ergebnissen eine Berechnung aufbaut.",
+            ),
             super::berichte::tabelle(
                 &[
-                    "Nr.",
-                    "Dokumentkategorie",
-                    "Dateiname / Bezeichnung",
+                    "Anlage",
+                    "Bezeichnung",
+                    "Art / Kategorie",
                     "Version / Stand",
-                    "Seite",
+                    "Bezug",
+                    "Seiten im Paket",
                 ],
-                &[0.45, 1.4, 2.6, 1.3, 0.7],
+                &[0.75, 2.0, 1.75, 1.4, 0.7, 0.8],
                 rows,
             ),
         ];
-        bericht(projekt, "Inhaltsverzeichnis", &z, datum)
+        bericht(
+            "Anlagenverzeichnis",
+            Some(&super::layout::Blattkopf {
+                bauvorhaben: projekt.into(),
+                gegenstand: a.titel.clone(),
+                stand: tag.format("%d.%m.%Y").to_string(),
+                anlage: None,
+                art: "Verzeichnis".into(),
+                zusatzblaetter: 0,
+            }),
+            &z,
+        )
     };
     if a.inhaltsverzeichnis {
         toc_seiten = toc(0)?.get_pages().len() as u32;
@@ -489,10 +611,10 @@ pub(super) fn paket(
     }
     let mut erste = vorne + toc_seiten + 1;
     let mut positionen = Vec::new();
-    for (titel, d) in &quellen {
-        let seiten = d.get_pages().len() as u32;
+    for (t, docs) in &anlagen {
+        let seiten = seiten_von(docs);
         positionen.push(Druckposition {
-            titel: titel.titel.clone(),
+            titel: t.titel.clone(),
             erste_seite: erste,
             seiten,
         });
@@ -504,7 +626,10 @@ pub(super) fn paket(
     let mut out = Document::with_version("1.7");
     let root = out.new_object_id();
     let mut kids = Vec::new();
-    for mut d in vorlauf.into_iter().chain(quellen.drain(..).map(|(_, d)| d)) {
+    for mut d in vorlauf
+        .into_iter()
+        .chain(anlagen.into_iter().flat_map(|(_, docs)| docs))
+    {
         d.renumber_objects_with(out.max_id + 1);
         let pages = d.get_pages();
         for id in pages.values() {
@@ -524,12 +649,7 @@ pub(super) fn paket(
     let cat = out.add_object(dictionary! {"Type"=>"Catalog","Pages"=>root});
     out.trailer.set("Root", cat);
     // Entfernt u.a. nicht ausgewählte Seiten, ursprüngliche Formfelder und Katalog-Aktionen.
-    super::layout::briefbogen(
-        &mut out,
-        projekt,
-        &a,
-        a.datum.unwrap_or(crate::kalender::datum_deutsch(datum)),
-    )?;
+    super::layout::briefbogen(&mut out, projekt, &a, tag)?;
     out.prune_objects();
     Ok(Druckergebnis {
         pdf: speichern(out)?,
@@ -547,7 +667,7 @@ mod tests {
         let zeilen = (0..140)
             .map(|n| text(format!("Position {n}: Müller & Söhne – Fläche 123,45 m²")))
             .collect::<Vec<_>>();
-        let bericht = bericht("Projekt", "Berechnung", &zeilen, datum).unwrap();
+        let bericht = bericht("Berechnung", None, &zeilen).unwrap();
         assert!(bericht.get_pages().len() > 3);
         let auftrag = Druckauftrag {
             gestaltung: None,
@@ -559,18 +679,85 @@ mod tests {
             anschreiben: "Langer Text\n".repeat(160),
             mit_anschreiben: true,
             inhaltsverzeichnis: true,
+            deckblatt: false,
+            trennblaetter: false,
+            aufgestellt_von: None,
             projekt_version: 1,
             quellen: vec![],
         };
         let quellen=(0..80).map(|i|(format!("Unterlage {i} mit einer ausführlichen Bezeichnung zur Kontrolle des Umbruchs und der Seitenzahlen").into(),bericht.clone())).collect();
         // 80 * vierseitige Berichte überschreiten die Stapelgrenze ausdrücklich.
-        assert!(paket("Projekt", auftrag.clone(), quellen, datum).is_err());
-        let leer = super::bericht("Projekt", "Einzelblatt", &[text("Müller")], datum).unwrap();
+        assert!(paket("Projekt", auftrag.clone(), quellen, datum, None).is_err());
+        let leer = super::bericht("Einzelblatt", None, &[text("Müller")]).unwrap();
         let quellen=(0..80).map(|i|(format!("Unterlage {i} mit ausführlicher Bezeichnung zur Kontrolle des Umbruchs und der Seitenzahlen").into(),leer.clone())).collect();
-        let out = paket("Projekt", auftrag, quellen, datum).unwrap();
+        let out = paket("Projekt", auftrag.clone(), quellen, datum, None).unwrap();
         assert_eq!(out.positionen.len(), 80);
         assert!(out.positionen[0].erste_seite > 7);
         assert_eq!(out.positionen[79].erste_seite, out.seiten);
+    }
+    #[test]
+    fn deckblatt_und_trennblaetter_ordnen_originale_ihrer_anlage_zu() {
+        let datum = Utc::now();
+        let blatt = super::bericht("Einzelblatt", None, &[text("Inhalt")]).unwrap();
+        let auftrag = Druckauftrag {
+            gestaltung: None,
+            aktenzeichen: "AZ 1/26".into(),
+            datum: None,
+            titel: "Bauvorlagen".into(),
+            absender: "Büro".into(),
+            empfaenger: "Bauaufsicht Musterstadt".into(),
+            anschreiben: String::new(),
+            mit_anschreiben: false,
+            inhaltsverzeichnis: true,
+            deckblatt: true,
+            trennblaetter: true,
+            aufgestellt_von: None,
+            projekt_version: 1,
+            quellen: vec![],
+        };
+        let angabe = |nr: &str, original: bool, bezug: &str| Inhaltsangabe {
+            titel: format!("Unterlage {nr}"),
+            kategorie: "Bauvorlage".into(),
+            name: format!("Unterlage {nr}"),
+            version: "Version 1".into(),
+            anlage: nr.into(),
+            bezug: bezug.into(),
+            original,
+        };
+        let quellen = vec![
+            (angabe("1", true, ""), blatt.clone()),
+            (angabe("2", false, "1"), blatt.clone()),
+        ];
+        let out = paket(
+            "Projekt",
+            auftrag.clone(),
+            quellen,
+            datum,
+            Some(Deckblatt {
+                bauherren: "Erika Muster".into(),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+        // Deckblatt + Verzeichnis, dann Anlage 1 mit Trennblatt (2 Seiten), Anlage 2 (1 Seite).
+        assert_eq!(out.positionen[0].erste_seite, 3);
+        assert_eq!(out.positionen[0].seiten, 2);
+        assert_eq!(out.positionen[1].erste_seite, 5);
+        assert_eq!(out.seiten, 5);
+        let ohne = paket(
+            "Projekt",
+            Druckauftrag {
+                deckblatt: false,
+                trennblaetter: false,
+                aufgestellt_von: None,
+                ..auftrag
+            },
+            vec![(angabe("1", true, ""), blatt.clone())],
+            datum,
+            None,
+        )
+        .unwrap();
+        assert_eq!(ohne.seiten, 2);
     }
     #[test]
     fn fotos_erhalten_proportionen_und_transparenz_auf_weiss() {

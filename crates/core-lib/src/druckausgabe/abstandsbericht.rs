@@ -1,6 +1,6 @@
 //! Behördenansicht des unveränderten archivierten Abstandsflächenergebnisses.
 use super::{
-    berichte::{Zeile, angaben, ja, optional, tabelle, text, titel, zahl},
+    berichte::{Zeile, abschnitt, angaben, hinweis, ja, optional, tabelle, text, titel, zahl},
     *,
 };
 /// Eigener Präsentationsadapter statt technischer Debug-Ausgabe des Fachmoduls.
@@ -34,7 +34,7 @@ pub(super) fn abstand(
             .map(|i| format!("W{} · {}", i + 1, p.waende[i].bezeichnung))
             .unwrap_or_else(|| "Wandzuordnung fehlt".into())
     };
-    z.push(titel("Rechtliche und geometrische Grundlagen"));
+    z.push(abschnitt("Rechtliche und geometrische Grundlagen"));
     angaben(
         z,
         vec![
@@ -73,7 +73,7 @@ pub(super) fn abstand(
             })
             .collect(),
     ));
-    z.push(titel("Ergebnisübersicht der Wände"));
+    z.push(abschnitt("Ergebnisübersicht der Wände"));
     let status = |s: &AbstandsStatus| match s {
         AbstandsStatus::Offen => "Offen",
         AbstandsStatus::Tiefenvorpruefung => "Nur Tiefenvorprüfung",
@@ -110,6 +110,7 @@ pub(super) fn abstand(
             })
             .collect(),
     ));
+    z.push(abschnitt("Herleitung je Wand"));
     for (i, w) in p.waende.iter().enumerate() {
         let Some(e) = r.waende.iter().find(|e| e.id == w.id) else {
             return Err(fehler("Archiviertes Wandergebnis fehlt"));
@@ -255,7 +256,7 @@ pub(super) fn abstand(
             );
         }
         for o in &e.offen {
-            z.push(text(format!("Offener Prüfpunkt W{}: {o}", i + 1)));
+            z.push(hinweis(format!("Offener Prüfpunkt W{}: {o}", i + 1)));
         }
         if !e.polygon.is_empty() {
             z.push(tabelle(
@@ -292,7 +293,7 @@ pub(super) fn abstand(
         }
     }
     if !p.flaechen.is_empty() {
-        z.push(titel("Sicherungen, öffentliche Flächen und Baukörper"));
+        z.push(abschnitt("Sicherungen, öffentliche Flächen und Baukörper"));
         z.push(tabelle(
             &[
                 "Planbezug",
@@ -326,8 +327,9 @@ pub(super) fn abstand(
         ));
     }
     if !r.ueberdeckungen.is_empty() {
-        z.push(titel(
-            "Überdeckungen – gesonderte Zulässigkeitsprüfung erforderlich",
+        z.push(abschnitt("Überdeckungen"));
+        z.push(hinweis(
+            "Überdeckungen von Abstandsflächen erfordern eine gesonderte Zulässigkeitsprüfung.",
         ));
         z.push(tabelle(
             &["Wand A", "Wand B", "Überdeckung m²"],
@@ -338,9 +340,13 @@ pub(super) fn abstand(
                 .collect(),
         ));
     }
-    for o in &r.offen {
-        z.push(text(format!("Offener Prüfpunkt: {o}")));
+    if !r.offen.is_empty() {
+        z.push(abschnitt("Offene Prüfpunkte"));
+        for o in &r.offen {
+            z.push(hinweis(format!("Offener Prüfpunkt: {o}")));
+        }
     }
-    z.push(text("Planskizze: G = Grundstück, W = Wand / Abstandsfläche, F = zusätzliche Fläche. Konflikte rot, Überdeckungen violett. Maßstab nur bei Ausgabe mit 100 %. Die Planskizze ersetzt keinen amtlichen Lageplan."));
+    z.push(abschnitt("Planskizze"));
+    z.push(text("Die Vektorplanskizze folgt als letztes Blatt dieser Anlage. Planskizze: G = Grundstück, W = Wand / Abstandsfläche, F = zusätzliche Fläche. Konflikte rot, Überdeckungen violett. Maßstab nur bei Ausgabe mit 100 %. Die Planskizze ersetzt keinen amtlichen Lageplan."));
     Ok(())
 }

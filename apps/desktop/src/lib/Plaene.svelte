@@ -59,6 +59,18 @@
   let laufendeNr = 0;
   let baufenster = $state<Punkt[]>([]);
   let vorhaben = $state<Punkt[]>([]);
+  // Baugrundstück des Vorhabenumrisses; bei mehreren Einheiten erforderlich.
+  let grundSchluessel = $state<string | null>(null);
+  let grundkontexte = $state<import("./api").GrundstueckKontext[]>([]);
+  $effect(() => {
+    void projekt.version;
+    untrack(() => {
+      api
+        .grundstueckskontext(projekt.id)
+        .then((g) => (grundkontexte = g))
+        .catch(() => (grundkontexte = []));
+    });
+  });
   let gespeichertSignatur = $state("");
   let grenzpruefung = $state<BaugrenzenPruefung | null>(null);
   let ergebnisSignatur = $state("");
@@ -71,6 +83,7 @@
       einheit,
       baufenster,
       vorhaben,
+      grundSchluessel,
     ]),
   );
   const geoGeaendert = $derived(
@@ -85,6 +98,7 @@
           einheit,
           baufenster,
           vorhaben,
+          grundstueck_schluessel: grundSchluessel,
         }
       : null,
   );
@@ -243,9 +257,11 @@
         baufenster = structuredClone($state.snapshot(g.baufenster));
         vorhaben = structuredClone($state.snapshot(g.vorhaben));
         einheit = g.einheit;
+        grundSchluessel = g.grundstueck_schluessel ?? null;
       } else {
         baufenster = [];
         vorhaben = [];
+        grundSchluessel = null;
         if (g?.dokument_id === p.dokument.document_id)
           geoHinweis =
             "Die gespeicherte Baugrenzenzuordnung gehört zu einer älteren Planversion. Bitte Umrisse neu zuordnen.";
@@ -256,6 +272,7 @@
         einheit,
         baufenster,
         vorhaben,
+        grundSchluessel,
       ]);
     } catch (e) {
       geladen = null;
@@ -479,6 +496,20 @@
             ? "zugeordnet (violett)"
             : "fehlt"}
         </p>
+        {#if grundkontexte.length > 1}<label
+            >Baugrundstück des Vorhabenumrisses<select
+              aria-label="Baugrundstück des Vorhabenumrisses"
+              bind:value={grundSchluessel}
+              ><option value={null}>Noch nicht zugeordnet</option
+              >{#each grundkontexte as k (k.schluessel)}<option value={k.schluessel}
+                  >{k.bezeichnung}</option
+                >{/each}</select
+            ></label
+          >
+          {#if !grundSchluessel}<p class="meta">
+              Bei mehreren Baugrundstücken erscheint die Lage im Baufenster nur
+              beim zugeordneten Grundstück.
+            </p>{/if}{/if}
         <div class="aktionen">
           <button
             onclick={() => grenzePruefen()}

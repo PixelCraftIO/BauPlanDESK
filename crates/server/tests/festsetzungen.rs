@@ -143,6 +143,7 @@ async fn geometrie_ist_an_projekt_und_planversion_gebunden() {
         einheit: Laengeneinheit::Meter,
         baufenster: rechteck(0.),
         vorhaben: rechteck(2.),
+        grundstueck_schluessel: None,
     };
     let r = core.baugrenzen_pruefen(&g).unwrap();
     assert!((r.ausserhalb_m2 - 20.).abs() < 1e-8);

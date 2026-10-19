@@ -58,6 +58,11 @@ pub struct BaugrundstueckBerechnung {
     pub schluessel: String,
     pub eingabe: NutzungsEingabe,
     pub eigene_festsetzungen: Option<Festsetzungen>,
+    /// Flurstücke der Einheit beim letzten Speichern. Erlaubt nach einer
+    /// Umgruppierung die eindeutige Nachfolge (siehe
+    /// [`BaugrundstueckGruppe::vorgaenger`]); fehlt in älteren Ständen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flurstueck_ids: Vec<String>,
 }
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct BaugrundstuecksPlan {
@@ -105,6 +110,11 @@ pub struct BaugrundstueckGruppe {
     pub eigentumsflaeche_m2: f64,
     pub abzuege_m2: f64,
     pub bauland_m2: f64,
+    /// Nicht mehr bestehende Berechnungen (Schlüssel), deren verbliebene
+    /// Flurstücke vollständig in dieser Einheit liegen, ohne dass eine andere
+    /// Einheit sie ebenfalls beerbt. Deren Eingaben können übernommen werden.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vorgaenger: Vec<String>,
 }
 #[derive(Debug, Serialize)]
 pub struct BaugrundstueckNachweis {
@@ -133,6 +143,24 @@ fn text_gueltig(s: &str) -> bool {
     !s.trim().is_empty() && s.len() <= 500
 }
 impl BaugrundstuecksPlan {
+    /// Grundstückseinheit (Schlüssel) je Flurstück, gebildet wie in
+    /// [`Self::gruppen`], jedoch ohne Validierung der Angaben.
+    pub fn einheit_je_flurstueck(&self) -> BTreeMap<String, String> {
+        let mut gruppen = BTreeMap::<String, Vec<String>>::new();
+        for f in &self.flurstuecke {
+            gruppen
+                .entry(f.schluessel())
+                .or_default()
+                .push(f.id.clone());
+        }
+        gruppen
+            .into_values()
+            .flat_map(|ids| {
+                let s = einheitsschluessel(&ids);
+                ids.into_iter().map(move |id| (id, s.clone()))
+            })
+            .collect()
+    }
     pub fn gruppen(&self, mit_plan: bool) -> CoreResult<Vec<BaugrundstueckGruppe>> {
         if self.flurstuecke.is_empty() || self.flurstuecke.len() > 1000 {
             return Err(CoreError::InvalidInput(
@@ -226,6 +254,7 @@ impl BaugrundstuecksPlan {
                     eigentumsflaeche_m2: 0.0,
                     abzuege_m2: 0.0,
                     bauland_m2: 0.0,
+                    vorgaenger: vec![],
                 });
             g.flurstueck_ids.push(f.id.clone());
             g.eigentumsflaeche_m2 += f.flaeche_m2;
@@ -243,13 +272,36 @@ impl BaugrundstuecksPlan {
                 "Zu viele Baugrundstücke oder nicht darstellbare Flächensummen".into(),
             ));
         }
-        Ok(gruppen
+        let mut gruppen: Vec<BaugrundstueckGruppe> = gruppen
             .into_values()
             .map(|mut g| {
                 g.schluessel = einheitsschluessel(&g.flurstueck_ids);
                 g
             })
-            .collect())
+            .collect();
+        // Eindeutige Nachfolge verwaister Berechnungen: Alle verbliebenen
+        // Flurstücke liegen in genau einer Einheit (Hinzunahme oder Wegfall
+        // einzelner Flurstücke). Aufteilungen bleiben ausdrückliche Entscheidung.
+        for b in &self.berechnungen {
+            if b.flurstueck_ids.is_empty() || gruppen.iter().any(|g| g.schluessel == b.schluessel) {
+                continue;
+            }
+            let ziele: HashSet<usize> = b
+                .flurstueck_ids
+                .iter()
+                .filter_map(|f| gruppen.iter().position(|g| g.flurstueck_ids.contains(f)))
+                .collect();
+            if let [ziel] = ziele.into_iter().collect::<Vec<_>>().as_slice() {
+                gruppen[*ziel].vorgaenger.push(b.schluessel.clone());
+            }
+        }
+        for g in &mut gruppen {
+            // Mehrere Vorgänger (Zusammenlegung) bleiben eine Entscheidung.
+            if g.vorgaenger.len() > 1 {
+                g.vorgaenger.clear();
+            }
+        }
+        Ok(gruppen)
     }
     pub fn pruefe(
         &self,
@@ -278,6 +330,9 @@ impl BaugrundstuecksPlan {
         }
         let mut keys = HashSet::new();
         let mut ergebnisse = vec![];
+        let anzahl = gruppen.len();
+        let schluessel: HashSet<String> = gruppen.iter().map(|g| g.schluessel.clone()).collect();
+        let s_aktuell = |s: &str| schluessel.contains(s);
         for g in gruppen {
             let b = self
                 .berechnungen
@@ -307,14 +362,33 @@ impl BaugrundstuecksPlan {
             grond.basisflaeche_m2 = g.eigentumsflaeche_m2;
             grond.nicht_massgebend_m2 = g.abzuege_m2;
             grond.abzug_begruendung = "Einzelne Flurstücksabzüge".into();
+            // Der Umrissvergleich mit dem Baufenster gilt nur für das Grundstück,
+            // dem der Vorhabenumriss zugeordnet ist (ohne Angabe nur bei einem).
+            let baugrenzen =
+                plan.baugrenzen
+                    .as_ref()
+                    .filter(|bg| match bg.grundstueck_schluessel.as_deref() {
+                        Some(s) => s == g.schluessel,
+                        None => anzahl == 1,
+                    });
             let p = Planungsrecht {
                 festgesetzte_werte: b
                     .eigene_festsetzungen
                     .clone()
                     .unwrap_or_else(|| plan.festgesetzte_werte.clone()),
+                baugrenzen: baugrenzen.cloned(),
                 ..plan.clone()
             };
-            let r = crate::festsetzungen::pruefe_mit_regeln(&e, &p, version, regeln)?;
+            let mut r = crate::festsetzungen::pruefe_mit_regeln(&e, &p, version, regeln)?;
+            if let Some(bg) = &plan.baugrenzen
+                && baugrenzen.is_none()
+                && mit_plan
+            {
+                r.hinweise.push(match &bg.grundstueck_schluessel {
+                    Some(s) if s_aktuell(s) => "Lage im Baufenster: Der Vorhabenumriss gehört zu einem anderen Baugrundstück und wird hier nicht geprüft.".into(),
+                    _ => "Lage im Baufenster nicht geprüft: Der Vorhabenumriss ist keinem aktuellen Baugrundstück zugeordnet. Unter Pläne → Baugrenzenprüfung das Baugrundstück wählen und speichern.".into(),
+                });
+            }
             ergebnisse.push(BaugrundstueckNachweis {
                 grundstueck: g,
                 pruefung: r,
@@ -396,6 +470,7 @@ pub fn musterplan() -> BaugrundstuecksPlan {
             schluessel: g.schluessel,
             eingabe: e,
             eigene_festsetzungen: None,
+            flurstueck_ids: g.flurstueck_ids,
         });
     }
     plan
@@ -650,5 +725,82 @@ mod tests {
                 .grundstuecksflaeche_m2,
             640.
         );
+    }
+    #[test]
+    fn baufensterlage_nur_fuer_zugeordnetes_baugrundstueck() {
+        let plan = musterplan();
+        let mut recht = planrecht();
+        let rechteck = |x: f64, w: f64| {
+            vec![
+                crate::cad::Punkt(x, 0.),
+                crate::cad::Punkt(x + w, 0.),
+                crate::cad::Punkt(x + w, 10.),
+                crate::cad::Punkt(x, 10.),
+            ]
+        };
+        recht.baugrenzen = Some(crate::cad::baugrenzen::BaugrenzenGeometrie {
+            dokument_id: crate::domain::DocumentId::new(),
+            dokument_version: 1,
+            einheit: crate::cad::Laengeneinheit::Meter,
+            baufenster: rechteck(0., 30.),
+            vorhaben: rechteck(28., 4.),
+            grundstueck_schluessel: None,
+        });
+        let lage = |r: &BaugrundstuecksPruefung, i: usize| {
+            r.baugrundstuecke[i]
+                .pruefung
+                .nachweise
+                .iter()
+                .find(|n| n.art == "baufenster_lage")
+                .unwrap()
+                .eingehalten
+        };
+        // Zwei Grundstücke ohne Zuordnung: keinem still zugerechnet.
+        let r = plan.pruefe(&recht, 1).unwrap();
+        assert_eq!((lage(&r, 0), lage(&r, 1)), (None, None));
+        assert!(
+            r.baugrundstuecke[0]
+                .pruefung
+                .hinweise
+                .iter()
+                .any(|h| h.contains("keinem aktuellen Baugrundstück"))
+        );
+        let ziel = r.baugrundstuecke[1].grundstueck.schluessel.clone();
+        recht.baugrenzen.as_mut().unwrap().grundstueck_schluessel = Some(ziel);
+        let r = plan.pruefe(&recht, 1).unwrap();
+        assert_eq!((lage(&r, 0), lage(&r, 1)), (None, Some(false)));
+    }
+    #[test]
+    fn eindeutige_nachfolger_nach_umgruppierung() {
+        let plan = musterplan();
+        let alt_c = plan
+            .berechnungen
+            .iter()
+            .find(|b| b.flurstueck_ids == ["c"])
+            .unwrap()
+            .schluessel
+            .clone();
+        // Flurstück d kommt zur Grundbuchstelle von c hinzu: eindeutige Nachfolge.
+        let mut neu = plan.clone();
+        let mut d = neu.flurstuecke[2].clone();
+        d.id = "d".into();
+        d.nummer = "101/2".into();
+        neu.flurstuecke.push(d);
+        let g = neu.gruppen(true).unwrap();
+        let cd = g
+            .iter()
+            .find(|g| g.flurstueck_ids.contains(&"d".into()))
+            .unwrap();
+        assert_eq!(cd.vorgaenger, [alt_c]);
+        assert!(
+            g.iter()
+                .all(|g| g.flurstueck_ids.contains(&"d".into()) || g.vorgaenger.is_empty())
+        );
+        // Zusammenlegung zweier berechneter Einheiten bleibt eine Entscheidung.
+        let mut zusammen = plan.clone();
+        zusammen.flurstuecke[2].laufende_nummer = 1;
+        let g = zusammen.gruppen(true).unwrap();
+        assert_eq!(g.len(), 1);
+        assert!(g[0].vorgaenger.is_empty());
     }
 }

@@ -909,6 +909,26 @@ pub async fn projekt_nutzung_pruefen(
 }
 
 #[tauri::command]
+pub async fn projekt_baugrundstuecke_gebaeude_einbinden(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    eingabe: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+) -> CmdResult<core_lib::plattform::einbindung::GebaeudeEinbindung> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state
+        .core
+        .projekt_baugrundstuecke_gebaeude_einbinden(projekt_id, &eingabe)
+        .await?)
+}
+
+#[tauri::command]
 pub async fn projekt_baugrundstuecke_pruefen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

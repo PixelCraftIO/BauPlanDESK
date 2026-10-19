@@ -1,9 +1,11 @@
 //! Fachmodule mit eigenen Schemas, Revisionen und öffentlichen Anwendungsfällen.
 pub mod ablauf;
 pub mod ausgabe;
+pub mod einbindung;
 pub mod gebaeude;
 pub mod nachweise;
 pub mod objekte;
+pub mod verweise;
 use crate::{
     CoreError, CoreResult, CoreServices,
     benutzer::{Benutzer, Recht},
@@ -132,7 +134,7 @@ impl CoreServices {
         } else {
             daten
         };
-        let daten = objekte::validieren(self, &projekt, art, daten, wer).await?;
+        let daten = objekte::validieren(self, &projekt, art, id, daten, wer).await?;
         if art == ObjektArt::Projektorganisation && id != p.0 {
             return Err(CoreError::InvalidInput(
                 "Projektorganisation benötigt die Identität des Projekts".into(),

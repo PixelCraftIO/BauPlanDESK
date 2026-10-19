@@ -54,6 +54,24 @@ export const plattformApi = {
       }),
       { projektId, bereich: "fachobjekte" },
     ),
+  /** Gebäude und Abstandspläne, die auf diese Flurstücke verweisen. */
+  flurstuecksverweise: (projektId: string, ids: string[]) =>
+    invoke<import("./generated/plattform").Flurstuecksverweis[]>(
+      "flurstuecksverweise",
+      { projektId, ids },
+    ),
+  /** Verweise auf nicht mehr erfasste Flurstücke entfernen (nach dem Speichern). */
+  flurstuecksverweiseEntfernen: (projektId: string, ids: string[]) =>
+    nachErfolg(
+      invoke<number>("flurstuecksverweise_entfernen", { projektId, ids }),
+      { projektId, bereich: "fachobjekte" },
+    ),
+  /** Gebäudezuordnungen einer nicht mehr bestehenden Grundstückseinheit übertragen. */
+  gebaeudezuordnungUebertragen: (projektId: string, alt: string, neu: string) =>
+    nachErfolg(
+      invoke<number>("gebaeudezuordnung_uebertragen", { projektId, alt, neu }),
+      { projektId, bereich: "fachobjekte" },
+    ),
   nachweise: (projektId: string) =>
     invoke<NachweisAnsicht[]>("nachweise", { projektId }),
   nachweisErstellen: (

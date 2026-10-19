@@ -231,3 +231,58 @@ pub async fn gebaeude_auswerten(
         .await?;
     Ok(gebaeude.grundlagen(id)?)
 }
+#[tauri::command]
+pub async fn gebaeudezuordnung_uebertragen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    alt: String,
+    neu: String,
+) -> Result<usize, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
+    Ok(state
+        .core
+        .gebaeudezuordnung_uebertragen(projekt_id, &alt, &neu, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn flurstuecksverweise(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ids: Vec<String>,
+) -> Result<Vec<core_lib::plattform::verweise::Flurstuecksverweis>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state.core.flurstuecksverweise(projekt_id, &ids).await?)
+}
+#[tauri::command]
+pub async fn flurstuecksverweise_entfernen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ids: Vec<String>,
+) -> Result<usize, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
+    Ok(state
+        .core
+        .flurstuecksverweise_entfernen(projekt_id, &ids, &state.benutzer())
+        .await?)
+}

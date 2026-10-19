@@ -59,6 +59,7 @@ fn ansatz() -> BaugrundstuecksErmittlung {
             schluessel: einheitsschluessel(&["a".into()]),
             eingabe: muster.berechnungen[0].eingabe.clone(),
             eigene_festsetzungen: None,
+            flurstueck_ids: vec![],
         }],
         quellen_hash: None,
     }
@@ -126,6 +127,16 @@ async fn fakten_ohne_grundbuch_berechnung_getrennt_und_aenderungen_sperren_alte_
         )
         .await
         .unwrap();
+    // Die Berechnungen halten ihre Flurstücke für spätere Umgruppierungen fest.
+    assert!(
+        p.planungsrecht
+            .baugrundstuecksermittlung
+            .as_ref()
+            .unwrap()
+            .berechnungen
+            .iter()
+            .all(|b| !b.flurstueck_ids.is_empty())
+    );
     assert_eq!(
         informationen(&p.planungsrecht).flurstuecke[0].flaeche_m2,
         1000.
@@ -390,6 +401,22 @@ async fn bestandsprojekt_wird_ohne_verlust_getrennt() {
             .len(),
         2
     );
+    // Bemerkungen verändern weder Bildung noch Fläche der Baugrundstücke.
+    assert!(core.grundstueckskontext(p.id).await.is_ok());
+    let mut recht = neu.planungsrecht.clone();
+    let mut infos = informationen(&recht);
+    infos.flurstuecke[0].grundbuchbezirk = infos.flurstuecke[0].grundbuchbezirk.to_uppercase();
+    recht.grundstuecksinformationen = Some(infos);
+    let neu = core
+        .projekt_bereich_speichern(
+            neu.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            aenderung(&neu, recht),
+            &user,
+        )
+        .await
+        .unwrap();
+    // Grundbuchangaben bestimmen die Bildung: neu zu bestätigen.
     assert!(core.grundstueckskontext(p.id).await.is_err());
     let neu = core
         .projekt_bereich_speichern(

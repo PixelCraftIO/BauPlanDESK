@@ -35,12 +35,15 @@
     auswahl = $state<number[]>([]);
   let titel = $state("Projektunterlagen"),
     absender = $state(""),
+    aufgestelltVon = $state(""),
     empfaenger = $state(""),
     anschreiben = $state(
       "Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die zusammengestellten Unterlagen zum Bauvorhaben.\n\nMit freundlichen Grüßen",
     );
   let mitAnschreiben = $state(untrack(() => !vorauswahl)),
     mitInhalt = $state(untrack(() => !vorauswahl)),
+    mitDeckblatt = $state(untrack(() => !vorauswahl)),
+    mitTrennblaettern = $state(untrack(() => !vorauswahl)),
     seiten = $state<Record<number, string>>({});
   let busy = $state(false),
     fehler = $state(""),
@@ -91,6 +94,9 @@
       anschreiben,
       mit_anschreiben: mitAnschreiben,
       inhaltsverzeichnis: mitInhalt,
+      deckblatt: mitDeckblatt,
+      trennblaetter: mitTrennblaettern,
+      aufgestellt_von: aufgestelltVon.trim() || null,
       projekt_version: katalog!.projekt_version,
       quellen: auswahl.map(quelle),
     };
@@ -122,6 +128,7 @@
       katalog = await druckApi.katalog(projektId);
       if (!initialisiert) {
         absender = katalog.absender;
+        aufgestelltVon = katalog.aufgestellt_von ?? "";
         gestaltung = {
           ...(katalog.gestaltung ?? {
             kopfzeile: "{Projekt}",
@@ -143,6 +150,7 @@
             titel: `Ausgewählte Dokumentversion ${vorauswahl.version}`,
             quelle: vorauswahl,
             verfuegbar: true,
+            empfohlen: false,
             hinweis: "Konkrete archivierte Version",
           });
         const index = katalog.eintraege.findIndex((e) =>
@@ -280,6 +288,13 @@
           (auswahl = katalog!.eintraege.flatMap((e, i) =>
             e.verfuegbar ? [i] : [],
           ))}>Alle verfügbaren auswählen</button
+      ><button
+        class="sekundaer"
+        title="Aktuelle, jüngste Stände je Berechnung in fachlicher Reihenfolge: Baugrundstück, Maß der Nutzung, Abstandsflächen, Fachberechnungen, Raumbücher"
+        onclick={() =>
+          (auswahl = katalog!.eintraege.flatMap((e, i) =>
+            e.verfuegbar && e.empfohlen ? [i] : [],
+          ))}>Berechnungsheft zusammenstellen</button
       ><button class="sekundaer" onclick={() => (auswahl = [])}
         >Auswahl leeren</button
       >
@@ -300,7 +315,7 @@
                   disabled={!e.verfuegbar}
                   onchange={() => waehlen(i)}
                 /></td
-              ><td>{e.titel}</td><td>{e.hinweis ?? ""}</td></tr
+              ><td>{e.titel}</td><td>{e.empfohlen ? "Für das Berechnungsheft empfohlen · " : ""}{e.hinweis ?? ""}</td></tr
             >{/each}
         </tbody>
       </table>
@@ -366,10 +381,29 @@
       <label
         ><input type="checkbox" bind:checked={mitAnschreiben} /> Anschreiben voranstellen</label
       ><label
-        ><input type="checkbox" bind:checked={mitInhalt} /> Inhaltsverzeichnis mit
-        Seitenzahlen</label
+        ><input type="checkbox" bind:checked={mitInhalt} /> Anlagenverzeichnis mit
+        Seitenzahlen und Bezügen</label
+      ><label
+        ><input type="checkbox" bind:checked={mitDeckblatt} /> Deckblatt mit Angaben zum
+        Bauvorhaben und Unterschriftsfeldern</label
+      ><label
+        ><input type="checkbox" bind:checked={mitTrennblaettern} /> Trennblatt mit
+        Anlagennummer vor Originalunterlagen</label
       >
     </div>
+    <label
+      >Aufgestellt von (Aufstellungsvermerk und Deckblatt)<input
+        maxlength="500"
+        bind:value={aufgestelltVon}
+        placeholder="Name, Berufsbezeichnung, Kammer-Nr. · Büro"
+      /></label
+    >
+    {#if !aufgestelltVon.trim()}<p class="hinweisbox" role="status">
+        Keine aufstellende Person ermittelt. Im Bauantrag die/den
+        Entwurfsverfasser/in wählen oder unter Einstellungen → Büro erfassen –
+        oder hier eintragen. Ohne Angabe bleibt die Namenszeile unter der
+        Unterschrift leer.
+      </p>{/if}
     {#if mitAnschreiben}<h3>Anschreiben formulieren</h3>
       <p class="meta">
         Die Bezeichnung wird als Betreff übernommen. Hier den Empfänger, den

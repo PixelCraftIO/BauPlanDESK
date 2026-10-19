@@ -21,8 +21,52 @@ Zusätzlich steht auf erzeugten Seiten die Position **Seite n von gesamt** im
 zusammengestellten Paket. Das Inhaltsverzeichnis enthält die tatsächlichen
 Seitenbereiche einschließlich aller Vorblätter und mehrseitigen Nachweise.
 
-Das Inhaltsverzeichnis führt getrennte Spalten für **Dokumentkategorie**, **Dateiname /
-Bezeichnung**, **Version / Stand** und **Seite**. Die Dokumentkategorie wird zum
+## Paketaufbau für die Bauaufsicht
+
+Ein Paket ist in **Anlagen** gegliedert, fortlaufend nummeriert in der gewählten
+Reihenfolge. Jede Berechnung und jede Unterlage ist eine eigene Anlage und beginnt
+auf einem eigenen Blatt.
+
+1. **Deckblatt** (optional): Bauvorhaben, Standort, Grundstück mit Gemarkung,
+   Flur und Flurstücken, Bauherr/in, Entwurfsverfasser/in, Bauaufsichtsbehörde,
+   Aktenzeichen, Ausgabedatum und Unterschriftsfelder.
+2. **Anschreiben** (optional).
+3. **Anlagenverzeichnis**: Anlage, Bezeichnung, Art/Kategorie, Version/Stand,
+   **Bezug** (auf welchen Anlagen eine Berechnung aufbaut) und Seiten im Paket.
+4. **Anlagen**. Erzeugte Blätter tragen einen **Kopfblock** mit Bauvorhaben,
+   Gegenstand, Stand/Status, **Anlagennummer** und **Blatt k von m**. Jedes
+   Blatt bleibt damit auch einzeln zuordenbar. Originalunterlagen (Formulare,
+   Pläne, Fotos) werden nicht überdruckt; ein optionales **Trennblatt** mit
+   Anlagennummer, Bezeichnung, Kategorie, Version und Umfang steht davor.
+
+Berechnungsanlagen sind einheitlich gegliedert und nummeriert:
+**Angaben zum Nachweis** (Status, Datum, Rechtsgrundlage, Bebauungsplan,
+Freigabe) – **Regelgrundlagen** – **Eingangswerte und Rechengang** –
+**Ergebnisse** – **Offene Prüfpunkte und Hinweise** – **Übernommene Grundlagen
+und Quellen** (mit Anlagennummer der beigefügten Quellnachweise, sonst „Nicht
+beigefügt“) – **Aufstellungsvermerk** mit Feldern für Ort/Datum und Unterschrift
+der aufstellenden Person. GRZ/GFZ/BMZ/Geschossigkeit gliedern je Baugrundstück
+(eigener Abschnitt, eigenes Blatt) und nennen die Herleitung der Bezugsfläche mit
+Verweis auf die Anlage der Baugrundstücksermittlung. Veraltete oder
+unvollständige Stände stehen als hervorgehobener Hinweis am Anfang.
+
+Berechnungen tragen einheitliche **Fachtitel** (z. B. „Nachweis der
+Grundflächenzahl (GRZ, § 19 BauNVO)“). Eine frei vergebene Nachweisbezeichnung
+ergänzt den Titel in Kopfblock und Anlagenverzeichnis nur, wenn sie zusätzliche
+Information trägt (z. B. „Variante B“); Wiederholungen wie „GRZ Berechnung“
+entfallen. Die **aufstellende Person** wird aus dem Bauantrag bzw. den
+Büroangaben vorgeschlagen (Name, Berufsbezeichnung, Kammer-Nr., Büro) und kann je
+Ausgabe überschrieben werden; fehlt sie, weist die Druckausgabe darauf hin. Der
+Abstandsflächennachweis folgt derselben Gliederung; die Vektorplanskizze ist das
+letzte Blatt ihrer Anlage und trägt Anlagennummer und Blattzählung.
+
+**Berechnungsheft zusammenstellen** wählt die aktuellen, jüngsten Stände je
+Berechnung in fachlicher Reihenfolge (Baugrundstück, Baugrenzen, GRZ, GFZ,
+Geschossigkeit, BMZ, Abstandsflächen, Fachberechnungen, Raumbücher). Ältere,
+ersetzte Stände bleiben wählbar und sind im Katalog so bezeichnet.
+
+Das Anlagenverzeichnis führt getrennte Spalten für **Anlage**, **Bezeichnung**,
+**Art / Kategorie**, **Version / Stand**, **Bezug** und **Seiten im Paket**. Die Dokumentkategorie wird zum
 Erstellungszeitpunkt aus der Zuordnung übernommen, einschließlich einer
 vorhandenen Hauptkategorie. Nicht zugeordnete Dokumente erscheinen ausdrücklich
 als „Ohne Kategorie“. Dateiname und Versionsnummer stammen aus der konkret
@@ -97,12 +141,16 @@ Druckausgabe anpassen, aber den gemeinsamen Bürostandard nicht überschreiben.
 
 ## Beispiel und Prüfung
 
-[Beispiel-PDF mit Anschreiben, Inhaltsverzeichnis, Grundstücken und GRZ](beispiel.pdf)
+[Beispiel-PDF mit Deckblatt, Anschreiben, Anlagenverzeichnis, Trennblatt, Grundstücken und GRZ](beispiel.pdf)
 enthält auch ein synthetisches PDF-Formular und verwendet ausschließlich fiktive Testdaten. Die nicht vorhandenen Festsetzungen
 und die fehlende Bürofreigabe sind absichtlich sichtbar; es handelt sich um ein
 Gestaltungsbeispiel, keinen einreichungsfertigen Musternachweis.
 
-![Inhaltsverzeichnis mit Kategorie, Dateiname, Version und Seitenbereich](inhaltsverzeichnis.png)
+![Deckblatt mit Angaben zum Bauvorhaben und Unterschriftsfeldern](deckblatt.png)
+
+![Anlagenverzeichnis mit Bezug und Seitenbereich](inhaltsverzeichnis.png)
+
+![Trennblatt vor einer Originalunterlage](trennblatt.png)
 
 ![Grundstücksermittlung](baugrundstueck.png)
 

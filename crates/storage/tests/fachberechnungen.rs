@@ -242,6 +242,8 @@ async fn module_quellen_freigaben_archiv_und_druck() {
                 plan.eingaben["geschosse"][0]["grundflaeche_m2"] = json!(100);
                 plan.eingaben["geschosse"][0]["unterliegend_m2"] = json!(100);
                 plan.eingaben["geschosse"][0]["hoehenquelle"] = json!("Schnitt");
+                // Die Vorlage prüft das Oberirdisch-Kriterium (Oktober 2026).
+                plan.eingaben["geschosse"][0]["decke_ueber_gelaende_m"] = json!(2.8);
                 plan.eingaben["teilflaechen"] = json!([{"id":"zone","geschoss_id":"eg","bezeichnung":"Gesamtes EG","flaeche_m2":100,"lichte_hoehe_m":2.5}]);
                 plan.eingaben["aufmass_geprueft"] = json!(true);
                 plan.eingaben["sonderfaelle_geprueft"] = json!(true);
@@ -284,6 +286,9 @@ async fn module_quellen_freigaben_archiv_und_druck() {
         anschreiben: "Fiktive Kontrollnachweise zur Prüfung der Anwendung.".into(),
         mit_anschreiben: true,
         inhaltsverzeichnis: true,
+        deckblatt: false,
+        trennblaetter: false,
+        aufgestellt_von: None,
         projekt_version: p.version,
         quellen,
     };
@@ -309,7 +314,7 @@ async fn module_quellen_freigaben_archiv_und_druck() {
     // Vollgeschossprüfung -> Gebäudegeschoss -> bestehende GFZ, ohne Rückkopplung.
     let gid = Uuid::new_v4();
     let sid = Uuid::new_v4();
-    let gb=core.fachobjekt_speichern(p.id,core_lib::plattform::ObjektArt::Gebaeude,gid,0,json!({"bezeichnung":"Haus A","grundstueck_ids":[grund[0].id],"geschosse":[{"id":sid,"bezeichnung":"EG","vollgeschoss":null,"grundlage":""}],"quelle":null}),&user).await.unwrap();
+    let gb=core.fachobjekt_speichern(p.id,core_lib::plattform::ObjektArt::Gebaeude,gid,0,json!({"bezeichnung":"Haus A","grundstueck_ids":[],"flurstueck_ids":grund[0].flurstueck_ids,"geschosse":[{"id":sid,"bezeichnung":"EG","vollgeschoss":null,"grundlage":""}],"quelle":null}),&user).await.unwrap();
     let mut vp = vorlagen
         .iter()
         .find(|v| v.plan.modul == BerechnungsArt::Vollgeschosse)
@@ -323,6 +328,7 @@ async fn module_quellen_freigaben_archiv_und_druck() {
     vp.eingaben["geschosse"][0]["grundflaeche_m2"] = json!(100);
     vp.eingaben["geschosse"][0]["unterliegend_m2"] = json!(100);
     vp.eingaben["geschosse"][0]["hoehenquelle"] = json!("Kontrollschnitt");
+    vp.eingaben["geschosse"][0]["decke_ueber_gelaende_m"] = json!(2.8);
     vp.eingaben["teilflaechen"] = json!([{"id":"zone","geschoss_id":"eg","bezeichnung":"EG","flaeche_m2":100,"lichte_hoehe_m":2.5}]);
     vp.eingaben["aufmass_geprueft"] = json!(true);
     vp.eingaben["sonderfaelle_geprueft"] = json!(true);

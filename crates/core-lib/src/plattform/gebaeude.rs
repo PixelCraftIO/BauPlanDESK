@@ -32,6 +32,15 @@ pub struct GebaeudeGeometrie {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub einzelgeschoss: Option<GeschossGeometrie>,
+    /// Geprüfte Vollgeschosseinstufung des Einzelgeschosses (nur ohne einzeln
+    /// erfasste Geschosse); `None` = noch zu prüfen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub einzelgeschoss_vollgeschoss: Option<bool>,
+    /// Grundlage der Einstufung des Einzelgeschosses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub einzelgeschoss_grundlage: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub herkunft: Option<String>,
@@ -87,6 +96,16 @@ pub struct GebaeudeGrundlagen {
     pub geschossflaechensumme_m2: Option<f64>,
     pub geschosse: Vec<GeschossGrundlagen>,
     pub offen: Vec<String>,
+    /// Absolute Höhen (m ü. NHN) aus Gebäudenullpunkt und relativer Angabe;
+    /// `None`, solange eine der beiden Angaben fehlt. Fehlt in älteren Ständen.
+    #[serde(default)]
+    pub hoehen_nhn: HoehenNhn,
+}
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS)]
+pub struct HoehenNhn {
+    pub gelaende_m: Option<f64>,
+    pub traufe_m: Option<f64>,
+    pub first_m: Option<f64>,
 }
 fn fehler(s: &str) -> CoreError {
     CoreError::InvalidInput(s.into())
@@ -200,7 +219,22 @@ impl Gebaeude {
             let mut masse = g.einzelgeschoss.clone().unwrap_or_default();
             // Eine eigene Geschossfläche würde die zugesagte Grundflächenannahme verschleiern.
             masse.flaeche_m2 = g.grundflaeche_m2;
-            geschosse.push(self.geschossgrundlagen(id, "Einzelgeschoss", true, &masse, None)?);
+            if g.einzelgeschoss_vollgeschoss.is_some()
+                && g.einzelgeschoss_grundlage
+                    .as_deref()
+                    .is_none_or(|t| t.trim().is_empty() || t.chars().count() > 4000)
+            {
+                return Err(fehler(
+                    "Einstufung des Einzelgeschosses benötigt eine Grundlage (höchstens 4000 Zeichen)",
+                ));
+            }
+            geschosse.push(self.geschossgrundlagen(
+                id,
+                "Einzelgeschoss",
+                true,
+                &masse,
+                g.einzelgeschoss_vollgeschoss,
+            )?);
         }
         for (i, s) in self.geschosse.iter().enumerate() {
             if let Some(u) = s
@@ -251,6 +285,11 @@ impl Gebaeude {
             geschossflaechensumme_m2: summe,
             geschosse,
             offen,
+            hoehen_nhn: HoehenNhn {
+                gelaende_m: g.nullpunkt_m_nhn.zip(g.gelaende_m).map(|(n, h)| n + h),
+                traufe_m: g.nullpunkt_m_nhn.zip(g.traufe_m).map(|(n, h)| n + h),
+                first_m: g.nullpunkt_m_nhn.zip(g.first_m).map(|(n, h)| n + h),
+            },
         })
     }
     fn geschossgrundlagen(

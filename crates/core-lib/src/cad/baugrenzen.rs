@@ -12,6 +12,11 @@ pub struct BaugrenzenGeometrie {
     pub einheit: Laengeneinheit,
     pub baufenster: Vec<Punkt>,
     pub vorhaben: Vec<Punkt>,
+    /// Baugrundstück, zu dem der Vorhabenumriss gehört (Schlüssel der
+    /// Grundstückseinheit). Ohne Angabe gilt der Vergleich nur bei genau einem
+    /// Baugrundstück; bei mehreren wird er keinem still zugerechnet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grundstueck_schluessel: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -130,6 +135,7 @@ mod tests {
             einheit: Laengeneinheit::Meter,
             baufenster: b,
             vorhaben: v,
+            grundstueck_schluessel: None,
         }
     }
     #[test]

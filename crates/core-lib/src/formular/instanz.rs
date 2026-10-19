@@ -72,11 +72,14 @@ impl CoreServices {
         projekt: ProjectId,
         mut bezug: FormularBezug,
     ) -> CoreResult<FormularQuellen> {
-        let p = self.repos.projects.get(projekt).await?;
+        // Dieselben GRZ-/GFZ-Werte wie Berechnung und Nachweis, einschließlich
+        // der zugeordneten Gebäude.
+        let (p, mut hinweise) = self
+            .projekt_mit_gebaeuden(&self.repos.projects.get(projekt).await?)
+            .await?;
         // Grundstücksangaben nur aus der konkreten Auswahl, nie aus einer
         // zufälligen ersten Einheit.
         let mut werte = Projektkontext::projekt(&p);
-        let mut hinweise = Vec::new();
         let grundstuecke = match crate::grundstueckskontext::ermitteln(&p) {
             Ok(g) => g,
             Err(e) => {

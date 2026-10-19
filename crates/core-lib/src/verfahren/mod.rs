@@ -1,6 +1,7 @@
 //! Fachliche Verfahrensakte. Eine Akte wird mit Ereignis und Revision atomar
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
+pub mod abgleich;
 pub mod chronik;
 pub mod externe_einreichung;
 pub mod fristen;

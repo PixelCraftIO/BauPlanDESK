@@ -175,6 +175,18 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/bereiche/{bereich}", post(bereich_speichern))
         .route(
+            "/projekte/{id}/gebaeudezuordnung",
+            post(gebaeudezuordnung_uebertragen),
+        )
+        .route(
+            "/projekte/{id}/flurstuecksverweise",
+            post(flurstuecksverweise),
+        )
+        .route(
+            "/projekte/{id}/flurstuecksverweise/entfernen",
+            post(flurstuecksverweise_entfernen),
+        )
+        .route(
             "/projekte/{id}/fachobjekte/{art}",
             get(fachobjekte)
                 .post(fachobjekt_speichern)
@@ -312,6 +324,10 @@ fn routen(core: CoreServices) -> Router {
         .route(
             "/projekte/{id}/baugrundstuecke/pruefen",
             post(projekt_baugrundstuecke_pruefen),
+        )
+        .route(
+            "/projekte/{id}/baugrundstuecke/gebaeude",
+            post(projekt_baugrundstuecke_gebaeude_einbinden),
         )
         .route("/berechnung/baugrenzen", post(baugrenzen_pruefen));
     Router::new()
@@ -716,6 +732,17 @@ async fn projekt_baugrundstuecke_pruefen(
     ))
 }
 
+async fn projekt_baugrundstuecke_gebaeude_einbinden(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(e): Json<core_lib::baugrundstuecke::BaugrundstuecksPlan>,
+) -> ApiResult<core_lib::plattform::einbindung::GebaeudeEinbindung> {
+    Ok(Json(
+        core.projekt_baugrundstuecke_gebaeude_einbinden(ProjectId(id), &e)
+            .await?,
+    ))
+}
+
 async fn baugrenzen_pruefen(
     State(ApiState { core, .. }): State<ApiState>,
     Json(g): Json<core_lib::cad::baugrenzen::BaugrenzenGeometrie>,
@@ -834,6 +861,46 @@ async fn fachobjekte(
     Path((id, art)): Path<(Uuid, core_lib::plattform::ObjektArt)>,
 ) -> ApiResult<Vec<core_lib::commit::Fachstand>> {
     Ok(Json(core.fachobjekte(ProjectId(id), art).await?))
+}
+#[derive(Deserialize)]
+struct FlurstueckeRequest {
+    ids: Vec<String>,
+}
+async fn flurstuecksverweise(
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<FlurstueckeRequest>,
+) -> ApiResult<Vec<core_lib::plattform::verweise::Flurstuecksverweis>> {
+    Ok(Json(
+        core.flurstuecksverweise(ProjectId(id), &body.ids).await?,
+    ))
+}
+async fn flurstuecksverweise_entfernen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<FlurstueckeRequest>,
+) -> ApiResult<usize> {
+    Ok(Json(
+        core.flurstuecksverweise_entfernen(ProjectId(id), &body.ids, &akteur)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct ZuordnungRequest {
+    alt: String,
+    neu: String,
+}
+async fn gebaeudezuordnung_uebertragen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ZuordnungRequest>,
+) -> ApiResult<usize> {
+    Ok(Json(
+        core.gebaeudezuordnung_uebertragen(ProjectId(id), &body.alt, &body.neu, &akteur)
+            .await?,
+    ))
 }
 #[derive(Deserialize)]
 struct FachRequest {

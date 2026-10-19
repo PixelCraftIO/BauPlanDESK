@@ -95,6 +95,27 @@ impl CoreServices {
                     .fingerprint()?,
             );
         }
+        // Flurstücke je Berechnung festhalten, damit eine spätere Umgruppierung
+        // eindeutige Nachfolger erkennen kann (siehe `BaugrundstueckGruppe::vorgaenger`).
+        if bereich == ProjektBereich::Grundstuecke
+            && let Some(plan) = crate::grundstuecksinformationen::plan(&Planungsrecht {
+                grundstuecksinformationen: basis.planungsrecht.grundstuecksinformationen.clone(),
+                ..ziel.planungsrecht.clone()
+            })?
+            && let Some(e) = &mut ziel.planungsrecht.baugrundstuecksermittlung
+        {
+            let je = plan.einheit_je_flurstueck();
+            for b in &mut e.berechnungen {
+                let ids: Vec<String> = je
+                    .iter()
+                    .filter(|(_, s)| **s == b.schluessel)
+                    .map(|(f, _)| f.clone())
+                    .collect();
+                if !ids.is_empty() {
+                    b.flurstueck_ids = ids;
+                }
+            }
+        }
         let alt = bereich.auszug(&basis)?;
         let neu = bereich.auszug(&ziel)?;
         for _ in 0..5 {

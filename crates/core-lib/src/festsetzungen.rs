@@ -591,6 +591,7 @@ mod tests {
             einheit: crate::cad::Laengeneinheit::Meter,
             baufenster: rechteck(0., 0., 30., 30.),
             vorhaben: rechteck(28., 0., 4., 10.),
+            grundstueck_schluessel: None,
         });
         let r = pruefe(&eingabe(), &recht, 1).unwrap();
         let lage = art(&r, "baufenster_lage");

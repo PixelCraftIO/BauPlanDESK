@@ -546,6 +546,9 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         anschreiben: String::new(),
         mit_anschreiben: false,
         inhaltsverzeichnis: false,
+        deckblatt: false,
+        trennblaetter: false,
+        aufgestellt_von: None,
         projekt_version: p.version,
         quellen: vec![core_lib::druckausgabe::Druckquelle::Dokument {
             dokument_id: d.document_id,

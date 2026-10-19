@@ -298,7 +298,11 @@ impl CoreServices {
         if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
             return hash(&serde_json::to_value(plan).map_err(json_err)?);
         }
-        gebaeude_fingerprint(e, &self.repos.commit.fachstaende(pid, "gebaeude").await?)
+        gebaeude_fingerprint(
+            pid,
+            e,
+            &self.repos.commit.fachstaende(pid, "gebaeude").await?,
+        )
     }
     pub async fn nachweis_erstellen(
         &self,
@@ -533,7 +537,7 @@ impl CoreServices {
                                         == Some(d.version)
                                 })
                         }
-                        _ => gebaeude_fingerprint(&stand.eingabe, &gebaeude)
+                        _ => gebaeude_fingerprint(pid, &stand.eingabe, &gebaeude)
                             .is_ok_and(|h| h == stand.gebaeude_hash),
                     };
                 let freigabe = freigaben
@@ -780,9 +784,24 @@ impl CoreServices {
     }
 }
 
-fn gebaeude_fingerprint(e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResult<ContentHash> {
+fn gebaeude_fingerprint(
+    pid: ProjectId,
+    e: &NachweisEingabe,
+    gebaeude: &[Fachstand],
+) -> CoreResult<ContentHash> {
     let mut ids = std::collections::BTreeSet::new();
     if let NachweisEingabe::Nutzung { plan, .. } = e {
+        // Auch zugeordnete, aber nicht verknüpfte Gebäude: eine neue Zuordnung
+        // macht den Nachweis veraltet. Für vollständig verknüpfte Altstände
+        // bleibt der Fingerprint unverändert.
+        let bezug = super::einbindung::Lagebezug::neu(pid, plan);
+        for f in gebaeude {
+            if let Ok(g) = serde_json::from_value::<super::objekte::Gebaeude>(f.daten.clone())
+                && bezug.irgendwo_eindeutig(&g)
+            {
+                ids.insert(f.objekt.clone());
+            }
+        }
         for b in &plan.berechnungen {
             if let Some(a) = &b.eingabe.aufstellung {
                 for b in &a.bauteile {

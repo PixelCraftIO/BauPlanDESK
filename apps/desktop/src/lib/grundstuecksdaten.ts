@@ -4,10 +4,15 @@ import type {
   Grundstuecksinformationen,
   BaugrundstuecksErmittlung,
 } from "./generated/plattform";
+function kopie<T>(wert: T): T {
+  return JSON.parse(JSON.stringify(wert)) as T;
+}
 export function grundstuecksinformationen(
   p: Planungsrecht,
 ): Grundstuecksinformationen {
-  return structuredClone(
+  // JSON-Kopie statt structuredClone: Aufrufer dürfen auch reaktive
+  // Svelte-Zustände (Proxies) übergeben, die structuredClone ablehnt.
+  return kopie(
     p.grundstuecksinformationen ?? {
       flurstuecke: (p.baugrundstuecke?.flurstuecke ?? []).map((f) => ({
         id: f.id,

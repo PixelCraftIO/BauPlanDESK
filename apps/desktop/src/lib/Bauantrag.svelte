@@ -391,8 +391,12 @@
           min="0"
           step="1"
           bind:value={antrag.anzahl_gebaeude}
+          readonly={!!gespeichert.gebaeude_zentral}
         />
       </label>
+      {#if gespeichert.gebaeude_zentral}<p class="meta">
+          Aus Gebäude/Geschosse: Anzahl der dort erfassten Gebäude.
+        </p>{/if}
       {#if gespeichert.verfahrensarten}
         <label
           >Verfahrensart ({gespeichert.verfahrensarten.name})

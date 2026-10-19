@@ -129,6 +129,11 @@ pub struct Sonderansatz {
 #[serde(deny_unknown_fields)]
 pub struct AbstandsWand {
     pub id: Uuid,
+    /// Optionaler Bezug zu Gebäude/Geschosse. Mit Bezug übernimmt der Core die
+    /// Gebäudebezeichnung; fehlt in älteren Plänen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub gebaeude_id: Option<Uuid>,
     pub gebaeude: String,
     pub bezeichnung: String,
     pub grundstueck_id: Option<Uuid>,

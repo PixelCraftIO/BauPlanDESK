@@ -62,7 +62,12 @@ export type Aussenrichtung = "links" | "rechts";
 export type Dachart = "flach" | "dachflaeche" | "giebel" | "manuell" | "ungeklaert";
 export type Wandfall = "regel" | "garage" | "carport" | "vorbau" | "grenzbebauung" | "bestand" | "sonderbau" | "sonstiges";
 export type Sonderansatz = { tiefe_m: number, grundlage: string, wirksam: boolean, beleg: Dokumentbezug | null, };
-export type AbstandsWand = { id: string, gebaeude: string, bezeichnung: string, grundstueck_id: string | null, von: APunkt, bis: APunkt, aussen: Aussenrichtung, gelaende_a_m: number | null, gelaende_b_m: number | null, abschluss_a_m: number | null, abschluss_b_m: number | null, dachart: Dachart, dachhoehe_m: number | null, dachneigung_grad: number | null, dachfaktor_manuell: number | null, hoehenquelle: string, dachgrundlage: string, fall: Wandfall, grenzkennung: string, nutzung_geprueft: boolean, sonderansatz: Sonderansatz | null, polygon_manuell: Array<APunkt> | null, };
+export type AbstandsWand = { id: string,
+/**
+ * Optionaler Bezug zu Gebäude/Geschosse. Mit Bezug übernimmt der Core die
+ * Gebäudebezeichnung; fehlt in älteren Plänen.
+ */
+gebaeude_id?: string, gebaeude: string, bezeichnung: string, grundstueck_id: string | null, von: APunkt, bis: APunkt, aussen: Aussenrichtung, gelaende_a_m: number | null, gelaende_b_m: number | null, abschluss_a_m: number | null, abschluss_b_m: number | null, dachart: Dachart, dachhoehe_m: number | null, dachneigung_grad: number | null, dachfaktor_manuell: number | null, hoehenquelle: string, dachgrundlage: string, fall: Wandfall, grenzkennung: string, nutzung_geprueft: boolean, sonderansatz: Sonderansatz | null, polygon_manuell: Array<APunkt> | null, };
 export type AbstandsPlan = { bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, };
 export type AbstandsPolygon = { aussen: Array<APunkt>, innen: Array<Array<APunkt>>, };
 export type AbstandsStatus = "offen" | "tiefenvorpruefung" | "eingehalten" | "konflikt" | "grenzfall";
@@ -406,12 +411,48 @@ export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgescho
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
-export type Gebaeude = { geometrie?: GebaeudeGeometrie, bezeichnung: string, grundstueck_ids: Array<string>, geschosse: Array<GebaeudeGeschoss>, quelle: Dokumentbezug | null, };
+export type Gebaeude = { geometrie?: GebaeudeGeometrie, bezeichnung: string,
+/**
+ * Flurstücke (IDs der Grundstücksinformationen), auf denen das Gebäude
+ * steht, bei Vereinigungsbaulast auch mehrere. Das Baugrundstück leitet der
+ * Core je Berechnung daraus ab. Fehlt in älteren Ständen.
+ */
+flurstueck_ids?: Array<string>,
+/**
+ * `true`: Die Flurstücke stammen aus einer früheren Baugrundstückszuordnung
+ * und sind noch auf die tatsächlich bebauten Flurstücke zu prüfen.
+ */
+flurstuecke_zu_pruefen?: boolean,
+/**
+ * Veraltet: frühere Zuordnung zu Baugrundstücken. Wird nur noch gelesen,
+ * solange keine Flurstücke zugeordnet sind; neu wird sie nicht gesetzt.
+ */
+grundstueck_ids: Array<string>, geschosse: Array<GebaeudeGeschoss>, quelle: Dokumentbezug | null, };
 export type GebaeudeGeschoss = { geometrie?: GeschossGeometrie, id: string, einstufungsquelle?: Einstufungsquelle, bezeichnung: string, vollgeschoss: boolean | null, grundlage: string, };
-export type GebaeudeGeometrie = { typ?: Bauteiltyp, grundflaeche_m2?: number, nullpunkt_m_nhn?: number, gelaende_m?: number, fundamentsohle_m?: number, traufe_m?: number, first_m?: number, einzelgeschoss?: GeschossGeometrie, herkunft?: string, };
+export type GebaeudeGeometrie = { typ?: Bauteiltyp, grundflaeche_m2?: number, nullpunkt_m_nhn?: number, gelaende_m?: number, fundamentsohle_m?: number, traufe_m?: number, first_m?: number, einzelgeschoss?: GeschossGeometrie,
+/**
+ * Geprüfte Vollgeschosseinstufung des Einzelgeschosses (nur ohne einzeln
+ * erfasste Geschosse); `None` = noch zu prüfen.
+ */
+einzelgeschoss_vollgeschoss?: boolean,
+/**
+ * Grundlage der Einstufung des Einzelgeschosses.
+ */
+einzelgeschoss_grundlage?: string, herkunft?: string, };
 export type GeschossGeometrie = { lichte_hoehe_einheitlich?: boolean, flaeche_m2?: number, fussboden_m?: number, lichte_hoehe_m?: number, geschosshoehe_m?: number, deckendicke_m?: number, decke_oberkante_m?: number, unterliegend_geschoss_id?: string, };
-export type GebaeudeGrundlagen = { rechenstand: string, gebaeude_id: string, bezeichnung: string, typ: Bauteiltyp | null, grundflaeche_m2: number | null, geschossflaechensumme_m2: number | null, geschosse: Array<GeschossGrundlagen>, offen: Array<string>, };
+export type GebaeudeGrundlagen = { rechenstand: string, gebaeude_id: string, bezeichnung: string, typ: Bauteiltyp | null, grundflaeche_m2: number | null, geschossflaechensumme_m2: number | null, geschosse: Array<GeschossGrundlagen>, offen: Array<string>,
+/**
+ * Absolute Höhen (m ü. NHN) aus Gebäudenullpunkt und relativer Angabe;
+ * `None`, solange eine der beiden Angaben fehlt. Fehlt in älteren Ständen.
+ */
+hoehen_nhn: HoehenNhn, };
 export type GeschossGrundlagen = { id: string, bezeichnung: string, implizit: boolean, flaeche_m2: number | null, vollgeschoss: boolean | null, lichte_hoehe_m: number | null, decke_oberkante_m: number | null, decke_ueber_gelaende_m: number | null, unterliegend_m2: number | null, herleitung: string, };
+export type HoehenNhn = { gelaende_m: number | null, traufe_m: number | null, first_m: number | null, };
+export type Flurstuecksverweis = { flurstueck_id: string,
+/**
+ * Fachbereich des verweisenden Objekts: `gebaeude` oder `abstandsflaechen`.
+ */
+bereich: string, objekt: string, bezeichnung: string, };
 export type AufgabenStatus = "offen" | "in_arbeit" | "erledigt";
 export type Aufgabe = { titel: string, beschreibung: string, faellig: string | null, verantwortlich: BenutzerId | null, status: AufgabenStatus, bezug: string | null, };
 export type UnterlagenStatus = "entwurf" | "pruefung" | "freigegeben";
@@ -447,11 +488,35 @@ export type Druckauftrag = {
  */
 gestaltung: Druckgestaltung | null, aktenzeichen: string, datum: string | null, titel: string, absender: string, empfaenger: string, anschreiben: string, mit_anschreiben: boolean, inhaltsverzeichnis: boolean,
 /**
+ * Deckblatt mit Angaben zum Bauvorhaben und Unterschriftsfeldern.
+ */
+deckblatt: boolean,
+/**
+ * Trennblatt mit Anlagennummer vor jeder unverändert beigefügten
+ * Originalunterlage (Formulare, Pläne, Fotos).
+ */
+trennblaetter: boolean,
+/**
+ * Aufstellende Person für Aufstellungsvermerk und Deckblatt. Fehlend:
+ * Vorschlag aus Bauantrag und Büroangaben (siehe [`Druckkatalog::aufgestellt_von`]).
+ */
+aufgestellt_von: string | null,
+/**
  * Schützt aktuelle Fachberichte vor Änderungen während der Zusammenstellung.
  */
 projekt_version: number, quellen: Array<Druckquelle>, };
 export type Druckgestaltung = { kopfzeile: string, fusszeile: string, anschreiben: string, };
-export type Druckeintrag = { titel: string, quelle: Druckquelle, hinweis: string | null, verfuegbar: boolean, };
-export type Druckkatalog = { gestaltung: Druckgestaltung, projekt_version: number, absender: string, eintraege: Array<Druckeintrag>, };
+export type Druckeintrag = { titel: string, quelle: Druckquelle, hinweis: string | null, verfuegbar: boolean,
+/**
+ * Gehört zum empfohlenen Berechnungsheft: aktueller, jüngster Stand je
+ * Berechnungsgegenstand in fachlicher Reihenfolge.
+ */
+empfohlen: boolean, };
+export type Druckkatalog = { gestaltung: Druckgestaltung, projekt_version: number, absender: string, eintraege: Array<Druckeintrag>,
+/**
+ * Vorschlag für die aufstellende Person; leer, wenn weder Bauantrag noch
+ * Büroangaben eine/n Entwurfsverfasser/in eindeutig benennen.
+ */
+aufgestellt_von: string, };
 export type Druckposition = { titel: string, erste_seite: number, seiten: number, };
 export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe: Freigabe | null, };

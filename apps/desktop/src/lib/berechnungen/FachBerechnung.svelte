@@ -61,7 +61,17 @@
         projekt.id,
         modul,
         benutzerId,
-        () => JSON.parse(JSON.stringify(vorlage!.plan)),
+        () => {
+          const plan: FachPlan = JSON.parse(JSON.stringify(vorlage!.plan));
+          // Eindeutige Grundlagen vorbelegen, statt sie erneut abzufragen.
+          if (plan.grundstueck_id === null && grund.length === 1)
+            plan.grundstueck_id = grund[0].id;
+          if (plan.gebaeude_id === null && gebaeude.length === 1 && ["vollgeschosse", "hoehen"].includes(modul)) {
+            plan.gebaeude_id = gebaeude[0].objekt;
+            plan.gebaeudedaten_uebernehmen = true;
+          }
+          return plan;
+        },
         (p) => p.bezeichnung,
       ),
   );
@@ -478,6 +488,11 @@
             <label><input type="checkbox" checked={p.gebaeudedaten_uebernehmen === true} onchange={(e) => { p.gebaeudedaten_uebernehmen = e.currentTarget.checked; result = null; }} />Geschosse, Flächen und bekannte Höhen aus Gebäude/Geschosse übernehmen</label>
             <p class="meta">Beim Prüfen und Speichern werden die Geschoss- und Höhenzonenlisten aus dem ausgewählten Gebäude befüllt und aktualisiert. Eine Höhenzone über die gesamte Fläche entsteht nur bei bestätigter einheitlicher Raumhöhe. Für eigene Höhenzonen diese Übernahme lösen. Änderungen an den Grundlagen setzen die Aufmaßprüfung zurück.</p>
             {#if p.gebaeudedaten_uebernehmen}<button type="button" class="sekundaer" disabled={!p.gebaeude_id} onclick={pruefen}>Gebäudeangaben laden und prüfen</button>{/if}
+          </section>{:else if modul === "hoehen"}<section class="positionszeile">
+            <h3>Bekannte Gebäudeangaben verwenden</h3>
+            <label><input type="checkbox" checked={p.gebaeudedaten_uebernehmen === true} onchange={(e) => { p.gebaeudedaten_uebernehmen = e.currentTarget.checked; result = null; }} />Trauf- und Firsthöhe aus Gebäude/Geschosse übernehmen</label>
+            <p class="meta">Beim Prüfen und Speichern entstehen aus Gebäudenullpunkt (m ü. NHN), Traufe und First des ausgewählten Gebäudes Höhenpunkte mit der mittleren Geländehöhe als Bezug. Eigene Punkte bleiben erhalten. Weicht der maßgebende Bezugspunkt der Festsetzung ab, eigene Punkte erfassen. Geänderte Grundlagen setzen die Bezugsprüfung zurück.</p>
+            {#if p.gebaeudedaten_uebernehmen}<button type="button" class="sekundaer" disabled={!p.gebaeude_id} onclick={pruefen}>Gebäudehöhen laden und prüfen</button>{/if}
           </section>{/if}
           {#if ["wohnflaechen", "din277"].includes(modul)}<details>
               <summary>Raumfakten aus dem Raumbuch übernehmen</summary>

@@ -171,6 +171,11 @@ window.__TAURI_INTERNALS__ = {
           fehlende_angaben: [],
         },
       );
+    if (cmd === "gebaeudezuordnung_uebertragen") return 0;
+    if (cmd === "flurstuecksverweise") return [];
+    if (cmd === "flurstuecksverweise_entfernen") return 0;
+    if (cmd === "projekt_baugrundstuecke_gebaeude_einbinden")
+      return { plan: args.eingabe, hinweise: [] };
     if (cmd === "projekt_baugrundstuecke_pruefen")
       return {
         projekt_version: window.testProjects.find(

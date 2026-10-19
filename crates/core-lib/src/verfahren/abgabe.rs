@@ -148,6 +148,32 @@ pub fn letztes_versandereignis(b: &Abgabestand) -> Option<&Versandereignis> {
         .map(|(_, _, ereignis)| ereignis)
 }
 impl CoreServices {
+    /// Hinweise, wenn die Landes-Verfahrensart des Bauantrags der Akte widerspricht.
+    pub(crate) fn verfahrensart_abgleichen(
+        &self,
+        projekt: &Project,
+        antrag: &Bauantrag,
+        akte: &Verfahrensakte,
+    ) -> Vec<String> {
+        let beschreibung = match self
+            .codelisten
+            .verfahrensart(projekt.bundesland, &antrag.verfahrensart)
+        {
+            Ok(Some((liste, code))) => liste
+                .eintraege
+                .iter()
+                .find(|e| e.code == code)
+                .map(|e| e.beschreibung.clone()),
+            Ok(None) => None,
+            // Fehlende oder ungültige Codeliste meldet der Bauantrag selbst.
+            Err(_) => return vec![],
+        };
+        super::abgleich::verfahrensart_hinweise(
+            &akte.art,
+            akte.pruefverfahren.as_ref(),
+            beschreibung.as_deref(),
+        )
+    }
     pub async fn verfahren_abgabe_festhalten(
         &self,
         p: ProjectId,
@@ -212,6 +238,7 @@ impl CoreServices {
                 kennung: behoerde.kennung.trim().into(),
             };
         }
+        hinweise.extend(self.verfahrensart_abgleichen(&projekt, &antrag, &a));
         let aktenzeichen = a.aktenzeichen.trim().to_string();
         // Ein Änderungsantrag ist ein Nachtrag zur Baugenehmigung des
         // Vorgängerverfahrens; XBau nennt deren Aktenzeichen.
@@ -310,7 +337,10 @@ impl CoreServices {
         // nicht veralteten Berechnungsstand des Projekts.
         let vorhaben = if w.xbau {
             let g = &grundlagen;
-            let (flaechen, hinweis) = crate::xbau::FlaechenBauNvo::aus_projekt(&g.projekt);
+            // Gleicher Rechenweg wie Berechnung und Nachweis (mit Gebäuden).
+            let (wirksam, gebaeudehinweise) = self.projekt_mit_gebaeuden(&g.projekt).await?;
+            hinweise.extend(gebaeudehinweise);
+            let (flaechen, hinweis) = crate::xbau::FlaechenBauNvo::aus_projekt(&wirksam);
             hinweise.extend(hinweis);
             crate::xbau::Vorhabenangaben {
                 beteiligte: crate::kunden::antragsbeteiligte(
@@ -465,6 +495,11 @@ impl CoreServices {
                         anschreiben: w.anschreiben.clone(),
                         mit_anschreiben: !w.anschreiben.trim().is_empty(),
                         inhaltsverzeichnis: true,
+                        // Behördenpaket: Deckblatt und Trennblätter machen jede
+                        // Originalunterlage über ihre Anlagennummer zuordenbar.
+                        deckblatt: true,
+                        trennblaetter: true,
+                        aufgestellt_von: None,
                         projekt_version: projekt.version,
                         quellen: w
                             .dokumente

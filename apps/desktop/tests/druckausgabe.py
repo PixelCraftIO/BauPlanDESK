@@ -82,7 +82,7 @@ with sync_playwright() as p:
     doc=next(e for e in wf['katalog']['eintraege'] if e['quelle']['art']=='dokument' and e['verfuegbar'])
     page.get_by_role('checkbox',name=doc['titel'],exact=True).check()
     page.get_by_role('checkbox',name='Anschreiben voranstellen',exact=True).uncheck()
-    page.get_by_role('checkbox',name='Inhaltsverzeichnis mit Seitenzahlen',exact=True).uncheck()
+    page.get_by_role('checkbox',name='Anlagenverzeichnis mit Seitenzahlen und Bezügen',exact=True).uncheck();page.get_by_role('checkbox',name='Deckblatt mit Angaben zum Bauvorhaben und Unterschriftsfeldern',exact=True).uncheck();page.get_by_role('checkbox',name='Trennblatt mit Anlagennummer vor Originalunterlagen',exact=True).uncheck()
     page.get_by_label('Seiten (leer = alle)',exact=True).fill('1')
     page.get_by_role('button',name='Druckausgabe erstellen (1)',exact=True).click()
     expect(page.get_by_role('heading',name='Druckvorschau · 1 Seiten')).to_be_visible()
@@ -96,7 +96,7 @@ with sync_playwright() as p:
     dialog=page.get_by_role('dialog',name='Druckausgabe',exact=True)
     expect(dialog.get_by_role('checkbox',name='Baugrundstücksermittlung',exact=True)).to_be_checked()
     expect(dialog.get_by_role('checkbox',name='Anschreiben voranstellen',exact=True)).not_to_be_checked()
-    expect(dialog.get_by_role('checkbox',name='Inhaltsverzeichnis mit Seitenzahlen',exact=True)).not_to_be_checked()
+    expect(dialog.get_by_role('checkbox',name='Anlagenverzeichnis mit Seitenzahlen und Bezügen',exact=True)).not_to_be_checked();expect(dialog.get_by_role('checkbox',name='Deckblatt mit Angaben zum Bauvorhaben und Unterschriftsfeldern',exact=True)).not_to_be_checked()
     dialog.get_by_role('button',name='Schließen',exact=True).click()
     # Bürostandard speichern und später wieder lesen; Bearbeitung bleibt bei Fehler erhalten.
     page.get_by_role('button',name='Einstellungen',exact=True).click()
@@ -117,8 +117,8 @@ with sync_playwright() as p:
       const result=[];for(let n=1;n<=d.numPages;n++){const p=await d.getPage(n);result.push((await p.getTextContent()).items.map(i=>i.str??'').join(' '));}await d.destroy();return result;
     }''')
     assert 'Anschreiben' in texts[0] and 'Bauamt Musterstadt' in texts[0]
-    assert 'Inhaltsverzeichnis' in texts[1] and '3–4' in texts[1]
-    for label in ['Dokumentkategorie','Dateiname / Bezeichnung','Version / Stand','Seite','Baubeschreibung','Baubeschreibung.pdf']:
+    assert 'Anlagenverzeichnis' in texts[1] and '3–4' in texts[1]
+    for label in ['Anlage','Bezeichnung','Art / Kategorie','Version / Stand','Bezug','Seiten im Paket','Baubeschreibung','Baubeschreibung.pdf']:
         assert label in texts[1],label
     assert 'Planungsbüro Müller' not in texts[2] and 'Seite 3 von' not in texts[2]
     assert 'Anlage Lageplan' in texts[2]
