@@ -1,10 +1,11 @@
 [
   {
     "id": "abstand-nw",
-    "version": "pilot-1",
+    "version": "2026-09-01",
     "land": "NW",
-    "rechtsstand": "§ 6 BauO NRW 2018 – Beispielansatz, konkrete Fassung und Sonderregeln projektbezogen prüfen",
-    "hinweis": "Ungeprüfter Pilotkatalog. Landesfassung, Übergangsrecht, lokale Satzungen und alle Anwendungsbedingungen vor fachlicher Freigabe anhand amtlicher Quellen prüfen. Keine automatische rechtliche Vollständigkeitszusage. Dachregeln nur für Dachflächen; Giebel gesondert erfassen.",
+    "rechtsstand": "§ 6 BauO NRW 2018 in der ab 1. September 2026 geltenden Fassung (zuletzt geändert durch Art. 1 des Gesetzes vom 21. Juli 2026, GV. NRW. S. 537)",
+    "hinweis": "Regeln nach dem Wortlaut von § 6 BauO NRW 2018 (Fassung ab 01.09.2026). Vor fachlicher Freigabe projektbezogen prüfen. Wandhöhe je Wandteil (Abs. 4 Satz 3); bei geneigter Geländeoberfläche im Mittel aus den Wandhöhen an den Gebäudekanten bzw. Wandteilgrenzen (Abs. 4 Satz 4 und 5). Abgrabungen für Belichtung, Zugang oder Zufahrt bleiben bei der Geländeoberfläche außer Betracht (Abs. 4 Satz 6) – im Geländeprofil entsprechend erfassen. Nicht automatisiert und gesondert zu prüfen: abweichende Satzungen (Abs. 5 Satz 6), größere Tiefe zu angrenzenden anderen Baugebieten (Abs. 5 Satz 4), Vorbauten und Dachüberstände (Abs. 6), Energieeinsparung und Solaranlagen an bestehenden Gebäuden (Abs. 7), weitere Anlagen nach Abs. 8 Nr. 2 bis 6 in der Gesamtlänge, Aufzüge (Abs. 9), Gestattungen (Abs. 10 und 12), Bestandsgebäude (Abs. 11), Abweichungen (Abs. 13), Windenergieanlagen.",
+    "wandhoehe": "mittel_kanten",
     "tiefen": [
       {
         "gebiete": [
@@ -16,12 +17,19 @@
           "MD",
           "MDW",
           "MU",
-          "MK",
           "SO"
         ],
         "faktor": 0.4,
         "mindesttiefe_m": 3,
-        "quelle": "§ 6 BauO NRW 2018"
+        "quelle": "§ 6 BauO NRW 2018, Abs. 5 Satz 1: 0,4 H, mindestens 3 m"
+      },
+      {
+        "gebiete": [
+          "MK"
+        ],
+        "faktor": 0.25,
+        "mindesttiefe_m": 3,
+        "quelle": "§ 6 BauO NRW 2018, Abs. 5 Satz 2: Kerngebiet 0,25 H, mindestens 3 m"
       },
       {
         "gebiete": [
@@ -30,30 +38,76 @@
         ],
         "faktor": 0.2,
         "mindesttiefe_m": 3,
-        "quelle": "§ 6 BauO NRW 2018"
+        "quelle": "§ 6 BauO NRW 2018, Abs. 5 Satz 2: Gewerbe- und Industriegebiet 0,2 H, mindestens 3 m"
+      },
+      {
+        "gebiete": [
+          "MK",
+          "MU"
+        ],
+        "faktor": 0.2,
+        "mindesttiefe_m": 3,
+        "fall": "oeffentliche_flaeche",
+        "quelle": "§ 6 BauO NRW 2018, Abs. 5 Satz 3: zu öffentlichen Verkehrs-, Grün- und Wasserflächen in Kern- und urbanen Gebieten 0,2 H, mindestens 3 m"
+      },
+      {
+        "gebiete": [
+          "WA",
+          "WR",
+          "WB",
+          "WS",
+          "MI",
+          "MD",
+          "MDW",
+          "MU",
+          "MK",
+          "SO",
+          "GE",
+          "GI"
+        ],
+        "faktor": 0,
+        "mindesttiefe_m": 3,
+        "fall": "wohngebaeude_gk12",
+        "quelle": "§ 6 BauO NRW 2018, Abs. 5 Satz 5: vor Außenwänden von Wohngebäuden der Gebäudeklassen 1 und 2 mit nicht mehr als drei oberirdischen Geschossen genügen 3 m"
       }
     ],
     "dach": [
       {
         "ueber_grad": 45,
         "faktor": 0.3333333333333333,
-        "quelle": "§ 6 BauO NRW 2018; Dachflächenansatz fachlich prüfen"
+        "quelle": "§ 6 BauO NRW 2018, Abs. 4 Satz 7 Nr. 2 Buchst. a: Dächer und Dachteile mit mehr als 45 Grad Neigung zu einem Drittel"
       },
       {
         "ueber_grad": 70,
         "faktor": 1,
-        "quelle": "§ 6 BauO NRW 2018; Dachflächenansatz fachlich prüfen"
+        "quelle": "§ 6 BauO NRW 2018, Abs. 4 Satz 7 Nr. 1 Buchst. a: Dächer und Dachteile mit mehr als 70 Grad Neigung voll"
       }
     ],
     "grenzanlagen": {
       "typen": [
         "garage",
-        "carport"
+        "carport",
+        "nebengebaeude"
       ],
       "hoehe_m": 3,
       "laenge_je_grenze_m": 9,
       "laenge_gesamt_m": 18,
-      "quelle": "§ 6 BauO NRW 2018; Grenzanlagenprivileg: gesamte Anlage einschließlich Nutzungs-/Höhen-/Längenbedingungen fachlich prüfen"
+      "quelle": "§ 6 BauO NRW 2018, Abs. 8 Satz 1 Nr. 1 und Satz 3: Garagen einschließlich Abstellräumen sowie Gebäude bis 30 m³ Brutto-Rauminhalt ohne Aufenthaltsräume mit einer mittleren Wandhöhe bis 3 m; Gesamtlänge der Bebauung nach Satz 1 Nr. 1 bis 4 und 6 je Nachbargrenze 9 m, insgesamt 18 m"
+    },
+    "giebel": {
+      "steil_ueber_grad": 70,
+      "faktor_steil": 1,
+      "faktor_sonst": 0.3333333333333333,
+      "quelle": "§ 6 BauO NRW 2018, Abs. 4 Satz 7 Nr. 1 Buchst. b und Nr. 2 Buchst. c: Giebelflächen voll, wenn beide Dachseiten mehr als 70 Grad geneigt sind, sonst zu einem Drittel"
+    },
+    "gauben": {
+      "anteil_ueber": 0.5,
+      "faktor": 0.3333333333333333,
+      "quelle": "§ 6 BauO NRW 2018, Abs. 4 Satz 7 Nr. 2 Buchst. b: Dächer mit Dachgauben oder Dachaufbauten, deren Gesamtlänge je Dachfläche mehr als die Hälfte der darunterliegenden Gebäudewand beträgt, zu einem Drittel"
+    },
+    "ueberdeckung": {
+      "winkel_ueber_grad": 75,
+      "quelle": "§ 6 BauO NRW 2018, Abs. 3 Nr. 1: keine unzulässige Überdeckung bei Außenwänden, die in einem Winkel von mehr als 75 Grad zueinander stehen"
     }
   },
   {

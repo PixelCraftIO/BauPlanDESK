@@ -72,14 +72,29 @@ pub fn zeilen(p: &AbstandsPlan, r: &AbstandsErgebnis) -> Vec<String> {
                 "Einheit {:?} · Wand von ({}, {}) nach ({}, {}) m · Außenseite {:?} · Länge {} m",
                 w.grundstueck_id, w.von.x, w.von.y, w.bis.x, w.bis.y, w.aussen, e.laenge_m
             ));
-            z.push(format!(
-                "Gelände A/B: {} / {} m · Wandabschluss A/B: {} / {} m · Quelle: {}",
-                opt(w.gelaende_a_m),
-                opt(w.gelaende_b_m),
-                opt(w.abschluss_a_m),
-                opt(w.abschluss_b_m),
-                w.hoehenquelle
-            ));
+            if e.profil.is_empty() {
+                z.push(format!(
+                    "Gelände A/B: {} / {} m · Wandabschluss A/B: {} / {} m · Quelle: {}",
+                    opt(w.gelaende_a_m),
+                    opt(w.gelaende_b_m),
+                    opt(w.abschluss_a_m),
+                    opt(w.abschluss_b_m),
+                    w.hoehenquelle
+                ));
+            } else {
+                z.push(format!("Höhenprofil · Quelle: {}", w.hoehenquelle));
+                z.extend(e.profil.iter().map(|q| {
+                    format!(
+                        "Station {} m · Gelände {} m · Oberkante {} m · Wandhöhe {} m · Tiefe {} m · Wandteil {}",
+                        opt(Some(q.station_m)),
+                        opt(Some(q.gelaende_m)),
+                        opt(Some(q.oberkante_m)),
+                        opt(Some(q.wandhoehe_m)),
+                        opt(q.tiefe_m),
+                        q.wandteil
+                    )
+                }));
+            }
             z.push(format!(
                 "Dach {:?}: Höhe {} m · Neigung {}° · manueller Faktor {} · {}",
                 w.dachart,
@@ -149,24 +164,37 @@ pub fn hat_planskizze(p: &AbstandsPlan, r: &AbstandsErgebnis) -> bool {
         || r.waende.iter().any(|w| !w.polygon.is_empty())
         || !p.waende.is_empty()
 }
-/// Nur ASCII in der Standardschrift der Planskizze.
+/// Text für einen PDF-String der Planblätter: Klammern und Backslash
+/// maskiert, höchstens 110 Zeichen. Die Kodierung übernimmt [`seite_anhaengen`].
 fn ascii(t: &str) -> String {
     t.chars()
-        .flat_map(|c| match c {
-            'ä' => "ae".chars().collect::<Vec<_>>(),
-            'ö' => "oe".chars().collect(),
-            'ü' => "ue".chars().collect(),
-            'Ä' => "Ae".chars().collect(),
-            'Ö' => "Oe".chars().collect(),
-            'Ü' => "Ue".chars().collect(),
-            'ß' => "ss".chars().collect(),
-            '–' | '—' => vec!['-'],
-            '·' => vec!['-'],
-            '(' | ')' | '\\' => vec![' '],
-            c if c.is_ascii() && !c.is_ascii_control() => vec![c],
-            _ => vec!['?'],
-        })
+        .filter(|c| !c.is_control())
         .take(110)
+        .flat_map(|c| match c {
+            '(' | ')' | '\\' => vec!['\\', c],
+            c => vec![c],
+        })
+        .collect()
+}
+/// WinAnsiEncoding (Windows-1252) für die Standardschrift; nicht darstellbare
+/// Zeichen werden zu „?“.
+fn winansi(t: &str) -> Vec<u8> {
+    t.chars()
+        .map(|c| match c {
+            '€' => 0x80,
+            '‚' => 0x82,
+            '„' => 0x84,
+            '…' => 0x85,
+            '‘' => 0x91,
+            '’' => 0x92,
+            '“' => 0x93,
+            '”' => 0x94,
+            '•' => 0x95,
+            '–' => 0x96,
+            '—' => 0x97,
+            c if (c as u32) < 0x80 || (0xA0..=0xFF).contains(&(c as u32)) => c as u32 as u8,
+            _ => b'?',
+        })
         .collect()
 }
 /// `kennung`: Zuordnung im Paket, z. B. Anlage und Blatt; erscheint unter dem Titel.
@@ -176,7 +204,6 @@ pub fn planseite(
     r: &AbstandsErgebnis,
     kennung: Option<&str>,
 ) -> CoreResult<()> {
-    use lopdf::{Object, Stream, dictionary};
     let points = p
         .grundstuecke
         .iter()
@@ -200,7 +227,7 @@ pub fn planseite(
     let scale = 2834.64567 / nenner;
     let xy = |v: &APunkt| ((v.x - minx) * scale + 55., (v.y - miny) * scale + 115.);
     let mut out = format!(
-        "q 0.6 w 0 0 0 RG BT /PlanFont 13 Tf 50 752 Td (Abstandsflaechen - Vektorplanskizze) Tj ET BT /PlanFont 10 Tf 50 732 Td (1:{nenner:.0} bei 100 Prozent PDF-Ausgabe; G/W/F siehe Bericht) Tj ET\n"
+        "q 0.6 w 0 0 0 RG BT /PlanFont 13 Tf 50 752 Td (Abstandsflächen – Vektorplanskizze) Tj ET BT /PlanFont 10 Tf 50 732 Td (1:{nenner:.0} bei 100 % PDF-Ausgabe; G/W/F siehe Bericht) Tj ET\n"
     );
     if let Some(k) = kennung {
         out.push_str(&format!(
@@ -289,9 +316,13 @@ pub fn planseite(
         "0 0 0 RG 2 w 55 95 m {} 95 l S BT /PlanFont 10 Tf 55 78 Td ({meter:.3} m) Tj ET Q",
         55. + b
     ));
-    let font =
-        d.add_object(dictionary! {"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>"Helvetica"});
-    let content = d.add_object(Stream::new(dictionary! {}, out.into_bytes()));
+    seite_anhaengen(d, out)
+}
+/// Hängt ein Blatt mit dem Inhaltsstrom `out` (Schrift `/PlanFont`) an.
+fn seite_anhaengen(d: &mut lopdf::Document, out: String) -> CoreResult<()> {
+    use lopdf::{Object, Stream, dictionary};
+    let font = d.add_object(dictionary! {"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>"Helvetica","Encoding"=>"WinAnsiEncoding"});
+    let content = d.add_object(Stream::new(dictionary! {}, winansi(&out)));
     let cat = d
         .trailer
         .get(b"Root")
@@ -350,4 +381,197 @@ pub fn dxf(p: &AbstandsPlan, r: &AbstandsErgebnis) -> String {
     }
     s.push_str("0\nENDSEC\n0\nEOF\n");
     s
+}
+
+/// Wände je Abwicklungsblatt.
+const ABWICKLUNGEN_JE_BLATT: usize = 3;
+/// Wände mit Höhenprofil im gespeicherten Ergebnis (ältere Ergebnisse haben keins).
+fn abwicklungen<'a>(
+    p: &'a AbstandsPlan,
+    r: &'a AbstandsErgebnis,
+) -> Vec<(usize, &'a AbstandsWand, &'a WandErgebnis)> {
+    p.waende
+        .iter()
+        .enumerate()
+        .filter_map(|(i, w)| {
+            r.waende
+                .iter()
+                .find(|e| e.id == w.id && e.profil.len() >= 2 && e.laenge_m > 0.)
+                .map(|e| (i, w, e))
+        })
+        .collect()
+}
+/// Anzahl der Blätter, die [`abwicklungsseiten`] erzeugt.
+pub fn abwicklungsblaetter(p: &AbstandsPlan, r: &AbstandsErgebnis) -> usize {
+    abwicklungen(p, r).len().div_ceil(ABWICKLUNGEN_JE_BLATT)
+}
+/// Wandabwicklungen: Geländelinie, Wandoberkante, Wandteile und Wandhöhen je
+/// Profilstelle, maßstäblich in Wandrichtung (Anfang links). `kennung` erhält
+/// die laufende Blattnummer innerhalb dieser Blätter (ab 1).
+pub fn abwicklungsseiten(
+    d: &mut lopdf::Document,
+    p: &AbstandsPlan,
+    r: &AbstandsErgebnis,
+    kennung: impl Fn(usize) -> String,
+) -> CoreResult<()> {
+    let liste = abwicklungen(p, r);
+    for (blatt, gruppe) in liste.chunks(ABWICKLUNGEN_JE_BLATT).enumerate() {
+        let mut out = format!(
+            "q 0 0 0 RG 0 0 0 rg BT /PlanFont 13 Tf 50 752 Td (Abstandsflächen – Wandabwicklungen) Tj ET BT /PlanFont 9 Tf 50 734 Td (Ansicht von außen, Höhen in m. Gelände braun, Wandoberkante schwarz, Wandteilgrenzen gestrichelt.) Tj ET BT /PlanFont 10 Tf 50 718 Td ({}) Tj ET\n",
+            ascii(&kennung(blatt + 1))
+        );
+        for (band, (i, w, e)) in gruppe.iter().enumerate() {
+            out.push_str(&abwicklung(*i, w, e, 700. - band as f64 * 220.));
+        }
+        out.push('Q');
+        seite_anhaengen(d, out)?;
+    }
+    Ok(())
+}
+fn abwicklung(i: usize, w: &AbstandsWand, e: &WandErgebnis, oben: f64) -> String {
+    let z = |v: f64| opt(Some(v));
+    let (x0, breite, hoehe) = (70., 470., 120.);
+    let unten = oben - 40. - hoehe;
+    let hmin = e
+        .profil
+        .iter()
+        .map(|q| q.gelaende_m)
+        .fold(f64::INFINITY, f64::min);
+    let hmax = e
+        .profil
+        .iter()
+        .map(|q| q.oberkante_m)
+        .fold(f64::NEG_INFINITY, f64::max);
+    // Ein Maßstab für Länge und Höhe, damit die Ansicht nicht verzerrt.
+    let m = (breite / e.laenge_m).min(hoehe / (hmax - hmin).max(0.5));
+    // Ansicht von außen: Liegt die Außenseite links der Wandrichtung, steht
+    // der Wandanfang für den Betrachter rechts.
+    let gespiegelt = w.aussen == Aussenrichtung::Links;
+    let xy = |s: f64, h: f64| {
+        let s = if gespiegelt { e.laenge_m - s } else { s };
+        (x0 + s * m, unten + (h - hmin) * m)
+    };
+    let mut o = format!(
+        "BT /PlanFont 10 Tf 50 {oben} Td ({}) Tj ET BT /PlanFont 7 Tf 50 {} Td ({}) Tj ET\n",
+        ascii(&format!(
+            "W{} – {} / {} – Länge {} m",
+            i + 1,
+            w.gebaeude,
+            w.bezeichnung,
+            z(e.laenge_m)
+        )),
+        oben - 11.,
+        ascii(&format!(
+            "{}; Wandanfang (Station 0) {}",
+            e.ansatz.unwrap_or_default().bezeichnung(),
+            if gespiegelt { "rechts" } else { "links" }
+        ))
+    );
+    let linie = |o: &mut String, pts: Vec<(f64, f64)>| {
+        for (k, (x, y)) in pts.iter().enumerate() {
+            o.push_str(&format!(
+                "{x:.2} {y:.2} {}\n",
+                if k == 0 { "m" } else { "l" }
+            ));
+        }
+    };
+    // Wandfläche
+    let mut flaeche: Vec<_> = e
+        .profil
+        .iter()
+        .map(|q| xy(q.station_m, q.oberkante_m))
+        .collect();
+    flaeche.extend(e.profil.iter().rev().map(|q| xy(q.station_m, q.gelaende_m)));
+    o.push_str("0.92 g\n");
+    linie(&mut o, flaeche);
+    o.push_str("h f 0 g\n");
+    o.push_str("0 0 0 RG 1.2 w\n");
+    linie(
+        &mut o,
+        e.profil
+            .iter()
+            .map(|q| xy(q.station_m, q.oberkante_m))
+            .collect(),
+    );
+    o.push_str("S 0.55 0.35 0.1 RG 1.6 w\n");
+    linie(
+        &mut o,
+        e.profil
+            .iter()
+            .map(|q| xy(q.station_m, q.gelaende_m))
+            .collect(),
+    );
+    o.push_str("S 0 0 0 RG 0.6 w\n");
+    for a in [e.profil.first(), e.profil.last()].into_iter().flatten() {
+        let (x, y1) = xy(a.station_m, a.gelaende_m);
+        let (_, y2) = xy(a.station_m, a.oberkante_m);
+        o.push_str(&format!("{x:.2} {y1:.2} m {x:.2} {y2:.2} l S\n"));
+    }
+    o.push_str("[3 2] 0 d\n");
+    for t in e.wandteile.iter().skip(1) {
+        let q = e
+            .profil
+            .iter()
+            .filter(|q| (q.station_m - t.von_m).abs() < 1e-6)
+            .fold(None::<(f64, f64)>, |acc, q| {
+                Some(acc.map_or((q.gelaende_m, q.oberkante_m), |(g, ok)| {
+                    (g.min(q.gelaende_m), ok.max(q.oberkante_m))
+                }))
+            });
+        if let Some((g, ok)) = q {
+            let (x, y1) = xy(t.von_m, g);
+            let (_, y2) = xy(t.von_m, ok);
+            o.push_str(&format!("{x:.2} {y1:.2} m {x:.2} {y2:.2} l S\n"));
+        }
+    }
+    o.push_str("[] 0 d\n");
+    // Beschriftung je Profilstelle, bei vielen Stellen ausgedünnt.
+    let schritt = e.profil.len().div_ceil(12).max(1);
+    let mut letzte = f64::NEG_INFINITY;
+    for q in e.profil.iter().step_by(schritt) {
+        let (x, yg) = xy(q.station_m, q.gelaende_m);
+        let (_, yo) = xy(q.station_m, q.oberkante_m);
+        if (x - letzte).abs() < 34. {
+            continue;
+        }
+        letzte = x;
+        o.push_str(&format!(
+            "BT /PlanFont 6 Tf {:.2} {:.2} Td ({} m) Tj ET BT /PlanFont 6 Tf {:.2} {:.2} Td (G {}) Tj ET BT /PlanFont 6 Tf {:.2} {:.2} Td (OK {}) Tj ET BT /PlanFont 6 Tf {:.2} {:.2} Td (H {}) Tj ET\n",
+            x - 6.,
+            unten - 17.,
+            z(q.station_m),
+            x + 2.,
+            yg - 8.,
+            z(q.gelaende_m),
+            x + 2.,
+            yo + 3.,
+            z(q.oberkante_m),
+            x + 2.,
+            (yg + yo) / 2.,
+            z(q.wandhoehe_m)
+        ));
+    }
+    // Wandteile als Zeilen unter der Ansicht.
+    for (k, t) in e.wandteile.iter().take(3).enumerate() {
+        o.push_str(&format!(
+            "BT /PlanFont 7 Tf 50 {:.2} Td (Wandteil {}: Station {} bis {} m – H an den Kanten {} / {} m – maßgeblich {} m – mit Dach {} m – Tiefe {} m) Tj ET\n",
+            unten - 28. - k as f64 * 9.,
+            k + 1,
+            z(t.von_m),
+            z(t.bis_m),
+            z(t.h_anfang_m),
+            z(t.h_ende_m),
+            z(t.wandhoehe_m),
+            opt(t.h_m),
+            opt(t.tiefe_m)
+        ));
+    }
+    if e.wandteile.len() > 3 {
+        o.push_str(&format!(
+            "BT /PlanFont 7 Tf 50 {:.2} Td (Weitere {} Wandteile siehe Bericht) Tj ET\n",
+            unten - 55.,
+            e.wandteile.len() - 3
+        ));
+    }
+    o
 }

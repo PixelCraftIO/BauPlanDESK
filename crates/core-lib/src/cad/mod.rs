@@ -104,6 +104,14 @@ pub struct Beschriftung {
     pub inhalt: String,
 }
 
+/// Punkt mit Höhe in Zeichnungseinheiten (Lage) und Höhe wie in der Datei.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Raumpunkt {
+    pub ebene: usize,
+    pub position: Punkt,
+    pub z: f64,
+}
+
 /// Ein importierter Plan (nur Modellbereich).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Plan {
@@ -112,6 +120,9 @@ pub struct Plan {
     pub ebenen: Vec<Ebene>,
     pub linien: Vec<Linienzug>,
     pub texte: Vec<Beschriftung>,
+    /// Punkte mit Höhe (z) aus dem Modellbereich, z. B. Vermessungspunkte.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub raumpunkte: Vec<Raumpunkt>,
     /// `None` bei leeren Plänen.
     pub grenzen: Option<Rechteck>,
     /// Hinweise für den Anwender, z. B. übersprungene Elementtypen.

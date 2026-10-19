@@ -740,14 +740,19 @@ impl CoreServices {
                     })?;
                 let regel: crate::abstandsflaechen::AbstandsRegeln =
                     serde_json::from_str(&r.inhalt).map_err(json_err)?;
+                // Pläne ohne Höhenprofil und Wandhöhenansatz rechnet der
+                // aktuelle Kern wie die älteren Rechenstände.
+                let stand = n.ergebnis["rechenstand"].as_str().unwrap_or_default();
                 if regel != plan.regeln
-                    || n.ergebnis["rechenstand"] != crate::abstandsflaechen::RECHENSTAND
+                    || (stand != crate::abstandsflaechen::RECHENSTAND
+                        && !crate::abstandsflaechen::RECHENSTAENDE_KOMPATIBEL.contains(&stand))
                 {
                     return Err(CoreError::InvalidInput(
                         "Archivierter Rechen-/Regelstand passt nicht zum verfügbaren Kern".into(),
                     ));
                 }
-                serde_json::to_value(crate::abstandsflaechen::berechnen(plan)?).map_err(json_err)
+                serde_json::to_value(crate::abstandsflaechen::berechnen_stand(plan, stand)?)
+                    .map_err(json_err)
             }
             NachweisEingabe::Abstand { eingabe, .. } => {
                 let engine = LboEngine::new();

@@ -110,7 +110,8 @@ async fn projekt_nachweis_pdf_quellen_und_unveraendertes_archiv() {
     let d = lopdf::Document::load_mem(&pdf.pdf).unwrap();
     assert!(d.get_pages().len() >= 3);
     let last = *d.get_pages().last_key_value().unwrap().1;
-    let stream = String::from_utf8(d.get_page_content(last)).unwrap();
+    // Planblätter sind WinAnsi-kodiert (Umlaute).
+    let stream = String::from_utf8_lossy(&d.get_page_content(last)).into_owned();
     assert!(stream.contains("1:100") || stream.contains("1:150"));
     assert!(stream.contains("W1"));
     let json = core
@@ -327,4 +328,198 @@ async fn projekt_nachweis_pdf_quellen_und_unveraendertes_archiv() {
         .await
         .is_err()
     );
+}
+fn hp(station_m: f64, hoehe_m: f64) -> Hoehenpunkt {
+    Hoehenpunkt {
+        station_m,
+        hoehe_m,
+        quelle: "Lageplan Vorabzug".into(),
+    }
+}
+/// Umriss mit Eckhöhen, Höhenprofil mit Wandteilen, Nachweis, PDF mit
+/// Wandabwicklung und Geländevorschlag aus einer DXF.
+#[tokio::test]
+async fn gebaeudeumriss_hoehenprofil_und_wandabwicklung() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let storage =
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap());
+    let core = CoreServices::new(
+        db.repositories(),
+        storage.clone(),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Hanghaus NRW".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let mut plan = plan();
+    plan.waende.clear();
+    plan.umrisse = vec![AbstandsUmriss {
+        id: Uuid::from_u128(70),
+        bezeichnung: "Wohnhaus".into(),
+        gebaeude_id: None,
+        grundstueck_id: Some(plan.grundstuecke[0].id),
+        ecken: [
+            (5., 5., 100.),
+            (15., 5., 100.6),
+            (15., 12., 101.2),
+            (5., 12., 100.4),
+        ]
+        .into_iter()
+        .map(|(x, y, g)| UmrissEcke {
+            x,
+            y,
+            gelaende_m: Some(g),
+        })
+        .collect(),
+        oberkante_m: Some(107.),
+        quelle: "Lageplan Vorabzug, Höhen m ü. NHN".into(),
+    }];
+    let abgleich = umrisse_abgleichen(plan.clone()).unwrap();
+    assert_eq!(abgleich.plan.waende.len(), 4);
+    let mut plan = abgleich.plan.clone();
+    for w in &mut plan.waende {
+        w.dachart = Dachart::Flach;
+    }
+    // Südseite: Geländepunkt in der Wand und Höhensprung der Oberkante bei 6 m.
+    plan.waende[0].oberkante = vec![hp(0., 107.), hp(6., 107.), hp(6., 104.), hp(10., 104.)];
+    plan.waende[0].gelaende.push(hp(5., 100.1));
+    let id = Uuid::new_v4();
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Abstandsflaechen,
+            id,
+            0,
+            serde_json::to_value(&plan).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let plan: AbstandsPlan = serde_json::from_value(f.daten.clone()).unwrap();
+    let r = core.abstandsplan_pruefen(p.id, &plan).await.unwrap();
+    assert!(
+        r.konfliktfrei,
+        "{:?} {:?}",
+        r.offen,
+        r.waende.iter().map(|w| &w.offen).collect::<Vec<_>>()
+    );
+    let sued = &r.waende[0];
+    assert_eq!(sued.ansatz, Some(Wandhoehenansatz::MittelKanten));
+    assert_eq!(sued.wandteile.len(), 2);
+    // Teil 1: (107 − 100) und (107 − 100,2) gemittelt = 6,9 m.
+    assert!((sued.wandteile[0].wandhoehe_m - 6.9).abs() < 1e-9);
+    assert!((sued.wandteile[1].wandhoehe_m - 3.6).abs() < 1e-9);
+    let n = core
+        .nachweis_erstellen(
+            p.id,
+            Uuid::new_v4(),
+            plan.bezeichnung.clone(),
+            NachweisEingabe::AbstandProjekt {
+                objekt: id,
+                plan: Box::new(plan.clone()),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    assert!(n.vollstaendig);
+    assert_eq!(
+        core.nachweis_wiederholen(p.id, n.id).await.unwrap(),
+        n.ergebnis
+    );
+    let pdf = core
+        .druckausgabe(
+            p.id,
+            Druckauftrag {
+                gestaltung: None,
+                aktenzeichen: String::new(),
+                datum: None,
+                titel: "Abstandsflächennachweis".into(),
+                absender: "Architekturbüro".into(),
+                empfaenger: "Bauaufsicht".into(),
+                anschreiben: String::new(),
+                mit_anschreiben: false,
+                inhaltsverzeichnis: false,
+                deckblatt: false,
+                trennblaetter: false,
+                aufgestellt_von: None,
+                projekt_version: p.version,
+                quellen: vec![Druckquelle::Nachweis { id: n.id }],
+            },
+        )
+        .await
+        .unwrap();
+    let d = lopdf::Document::load_mem(&pdf.pdf).unwrap();
+    let seiten: Vec<String> = d
+        .get_pages()
+        .values()
+        .map(|s| String::from_utf8_lossy(&d.get_page_content(*s)).into_owned())
+        .collect();
+    let m = seiten.len();
+    // Zwei Abwicklungsblätter (4 Wände, 3 je Blatt) vor der Planskizze.
+    let abw: Vec<_> = seiten
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.contains("Wandabwicklungen"))
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(abw, vec![m - 3, m - 2]);
+    assert!(seiten[m - 3].contains(&format!("Blatt {} von {m}", m - 2)));
+    assert!(
+        seiten[m - 1].contains("Vektorplanskizze")
+            && seiten[m - 1].contains(&format!("Blatt {m} von {m}"))
+    );
+    // Geländevorschlag aus einer DXF mit Höhenpunkt und Höhenkote.
+    let dxf = "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nPOINT\n8\nHOEHEN\n10\n5.0\n20\n4.5\n30\n100.05\n0\nTEXT\n8\nKOTEN\n10\n10.0\n20\n4.7\n40\n0.3\n1\n100,45\n0\nENDSEC\n0\nEOF\n";
+    let datei = core
+        .store_document(p.id, None, None, "Hoehen.dxf", Bytes::from(dxf), &user)
+        .await
+        .unwrap();
+    let hoehen = core
+        .abstandscad_hoehen(
+            p.id,
+            Dokumentbezug {
+                dokument_id: datei.document_id,
+                version: 1,
+            },
+            core_lib::cad::Laengeneinheit::Meter,
+        )
+        .await
+        .unwrap();
+    assert_eq!(hoehen.len(), 2, "{hoehen:?}");
+    let v = gelaende_vorschlag(&plan.waende[0], &hoehen, 1.).unwrap();
+    assert_eq!(
+        v.iter()
+            .map(|h| (h.station_m, h.hoehe_m))
+            .collect::<Vec<_>>(),
+        vec![(0., 100.05), (5., 100.45)]
+    );
+    if let Ok(out) = std::env::var("BAUPROJEKT_ABSTAND_ARTEFAKTE") {
+        let out = std::path::Path::new(&out);
+        std::fs::create_dir_all(out).unwrap();
+        std::fs::write(out.join("profil.pdf"), &pdf.pdf).unwrap();
+        std::fs::write(
+            out.join("umriss.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "umriss_abgleich": abgleich,
+                "ergebnis": r,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    }
 }

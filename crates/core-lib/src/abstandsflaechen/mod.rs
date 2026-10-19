@@ -1,11 +1,20 @@
 //! Projektbezogene, archivfähige Abstandsprüfung. Rechtliche Entscheidungen,
 //! Geometrie und Nachweisarchiv besitzen getrennte Verträge.
 pub mod bericht;
+mod cadhoehen;
 mod geometrie;
+mod hoehen;
+mod umriss;
 use crate::{CoreError, CoreResult, domain::Bundesland, plattform::objekte::Dokumentbezug};
+pub use cadhoehen::{CadHoehe, gelaende_vorschlag};
 use serde::{Deserialize, Serialize};
+pub use umriss::{UmrissAbgleich, umrisse_abgleichen, umrisse_einbinden};
 use uuid::Uuid;
-pub const RECHENSTAND: &str = "abstand-projekt-1";
+/// Ab Version 2: Höhenprofile, Wandteile und Wandhöhenansatz des Regelpakets.
+/// Pläne ohne diese Angaben rechnen wie Version 1.
+pub const RECHENSTAND: &str = "abstand-projekt-2";
+/// Ältere Rechenstände, die der aktuelle Kern für Altpläne unverändert reproduziert.
+pub const RECHENSTAENDE_KOMPATIBEL: &[&str] = &["abstand-projekt-1"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct APunkt {
@@ -18,6 +27,80 @@ pub struct Tiefenregel {
     pub gebiete: Vec<String>,
     pub faktor: f64,
     pub mindesttiefe_m: f64,
+    pub quelle: String,
+    /// Besonderer Tiefenfall; fehlt bei der Regeltiefe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub fall: Option<Tiefenfall>,
+}
+/// Tiefenfälle, die eine Landesbauordnung abweichend von der Regeltiefe regelt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Tiefenfall {
+    #[default]
+    Regel,
+    /// Abstandsfläche zu öffentlichen Verkehrs-, Grün- und Wasserflächen.
+    OeffentlicheFlaeche,
+    /// Wohngebäude der Gebäudeklassen 1 und 2 mit höchstens drei oberirdischen Geschossen.
+    WohngebaeudeGk12,
+}
+/// Wie aus dem Höhenverlauf einer Wand(teil)s die Wandhöhe H wird.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Wandhoehenansatz {
+    /// Größte Wandhöhe je Wandteil (konservativ; Verhalten vor Version 2).
+    #[default]
+    Maximal,
+    /// Mittel der Wandhöhen an den Gebäudekanten bzw. Wandteilgrenzen.
+    MittelKanten,
+    /// Flächengemittelte Wandhöhe über das gesamte Profil.
+    MittelProfil,
+    /// Wandhöhe an jeder Stelle; Abstandsfläche mit wechselnder Tiefe.
+    Punktweise,
+}
+impl Tiefenfall {
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Regel => "Regeltiefe",
+            Self::OeffentlicheFlaeche => "Zu öffentlicher Verkehrs-, Grün- oder Wasserfläche",
+            Self::WohngebaeudeGk12 => {
+                "Wohngebäude GK 1/2 mit höchstens drei oberirdischen Geschossen"
+            }
+        }
+    }
+}
+impl Wandhoehenansatz {
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Maximal => "größte Wandhöhe je Wandteil",
+            Self::MittelKanten => "im Mittel gemessene Wandhöhe aus den Kanten je Wandteil",
+            Self::MittelProfil => "flächengemittelte Wandhöhe je Wandteil",
+            Self::Punktweise => "Wandhöhe an jeder Stelle (wechselnde Tiefe)",
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Giebelregel {
+    /// Haben beide Dachseiten eine größere Neigung, gilt `faktor_steil`.
+    pub steil_ueber_grad: f64,
+    pub faktor_steil: f64,
+    pub faktor_sonst: f64,
+    pub quelle: String,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Gaubenregel {
+    /// Anteil der Gaubenlänge an der darunterliegenden Wand, ab dem `faktor` gilt.
+    pub anteil_ueber: f64,
+    pub faktor: f64,
+    pub quelle: String,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Ueberdeckungsregel {
+    /// Überdeckung zulässig, wenn die Wände in einem größeren Winkel zueinander stehen.
+    pub winkel_ueber_grad: f64,
     pub quelle: String,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -47,6 +130,21 @@ pub struct AbstandsRegeln {
     pub tiefen: Vec<Tiefenregel>,
     pub dach: Vec<Dachregel>,
     pub grenzanlagen: Option<Grenzanlagenregel>,
+    /// Fehlt in Paketen vor Version 2: dann [`Wandhoehenansatz::Maximal`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub wandhoehe: Option<Wandhoehenansatz>,
+    /// Automatische Giebelanrechnung; ohne Regel bleibt der manuelle Ansatz.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub giebel: Option<Giebelregel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub gauben: Option<Gaubenregel>,
+    /// Ausnahme vom Überdeckungsverbot nach Winkel; ohne Regel keine Ausnahme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ueberdeckung: Option<Ueberdeckungsregel>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -111,6 +209,8 @@ pub enum Wandfall {
     Regel,
     Garage,
     Carport,
+    /// Gebäude ohne Aufenthaltsräume mit begrenztem Rauminhalt (z. B. Gartenhaus).
+    Nebengebaeude,
     Vorbau,
     Grenzbebauung,
     Bestand,
@@ -155,6 +255,82 @@ pub struct AbstandsWand {
     pub nutzung_geprueft: bool,
     pub sonderansatz: Option<Sonderansatz>,
     pub polygon_manuell: Option<Vec<APunkt>>,
+    /// Geländehöhen entlang der Wand. Ersetzt `gelaende_a_m`/`gelaende_b_m`;
+    /// fehlt in älteren Plänen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Hoehenpunkt>>")]
+    pub gelaende: Vec<Hoehenpunkt>,
+    /// Wandoberkante (Schnittlinie mit der Dachhaut bzw. oberer Abschluss).
+    /// Zwei Punkte an derselben Station bilden einen Höhensprung und damit eine
+    /// Wandteilgrenze. Ersetzt `abschluss_a_m`/`abschluss_b_m`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Hoehenpunkt>>")]
+    pub oberkante: Vec<Hoehenpunkt>,
+    /// Zusätzliche vertikale Wandteilgrenzen (Station in m ab Wandanfang).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<f64>>")]
+    pub wandteilgrenzen: Vec<f64>,
+    /// Neigung der zweiten Dachseite bei Giebeln.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub dachneigung_b_grad: Option<f64>,
+    /// Gesamtlänge der Gauben/Dachaufbauten auf der Dachfläche über dieser Wand.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub gauben_laenge_m: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tiefenfall: Option<Tiefenfall>,
+    /// Begründung für einen besonderen Tiefenfall.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub tiefenfall_grundlage: String,
+    /// Aus einem Gebäudeumriss erzeugte Seite; Lage und Eckhöhen führt der Umriss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub umriss: Option<UmrissSeite>,
+}
+/// Höhe an einer Stelle der Wand; `station_m` ab Wandanfang (`von`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Hoehenpunkt {
+    pub station_m: f64,
+    pub hoehe_m: f64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub quelle: String,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct UmrissSeite {
+    pub umriss_id: Uuid,
+    /// Seite von Ecke `seite` zu Ecke `seite + 1`.
+    pub seite: usize,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct UmrissEcke {
+    pub x: f64,
+    pub y: f64,
+    /// Maßgebliche Geländehöhe an der Gebäudeecke.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub gelaende_m: Option<f64>,
+}
+/// Außenkontur eines Gebäudes; daraus entstehen die Wände je Seite.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct AbstandsUmriss {
+    pub id: Uuid,
+    pub bezeichnung: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub gebaeude_id: Option<Uuid>,
+    pub grundstueck_id: Option<Uuid>,
+    pub ecken: Vec<UmrissEcke>,
+    /// Vorgabe der Wandoberkante (z. B. Traufe) für neue Seiten.
+    pub oberkante_m: Option<f64>,
+    pub quelle: String,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -170,6 +346,9 @@ pub struct AbstandsPlan {
     pub quellen: Vec<Dokumentbezug>,
     pub umfang_geprueft: bool,
     pub umfang_vermerk: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<AbstandsUmriss>>")]
+    pub umrisse: Vec<AbstandsUmriss>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AbstandsPolygon {
@@ -203,6 +382,41 @@ pub struct WandErgebnis {
     pub ausserhalb_m2: Option<f64>,
     pub polygon: Vec<APunkt>,
     pub konflikte: Vec<AbstandsPolygon>,
+    /// Angewandter Wandhöhenansatz; fehlt in Ergebnissen vor Version 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ansatz: Option<Wandhoehenansatz>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Wandteilergebnis>>")]
+    pub wandteile: Vec<Wandteilergebnis>,
+    /// Höhenverlauf an allen Profil- und Teilungsstellen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Profilzeile>>")]
+    pub profil: Vec<Profilzeile>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct Wandteilergebnis {
+    pub von_m: f64,
+    pub bis_m: f64,
+    /// Wandhöhe an den Kanten des Wandteils.
+    pub h_anfang_m: f64,
+    pub h_ende_m: f64,
+    /// Maßgebliche Wandhöhe nach dem Ansatz, ohne Dachanteil.
+    pub wandhoehe_m: f64,
+    pub h_m: Option<f64>,
+    /// Größte Tiefe im Wandteil.
+    pub tiefe_m: Option<f64>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct Profilzeile {
+    pub station_m: f64,
+    pub gelaende_m: f64,
+    pub oberkante_m: f64,
+    pub wandhoehe_m: f64,
+    /// Tiefe an dieser Stelle (bei gemittelten Ansätzen die des Wandteils).
+    pub tiefe_m: Option<f64>,
+    /// Laufende Nummer des Wandteils ab 1.
+    pub wandteil: usize,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Ueberdeckung {
@@ -210,6 +424,14 @@ pub struct Ueberdeckung {
     pub wand_b: Uuid,
     pub flaeche_m2: f64,
     pub polygone: Vec<AbstandsPolygon>,
+    /// Winkel, in dem die Wände zueinander stehen (0° = parallel gegenüber).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub winkel_grad: Option<f64>,
+    /// Rechtsgrundlage, nach der die Überdeckung zulässig ist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub zulaessig: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AbstandsErgebnis {
@@ -292,8 +514,9 @@ impl AbstandsPlan {
             if t.gebiete.is_empty()
                 || t.gebiete.len() > 30
                 || !t.faktor.is_finite()
-                || t.faktor <= 0.
+                || t.faktor < 0.
                 || t.faktor > 10.
+                || (t.faktor == 0. && t.mindesttiefe_m <= 0.)
                 || !t.mindesttiefe_m.is_finite()
                 || t.mindesttiefe_m < 0.
                 || t.mindesttiefe_m > 1000.
@@ -321,6 +544,65 @@ impl AbstandsPlan {
             }
             text(&g.quelle, 4000)?;
         }
+        let faktor = |f: f64| f.is_finite() && (0. ..=10.).contains(&f);
+        if let Some(g) = &r.giebel
+            && (!faktor(g.faktor_steil)
+                || !faktor(g.faktor_sonst)
+                || !(0. ..=90.).contains(&g.steil_ueber_grad)
+                || g.quelle.trim().is_empty())
+        {
+            return Err(err("Ungültige Giebelregel"));
+        }
+        if let Some(g) = &r.gauben
+            && (!faktor(g.faktor)
+                || !(0. ..=1.).contains(&g.anteil_ueber)
+                || g.quelle.trim().is_empty())
+        {
+            return Err(err("Ungültige Gaubenregel"));
+        }
+        if let Some(u) = &r.ueberdeckung
+            && (!(0. ..=180.).contains(&u.winkel_ueber_grad) || u.quelle.trim().is_empty())
+        {
+            return Err(err("Ungültige Überdeckungsregel"));
+        }
+        for s in r
+            .giebel
+            .iter()
+            .map(|g| &g.quelle)
+            .chain(r.gauben.iter().map(|g| &g.quelle))
+            .chain(r.ueberdeckung.iter().map(|u| &u.quelle))
+        {
+            text(s, 4000)?;
+        }
+        if self.umrisse.len() > 50 {
+            return Err(err("Höchstens 50 Gebäudeumrisse"));
+        }
+        for u in &self.umrisse {
+            text(&u.bezeichnung, 500)?;
+            text(&u.quelle, 4000)?;
+            if !(3..=500).contains(&u.ecken.len()) {
+                return Err(err("Gebäudeumriss benötigt 3 bis 500 Ecken"));
+            }
+            geometrie::polygon(
+                &u.ecken
+                    .iter()
+                    .map(|e| APunkt { x: e.x, y: e.y })
+                    .collect::<Vec<_>>(),
+            )?;
+            if u.ecken
+                .iter()
+                .filter_map(|e| e.gelaende_m)
+                .chain(u.oberkante_m)
+                .any(|h| !h.is_finite() || h.abs() > 10000.)
+            {
+                return Err(err("Ungültige Höhe am Gebäudeumriss"));
+            }
+            if u.grundstueck_id
+                .is_some_and(|id| !self.grundstuecke.iter().any(|g| g.id == id))
+            {
+                return Err(err("Gebäudeumriss verweist auf unbekanntes Grundstück"));
+            }
+        }
         let mut ids = std::collections::HashSet::new();
         for id in self
             .waende
@@ -328,6 +610,7 @@ impl AbstandsPlan {
             .map(|w| w.id)
             .chain(self.grundstuecke.iter().map(|g| g.id))
             .chain(self.flaechen.iter().map(|f| f.id))
+            .chain(self.umrisse.iter().map(|u| u.id))
         {
             if id.is_nil() || !ids.insert(id) {
                 return Err(err("Eindeutige Abschnitts-/Flächenkennungen erforderlich"));
@@ -360,8 +643,46 @@ impl AbstandsPlan {
                 &w.hoehenquelle,
                 &w.dachgrundlage,
                 &w.grenzkennung,
+                &w.tiefenfall_grundlage,
             ] {
                 text(s, 4000)?;
+            }
+            if w.gelaende.len() > 500 || w.oberkante.len() > 500 || w.wandteilgrenzen.len() > 200 {
+                return Err(err(
+                    "Höchstens 500 Höhenpunkte und 200 Wandteilgrenzen je Wand",
+                ));
+            }
+            for h in w.gelaende.iter().chain(&w.oberkante) {
+                text(&h.quelle, 1000)?;
+                if !h.station_m.is_finite()
+                    || !h.hoehe_m.is_finite()
+                    || h.station_m.abs() > 100_000.
+                    || h.hoehe_m.abs() > 10000.
+                {
+                    return Err(err("Ungültiger Höhenpunkt"));
+                }
+            }
+            if w.wandteilgrenzen
+                .iter()
+                .any(|s| !s.is_finite() || s.abs() > 100_000.)
+                || w.gauben_laenge_m
+                    .is_some_and(|l| !l.is_finite() || !(0. ..=100_000.).contains(&l))
+                || w.dachneigung_b_grad
+                    .is_some_and(|v| !v.is_finite() || !(0. ..=90.).contains(&v))
+            {
+                return Err(err(
+                    "Ungültige Wandteilgrenze, Gaubenlänge oder Dachneigung",
+                ));
+            }
+            if let Some(s) = &w.umriss
+                && !self
+                    .umrisse
+                    .iter()
+                    .any(|u| u.id == s.umriss_id && s.seite < u.ecken.len())
+            {
+                return Err(err(
+                    "Wand verweist auf eine nicht vorhandene Umrissseite; Umriss erneut übernehmen",
+                ));
             }
             for p in [&w.von, &w.bis] {
                 geometrie::punkt(p)?;
@@ -411,7 +732,19 @@ impl AbstandsPlan {
     }
 }
 pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
+    berechnen_stand(plan, RECHENSTAND)
+}
+/// Rechnet mit einem bestimmten Rechenstand. Für archivierte Nachweise
+/// `abstand-projekt-1` entsteht dasselbe Ergebnis wie damals (Maximalansatz aus
+/// den Endwerten, Texte und Felder von Version 1).
+pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsErgebnis> {
     plan.validate()?;
+    let v1 = match stand {
+        RECHENSTAND => false,
+        "abstand-projekt-1" => true,
+        _ => return Err(err("Unbekannter Rechenstand der Abstandsberechnung")),
+    };
+    let ansatz = plan.regeln.wandhoehe.unwrap_or_default();
     let mut offen = Vec::new();
     if plan.waende.is_empty() {
         offen.push("Noch keine Außenwände erfasst".into());
@@ -461,6 +794,9 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
             ausserhalb_m2: None,
             polygon: vec![],
             konflikte: vec![],
+            ansatz: None,
+            wandteile: vec![],
+            profil: vec![],
         };
         if w.bezeichnung.trim().is_empty() || w.gebaeude.trim().is_empty() {
             e.offen.push("Gebäude und Wandbezeichnung angeben".into());
@@ -473,24 +809,46 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
             e.offen
                 .push("Gelände-/Höhenherleitung und Planquelle dokumentieren".into());
         }
-        if let (Some(ga), Some(gb), Some(oa), Some(ob)) = (
-            w.gelaende_a_m,
-            w.gelaende_b_m,
-            w.abschluss_a_m,
-            w.abschluss_b_m,
-        ) {
-            let h = (oa - ga).max(ob - gb);
-            if h < 0. || oa < ga || ob < gb {
-                e.offen
-                    .push("Wandabschluss darf nicht unter maßgeblichem Gelände liegen".into());
-            } else {
-                e.wandhoehe_m = Some(h);
-                e.herleitung.push(format!("Konservativer Maximalansatz: max({oa} − {ga}, {ob} − {gb}) = {h} m. Bei nichtlinearem Verlauf Wand in Abschnitte aufteilen."));
-            }
-        } else {
-            e.offen
-                .push("Gelände und Wandabschluss an beiden Abschnittsenden eingeben".into());
+        if v1 {
+            e.wandhoehe_m = alt_wandhoehe(w, &mut e);
         }
+        if !v1
+            && let Some(s) = &w.umriss
+            && let Some(u) = plan.umrisse.iter().find(|u| u.id == s.umriss_id)
+        {
+            let (a, b) = (&u.ecken[s.seite], &u.ecken[(s.seite + 1) % u.ecken.len()]);
+            if (a.x, a.y, b.x, b.y) != (w.von.x, w.von.y, w.bis.x, w.bis.y) {
+                e.offen.push(format!(
+                    "Wand weicht vom Gebäudeumriss {} ab; Umriss erneut übernehmen",
+                    u.bezeichnung
+                ));
+            }
+        }
+        let teile = if v1 {
+            None
+        } else {
+            e.ansatz = Some(ansatz);
+            e.herleitung.push(format!(
+                "Wandhöhenansatz: {} ({})",
+                ansatz.bezeichnung(),
+                if plan.regeln.wandhoehe.is_some() {
+                    plan.regeln.rechtsstand.as_str()
+                } else {
+                    "Regelpaket ohne Angabe – konservativer Ansatz"
+                }
+            ));
+            let teile = if laenge < 0.001 {
+                None
+            } else {
+                hoehen::auswerten(w, laenge, ansatz, &mut e)
+            };
+            e.wandhoehe_m = teile.as_ref().map(|t| {
+                t.iter()
+                    .map(|t| t.wandhoehe)
+                    .fold(f64::NEG_INFINITY, f64::max)
+            });
+            teile
+        };
         let dach = match w.dachart {
             Dachart::Flach => Some(0.),
             Dachart::Dachflaeche => {
@@ -503,15 +861,70 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
                         .iter()
                         .filter(|r| n > r.ueber_grad)
                         .max_by(|a, b| a.ueber_grad.total_cmp(&b.ueber_grad));
-                    let f = r.map(|r| r.faktor).unwrap_or(0.);
+                    let mut f = r.map(|r| r.faktor).unwrap_or(0.);
                     e.herleitung.push(format!(
                         "Dachfläche: {h} m × {f} bei {n}°; {}",
                         r.map(|r| r.quelle.as_str())
                             .unwrap_or("unterhalb erster konfigurierter Schwelle")
                     ));
+                    if let (Some(g), Some(lg)) = (&plan.regeln.gauben, w.gauben_laenge_m)
+                        && lg > g.anteil_ueber * laenge
+                        && g.faktor > f
+                    {
+                        f = g.faktor;
+                        e.herleitung.push(format!(
+                            "Gauben/Dachaufbauten {} m > {} × Wandlänge {} m: Dachhöhe {h} m × {}; {}",
+                            hoehen::zahl(lg),
+                            hoehen::zahl(g.anteil_ueber),
+                            hoehen::zahl(laenge),
+                            hoehen::zahl(f),
+                            g.quelle
+                        ));
+                    }
                     Some(h * f)
                 } else {
                     None
+                }
+            }
+            Dachart::Giebel if plan.regeln.giebel.is_some() => {
+                let g = plan.regeln.giebel.as_ref().expect("geprüft");
+                let neigungen = [w.dachneigung_grad, w.dachneigung_b_grad];
+                let steil = if neigungen
+                    .iter()
+                    .any(|n| n.is_some_and(|n| n <= g.steil_ueber_grad))
+                {
+                    Some(false)
+                } else if neigungen.iter().all(Option::is_some) {
+                    Some(true)
+                } else {
+                    None
+                };
+                match (w.dachhoehe_m, steil) {
+                    (Some(h), Some(steil)) => {
+                        let f = if steil {
+                            g.faktor_steil
+                        } else {
+                            g.faktor_sonst
+                        };
+                        e.herleitung.push(format!(
+                            "Giebelfläche: Höhe {} m × {} ({} beidseitig über {}°); {}",
+                            hoehen::zahl(h),
+                            hoehen::zahl(f),
+                            if steil {
+                                "Dachneigung"
+                            } else {
+                                "Dachneigung nicht"
+                            },
+                            hoehen::zahl(g.steil_ueber_grad),
+                            g.quelle
+                        ));
+                        Some(h * f)
+                    }
+                    _ => {
+                        e.offen
+                            .push("Giebelhöhe und Neigung beider Dachseiten angeben".into());
+                        None
+                    }
                 }
             }
             Dachart::Giebel | Dachart::Manuell => {
@@ -535,30 +948,77 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
                 .push("Dach-/Giebelansatz einschließlich Rechtsgrundlage klären".into());
         }
         e.h_m = e.wandhoehe_m.zip(dach).map(|(a, b)| a + b);
-        let regeln = plan
-            .regeln
-            .tiefen
-            .iter()
-            .filter(|r| r.gebiete.contains(&plan.recht.gebiet))
-            .collect::<Vec<_>>();
-        if regeln.len() == 1 {
+        let fall = w.tiefenfall.unwrap_or_default();
+        let passend = |f: Tiefenfall| {
+            plan.regeln
+                .tiefen
+                .iter()
+                .filter(|r| {
+                    r.gebiete.contains(&plan.recht.gebiet) && r.fall.unwrap_or_default() == f
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut regeln = passend(fall);
+        if fall != Tiefenfall::Regel {
+            if w.tiefenfall_grundlage.trim().is_empty() {
+                e.offen.push(format!(
+                    "Tiefenfall „{}“ begründen (z. B. Gebäudeklasse, Geschosse, angrenzende Fläche)",
+                    fall.bezeichnung()
+                ));
+            }
+            if regeln.is_empty() {
+                e.herleitung.push(format!(
+                    "Tiefenfall „{}“: Das Regelpaket sieht für das Gebiet {} keine abweichende Tiefe vor; Regeltiefe angesetzt.",
+                    fall.bezeichnung(),
+                    plan.recht.gebiet
+                ));
+                regeln = passend(Tiefenfall::Regel);
+            } else {
+                e.herleitung.push(format!(
+                    "Tiefenfall „{}“: {}",
+                    fall.bezeichnung(),
+                    w.tiefenfall_grundlage
+                ));
+            }
+        }
+        let regel = if regeln.len() == 1 {
             let r = regeln[0];
             e.faktor = Some(r.faktor);
             e.mindesttiefe_m = Some(r.mindesttiefe_m);
-            e.tiefe_m = e.h_m.map(|h| (h * r.faktor).max(r.mindesttiefe_m));
-            e.herleitung.push(format!(
-                "T = max({} × H, {} m); {}",
-                r.faktor, r.mindesttiefe_m, r.quelle
-            ));
+            e.herleitung.push(if r.faktor == 0. {
+                format!("T = {} m (feste Tiefe); {}", r.mindesttiefe_m, r.quelle)
+            } else {
+                format!(
+                    "T = max({} × H, {} m); {}",
+                    r.faktor, r.mindesttiefe_m, r.quelle
+                )
+            });
+            Some((r.faktor, r.mindesttiefe_m))
         } else {
             e.offen
                 .push("Baugebiet hat keine eindeutige konfigurierte Tiefenregel".into());
+            None
+        };
+        let mut verlauf = Vec::new();
+        if v1 && let Some(t) = e.h_m.zip(regel).map(|(h, (f, m))| (h * f).max(m)) {
+            e.tiefe_m = Some(t);
+            verlauf = vec![(0., t), (laenge, t)];
         }
-        if matches!(w.fall, Wandfall::Garage | Wandfall::Carport) {
-            let typ = if w.fall == Wandfall::Garage {
-                "garage"
-            } else {
-                "carport"
+        if let Some(teile) = &teile {
+            hoehen::ergebnis(teile, dach, regel, ansatz, &mut e);
+            if let (Some(d), Some((f, m))) = (dach, regel) {
+                verlauf = hoehen::tiefen(teile, d, f, m, ansatz);
+                e.tiefe_m = verlauf.iter().map(|v| v.1).reduce(f64::max);
+            }
+        }
+        if matches!(
+            w.fall,
+            Wandfall::Garage | Wandfall::Carport | Wandfall::Nebengebaeude
+        ) {
+            let typ = match w.fall {
+                Wandfall::Garage => "garage",
+                Wandfall::Carport => "carport",
+                _ => "nebengebaeude",
             };
             if let Some(r) = &plan.regeln.grenzanlagen {
                 let anlagen = plan
@@ -566,7 +1026,10 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
                     .iter()
                     .filter(|a| {
                         a.grundstueck_id == w.grundstueck_id
-                            && matches!(a.fall, Wandfall::Garage | Wandfall::Carport)
+                            && matches!(
+                                a.fall,
+                                Wandfall::Garage | Wandfall::Carport | Wandfall::Nebengebaeude
+                            )
                     })
                     .collect::<Vec<_>>();
                 let sum = |grenze: bool| {
@@ -584,6 +1047,7 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
                     && sum(false) <= r.laenge_gesamt_m
                 {
                     e.tiefe_m = Some(0.);
+                    verlauf = vec![(0., 0.), (laenge, 0.)];
                     e.herleitung.push(format!("Grenzanlage: Höhe ≤ {}, Grenzlänge {} ≤ {}, Gesamtlänge {} ≤ {}; Nutzung/Bedingungen bestätigt; {}",r.hoehe_m,sum(true),r.laenge_je_grenze_m,sum(false),r.laenge_gesamt_m,r.quelle));
                 } else {
                     e.offen.push("Grenzanlagenprivileg nicht vollständig belegt oder Höchstmaße/Summen überschritten; Regelabstand bleibt angesetzt".into());
@@ -600,6 +1064,7 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
         if let Some(s) = &w.sonderansatz {
             if s.wirksam && s.beleg.is_some() && !s.grundlage.trim().is_empty() {
                 e.tiefe_m = Some(s.tiefe_m);
+                verlauf = vec![(0., s.tiefe_m), (laenge, s.tiefe_m)];
                 e.offen.retain(|v| {
                     !v.starts_with("Sonderfall")
                         && !v.starts_with("Grenzanlagenprivileg")
@@ -614,18 +1079,22 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
                     .push("Besonderer Ansatz ist noch nicht wirksam oder nicht belegt".into());
             }
         }
-        if let Some(t) = e.tiefe_m
-            && laenge >= 0.001
-        {
-            geometrie::wand(plan, w, &mut e, t)?;
+        if !verlauf.is_empty() && laenge >= 0.001 {
+            geometrie::wand(plan, w, &mut e, &verlauf)?;
         }
         if !e.offen.is_empty() {
             e.status = AbstandsStatus::Offen;
         }
         waende.push(e);
     }
-    let ueberdeckungen = geometrie::ueberdeckungen(&mut waende)?;
-    if !ueberdeckungen.is_empty() {
+    let mut ueberdeckungen = geometrie::ueberdeckungen(plan, &mut waende)?;
+    if v1 {
+        for u in &mut ueberdeckungen {
+            (u.winkel_grad, u.zulaessig) = (None, None);
+        }
+    }
+    let unzulaessig = ueberdeckungen.iter().any(|u| u.zulaessig.is_none());
+    if unzulaessig {
         offen.push("Überdeckungen zwischen Abstandsflächen: Zulässigkeit gesondert prüfen; keine automatische Ausnahme".into());
     }
     let vollstaendig = offen.is_empty()
@@ -639,15 +1108,36 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
         && waende
             .iter()
             .all(|w| w.status == AbstandsStatus::Eingehalten)
-        && ueberdeckungen.is_empty();
+        && !unzulaessig;
     Ok(AbstandsErgebnis {
-        rechenstand: RECHENSTAND.into(),
+        rechenstand: stand.into(),
         waende,
         ueberdeckungen,
         offen,
         vollstaendig,
         konfliktfrei,
     })
+}
+/// Wandhöhe wie in Rechenstand 1: größte Höhe der beiden Wandenden.
+fn alt_wandhoehe(w: &AbstandsWand, e: &mut WandErgebnis) -> Option<f64> {
+    let (Some(ga), Some(gb), Some(oa), Some(ob)) = (
+        w.gelaende_a_m,
+        w.gelaende_b_m,
+        w.abschluss_a_m,
+        w.abschluss_b_m,
+    ) else {
+        e.offen
+            .push("Gelände und Wandabschluss an beiden Abschnittsenden eingeben".into());
+        return None;
+    };
+    let h = (oa - ga).max(ob - gb);
+    if h < 0. || oa < ga || ob < gb {
+        e.offen
+            .push("Wandabschluss darf nicht unter maßgeblichem Gelände liegen".into());
+        return None;
+    }
+    e.herleitung.push(format!("Konservativer Maximalansatz: max({oa} − {ga}, {ob} − {gb}) = {h} m. Bei nichtlinearem Verlauf Wand in Abschnitte aufteilen."));
+    Some(h)
 }
 mod service;
 #[cfg(any(test, feature = "testdaten"))]

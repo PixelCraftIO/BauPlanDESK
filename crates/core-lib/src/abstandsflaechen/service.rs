@@ -40,13 +40,17 @@ impl CoreServices {
             }
         }
         let gebaeude = self.gebaeudenamen(p).await?;
-        for w in &plan.waende {
-            if let Some(id) = w.gebaeude_id
+        for (name, id) in plan
+            .waende
+            .iter()
+            .map(|w| (&w.bezeichnung, w.gebaeude_id))
+            .chain(plan.umrisse.iter().map(|u| (&u.bezeichnung, u.gebaeude_id)))
+        {
+            if let Some(id) = id
                 && !gebaeude.iter().any(|(g, _)| *g == id)
             {
                 return Err(err(format!(
-                    "{}: verknüpftes Gebäude gehört nicht zum Projekt",
-                    w.bezeichnung
+                    "{name}: verknüpftes Gebäude gehört nicht zum Projekt"
                 )));
             }
         }
@@ -77,6 +81,10 @@ impl CoreServices {
             .await?;
         let mut neu: AbstandsPlan =
             serde_json::from_value(daten).map_err(|e| err(e.to_string()))?;
+        neu.validate()?;
+        // Umrisswände folgen ihrem Umriss; die Oberfläche bindet bereits beim
+        // Bearbeiten ein, hier wird nur sichergestellt, dass nichts abweicht.
+        umrisse_einbinden(&mut neu);
         // Verknüpfte Wände tragen die aktuelle Bezeichnung ihres Gebäudes.
         let gebaeude = self.gebaeudenamen(p).await?;
         for w in &mut neu.waende {
@@ -183,12 +191,51 @@ impl CoreServices {
     }
 }
 impl CoreServices {
-    pub async fn abstandscad_konturen(
+    /// Höhenkoten (Text) und Punkte mit Höhe aus einer DXF-Version des Projekts.
+    pub async fn abstandscad_hoehen(
         &self,
         p: ProjectId,
         d: crate::plattform::objekte::Dokumentbezug,
         einheit: crate::cad::Laengeneinheit,
-    ) -> CoreResult<Vec<CadKontur>> {
+    ) -> CoreResult<Vec<CadHoehe>> {
+        let plan = self.abstandscad_lesen(p, &d).await?;
+        let m = einheit.meter();
+        let ebene = |i: usize| {
+            plan.ebenen
+                .get(i)
+                .map(|e| e.name.clone())
+                .unwrap_or_default()
+        };
+        Ok(plan
+            .texte
+            .iter()
+            .filter_map(|t| {
+                cadhoehen::hoehenkote(&t.inhalt).map(|h| CadHoehe {
+                    x: t.position.0 * m,
+                    y: t.position.1 * m,
+                    // Koten sind unabhängig von der Zeichnungseinheit in Metern beschriftet.
+                    hoehe_m: h,
+                    ebene: ebene(t.ebene),
+                    art: "Höhenkote".into(),
+                    quelle: d.clone(),
+                })
+            })
+            .chain(plan.raumpunkte.iter().map(|r| CadHoehe {
+                x: r.position.0 * m,
+                y: r.position.1 * m,
+                hoehe_m: r.z * m,
+                ebene: ebene(r.ebene),
+                art: "Höhenpunkt".into(),
+                quelle: d.clone(),
+            }))
+            .take(20_000)
+            .collect())
+    }
+    async fn abstandscad_lesen(
+        &self,
+        p: ProjectId,
+        d: &crate::plattform::objekte::Dokumentbezug,
+    ) -> CoreResult<crate::cad::Plan> {
         let (meta, bytes) = self.load_version(d.dokument_id, d.version).await?;
         if meta.project_id != p
             || !meta.file_name.to_lowercase().ends_with(".dxf")
@@ -198,7 +245,15 @@ impl CoreServices {
                 "DXF-Quelle muss zum Projekt gehören und höchstens 32 MB groß sein",
             ));
         }
-        let plan = crate::cad::dxf::lesen(&bytes)?;
+        crate::cad::dxf::lesen(&bytes)
+    }
+    pub async fn abstandscad_konturen(
+        &self,
+        p: ProjectId,
+        d: crate::plattform::objekte::Dokumentbezug,
+        einheit: crate::cad::Laengeneinheit,
+    ) -> CoreResult<Vec<CadKontur>> {
+        let plan = self.abstandscad_lesen(p, &d).await?;
         Ok(plan
             .linien
             .iter()

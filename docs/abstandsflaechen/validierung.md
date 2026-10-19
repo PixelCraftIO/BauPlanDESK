@@ -43,3 +43,14 @@ Testdaten und keine juristische Freigabe des Pilotkatalogs.
 Unabhängige Prüfung aktueller Landesvorschriften und Satzungen sowie eine native
 Windows-/Büro-/Behörden-Praxisabnahme stehen weiterhin aus. Unterstützte automatisierte
 und manuell belegte Fallgruppen sind in der [Bedienung](README.md) beschrieben.
+
+## Ausbau Höhenprofil, Gebäudeumriss und NRW 2026
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| Kontrollfälle `core-lib::abstandsflaechen` | 28 Tests bestanden (u. a. Kantenmittel, Wandteile, punktweise Tiefe, Giebel/Gauben, Tiefenfälle, Umriss, Überdeckungswinkel, DXF-Höhen, Rechenstand 1) |
+| Durchgehende SQLite-/DMS-Tests | 2 bestanden, davon einer mit Umriss, Profil, Nachweis, Wiederholung, Abwicklungsblättern und DXF-Geländevorschlag |
+| Rechenstand-1-Kompatibilität | Ergebnisse des vorherigen Kerns für drei Altfälle byte-gleich reproduziert; Planserialisierung unverändert |
+| Browser (Produktionsbuild) | Altplan ins Höhenprofil übernehmen, Umriss zu Wänden, gesperrte Umrissfelder, Wandabwicklung im Ergebnis |
+| Sichtprüfung PDF | Wandteil- und Profiltabellen, Abwicklungsblätter mit Blattzählung, Umlaute in Plan- und Abwicklungsblättern |
+

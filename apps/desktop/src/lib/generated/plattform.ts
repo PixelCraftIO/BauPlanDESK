@@ -50,30 +50,162 @@ export type FormTabelle = { pfad: string, titel: string, gruppe: string, felder:
 export type BerechnungsVorlage = { id: string, titel: string, hinweis: string, plan: FachPlan, felder: Array<Feld>, tabellen: Array<FormTabelle>, };
 export type APunkt = { x: number, y: number, };
 export type CadKontur = { linie: number, ebene: string, punkte: Array<APunkt>, quelle: Dokumentbezug, };
-export type Tiefenregel = { gebiete: Array<string>, faktor: number, mindesttiefe_m: number, quelle: string, };
+export type Tiefenregel = { gebiete: Array<string>, faktor: number, mindesttiefe_m: number, quelle: string,
+/**
+ * Besonderer Tiefenfall; fehlt bei der Regeltiefe.
+ */
+fall?: Tiefenfall, };
 export type Dachregel = { ueber_grad: number, faktor: number, quelle: string, };
 export type Grenzanlagenregel = { typen: Array<string>, hoehe_m: number, laenge_je_grenze_m: number, laenge_gesamt_m: number, quelle: string, };
-export type AbstandsRegeln = { id: string, version: string, land: Bundesland, rechtsstand: string, hinweis: string, tiefen: Array<Tiefenregel>, dach: Array<Dachregel>, grenzanlagen: Grenzanlagenregel | null, };
+export type AbstandsRegeln = { id: string, version: string, land: Bundesland, rechtsstand: string, hinweis: string, tiefen: Array<Tiefenregel>, dach: Array<Dachregel>, grenzanlagen: Grenzanlagenregel | null,
+/**
+ * Fehlt in Paketen vor Version 2: dann [`Wandhoehenansatz::Maximal`].
+ */
+wandhoehe?: Wandhoehenansatz,
+/**
+ * Automatische Giebelanrechnung; ohne Regel bleibt der manuelle Ansatz.
+ */
+giebel?: Giebelregel, gauben?: Gaubenregel,
+/**
+ * Ausnahme vom Überdeckungsverbot nach Winkel; ohne Regel keine Ausnahme.
+ */
+ueberdeckung?: Ueberdeckungsregel, };
 export type AbstandsRecht = { gemeinde: string, fassung: string, anwendung: string, gebiet: string, satzung: string, planfestsetzung: string, geprueft: boolean, pruefvermerk: string, };
 export type AbstandsGrundstueck = { id: string, bezeichnung: string, flurstueck_ids: Array<string>, grenze: Array<APunkt>, innenringe: Array<Array<APunkt>>, grundlage: string, };
 export type Flaechenart = "sicherung" | "oeffentliche_flaeche" | "baukoerper";
 export type AbstandsFlaeche = { id: string, grundstueck_id: string, art: Flaechenart, bezeichnung: string, polygon: Array<APunkt>, grundlage: string, wirksam: boolean, beleg: Dokumentbezug | null, };
 export type Aussenrichtung = "links" | "rechts";
 export type Dachart = "flach" | "dachflaeche" | "giebel" | "manuell" | "ungeklaert";
-export type Wandfall = "regel" | "garage" | "carport" | "vorbau" | "grenzbebauung" | "bestand" | "sonderbau" | "sonstiges";
+export type Wandfall = "regel" | "garage" | "carport" | "nebengebaeude" | "vorbau" | "grenzbebauung" | "bestand" | "sonderbau" | "sonstiges";
 export type Sonderansatz = { tiefe_m: number, grundlage: string, wirksam: boolean, beleg: Dokumentbezug | null, };
 export type AbstandsWand = { id: string,
 /**
  * Optionaler Bezug zu Gebäude/Geschosse. Mit Bezug übernimmt der Core die
  * Gebäudebezeichnung; fehlt in älteren Plänen.
  */
-gebaeude_id?: string, gebaeude: string, bezeichnung: string, grundstueck_id: string | null, von: APunkt, bis: APunkt, aussen: Aussenrichtung, gelaende_a_m: number | null, gelaende_b_m: number | null, abschluss_a_m: number | null, abschluss_b_m: number | null, dachart: Dachart, dachhoehe_m: number | null, dachneigung_grad: number | null, dachfaktor_manuell: number | null, hoehenquelle: string, dachgrundlage: string, fall: Wandfall, grenzkennung: string, nutzung_geprueft: boolean, sonderansatz: Sonderansatz | null, polygon_manuell: Array<APunkt> | null, };
-export type AbstandsPlan = { bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, };
+gebaeude_id?: string, gebaeude: string, bezeichnung: string, grundstueck_id: string | null, von: APunkt, bis: APunkt, aussen: Aussenrichtung, gelaende_a_m: number | null, gelaende_b_m: number | null, abschluss_a_m: number | null, abschluss_b_m: number | null, dachart: Dachart, dachhoehe_m: number | null, dachneigung_grad: number | null, dachfaktor_manuell: number | null, hoehenquelle: string, dachgrundlage: string, fall: Wandfall, grenzkennung: string, nutzung_geprueft: boolean, sonderansatz: Sonderansatz | null, polygon_manuell: Array<APunkt> | null,
+/**
+ * Geländehöhen entlang der Wand. Ersetzt `gelaende_a_m`/`gelaende_b_m`;
+ * fehlt in älteren Plänen.
+ */
+gelaende?: Array<Hoehenpunkt>,
+/**
+ * Wandoberkante (Schnittlinie mit der Dachhaut bzw. oberer Abschluss).
+ * Zwei Punkte an derselben Station bilden einen Höhensprung und damit eine
+ * Wandteilgrenze. Ersetzt `abschluss_a_m`/`abschluss_b_m`.
+ */
+oberkante?: Array<Hoehenpunkt>,
+/**
+ * Zusätzliche vertikale Wandteilgrenzen (Station in m ab Wandanfang).
+ */
+wandteilgrenzen?: Array<number>,
+/**
+ * Neigung der zweiten Dachseite bei Giebeln.
+ */
+dachneigung_b_grad?: number,
+/**
+ * Gesamtlänge der Gauben/Dachaufbauten auf der Dachfläche über dieser Wand.
+ */
+gauben_laenge_m?: number, tiefenfall?: Tiefenfall,
+/**
+ * Begründung für einen besonderen Tiefenfall.
+ */
+tiefenfall_grundlage?: string,
+/**
+ * Aus einem Gebäudeumriss erzeugte Seite; Lage und Eckhöhen führt der Umriss.
+ */
+umriss?: UmrissSeite, };
+export type AbstandsPlan = { bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>, };
 export type AbstandsPolygon = { aussen: Array<APunkt>, innen: Array<Array<APunkt>>, };
 export type AbstandsStatus = "offen" | "tiefenvorpruefung" | "eingehalten" | "konflikt" | "grenzfall";
-export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, wandhoehe_m: number | null, dachanteil_m: number | null, h_m: number | null, faktor: number | null, mindesttiefe_m: number | null, tiefe_m: number | null, herleitung: Array<string>, offen: Array<string>, status: AbstandsStatus, flaeche_m2: number | null, ausserhalb_m2: number | null, polygon: Array<APunkt>, konflikte: Array<AbstandsPolygon>, };
-export type Ueberdeckung = { wand_a: string, wand_b: string, flaeche_m2: number, polygone: Array<AbstandsPolygon>, };
+export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, wandhoehe_m: number | null, dachanteil_m: number | null, h_m: number | null, faktor: number | null, mindesttiefe_m: number | null, tiefe_m: number | null, herleitung: Array<string>, offen: Array<string>, status: AbstandsStatus, flaeche_m2: number | null, ausserhalb_m2: number | null, polygon: Array<APunkt>, konflikte: Array<AbstandsPolygon>,
+/**
+ * Angewandter Wandhöhenansatz; fehlt in Ergebnissen vor Version 2.
+ */
+ansatz?: Wandhoehenansatz, wandteile?: Array<Wandteilergebnis>,
+/**
+ * Höhenverlauf an allen Profil- und Teilungsstellen.
+ */
+profil?: Array<Profilzeile>, };
+export type Ueberdeckung = { wand_a: string, wand_b: string, flaeche_m2: number, polygone: Array<AbstandsPolygon>,
+/**
+ * Winkel, in dem die Wände zueinander stehen (0° = parallel gegenüber).
+ */
+winkel_grad?: number,
+/**
+ * Rechtsgrundlage, nach der die Überdeckung zulässig ist.
+ */
+zulaessig?: string, };
 export type AbstandsErgebnis = { rechenstand: string, waende: Array<WandErgebnis>, ueberdeckungen: Array<Ueberdeckung>, offen: Array<string>, vollstaendig: boolean, konfliktfrei: boolean, };
+export type Tiefenfall = "regel" | "oeffentliche_flaeche" | "wohngebaeude_gk12";
+export type Wandhoehenansatz = "maximal" | "mittel_kanten" | "mittel_profil" | "punktweise";
+export type Giebelregel = {
+/**
+ * Haben beide Dachseiten eine größere Neigung, gilt `faktor_steil`.
+ */
+steil_ueber_grad: number, faktor_steil: number, faktor_sonst: number, quelle: string, };
+export type Gaubenregel = {
+/**
+ * Anteil der Gaubenlänge an der darunterliegenden Wand, ab dem `faktor` gilt.
+ */
+anteil_ueber: number, faktor: number, quelle: string, };
+export type Ueberdeckungsregel = {
+/**
+ * Überdeckung zulässig, wenn die Wände in einem größeren Winkel zueinander stehen.
+ */
+winkel_ueber_grad: number, quelle: string, };
+export type Hoehenpunkt = { station_m: number, hoehe_m: number, quelle?: string, };
+export type UmrissSeite = { umriss_id: string,
+/**
+ * Seite von Ecke `seite` zu Ecke `seite + 1`.
+ */
+seite: number, };
+export type UmrissEcke = { x: number, y: number,
+/**
+ * Maßgebliche Geländehöhe an der Gebäudeecke.
+ */
+gelaende_m?: number, };
+export type AbstandsUmriss = { id: string, bezeichnung: string, gebaeude_id?: string, grundstueck_id: string | null, ecken: Array<UmrissEcke>,
+/**
+ * Vorgabe der Wandoberkante (z. B. Traufe) für neue Seiten.
+ */
+oberkante_m: number | null, quelle: string, };
+export type Wandteilergebnis = { von_m: number, bis_m: number,
+/**
+ * Wandhöhe an den Kanten des Wandteils.
+ */
+h_anfang_m: number, h_ende_m: number,
+/**
+ * Maßgebliche Wandhöhe nach dem Ansatz, ohne Dachanteil.
+ */
+wandhoehe_m: number, h_m: number | null,
+/**
+ * Größte Tiefe im Wandteil.
+ */
+tiefe_m: number | null, };
+export type Profilzeile = { station_m: number, gelaende_m: number, oberkante_m: number, wandhoehe_m: number,
+/**
+ * Tiefe an dieser Stelle (bei gemittelten Ansätzen die des Wandteils).
+ */
+tiefe_m: number | null,
+/**
+ * Laufende Nummer des Wandteils ab 1.
+ */
+wandteil: number, };
+export type UmrissAbgleich = { plan: AbstandsPlan, hinweise: Array<string>, };
+export type CadHoehe = {
+/**
+ * Lage in Metern.
+ */
+x: number, y: number,
+/**
+ * Höhe wie in der Zeichnung angegeben (m).
+ */
+hoehe_m: number, ebene: string,
+/**
+ * „Höhenkote“ (Text) oder „Höhenpunkt“ (Punkt mit z).
+ */
+art: string, quelle: Dokumentbezug, };
 export type Grundstuecksinformationen = { flurstuecke: Array<FlurstuecksInfo>, };
 export type FlurstuecksInfo = { id: string,
 /**

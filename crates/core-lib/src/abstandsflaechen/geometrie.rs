@@ -60,13 +60,25 @@ fn umrisse(m: &MultiPolygon<f64>) -> Vec<AbstandsPolygon> {
         })
         .collect()
 }
+/// Außennormale der Wand (Einheitsvektor).
+fn normale(w: &AbstandsWand) -> Option<(f64, f64)> {
+    let (dx, dy) = (w.bis.x - w.von.x, w.bis.y - w.von.y);
+    let l = dx.hypot(dy);
+    let n = match w.aussen {
+        Aussenrichtung::Links => 1.,
+        Aussenrichtung::Rechts => -1.,
+    };
+    (l >= 0.001).then(|| (-dy / l * n, dx / l * n))
+}
+/// `verlauf`: Tiefe je Station ab Wandanfang, aufsteigend; Sprünge mit
+/// doppelter Station.
 pub(super) fn wand(
     p: &AbstandsPlan,
     w: &AbstandsWand,
     e: &mut WandErgebnis,
-    t: f64,
+    verlauf: &[(f64, f64)],
 ) -> CoreResult<()> {
-    if t == 0. && w.polygon_manuell.is_none() {
+    if verlauf.iter().all(|v| v.1 == 0.) && w.polygon_manuell.is_none() {
         e.flaeche_m2 = Some(0.);
         e.ausserhalb_m2 = Some(0.);
         if let Some(g) = p
@@ -112,18 +124,39 @@ pub(super) fn wand(
             .push("Abstandsflächenumriss aus dokumentiertem besonderen Nachweis übernommen".into());
         poly.clone()
     } else {
-        vec![
-            w.von.clone(),
-            w.bis.clone(),
-            APunkt {
-                x: w.bis.x - dy / e.laenge_m * t * n,
-                y: w.bis.y + dx / e.laenge_m * t * n,
-            },
-            APunkt {
-                x: w.von.x - dy / e.laenge_m * t * n,
-                y: w.von.y + dx / e.laenge_m * t * n,
-            },
-        ]
+        // Wandenden exakt übernehmen, damit gleichmäßige Tiefen dasselbe
+        // Rechteck ergeben wie vor Version 2.
+        let fuss = |s: f64| {
+            if s <= 0. {
+                w.von.clone()
+            } else if s >= e.laenge_m {
+                w.bis.clone()
+            } else {
+                APunkt {
+                    x: w.von.x + dx * s / e.laenge_m,
+                    y: w.von.y + dy * s / e.laenge_m,
+                }
+            }
+        };
+        // Stellen ohne Tiefenänderung (z. B. Wandteilgrenze ohne Sprung) entfallen.
+        let knicke = verlauf.iter().enumerate().filter(|(i, v)| {
+            *i == 0 || *i == verlauf.len() - 1 || verlauf[i - 1].1 != v.1 || verlauf[i + 1].1 != v.1
+        });
+        let mut punkte = vec![w.von.clone(), w.bis.clone()];
+        for (_, &(s, t)) in knicke.rev() {
+            let f = fuss(s);
+            let q = APunkt {
+                x: f.x - dy / e.laenge_m * t * n,
+                y: f.y + dx / e.laenge_m * t * n,
+            };
+            if punkte.last() != Some(&q) {
+                punkte.push(q);
+            }
+        }
+        if punkte.len() > 3 && punkte.first() == punkte.last() {
+            punkte.pop();
+        }
+        punkte
     };
     let poly = polygon(&points)?;
     e.flaeche_m2 = Some(poly.unsigned_area());
@@ -194,7 +227,11 @@ pub(super) fn wand(
     }
     Ok(())
 }
-pub(super) fn ueberdeckungen(waende: &mut [WandErgebnis]) -> CoreResult<Vec<Ueberdeckung>> {
+pub(super) fn ueberdeckungen(
+    p: &AbstandsPlan,
+    waende: &mut [WandErgebnis],
+) -> CoreResult<Vec<Ueberdeckung>> {
+    let normale = |id: Uuid| p.waende.iter().find(|w| w.id == id).and_then(normale);
     let mut result = vec![];
     for a in 0..waende.len() {
         for b in a + 1..waende.len() {
@@ -204,11 +241,30 @@ pub(super) fn ueberdeckungen(waende: &mut [WandErgebnis]) -> CoreResult<Vec<Uebe
             let m = polygon(&waende[a].polygon)?.intersection(&polygon(&waende[b].polygon)?);
             let flaeche = m.unsigned_area();
             if flaeche > 1e-8 {
+                // 0° = parallel gegenüber, 90° = Innenecke, 180° = gleiche Richtung.
+                let winkel = normale(waende[a].id)
+                    .zip(normale(waende[b].id))
+                    .map(|(na, nb)| {
+                        180. - (na.0 * nb.0 + na.1 * nb.1)
+                            .clamp(-1., 1.)
+                            .acos()
+                            .to_degrees()
+                    });
+                let zulaessig = p.regeln.ueberdeckung.as_ref().and_then(|r| {
+                    winkel.filter(|w| *w > r.winkel_ueber_grad).map(|w| {
+                        format!(
+                            "Wände stehen im Winkel von {:.1}° > {}° zueinander; {}",
+                            w, r.winkel_ueber_grad, r.quelle
+                        )
+                    })
+                });
                 result.push(Ueberdeckung {
                     wand_a: waende[a].id,
                     wand_b: waende[b].id,
                     flaeche_m2: flaeche,
                     polygone: umrisse(&m),
+                    winkel_grad: winkel,
+                    zulaessig,
                 });
             }
         }

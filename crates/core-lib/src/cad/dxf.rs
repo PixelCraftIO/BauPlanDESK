@@ -8,7 +8,9 @@ use ::dxf::entities::{Entity, EntityType};
 use ::dxf::enums::{AcadVersion, Units};
 use ::dxf::{Block, Color, Drawing};
 
-use super::{Ausrichtung, Beschriftung, Ebene, Laengeneinheit, Linienzug, Plan, Punkt, Rechteck};
+use super::{
+    Ausrichtung, Beschriftung, Ebene, Laengeneinheit, Linienzug, Plan, Punkt, Raumpunkt, Rechteck,
+};
 use crate::error::{CoreError, CoreResult};
 
 /// Verschachtelungstiefe für Blockreferenzen (schützt vor Zyklen).
@@ -41,6 +43,7 @@ fn laden(daten: &[u8]) -> CoreResult<Drawing> {
 }
 
 const BINAER: &[u8] = b"AutoCAD Binary DXF";
+const MAX_RAUMPUNKTE: usize = 20_000;
 
 fn nicht_lesbar(e: ::dxf::DxfError) -> CoreError {
     CoreError::InvalidInput(format!("DXF-Datei nicht lesbar: {e}"))
@@ -147,6 +150,7 @@ struct Import<'d> {
     ebenen_index: HashMap<String, usize>,
     linien: Vec<Linienzug>,
     texte: Vec<Beschriftung>,
+    raumpunkte: Vec<Raumpunkt>,
     punkte: usize,
     uebersprungen: BTreeMap<&'static str, usize>,
     abgeschnitten: bool,
@@ -163,6 +167,7 @@ impl<'d> Import<'d> {
             ebenen_index: HashMap::new(),
             linien: Vec::new(),
             texte: Vec::new(),
+            raumpunkte: Vec::new(),
             punkte: 0,
             uebersprungen: BTreeMap::new(),
             abgeschnitten: false,
@@ -224,6 +229,7 @@ impl<'d> Import<'d> {
             ebenen: self.ebenen,
             linien: self.linien,
             texte: self.texte,
+            raumpunkte: self.raumpunkte,
             grenzen,
             hinweise,
         }
@@ -251,6 +257,24 @@ impl<'d> Import<'d> {
         });
         self.ebenen_index.insert(name.to_string(), i);
         i
+    }
+
+    /// Höhenpunkt nur im Modellbereich selbst (nicht in Blöcken) und mit z ≠ 0.
+    fn raumpunkt(&mut self, e: &Entity, k: Kontext, p: &::dxf::Point) {
+        if k.tiefe > 0
+            || p.z == 0.0
+            || !p.z.is_finite()
+            || e.common.layer.eq_ignore_ascii_case("defpoints")
+            || self.raumpunkte.len() >= MAX_RAUMPUNKTE
+        {
+            return;
+        }
+        let ebene = self.ebene(e, k);
+        self.raumpunkte.push(Raumpunkt {
+            ebene,
+            position: Punkt(p.x, p.y),
+            z: p.z,
+        });
     }
 
     fn ebene(&mut self, e: &Entity, k: Kontext) -> usize {
@@ -473,6 +497,8 @@ impl<'d> Import<'d> {
             }
             EntityType::Attribute(a) => self.attribut(e, k, a),
             EntityType::Insert(i) => {
+                // Vermessungssymbole tragen die Höhe oft als z der Einfügung.
+                self.raumpunkt(e, k, &i.location);
                 self.referenz(e, k, &i.name, |basis| {
                     let mut ts = Vec::new();
                     let (zeilen, spalten) = (i.row_count.max(1), i.column_count.max(1));
@@ -507,11 +533,10 @@ impl<'d> Import<'d> {
                 let punkte = l.vertices.iter().map(p).collect();
                 self.linie(e, k, punkte, false);
             }
-            // Punkte sind fast immer Hilfspunkte von Bemaßungen.
-            EntityType::Seqend(_)
-            | EntityType::Vertex(_)
-            | EntityType::AttributeDefinition(_)
-            | EntityType::ModelPoint(_) => {}
+            // Punkte in Blöcken sind fast immer Hilfspunkte von Bemaßungen;
+            // freie Punkte mit Höhe sind Höhenpunkte.
+            EntityType::ModelPoint(m) => self.raumpunkt(e, k, &m.location),
+            EntityType::Seqend(_) | EntityType::Vertex(_) | EntityType::AttributeDefinition(_) => {}
             andere => *self.uebersprungen.entry(typname(andere)).or_default() += 1,
         }
     }

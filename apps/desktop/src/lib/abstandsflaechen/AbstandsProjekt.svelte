@@ -11,14 +11,18 @@
     AbstandsRegeln,
     AbstandsErgebnis,
     AbstandsWand,
+    AbstandsUmriss,
     Dokumentbezug,
     Gebaeude,
+    UmrissAbgleich,
   } from "../generated/plattform";
   import Druckknopf from "../Druckknopf.svelte";
   import Dokumentliste from "../verfahren/Dokumentliste.svelte";
   import Dokumentfeld from "../verfahren/Dokumentfeld.svelte";
   import Punktliste from "./Punktliste.svelte";
   import Planbild from "./Planbild.svelte";
+  import Hoehenprofil from "./Hoehenprofil.svelte";
+  import Abwicklung from "./Abwicklung.svelte";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   let {
     projekt,
@@ -98,27 +102,77 @@
       s.fehler = fehlertext(e);
     }
   });
-  /** Gelände und Traufe (m ü. NHN) des verknüpften Gebäudes als Wandhöhen. */
+  async function gebaeudehoehen(id: string | undefined) {
+    const g = gebaeude.find((g) => g.objekt === id);
+    if (!g) return null;
+    const h = (await plattformApi.gebaeudeAuswerten(projekt.id, g.objekt, $state.snapshot(g.daten) as Gebaeude)).hoehen_nhn;
+    return { name: g.daten.bezeichnung, ...h };
+  }
+  /** Gelände und Traufe (m ü. NHN) des verknüpften Gebäudes als Höhenprofil. */
   async function hoehenUebernehmen(w: AbstandsWand) {
     hoehenHinweis = "";
-    const g = gebaeude.find((g) => g.objekt === w.gebaeude_id);
-    if (!g) return;
     try {
-      const h = (await plattformApi.gebaeudeAuswerten(projekt.id, g.objekt, $state.snapshot(g.daten) as Gebaeude)).hoehen_nhn;
+      const h = await gebaeudehoehen(w.gebaeude_id);
+      if (!h) return;
       if (h.gelaende_m === null || h.traufe_m === null) {
         hoehenHinweis = "Gebäudenullpunkt, mittlere Geländehöhe und Traufhöhe in Gebäude/Geschosse ergänzen.";
         return;
       }
-      w.gelaende_a_m = w.gelaende_b_m = h.gelaende_m;
-      w.abschluss_a_m = w.abschluss_b_m = h.traufe_m;
-      w.hoehenquelle = `Gebäude ${g.daten.bezeichnung}: mittlere Geländehöhe und Traufhöhe aus Gebäude/Geschosse (m ü. NHN)`;
-      hoehenHinweis = "Höhen übernommen. Gelände an den Wandenden, Giebel und abweichende Wandabschlüsse je Wand prüfen.";
+      const l = Math.round(Math.hypot(w.bis.x - w.von.x, w.bis.y - w.von.y) * 1000) / 1000;
+      const quelle = `Gebäude ${h.name}, Gebäude/Geschosse (m ü. NHN)`;
+      // Eckhöhen eines Umrisses bleiben unberührt.
+      if (!w.umriss)
+        w.gelaende = [0, l].map((station_m) => ({ station_m, hoehe_m: h.gelaende_m!, quelle: `${quelle}: mittlere Geländehöhe` }));
+      w.oberkante = [0, l].map((station_m) => ({ station_m, hoehe_m: h.traufe_m!, quelle: `${quelle}: Traufe` }));
+      w.gelaende_a_m = w.gelaende_b_m = w.abschluss_a_m = w.abschluss_b_m = null;
+      w.hoehenquelle = `Gebäude ${h.name}: Höhen aus Gebäude/Geschosse (m ü. NHN)`;
+      hoehenHinweis = "Höhen übernommen. Gelände entlang der Wand, Giebel und abweichende Wandabschlüsse je Wand prüfen.";
+    } catch (e) {
+      hoehenHinweis = fehlertext(e);
+    }
+  }
+  let umrissHinweise = $state<string[]>([]);
+  /** Wände der Umrisse im Core abgleichen (Lage, Außenseite, Eckhöhen). */
+  async function umrisseEinbinden() {
+    if (!s.eingabe?.umrisse?.length && !s.eingabe?.waende.some((w) => w.umriss)) return true;
+    try {
+      const r = await invoke<UmrissAbgleich>("abstandsumrisse_einbinden", { plan: $state.snapshot(s.eingabe) });
+      if (JSON.stringify(r.plan) !== JSON.stringify($state.snapshot(s.eingabe))) s.eingabe = r.plan;
+      umrissHinweise = r.hinweise;
+      return true;
+    } catch (e) {
+      s.fehler = fehlertext(e);
+      return false;
+    }
+  }
+  function umrissNeu(p: AbstandsPlan) {
+    const u: AbstandsUmriss = {
+      id: crypto.randomUUID(),
+      bezeichnung: `Gebäude ${(p.umrisse?.length ?? 0) + 1}`,
+      grundstueck_id: p.grundstuecke.length === 1 ? p.grundstuecke[0].id : null,
+      ecken: [],
+      oberkante_m: null,
+      quelle: "",
+    };
+    p.umrisse = [...(p.umrisse ?? []), u];
+  }
+  async function traufeUebernehmen(u: AbstandsUmriss) {
+    hoehenHinweis = "";
+    try {
+      const h = await gebaeudehoehen(u.gebaeude_id);
+      if (h?.traufe_m == null) {
+        hoehenHinweis = "Traufhöhe in Gebäude/Geschosse ergänzen.";
+        return;
+      }
+      u.oberkante_m = h.traufe_m;
+      if (!u.quelle) u.quelle = `Gebäude ${h.name}: Traufe aus Gebäude/Geschosse (m ü. NHN)`;
     } catch (e) {
       hoehenHinweis = fehlertext(e);
     }
   }
   async function pruefen() {
     if (!s.eingabe) return;
+    if (!(await umrisseEinbinden())) return;
     busy = true;
     s.laeuft = true;
     s.fehler = null;
@@ -278,7 +332,7 @@
 >
   {#snippet children(p: AbstandsPlan)}
     <nav aria-label="Abstandsflächenbereiche">
-      {#each [["grundlagen", "Grundlagen"], ["waende", "Wände / Bauteile"], ["lageplan", "Lageplan / Grenzen"], ["sicherung", "Sonderfälle / Sicherungen"], ["pruefung", "Prüfbericht"]] as [id, t]}<button
+      {#each [["grundlagen", "Grundlagen"], ["umrisse", "Gebäudeumrisse"], ["waende", "Wände / Bauteile"], ["lageplan", "Lageplan / Grenzen"], ["sicherung", "Sonderfälle / Sicherungen"], ["pruefung", "Prüfbericht"]] as [id, t]}<button
           type="button"
           class:sekundaer={bereich !== id}
           aria-pressed={bereich === id}
@@ -357,6 +411,107 @@
         >
         <h4>Originalquellen und Planversionen</h4>
         <Dokumentliste {dateien} bind:werte={p.quellen} />
+      {:else if bereich === "umrisse"}
+        <h3>Gebäudeumrisse</h3>
+        <p class="meta">
+          Eckpunkte des Gebäudes in Umlaufrichtung. Jede Seite wird zu einer
+          Wand; die Außenseite ergibt sich aus der Umlaufrichtung. Geländehöhen
+          an den Ecken gelten für beide angrenzenden Seiten. Zwischenpunkte,
+          Wandoberkante, Dach und Sonderfälle je Seite unter „Wände / Bauteile“
+          ergänzen.
+        </p>
+        <button type="button" class="sekundaer" onclick={() => umrissNeu(p)}>Gebäudeumriss hinzufügen</button>
+        {#each p.umrisse ?? [] as u, i (u.id)}<fieldset>
+            <legend>U{i + 1} · {u.bezeichnung}</legend>
+            <div class="raster">
+              <label>Bezeichnung<input bind:value={u.bezeichnung} /></label>
+              {#if gebaeude.length}<label
+                  >Gebäude aus Gebäude/Geschosse<select
+                    value={u.gebaeude_id ?? ""}
+                    onchange={(e) => {
+                      const g = gebaeude.find((g) => g.objekt === e.currentTarget.value);
+                      u.gebaeude_id = g?.objekt;
+                      if (g) u.bezeichnung = g.daten.bezeichnung;
+                    }}
+                    ><option value="">Nicht verknüpft</option
+                    >{#each gebaeude as g (g.objekt)}<option value={g.objekt}>{g.daten.bezeichnung}</option
+                      >{/each}</select
+                  ></label
+                >{/if}
+              <label
+                >Grundstückseinheit<select bind:value={u.grundstueck_id}
+                  ><option value={null}>Nur Tiefenvorprüfung / noch ungeklärt</option
+                  >{#each p.grundstuecke as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select
+                ></label
+              >
+              <label
+                >Vorgabe Wandoberkante (m, z. B. Traufe)<input
+                  type="number"
+                  step="any"
+                  bind:value={u.oberkante_m}
+                /></label
+              >
+            </div>
+            {#if u.gebaeude_id}<button type="button" class="sekundaer" onclick={() => traufeUebernehmen(u)}
+                >Traufe aus Gebäude übernehmen</button
+              >{#if hoehenHinweis}<p class="meta" role="status">{hoehenHinweis}</p>{/if}{/if}
+            <label>Quelle der Umriss- und Höhenangaben<input bind:value={u.quelle} /></label>
+            <table class="ergebnistabelle">
+              <thead><tr><th>Ecke</th><th>X (m)</th><th>Y (m)</th><th>Gelände (m)</th><th></th></tr></thead>
+              <tbody
+                >{#each u.ecken as e, k}<tr
+                    ><td>{k + 1}</td><td
+                      ><input aria-label={`U${i + 1} Ecke ${k + 1} X`} type="number" step="any" bind:value={e.x} /></td
+                    ><td
+                      ><input aria-label={`U${i + 1} Ecke ${k + 1} Y`} type="number" step="any" bind:value={e.y} /></td
+                    ><td
+                      ><input
+                        aria-label={`U${i + 1} Ecke ${k + 1} Gelände`}
+                        type="number"
+                        step="any"
+                        value={e.gelaende_m ?? ""}
+                        oninput={(ev) => {
+                          const v = ev.currentTarget.value;
+                          e.gelaende_m = v === "" ? undefined : Number(v);
+                        }}
+                      /></td
+                    ><td
+                      ><button type="button" class="link" onclick={() => (u.ecken = u.ecken.filter((_, n) => n !== k))}
+                        >Ecke entfernen</button
+                      ></td
+                    ></tr
+                  >{/each}</tbody
+              >
+            </table>
+            <div class="knoepfe links">
+              <button type="button" class="sekundaer" onclick={() => (u.ecken = [...u.ecken, { x: 0, y: 0 }])}
+                >Ecke hinzufügen</button
+              ><button type="button" class="sekundaer" onclick={umrisseEinbinden} disabled={u.ecken.length < 3}
+                >Seiten als Wände übernehmen</button
+              ><button
+                type="button"
+                class="link"
+                onclick={async () => {
+                  p.umrisse = (p.umrisse ?? []).filter((x) => x.id !== u.id);
+                  await umrisseEinbinden();
+                }}>Umriss mit seinen Wänden entfernen</button
+              >
+            </div>
+            <Punktliste
+              werte={u.ecken.map((e) => ({ x: e.x, y: e.y }))}
+              label={`U${i + 1}: Ecken aus DXF-Kontur ersetzen`}
+              {dateien}
+              projektId={projekt.id}
+              nurImport
+              onwerte={(punkte) => (u.ecken = punkte.map((q) => ({ x: q.x, y: q.y })))}
+              onquelle={(d) => {
+                if (!p.quellen.some((q) => q.dokument_id === d.dokument_id && q.version === d.version))
+                  p.quellen.push(d);
+              }}
+            />
+          </fieldset>{/each}
+        {#each umrissHinweise as h}<p class="hinweisbox" role="status">{h}</p>{/each}
+        <Planbild plan={p} ergebnis={aktuell ? ergebnis : null} bind:auswahl />
       {:else if bereich === "waende"}
         <h3>Außenwände und Abschnitte</h3>
         <button type="button" class="sekundaer" onclick={() => wandNeu(p)}
@@ -370,7 +525,8 @@
             ></thead
           ><tbody
             >{#each p.waende as w, i}<tr
-                ><td>W{i + 1}</td><td>{w.gebaeude}</td><td>{w.bezeichnung}</td
+                ><td>W{i + 1}</td><td>{w.gebaeude}</td><td
+                  >{w.bezeichnung}{#if w.umriss}<span class="meta"> · aus Umriss</span>{/if}</td
                 ><td>{w.fall}</td><td
                   ><button
                     type="button"
@@ -389,9 +545,16 @@
         </table>
         {#if wand}{@const w = wand}
           <h4>{w.bezeichnung}</h4>
+          {#if w.umriss}<p class="meta">
+              Seite {w.umriss.seite + 1} des Umrisses
+              „{(p.umrisse ?? []).find((u) => u.id === w.umriss?.umriss_id)?.bezeichnung ?? "?"}“: Lage,
+              Außenseite, Gebäude, Grundstück und Eckhöhen werden unter
+              „Gebäudeumrisse“ geführt.
+            </p>{/if}
           <div class="raster">
             {#if gebaeude.length}<label
                 >Gebäude aus Gebäude/Geschosse<select
+                  disabled={!!w.umriss}
                   value={w.gebaeude_id ?? ""}
                   onchange={(e) => {
                     const g = gebaeude.find((g) => g.objekt === e.currentTarget.value);
@@ -404,14 +567,14 @@
                     >{/each}</select
                 ></label
               >{/if}
-            <label>Gebäude<input bind:value={w.gebaeude} readonly={!!w.gebaeude_id} /></label>{#if w.gebaeude_id}<div>
+            <label>Gebäude<input bind:value={w.gebaeude} readonly={!!w.gebaeude_id || !!w.umriss} /></label>{#if w.gebaeude_id && !w.umriss}<div>
                 <button type="button" class="sekundaer" onclick={() => hoehenUebernehmen(w)}
                   >Gelände und Traufe aus Gebäude übernehmen</button
                 >{#if hoehenHinweis}<p class="meta" role="status">{hoehenHinweis}</p>{/if}
               </div>{/if}<label
               >Wandbezeichnung<input bind:value={w.bezeichnung} /></label
             ><label
-              >Grundstückseinheit<select bind:value={w.grundstueck_id}
+              >Grundstückseinheit<select disabled={!!w.umriss} bind:value={w.grundstueck_id}
                 ><option value={null}
                   >Nur Tiefenvorprüfung / noch ungeklärt</option
                 >{#each p.grundstuecke as g}<option value={g.id}
@@ -419,7 +582,7 @@
                   >{/each}</select
               ></label
             ><label
-              >Außenseite in Richtung Anfang → Ende<select bind:value={w.aussen}
+              >Außenseite in Richtung Anfang → Ende<select disabled={!!w.umriss} bind:value={w.aussen}
                 ><option value="rechts">Rechts</option><option value="links"
                   >Links</option
                 ></select
@@ -431,61 +594,55 @@
               >Anfang X (m)<input
                 type="number"
                 step="any"
+                readonly={!!w.umriss}
                 bind:value={w.von.x}
               /></label
             ><label
               >Anfang Y (m)<input
                 type="number"
                 step="any"
+                readonly={!!w.umriss}
                 bind:value={w.von.y}
               /></label
             ><label
               >Ende X (m)<input
                 type="number"
                 step="any"
+                readonly={!!w.umriss}
                 bind:value={w.bis.x}
               /></label
             ><label
               >Ende Y (m)<input
                 type="number"
                 step="any"
+                readonly={!!w.umriss}
                 bind:value={w.bis.y}
               /></label
             >
           </div>
+          {#if w.gebaeude_id && w.umriss}<div>
+              <button type="button" class="sekundaer" onclick={() => hoehenUebernehmen(w)}
+                >Traufe aus Gebäude als Wandoberkante übernehmen</button
+              >{#if hoehenHinweis}<p class="meta" role="status">{hoehenHinweis}</p>{/if}
+            </div>{/if}
           <p class="meta">
-            Höhen bezogen auf dasselbe maßgebliche Gelände-/Höhensystem. Der
-            Abschnitt verwendet konservativ die größte Höhe seiner Endpunkte.
-            Bei Zwischenhochpunkten oder nichtlinearem Gelände zusätzliche
-            Abschnitte erfassen.
+            Wandhöhenansatz des Regelpakets: {p.regeln.wandhoehe === "mittel_kanten"
+              ? "im Mittel gemessene Wandhöhe aus den Wandhöhen an den Kanten je Wandteil"
+              : p.regeln.wandhoehe === "mittel_profil"
+                ? "flächengemittelte Wandhöhe je Wandteil"
+                : p.regeln.wandhoehe === "punktweise"
+                  ? "Wandhöhe an jeder Stelle, Abstandsfläche mit wechselnder Tiefe"
+                  : "größte Wandhöhe je Wandteil (konservativ)"}.
           </p>
-          <div class="raster">
-            <label
-              >Gelände Anfang (m)<input
-                type="number"
-                step="any"
-                bind:value={w.gelaende_a_m}
-              /></label
-            ><label
-              >Gelände Ende (m)<input
-                type="number"
-                step="any"
-                bind:value={w.gelaende_b_m}
-              /></label
-            ><label
-              >Wandabschluss Anfang (m)<input
-                type="number"
-                step="any"
-                bind:value={w.abschluss_a_m}
-              /></label
-            ><label
-              >Wandabschluss Ende (m)<input
-                type="number"
-                step="any"
-                bind:value={w.abschluss_b_m}
-              /></label
-            >
-          </div>
+          {#key w.id}<Hoehenprofil
+              wand={w}
+              {dateien}
+              projektId={projekt.id}
+              onquelle={(d) => {
+                if (!p.quellen.some((q) => q.dokument_id === d.dokument_id && q.version === d.version))
+                  p.quellen.push(d);
+              }}
+            />{/key}
           <label
             >Gelände-/Höhenherleitung und Planquelle<textarea
               bind:value={w.hoehenquelle}
@@ -499,7 +656,7 @@
               ><option value="dachflaeche"
                 >Dachfläche nach konfigurierter Neigungsregel</option
               ><option value="giebel"
-                >Giebel – fachlich hergeleiteter Anteil</option
+                >{p.regeln.giebel ? "Giebelfläche nach Regelpaket" : "Giebel – fachlich hergeleiteter Anteil"}</option
               ><option value="manuell"
                 >Besonderer Dachanteil mit Grundlage</option
               ></select
@@ -509,7 +666,7 @@
               class="raster"
             >
               <label
-                >Dach-/Giebelhöhe (m)<input
+                >{w.dachart === "giebel" ? "Giebelhöhe (Traufe bis First, m)" : "Dach-/Giebelhöhe (m)"}<input
                   type="number"
                   step="any"
                   min="0"
@@ -522,6 +679,37 @@
                     max="90"
                     step="any"
                     bind:value={w.dachneigung_grad}
+                  /></label
+                >{#if p.regeln.gauben}<label
+                    >Gesamtlänge Gauben/Dachaufbauten auf dieser Dachfläche (m)<input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={w.gauben_laenge_m ?? ""}
+                      oninput={(e) => {
+                        const v = e.currentTarget.value;
+                        w.gauben_laenge_m = v === "" ? undefined : Number(v);
+                      }}
+                    /></label
+                  >{/if}{:else if w.dachart === "giebel" && p.regeln.giebel}<label
+                  >Neigung Dachseite 1 (Grad)<input
+                    type="number"
+                    min="0"
+                    max="90"
+                    step="any"
+                    bind:value={w.dachneigung_grad}
+                  /></label
+                ><label
+                  >Neigung Dachseite 2 (Grad)<input
+                    type="number"
+                    min="0"
+                    max="90"
+                    step="any"
+                    value={w.dachneigung_b_grad ?? ""}
+                    oninput={(e) => {
+                      const v = e.currentTarget.value;
+                      w.dachneigung_b_grad = v === "" ? undefined : Number(v);
+                    }}
                   /></label
                 >{:else}<label
                   >Anrechnungsfaktor<input
@@ -538,12 +726,31 @@
             </div>{/if}
           <label
             >Bauteil-/Wandfall<select bind:value={w.fall}
-              >{#each [["regel", "Regelwand"], ["garage", "Garage"], ["carport", "Carport"], ["vorbau", "Vorbau / Balkon / Erker"], ["grenzbebauung", "Grenzbebauung"], ["bestand", "Bestand / Änderung"], ["sonderbau", "Sonderbau"], ["sonstiges", "Sonstiger Sonderfall"]] as [id, t]}<option
+              >{#each [["regel", "Regelwand"], ["garage", "Garage"], ["carport", "Carport"], ["nebengebaeude", "Nebengebäude ohne Aufenthaltsräume"], ["vorbau", "Vorbau / Balkon / Erker"], ["grenzbebauung", "Grenzbebauung"], ["bestand", "Bestand / Änderung"], ["sonderbau", "Sonderbau"], ["sonstiges", "Sonstiger Sonderfall"]] as [id, t]}<option
                   value={id}>{t}</option
                 >{/each}</select
             ></label
           >
-          {#if w.fall === "garage" || w.fall === "carport"}<label
+          <label
+            >Tiefenfall<select
+              value={w.tiefenfall ?? "regel"}
+              onchange={(e) => {
+                const v = e.currentTarget.value as NonNullable<AbstandsWand["tiefenfall"]>;
+                w.tiefenfall = v === "regel" ? undefined : v;
+              }}
+              ><option value="regel">Regeltiefe</option><option value="oeffentliche_flaeche"
+                >Zu öffentlicher Verkehrs-, Grün- oder Wasserfläche</option
+              ><option value="wohngebaeude_gk12"
+                >Wohngebäude GK 1/2, höchstens drei oberirdische Geschosse</option
+              ></select
+            ></label
+          >{#if w.tiefenfall}<label
+              >Begründung des Tiefenfalls<input
+                value={w.tiefenfall_grundlage ?? ""}
+                oninput={(e) => (w.tiefenfall_grundlage = e.currentTarget.value)}
+              /></label
+            >{/if}
+          {#if w.fall === "garage" || w.fall === "carport" || w.fall === "nebengebaeude"}<label
               >Gemeinsame Grenzkennung<input
                 bind:value={w.grenzkennung}
               /></label
@@ -879,12 +1086,17 @@
         </table>
         {#each ergebnis.waende as w}<details>
             <summary>{w.bezeichnung} – Herleitung und offene Punkte</summary
-            >{#each w.herleitung as h}<p>{h}</p>{/each}{#each w.offen as h}<p
+            ><Abwicklung ergebnis={w} />{#each w.herleitung as h}<p class:hinweisbox={h.startsWith("Hinweis")}>{h}</p>{/each}{#each w.offen as h}<p
                 class="hinweisbox"
               >
                 {h}
               </p>{/each}
-          </details>{/each}<Planbild
+          </details>{/each}{#each ergebnis.ueberdeckungen as u}<p class:hinweisbox={!u.zulaessig}>
+            Überdeckung {ergebnis.waende.find((w) => w.id === u.wand_a)?.bezeichnung} /
+            {ergebnis.waende.find((w) => w.id === u.wand_b)?.bezeichnung}: {z(u.flaeche_m2)} m²{u.winkel_grad != null
+              ? `, Winkel ${z(u.winkel_grad)}°`
+              : ""} – {u.zulaessig ?? "Zulässigkeit gesondert prüfen"}
+          </p>{/each}<Planbild
           plan={p}
           ergebnis={aktuell ? ergebnis : null}
           bind:auswahl

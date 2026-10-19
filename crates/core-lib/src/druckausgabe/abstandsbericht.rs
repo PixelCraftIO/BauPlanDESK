@@ -49,6 +49,16 @@ pub(super) fn abstand(
                 format!("{} · {}", ja(p.recht.geprueft), p.recht.pruefvermerk),
             ),
             ("Regelstand", p.regeln.rechtsstand.clone()),
+            (
+                "Wandhöhenansatz",
+                match p.regeln.wandhoehe {
+                    Some(a) => a.bezeichnung().into(),
+                    None => format!(
+                        "{} (Regelpaket ohne Angabe)",
+                        Wandhoehenansatz::Maximal.bezeichnung()
+                    ),
+                },
+            ),
             ("Höhenbezug", p.hoehenbezug.clone()),
             ("Koordinatenbezug (m)", p.koordinatenbezug.clone()),
             (
@@ -73,6 +83,37 @@ pub(super) fn abstand(
             })
             .collect(),
     ));
+    if !p.umrisse.is_empty() {
+        z.push(titel("Gebäudeumrisse"));
+        z.push(text(
+            "Die Wände der Umrisse sind Seiten in Umlaufrichtung; Lage, Außenseite und Geländehöhen an den Ecken stammen aus dem Umriss.",
+        ));
+        for (i, u) in p.umrisse.iter().enumerate() {
+            z.push(tabelle(
+                &["Umriss / Ecke", "x (m)", "y (m)", "Gelände (m)"],
+                &[2., 1., 1., 1.],
+                u.ecken
+                    .iter()
+                    .enumerate()
+                    .map(|(k, e)| {
+                        vec![
+                            format!("U{} {} / Ecke {}", i + 1, u.bezeichnung, k + 1),
+                            zahl(e.x),
+                            zahl(e.y),
+                            optional(e.gelaende_m),
+                        ]
+                    })
+                    .collect(),
+            ));
+            z.push(text(format!(
+                "U{}: Grundstück {} · Vorgabe Wandoberkante {} m · Quelle: {}",
+                i + 1,
+                grund(u.grundstueck_id),
+                optional(u.oberkante_m),
+                u.quelle
+            )));
+        }
+    }
     z.push(abschnitt("Ergebnisübersicht der Wände"));
     let status = |s: &AbstandsStatus| match s {
         AbstandsStatus::Offen => "Offen",
@@ -145,22 +186,32 @@ pub(super) fn abstand(
                     .into(),
                 ),
                 (
-                    "Geländehöhen A / B",
-                    format!(
-                        "{} / {} m",
-                        optional(w.gelaende_a_m),
-                        optional(w.gelaende_b_m)
-                    ),
-                ),
-                (
-                    "Wandabschluss A / B",
-                    format!(
-                        "{} / {} m",
-                        optional(w.abschluss_a_m),
-                        optional(w.abschluss_b_m)
-                    ),
+                    "Höhenangaben",
+                    if e.profil.is_empty() {
+                        format!(
+                            "Gelände A / B {} / {} m · Wandabschluss A / B {} / {} m",
+                            optional(w.gelaende_a_m),
+                            optional(w.gelaende_b_m),
+                            optional(w.abschluss_a_m),
+                            optional(w.abschluss_b_m)
+                        )
+                    } else {
+                        format!(
+                            "{} Geländepunkte, {} Oberkantenpunkte, {} Wandteil(e) – siehe Höhenprofil",
+                            w.gelaende.len().max(2),
+                            w.oberkante.len().max(2),
+                            e.wandteile.len()
+                        )
+                    },
                 ),
                 ("Höhenquelle", w.hoehenquelle.clone()),
+                (
+                    "Tiefenfall",
+                    match w.tiefenfall.unwrap_or_default() {
+                        Tiefenfall::Regel => Tiefenfall::Regel.bezeichnung().into(),
+                        f => format!("{} · {}", f.bezeichnung(), w.tiefenfall_grundlage),
+                    },
+                ),
                 (
                     "Dachform",
                     match w.dachart {
@@ -178,9 +229,15 @@ pub(super) fn abstand(
                         "Entfällt bei Flachdach".into()
                     } else {
                         format!(
-                            "{} m / {}°",
+                            "{} m / {}°{}{}",
                             optional(w.dachhoehe_m),
-                            optional(w.dachneigung_grad)
+                            optional(w.dachneigung_grad),
+                            w.dachneigung_b_grad
+                                .map(|n| format!(" und {}° (zweite Dachseite)", zahl(n)))
+                                .unwrap_or_default(),
+                            w.gauben_laenge_m
+                                .map(|l| format!(" · Gauben/Dachaufbauten {} m", zahl(l)))
+                                .unwrap_or_default()
                         )
                     },
                 ),
@@ -223,6 +280,7 @@ pub(super) fn abstand(
                             Wandfall::Regel => "Regelfall",
                             Wandfall::Garage => "Garage",
                             Wandfall::Carport => "Carport",
+                            Wandfall::Nebengebaeude => "Nebengebäude",
                             Wandfall::Vorbau => "Vorbau",
                             Wandfall::Grenzbebauung => "Grenzbebauung",
                             Wandfall::Bestand => "Bestand",
@@ -240,7 +298,82 @@ pub(super) fn abstand(
             ],
         );
         for h in &e.herleitung {
-            z.push(text(h));
+            z.push(if h.starts_with("Hinweis") {
+                hinweis(h)
+            } else {
+                text(h)
+            });
+        }
+        if !e.wandteile.is_empty() {
+            z.push(tabelle(
+                &[
+                    "Wandteil",
+                    "Station m",
+                    "H Kanten m",
+                    "Wandhöhe m",
+                    "H m",
+                    "Tiefe m",
+                ],
+                &[0.8, 1.1, 1.2, 1., 0.8, 0.8],
+                e.wandteile
+                    .iter()
+                    .enumerate()
+                    .map(|(k, t)| {
+                        vec![
+                            (k + 1).to_string(),
+                            format!("{} – {}", zahl(t.von_m), zahl(t.bis_m)),
+                            format!("{} / {}", zahl(t.h_anfang_m), zahl(t.h_ende_m)),
+                            zahl(t.wandhoehe_m),
+                            optional(t.h_m),
+                            optional(t.tiefe_m),
+                        ]
+                    })
+                    .collect(),
+            ));
+            z.push(tabelle(
+                &[
+                    "Station m",
+                    "Gelände m",
+                    "Oberkante m",
+                    "Wandhöhe m",
+                    "Tiefe m",
+                    "Teil",
+                    "Quelle",
+                ],
+                &[0.8, 0.9, 0.9, 0.9, 0.7, 0.5, 2.],
+                e.profil
+                    .iter()
+                    .map(|q| {
+                        let quelle = w
+                            .gelaende
+                            .iter()
+                            .chain(&w.oberkante)
+                            .filter(|h| {
+                                (h.station_m - q.station_m).abs() < 0.001 && !h.quelle.is_empty()
+                            })
+                            .map(|h| h.quelle.as_str())
+                            .fold(Vec::new(), |mut v, q| {
+                                if !v.contains(&q) {
+                                    v.push(q);
+                                }
+                                v
+                            });
+                        vec![
+                            zahl(q.station_m),
+                            zahl(q.gelaende_m),
+                            zahl(q.oberkante_m),
+                            zahl(q.wandhoehe_m),
+                            optional(q.tiefe_m),
+                            q.wandteil.to_string(),
+                            if quelle.is_empty() {
+                                "Interpoliert bzw. Wandangabe".into()
+                            } else {
+                                quelle.join("; ")
+                            },
+                        ]
+                    })
+                    .collect(),
+            ));
         }
         if let Some(s) = &w.sonderansatz {
             angaben(
@@ -328,15 +461,35 @@ pub(super) fn abstand(
     }
     if !r.ueberdeckungen.is_empty() {
         z.push(abschnitt("Überdeckungen"));
-        z.push(hinweis(
-            "Überdeckungen von Abstandsflächen erfordern eine gesonderte Zulässigkeitsprüfung.",
-        ));
+        if r.ueberdeckungen.iter().any(|u| u.zulaessig.is_none()) {
+            z.push(hinweis(
+                "Überdeckungen ohne Regelausnahme erfordern eine gesonderte Zulässigkeitsprüfung.",
+            ));
+        }
         z.push(tabelle(
-            &["Wand A", "Wand B", "Überdeckung m²"],
-            &[2., 2., 1.],
+            &[
+                "Wand A",
+                "Wand B",
+                "Überdeckung m²",
+                "Winkel",
+                "Beurteilung",
+            ],
+            &[1.5, 1.5, 0.9, 0.7, 2.4],
             r.ueberdeckungen
                 .iter()
-                .map(|u| vec![wand(u.wand_a), wand(u.wand_b), zahl(u.flaeche_m2)])
+                .map(|u| {
+                    vec![
+                        wand(u.wand_a),
+                        wand(u.wand_b),
+                        zahl(u.flaeche_m2),
+                        u.winkel_grad
+                            .map(|w| format!("{}°", zahl(w)))
+                            .unwrap_or_else(|| "–".into()),
+                        u.zulaessig
+                            .clone()
+                            .unwrap_or_else(|| "Gesondert prüfen".into()),
+                    ]
+                })
                 .collect(),
         ));
     }
@@ -346,7 +499,10 @@ pub(super) fn abstand(
             z.push(hinweis(format!("Offener Prüfpunkt: {o}")));
         }
     }
-    z.push(abschnitt("Planskizze"));
+    z.push(abschnitt("Wandabwicklungen und Planskizze"));
+    if r.waende.iter().any(|w| w.profil.len() >= 2) {
+        z.push(text("Die Wandabwicklungen folgen nach diesem Bericht: je Wand Geländelinie, Wandoberkante, Wandteilgrenzen und Wandhöhen an den Profilstellen, maßstäblich in Wandrichtung."));
+    }
     z.push(text("Die Vektorplanskizze folgt als letztes Blatt dieser Anlage. Planskizze: G = Grundstück, W = Wand / Abstandsfläche, F = zusätzliche Fläche. Konflikte rot, Überdeckungen violett. Maßstab nur bei Ausgabe mit 100 %. Die Planskizze ersetzt keinen amtlichen Lageplan."));
     Ok(())
 }

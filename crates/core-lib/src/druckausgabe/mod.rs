@@ -404,8 +404,8 @@ impl CoreServices {
                     let bericht =
                         berichte::erstellen(self, &projekt, q, &nachweise, &bezuege).await?;
                     let titel = bericht.verzeichnisname.clone();
-                    // Die Vektorplanskizze ist das letzte Blatt dieser Anlage.
-                    let skizze = match q {
+                    // Wandabwicklungen und Vektorplanskizze schließen die Anlage ab.
+                    let abstand = match q {
                         Druckquelle::Nachweis { id } => nachweise
                             .iter()
                             .find(|n| n.stand.id == *id)
@@ -423,32 +423,38 @@ impl CoreServices {
                                 .map(|r| (plan, r))
                                 .map_err(fehler)
                             })
-                            .transpose()?
-                            .filter(|(plan, r)| {
-                                crate::abstandsflaechen::bericht::hat_planskizze(plan, r)
-                            }),
+                            .transpose()?,
                         _ => None,
                     };
+                    use crate::abstandsflaechen::bericht as abstandsblatt;
+                    let (abwicklungen, skizze) = abstand
+                        .as_ref()
+                        .map(|(plan, r)| {
+                            (
+                                abstandsblatt::abwicklungsblaetter(plan, r),
+                                abstandsblatt::hat_planskizze(plan, r),
+                            )
+                        })
+                        .unwrap_or_default();
                     let mut doc = pdf::bericht(
                         &bericht.titel,
                         Some(&kopf(
                             &titel,
                             bericht.stand.clone(),
-                            usize::from(skizze.is_some()),
+                            abwicklungen + usize::from(skizze),
                         )),
                         &bericht.zeilen,
                     )?;
-                    if let Some((plan, r)) = &skizze {
-                        let m = doc.get_pages().len() + 1;
-                        crate::abstandsflaechen::bericht::planseite(
-                            &mut doc,
-                            plan,
-                            r,
-                            Some(&format!(
-                                "Anlage {anlage} - Blatt {m} von {m} - {}",
-                                projekt.name
-                            )),
-                        )?;
+                    if let Some((plan, r)) = &abstand {
+                        let n = doc.get_pages().len();
+                        let m = n + abwicklungen + usize::from(skizze);
+                        let kennung = |k: usize| {
+                            format!("Anlage {anlage} - Blatt {k} von {m} - {}", projekt.name)
+                        };
+                        abstandsblatt::abwicklungsseiten(&mut doc, plan, r, |k| kennung(n + k))?;
+                        if skizze {
+                            abstandsblatt::planseite(&mut doc, plan, r, Some(&kennung(m)))?;
+                        }
                     }
                     let version = match q {
                         Druckquelle::Nachweis { id } => nachweise

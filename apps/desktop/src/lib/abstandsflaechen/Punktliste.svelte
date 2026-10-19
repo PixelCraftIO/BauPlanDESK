@@ -17,12 +17,18 @@
     dateien = [],
     projektId = "",
     onquelle = () => {},
+    onwerte,
+    nurImport = false,
   }: {
     werte: APunkt[];
     label?: string;
     dateien?: DocumentVersion[];
     projektId?: string;
     onquelle?: (d: Dokumentbezug) => void;
+    /** Statt `werte` zu setzen, übernommene Punkte an den Aufrufer geben. */
+    onwerte?: (punkte: APunkt[]) => void;
+    /** Nur die DXF-Übernahme zeigen, ohne Punkttabelle. */
+    nurImport?: boolean;
   } = $props();
   let dokument = $state(""),
     einheit = $state<Laengeneinheit>("meter"),
@@ -57,15 +63,17 @@
   function uebernehmen() {
     const c = konturen[index];
     if (!c || !bestaetigt) return;
-    werte = structuredClone($state.snapshot(c.punkte));
+    const punkte = structuredClone($state.snapshot(c.punkte));
+    if (onwerte) onwerte(punkte);
+    else werte = punkte;
     onquelle(c.quelle);
     konturen = [];
   }
 </script>
 
 <details>
-  <summary>{label} · {werte.length} Punkte</summary>
-  <p class="meta">
+  <summary>{label}{#if !nurImport} · {werte.length} Punkte{/if}</summary>
+  {#if !nurImport}<p class="meta">
     Koordinaten in Metern und gemeinsamem Bezug. Umriss ohne doppelte
     Schlusszeile erfassen.
   </p>
@@ -103,7 +111,7 @@
     class="sekundaer"
     onclick={() => (werte = [...werte, { x: 0, y: 0 }])}
     >Eckpunkt hinzufügen</button
-  >
+  >{/if}
   {#if projektId && dateien.some((d) => d.file_name
         .toLowerCase()
         .endsWith(".dxf"))}<details>

@@ -17,6 +17,7 @@
     [
       ...plan.grundstuecke.flatMap((g) => g.grenze),
       ...plan.flaechen.flatMap((f) => f.polygon),
+      ...(plan.umrisse ?? []).flatMap((u) => u.ecken),
       ...plan.waende.flatMap((w) => [w.von, w.bis]),
       ...(ergebnis?.waende.flatMap((w) => w.polygon) ?? []),
     ].filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)),
@@ -70,6 +71,12 @@
         stroke-dasharray={f.wirksam ? "" : "4 3"}
         vector-effect="non-scaling-stroke"
       />{/each}
+    {#each plan.umrisse ?? [] as u}<polygon
+        points={points(u.ecken)}
+        fill="#5553"
+        stroke="#555"
+        vector-effect="non-scaling-stroke"
+      />{/each}
     {#each ergebnis?.waende ?? [] as e}<polygon
         points={points(e.polygon)}
         fill={e.id === auswahl ? "#367bb744" : "#367bb718"}
@@ -98,13 +105,14 @@
       >{/each}
     {#each ergebnis?.ueberdeckungen ?? [] as u}{#each u.polygone as p}<path
           d={[path(p.aussen), ...p.innen.map(path)].join(" ")}
-          fill="#8b41934d"
+          fill={u.zulaessig ? "#8b419322" : "#8b41934d"}
           fill-rule="evenodd"
         />{/each}{/each}
   </svg>
   <figcaption>
     Planskizze in gemeinsamem Meterbezug; kein vermessener Lageplan. Blau:
-    Abstandsfläche · Rot: Konflikt · Violett: Überdeckung. Die Wandwahl hebt
+    Abstandsfläche · Rot: Konflikt · Violett: Überdeckung (hell: nach
+    Winkelregel zulässig) · Grau: Gebäudeumriss. Die Wandwahl hebt
     denselben Abschnitt hervor.
   </figcaption>
 </figure>

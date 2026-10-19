@@ -312,6 +312,9 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/abstandsregeln", get(abstandsregeln))
         .route("/projekte/{id}/abstandsplan", post(abstandsplan))
         .route("/projekte/{id}/abstandscad", post(abstandscad))
+        .route("/projekte/{id}/abstandscadhoehen", post(abstandscad_hoehen))
+        .route("/projekte/{id}/abstandsumrisse", post(abstandsumrisse))
+        .route("/projekte/{id}/abstandsgelaende", post(abstandsgelaende))
         .route(
             "/projekte/{id}/abstandsnachweise/{nachweis}/{format}",
             get(abstandsexport),
@@ -1390,6 +1393,39 @@ async fn abstandscad(
         core.abstandscad_konturen(ProjectId(id), w.dokument, w.einheit)
             .await?,
     ))
+}
+
+async fn abstandscad_hoehen(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<AbstandscadWunsch>,
+) -> ApiResult<Vec<core_lib::abstandsflaechen::CadHoehe>> {
+    Ok(Json(
+        core.abstandscad_hoehen(ProjectId(id), w.dokument, w.einheit)
+            .await?,
+    ))
+}
+async fn abstandsumrisse(
+    Path(_id): Path<Uuid>,
+    Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>,
+) -> ApiResult<core_lib::abstandsflaechen::UmrissAbgleich> {
+    Ok(Json(core_lib::abstandsflaechen::umrisse_abgleichen(plan)?))
+}
+#[derive(Deserialize)]
+struct GelaendeWunsch {
+    wand: core_lib::abstandsflaechen::AbstandsWand,
+    hoehen: Vec<core_lib::abstandsflaechen::CadHoehe>,
+    max_abstand_m: f64,
+}
+async fn abstandsgelaende(
+    Path(_id): Path<Uuid>,
+    Json(w): Json<GelaendeWunsch>,
+) -> ApiResult<Vec<core_lib::abstandsflaechen::Hoehenpunkt>> {
+    Ok(Json(core_lib::abstandsflaechen::gelaende_vorschlag(
+        &w.wand,
+        &w.hoehen,
+        w.max_abstand_m,
+    )?))
 }
 
 async fn druckgestaltung(
