@@ -26,11 +26,45 @@ pub enum Verfahrensart {
     Bauantrag,
     Vorbescheid,
     Aenderungsantrag,
+    /// Eigenständige Akte für eine Teilbaugenehmigung (ältere Arbeitsweise).
+    /// Im laufenden Bauantrag wird sie als Bescheid mit
+    /// [`Bescheid::teilbaugenehmigung`] erfasst.
     Teilbaugenehmigung,
     Freistellung,
+    /// Genehmigungsbedürftige Nutzungsänderung ohne bauliche Errichtung.
+    Nutzungsaenderung,
+    /// Beseitigung (Abbruch) einer baulichen Anlage, je nach Land Anzeige
+    /// oder Genehmigung.
+    Beseitigung,
+    /// Widerspruch gegen einen Bescheid des Vorgängerverfahrens.
+    Widerspruch,
     Sonstiges,
 }
 impl Verfahrensart {
+    pub fn bezeichnung(&self) -> &'static str {
+        match self {
+            Self::Bauantrag => "Bauantrag",
+            Self::Vorbescheid => "Vorbescheid",
+            Self::Aenderungsantrag => "Änderungsantrag",
+            Self::Teilbaugenehmigung => "Teilbaugenehmigung",
+            Self::Freistellung => "Genehmigungsfreistellung",
+            Self::Nutzungsaenderung => "Nutzungsänderung",
+            Self::Beseitigung => "Beseitigung",
+            Self::Widerspruch => "Widerspruch",
+            Self::Sonstiges => "Sonstiges",
+        }
+    }
+    /// Verfahren, die mit einer Baugenehmigung enden; für sie gelten die
+    /// Geltungsdauer der Landesbauordnung und Teilbaugenehmigungen.
+    pub fn baugenehmigung(&self) -> bool {
+        matches!(
+            self,
+            Self::Bauantrag
+                | Self::Aenderungsantrag
+                | Self::Teilbaugenehmigung
+                | Self::Nutzungsaenderung
+        )
+    }
     /// XBau-Antragsnachricht dieser Verfahrensart. Arten ohne eigene
     /// Antragsnachricht werden abgewiesen statt als Bauantrag gesendet.
     pub fn xbau_antrag<'a>(
@@ -40,8 +74,11 @@ impl Verfahrensart {
     ) -> CoreResult<crate::xbau::Antragsart<'a>> {
         use crate::xbau::Antragsart;
         match self {
-            // Ein Änderungsantrag ist ein neuer Bauantrag zum geänderten Vorhaben.
-            Self::Bauantrag | Self::Aenderungsantrag => Ok(Antragsart::Baugenehmigung),
+            // Ein Änderungsantrag ist ein neuer Bauantrag zum geänderten Vorhaben;
+            // eine Nutzungsänderung ist ein Bauantrag mit geänderter Nutzung.
+            Self::Bauantrag | Self::Aenderungsantrag | Self::Nutzungsaenderung => {
+                Ok(Antragsart::Baugenehmigung)
+            }
             Self::Vorbescheid => Ok(Antragsart::Vorbescheid { fragen }),
             Self::Freistellung => Ok(Antragsart::Genehmigungsfreistellung {
                 als_bauantrag_weiterfuehren: angaben.als_bauantrag_weiterfuehren,
@@ -49,6 +86,14 @@ impl Verfahrensart {
             Self::Teilbaugenehmigung => Err(fehler(
                 "XBau-Ausgabe für Teilbaugenehmigungen wird noch nicht unterstützt: \
                  Die Nachricht 0230 braucht den Bezug auf das laufende Baugenehmigungsverfahren. \
+                 Abgabe ohne XBau festhalten.",
+            )),
+            Self::Beseitigung => Err(fehler(
+                "XBau-Ausgabe für Beseitigungen wird noch nicht unterstützt (Anzeige 0950). \
+                 Abgabe ohne XBau festhalten.",
+            )),
+            Self::Widerspruch => Err(fehler(
+                "Für einen Widerspruch gibt es keine XBau-Antragsnachricht. \
                  Abgabe ohne XBau festhalten.",
             )),
             Self::Sonstiges => Err(fehler(
@@ -284,6 +329,12 @@ pub struct Bescheid {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub verlaengerung: Option<Verlaengerung>,
+    /// Teilbaugenehmigung im laufenden Bauantrag: genehmigt einen Teil der
+    /// Bauarbeiten vorab und beendet das Verfahren nicht. Ältere Bescheide
+    /// lesen die Angabe als `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub teilbaugenehmigung: bool,
 }
 /// Verlängerung der Geltungsdauer durch einen Bescheid der Behörde.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -312,14 +363,40 @@ pub enum Schrittart {
     Anhoerung,
     /// Zurückstellung des Baugesuchs durch die Gemeinde (§ 15 BauGB).
     Zurueckstellung,
+    /// Gemeindliches Einvernehmen (§ 36 BauGB). Die Frist ist das Ende der
+    /// Zwei-Monats-Frist; danach gilt das Einvernehmen als erteilt.
+    Einvernehmen,
+    /// Beteiligung von Fachbehörden und Stellen.
+    Fachbeteiligung,
+    /// Beteiligung der Angrenzer nach der Landesbauordnung.
+    Nachbarbeteiligung,
 }
 impl Schrittart {
     pub fn bezeichnung(&self) -> &'static str {
         match self {
             Self::Anhoerung => "Anhörung",
             Self::Zurueckstellung => "Zurückstellung",
+            Self::Einvernehmen => "Gemeindliches Einvernehmen",
+            Self::Fachbeteiligung => "Beteiligung der Fachbehörden",
+            Self::Nachbarbeteiligung => "Nachbarbeteiligung",
         }
     }
+    /// Beteiligungsschritte: Ihre Frist endet mit Ablauf oder Entscheidung.
+    pub fn beteiligung(&self) -> bool {
+        matches!(
+            self,
+            Self::Einvernehmen | Self::Fachbeteiligung | Self::Nachbarbeteiligung
+        )
+    }
+}
+/// Prüfumfang des Genehmigungsverfahrens nach der Landesbauordnung.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Pruefverfahren {
+    /// Umfassende Prüfung (Baugenehmigungsverfahren).
+    Regulaer,
+    /// Vereinfachtes Baugenehmigungsverfahren mit eingeschränkter Prüfung.
+    Vereinfacht,
 }
 /// Behördlicher Zwischenschritt vor der Entscheidung, eingeleitet durch ein
 /// eingegangenes Schreiben der Akte.
@@ -416,6 +493,16 @@ pub struct Verfahrensakte {
     pub aktenzeichen: String,
     pub verantwortlich: Option<Uuid>,
     pub vorgaenger: Option<Uuid>,
+    /// Regulär oder vereinfacht; ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub pruefverfahren: Option<Pruefverfahren>,
+    /// Bearbeitungsfrist oder Eintritt einer Genehmigungsfiktion, wie sie die
+    /// Behörde, etwa in der Eingangs- oder Vollständigkeitsbestätigung, nennt.
+    /// Ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bearbeitungsfrist: Option<Frist>,
     pub profil: Option<profile::Profilstand>,
     pub kommunikation: Vec<Kommunikation>,
     pub nachforderungen: Vec<Nachforderung>,

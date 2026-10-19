@@ -49,6 +49,17 @@ pub(super) async fn pruefen(
             "Verfahrensakte enthält zu viele Einträge oder zu lange Texte",
         ));
     }
+    if a.art == Verfahrensart::Widerspruch {
+        let v = a.vorgaenger.ok_or_else(|| {
+            fehler("Ein Widerspruch benötigt das Vorgängerverfahren mit dem angefochtenen Bescheid")
+        })?;
+        if core.verfahrensakte(p, v).await?.1.bescheide.is_empty() {
+            return Err(fehler(
+                "Das Vorgängerverfahren enthält keinen Bescheid, gegen den sich der Widerspruch \
+                 richten kann",
+            ));
+        }
+    }
     let mut besucht = HashSet::from([vid]);
     let mut vorgaenger = a.vorgaenger;
     while let Some(v) = vorgaenger {
@@ -225,6 +236,7 @@ pub(super) async fn pruefen(
         benutzer.extend(v.verantwortlich);
         frist(&v.frist, &mut dokumente)?;
     }
+    frist(&a.bearbeitungsfrist, &mut dokumente)?;
     for r in &a.anforderungen {
         text(&r.titel, 500)?;
         if r.quelle.len() > 4000 || r.grund.len() > 4000 {

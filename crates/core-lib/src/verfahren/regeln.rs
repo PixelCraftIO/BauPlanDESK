@@ -10,13 +10,15 @@ use uuid::Uuid;
 
 /// Bescheid, der über den Antrag entscheidet. „Sonstiges“ und
 /// Verlängerungsbescheide genügen nur bei Freistellung und sonstigen
-/// Verfahren, die oft ohne förmliche Entscheidung enden.
+/// Verfahren, die oft ohne förmliche Entscheidung enden. Eine
+/// Teilbaugenehmigung entscheidet nicht über den ganzen Antrag.
 pub(super) fn entscheidungsbescheid(a: &Verfahrensakte) -> bool {
     a.bescheide.iter().any(|b| {
         matches!(
             a.art,
             Verfahrensart::Freistellung | Verfahrensart::Sonstiges
         ) || (b.verlaengerung.is_none()
+            && !b.teilbaugenehmigung
             && matches!(
                 b.entscheidung,
                 Entscheidung::Genehmigt
@@ -76,8 +78,27 @@ pub(super) fn pruefen(
     }
     for b in &a.bescheide {
         let neu = bescheid_alt(b.id).is_none();
+        if b.teilbaugenehmigung && (neu || bescheid_alt(b.id) != Some(b)) {
+            if !a.art.baugenehmigung() || a.art == Verfahrensart::Teilbaugenehmigung {
+                return Err(fehler(
+                    "Eine Teilbaugenehmigung gehört zu einem laufenden Bauantrag, Änderungsantrag \
+                     oder einer Nutzungsänderung",
+                ));
+            }
+            if !matches!(
+                b.entscheidung,
+                Entscheidung::Genehmigt | Entscheidung::TeilweiseGenehmigt
+            ) || b.verlaengerung.is_some()
+            {
+                return Err(fehler(
+                    "Eine Teilbaugenehmigung ist eine genehmigende Entscheidung und keine \
+                     Verlängerung",
+                ));
+            }
+        }
         if neu
             && b.verlaengerung.is_none()
+            && !b.teilbaugenehmigung
             && b.entscheidung != Entscheidung::Sonstiges
             && a.status != Verfahrensstatus::Entschieden
         {
@@ -154,6 +175,11 @@ pub(super) fn pruefen(
                     .and_then(|w| a.bescheide.iter().find(|x| x.id == w.bescheid));
             }
         }
+    }
+    if a.pruefverfahren.is_some() && !a.art.baugenehmigung() {
+        return Err(fehler(
+            "Regulär oder vereinfacht gilt nur für Baugenehmigungsverfahren",
+        ));
     }
     for s in &a.schritte {
         if let Some(id) = s.folgeschreiben {

@@ -241,7 +241,7 @@
             aria-label="BauNVO"
             bind:value={eingabe.bau_nvo}
             ><option value={null}>Bitte festlegen</option
-            >{#each ["1962", "1968", "1977", "1990", "2017"] as jahr}<option
+            >{#each ["1962", "1968", "1977", "1990", "2017", "2021"] as jahr}<option
                 value={jahr}>{jahr}</option
               >{/each}</select
           ></label

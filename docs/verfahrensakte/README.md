@@ -7,8 +7,16 @@ Ein Projekt kann mehrere Anträge, Vorbescheide oder Änderungsverfahren enthalt
 Vorgängerverfahren und Behörden besitzen feste Identitäten.
 
 1. **Verfahren:** Art, Behörde, Aktenzeichen, Bearbeitung und Zuständigkeit festlegen.
+   Verfahrensarten sind Bauantrag, Vorbescheid, Änderungsantrag, Nutzungsänderung,
+   Genehmigungsfreistellung, Beseitigung, Widerspruch, Teilbaugenehmigung als
+   eigene Akte (ältere Arbeitsweise) und Sonstiges. Für Baugenehmigungsverfahren
+   wird das Prüfverfahren (regulär oder vereinfacht) erfasst. Ein Widerspruch
+   verlangt das Vorgängerverfahren mit dem angefochtenen Bescheid.
    Ein Vorbescheid erhält hier seine Fragen, eine Freistellung die Angabe, ob sie
    bei abschlägiger Entscheidung als Bauantrag weitergeführt werden soll.
+   Unter **Bearbeitungsfrist der Behörde** wird die Frist oder der Eintritt einer
+   Genehmigungsfiktion so erfasst, wie die Behörde sie nennt. Die Wiedervorlage
+   läuft ab der Einreichung bis zur Entscheidung und wird danach überfällig.
 2. **Vorhabenprofil:** Bundesland aus dem Projekt, Verfahrensart, Gebäudeklasse,
    Sonderbau und Nutzung erfassen. Einen mitgelieferten oder eigenen JSON-Katalog
    anwenden. Vorhandene Zuordnungen bleiben erhalten. Bei geändertem Profil oder
@@ -24,19 +32,23 @@ Vorgängerverfahren und Behörden besitzen feste Identitäten.
 5. **Nachforderungen:** Aus einer eingehenden Kommunikation einzelne Punkte
    anlegen. Jeder Punkt besitzt eigene Zuständigkeit, Antwort, Unterlagen,
    Frist, Erinnerung und Bearbeitungszustand. Teilantworten sind möglich.
-6. **Anhörung / Zurückstellung:** Eine Anhörung vor belastender Entscheidung
+6. **Behördliche Schritte:** Eine Anhörung vor belastender Entscheidung
    (§ 28 VwVfG) oder eine Zurückstellung nach § 15 BauGB an das eingegangene
    Schreiben binden. Die Anhörung erhält die Frist zur Stellungnahme und wird mit
    der ausgehenden Stellungnahme abgeschlossen; die Zurückstellung braucht ihr
    Ende als Frist und endet mit diesem Datum oder vorher mit einem eingegangenen
    Folgeschreiben der Behörde. Danach ist sie nicht „überfällig“, sondern die
-   Übersicht wartet auf die Entscheidung. Art und Schreiben bleiben nach dem
-   Speichern unverändert.
+   Übersicht wartet auf die Entscheidung. Beteiligungen (gemeindliches
+   Einvernehmen nach § 36 BauGB, Fachbehörden, Nachbarn) werden ebenfalls an das
+   eingegangene Schreiben gebunden. Ihre Frist erinnert vor dem Ablauf und endet
+   danach; beim Einvernehmen nennt der Hinweis die Fiktion nach § 36 Abs. 2
+   Satz 2 BauGB. Art und Schreiben bleiben nach dem Speichern unverändert.
 7. **Abgabestände:** Exakte Dokumentversionen auswählen und verbindlich festhalten.
    ZIP, optional XBau-ZIP und Druck-PDF werden einmal erzeugt und gespeichert.
    Die XBau-Nachricht folgt der Verfahrensart (0200, 0210 oder 0600, siehe
-   [XBau](../xbau/README.md#nachricht-nach-verfahrensart)); Teilbaugenehmigung
-   und „Sonstiges“ haben noch keine XBau-Ausgabe. Berechnungen können zuvor unter **Drucken / PDF-Ausgabe** erstellt und mit
+   [XBau](../xbau/README.md#nachricht-nach-verfahrensart)); eine Nutzungsänderung
+   wird als Bauantrag (0200) übermittelt. Teilbaugenehmigung als eigene Akte,
+   Beseitigung, Widerspruch und „Sonstiges“ haben noch keine XBau-Ausgabe. Berechnungen können zuvor unter **Drucken / PDF-Ausgabe** erstellt und mit
    **Als Projektunterlage ablegen** ohne erneute Berechnung gespeichert werden.
    Empfänger und Aktenzeichen kommen aus der Verfahrensakte und werden mit dem
    Stand eingefroren: Druck-PDF und XBau nennen beide, XBau verlangt die
@@ -149,11 +161,15 @@ die Auswahl an.
 | Eingereicht, In behördlicher Prüfung, Ruhend | versendeter oder eingegangener Abgabestand oder externe Einreichung |
 | Unvollständig | zusätzlich ein offener Nachforderungspunkt |
 | Vollständig | zusätzlich die behördliche Bestätigung mit Datum und eingegangenem Schreiben |
-| Entschieden | zusätzlich ein Bescheid mit Genehmigung, Teilgenehmigung oder Ablehnung (bei Freistellung und „Sonstiges“ jeder Bescheid) |
+| Entschieden | zusätzlich ein Bescheid mit Genehmigung, Teilgenehmigung oder Ablehnung (bei Freistellung und „Sonstiges“ jeder Bescheid); eine Teilbaugenehmigung genügt nicht |
 | Zurückgenommen | Rücknahmedatum und zugehöriges Schreiben |
 
 Entschiedene und zurückgenommene Verfahren werden nicht wieder geöffnet; dafür
-ein Folgeverfahren anlegen. Eine Rücknahme wird nur zusammen mit dem Stand
+ein Folgeverfahren anlegen, etwa einen Widerspruch gegen eine Ablehnung.
+Eine **Teilbaugenehmigung** im laufenden Bauantrag, Änderungsantrag oder bei
+einer Nutzungsänderung wird als Bescheid mit dem Merkmal „Teilbaugenehmigung“
+erfasst. Sie muss genehmigend sein, beendet das Verfahren nicht und erhält die
+Geltungsdauer der Baugenehmigung. Eine Rücknahme wird nur zusammen mit dem Stand
 „Zurückgenommen“ gespeichert; eine zurückgenommene Akte erhält keine neuen
 Bescheide, Nebenbestimmungen, Nachforderungen, Anhörungen, Zurückstellungen
 oder Abgabestände mehr. Ist nach einer Rückweisung kein Stand mehr versendet,
@@ -178,8 +194,8 @@ Projekts:
   Werktag (§ 57 Abs. 2 VwGO, § 222 Abs. 2 ZPO). Örtliche Feiertage, eine
   fehlerhafte Rechtsbehelfsbelehrung (dann ein Jahr) und Fristen der Nachbarn
   sind nicht berücksichtigt; die Oberfläche nennt das.
-- **Geltungsdauer:** nur für Bauantrag, Änderungsantrag und Teilbaugenehmigung
-  mit (teilweiser) Genehmigung. Die Tabelle in `crates/core-lib/src/verfahren/fristen.rs`
+- **Geltungsdauer:** nur für Bauantrag, Änderungsantrag, Nutzungsänderung und
+  Teilbaugenehmigung mit (teilweiser) Genehmigung. Die Tabelle in `crates/core-lib/src/verfahren/fristen.rs`
   führt die Jahre je Landesbauordnung mit Quelle (Bayern und Rheinland-Pfalz 4,
   Brandenburg 6 ohne Verlängerung, Berlin 2 bis zum Baubeginn, sonst 3) und
   landesrechtliche Hinweise (Unterbrechung in Hamburg und Niedersachsen). Das
@@ -189,9 +205,15 @@ Projekts:
   ersetzt das Ende.
 - **Fertigstellung:** in Berlin zusätzlich sechs Jahre nach Erteilung bis zur
   Fertigstellung (§ 73 Abs. 1 BauO Bln).
-- **Vorbescheid und Freistellung:** ohne berechnete Frist. Beim Vorbescheid
-  rät der Hinweis, sein Ablaufdatum als Befristung zu erfassen; die Freistellung weist auf
-  die nicht berechnete Wartefrist nach Eingang bei der Gemeinde hin.
+- **Vorbescheid:** drei Jahre nach Erteilung als Regelfall nach § 75 MBO. Die
+  Landesfassungen sind nicht einzeln hinterlegt; der Hinweis verlangt, eine
+  abweichende Landesregel oder ein im Bescheid genanntes Datum als Befristung zu
+  erfassen. Die Wiedervorlage erinnert daran, rechtzeitig den Bauantrag zu
+  stellen.
+- **Freistellung:** ohne berechnete Frist; der Hinweis nennt die nicht
+  berechnete Wartefrist nach Eingang bei der Gemeinde.
+- **Widerspruch:** ohne Geltungsdauer; der Hinweis nennt die Klagefrist gegen
+  einen zurückweisenden Widerspruchsbescheid.
 
 Die Werte werden bei jeder Anzeige neu berechnet und nicht in der Akte
 gespeichert, damit eine korrigierte Regel sofort für alle Bescheide gilt. Jede

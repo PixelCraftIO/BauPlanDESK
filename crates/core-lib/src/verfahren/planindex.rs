@@ -410,6 +410,7 @@ mod tests {
             auflagen: vec![],
             ersetzt: None,
             verlaengerung: None,
+            teilbaugenehmigung: false,
         }
     }
     fn stand(l: &[Planunterlage], d: DocumentId, v: i64) -> &Planstand {

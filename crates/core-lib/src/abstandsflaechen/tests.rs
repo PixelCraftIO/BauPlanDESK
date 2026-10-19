@@ -209,3 +209,73 @@ fn grundstuecksinnenring_bleibt_konfliktflaeche() {
     assert!((r.waende[0].ausserhalb_m2.unwrap() - 4.).abs() < 1e-6);
     assert!(!r.waende[0].konflikte.is_empty());
 }
+
+/// Der Schnellrechner (Rhai-Regelpakete) und der Abstandsnachweis
+/// (JSON-Katalog) verwenden dieselben Tiefenregeln. Maßgebend ist der Katalog;
+/// ein ausgeliefertes Regelpaket darf nicht davon abweichen.
+#[test]
+fn shipped_lbo_pakete_entsprechen_dem_katalog() {
+    use crate::calc::Baugebiet::*;
+    use crate::domain::Bundesland;
+    use crate::lbo::{AbstandsflaecheInput, LboEngine, RulePackSource};
+    let engine = LboEngine::new();
+    for (land, script) in [
+        (
+            Bundesland::Bw,
+            include_str!("../../../../lbo-rules/bw.rhai"),
+        ),
+        (
+            Bundesland::By,
+            include_str!("../../../../lbo-rules/by.rhai"),
+        ),
+        (
+            Bundesland::Nw,
+            include_str!("../../../../lbo-rules/nw.rhai"),
+        ),
+    ] {
+        engine
+            .load_rule_pack(RulePackSource {
+                land,
+                script: script.into(),
+                origin: "test".into(),
+            })
+            .unwrap();
+    }
+    let katalog = katalog().unwrap();
+    assert_eq!(katalog.len(), engine.rule_packs().len());
+    for regeln in &katalog {
+        for gebiet in [WS, WR, WA, WB, MD, MDW, MI, MU, MK, GE, GI, SO] {
+            let regel = regeln
+                .tiefen
+                .iter()
+                .find(|t| t.gebiete.iter().any(|g| g == gebiet.code()))
+                .unwrap_or_else(|| panic!("{:?}: {} fehlt im Katalog", regeln.land, gebiet.code()));
+            for h in [0.0, 2.0, 6.5, 10.0, 25.0] {
+                let r = engine
+                    .abstandsflaeche(
+                        regeln.land,
+                        &AbstandsflaecheInput {
+                            wandhoehe_m: h,
+                            gebiet,
+                        },
+                    )
+                    .unwrap()
+                    .ergebnis;
+                assert_eq!(
+                    (r.faktor, r.mindesttiefe_m),
+                    (regel.faktor, regel.mindesttiefe_m),
+                    "{:?} {}",
+                    regeln.land,
+                    gebiet.code()
+                );
+                let erwartet = (h * regel.faktor).max(regel.mindesttiefe_m);
+                assert!(
+                    (r.tiefe_m - erwartet).abs() < 0.01,
+                    "{:?} {} H={h}",
+                    regeln.land,
+                    gebiet.code()
+                );
+            }
+        }
+    }
+}

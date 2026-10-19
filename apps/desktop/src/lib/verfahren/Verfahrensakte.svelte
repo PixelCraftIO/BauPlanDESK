@@ -27,6 +27,8 @@
     heute,
     STATUS,
     EREIGNISART,
+    VERFAHRENSART,
+    baugenehmigung,
     berichtigungsereignis,
   } from "./api";
   import Statusangaben from "./Statusangaben.svelte";
@@ -39,6 +41,7 @@
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
   import Profil from "./Profil.svelte";
   import Zustaendigkeit from "./Zustaendigkeit.svelte";
+  import Fristfeld from "./Fristfeld.svelte";
   import Antragsangaben from "./Antragsangaben.svelte";
   import Dokumentfeld from "./Dokumentfeld.svelte";
   import Dokumentliste from "./Dokumentliste.svelte";
@@ -189,7 +192,7 @@
     ["anforderungen", "Anforderungen"],
     ["kommunikation", "Kommunikation"],
     ["nachforderungen", "Nachforderungen"],
-    ["schritte", "Anhörung / Zurückstellung"],
+    ["schritte", "Behördliche Schritte"],
     ["abgaben", "Abgabestände"],
     ["bescheide", "Bescheide / Auflagen"],
     ["beziehungen", "Korrekturen"],
@@ -243,15 +246,22 @@
               /></label
             ><label
               >Verfahrensart<select bind:value={a.art}
-                ><option value="bauantrag">Bauantrag</option><option
-                  value="vorbescheid">Vorbescheid</option
-                ><option value="aenderungsantrag">Änderungsantrag</option
-                ><option value="teilbaugenehmigung">Teilbaugenehmigung</option
-                ><option value="freistellung">Freistellung</option><option
-                  value="sonstiges">Sonstiges</option
-                ></select
+                >{#each Object.entries(VERFAHRENSART) as [wert, titel]}<option
+                    value={wert}>{titel}</option
+                  >{/each}</select
               ></label
-            ><label
+            >{#if baugenehmigung(a.art)}<label
+                >Prüfverfahren<select
+                  value={a.pruefverfahren ?? ""}
+                  onchange={(e) =>
+                    (a.pruefverfahren = (e.currentTarget.value ||
+                      undefined) as Verfahrensakte["pruefverfahren"])}
+                  ><option value="">Noch nicht festgelegt</option
+                  ><option value="regulaer">Reguläres Verfahren</option
+                  ><option value="vereinfacht">Vereinfachtes Verfahren</option
+                  ></select
+                ></label
+              >{/if}<label
               >Bearbeitungsstand<select bind:value={a.status}
                 >{#each Object.entries(STATUS) as [wert, titel]}<option
                     value={wert}>{titel}</option
@@ -299,6 +309,19 @@
               ></label
             >
           </div>
+          {#if a.art === "widerspruch"}<p class="meta">
+              Ein Widerspruch benötigt das Vorgängerverfahren mit dem
+              angefochtenen Bescheid.
+            </p>{/if}
+          <fieldset>
+            <legend>Bearbeitungsfrist der Behörde</legend>
+            <p class="meta">
+              Frist oder Eintritt einer Genehmigungsfiktion, wie sie die Behörde
+              etwa in der Eingangs- oder Vollständigkeitsbestätigung nennt. Die
+              Wiedervorlage läuft ab der Einreichung bis zur Entscheidung.
+            </p>
+            <Fristfeld {dateien} bind:wert={a.bearbeitungsfrist} />
+          </fieldset>
           <Statusangaben
             status={a.status}
             art={a.art}

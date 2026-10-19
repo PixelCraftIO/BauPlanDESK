@@ -86,6 +86,17 @@ impl Baugebiet {
         }
     }
 
+    /// Erste BauNVO-Fassung, die dieses Baugebiet kennt: das urbane Gebiet seit
+    /// 2017 (§ 6a), das dörfliche Wohngebiet seit 2021 (§ 5a).
+    pub fn eingefuehrt(self) -> crate::flaechen::BauNvo {
+        use crate::flaechen::BauNvo;
+        match self {
+            Self::MU => BauNvo::V2017,
+            Self::MDW => BauNvo::V2021,
+            _ => BauNvo::V1962,
+        }
+    }
+
     pub fn orientierungswerte(self) -> Orientierungswerte {
         let (grz, gfz, bmz) = match self {
             Self::WS => (0.2, Some(0.4), None),

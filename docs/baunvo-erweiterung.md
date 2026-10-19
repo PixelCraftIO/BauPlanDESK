@@ -12,7 +12,7 @@ Die technische Vorbereitung ist vorhanden; sie ersetzt keine fachliche Prüfung 
 
 ## Regeldateien
 
-Die fünf Fassungen liegen in `regelwerke/baunvo/1962.json`, `1968.json`, `1977.json`, `1990.json` und `2017.json`. Core und Oberfläche beziehen diese Dateien ein. BauNVO-Regeln werden derzeit mit der Anwendung gebaut und ausgeliefert; sie sind noch keine vom Endnutzer austauschbaren Laufzeitpakete. Die LBO-Skripte besitzen bereits einen eigenen externen Ladeweg.
+Die sechs Fassungen liegen in `regelwerke/baunvo/1962.json`, `1968.json`, `1977.json`, `1990.json`, `2017.json` und `2021.json`. Die Fassung 2021 (Baulandmobilisierungsgesetz, in Kraft seit 23.06.2021) rechnet wie 2017 und ist die geltende Fassung ohne Bebauungsplan. Das urbane Gebiet (MU) gibt es seit 2017, das dörfliche Wohngebiet (MDW) seit 2021; ein Plan einer älteren Fassung kann sie nicht festsetzen, der Core weist das beim Speichern ab. Ältere widersprüchliche Stände bleiben speicherbar, solange Fassung und Baugebiet unverändert bleiben. Core und Oberfläche beziehen diese Dateien ein. BauNVO-Regeln werden derzeit mit der Anwendung gebaut und ausgeliefert; sie sind noch keine vom Endnutzer austauschbaren Laufzeitpakete. Die LBO-Skripte besitzen bereits einen eigenen externen Ladeweg.
 
 Jedes Regelwerk enthält insbesondere:
 
@@ -26,7 +26,7 @@ Jedes Regelwerk enthält insbesondere:
 | `gemeinschaftsanteile` und Rechtsgrundlage | Unterstützung der zugeordneten Gemeinschaftsflächen |
 | `quellen` | Quellenangaben zum implementierten Ansatz |
 
-Eine Anrechnung lautet `grz`, `grz_ii` oder `keine`. In den heutigen älteren Regeldateien werden beispielsweise bestimmte Nebenanlagen nicht angesetzt, während die Fassungen 1990/2017 zusätzliche Flächen der GRZ II zuordnen. Das beschreibt den heutigen Implementierungsstand und keine pauschal abschließend geprüfte Einordnung jedes Einzelfalls.
+Eine Anrechnung lautet `grz`, `grz_ii` oder `keine`. Der Bauteiltyp `garage_abstandsflaeche` steht für Garagen und Carports, die nach Landesrecht in der Abstandsfläche oder an der Grenze zulässig sind. Nach den Fassungen 1962 bis 1977 werden sie nicht angerechnet (§ 19 Abs. 4 a. F.), ab 1990 zählen sie zur GRZ II. Der Typ `garage` gilt in den alten Fassungen für Garagen außerhalb der Abstandsfläche. In den heutigen älteren Regeldateien werden beispielsweise bestimmte Nebenanlagen nicht angesetzt, während die Fassungen 1990/2017 zusätzliche Flächen der GRZ II zuordnen. Das beschreibt den heutigen Implementierungsstand und keine pauschal abschließend geprüfte Einordnung jedes Einzelfalls.
 
 ## Welche Änderung gehört wohin?
 

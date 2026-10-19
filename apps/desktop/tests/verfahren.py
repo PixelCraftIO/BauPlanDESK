@@ -85,7 +85,7 @@ with sync_playwright() as p:
  expect(page.get_by_text('Zustelldatum',exact=True).locator('input')).to_be_enabled()
  expect(page.get_by_role('button',name='Berichtigung vormerken',exact=True)).to_be_disabled()
  page.screenshot(path=str(out/'genehmigter-stand.png'))
- tab('Anhörung / Zurückstellung');expect(page.get_by_role('heading',name='Anhörung und Zurückstellung')).to_be_visible()
+ tab('Behördliche Schritte');expect(page.get_by_role('heading',name='Anhörung, Zurückstellung und Beteiligungen')).to_be_visible()
  expect(page.get_by_role('button',name='Verfahrensschritt erfassen',exact=True)).to_be_disabled()
  tab('Abgabestände');expect(page.locator('summary').filter(has_text=wf['akte']['abgaben'][0]['titel']+' · eingegangen')).to_be_visible();expect(page.get_by_role('button',name='PDF exportieren',exact=True)).to_be_visible()
  expect(page.get_by_role('cell',name='eingegangen',exact=True)).to_be_visible()

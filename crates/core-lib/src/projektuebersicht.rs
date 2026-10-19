@@ -476,6 +476,10 @@ impl CoreServices {
                     }
                 }
                 for r in a.schritte.iter().filter(|_| !a.status.abgeschlossen()) {
+                    // Beteiligungen erscheinen über ihren Termin (siehe unten).
+                    if r.art.beteiligung() {
+                        continue;
+                    }
                     let anhoerung = r.art == crate::verfahren::Schrittart::Anhoerung;
                     if (anhoerung && r.stellungnahme.is_some())
                         || (!anhoerung && r.folgeschreiben.is_some())
@@ -544,15 +548,25 @@ impl CoreServices {
                 use crate::verfahren::termine::Terminart as T;
                 if !matches!(
                     t.art,
-                    T::Ablauf | T::Rechtsbehelfsfrist | T::Geltungsdauer | T::Fertigstellung
+                    T::Ablauf
+                        | T::Rechtsbehelfsfrist
+                        | T::Geltungsdauer
+                        | T::Fertigstellung
+                        | T::Beteiligung
+                        | T::Bearbeitungsfrist
                 ) || t.erinnerung(heute).is_none()
                 {
                     continue;
                 }
-                let sonst = if matches!(t.art, T::Geltungsdauer | T::Fertigstellung) {
-                    Handeln
-                } else {
-                    Pruefen
+                let sonst = match t.art {
+                    T::Geltungsdauer | T::Fertigstellung => Handeln,
+                    T::Beteiligung => Warten,
+                    _ => Pruefen,
+                };
+                let register = match t.art {
+                    T::Beteiligung => "schritte",
+                    T::Bearbeitungsfrist => "stamm",
+                    _ => "bescheide",
                 };
                 s.punkt(
                     format!("termin:{vid}:{}:{:?}", t.objekt, t.art),
@@ -564,7 +578,7 @@ impl CoreServices {
                     },
                     t.titel.clone(),
                     format!("{} · {}", a.bezeichnung, t.hinweis),
-                    ziel("bescheide").eintrag(t.objekt),
+                    ziel(register).eintrag(t.objekt),
                 );
                 s.termin(Some(t.datum), t.verantwortlich);
             }

@@ -131,6 +131,7 @@ fn main() {
         core_lib::verfahren::Bescheid,
         core_lib::verfahren::Schrittart,
         core_lib::verfahren::Verfahrensschritt,
+        core_lib::verfahren::Pruefverfahren,
         core_lib::verfahren::Erforderlichkeit,
         core_lib::verfahren::Anforderung,
         core_lib::verfahren::Dokumentbeziehung,

@@ -1,7 +1,7 @@
 # BauProjektIO
 
 Projektmanagement- und Bauantrags-Software für Architekten: Berechnungen nach
-BauGB/BauNVO und den 16 Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
+BauGB/BauNVO und Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
 XBau-Export und DMS. Läuft als native Desktop-App (Einzelplatz), als
 NAS-/Büro-Server und optional in der Cloud.
 
@@ -67,7 +67,7 @@ crates/server              axum-Server (NAS/Büro/Cloud)
 crates/lizenz-server       Lizenzserver des Herstellers (Abo-Tickets, Stripe, Updates)
 apps/desktop               Svelte-Frontend
 apps/desktop/src-tauri     Tauri-App (Fenster, Updater, Bootstrap, Commands)
-lbo-rules                  LBO-Regelpakete (Rhai), eines je Bundesland
+lbo-rules                  LBO-Regelpakete (Rhai); ausgeliefert für BW, BY und NW
 ```
 
 ## Projektdateien und Einreichungen
@@ -187,8 +187,19 @@ Skripte laufen ohne Datei-/Netzzugriff und mit Operations- und Speichergrenzen.
 Die Desktop-App lädt zuerst die mitgelieferten Pakete (Installer-Ressourcen),
 dann Updates aus `<App-Daten>/lbo-rules/`.
 
-> Die enthaltenen Regelpakete (BY, BW, NW) sind **beispielhaft** und müssen vor
-> produktivem Einsatz fachlich und rechtlich geprüft werden.
+> Abstandsflächenregeln gibt es derzeit nur für **Baden-Württemberg, Bayern und
+> Nordrhein-Westfalen**. Sie sind ein **ungeprüfter Pilotkatalog** und müssen vor
+> produktivem Einsatz fachlich und rechtlich geprüft werden. In den übrigen
+> 13 Ländern meldet die Berechnung „Regelpaket fehlt“. Bundesweit gelten die
+> BauNVO-Berechnungen, die Geltungsdauer der Baugenehmigung und die
+> Rechtsbehelfsfristen.
+
+Maßgebend für die Tiefenregeln ist der Katalog
+[`regelwerke/abstandsflaechen/pilot.json`](regelwerke/abstandsflaechen/pilot.json),
+den der wandweise Abstandsnachweis verwendet. Die ausgelieferten Rhai-Pakete des
+Schnellrechners müssen für jedes Baugebiet dieselben Faktoren und Mindesttiefen
+liefern; der Test `shipped_lbo_pakete_entsprechen_dem_katalog` erzwingt das.
+Eine Regeländerung wird deshalb immer in beiden Dateien vorgenommen.
 
 ## PDF-Formulare
 

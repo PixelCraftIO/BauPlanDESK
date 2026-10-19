@@ -22,6 +22,8 @@ fn leer() -> Verfahrensakte {
         vollstaendigkeit: None,
         ruecknahme: None,
         ausfuehrung: None,
+        pruefverfahren: None,
+        bearbeitungsfrist: None,
         schritte: Vec::new(),
         behoerde: Behoerde {
             id: Uuid::new_v4(),
@@ -425,6 +427,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         auflagen: vec![],
         ersetzt: None,
         verlaengerung: None,
+        teilbaugenehmigung: false,
     });
     let err = ablehnen(&versuch, f.revision).await;
     assert!(err.contains("aus einem versendeten Abgabestand"), "{err}");
@@ -454,6 +457,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         }],
         ersetzt: None,
         verlaengerung: None,
+        teilbaugenehmigung: false,
     });
     a.status = Verfahrensstatus::Entschieden;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
@@ -1644,6 +1648,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         auflagen: vec![],
         ersetzt: None,
         verlaengerung: None,
+        teilbaugenehmigung: false,
     };
     let mut v = a.clone();
     v.bescheide.push(bescheid(Entscheidung::Genehmigt));
@@ -2117,6 +2122,7 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
         }],
         ersetzt: None,
         verlaengerung: None,
+        teilbaugenehmigung: false,
     };
     // Genehmigt werden nur Unterlagen, die der Behörde vorlagen.
     a.bescheide.push(neuer_bescheid(anderer, None));
@@ -2193,4 +2199,129 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
     assert!(json.get("externe_einreichungen").is_none());
     let alt: Verfahrensakte = serde_json::from_value(json).unwrap();
     assert!(alt.externe_einreichungen.is_empty());
+}
+
+#[tokio::test]
+async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
+    let heute = core_lib::kalender::heute();
+    let (_dir, core, user, p, vid, f, dok) = eingereichte_akte(Bundesland::By, heute).await;
+    let versuch = |a: &Verfahrensakte, revision: i64, id: Uuid| {
+        let a = serde_json::to_value(a).unwrap();
+        let core = &core;
+        let user = &user;
+        async move {
+            core.fachobjekt_speichern(p, ObjektArt::Verfahren, id, revision, a, user)
+                .await
+        }
+    };
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let schreiben = Kommunikation {
+        id: Uuid::new_v4(),
+        art: Kommunikationsart::Brief,
+        eingehend: true,
+        datum: heute,
+        betreff: "Beteiligung der Gemeinde".into(),
+        beteiligte: "Bauamt".into(),
+        inhalt: String::new(),
+        original: None,
+        bezuege: vec![],
+    };
+    a.kommunikation.push(schreiben.clone());
+    let frist = |tage: i64, erinnerung_tage| Frist {
+        datum: heute + chrono::Duration::days(tage),
+        ausloeser: "Schreiben der Behörde".into(),
+        beleg: None,
+        erinnerung_tage,
+        grund: "Frist laut Schreiben der Behörde".into(),
+    };
+    let einvernehmen = Verfahrensschritt {
+        id: Uuid::new_v4(),
+        art: Schrittart::Einvernehmen,
+        kommunikation: schreiben.id,
+        frist: Some(frist(20, 30)),
+        stellungnahme: None,
+        folgeschreiben: None,
+        verantwortlich: None,
+    };
+    a.schritte.push(einvernehmen.clone());
+    a.bearbeitungsfrist = Some(frist(5, 10));
+    a.pruefverfahren = Some(Pruefverfahren::Vereinfacht);
+    let f = versuch(&a, f.revision, vid).await.unwrap();
+    let erinnerungen = core.verfahren_erinnerungen(p, heute).await.unwrap();
+    let beteiligung = erinnerungen
+        .iter()
+        .find(|e| e.objekt == einvernehmen.id)
+        .unwrap();
+    assert_eq!(beteiligung.art, termine::Terminart::Beteiligung);
+    assert!(
+        erinnerungen
+            .iter()
+            .any(|e| e.objekt == vid && e.art == termine::Terminart::Bearbeitungsfrist)
+    );
+    // Nach Ablauf der Zwei-Monats-Frist endet die Wiedervorlage des
+    // Einvernehmens (Fiktion); die Bearbeitungsfrist wird überfällig.
+    let spaeter = heute + chrono::Duration::days(40);
+    let spaeter = core.verfahren_erinnerungen(p, spaeter).await.unwrap();
+    assert!(!spaeter.iter().any(|e| e.objekt == einvernehmen.id));
+    assert!(spaeter.iter().any(|e| e.objekt == vid && e.ueberfaellig));
+
+    // Eine Teilbaugenehmigung beendet den Bauantrag nicht.
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    let teil = Bescheid {
+        id: Uuid::new_v4(),
+        entscheidung: Entscheidung::Genehmigt,
+        datum: heute,
+        zugestellt: Some(heute),
+        original: dok.clone(),
+        genehmigte_unterlagen: vec![dok.clone()],
+        auflagen: vec![],
+        ersetzt: None,
+        verlaengerung: None,
+        teilbaugenehmigung: true,
+    };
+    a.bescheide.push(Bescheid {
+        entscheidung: Entscheidung::Abgelehnt,
+        ..teil.clone()
+    });
+    let err = versuch(&a, f.revision, vid).await.unwrap_err().to_string();
+    assert!(err.contains("genehmigende Entscheidung"), "{err}");
+    a.bescheide[0] = teil.clone();
+    let f = versuch(&a, f.revision, vid).await.unwrap();
+    let mut a: Verfahrensakte = serde_json::from_value(f.daten.clone()).unwrap();
+    assert_eq!(a.status, Verfahrensstatus::Eingereicht);
+    let termine = core.verfahren_termine(p, heute).await.unwrap();
+    assert!(
+        termine
+            .iter()
+            .any(|t| t.objekt == teil.id && t.art == termine::Terminart::Geltungsdauer)
+    );
+    // Der Status „Entschieden“ verlangt weiterhin die Entscheidung über den
+    // ganzen Antrag.
+    a.status = Verfahrensstatus::Entschieden;
+    let err = versuch(&a, f.revision, vid).await.unwrap_err().to_string();
+    assert!(err.contains("Genehmigung oder Ablehnung"), "{err}");
+    a.status = Verfahrensstatus::Eingereicht;
+    a.bescheide.push(Bescheid {
+        id: Uuid::new_v4(),
+        entscheidung: Entscheidung::Abgelehnt,
+        teilbaugenehmigung: false,
+        zugestellt: Some(heute),
+        ..teil.clone()
+    });
+    a.status = Verfahrensstatus::Entschieden;
+    versuch(&a, f.revision, vid).await.unwrap();
+
+    // Widerspruch: nur mit Vorgängerverfahren, das einen Bescheid enthält.
+    let wid = Uuid::new_v4();
+    let mut w = leer();
+    w.art = Verfahrensart::Widerspruch;
+    w.bezeichnung = "Widerspruch gegen die Ablehnung".into();
+    let err = versuch(&w, 0, wid).await.unwrap_err().to_string();
+    assert!(err.contains("Vorgängerverfahren"), "{err}");
+    w.vorgaenger = Some(vid);
+    w.pruefverfahren = Some(Pruefverfahren::Regulaer);
+    let err = versuch(&w, 0, wid).await.unwrap_err().to_string();
+    assert!(err.contains("Baugenehmigungsverfahren"), "{err}");
+    w.pruefverfahren = None;
+    versuch(&w, 0, wid).await.unwrap();
 }

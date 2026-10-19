@@ -2,7 +2,7 @@
 use crate::{CoreError, CoreResult, calc::MassDerNutzung};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ts_rs::TS)]
 pub enum BauNvo {
     #[serde(rename = "1962")]
     V1962,
@@ -14,8 +14,23 @@ pub enum BauNvo {
     V1990,
     #[serde(rename = "2017")]
     V2017,
+    /// Fassung nach dem Baulandmobilisierungsgesetz (in Kraft seit 23.06.2021):
+    /// Orientierungswerte in § 17, dörfliches Wohngebiet (§ 5a).
+    #[serde(rename = "2021")]
+    V2021,
 }
 impl BauNvo {
+    /// Alle unterstützten Fassungen in zeitlicher Folge.
+    pub const ALLE: [BauNvo; 6] = [
+        Self::V1962,
+        Self::V1968,
+        Self::V1977,
+        Self::V1990,
+        Self::V2017,
+        Self::V2021,
+    ];
+    /// Geltende Fassung, wenn kein Bebauungsplan eine andere bestimmt.
+    pub const AKTUELL: BauNvo = Self::V2021;
     /// Jahr der Fassung, z. B. „1977“.
     pub fn jahr(self) -> &'static str {
         match self {
@@ -24,6 +39,7 @@ impl BauNvo {
             Self::V1977 => "1977",
             Self::V1990 => "1990",
             Self::V2017 => "2017",
+            Self::V2021 => "2021",
         }
     }
     pub fn modern(self) -> bool {
@@ -37,12 +53,31 @@ pub enum Bauteiltyp {
     Hauptanlage,
     TerrasseHauptanlage,
     Garage,
+    /// Garage oder Carport, die nach Landesrecht in der Abstandsfläche oder an
+    /// der Grenze zulässig ist (Grenzgarage). Nach den Fassungen bis 1977
+    /// nicht auf die Grundfläche angerechnet (§ 19 Abs. 4 BauNVO a. F.).
+    GarageAbstandsflaeche,
     Stellplatz,
     Zufahrt,
     Nebenanlage14,
     Unterirdisch,
     BalkonLoggia,
     TerrasseNebenanlage,
+}
+impl Bauteiltyp {
+    /// Jedes Regelwerk ordnet jedem dieser Typen eine Anrechnung zu.
+    pub const ALLE: [Bauteiltyp; 10] = [
+        Self::Hauptanlage,
+        Self::TerrasseHauptanlage,
+        Self::Garage,
+        Self::GarageAbstandsflaeche,
+        Self::Stellplatz,
+        Self::Zufahrt,
+        Self::Nebenanlage14,
+        Self::Unterirdisch,
+        Self::BalkonLoggia,
+        Self::TerrasseNebenanlage,
+    ];
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -614,14 +649,23 @@ mod tests {
         assert!(g.berechne(regel).is_err());
     }
     #[test]
-    fn alle_fuenf_fassungen() {
-        for v in [
-            BauNvo::V1962,
-            BauNvo::V1968,
-            BauNvo::V1977,
-            BauNvo::V1990,
-            BauNvo::V2017,
-        ] {
+    fn grenzgarage_zaehlt_nur_nach_neuen_fassungen() {
+        for v in BauNvo::ALLE {
+            let mut a = aufstellung(v);
+            a.bauteile[1].typ = Bauteiltyp::GarageAbstandsflaeche;
+            let r = a.berechne(500.0, None).unwrap();
+            // Die Grenzgarage (20 m²) zählt bis 1977 gar nicht, danach nur zur
+            // GRZ II; die Terrasse (15 m²) zählt nur nach neuen Fassungen.
+            let haupt = if v.modern() { 115.0 } else { 100.0 };
+            assert_eq!(r.mass.grundflaeche_m2, haupt, "{v:?}");
+            let neben = if v.modern() { 60.0 } else { 0.0 };
+            assert_eq!(r.mass.grundflaeche_nebenanlagen_m2, neben, "{v:?}");
+        }
+    }
+
+    #[test]
+    fn alle_fassungen() {
+        for v in BauNvo::ALLE {
             let r = aufstellung(v).berechne(500.0, None).unwrap();
             assert_eq!(
                 r.mass.grundflaeche_m2,

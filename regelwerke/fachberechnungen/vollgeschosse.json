@@ -26,7 +26,7 @@
         "mindestanteil": 0.75,
         "anteil_streng": true,
         "vergleich_unterliegend": true,
-        "oberirdisch_pruefen": false,
+        "oberirdisch_pruefen": true,
         "decke_ueber_gelaende_m": 1.6,
         "oberirdisch_streng": true
       },

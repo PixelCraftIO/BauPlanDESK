@@ -48,7 +48,7 @@
   };
 </script>
 
-<h3>Anhörung und Zurückstellung</h3>
+<h3>Anhörung, Zurückstellung und Beteiligungen</h3>
 <p class="meta">
   Vor einer belastenden Entscheidung hört die Behörde an (§ 28 VwVfG); die
   Gemeinde kann ein Baugesuch zurückstellen lassen (§ 15 BauGB). Beides beginnt
@@ -86,7 +86,11 @@
     <p class="meta">
       {v.art === "anhoerung"
         ? "Frist: bis wann die Stellungnahme vorliegen muss."
-        : "Frist: Ende der Zurückstellung (Pflichtangabe)."}
+        : v.art === "zurueckstellung"
+          ? "Frist: Ende der Zurückstellung (Pflichtangabe)."
+          : v.art === "einvernehmen"
+            ? "Frist: Ende der Zwei-Monats-Frist ab Eingang des Ersuchens bei der Gemeinde. Ohne Verweigerung gilt das Einvernehmen danach als erteilt (§ 36 Abs. 2 Satz 2 BauGB)."
+            : "Frist: Ende der Beteiligungsfrist laut Schreiben."}
     </p>
     <Fristfeld {dateien} bind:wert={v.frist} />
     <div class="raster">
@@ -97,7 +101,7 @@
                 >{k.datum} · {k.betreff}</option
               >{/each}</select
           ></label
-        >{:else}<label
+        >{:else if v.art === "zurueckstellung"}<label
           >Beendet durch Folgeschreiben<select
             value={v.folgeschreiben ?? ""}
             onchange={(e) =>

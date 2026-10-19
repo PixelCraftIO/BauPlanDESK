@@ -186,7 +186,7 @@ export const AKTIONEN: Record<string, string> = {
   verfahren_abgabe: "Abgabe / Übermittlung erfasst",
   verfahren_bescheid: "Bescheid erfasst / geändert",
   verfahren_nachforderung: "Nachforderung bearbeitet",
-  verfahren_schritt: "Anhörung / Zurückstellung bearbeitet",
+  verfahren_schritt: "Behördlichen Schritt bearbeitet",
   verfahren_ausfuehrung: "Bauausführung erfasst",
   verfahren_berichtigt: "Verfahrensangabe berichtigt",
 };

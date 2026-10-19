@@ -8,3 +8,7 @@
 # Generated offline PDF preview resources (recreated by predev/prebuild).
 apps/desktop/public/pdfjs/
 __pycache__/
+
+# Laufzeitdaten lokaler Testläufe (Projektablage, Sperrdateien).
+/state/
+/bauprojekt-dateien/

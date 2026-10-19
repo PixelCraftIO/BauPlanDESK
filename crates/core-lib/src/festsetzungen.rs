@@ -301,7 +301,7 @@ pub fn pruefe_mit_regeln(
         regeln,
         p.massgebende_bau_nvo(e.aufstellung.as_ref().map(|a| a.bau_nvo))
             .or(e.aufstellung.as_ref().map(|a| a.bau_nvo))
-            .unwrap_or(crate::flaechen::BauNvo::V2017),
+            .unwrap_or(crate::flaechen::BauNvo::AKTUELL),
     )?;
     let historisch =
         fassung_fehlt || !regel.grz_ii || aufstellung.as_ref().is_some_and(|a| !a.grz_ii);

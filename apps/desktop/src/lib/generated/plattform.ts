@@ -108,8 +108,8 @@ export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, be
  */
 quellen_hash: string | null, };
 export type Baugebiet = "WS" | "WR" | "WA" | "WB" | "MD" | "MDW" | "MI" | "MU" | "MK" | "GE" | "GI" | "SO";
-export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017";
-export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";
+export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017" | "2021";
+export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "garage_abstandsflaeche" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";
 export type Anrechnung = "grz" | "grz_ii" | "keine";
 export type AbstandsflaecheInput = {
 /**
@@ -138,7 +138,7 @@ export type EmailInhalt = { format: string, betreff: string, absender: Array<Mai
  * RFC3339, soweit ein Datum in der Originaldatei vorhanden und lesbar ist.
  */
 datum: string | null, nachrichten_id: string | null, text: string, anhaenge: Array<MailAnhang>, hinweise: Array<string>, };
-export type Verfahrensart = "bauantrag" | "vorbescheid" | "aenderungsantrag" | "teilbaugenehmigung" | "freistellung" | "sonstiges";
+export type Verfahrensart = "bauantrag" | "vorbescheid" | "aenderungsantrag" | "teilbaugenehmigung" | "freistellung" | "nutzungsaenderung" | "beseitigung" | "widerspruch" | "sonstiges";
 export type Antragsangaben = {
 /**
  * Fragen des Vorbescheidsantrags; jede Frage wird ein `beantragterVorbescheid`.
@@ -191,8 +191,14 @@ export type Bescheid = { id: string, entscheidung: Entscheidung, datum: string, 
  * Verlängerungsbescheid: verlängert die Geltungsdauer eines früheren
  * Bescheids dieser Akte. Ältere Bescheide lesen die Angabe leer.
  */
-verlaengerung?: Verlaengerung, };
-export type Schrittart = "anhoerung" | "zurueckstellung";
+verlaengerung?: Verlaengerung,
+/**
+ * Teilbaugenehmigung im laufenden Bauantrag: genehmigt einen Teil der
+ * Bauarbeiten vorab und beendet das Verfahren nicht. Ältere Bescheide
+ * lesen die Angabe als `false`.
+ */
+teilbaugenehmigung?: boolean, };
+export type Schrittart = "anhoerung" | "zurueckstellung" | "einvernehmen" | "fachbeteiligung" | "nachbarbeteiligung";
 export type Verfahrensschritt = { id: string, art: Schrittart, kommunikation: string,
 /**
  * Anhörung: Frist zur Stellungnahme. Zurückstellung: Ende der Zurückstellung.
@@ -207,6 +213,7 @@ stellungnahme: string | null, verantwortlich: string | null,
  * ihrem Fristende beendet. Ältere Akten lesen die Angabe leer.
  */
 folgeschreiben?: string, };
+export type Pruefverfahren = "regulaer" | "vereinfacht";
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
@@ -263,7 +270,7 @@ staende: Array<Planstand>,
  * Abweichungen, z. B. ein im Anlagenverzeichnis anders ausgewiesener Index.
  */
 hinweise: Array<string>, };
-export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung";
+export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung" | "beteiligung" | "bearbeitungsfrist";
 export type Termin = { verfahren: string, verfahrensbezeichnung: string,
 /**
  * Akteneintrag, zu dem der Termin gehört (Punkt, Nebenbestimmung, Schritt
@@ -299,7 +306,17 @@ vollstaendigkeit?: Vollstaendigkeit, ruecknahme?: Ruecknahme,
 /**
  * Baubeginn und Fertigstellung; ältere Akten lesen die Angabe leer.
  */
-ausfuehrung?: Bauausfuehrung, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>,
+ausfuehrung?: Bauausfuehrung, behoerde: Behoerde, aktenzeichen: string, verantwortlich: string | null, vorgaenger: string | null,
+/**
+ * Regulär oder vereinfacht; ältere Akten lesen die Angabe leer.
+ */
+pruefverfahren?: Pruefverfahren,
+/**
+ * Bearbeitungsfrist oder Eintritt einer Genehmigungsfiktion, wie sie die
+ * Behörde, etwa in der Eingangs- oder Vollständigkeitsbestätigung, nennt.
+ * Ältere Akten lesen die Angabe leer.
+ */
+bearbeitungsfrist?: Frist, profil: Profilstand | null, kommunikation: Array<Kommunikation>, nachforderungen: Array<Nachforderung>,
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */

@@ -1,5 +1,6 @@
 //! Termine der Verfahrensakte: erfasste Fristen (Forderungspunkte,
-//! Nebenbestimmungen, Anhörung, Zurückstellung) und berechnete Bescheidfristen
+//! Nebenbestimmungen, Anhörung, Zurückstellung, Beteiligungen,
+//! Bearbeitungsfrist der Behörde) und berechnete Bescheidfristen
 //! (Rechtsbehelfsfrist, Geltungsdauer, Fertigstellung). Wiedervorlagen,
 //! Projektübersicht und Kalenderexport (ICS nach RFC 5545) lesen dieselbe
 //! Ableitung; wann ein Termin endet, entscheidet allein dieses Modul.
@@ -37,6 +38,12 @@ pub enum Terminart {
     Geltungsdauer,
     /// Frist zur Fertigstellung; endet mit erfasster Fertigstellung.
     Fertigstellung,
+    /// Frist einer Beteiligung (Einvernehmen, Fachbehörden, Nachbarn); endet
+    /// mit ihrem Ablauf oder der Entscheidung.
+    Beteiligung,
+    /// Bearbeitungsfrist oder Genehmigungsfiktion laut Behörde; endet mit der
+    /// Entscheidung und wird danach überfällig.
+    Bearbeitungsfrist,
 }
 impl Terminart {
     pub fn bezeichnung(&self) -> &'static str {
@@ -49,6 +56,8 @@ impl Terminart {
             Self::Rechtsbehelfsfrist => "Rechtsbehelfsfrist",
             Self::Geltungsdauer => "Geltungsdauer",
             Self::Fertigstellung => "Fertigstellungsfrist",
+            Self::Beteiligung => "Beteiligung",
+            Self::Bearbeitungsfrist => "Bearbeitungsfrist",
         }
     }
 }
@@ -151,7 +160,10 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
             verantwortlich,
             endet_mit_ablauf: matches!(
                 art,
-                Terminart::Ablauf | Terminart::Zurueckstellung | Terminart::Rechtsbehelfsfrist
+                Terminart::Ablauf
+                    | Terminart::Zurueckstellung
+                    | Terminart::Rechtsbehelfsfrist
+                    | Terminart::Beteiligung
             ),
             hinweis,
         })
@@ -224,8 +236,41 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
                     v.verantwortlich,
                     "Danach Entscheidung der Behörde erwarten".into(),
                 ),
+                art if art.beteiligung() => neu(
+                    v.id,
+                    Terminart::Beteiligung,
+                    format!("Frist: {}", art.bezeichnung()),
+                    f.datum,
+                    f.erinnerung_tage,
+                    v.verantwortlich,
+                    match art {
+                        Schrittart::Einvernehmen => {
+                            "Ohne Verweigerung bis dahin gilt das Einvernehmen als erteilt \
+                             (§ 36 Abs. 2 Satz 2 BauGB)."
+                                .into()
+                        }
+                        _ => f.grund.clone(),
+                    },
+                ),
                 _ => {}
             }
+        }
+        if let Some(f) = &a.bearbeitungsfrist
+            && super::pruefung::ist_eingereicht(a)
+        {
+            neu(
+                verfahren,
+                Terminart::Bearbeitungsfrist,
+                "Bearbeitungsfrist der Behörde".into(),
+                f.datum,
+                f.erinnerung_tage,
+                a.verantwortlich,
+                format!(
+                    "{} Danach Sachstand erfragen; eine Genehmigungsfiktion nach der \
+                     Landesbauordnung prüfen und bescheinigen lassen.",
+                    f.grund
+                ),
+            );
         }
     }
     let fristen = fristen::alle(land, &a.art, &a.bescheide);
@@ -252,9 +297,16 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
             neu(
                 b.id,
                 Terminart::Geltungsdauer,
-                format!(
-                    "Geltungsdauer läuft ab (Bescheid vom {vom}): Baubeginn erfassen oder Verlängerung beantragen"
-                ),
+                if a.art == super::Verfahrensart::Vorbescheid {
+                    format!(
+                        "Vorbescheid gilt bis {} (Bescheid vom {vom}): Bauantrag stellen oder Verlängerung beantragen",
+                        g.ende.format("%d.%m.%Y")
+                    )
+                } else {
+                    format!(
+                        "Geltungsdauer läuft ab (Bescheid vom {vom}): Baubeginn erfassen oder Verlängerung beantragen"
+                    )
+                },
                 g.ende,
                 VORLAUF_GELTUNGSDAUER,
                 a.verantwortlich,
