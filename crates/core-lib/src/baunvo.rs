@@ -24,12 +24,13 @@ pub struct Regelwerk {
     pub gemeinschaftsanteile_rechtsgrundlage: String,
     pub quellen: Vec<String>,
 }
-const DATEIEN: [&str; 5] = [
+const DATEIEN: [&str; 6] = [
     include_str!("../../../regelwerke/baunvo/1962.json"),
     include_str!("../../../regelwerke/baunvo/1968.json"),
     include_str!("../../../regelwerke/baunvo/1977.json"),
     include_str!("../../../regelwerke/baunvo/1990.json"),
     include_str!("../../../regelwerke/baunvo/2017.json"),
+    include_str!("../../../regelwerke/baunvo/2021.json"),
 ];
 pub fn regelwerke() -> &'static [Regelwerk] {
     static WERKE: OnceLock<Vec<Regelwerk>> = OnceLock::new();
@@ -63,17 +64,7 @@ pub fn aus_katalog(werke: &[Regelwerk], fassung: BauNvo) -> crate::CoreResult<&R
 impl Regelwerk {
     /// Strukturprüfung; die fachliche Freigabe eines Regelpakets erfolgt gesondert.
     pub fn validate(&self) -> crate::CoreResult<()> {
-        let typen = [
-            Bauteiltyp::Hauptanlage,
-            Bauteiltyp::TerrasseHauptanlage,
-            Bauteiltyp::Garage,
-            Bauteiltyp::Stellplatz,
-            Bauteiltyp::Zufahrt,
-            Bauteiltyp::Nebenanlage14,
-            Bauteiltyp::Unterirdisch,
-            Bauteiltyp::BalkonLoggia,
-            Bauteiltyp::TerrasseNebenanlage,
-        ];
+        let typen = Bauteiltyp::ALLE;
         if self.id.trim().is_empty()
             || self.version.trim().is_empty()
             || self.id.len() > 200
@@ -102,24 +93,8 @@ mod tests {
     use super::*;
     #[test]
     fn alle_fassungen_sind_vollstaendig_und_gueltig() {
-        let typen = [
-            Bauteiltyp::Hauptanlage,
-            Bauteiltyp::TerrasseHauptanlage,
-            Bauteiltyp::Garage,
-            Bauteiltyp::Stellplatz,
-            Bauteiltyp::Zufahrt,
-            Bauteiltyp::Nebenanlage14,
-            Bauteiltyp::Unterirdisch,
-            Bauteiltyp::BalkonLoggia,
-            Bauteiltyp::TerrasseNebenanlage,
-        ];
-        for v in [
-            BauNvo::V1962,
-            BauNvo::V1968,
-            BauNvo::V1977,
-            BauNvo::V1990,
-            BauNvo::V2017,
-        ] {
+        let typen = Bauteiltyp::ALLE;
+        for v in BauNvo::ALLE {
             let r = regelwerk(v);
             assert!(!r.id.is_empty() && !r.version.is_empty());
             assert_eq!(r.bauteile.len(), typen.len());

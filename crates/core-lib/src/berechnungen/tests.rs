@@ -105,6 +105,14 @@ fn vollgeschosse_strikte_flaechen_grenze_und_fehlender_bezug() {
     p.eingaben["teilflaechen"] = json!([{"id":"a","geschoss_id":"eg","bezeichnung":"Hoch","flaeche_m2":75,"lichte_hoehe_m":2.3},{"id":"b","geschoss_id":"eg","bezeichnung":"Niedrig","flaeche_m2":25,"lichte_hoehe_m":1}]);
     p.eingaben["aufmass_geprueft"] = json!(true);
     p.eingaben["sonderfaelle_geprueft"] = json!(true);
+    // Die Vorlage prüft das Oberirdisch-Kriterium: ohne Deckenhöhe über
+    // Gelände bleibt das Geschoss offen statt als Vollgeschoss zu zählen.
+    assert!(!berechnen(&p).unwrap().vollstaendig);
+    p.eingaben["geschosse"][0]["decke_ueber_gelaende_m"] = json!(1.2);
+    p.eingaben["regeln"]["anteil_streng"] = json!(false);
+    assert_eq!(k(&berechnen(&p).unwrap(), "vollgeschosse"), 0.);
+    p.eingaben["regeln"]["anteil_streng"] = json!(true);
+    p.eingaben["geschosse"][0]["decke_ueber_gelaende_m"] = json!(2.8);
     assert_eq!(k(&berechnen(&p).unwrap(), "vollgeschosse"), 0.);
     p.eingaben["regeln"]["anteil_streng"] = json!(false);
     assert_eq!(k(&berechnen(&p).unwrap(), "vollgeschosse"), 1.);

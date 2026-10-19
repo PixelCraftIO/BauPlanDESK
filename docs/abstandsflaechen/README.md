@@ -73,6 +73,18 @@ in dieser Cloud-Umgebung nicht freigeschaltet; eine aktuelle vollständige Prüf
 aller Landesnormen konnte hier nicht erfolgen. Die allgemeinen Faktoren ersetzen
 keine kommunalen oder besonderen Vorschriften.
 
+Stand Baden-Württemberg (`pilot-2`): Besondere Wohngebiete gehören zur Gruppe
+mit 0,2 H. Dachflächen über 45° werden zu einem Viertel, über 70° voll
+angerechnet; Giebelflächen nach der LBO-Reform 2025 zu einem Viertel, als
+Dachart „Giebel“ mit Faktor 0,25 und Grundlage. Die Mindesttiefe von 2 m bei
+Wänden bis 5 m Breite ist ein Sonderansatz. Diese Werte stammen aus Sekundärquellen
+und sind am amtlichen Text zu bestätigen.
+
+Der Schnellrechner (`lbo-rules/*.rhai`) und dieser Katalog liefern für jedes
+Baugebiet dieselben Faktoren und Mindesttiefen; der Test
+`shipped_lbo_pakete_entsprechen_dem_katalog` erzwingt das. Maßgebend ist der
+Katalog.
+
 Der Kern rechnet mit ungerundeten Werten. Darstellung und PDF runden nur zur
 Lesbarkeit. Numerische Berührung/Grenznähe bis 0,000001 m wird als Grenzfall
 statt als automatische Einhaltung ausgegeben. Dies ist keine gesetzliche

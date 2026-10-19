@@ -185,7 +185,7 @@
     });
   });
   function anlegen(g: BaugrundstueckGruppe): BaugrundstueckBerechnung {
-    const f = projekt.planungsrecht.bau_nvo ?? "2017";
+    const f = projekt.planungsrecht.bau_nvo ?? "2021";
     return {
       schluessel: g.schluessel,
       eigene_festsetzungen: null,

@@ -1,6 +1,6 @@
 {
   "id": "baunvo-1990",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "fassung": "1990",
   "grz_ii": true,
   "grz_ii_faktor": 1.5,
@@ -16,6 +16,10 @@
     },
     "garage": {
       "bezeichnung": "Garage / Carport",
+      "anrechnung": "grz_ii"
+    },
+    "garage_abstandsflaeche": {
+      "bezeichnung": "Grenzgarage / Garage in der Abstandsfläche",
       "anrechnung": "grz_ii"
     },
     "stellplatz": {

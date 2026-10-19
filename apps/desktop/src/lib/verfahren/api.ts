@@ -12,6 +12,7 @@ import type {
   Nachrichtenstand,
   Verfahrensstatus,
   Schrittart,
+  Verfahrensart,
   Nebenbestimmungsart,
   Fristauftrag,
   Bescheidfristen,
@@ -46,7 +47,25 @@ export const STATUS: Record<Verfahrensstatus, string> = {
 export const SCHRITTART: Record<Schrittart, string> = {
   anhoerung: "Anhörung",
   zurueckstellung: "Zurückstellung",
+  einvernehmen: "Gemeindliches Einvernehmen",
+  fachbeteiligung: "Beteiligung der Fachbehörden",
+  nachbarbeteiligung: "Nachbarbeteiligung",
 };
+/** Bezeichnungen wie `Verfahrensart::bezeichnung` im Core. */
+export const VERFAHRENSART: Record<Verfahrensart, string> = {
+  bauantrag: "Bauantrag",
+  vorbescheid: "Vorbescheid",
+  aenderungsantrag: "Änderungsantrag",
+  teilbaugenehmigung: "Teilbaugenehmigung (eigene Akte)",
+  freistellung: "Genehmigungsfreistellung",
+  nutzungsaenderung: "Nutzungsänderung",
+  beseitigung: "Beseitigung",
+  widerspruch: "Widerspruch",
+  sonstiges: "Sonstiges",
+};
+/** Wie `Verfahrensart::baugenehmigung` im Core. */
+export const baugenehmigung = (art: Verfahrensart) =>
+  ["bauantrag", "aenderungsantrag", "teilbaugenehmigung", "nutzungsaenderung"].includes(art);
 /** Bezeichnungen wie `Nebenbestimmungsart::bezeichnung` im Core. */
 export const NEBENBESTIMMUNG: Record<Nebenbestimmungsart, string> = {
   auflage: "Auflage",
@@ -64,7 +83,7 @@ export const EREIGNISART: Record<Ereignisart, string> = {
   ruecknahme: "Rücknahme",
   kommunikation: "Kommunikation",
   nachforderung: "Nachforderung",
-  schritt: "Anhörung / Zurückstellung",
+  schritt: "Behördliche Schritte",
   abgabe: "Abgabestand",
   versand: "Übermittlung",
   bescheid: "Bescheid",

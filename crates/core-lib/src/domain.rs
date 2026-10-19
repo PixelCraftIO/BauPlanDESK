@@ -253,6 +253,19 @@ impl Planungsrecht {
                 "Eine ergänzende Grundlage (§ 30 Abs. 3 BauGB) gibt es nur beim einfachen Bebauungsplan".into(),
             ));
         }
+        if let (true, Some(fassung), Some(gebiet)) = (
+            self.mit_bebauungsplan(),
+            self.bau_nvo,
+            self.festgesetzte_werte.baugebiet,
+        ) && gebiet.eingefuehrt() > fassung
+        {
+            return Err(CoreError::InvalidInput(format!(
+                "{} gibt es erst seit der BauNVO {}; der Plan nach BauNVO {} kann es nicht festsetzen. Baugebiet oder Fassung prüfen.",
+                gebiet.name(),
+                gebiet.eingefuehrt().jahr(),
+                fassung.jahr()
+            )));
+        }
         Ok(())
     }
 
@@ -265,10 +278,14 @@ impl Planungsrecht {
             self.bebauungsplan_art,
             self.rechtsgrundlage,
             self.ergaenzende_grundlage,
+            self.bau_nvo,
+            self.festgesetzte_werte.baugebiet,
         ) == (
             vorher.bebauungsplan_art,
             vorher.rechtsgrundlage,
             vorher.ergaenzende_grundlage,
+            vorher.bau_nvo,
+            vorher.festgesetzte_werte.baugebiet,
         );
         self.inhalt_pruefen()?;
         if unveraendert {
@@ -642,6 +659,40 @@ mod planungsrecht_tests {
         assert!(neu.validate_gegen(&alt).is_err());
         neu.rechtsgrundlage = Some(Rechtsgrundlage::Par30);
         assert!(neu.validate_gegen(&alt).is_ok());
+    }
+
+    #[test]
+    fn baugebiet_muss_in_der_fassung_des_plans_existieren() {
+        use crate::calc::Baugebiet;
+        use crate::flaechen::BauNvo;
+        let mut p = Planungsrecht {
+            bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+            bau_nvo: Some(BauNvo::V1977),
+            ..Default::default()
+        };
+        p.festgesetzte_werte.baugebiet = Some(Baugebiet::MU);
+        assert!(p.validate().is_err(), "urbanes Gebiet erst seit 2017");
+        p.bau_nvo = Some(BauNvo::V2017);
+        assert!(p.validate().is_ok());
+        p.festgesetzte_werte.baugebiet = Some(Baugebiet::MDW);
+        assert!(
+            p.validate().is_err(),
+            "dörfliches Wohngebiet erst seit 2021"
+        );
+        p.bau_nvo = Some(BauNvo::V2021);
+        assert!(p.validate().is_ok());
+        // Ohne erfasste Fassung oder ohne Plan keine Bindung.
+        p.bau_nvo = None;
+        assert!(p.validate().is_ok());
+        // Ein älterer widersprüchlicher Stand bleibt speicherbar, solange
+        // Fassung und Baugebiet unverändert bleiben.
+        let mut alt = p.clone();
+        alt.bau_nvo = Some(BauNvo::V1990);
+        let mut neu = alt.clone();
+        neu.plan_nummer = "12".into();
+        assert!(neu.validate_gegen(&alt).is_ok());
+        neu.bau_nvo = Some(BauNvo::V2017);
+        assert!(neu.validate_gegen(&alt).is_err());
     }
 
     #[test]

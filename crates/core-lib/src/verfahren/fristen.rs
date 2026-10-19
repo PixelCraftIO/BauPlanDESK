@@ -124,6 +124,11 @@ const GELTUNGSDAUER: [Geltungsregel; 16] = [
     regel(Bundesland::Th, 3, None, "ThürBO", None),
 ];
 
+/// Geltungsdauer des Vorbescheids im Regelfall der Musterbauordnung (§ 75
+/// MBO). Die Landesfassungen sind nicht einzeln hinterlegt; der Hinweis der
+/// Berechnung verweist darauf.
+pub const VORBESCHEID_JAHRE: u32 = 3;
+
 /// Monatsfrist nach §§ 187 Abs. 1, 188 Abs. 2 und 3 BGB: Ende am Tag gleicher
 /// Zahl, fehlt er, am Monatsletzten.
 fn nach_monaten(beginn: NaiveDate, monate: u32) -> NaiveDate {
@@ -178,14 +183,20 @@ pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Beschei
              Ein späterer Baubeginn kann nach Landesrecht eine erneute Vorlage erfordern."
                 .into(),
         ),
-        Verfahrensart::Vorbescheid if b.verlaengerung.is_none() && genehmigt => r.hinweise.push(
-            "Die Geltungsdauer des Vorbescheids richtet sich nach der Landesbauordnung und wird \
-             nicht berechnet. Das Ablaufdatum aus dem Bescheid als Befristung unter \
-             Nebenbestimmungen erfassen, damit es wiedervorgelegt wird; eine Verlängerung als \
-             Verlängerungsbescheid erfassen."
+        Verfahrensart::Widerspruch => r.hinweise.push(
+            "Widerspruchsbescheid: Gegen eine Zurückweisung ist innerhalb eines Monats Klage \
+             möglich. Hilft die Behörde ab, ist die Genehmigung im Ausgangsverfahren als \
+             Bescheid zu erfassen."
                 .into(),
         ),
         _ => {}
+    }
+    if b.teilbaugenehmigung {
+        r.hinweise.push(
+            "Teilbaugenehmigung: Sie erlaubt nur die genehmigten Teile der Bauarbeiten und \
+             erlischt wie die Baugenehmigung. Die Entscheidung über den Bauantrag steht noch aus."
+                .into(),
+        );
     }
     let Some(zugestellt) = b.zugestellt else {
         r.hinweise.push(
@@ -211,12 +222,23 @@ pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Beschei
                 .into(),
         ],
     });
-    let baugenehmigung = matches!(
-        art,
-        Verfahrensart::Bauantrag
-            | Verfahrensart::Aenderungsantrag
-            | Verfahrensart::Teilbaugenehmigung
-    );
+    let baugenehmigung = art.baugenehmigung();
+    if genehmigt && *art == Verfahrensart::Vorbescheid && b.verlaengerung.is_none() {
+        r.geltungsdauer = Some(Fristberechnung {
+            beginn: zugestellt,
+            ende: nach_monaten(zugestellt, VORBESCHEID_JAHRE * 12),
+            grundlage: format!(
+                "{VORBESCHEID_JAHRE} Jahre nach Erteilung (Regelfall nach § 75 MBO)"
+            ),
+            hinweise: vec![
+                "Bis dahin den Bauantrag stellen oder die Verlängerung beantragen. Die Dauer \
+                 folgt der Musterbauordnung; eine abweichende Landesregel oder ein im Bescheid \
+                 genanntes Datum ist maßgebend und als Befristung zu erfassen."
+                    .into(),
+                HINWEIS_WERKTAG.into(),
+            ],
+        });
+    }
     if genehmigt && baugenehmigung && b.verlaengerung.is_none() {
         let g = GELTUNGSDAUER
             .iter()
@@ -261,7 +283,7 @@ pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Beschei
         && b.verlaengerung.is_none()
         && !matches!(
             art,
-            Verfahrensart::Freistellung | Verfahrensart::Vorbescheid
+            Verfahrensart::Freistellung | Verfahrensart::Vorbescheid | Verfahrensart::Widerspruch
         )
     {
         r.hinweise.push(
@@ -338,6 +360,7 @@ mod tests {
             auflagen: Vec::new(),
             ersetzt: None,
             verlaengerung: None,
+            teilbaugenehmigung: false,
         }
     }
     fn tag(s: &str) -> NaiveDate {
@@ -375,8 +398,23 @@ mod tests {
         let nw = berechnen(Bundesland::Nw, &Verfahrensart::Bauantrag, &b);
         assert_eq!(nw.geltungsdauer.unwrap().ende, tag("2031-02-28"));
         let vorbescheid = berechnen(Bundesland::Nw, &Verfahrensart::Vorbescheid, &b);
-        assert!(vorbescheid.geltungsdauer.is_none());
-        assert!(!vorbescheid.hinweise.is_empty());
+        let g = vorbescheid.geltungsdauer.unwrap();
+        assert_eq!(g.ende, tag("2031-02-28"));
+        assert!(g.grundlage.contains("§ 75 MBO"));
+        let nutzung = berechnen(Bundesland::Nw, &Verfahrensart::Nutzungsaenderung, &b);
+        assert_eq!(nutzung.geltungsdauer.unwrap().ende, tag("2031-02-28"));
+        let widerspruch = berechnen(Bundesland::Nw, &Verfahrensart::Widerspruch, &b);
+        assert!(widerspruch.geltungsdauer.is_none());
+        assert!(widerspruch.hinweise.iter().any(|h| h.contains("Klage")));
+        let mut teil = b.clone();
+        teil.teilbaugenehmigung = true;
+        let teil = berechnen(Bundesland::By, &Verfahrensart::Bauantrag, &teil);
+        assert_eq!(teil.geltungsdauer.unwrap().ende, tag("2032-02-29"));
+        assert!(
+            teil.hinweise
+                .iter()
+                .any(|h| h.contains("Teilbaugenehmigung"))
+        );
         let abgelehnt = berechnen(
             Bundesland::Nw,
             &Verfahrensart::Bauantrag,
@@ -443,7 +481,7 @@ mod tests {
         assert!(frei.geltungsdauer.is_none());
         assert!(frei.hinweise.iter().any(|h| h.contains("Wartefrist")));
         let vor = berechnen(Bundesland::By, &Verfahrensart::Vorbescheid, &original);
-        assert!(vor.geltungsdauer.is_none());
-        assert!(vor.hinweise.iter().any(|h| h.contains("Befristung")));
+        let g = vor.geltungsdauer.unwrap();
+        assert!(g.hinweise.iter().any(|h| h.contains("Befristung")));
     }
 }

@@ -42,7 +42,7 @@ impl Ereignisart {
             Self::Ruecknahme => "Rücknahme",
             Self::Kommunikation => "Kommunikation",
             Self::Nachforderung => "Nachforderung",
-            Self::Schritt => "Anhörung / Zurückstellung",
+            Self::Schritt => "Behördliche Schritte",
             Self::Abgabe => "Abgabestand",
             Self::Versand => "Übermittlung",
             Self::Bescheid => "Bescheid",
@@ -327,6 +327,8 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         || alt.aktenzeichen != a.aktenzeichen
         || alt.verantwortlich != a.verantwortlich
         || alt.vorgaenger != a.vorgaenger
+        || alt.pruefverfahren != a.pruefverfahren
+        || alt.bearbeitungsfrist != a.bearbeitungsfrist
         || alt.profil != a.profil
         || alt.portal != a.portal
         || alt.anforderungen != a.anforderungen

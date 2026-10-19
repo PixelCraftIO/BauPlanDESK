@@ -150,6 +150,8 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         vollstaendigkeit: None,
         ruecknahme: None,
         ausfuehrung: None,
+        pruefverfahren: None,
+        bearbeitungsfrist: None,
         schritte: Vec::new(),
         behoerde: Behoerde {
             id: Uuid::new_v4(),

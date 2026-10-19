@@ -922,6 +922,7 @@ fn bauteiltyp(t: crate::flaechen::Bauteiltyp) -> &'static str {
         Hauptanlage => "Hauptanlage",
         TerrasseHauptanlage => "Terrasse der Hauptanlage",
         Garage => "Garage",
+        GarageAbstandsflaeche => "Grenzgarage / Garage in der Abstandsfläche",
         Stellplatz => "Stellplatz",
         Zufahrt => "Zufahrt",
         Nebenanlage14 => "Nebenanlage (§ 14)",

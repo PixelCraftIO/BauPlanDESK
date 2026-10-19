@@ -179,7 +179,8 @@
               ? "Überfällig"
               : e.art === "ablauf" ||
                   e.art === "rechtsbehelfsfrist" ||
-                  e.art === "zurueckstellung"
+                  e.art === "zurueckstellung" ||
+                  e.art === "beteiligung"
                 ? "Läuft ab"
                 : "Wiedervorlage"}</td
           ></tr

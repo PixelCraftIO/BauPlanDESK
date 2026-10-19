@@ -12,7 +12,13 @@
   import Dokumentliste from "./Dokumentliste.svelte";
   import Fristfeld from "./Fristfeld.svelte";
   import Zustaendigkeit from "./Zustaendigkeit.svelte";
-  import { heute, verfahrenApi, NEBENBESTIMMUNG, PFLICHT } from "./api";
+  import {
+    heute,
+    verfahrenApi,
+    NEBENBESTIMMUNG,
+    PFLICHT,
+    baugenehmigung,
+  } from "./api";
   let {
     eintraege = $bindable(),
     dateien,
@@ -100,7 +106,9 @@
 {#each eintraege as b (b.id)}{@const fest = alt.includes(b.id)}{@const f =
     fristen.find((f) => f.bescheid === b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
-      >{b.datum} · {b.entscheidung}{eintraege.some((n) => n.ersetzt === b.id)
+      >{b.datum} · {b.entscheidung}{b.teilbaugenehmigung
+        ? " · Teilbaugenehmigung"
+        : ""}{eintraege.some((n) => n.ersetzt === b.id)
         ? " · durch Folgebescheid ersetzt"
         : ""}</summary
     >
@@ -173,7 +181,15 @@
                 disabled={fest}
                 bind:value={b.verlaengerung.bis}
               /></label
-            >{/if}{/if}
+            >{/if}{/if}{#if baugenehmigung(art) && art !== "teilbaugenehmigung" && (!fest || b.teilbaugenehmigung)}<label
+            ><input
+              type="checkbox"
+              disabled={fest}
+              checked={!!b.teilbaugenehmigung}
+              onchange={(e) =>
+                (b.teilbaugenehmigung = e.currentTarget.checked || undefined)}
+            /> Teilbaugenehmigung (beendet den Bauantrag nicht)</label
+          >{/if}
       </div>
     <fieldset disabled={fest}>
       {#if abgegeben.length || b.genehmigte_unterlagen.length}<Dokumentliste

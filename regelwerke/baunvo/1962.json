@@ -1,6 +1,6 @@
 {
   "id": "baunvo-1962",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "fassung": "1962",
   "grz_ii": false,
   "grz_ii_faktor": 1.0,
@@ -15,8 +15,12 @@
       "anrechnung": "keine"
     },
     "garage": {
-      "bezeichnung": "Garage / Carport",
+      "bezeichnung": "Garage / Carport (außerhalb der Abstandsfläche)",
       "anrechnung": "grz"
+    },
+    "garage_abstandsflaeche": {
+      "bezeichnung": "Grenzgarage / Garage in der Abstandsfläche",
+      "anrechnung": "keine"
     },
     "stellplatz": {
       "bezeichnung": "Offener Stellplatz",
@@ -49,6 +53,7 @@
   "gemeinschaftsanteile_rechtsgrundlage": "",
   "quellen": [
     "§ 19 BauNVO 1962",
-    "§ 20 BauNVO 1962"
+    "§ 20 BauNVO 1962",
+    "§ 19 Abs. 4 BauNVO 1962: Anlagen, die nach Landesrecht in den Abstandsflächen zulässig sind, werden nicht angerechnet"
   ]
 }
