@@ -329,6 +329,7 @@ fn routen(core: CoreServices) -> Router {
             post(planaufmass_abstandsziele),
         )
         .route("/projekte/{id}/plangebaeude", post(planaufmass_gebaeude))
+        .route("/projekte/{id}/planaufgaben", post(planaufmass_aufgaben))
         .route(
             "/berechnung/planaufmass/gebaeudeziele",
             post(planaufmass_gebaeudeziele),
@@ -1792,6 +1793,13 @@ async fn gebaeude_auswerten(
         core.gebaeude_auswerten(ProjectId(id), w.id, &w.gebaeude)
             .await?,
     ))
+}
+async fn planaufmass_aufgaben(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(plan): Json<core_lib::planaufmass::Planaufmass>,
+) -> ApiResult<Vec<core_lib::planaufmass::Planaufgabe>> {
+    Ok(Json(core.planaufmass_aufgaben(ProjectId(id), &plan).await?))
 }
 async fn planaufmass_gebaeudeziele(
     Json(plan): Json<core_lib::plattform::objekte::Gebaeude>,

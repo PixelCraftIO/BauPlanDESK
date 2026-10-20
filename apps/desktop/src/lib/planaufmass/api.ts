@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Planaufmass, Planmesswert, FachPlan, Planziel } from "../generated/plattform";
+import type { Planaufmass, Planmesswert, FachPlan, Planziel, Planaufgabe } from "../generated/plattform";
 export const planApi = {
   pruefen: (projektId: string, plan: Planaufmass) =>
     invoke<Planmesswert[]>("planaufmass_pruefen", { projektId, plan }),
+  aufgaben: (projektId: string, plan: Planaufmass) =>
+    invoke<Planaufgabe[]>("planaufmass_aufgaben", { projektId, plan }),
   ziele: (plan: FachPlan) => invoke<Planziel[]>("planaufmass_ziele", { plan }),
   einsetzen: (projektId: string, plan: FachPlan) => invoke<FachPlan>("planaufmass_einsetzen", { projektId, plan }),
   raumbuch: (projektId: string, aufmassId: string, revision: number, raumbuch: import("../generated/plattform").Raumbuch) =>

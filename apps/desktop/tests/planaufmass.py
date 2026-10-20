@@ -32,12 +32,29 @@ def pdf_fixture():
 
 custom = r"""
 const original=window.__TAURI_INTERNALS__.invoke;
-window.planSaved=null;
+window.planSaved=null;window.gebaeudeSaved=null;
+const GID="7a1c0d4e-1b2c-4d5e-8f90-123456789abc",SID="5b2d1e5f-2c3d-4e6f-9a01-23456789abcd";
+const haus={projekt_id:window.fixture.id,modul:"gebaeude",objekt:GID,revision:3,schema_version:1,daten:{bezeichnung:"Lagerhalle",grundstueck_ids:[],flurstueck_ids:[],geschosse:[{id:SID,bezeichnung:"EG",vollgeschoss:null,grundlage:""}],quelle:null}};
 const doc={document_id:"b316da8b-cbfb-4ae6-931b-8765fb6454b1",project_id:window.fixture.id,version:1,file_name:"Grundrisse.pdf",sha256:"0".repeat(64),size_bytes:1000,created_at:window.fixture.created_at,created_by:"Test",storage_key:"test.pdf"};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  if(cmd==="dokumente_auflisten")return [doc];
  if(cmd==="pdf_vorschau")return {dokument:doc,pdf_base64:window.planPdf,felder:[],seiten:[1,2].map(n=>({nummer:n,breite_mm:211,hoehe_mm:141,rotation:0,platzierbar:true}))};
  if(cmd==="fachobjekte"&&args.art==="planaufmass")return window.planSaved?[structuredClone(window.planSaved)]:[];
+ if(cmd==="fachobjekte"&&args.art==="gebaeude")return [structuredClone(haus)];
+ if(cmd==="planaufmass_aufgaben"){
+   const ms=args.plan.markierungen;
+   const find=(b,flaeche)=>ms.find(m=>m.bedeutung===b&&m.gebaeude_id===GID&&(flaeche?["polygon","rechteck","kreis"].includes(m.geometrie.art):m.geometrie.art==="hoehenpunkt"))?.id??null;
+   const basis={verbraucher:"gebaeude",objekt:GID,objekt_name:"Lagerhalle",gruppe:"Lagerhalle",gebaeude_id:GID,geschoss_id:null,grundstueck_id:null,wert_vorhanden:false,gebunden:haus.daten.planbindungen?.[0]?.markierung_id??null,hinweis:null};
+   return [
+     {...basis,ziel:"geometrie.grundflaeche_m2",titel:"Gebäudegrundfläche · horizontale Projektion",groesse:"flaeche",bedeutung:"gebaeudegrundflaeche",geometrie:"flaeche",markierung:basis.gebunden?null:find("gebaeudegrundflaeche",true)},
+     {...basis,gebunden:null,ziel:"geometrie.traufe_m",titel:"Traufe",groesse:"hoehe",bedeutung:"traufe",geometrie:"hoehenpunkt",markierung:find("traufe",false),hinweis:"Schnitt/Ansicht mit Bezugslinie in m ü. NHN"},
+   ];
+ }
+ if(cmd==="planaufmass_gebaeude")return args.plan;
+ if(cmd==="fachobjekt_speichern"&&args.art==="gebaeude"){
+   window.gebaeudeSaved={basis:args.basis,daten:structuredClone(args.daten)};haus.daten=structuredClone(args.daten);haus.revision=args.basis+1;
+   return structuredClone(haus);
+ }
  if(cmd==="planaufmass_pruefen")return args.plan.markierungen.map(m=>({id:m.id,laenge_m:args.plan.kalibrierung?30:null,flaeche_m2:args.plan.kalibrierung?50:null,horizontale_m:null,hoehe_m:null,neigung_grad:null,offen:[]}));
  if(cmd==="fachobjekt_speichern"&&args.art==="planaufmass"){
    window.planSaved={projekt_id:args.projektId,modul:args.art,objekt:args.id,revision:args.basis+1,schema_version:1,daten:structuredClone(args.daten)};
@@ -119,6 +136,51 @@ with sync_playwright() as p:
     expect(scope.locator(".editor.vollbild")).to_have_count(0)
     scope.get_by_role("button", name="1:1", exact=True).click()
     expect(scope.locator(".plan-kopf .zoom")).to_have_text("100 %")
+    # Aufgaben: „Zeichnen“ belegt Werkzeug, Bedeutung und Gebäude vor; „Übernehmen“ verknüpft und speichert das Gebäude.
+    aufgaben = scope.get_by_role("region", name="Aufmaß-Aufgaben")
+    expect(aufgaben).to_contain_text("Lagerhalle")
+    aufgaben.locator("li", has_text="Gebäudegrundfläche").get_by_role("button", name="Zeichnen", exact=True).click()
+    expect(scope.get_by_role("button", name="Polygon", exact=True)).to_have_attribute("aria-pressed", "true")
+    expect(scope.locator(".editor").get_by_role("status").filter(has_text="Zeichnen für")).to_contain_text("Lagerhalle · Gebäudegrundfläche")
+    svg.click(position={"x": 80, "y": 220}); svg.click(position={"x": 200, "y": 220}); svg.click(position={"x": 200, "y": 300})
+    page.keyboard.press("Enter")
+    expect(scope.locator(".arbeitsplatz aside").get_by_label("Bezeichnung", exact=True)).to_have_value("Lagerhalle · Gebäudegrundfläche · horizontale Projektion")
+    expect(scope.locator(".arbeitsplatz aside").get_by_label("Bedeutung", exact=True)).to_have_value("gebaeudegrundflaeche")
+    expect(scope.locator(".arbeitsplatz aside").get_by_label("Gebäude")).to_have_value("7a1c0d4e-1b2c-4d5e-8f90-123456789abc")
+    expect(aufgaben.locator("li", has_text="Gebäudegrundfläche").get_by_role("button", name="Übernehmen", exact=True)).to_be_disabled()
+    scope.get_by_role("button", name="Speichern", exact=True).click()
+    page.wait_for_function("window.planSaved?.daten.markierungen.length===3")
+    aufgaben.locator("li", has_text="Gebäudegrundfläche").get_by_role("button", name="Übernehmen", exact=True).click()
+    page.wait_for_function("window.gebaeudeSaved?.daten.planbindungen?.[0]?.ziel==='geometrie.grundflaeche_m2'")
+    bindung = page.evaluate("window.gebaeudeSaved.daten.planbindungen[0]")
+    assert bindung["markierung_id"] == page.evaluate("window.planSaved.daten.markierungen[2].id") and bindung["revision"] == page.evaluate("window.planSaved.revision")
+    assert page.evaluate("window.gebaeudeSaved.basis") == 3
+    expect(aufgaben).to_contain_text("1 offen")
+    aufgaben.get_by_label("nur offene", exact=True).uncheck()
+    expect(aufgaben.locator("li", has_text="Gebäudegrundfläche")).to_contain_text("verknüpft mit")
+    aufgaben.get_by_label("nur offene", exact=True).check()
+    # Maßeingabe: Rechteck 2 m × 1 m ab dem ersten Punkt (10 m je 100 Punkte). Kürzel gelten nicht in Eingabefeldern.
+    svg.focus()
+    page.keyboard.press("r")
+    expect(scope.get_by_role("button", name="Rechteck", exact=True)).to_have_attribute("aria-pressed", "true")
+    svg.click(position={"x": 100, "y": 330})
+    page.keyboard.type("2;1")
+    expect(scope.get_by_label("Maßeingabe", exact=True)).to_have_value("2;1")
+    page.keyboard.press("Enter")
+    expect(scope.locator(".markierungen button")).to_have_count(4)
+    # Zoomfenster (Taste Z) und Ansichtsdrehung; gespeichert werden weiterhin Seitenpunkte.
+    page.keyboard.press("z")
+    expect(scope.get_by_role("button", name="Zoomfenster", exact=True)).to_have_attribute("aria-pressed", "true")
+    svg.click(position={"x": 100, "y": 100}); svg.click(position={"x": 300, "y": 250})
+    expect(scope.locator(".plan-kopf .zoom")).not_to_have_text("100 %")
+    scope.get_by_role("button", name="1:1", exact=True).click()
+    scope.get_by_role("button", name="Nach rechts drehen", exact=True).click()
+    expect(scope.locator(".papier")).to_have_css("width", "400px")
+    page.keyboard.press("s")
+    svg.click(position={"x": 50, "y": 100}); svg.click(position={"x": 50, "y": 200})
+    expect(scope.locator(".markierungen button")).to_have_count(5)
+    scope.get_by_role("button", name="Nach links drehen", exact=True).click()
+    expect(scope.locator(".papier")).to_have_css("width", "600px")
     # Ausschnitt: Rahmen aufziehen, als Schnitt kennzeichnen, Bezugslinie setzen, darin einen Höhenpunkt zeichnen.
     scope.get_by_role("button", name="Ausschnitt anlegen", exact=True).click()
     svg.click(position={"x": 300, "y": 40})
@@ -140,13 +202,13 @@ with sync_playwright() as p:
     expect(svg.locator(".abdunkeln")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(scope.get_by_role("button", name="Blatt 1", exact=True)).to_be_disabled()
-    expect(scope.locator(".markierungen button")).to_have_count(3)
+    expect(scope.locator(".markierungen button")).to_have_count(6)
     # Entf entfernt die gewählte Markierung, Strg+Z holt sie zurück.
-    scope.locator(".markierungen button").nth(2).click()
+    scope.locator(".markierungen button").nth(5).click()
     page.keyboard.press("Delete")
-    expect(scope.locator(".markierungen button")).to_have_count(2)
+    expect(scope.locator(".markierungen button")).to_have_count(5)
     page.keyboard.press("Control+z")
-    expect(scope.locator(".markierungen button")).to_have_count(3)
+    expect(scope.locator(".markierungen button")).to_have_count(6)
     page.screenshot(path=str(out / "editor.png"), full_page=True)
     scope.get_by_role("button", name="Speichern", exact=True).click()
     page.wait_for_function("window.planSaved?.daten.ausschnitte?.[0]?.bezugslinie?.hoehe_m===72.64")
@@ -154,13 +216,20 @@ with sync_playwright() as p:
     assert ausschnitt["art"] == "schnitt" and ausschnitt["bezeichnung"] == "Schnitt B-B"
     assert all(abs(a-b)<0.02 for a,b in zip(ausschnitt["von"]+ausschnitt["bis"], [300,40,560,300])), ausschnitt
     assert all(abs(a-b)<0.02 for a,b in zip(ausschnitt["bezugslinie"]["von"]+ausschnitt["bezugslinie"]["bis"], [320,250,540,250])), ausschnitt
-    assert page.evaluate("window.planSaved.daten.markierungen[2].ausschnitt_id") == ausschnitt["id"]
-    assert page.evaluate("window.planSaved.daten.markierungen[2].geometrie.art") == "hoehenpunkt"
+    assert page.evaluate("window.planSaved.daten.markierungen.at(-1).ausschnitt_id") == ausschnitt["id"]
+    assert page.evaluate("window.planSaved.daten.markierungen.at(-1).geometrie.art") == "hoehenpunkt"
+    mass = page.evaluate("window.planSaved.daten.markierungen[3].geometrie")
+    assert mass["art"] == "rechteck" and abs(mass["bis"][0]-mass["von"][0]-20) < 0.05 and abs(mass["bis"][1]-mass["von"][1]-10) < 0.05, mass
+    gedreht = page.evaluate("window.planSaved.daten.markierungen[4].geometrie")
+    assert gedreht["art"] == "strecke" and all(abs(a-b) < 0.05 for a, b in zip(gedreht["von"]+gedreht["bis"], [100, 350, 200, 350])), gedreht
     assert "ausschnitt_id" not in page.evaluate("window.planSaved.daten.markierungen[0]")
     assert page.evaluate("window.planSaved.daten.ebenen.some(e=>e.bezeichnung==='Schnitt B-B')")
-    # Seitenwechsel darf keinen alten Maßstab für die neue Seite weitergeben.
-    scope.get_by_label("Seite", exact=True).fill("2")
-    scope.get_by_label("Seite", exact=True).press("Tab")
+    # Seitenwechsel über die Miniaturen darf keinen alten Maßstab für die neue Seite weitergeben.
+    scope.get_by_role("button", name="Seiten (2)", exact=True).click()
+    expect(scope.locator(".seitenleiste button")).to_have_count(2)
+    expect(scope.locator(".seitenleiste img")).to_have_count(2)
+    scope.get_by_role("button", name="Seite 2", exact=True).click()
+    expect(scope.get_by_label("Seite", exact=True)).to_have_value("2")
     expect(scope.get_by_text("Maßstab fehlt", exact=True)).to_be_visible()
     scope.get_by_role("button", name="Speichern", exact=True).click()
     page.wait_for_function("window.planSaved?.daten.seite===2&&window.planSaved.daten.kalibrierung===null")
@@ -174,4 +243,4 @@ with sync_playwright() as p:
     assert not page.evaluate("(names)=>window.calls.some(c=>names.includes(c.cmd))", forbidden)
     assert not errors, errors
     browser.close()
-print("PDF-Aufmaß: Zeichnen, Ebenen, Sperre, Rückgängig, Zoom, Vollbild, Ausschnitt mit Bezugslinie, Kürzel, Speichern und Seitenwechsel erfolgreich.")
+print("PDF-Aufmaß: Zeichnen, Ebenen, Sperre, Rückgängig, Zoom, Vollbild, Aufgaben mit Übernahme, Maßeingabe, Zoomfenster, Drehung, Ausschnitt mit Bezugslinie, Kürzel, Speichern und Seitenwechsel erfolgreich.")

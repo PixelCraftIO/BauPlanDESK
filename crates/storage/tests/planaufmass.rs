@@ -572,7 +572,53 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         )
         .await
         .unwrap();
-    let plan = serde_json::from_value(saved.daten).unwrap();
+    let plan: core_lib::abstandsflaechen::AbstandsPlan =
+        serde_json::from_value(saved.daten).unwrap();
+    // Aufmaß-Aufgaben: gebundene Ziele sind erledigt, passende freie Markierungen
+    // werden vorgeschlagen, fehlende Bedeutungen bleiben offen.
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    let aufgabe = |verbraucher: &str, ziel: &str| {
+        aufgaben
+            .iter()
+            .find(|x| x.verbraucher == verbraucher && x.ziel == ziel)
+            .unwrap_or_else(|| panic!("Aufgabe {verbraucher} {ziel}"))
+            .clone()
+    };
+    assert_eq!(
+        aufgabe("gebaeude", "geometrie.grundflaeche_m2").gebunden,
+        Some(grundflaeche)
+    );
+    assert_eq!(
+        aufgabe("gebaeude", &format!("geschosse.{sid}.flaeche_m2")).gebunden,
+        Some(geschossflaeche)
+    );
+    assert_eq!(
+        aufgabe("gebaeude", "geometrie.traufe_m").gebunden,
+        Some(hoehe)
+    );
+    let gelaende = aufgabe("gebaeude", "geometrie.gelaende_m");
+    assert_eq!(gelaende.bedeutung, Planbedeutung::Gelaende);
+    assert_eq!(gelaende.geometrie, Aufgabengeometrie::Hoehenpunkt);
+    assert!(gelaende.gebunden.is_none() && gelaende.markierung.is_none());
+    assert_eq!(
+        aufgabe("abstand", &format!("waende.{wid}.abschluss_a_m")).gebunden,
+        Some(hoehe)
+    );
+    assert_eq!(
+        aufgabe("abstand", &format!("waende.{wid}.dachneigung_grad")).gebunden,
+        Some(dach)
+    );
+    let dachhoehe = aufgabe("abstand", &format!("waende.{wid}.dachhoehe_m"));
+    assert_eq!(
+        dachhoehe.markierung,
+        Some(dach),
+        "freie Dachstrecke wird vorgeschlagen"
+    );
+    assert!(dachhoehe.gebunden.is_none() && !dachhoehe.wert_vorhanden);
+    assert_eq!(
+        dachhoehe.gruppe,
+        format!("{} · {}", plan.bezeichnung, plan.waende[0].bezeichnung)
+    );
     let n = core
         .nachweis_erstellen(
             p.id,

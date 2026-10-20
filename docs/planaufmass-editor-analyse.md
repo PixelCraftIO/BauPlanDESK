@@ -304,9 +304,15 @@ aus Core-Werten, Kürzel, Markierung verschieben, Entf, Pfeiltasten, Shift-Raste
 Fang an eigenen Markierungen und Bezugslinien). Abweichungen zum Entwurf: Statt
 `drehung_grad` bestimmt die Richtung der Bezugslinie die Höhenrichtung; eine
 Ebene je Ausschnitt wird beim Anlegen erzeugt und mit dem Ausschnitt umbenannt.
-Noch offen aus A/B: Seitenminiaturen, Ansichtsdrehung in 90°-Schritten,
-Zoomfenster, Koordinaten-/Maßeingabe per Tastatur, Höhenlinie als eigenes
-Werkzeug (die Bezugslinie fängt bereits an waagerechten Kanten).
+Inzwischen ebenfalls umgesetzt: Seitenminiaturen, Ansichtsdrehung in
+90°-Schritten (Koordinaten bleiben Seitenpunkte), Zoomfenster, Maßeingabe per
+Tastatur, Höhenhilfslinie mit Höhenvorschau am Höhenpunkt (ersetzt das
+geplante eigene Werkzeug „Höhenlinie“: der Fang an Kanten plus Hilfslinie
+deckt den Fall ab) sowie **Stufe C**: Aufmaß-Aufgaben aus `planaufmass_aufgaben`
+mit Vorbelegung beim Zeichnen und Übernahme per Klick für Gebäude und manuelle
+Abstandswände. Offen bleiben aus C: Aufgaben für Positionen der
+Fachberechnungen und des Raumbuchs (dort müssen die Positionen erst entstehen)
+sowie die Werkzeugkiste und Textvorschläge aus Stufe D.
 
 
 

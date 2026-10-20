@@ -17,10 +17,19 @@ Enthalten sind:
   Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
   Ausschnittmodus, Rahmen ziehen und bearbeiten, Abdunkeln des Restblattes.
 - Arbeitsfläche über die volle Fensterhöhe, Vollbild (F11), Zoom um den
-  Mauszeiger (Strg+Rad, Pinch), Verschieben mit Leertaste oder mittlerer
-  Maustaste, scharfes Nachrastern beim Zoomen, Live-Maße am Cursor,
-  Beschriftung der Markierungen mit Core-Messwerten, Tastaturkürzel
-  (V, M, P, R, K, S, H, Entf, Strg+Z/Y/D, Pfeiltasten, Bild ↑/↓, Esc).
+  Mauszeiger (Strg+Rad, Pinch), Zoomfenster (Z), Verschieben mit Leertaste
+  oder mittlerer Maustaste, Ansichtsdrehung in 90°-Schritten, Seitenminiaturen,
+  scharfes Nachrastern beim Zoomen, Live-Maße am Cursor, Höhenhilfslinie und
+  Höhenvorschau am Höhenpunkt, Maßeingabe per Tastatur (Ziffer tippen: Länge
+  in m, optional Winkel; beim Rechteck Breite;Höhe), Beschriftung der
+  Markierungen mit Core-Messwerten, Tastaturkürzel (V, M, P, R, K, S, H, Z,
+  Entf, Strg+Z/Y/D, Pfeiltasten, Bild ↑/↓, Esc).
+- Aufmaß-Aufgaben: Der Core listet je gespeichertem Gebäude und je manueller
+  Abstandswand die Zielfelder mit benötigter Bedeutung und Geometrie, erkennt
+  verknüpfte Ziele und passende freie Markierungen. „Zeichnen“ belegt Werkzeug,
+  Bedeutung, Gebäude, Geschoss und Namen vor; „Übernehmen“ verknüpft die
+  Markierung über die bestehenden Übernahmedienste und speichert den
+  Verbraucher.
 - Polygon, Rechteck, Kreis, Strecke und Höhenpunkt; Eckpunkte verschieben,
   Zeichenaktionen rückgängig machen und wiederholen.
 - Benannte Zeichenebenen mit Sichtbarkeit und Bearbeitungssperre.
@@ -63,10 +72,14 @@ Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
    Schnitt darf daher auch gedreht auf dem Blatt liegen.
 4. Ausschnitt öffnen (Doppelklick auf den Rahmen oder „Öffnen“) und darin auf
    einer sichtbaren, ungesperrten Ebene zeichnen; neue Markierungen gehören
-   zum geöffneten Ausschnitt. Bedeutung und Zuordnung setzen. Ohne Ausschnitte
-   gilt wie bisher der blattweite Höhenbezug (Bezugspunkt, Seitenvertikale).
-5. Aufmaß speichern. In der Fachberechnung eine passende Position anlegen
-   und unter **Quellen / Übernahmen → PDF-Aufmaß** das Zielfeld verknüpfen.
+   zum geöffneten Ausschnitt. Am einfachsten über **Aufgaben** im Seitenpanel:
+   „Zeichnen“ an einer offenen Zeile setzt Werkzeug, Bedeutung und Zuordnung;
+   sonst Bedeutung und Zuordnung von Hand setzen. Ohne Ausschnitte gilt wie
+   bisher der blattweite Höhenbezug (Bezugspunkt, Seitenvertikale).
+5. Aufmaß speichern. Gebäude- und Wandziele direkt unter **Aufgaben →
+   Übernehmen** verknüpfen (das Gebäude bzw. der Abstandsplan wird dabei
+   gespeichert). Für Fachberechnungen eine passende Position anlegen und unter
+   **Quellen / Übernahmen → PDF-Aufmaß** das Zielfeld verknüpfen.
 6. Die eingesetzten Werte prüfen und die Berechnung speichern. Neue Maskenstände
    werden mit **Aktuellen Aufmaßstand übernehmen** bewusst übernommen.
 
@@ -161,6 +174,18 @@ Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
 - `planziele`: Positivliste fachlich unterstützter Zielfelder.
 - `abstandsziele`: entsprechende Positivliste für manuelle Wände.
 - `gebaeudeziele`: entsprechende Positivliste für Gebäude und explizite Geschosse.
+- `CoreServices::planaufmass_aufgaben`: `Planaufgabe` je Zielfeld der
+  gespeicherten Gebäude und manuellen Wände (Verbraucher, Objekt, Gruppe,
+  Zielfeld, Messgröße, geforderte `Planbedeutung`, `Aufgabengeometrie`
+  `flaeche`/`hoehenpunkt`/`strecke`, Zuordnungen, `wert_vorhanden`,
+  `gebunden`, passende freie `markierung`, Hinweis). Reine Auskunft; die
+  Übernahme läuft über `planaufmass_gebaeude`/`planaufmass_abstand` und das
+  Speichern des Verbrauchers.
+- `Planbedeutung` um `nullpunkt`, `fussboden`, `decke`, `fundamentsohle` und
+  `hoehenmass` erweitert, damit Gebäudehöhen eine eigene Bedeutung tragen.
+  Bestehende Markierungen sind unberührt; die Übernahmeprüfung der Höhen
+  verlangt weiterhin Höhenpunkt und Höhensystem, nicht eine bestimmte
+  Bedeutung.
 
 Koordinaten sind physische PDF-Seitenpunkte (72 Punkte = 1 Zoll) der sichtbaren,
 gedrehten Seite ab links oben; y wächst nach unten. Der PDF.js-Viewport
@@ -187,7 +212,9 @@ Für Raumbuch und Wände kommen die Tauri-Commands `planaufmass_raumbuch`,
 und `POST /berechnung/planaufmass/abstandsziele` hinzu.
 Gebäude verwenden `planaufmass_gebaeude` / `planaufmass_gebaeudeziele`
 bzw. `POST /projekte/{id}/plangebaeude` (Payload: `id`, `gebaeude`) und
-`POST /berechnung/planaufmass/gebaeudeziele`.
+`POST /berechnung/planaufmass/gebaeudeziele`. Aufgaben liefert
+`planaufmass_aufgaben` bzw. `POST /projekte/{id}/planaufgaben` (Payload:
+das Aufmaß).
 Speichern erfolgt über die vorhandenen Fachobjekt-Endpunkte mit
 `ObjektArt::Planaufmass`. Die tatsächliche PDF-Seite wird an der Speichergrenze
 über den bestehenden PDF-Vertrag geprüft.
@@ -253,9 +280,9 @@ Für das beschriebene Gesamtziel fehlen noch eigenständige Verbraucheradapter:
 - Flurstücks- und private Grünflächen direkt in Grundstücksinformationen und
   Baugrundstücksermittlung übernehmen; Identität und rechtliche Flächenabzüge
   ausdrücklich erhalten.
-- Seitenminiaturen, Ansichtsdrehung, Vorschläge für Ausschnitte, Maßstab
-  und Höhenkoten aus dem PDF-Text, erweiterter Fang (Schnittpunkte, Lot)
-  und eine Werkzeugkiste mit Vorlagen; siehe
+- Vorschläge für Ausschnitte, Maßstab und Höhenkoten aus dem PDF-Text,
+  erweiterter Fang (Schnittpunkte, Lot) und eine Werkzeugkiste mit Vorlagen;
+  Aufgaben für Fachberechnungen (Positionen) und Raumbuch; siehe
   [planaufmass-editor-analyse.md](planaufmass-editor-analyse.md).
 - Geschoss-Außenkonturen zusätzlich als transformierte Lagegeometrie für
   Gebäudeumrisse und Wandkorrespondenzen bereitstellen. Die Flächenübernahme
@@ -296,8 +323,11 @@ nicht erfasste projektspezifische Pflichten.
 - Browser-Test `apps/desktop/tests/planaufmass.py`: echte PDF-Darstellung mit
   kontrolliertem IPC-Testtransport; Zeichnen, Ebenen, Sperren, Rückgängig,
   Kalibrierung, Höhenbezug, Zoomkoordinaten, Strg+Rad-Zoom, Vollbild,
-  Ausschnitt mit Bezugslinie und Höhenpunkt, Tastenkürzel, Speichern und
-  Seitenwechsel.
+  Aufgaben (Vorbelegung und Übernahme in ein Gebäude), Maßeingabe,
+  Zoomfenster, Drehung mit Seitenkoordinaten, Ausschnitt mit Bezugslinie und
+  Höhenpunkt, Tastenkürzel, Speichern und Seitenwechsel über Miniaturen.
+- Storage-Integration: Aufgaben mit gebundenen Zielen, vorgeschlagener freier
+  Markierung und offener Bedeutung für Gebäude und Wand.
   Fachwerte werden durch die Core-Tests geprüft.
 
 PDF-Adapterreferenz: [PDF.js API](https://mozilla.github.io/pdf.js/api/draft/api.js.html).

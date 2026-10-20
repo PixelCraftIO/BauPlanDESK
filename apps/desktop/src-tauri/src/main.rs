@@ -238,6 +238,7 @@ fn main() {
             berechnungen::planaufmass_abstandsziele,
             berechnungen::planaufmass_gebaeude,
             berechnungen::planaufmass_gebaeudeziele,
+            berechnungen::planaufmass_aufgaben,
             berechnungen::berechnung_aus_raumbuch,
             berechnungen::fachberechnung_pruefen,
             updater::update_status,

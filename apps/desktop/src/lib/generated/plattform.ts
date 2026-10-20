@@ -3,7 +3,7 @@ import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Plan
 export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, };
 export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], };
-export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach";
+export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass";
 export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
 /**
  * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
@@ -34,6 +34,32 @@ export type Planbindung = { aufmass_id: string, revision: number, markierung_id:
  */
 ziel: string, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
+export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";
+export type Planaufgabe = {
+/**
+ * `gebaeude` oder `abstand`.
+ */
+verbraucher: string,
+/**
+ * Gebäude-ID bzw. ID des Abstandsplans.
+ */
+objekt: string, objekt_name: string,
+/**
+ * Anzeigegruppe, z. B. „Lagerhalle · OG“ oder „Südwand“.
+ */
+gruppe: string, ziel: string, titel: string, groesse: Planmessgroesse, bedeutung: Planbedeutung, geometrie: Aufgabengeometrie, gebaeude_id: string | null, geschoss_id: string | null, grundstueck_id: string | null,
+/**
+ * Zielfeld trägt bereits einen (manuellen) Wert.
+ */
+wert_vorhanden: boolean,
+/**
+ * Bereits verknüpfte Markierung (aus einem beliebigen Aufmaß).
+ */
+gebunden: string | null,
+/**
+ * Passende, noch nicht verknüpfte Markierung dieses Aufmaßes.
+ */
+markierung: string | null, hinweis: string | null, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

@@ -2,12 +2,13 @@
   import { onMount, untrack } from "svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext } from "../api";
-  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Gebaeude } from "../generated/plattform";
+  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
   import { plattformApi, type Datensatz } from "../plattformApi";
   import { abonnieren } from "../projektEreignisse";
   import PdfPlan from "./PdfPlan.svelte";
+  import Planaufgaben from "./Planaufgaben.svelte";
   import { planApi } from "./api";
   import { verschieben, type Point } from "./pdfGeometry";
   let {projekt,benutzerId,darf}:{projekt:Project;benutzerId:string;darf:boolean}=$props();
@@ -22,6 +23,7 @@
     ["versiegelung","Versiegelte Fläche"],["geschoss_aussenkante","Geschoss – Außenkante"],["gebaeudegrundflaeche","Gebäudegrundfläche – horizontale Projektion"],["raum","Raum"],["aufenthaltsraum","Aufenthaltsraum"],
     ["nuf","DIN 277 – Nutzungsfläche (NUF)"],["tf","DIN 277 – Technikfläche (TF)"],["vf","DIN 277 – Verkehrsfläche (VF)"],
     ["kgf","DIN 277 – Konstruktionsfläche (KGF)"],["aussenwand","Außenwand"],["gelaende","Gelände"],["traufe","Traufe"],["first","First"],["dach","Dach"],
+    ["nullpunkt","Gebäudenullpunkt ±0,00"],["fussboden","OK Fertigfußboden"],["decke","OK Decke"],["fundamentsohle","Fundamentsohle"],["hoehenmass","Höhenmaß (senkrechte Strecke)"],
   ];
   const arten: [Ausschnittart,string][]=[["grundriss","Grundriss"],["lageplan","Lageplan"],["schnitt","Schnitt"],["ansicht","Ansicht"],["detail","Detail"]];
   const mitHoehen=(a:Ausschnittart)=>a==="schnitt"||a==="ansicht"||a==="detail";
@@ -31,6 +33,8 @@
   let werte=$state<Planmesswert[]>([]),messFehler=$state(""),messLaeuft=$state(false),messStand=$state("");
   let undo=$state<Planmarkierung[][]>([]),redo=$state<Planmarkierung[][]>([]);
   let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560),einrichtungOffen=$state(true);
+  // Aus den Aufgaben vorbelegte Bedeutung und Zuordnung für die nächste Markierung.
+  let vorbelegung=$state<Planaufgabe|null>(null);
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
   const m=$derived(s.eingabe?.markierungen.find(m=>m.id===auswahl));
   const layer=$derived(s.eingabe?.ebenen.find(e=>e.id===ebene));
@@ -125,7 +129,8 @@
         return;
       }
       const w=werkzeuge.find(w=>w[2].toLowerCase()===k);
-      if(w&&!(w[0]==="hoehenpunkt"&&!hoehenMoeglich)){e.preventDefault();werkzeug=w[0];return}
+      if(w&&!(w[0]==="hoehenpunkt"&&!hoehenMoeglich)){e.preventDefault();werkzeug=w[0];vorbelegung=null;return}
+      if(k==="z"){e.preventDefault();plan?.zoomfensterStarten();return}
       if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();entfernen()}
       else if(e.key.startsWith("Arrow")&&m&&!objektGesperrt){
         e.preventDefault();
@@ -150,6 +155,7 @@
     if(b==="gebaeudegrundflaeche")return "Grundlagen → Gebäude / Geschosse: am Feld „Gebäudegrundfläche“ über „Aus PDF-Aufmaß“ übernehmen. Von dort geht sie in GRZ des Baugrundstücks ein.";
     if(b==="geschoss_aussenkante")return "Grundlagen → Gebäude / Geschosse: im jeweiligen Geschoss über „Aus PDF-Aufmaß“ übernehmen. Von dort geht sie in GFZ, Geschossigkeit und Vollgeschossprüfung ein.";
     if(b==="raum"||b==="aufenthaltsraum"||b==="nuf"||b==="tf"||b==="vf")return "Berechnungen → Flächen- und Raumbuch: „Räume aus PDF-Aufmaß übernehmen“ (Gebäude und Geschoss zuordnen). DIN 277 und Wohnfläche können außerdem unter „Quellen / Übernahmen“ verknüpft werden.";
+    if(b==="nullpunkt"||b==="fussboden"||b==="decke"||b==="fundamentsohle"||b==="hoehenmass")return "Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus PDF-Aufmaß“ oder direkt hier unter „Aufgaben → Übernehmen“.";
     if(b==="gelaende"||b==="traufe"||b==="first"||b==="dach"||b==="aussenwand")return "Je nach Ziel: Abstandsflächen → Grundlagen → „PDF-Aufmaß verknüpfen“ (manuelle Wand), Gebäudehöhen → „Quellen / Übernahmen“ oder Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus PDF-Aufmaß“.";
     if(b==="flurstueck")return "Eine direkte Übernahme in Flurstücke und Baugrundstücksermittlung gibt es noch nicht; die Fläche dient vorerst zur Kontrolle der Katasterangaben.";
     if(b==="unbestimmt")return "Zuerst eine Bedeutung wählen; sie bestimmt, welche Berechnung den Messwert übernehmen kann.";
@@ -196,11 +202,23 @@
     if(!layer||layer.gesperrt||!layer.sichtbar){s.fehler="Eine sichtbare, ungesperrte Zeichenebene auswählen.";return}
     merken();
     const id=crypto.randomUUID();
-    const neu:Planmarkierung={id,ebene_id:layer.id,bezeichnung:`Markierung ${p.markierungen.length+1}`,bedeutung:"unbestimmt",geometrie:g,
-      grundstueck_id:grund.length===1?grund[0].id:null,gebaeude_id:null,geschoss_id:null};
+    const v=vorbelegung;
+    const neu:Planmarkierung={id,ebene_id:layer.id,bezeichnung:v?`${v.gruppe} · ${v.titel}`:`Markierung ${p.markierungen.length+1}`,bedeutung:v?.bedeutung??"unbestimmt",geometrie:g,
+      grundstueck_id:v?.grundstueck_id??(grund.length===1?grund[0].id:null),gebaeude_id:v?.gebaeude_id??null,geschoss_id:v?.geschoss_id??null};
     if(aktiv)neu.ausschnitt_id=aktiv;
     p.markierungen.push(neu);
-    auswahl=id;werkzeug="auswahl";
+    auswahl=id;werkzeug="auswahl";vorbelegung=null;
+  }
+  function aufgabeZeichnen(a:Planaufgabe){
+    if(a.geometrie==="hoehenpunkt"&&!hoehenMoeglich){
+      s.meldung=`„${a.titel}“ ist eine Höhe: zuerst einen Schnitt oder eine Ansicht als Ausschnitt öffnen und dort die Bezugslinie setzen.`;return;
+    }
+    vorbelegung=a;
+    werkzeug=a.geometrie==="flaeche"?"polygon":a.geometrie==="hoehenpunkt"?"hoehenpunkt":"strecke";
+  }
+  function seiteWechseln(n:number){
+    if(!s.eingabe||n===s.eingabe.seite)return;
+    s.eingabe.seite=n;basisReset();
   }
   function ausschnittAnlegen(von:Point,bis:Point){
     const p=s.eingabe;if(!p)return;
@@ -296,12 +314,13 @@
           <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>Blatt {p.seite}</button>
           {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{/if}
         </span>
-        {#each werkzeuge as [id,titel,kuerzel]}<button type="button" class:aktiv={werkzeug===id} aria-pressed={werkzeug===id} disabled={id==="hoehenpunkt"&&!hoehenMoeglich} title={id==="hoehenpunkt"&&!hoehenMoeglich?"Höhen nur in Schnitt, Ansicht oder Detail":`Taste ${kuerzel}`} onclick={()=>werkzeug=id}>{titel}</button>{/each}
+        {#each werkzeuge as [id,titel,kuerzel]}<button type="button" class:aktiv={werkzeug===id} aria-pressed={werkzeug===id} disabled={id==="hoehenpunkt"&&!hoehenMoeglich} title={id==="hoehenpunkt"&&!hoehenMoeglich?"Höhen nur in Schnitt, Ansicht oder Detail":`Taste ${kuerzel}`} onclick={()=>{werkzeug=id;vorbelegung=null}}>{titel}</button>{/each}
         <button type="button" class="sekundaer" disabled={!undo.length} title="Strg+Z" onclick={rueckwaerts}>Rückgängig</button>
         <button type="button" class="sekundaer" disabled={!redo.length} title="Strg+Y" onclick={vorwaerts}>Wiederholen</button>
         <label class="umschalter"><input type="checkbox" bind:checked={masse}/>Maße anzeigen</label>
         <button type="button" class="sekundaer rechts" aria-pressed={vollbild} title="F11" onclick={()=>vollbild=!vollbild}>{vollbild?"Vollbild beenden":"Vollbild"}</button>
       </div>
+      {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?"Anfang und Ende der bekannten Referenzstrecke anklicken.":werkzeug==="bezug"?"Den Punkt mit der angegebenen Bezugshöhe auf der PDF anklicken.":werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
       <div class="arbeitsplatz">
         <div class="flaeche">
@@ -310,12 +329,13 @@
               ausschnitte={p.ausschnitte??[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
               onfertig={fertig} onauswahl={id=>auswahl=id} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
               onrahmen={(id,von,bis)=>{const a=p.ausschnitte?.find(a=>a.id===id);if(a){a.von=von;a.bis=bis}}}
-              onrahmenauswahl={id=>rahmenAuswahl=id} onoeffnen={oeffnen}
+              onrahmenauswahl={id=>rahmenAuswahl=id} onoeffnen={oeffnen} onseite={seiteWechseln}
               onfehler={e=>pdfFehler=e}/>
           {:else}<p class="meta">{laedt?"PDF wird geladen …":"Eine PDF-Unterlage auswählen."}</p>{/if}
           {#if messFehler}<p class="fehlertext" role="alert">Aufmaß prüfen: {messFehler}</p>{/if}
         </div>
         <aside>
+          {#if s.id}<Planaufgaben projektId={projekt.id} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{auswahl=id;werkzeug="auswahl"}}/>{/if}
           <h3>Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
           <p class="meta">Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.</p>
           <div class="ausschnitte">

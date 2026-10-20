@@ -1,10 +1,12 @@
 //! PDF-Aufmaß: unveränderte Dokumentversion + unabhängig gespeicherte Zeichenmaske.
 //! Öffentlicher Vertrag und Koordinatenkonvention: docs/planaufmass.md.
 mod abstand;
+mod aufgaben;
 mod gebaeude;
 mod raumbuch;
 mod service;
 pub use abstand::abstandsziele;
+pub use aufgaben::{Aufgabengeometrie, Planaufgabe};
 pub use gebaeude::gebaeudeziele;
 pub(crate) use service::bindungsstand;
 pub use service::{Planziel, planziele};
@@ -98,6 +100,15 @@ pub enum Planbedeutung {
     Traufe,
     First,
     Dach,
+    /// Gebäudenullpunkt ±0,00 (Höhenpunkt in NHN).
+    Nullpunkt,
+    /// OK Fertigfußboden eines Geschosses.
+    Fussboden,
+    /// OK Decke eines Geschosses.
+    Decke,
+    Fundamentsohle,
+    /// Senkrechte Strecke: lichte Höhe, Geschosshöhe, Deckendicke.
+    Hoehenmass,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]

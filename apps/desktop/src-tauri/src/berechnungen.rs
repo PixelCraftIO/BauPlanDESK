@@ -74,6 +74,18 @@ pub async fn berechnungsvorlagen() -> Result<Vec<BerechnungsVorlage>, CmdError> 
     Ok(core_lib::berechnungen::vorlagen()?)
 }
 #[tauri::command]
+pub async fn planaufmass_aufgaben(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    plan: core_lib::planaufmass::Planaufmass,
+) -> Result<Vec<core_lib::planaufmass::Planaufgabe>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.planaufmass_aufgaben(projekt_id, &plan).await?)
+}
+#[tauri::command]
 pub fn planaufmass_gebaeudeziele(
     plan: core_lib::plattform::objekte::Gebaeude,
 ) -> Vec<core_lib::planaufmass::Planziel> {
