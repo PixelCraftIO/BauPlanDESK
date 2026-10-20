@@ -372,6 +372,7 @@ pub(super) async fn erstellen(
                     if !plan.uebernahmen.is_empty()
                         || !plan.fachquellen.is_empty()
                         || !plan.quellen.is_empty()
+                        || !plan.planbindungen.is_empty()
                     {
                         z.push(abschnitt("Übernommene Grundlagen und Quellen"));
                     }
@@ -420,6 +421,64 @@ pub(super) async fn erstellen(
                             ],
                             &[0.8, 2., 1.5, 2., 1.],
                             quellen,
+                        ));
+                    }
+                    if !plan.planbindungen.is_empty() {
+                        // Herkunft aus dem gebundenen Aufmaßstand, nicht aus dem aktuellen.
+                        z.push(titel("Messwerte aus PDF-Aufmaß"));
+                        let ziele = crate::planaufmass::planziele(plan).unwrap_or_default();
+                        let mut zeilen = Vec::new();
+                        for b in &plan.planbindungen {
+                            let stand = core
+                                .fachverlauf(
+                                    p.id,
+                                    crate::plattform::ObjektArt::Planaufmass,
+                                    b.aufmass_id,
+                                )
+                                .await?
+                                .into_iter()
+                                .find(|f| f.revision == b.revision)
+                                .and_then(|f| {
+                                    serde_json::from_value::<crate::planaufmass::Planaufmass>(
+                                        f.daten,
+                                    )
+                                    .ok()
+                                });
+                            let (aufmass, markierung, unterlage) = match &stand {
+                                Some(a) => (
+                                    a.bezeichnung.clone(),
+                                    a.markierungen
+                                        .iter()
+                                        .find(|m| m.id == b.markierung_id)
+                                        .map(|m| m.bezeichnung.clone())
+                                        .unwrap_or_else(|| "Markierung fehlt".into()),
+                                    format!("Version {} · Seite {}", a.dokument.version, a.seite),
+                                ),
+                                None => ("Aufmaßstand fehlt".into(), String::new(), String::new()),
+                            };
+                            let ziel = ziele
+                                .iter()
+                                .find(|z| z.ziel == b.ziel)
+                                .map(|z| z.titel.clone())
+                                .unwrap_or_else(|| b.ziel.clone());
+                            zeilen.push(vec![
+                                aufmass,
+                                markierung,
+                                unterlage,
+                                format!("R{}", b.revision),
+                                ziel,
+                            ]);
+                        }
+                        z.push(tabelle(
+                            &[
+                                "PDF-Aufmaß",
+                                "Markierung",
+                                "PDF-Unterlage",
+                                "Stand",
+                                "Zielfeld",
+                            ],
+                            &[1.8, 1.8, 1.4, 0.6, 2.4],
+                            zeilen,
                         ));
                     }
                     for q in &plan.fachquellen {

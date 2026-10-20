@@ -32,6 +32,9 @@
 - **Einzelgeschoss:** `einzelgeschoss_vollgeschoss` mit Grundlage; mit geprüfter
   Einstufung geht ein Gebäude ohne einzeln erfasste Geschosse automatisch in
   GFZ und Geschossigkeit ein.
+  Ist die Einstufung im Gebäude festgelegt, übernimmt die GFZ sie bei jeder
+  Prüfung (bisher blieb die beim Verknüpfen gewählte Einstufung als Kopie
+  stehen); die Auswahl in der GFZ erscheint nur noch ohne Gebäudeangabe.
 - **Verknüpfte Flächen gehören dem Adapter:** Passt ein verknüpftes Gebäude
   oder Geschoss nicht mehr eindeutig (anderes Grundstück, Geschoss entfernt),
   entfällt der Eintrag mit Hinweis, statt die Prüfung zu blockieren.

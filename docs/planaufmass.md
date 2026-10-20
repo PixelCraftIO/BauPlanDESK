@@ -175,11 +175,26 @@ Quelltexte enthalten Dokumentversion, Seite, Aufmaß- und Markierungsbezeichnung
 sowie die übernommene Maskenrevision. Die Verknüpfung selbst trägt stabile IDs.
 
 Die Übernahme weist fremde Projekte, fehlende Markierungen, inkompatible Größen,
-andere Einheiten, neue Maskenrevisionen und neuere PDF-Versionen zurück.
-Berechnungs-Fingerprints berücksichtigen die aktuelle Maske und neueste
-PDF-Version. Ein alter Nachweis bleibt unverändert archiviert, wird aber
-als veraltet erkannt. Derzeit macht auch eine rein gestalterische Änderung
-einer referenzierten Maske die Übernahme prüfbedürftig.
+andere Einheiten, geänderte gebundene Markierungen und neuere PDF-Versionen zurück.
+Maßgebend ist der **Bindungsstand** (`bindungsstand`): Unterlage und Version,
+Seite, Kalibrierung, Höhenbezug, Aufmaßbezeichnung sowie Kontur, Bezeichnung,
+Bedeutung und Zuordnung der gebundenen Markierung. Ist das Aufmaß seit der
+Bindung neu gespeichert, vergleicht der Core diesen Stand der gebundenen mit der
+aktuellen Revision (`fachverlauf`). Ebenen, Sichtbarkeit, Sperren und andere
+Markierungen lassen eine Bindung gültig; nur die gebundene Markierung wird
+geprüft, sodass eine andere, nicht mehr passende Markierung desselben Aufmaßes
+keine Übernahme blockiert. Berechnungs-Fingerprints enthalten je Bindung deren
+Bindungsstand und die neueste PDF-Version. Ein alter Nachweis bleibt unverändert
+archiviert, wird aber bei geänderter Quelle als veraltet erkannt.
+
+*Regeländerung:* Archivierte Fachnachweise mit PDF-Verknüpfungen aus dem
+vorherigen Stand erhalten dadurch einmalig einen neuen Fingerprint und gelten
+als neu zu prüfen. Wandherkunft (`hoehenquelle`) führt nun alle Bindungen einer
+Wand mit Aufmaß- und Markierungsbezeichnung statt nur der letzten mit IDs; bereits
+gespeicherte Abstandspläne mit PDF-Bindungen sind einmal mit „Aktuellen
+Aufmaßstand übernehmen“ zu aktualisieren. Fehlermeldungen nennen Gebäude, Raum
+bzw. Markierung. Der Nachweisdruck führt die übernommenen Messwerte mit Aufmaß,
+Markierung, Unterlage und Stand auf.
 Diese Prüfung gilt auch für indirekte Verbraucher des Raumbuchs sowie
 Wandnachweise. Aktuelle Raumbuchberichte verwenden keine veralteten Planflächen.
 Die Projektübersicht führt veraltete Raumquellen und offene Wandangaben auf.

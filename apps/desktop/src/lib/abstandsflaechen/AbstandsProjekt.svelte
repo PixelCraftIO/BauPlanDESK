@@ -106,6 +106,15 @@
       s.fehler = fehlertext(e);
     }
   });
+  // Gebäude und Dokumente aus anderen Bereichen ohne Neuöffnen anbieten.
+  $effect(() => {
+    if (!quellenGeneration) return;
+    let gone = false;
+    Promise.all([api.dokumente(projekt.id), plattformApi.liste<Gebaeude>(projekt.id, "gebaeude")])
+      .then(([d, g]) => { if (!gone) { dateien = d; gebaeude = g; } })
+      .catch(() => { /* bisherige Listen bleiben; Fehler zeigt die nächste Prüfung */ });
+    return () => { gone = true; };
+  });
   async function gebaeudehoehen(id: string | undefined) {
     const g = gebaeude.find((g) => g.objekt === id);
     if (!g) return null;
@@ -646,7 +655,8 @@
           </p>
           {#key w.id}<Hoehenprofil
               wand={w}
-              planGebunden={p.planbindungen?.some(b=>b.ziel.startsWith(`waende.${w.id}.`) && (b.ziel.includes(".gelaende_")||b.ziel.includes(".abschluss_")))??false}
+              planGelaende={p.planbindungen?.some(b=>b.ziel.startsWith(`waende.${w.id}.gelaende_`))??false}
+              planOberkante={p.planbindungen?.some(b=>b.ziel.startsWith(`waende.${w.id}.abschluss_`))??false}
               {dateien}
               projektId={projekt.id}
               onquelle={(d) => {

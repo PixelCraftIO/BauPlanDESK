@@ -291,11 +291,23 @@ fn auswerten(
     }
 }
 impl CoreServices {
-    async fn nutzungs_planquellen_pruefen(&self, pid: ProjectId, e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResult<()> {
+    async fn nutzungs_planquellen_pruefen(
+        &self,
+        pid: ProjectId,
+        e: &NachweisEingabe,
+        gebaeude: &[Fachstand],
+    ) -> CoreResult<()> {
         let ids = gebaeude_quellids(pid, e, gebaeude);
-        for f in gebaeude.iter().filter(|f|ids.contains(&f.objekt)) {
+        for f in gebaeude.iter().filter(|f| ids.contains(&f.objekt)) {
             let g: objekte::Gebaeude = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
-            self.gebaeude_planquellen_pruefen(pid, f.objekt.parse().map_err(|_|CoreError::InvalidInput("Gebäude-ID ungültig".into()))?, &g).await?;
+            self.gebaeude_planquellen_pruefen(
+                pid,
+                f.objekt
+                    .parse()
+                    .map_err(|_| CoreError::InvalidInput("Gebäude-ID ungültig".into()))?,
+                &g,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -496,15 +508,24 @@ impl CoreServices {
         let staende = self.repos.commit.fachstaende(pid, "nachweise").await?;
         let mut abstandsquellen = std::collections::BTreeMap::new();
         for f in &abstandsplaene {
-            let plan: crate::abstandsflaechen::AbstandsPlan = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
-            abstandsquellen.insert(f.objekt.clone(), self.abstands_planquellen_pruefen(pid, &plan).await.is_ok());
+            let plan: crate::abstandsflaechen::AbstandsPlan =
+                serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+            abstandsquellen.insert(
+                f.objekt.clone(),
+                self.abstands_planquellen_pruefen(pid, &plan).await.is_ok(),
+            );
         }
         let mut fach_fingerprints = std::collections::BTreeMap::new();
         let mut nutzungsquellen = std::collections::BTreeMap::new();
         for f in &staende {
             let n: Nachweisstand = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
-            if matches!(&n.eingabe, NachweisEingabe::Nutzung{..}) {
-                nutzungsquellen.insert(n.id, self.nutzungs_planquellen_pruefen(pid, &n.eingabe, &gebaeude).await.is_ok());
+            if matches!(&n.eingabe, NachweisEingabe::Nutzung { .. }) {
+                nutzungsquellen.insert(
+                    n.id,
+                    self.nutzungs_planquellen_pruefen(pid, &n.eingabe, &gebaeude)
+                        .await
+                        .is_ok(),
+                );
             }
             if let NachweisEingabe::Fach { objekt, plan } = &n.eingabe {
                 fach_fingerprints.insert(
@@ -537,12 +558,13 @@ impl CoreServices {
                                 })
                         }
                         NachweisEingabe::AbstandProjekt { objekt, plan } => {
-                            abstandsquellen.get(&objekt.to_string()) == Some(&true) && abstandsplaene
-                                .iter()
-                                .find(|f| f.objekt == objekt.to_string())
-                                .is_some_and(|f| {
-                                    hash(&f.daten).is_ok_and(|h| h == stand.gebaeude_hash)
-                                })
+                            abstandsquellen.get(&objekt.to_string()) == Some(&true)
+                                && abstandsplaene
+                                    .iter()
+                                    .find(|f| f.objekt == objekt.to_string())
+                                    .is_some_and(|f| {
+                                        hash(&f.daten).is_ok_and(|h| h == stand.gebaeude_hash)
+                                    })
                                 && plan.dokumente().iter().all(|d| {
                                     dateien
                                         .iter()
@@ -552,8 +574,11 @@ impl CoreServices {
                                         == Some(d.version)
                                 })
                         }
-                        _ => nutzungsquellen.get(&stand.id) != Some(&false) && gebaeude_fingerprint(pid, &stand.eingabe, &gebaeude)
-                            .is_ok_and(|h| h == stand.gebaeude_hash),
+                        _ => {
+                            nutzungsquellen.get(&stand.id) != Some(&false)
+                                && gebaeude_fingerprint(pid, &stand.eingabe, &gebaeude)
+                                    .is_ok_and(|h| h == stand.gebaeude_hash)
+                        }
                     };
                 let freigabe = freigaben
                     .iter()
@@ -839,14 +864,23 @@ fn gebaeude_quellids(
     }
     ids
 }
-fn gebaeude_fingerprint(pid: ProjectId, e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResult<ContentHash> {
+fn gebaeude_fingerprint(
+    pid: ProjectId,
+    e: &NachweisEingabe,
+    gebaeude: &[Fachstand],
+) -> CoreResult<ContentHash> {
     let ids = gebaeude_quellids(pid, e, gebaeude);
     let mut stand = std::collections::BTreeMap::new();
     for f in gebaeude {
         if ids.contains(&f.objekt) {
-            let mut daten=f.daten.clone();
-            if daten.get("planbindungen").and_then(|v|v.as_array()).is_some_and(|b|!b.is_empty()) {
-                daten["planaufmass_rechenstand"]=serde_json::json!(crate::planaufmass::RECHENSTAND);
+            let mut daten = f.daten.clone();
+            if daten
+                .get("planbindungen")
+                .and_then(|v| v.as_array())
+                .is_some_and(|b| !b.is_empty())
+            {
+                daten["planaufmass_rechenstand"] =
+                    serde_json::json!(crate::planaufmass::RECHENSTAND);
             }
             stand.insert(f.objekt.clone(), daten);
         }

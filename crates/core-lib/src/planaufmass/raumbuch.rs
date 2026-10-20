@@ -107,7 +107,22 @@ impl CoreServices {
                     "Raumbuch unterstützt Planflächen über stabile Raum-IDs",
                 ));
             }
-            let (_, m, wert) = self.planbindung_aufloesen(pid, &b).await?;
+            // Fehler nennen den Raum, damit die Quelle im Raumbuch auffindbar ist.
+            let name = r
+                .raeume
+                .iter()
+                .find(|r| r.id.to_string() == t[1])
+                .map(|r| format!("Raum {} „{}“", r.nummer, r.bezeichnung))
+                .unwrap_or_else(|| "Verknüpfter Raum".into());
+            let (_, m, wert) = match self.planbindung_aufloesen(pid, &b).await {
+                Ok(v) => v,
+                Err(crate::CoreError::InvalidInput(t)) => {
+                    return Err(fehler(format!(
+                        "{name}: {t} Im Raumbuch erneut aus dem PDF-Aufmaß übernehmen oder die Verknüpfung lösen."
+                    )));
+                }
+                Err(e) => return Err(e),
+            };
             if nutzung(m.bedeutung).is_none()
                 || m.gebaeude_id != Some(r.gebaeude_id)
                 || (r.geschoss_id.is_some() && m.geschoss_id != r.geschoss_id)

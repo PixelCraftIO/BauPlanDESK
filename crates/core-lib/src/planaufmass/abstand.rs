@@ -53,6 +53,8 @@ impl CoreServices {
             return Err(fehler("Zu viele Wandverknüpfungen"));
         }
         let mut seen = std::collections::HashSet::new();
+        // Herkunft je Wand aus allen ihren Bindungen, nicht nur der letzten.
+        let mut herkunft: std::collections::BTreeMap<Uuid, Vec<String>> = Default::default();
         for b in plan.planbindungen.clone() {
             if !seen.insert(b.ziel.clone()) {
                 return Err(fehler("Wandfeld mehrfach verknüpft"));
@@ -136,18 +138,26 @@ impl CoreServices {
                 "dachneigung_b_grad" => w.dachneigung_b_grad = Some(wert),
                 _ => unreachable!(),
             }
-            w.hoehenquelle = format!(
-                "PDF-Aufmaß {} R{} · PDF {} V{} · Seite {} · {} · {}",
-                b.aufmass_id,
-                b.revision,
-                a.dokument.dokument_id.0,
-                a.dokument.version,
-                a.seite,
-                m.bezeichnung,
-                RECHENSTAND
-            );
+            let feld = match t[2] {
+                "gelaende_a_m" => "Gelände A",
+                "gelaende_b_m" => "Gelände B",
+                "abschluss_a_m" => "Wandabschluss A",
+                "abschluss_b_m" => "Wandabschluss B",
+                "dachhoehe_m" => "Dachhöhe",
+                "dachneigung_grad" => "Dachneigung",
+                _ => "Dachneigung B",
+            };
+            herkunft.entry(w.id).or_default().push(format!(
+                "{feld}: PDF-Aufmaß „{}“ R{} · Markierung „{}“ · PDF V{} · Seite {}",
+                a.bezeichnung, b.revision, m.bezeichnung, a.dokument.version, a.seite
+            ));
             if !plan.quellen.contains(&a.dokument) {
                 plan.quellen.push(a.dokument);
+            }
+        }
+        for w in &mut plan.waende {
+            if let Some(h) = herkunft.remove(&w.id) {
+                w.hoehenquelle = format!("{} · {RECHENSTAND}", h.join("; "));
             }
         }
         Ok(())

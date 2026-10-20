@@ -396,6 +396,13 @@
     return anzahl;
   }
   async function nachweisSpeichern() {
+    // Ein Nachweis soll dem gespeicherten Stand entsprechen, den auch Formulare
+    // und XBau verwenden: ungespeicherte Eingaben zuerst speichern und neu berechnen.
+    if (geaendert) {
+      await speichern();
+      if (geaendert || fehler) return;
+      await berechnen();
+    }
     if (!ergebnis || !aktuell) return;
     laeuft = true;
     try {
@@ -809,7 +816,7 @@
 
 {#if ergebnis}<button
     disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}
-    onclick={nachweisSpeichern}>Nachweisstand speichern</button
+    onclick={nachweisSpeichern}>{geaendert ? "Eingaben speichern und Nachweisstand archivieren" : "Nachweisstand speichern"}</button
   ><Druckknopf
     projektId={projekt.id}
     disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}

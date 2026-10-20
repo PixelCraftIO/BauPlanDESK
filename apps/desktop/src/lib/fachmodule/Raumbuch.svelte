@@ -8,6 +8,7 @@
   import Fachliste from "../Fachliste.svelte";
   import { planApi } from "../planaufmass/api";
   import { abonnieren } from "../projektEreignisse";
+  import { projektNavigation } from "../projektNavigation.svelte";
   import type { Planaufmass } from "../generated/plattform";
   let {
     projekt,
@@ -78,6 +79,13 @@
   }
   const z = (n: number) =>
     n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+  // Sprung aus der Projektübersicht zu veralteten Planquellen öffnet den Abschnitt.
+  const navigation = projektNavigation();
+  let planOffen = $state(false);
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (a?.ziel.bereich === "raumbuch" && a.ziel.register === "planaufmass") planOffen = true;
+  });
 </script>
 
 <Fachliste titel="Flächen- und Raumbuch" {s} bereich="raumbuch" {darf} zusatzBeschaeftigt={()=>importBusy}>
@@ -102,7 +110,7 @@
         ></label
       >
     </div>
-    <details>
+    <details bind:open={planOffen}>
       <summary>Räume aus PDF-Aufmaß übernehmen</summary>
       <p class="meta">Übernimmt Raum-, Aufenthaltsraum-, NUF-, TF- und VF-Markierungen des gewählten Gebäudes/Geschosses. Neue Räume werden angelegt; vorhandene Raumnummern, Nutzungen und Höhen bleiben erhalten. Flächen bleiben mit der Planquelle verknüpft.</p>
       <label>PDF-Aufmaß<select aria-label="PDF-Aufmaß" bind:value={aufmassId}><option value="">Aufmaß auswählen</option>{#each aufmasse as a}<option value={a.objekt}>{a.daten.bezeichnung} · R{a.revision}</option>{/each}</select></label>

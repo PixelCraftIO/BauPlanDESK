@@ -21,12 +21,13 @@ Planaufmaß (Fachobjekt, Revision R n)
 ```
 
 Eine Verknüpfung ist **kein Live-Wert**: Der Messwert wird beim Verknüpfen in
-den Entwurf geschrieben und beim Prüfen/Speichern vom Core aus genau der
-gebundenen Aufmaßrevision neu ermittelt. Wird das Aufmaß erneut gespeichert
-oder die PDF in neuer Version abgelegt, gilt die Verknüpfung als veraltet; der
-Verbraucher blockiert Speichern bzw. Nachweis, bis **Aktuellen Aufmaßstand
-übernehmen** gewählt und gespeichert wurde. Dadurch ändert sich kein
-gespeicherter Wert unbemerkt.
+den Entwurf geschrieben und beim Prüfen/Speichern vom Core neu ermittelt.
+Ändern sich danach die gebundene Markierung (Kontur, Bezeichnung, Bedeutung,
+Zuordnung), Maßstab, Höhenbezug oder die PDF-Version, gilt die Verknüpfung als
+veraltet; der Verbraucher blockiert Speichern bzw. Nachweis, bis **Aktuellen
+Aufmaßstand übernehmen** gewählt und gespeichert wurde. Dadurch ändert sich kein
+gespeicherter Wert unbemerkt. Ebenen, Sichtbarkeit und weitere Markierungen
+dürfen sich ändern, ohne dass etwas veraltet.
 
 ## Wege im Einzelnen
 
@@ -83,9 +84,10 @@ Höhen muss die Gebäudeübernahme vorher abgeschaltet werden.
 Gebäude und Geschoss wählen → **Räume aus PDF-Aufmaß übernehmen** → Aufmaß →
 **Planräume anlegen / aktualisieren** → speichern. Wohnfläche/DIN 277 übernehmen
 die Räume über **aus Raumbuch** als Kopie mit gebundener Raumbuchrevision.
-Ein erneuter Raumbuchimport entfernt jetzt auch die PDF-Verknüpfungen der
-ersetzten Positionen, statt beim nächsten Prüfen mit „Zielposition fehlt“
-abzubrechen.
+Eine erneute Übernahme gleicht über die Raum-ID ab: Flächen und Höhen kommen
+aus dem Raumbuch, Raumart, Wohnung, Geschoss und Klassifikation bleiben erhalten,
+manuelle Positionen ebenso. Entfallene Räume und deren PDF-Verknüpfungen werden
+entfernt.
 
 ### 6. Abstandsflächen
 
@@ -103,62 +105,80 @@ einer Wand entfallen jetzt auch ihre Verknüpfungen.
   (Wohnfläche, BGF/BRI, Versiegelung, Entwässerung, Höhen) erreichen Formulare
   derzeit nicht.
 
-## In diesem Stand behoben
+## Umgesetzte Verbesserungen
+
+Erste Stufe:
 
 * Direkte Flächenübernahme an Gebäudegrundfläche und Geschossfläche mit
   Erklärung, warum eine vorhandene Markierung nicht passt.
 * Duplizieren von Markierungen; Hinweise je Bedeutung statt des pauschalen
   Verweises auf „Quellen / Übernahmen“; unbenannte Geschosse werden als
   „Geschoss n“ angezeigt (auch in den Zielfeldern des Cores).
-* Markierungsauswahl in Fachberechnungen und Gebäuden entspricht der
-  Core-Prüfung (Bedeutung, Geometrie, Höhensystem); leere Auswahl wird erklärt.
+* Markierungsauswahl in Fachberechnungen, Gebäuden und Abstandsflächen
+  entspricht der Core-Prüfung (Bedeutung, Geometrie, Höhensystem); eine leere
+  Auswahl wird erklärt.
 * „Neu ermitteln“ im Veraltet-Hinweis auf GRZ/GFZ-Seiten.
-* Verwaiste Verknüpfungen nach Wandentfernung und Raumbuchimport.
+* Keine verwaisten Verknüpfungen nach Wandentfernung und Raumbuchimport.
 
-## Offene Punkte (nach Priorität)
+Zweite Stufe (Arbeitsablauf im Büro):
 
-1. **Ein veraltetes Gebäudeaufmaß blockiert alle Baugrundstücke.** Die
-   Gebäudeeinbindung bricht mit einem harten Fehler ab (auch beim Speichern
-   reiner Grundstücksabzüge) und nennt das Gebäude nicht. Vorschlag: pro
-   Gebäude als Einbindungshinweis melden und nur dieses Gebäude auslassen, wie
-   in [datenfluss-gebaeude-grundstuecke.md](datenfluss-gebaeude-grundstuecke.md)
-   beschrieben. *Regeländerung im Core.*
-2. **Jede Aufmaßspeicherung macht alle Verknüpfungen veraltet**, auch
-   Ebenen-Sichtbarkeit oder Umbenennungen. Vorschlag: Aktualität je Markierung
-   über einen Geometrie-/Kalibrierungs-Fingerprint statt der Objektrevision;
-   im Editor anzeigen, welche Verbraucher eine Markierung nutzen.
-   *Vertragsänderung `Planbindung`.*
-3. **Eine ungültige Markierung legt das ganze Aufmaß lahm** (gelöschtes
-   Geschoss/Gebäude, umgruppiertes Grundstück); die Meldung nennt die
-   Markierung nicht. Vorschlag: Markierung benennen und in der
-   Projektübersicht über `planaufmass_pruefen` melden; beim Löschen eines
-   Geschosses auf verweisende Markierungen hinweisen.
-4. **Raumbuch-Aktualisierung in Wohnfläche/DIN 277** ersetzt die Positionen
-   und verliert Raumart, Wohnung und Klassifikation. Vorschlag: Abgleich über
-   Raum-IDs statt Ersatz.
-5. **Vollgeschosse/Höhen** schalten bei genau einem Gebäude die
-   Gebäudeübernahme automatisch ein; eine PDF-Verknüpfung scheitert dann mit
-   „konkurrierende Eingabequellen“ ohne vorherigen Hinweis.
-6. **Abstandsflächen:** `hoehenquelle` hält nur die letzte Verknüpfung und
-   druckt IDs statt Bezeichnungen; das Höhenprofil sperrt bei einer Verknüpfung
-   den ganzen Bereich; Markierungsauswahl prüft Höhensystem und Bedeutung nicht.
-7. **Aktualisierung von Listen:** Gebäude (Baugrundstücksanzeige,
-   Vollgeschossnachweise), Bauantrag (Gebäudeanzahl) und Formulare abonnieren
-   Änderungen anderer Bereiche nicht; Werte erscheinen erst nach Neuladen.
-8. **Projektübersicht-Links** öffnen den Datensatz, aber nicht den Reiter bzw.
-   Abschnitt mit der Verknüpfung.
-9. **Einzelgeschoss:** Die Einstufung in GFZ ist eine Kopie und kann der
-   Einstufung im Gebäude widersprechen.
-10. **Nachweisstand speichern** ist auch mit ungespeicherten Eingaben möglich;
-    der archivierte Nachweis kann dann vom gespeicherten Stand abweichen, den
-    Formulare und XBau verwenden.
-11. BMZ übernimmt keine Gebäudedaten; Entwässerung kann Dachflächen mehrerer
-    Gebäude nicht in einer Berechnung bündeln; Druck führt Planbindungen nicht
-    als Quellen auf.
+* **Gestalterische Änderungen veralten nichts mehr.** Ebenen ein-/ausblenden,
+  sperren oder weitere Markierungen zeichnen lässt bestehende Verknüpfungen und
+  Nachweise gültig. Nur Änderungen an der gebundenen Markierung, am Maßstab,
+  am Höhenbezug oder an der Unterlage verlangen „Aktuellen Aufmaßstand
+  übernehmen“.
+* **Eine fehlerhafte Markierung blockiert nicht das ganze Aufmaß** für andere
+  Verbraucher; Meldungen nennen Markierung, Gebäude bzw. Raum und den nächsten
+  Schritt. Die Projektübersicht meldet ungültige Zuordnungen am Aufmaß selbst.
+* **Projektübersicht springt an die richtige Stelle:** Berechnungen öffnen
+  „Quellen / Übernahmen“, Gebäude und Raumbuch den PDF-Abschnitt.
+* **Raumbuch-Aktualisierung erhält Zuordnungen:** Wohnfläche/DIN 277 gleichen
+  über die Raum-ID ab; Raumart, Wohnung, Geschoss und Klassifikation bleiben,
+  manuelle Positionen bleiben stehen, die Meldung nennt neu/aktualisiert/entfallen.
+* **Gebäudeübernahme vs. PDF-Verknüpfung** (Vollgeschosse/Höhen): Hinweis vor
+  dem Verknüpfen und ein Knopf zum Beenden der Gebäudeübernahme.
+* **Nachweisstand speichern** speichert ungespeicherte Eingaben zuerst und
+  berechnet neu, damit Nachweis, Formulare und XBau denselben Stand haben.
+* **Einzelgeschoss:** Die Einstufung aus Gebäude/Geschosse gilt auch in der GFZ.
+* **Geschoss entfernen** warnt, wenn Markierungen auf das Geschoss verweisen.
+* **Abstandsflächen:** Herkunft aller Bindungen einer Wand mit Namen im Druck;
+  das Höhenprofil sperrt nur die verknüpfte Liste (Gelände bzw. Oberkante).
+* **Aktualität der Listen:** Gebäude (Baugrundstück, Vollgeschossnachweise),
+  Bauantrag (Gebäudeanzahl) und Abstandsflächen (Gebäude, Dokumente) laden
+  nach Änderungen anderer Bereiche neu; Formulare weisen auf geänderte
+  Projektdaten hin, ohne Eingaben zu überschreiben.
+* **Nachweisdruck** führt die aus dem PDF-Aufmaß übernommenen Messwerte mit
+  Aufmaß, Markierung, Unterlage und Stand auf.
+
+## Offene Punkte
+
+1. **Veraltete Gebäudeaufmaße blockieren GRZ/GFZ aller Baugrundstücke** und das
+   Speichern der Grundstückseingaben. Die Meldung nennt jetzt das Gebäude, und
+   gestalterische Änderungen lösen den Fall nicht mehr aus. Eine Einbindung,
+   die nur das betroffene Baugrundstück sperrt, erfordert je Grundstück
+   getrennte Fehler im Vertrag der Gebäudeeinbindung.
+2. **Formulare** erhalten weiterhin nur GRZ/GFZ/Geschossflächen/Vollgeschosse;
+   Wohnfläche, BGF/BRI, Versiegelung, Entwässerung und Höhen fehlen. Dafür ist
+   ein Ergebnisvertrag der Fachberechnungen für den Formularkontext nötig.
+3. BMZ übernimmt keine Gebäudedaten; Entwässerung kann Dachflächen mehrerer
+   Gebäude nicht in einer Berechnung bündeln.
+4. Raumbuch: Es gibt keine Sammelaktualisierung über mehrere Aufmaße; jedes
+   Aufmaß wird einzeln erneut übernommen.
+5. Weitere Ausbaupunkte des Aufmaßes (Flurstücksflächen, Lagegeometrie,
+   Ansichten/Schnitte) siehe [planaufmass.md](planaufmass.md).
 
 ## Kompatibilität
 
-Keine Datenmigration, keine Vertragsänderung. Geändert sind nur Bedienung,
-Vorauswahl und der Anzeigetitel von Zielfeldern unbenannter Geschosse
-(`gebaeudeziele`); die Zielfeld-IDs bleiben gleich. Die Übernahmeprüfung im
-Core bleibt maßgebend.
+Keine Datenmigration und keine Änderung der Datentypen oder generierten
+TypeScript-Verträge. Regeländerungen, jeweils in
+[planaufmass.md](planaufmass.md) bzw.
+[datenfluss-gebaeude-grundstuecke.md](datenfluss-gebaeude-grundstuecke.md)
+beschrieben:
+
+* Aktualität über den Bindungsstand statt über die Objektrevision. Archivierte
+  Fachnachweise mit PDF-Verknüpfungen gelten einmalig als neu zu prüfen.
+* Abstandspläne mit PDF-Bindungen erhalten eine neue Herkunftsangabe und sind
+  einmal mit „Aktuellen Aufmaßstand übernehmen“ zu aktualisieren.
+* Einzelgeschoss-Einstufung in der GFZ folgt dem Gebäude.
+
+Die Übernahmeprüfung im Core bleibt maßgebend; die Oberfläche filtert nur vor.

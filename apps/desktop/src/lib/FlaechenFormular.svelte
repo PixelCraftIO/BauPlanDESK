@@ -85,9 +85,12 @@
         const neu = basis.geschosse.filter((g) => !vorhanden.some((v) => v.geschoss_id === g.id));
         if (!neu.length) throw Error("Alle Geschosse dieses Gebäudes sind bereits erfasst.");
         if (neu.some((g) => g.flaeche_m2 === null)) throw Error("Die Flächen aller zu übernehmenden Geschosse zuerst in den Grundlagen ergänzen.");
-        if (neu.some((g) => (g.implizit ? einzelEinstufung : g.vollgeschoss) === null)) throw Error("Vollgeschosseinstufung zuerst prüfen und festlegen. Für einzeln erfasste Geschosse erfolgt dies in Gebäude/Geschosse.");
+        // Eine im Gebäude festgelegte Einstufung des Einzelgeschosses ist maßgebend.
+        const einstufung = (g: (typeof neu)[number]) => (g.implizit ? (g.vollgeschoss ?? einzelEinstufung) : g.vollgeschoss);
+        if (neu.some((g) => g.implizit && g.vollgeschoss !== null && einzelEinstufung !== null && g.vollgeschoss !== einzelEinstufung)) throw Error("Die gewählte Einstufung widerspricht der Einstufung in Gebäude/Geschosse. Dort ändern.");
+        if (neu.some((g) => einstufung(g) === null)) throw Error("Vollgeschosseinstufung zuerst prüfen und festlegen, am besten unter Gebäude/Geschosse.");
         if (ziel.geschosse.some((g) => !g.gebaeude_id)) throw Error("Vorhandene Geschosse zuerst ihren Gebäuden zuordnen.");
-        for (const g of neu) ziel.geschosse.push({gebaeude_id:haus.objekt,geschoss_id:g.implizit ? null : g.id,flaeche_aus_grundlagen:true,teilflaechen_geprueft:false,bezeichnung:g.bezeichnung,vollgeschoss:g.implizit ? einzelEinstufung! : g.vollgeschoss!,aussenmass_m2:g.flaeche_m2!,aufenthalt_m2:0,waende_m2:0,erschliessung_m2:0});
+        for (const g of neu) ziel.geschosse.push({gebaeude_id:haus.objekt,geschoss_id:g.implizit ? null : g.id,flaeche_aus_grundlagen:true,teilflaechen_geprueft:false,bezeichnung:g.bezeichnung,vollgeschoss:einstufung(g)!,aussenmass_m2:g.flaeche_m2!,aufenthalt_m2:0,waende_m2:0,erschliessung_m2:0});
         importHinweis = "Geschossflächen verknüpft. Bei anzurechnenden Nichtvollgeschossen Aufenthaltsräume, Wände und Erschließung gesondert ergänzen.";
       }
     } catch (e) { if (ziel === aufstellung) importFehler = fehlertext(e); }
@@ -102,7 +105,12 @@
     <legend>Bekannte Flächen aus Gebäude/Geschosse</legend>
     <p class="meta">Gebäude, die diesem Baugrundstück zugeordnet sind, werden mit vollständigen Grundlagen automatisch übernommen und beim Prüfen und Speichern aktualisiert. Hier lässt sich ein Gebäude erneut verknüpfen, etwa nach „Verknüpfung lösen“ oder um die Einstufung eines Einzelgeschosses festzulegen. Bereits manuell erfasste Flächen auf Doppelungen prüfen.</p>
     <label>Gebäude<select bind:value={importId} onchange={() => { einzelEinstufung = null; importFehler = ""; importHinweis = ""; }}><option value="">Gebäude auswählen</option>{#each importGebaeude as haus}<option value={haus.objekt}>{haus.daten.bezeichnung}</option>{/each}</select></label>
-    {#if bereich === "gfz" && importGebaeude.find((g) => g.objekt === importId)?.daten.geschosse.length === 0}<label>Geprüfte Einstufung des Einzelgeschosses<select bind:value={einzelEinstufung}><option value={null}>Noch zu prüfen</option><option value={true}>Vollgeschoss</option><option value={false}>Nichtvollgeschoss</option></select></label>{/if}
+    {#if bereich === "gfz" && importGebaeude.find((g) => g.objekt === importId)?.daten.geschosse.length === 0}
+      {@const imGebaeude = importGebaeude.find((g) => g.objekt === importId)?.daten.geometrie?.einzelgeschoss_vollgeschoss}
+      {#if imGebaeude === undefined}<label>Geprüfte Einstufung des Einzelgeschosses<select bind:value={einzelEinstufung}><option value={null}>Noch zu prüfen</option><option value={true}>Vollgeschoss</option><option value={false}>Nichtvollgeschoss</option></select></label>
+        <p class="meta">Besser unter Gebäude/Geschosse festlegen; dann gilt sie für alle Berechnungen.</p>
+      {:else}<p class="meta">Einstufung des Einzelgeschosses laut Gebäude/Geschosse: {imGebaeude ? "Vollgeschoss" : "Nichtvollgeschoss"}.</p>{/if}
+    {/if}
     <button type="button" class="sekundaer" disabled={!importId || importLaeuft} onclick={uebernehmen}>{bereich === "gfz" ? "Geschossflächen verknüpfen" : "Gebäudegrundfläche verknüpfen"}</button>
     {#if !importGebaeude.length}<p class="meta">Für eine Übernahme dem Gebäude unter Gebäude/Geschosse die Flurstücke zuordnen, auf denen es steht. Bei Gebäuden auf mehreren Baugrundstücken die Flächen getrennt aufteilen.</p>{/if}
     {#if importFehler}<p class="fehlertext" role="alert">{importFehler}</p>{/if}

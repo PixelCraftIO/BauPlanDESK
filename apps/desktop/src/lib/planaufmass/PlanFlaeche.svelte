@@ -36,7 +36,7 @@
   {#if bindung}
     {@const m = quelle?.stand.daten.markierungen.find((x) => x.id === bindung.markierung_id)}
     <span>Aus PDF-Aufmaß: <strong>{quelle?.stand.daten.bezeichnung ?? "Aufmaß fehlt"} · {m?.bezeichnung ?? "Markierung fehlt"}</strong> (Stand R{bindung.revision})</span>
-    {#if quelle && quelle.stand.revision !== bindung.revision}<strong class="warnung">Aufmaß wurde geändert</strong>
+    {#if quelle && quelle.stand.revision !== bindung.revision}<span class="meta">Aufmaß inzwischen gespeichert (R{quelle.stand.revision}); bei geänderter Kontur aktualisieren.</span>
       <button type="button" class="sekundaer" disabled={busy || !m} onclick={() => quelle && m && setzen({ a: quelle, m })}>Aktuellen Aufmaßstand übernehmen</button>{/if}
     <button type="button" class="link" disabled={busy} onclick={loesen}>Verknüpfung lösen</button>
   {:else if !gespeichert}
@@ -66,5 +66,4 @@
   .planflaeche { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: end; margin-block: .4rem .8rem; }
   .planflaeche > p, .planflaeche > details { flex-basis: 100%; margin: 0; }
   .planflaeche ol { margin-block: .3rem; }
-  .warnung { color: var(--warning-text); }
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import type { Project, GrundstueckKontext } from "../api";
   import { api, fehlertext } from "../api";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
@@ -16,6 +17,7 @@
   import PlanFlaeche from "../planaufmass/PlanFlaeche.svelte";
   import { aufmasseLaden, type Aufmassquelle } from "../planaufmass/quellen";
   import { abonnieren } from "../projektEreignisse";
+  import { projektNavigation } from "../projektNavigation.svelte";
   import GrundlagenZahl from "./GrundlagenZahl.svelte";
   import GeschossMasse from "./GeschossMasse.svelte";
   import type { GebaeudeGrundlagen } from "../generated/plattform";
@@ -55,6 +57,21 @@
     aufmasseLaden(projekt.id).then((a) => { if (aktuell) aufmasse = a; }).catch(() => { /* Planquellen zeigt Ladefehler */ });
     return () => { aktuell = false; };
   });
+  // Sprung aus der Projektübersicht zu veralteten Planquellen öffnet den Abschnitt.
+  const navigation = projektNavigation();
+  let planOffen = $state(false);
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (a?.ziel.bereich === "gebaeude" && a.ziel.register === "planaufmass") planOffen = true;
+  });
+  async function geschossEntfernen(g: Gebaeude, id: string) {
+    // Markierungen mit diesem Geschoss könnten danach nicht mehr gespeichert werden.
+    const marken = aufmasse.flatMap((a) => a.stand.daten.markierungen.filter((m) => m.geschoss_id === id).map((m) => `„${a.stand.daten.bezeichnung} · ${m.bezeichnung}“`));
+    if (marken.length && !(await ask(`Im PDF-Aufmaß sind diesem Geschoss zugeordnet: ${marken.join(", ")}. Nach dem Entfernen dort ein anderes Geschoss wählen, sonst lässt sich das Aufmaß nicht speichern. Geschoss trotzdem entfernen?`, { title: "Geschoss entfernen", kind: "warning" }))) return;
+    g.planbindungen = g.planbindungen?.filter((b) => !b.ziel.startsWith(`geschosse.${id}.`));
+    const i = g.geschosse.findIndex((x) => x.id === id);
+    if (i >= 0) g.geschosse.splice(i, 1);
+  }
   const geschossGespeichert = (id: string) => !!s.original?.geschosse.some((x) => x.id === id);
   const hoehenfelder = [
     ["nullpunkt_m_nhn", "Gebäudenullpunkt ±0,00 (m ü. NHN)"],
@@ -88,6 +105,8 @@
     }
   }
   onMount(quellstaende);
+  // Neue oder freigegebene Vollgeschossnachweise ohne manuelles Aktualisieren anbieten.
+  $effect(() => abonnieren(projekt.id, ["nachweise"], () => void quellstaende()));
   function quellen(geschossId: string) {
     return nachweise.flatMap((n) => {
       if (
@@ -137,13 +156,16 @@
   );
   let grund = $state<GrundstueckKontext[]>([]);
   let grundGeladen = $state(false);
-  onMount(async () => {
-    try {
-      grund = await api.grundstueckskontext(projekt.id);
-      grundGeladen = true;
-    } catch {
+  // Nach jeder Projektspeicherung (z. B. neue Baugrundstücksermittlung) neu laden.
+  $effect(() => {
+    void projekt.version;
+    let aktuell = true;
+    api.grundstueckskontext(projekt.id).then((g) => {
+      if (aktuell) { grund = g; grundGeladen = true; }
+    }).catch(() => {
       // Ohne bestätigte Ermittlung entfällt nur die Anzeige des Baugrundstücks.
-    }
+    });
+    return () => { aktuell = false; };
   });
   /** Baugrundstücke, zu denen die gewählten Flurstücke derzeit gehören. */
   const einheiten = (g: Gebaeude) =>
@@ -301,7 +323,7 @@
         <button
           type="button"
           class="link"
-          onclick={() => {g.planbindungen=g.planbindungen?.filter(b=>!b.ziel.startsWith(`geschosse.${geschoss.id}.`));g.geschosse.splice(i, 1)}}>Geschoss entfernen</button
+          onclick={() => void geschossEntfernen(g, geschoss.id)}>Geschoss entfernen</button
         >
       </fieldset>{/each}
     <button
@@ -315,7 +337,7 @@
           grundlage: "",
         })}>Geschoss hinzufügen</button
     >
-    {#if s.id}<details><summary>Höhen und alle Verknüpfungen aus PDF-Aufmaß</summary>
+    {#if s.id}<details bind:open={planOffen}><summary>Höhen und alle Verknüpfungen aus PDF-Aufmaß</summary>
       <p class="meta">Flächen lassen sich direkt an den Feldern Gebäudegrundfläche und Geschossfläche übernehmen. Hier werden zusätzlich Höhen verknüpft und alle Verknüpfungen aufgelistet. Gebäude und Geschosse zuerst speichern, dann Markierungen im PDF-Aufmaß zuordnen. Absolute Höhen in NHN werden auf den Gebäudenullpunkt umgerechnet.</p>
       <Planquellen projektId={projekt.id} objektId={s.id} plan={g} onplan={neu=>s.eingabe=neu as Gebaeude} onbusy={b=>planBusy=b}/>
     </details>{/if}

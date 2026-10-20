@@ -324,7 +324,12 @@ impl Gebaeude {
     }
 }
 impl CoreServices {
-    pub async fn gebaeude_auswerten(&self, p: ProjectId, id: Uuid, g: &Gebaeude) -> CoreResult<GebaeudeGrundlagen> {
+    pub async fn gebaeude_auswerten(
+        &self,
+        p: ProjectId,
+        id: Uuid,
+        g: &Gebaeude,
+    ) -> CoreResult<GebaeudeGrundlagen> {
         self.gebaeude_planquellen_pruefen(p, id, g).await?;
         g.grundlagen(id)
     }
