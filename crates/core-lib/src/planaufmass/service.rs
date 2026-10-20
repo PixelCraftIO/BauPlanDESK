@@ -171,12 +171,12 @@ impl CoreServices {
         for m in &plan.markierungen {
             // Die Meldung nennt die Markierung, damit sie im Editor auffindbar ist.
             let name = |t: &str| fehler(format!("Markierung „{}“: {t}", m.bezeichnung));
-            if let Some(id) = m.grundstueck_id {
-                if !grund.iter().any(|g| g.id == id) {
-                    return Err(name(
-                        "Baugrundstückszuordnung ist nicht mehr aktuell; Baugrundstück neu wählen",
-                    ));
-                }
+            if let Some(id) = m.grundstueck_id
+                && !grund.iter().any(|g| g.id == id)
+            {
+                return Err(name(
+                    "Baugrundstückszuordnung ist nicht mehr aktuell; Baugrundstück neu wählen",
+                ));
             }
             if let Some(id) = m.gebaeude_id {
                 let g = gebaeude
@@ -185,12 +185,12 @@ impl CoreServices {
                     .ok_or_else(|| name("Gebäude ist nicht mehr erfasst; Gebäude neu wählen"))?;
                 let g: Gebaeude =
                     serde_json::from_value(g.daten.clone()).map_err(|e| fehler(e.to_string()))?;
-                if let Some(s) = m.geschoss_id {
-                    if !g.geschosse.iter().any(|g| g.id == s) {
-                        return Err(name(
-                            "Geschoss ist im Gebäude nicht mehr erfasst; Geschoss neu wählen",
-                        ));
-                    }
+                if let Some(s) = m.geschoss_id
+                    && !g.geschosse.iter().any(|g| g.id == s)
+                {
+                    return Err(name(
+                        "Geschoss ist im Gebäude nicht mehr erfasst; Geschoss neu wählen",
+                    ));
                 }
             }
         }

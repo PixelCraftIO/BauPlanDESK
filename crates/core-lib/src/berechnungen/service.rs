@@ -372,20 +372,20 @@ impl CoreServices {
             None
         };
         let mut fachquellen = Vec::new();
-        if let (Some(id), Some(daten)) = (plan.gebaeude_id, &geb) {
-            if plan.gebaeudedaten_uebernehmen == Some(true) {
-                self.gebaeudegrundlagen(pid, id).await?;
-                if daten
-                    .get("planbindungen")
-                    .and_then(|v| v.as_array())
-                    .is_some_and(|b| !b.is_empty())
-                {
-                    fachquellen.push(Some((
-                        "gebaeudeaufmass-rechenstand".into(),
-                        1,
-                        serde_json::json!(crate::planaufmass::RECHENSTAND),
-                    )));
-                }
+        if let (Some(id), Some(daten)) = (plan.gebaeude_id, &geb)
+            && plan.gebaeudedaten_uebernehmen == Some(true)
+        {
+            self.gebaeudegrundlagen(pid, id).await?;
+            if daten
+                .get("planbindungen")
+                .and_then(|v| v.as_array())
+                .is_some_and(|b| !b.is_empty())
+            {
+                fachquellen.push(Some((
+                    "gebaeudeaufmass-rechenstand".into(),
+                    1,
+                    serde_json::json!(crate::planaufmass::RECHENSTAND),
+                )));
             }
         }
         if !plan.planbindungen.is_empty() {

@@ -278,7 +278,6 @@ pub(super) async fn validieren(
                     "Zu viele Gebäudezuordnungen oder Geschosse".into(),
                 ));
             }
-            let mut g = g;
             if g.flurstueck_ids.is_empty() || g.flurstuecke_zu_pruefen == Some(false) {
                 g.flurstuecke_zu_pruefen = None;
             }
