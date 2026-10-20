@@ -6,6 +6,9 @@
   import { plattformApi, type Datensatz } from "../plattformApi";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
+  import { planApi } from "../planaufmass/api";
+  import { abonnieren } from "../projektEreignisse";
+  import type { Planaufmass } from "../generated/plattform";
   let {
     projekt,
     benutzerId,
@@ -13,6 +16,26 @@
   }: { projekt: Project; benutzerId: string; darf: boolean } = $props();
   let gebaeude = $state<Datensatz<Gebaeude>[]>([]);
   let summen = $state<RaumSummen | null>(null);
+  let aufmasse = $state<Datensatz<Planaufmass>[]>([]), aufmassId = $state(""), importBusy = $state(false);
+  let listenGeneration=0;
+  async function plaeneLaden() {
+    const n=++listenGeneration;
+    try { const liste = await plattformApi.liste<Planaufmass>(s.projektId, "planaufmass"); if(n===listenGeneration)aufmasse=liste; }
+    catch(e) { if(n===listenGeneration)s.fehler = fehlertext(e); }
+  }
+  onMount(()=>{void plaeneLaden();return()=>{listenGeneration++}});
+  $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente"],()=>{summen=null;void plaeneLaden()}));
+  async function planraeume() {
+    const a=aufmasse.find(a=>a.objekt===aufmassId);
+    if(!a||!s.eingabe)return;
+    const before=JSON.stringify(s.eingabe);
+    importBusy=true;s.fehler=null;
+    try {
+      const r=await planApi.raumbuch(s.projektId,a.objekt,a.revision,JSON.parse(before));
+      if(JSON.stringify(s.eingabe)!==before)throw Error("Raumbuch zwischenzeitlich geändert. Übernahme wiederholen.");
+      s.eingabe=r;s.meldung="Planräume im Entwurf übernommen. Raumnummern und Nutzung prüfen, anschließend speichern.";
+    } catch(e) { s.fehler=fehlertext(e); } finally { importBusy=false; }
+  }
   const s = untrack(
     () =>
       new FachSitzung<Raumbuch>(
@@ -57,7 +80,7 @@
     n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
 </script>
 
-<Fachliste titel="Flächen- und Raumbuch" {s} bereich="raumbuch" {darf}>
+<Fachliste titel="Flächen- und Raumbuch" {s} bereich="raumbuch" {darf} zusatzBeschaeftigt={()=>importBusy}>
   {#snippet children(r)}<div class="raster">
       <label>Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung" bind:value={r.bezeichnung} required /></label
       ><label
@@ -79,6 +102,17 @@
         ></label
       >
     </div>
+    <details>
+      <summary>Räume aus PDF-Aufmaß übernehmen</summary>
+      <p class="meta">Übernimmt Raum-, Aufenthaltsraum-, NUF-, TF- und VF-Markierungen des gewählten Gebäudes/Geschosses. Neue Räume werden angelegt; vorhandene Raumnummern, Nutzungen und Höhen bleiben erhalten. Flächen bleiben mit der Planquelle verknüpft.</p>
+      <label>PDF-Aufmaß<select aria-label="PDF-Aufmaß" bind:value={aufmassId}><option value="">Aufmaß auswählen</option>{#each aufmasse as a}<option value={a.objekt}>{a.daten.bezeichnung} · R{a.revision}</option>{/each}</select></label>
+      <button type="button" disabled={!aufmassId||!r.gebaeude_id||importBusy} onclick={planraeume}>Planräume anlegen / aktualisieren</button>
+      {#each r.planbindungen??[] as b}
+        {@const a=aufmasse.find(a=>a.objekt===b.aufmass_id)}
+        <p class="meta">{a?.daten.bezeichnung??"Planquelle fehlt"} · R{b.revision} · Raum {r.raeume.find(raum=>b.ziel===`raeume.${raum.id}.flaeche_m2`)?.bezeichnung??"fehlt"}
+        {#if a&&a.revision!==b.revision}<strong> – Quelle geändert</strong>{/if}
+        <button type="button" class="link" onclick={()=>r.planbindungen=r.planbindungen?.filter(q=>q!==b)}>Verknüpfung lösen</button></p>{/each}
+    </details>
     <div class="tabellen-scroll">
       <table class="ergebnistabelle">
         <thead
@@ -113,6 +147,7 @@
                   min="0"
                   step="any"
                   bind:value={raum.flaeche_m2}
+                  disabled={r.planbindungen?.some(b=>b.ziel===`raeume.${raum.id}.flaeche_m2`)}
                   required
                 /></td
               ><td
@@ -127,7 +162,7 @@
                 ><button
                   type="button"
                   class="link"
-                  onclick={() => r.raeume.splice(i, 1)}>Entfernen</button
+                  onclick={() => {r.planbindungen=r.planbindungen?.filter(b=>!b.ziel.startsWith(`raeume.${raum.id}.`));r.raeume.splice(i, 1)}}>Entfernen</button
                 ></td
               ></tr
             >{/each}</tbody

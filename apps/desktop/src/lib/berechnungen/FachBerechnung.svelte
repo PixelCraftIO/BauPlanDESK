@@ -1,5 +1,6 @@
 <script lang="ts">
   import { feldSichtbar, feldFehler } from "./feldDarstellung";
+  import Planquellen from "../planaufmass/Planquellen.svelte";
   import { onMount, untrack, tick } from "svelte";
   import {
     api,
@@ -49,6 +50,7 @@
       Datensatz<import("../generated/plattform").Raumbuch>[]
     >([]);
   let bereich = $state("daten"),
+    planQuellenStand = $state(0),
     result = $state<FachErgebnis | null>(null),
     resultSignatur = $state(""),
     busy = $state(false),
@@ -85,6 +87,7 @@
       projekt.version,
       gebaeude.map((g) => [g.objekt, g.revision]),
       raumbuecher.map((r) => [r.objekt, r.revision]),
+      planQuellenStand,
     ]),
   );
   const signatur = (plan: unknown) =>
@@ -212,12 +215,17 @@
         (u) => !u.ziel.startsWith(`${t.pfad}.${String(row.id)}.`),
       );
     zeilen(t).splice(index, 1);
+    if (s.eingabe?.planbindungen)
+      s.eingabe.planbindungen = s.eingabe.planbindungen.filter(b=>!b.ziel.startsWith(`${t.pfad}.${String(row.id)}.`));
   }
   function ziel(t: FormTabelle | null, row: Obj | null, f: Feld) {
     return t ? `${t.pfad}.${String(row?.id)}.${f.name}` : f.name;
   }
   function quelleFuer(path: string) {
     return s.eingabe?.uebernahmen.find((u) => u.ziel === path);
+  }
+  function planquelleFuer(path: string) {
+    return s.eingabe?.planbindungen?.find(b=>b.ziel===path);
   }
   function quellenFuer(f: Feld) {
     return nachweise.flatMap((n) => {
@@ -302,6 +310,7 @@
   // Gebäude, Nachweise oder Dokumente anderer Bereiche dieser Akte geändert.
   $effect(() =>
     abonnieren(projekt.id, ["dokumente", "fachobjekte", "nachweise"], (e) => {
+      planQuellenStand++;
       void quellenLaden();
       if (e.bereich === "fachobjekte") void raumbuecherLaden();
     }),
@@ -622,10 +631,10 @@
                           feld={f}
                           pfad={`${t.pfad}[${i}].${f.name}`}
                           {pruefversuch}
-                          quelle={quelleFuer(ziel(t,row,f)) ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen" : ""}
+                          quelle={planquelleFuer(ziel(t,row,f)) ? "Aus PDF-Aufmaß verknüpft · Herkunft unter Quellen / Übernahmen" : quelleFuer(ziel(t,row,f)) ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen" : ""}
                           wert={row[f.name]}
                           optionen={optionen(f)}
-                          disabled={!!quelleFuer(ziel(t, row, f)) || (modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten" && !["sonderentscheidung", "sondergrundlage"].includes(f.name))}
+                          disabled={!!planquelleFuer(ziel(t,row,f)) || !!quelleFuer(ziel(t, row, f)) || (modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten" && !["sonderentscheidung", "sondergrundlage"].includes(f.name))}
                           onwert={(v) => (row[f.name] = v)}
                         />{#if f.groesse}{@render uebernahme(
                             ziel(t, row, f),
@@ -644,6 +653,7 @@
                 </p>{/each}
             </section>{/each}
         {:else if bereich === "quellen"}
+          <Planquellen projektId={projekt.id} plan={p} onplan={neu=>s.eingabe=neu as FachPlan} onbusy={b=>busy=b} />
           <p>
             Verwendete Pläne, Aufmaße und Rechts-/Satzungsbelege mit ihrer
             konkreten Version zuordnen.

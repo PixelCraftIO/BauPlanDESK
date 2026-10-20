@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { GeschossGeometrie, GebaeudeGeschoss } from "../generated/plattform";
   import GrundlagenZahl from "./GrundlagenZahl.svelte";
-  let { masse, onmasse, geschosse = [], id, einzelgeschoss = false }: { masse?: GeschossGeometrie; onmasse: (m: GeschossGeometrie) => void; geschosse?: GebaeudeGeschoss[]; id?: string; einzelgeschoss?: boolean } = $props();
+  let { masse, onmasse, geschosse = [], id, einzelgeschoss = false, gebundeneFelder=[] }: { masse?: GeschossGeometrie; onmasse: (m: GeschossGeometrie) => void; geschosse?: GebaeudeGeschoss[]; id?: string; einzelgeschoss?: boolean; gebundeneFelder?:string[] } = $props();
   const felder = [
     ["flaeche_m2", "Geschossfläche nach Außenmaßen (m²)", 0],
     ["fussboden_m", "OK Fertigfußboden zu ±0,00 (m)", undefined],
@@ -13,7 +13,7 @@
 </script>
 <div class="raster">
   {#each felder.filter(([key]) => !einzelgeschoss || key !== "flaeche_m2") as [key, titel, min]}
-    <GrundlagenZahl {titel} {min} wert={masse?.[key]} onwert={(v) => onmasse({ ...masse, [key]: v })} />
+    <GrundlagenZahl {titel} {min} readonly={gebundeneFelder.includes(key)} wert={masse?.[key]} onwert={(v) => onmasse({ ...masse, [key]: v })} />
   {/each}
   {#if geschosse.length > 1}<label>Unterliegendes Geschoss<select value={masse?.unterliegend_geschoss_id ?? ""} onchange={(e) => onmasse({ ...masse, unterliegend_geschoss_id: e.currentTarget.value || undefined })}>
     <option value="">Noch nicht zugeordnet</option>

@@ -15,6 +15,7 @@ impl CoreServices {
             return Err(err("Regelpaket gehört nicht zum Bundesland des Projekts"));
         }
         plan.validate()?;
+        self.abstands_planquellen_pruefen(p, plan).await?;
         let infos = crate::grundstuecksinformationen::informationen(
             &self.get_project(p).await?.planungsrecht,
         );
@@ -81,6 +82,7 @@ impl CoreServices {
             .await?;
         let mut neu: AbstandsPlan =
             serde_json::from_value(daten).map_err(|e| err(e.to_string()))?;
+        self.planwerte_abstand(p, &mut neu).await?;
         neu.validate()?;
         // Umrisswände folgen ihrem Umriss; die Oberfläche bindet bereits beim
         // Bearbeiten ein, hier wird nur sichergestellt, dass nichts abweicht.

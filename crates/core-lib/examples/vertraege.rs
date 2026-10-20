@@ -12,6 +12,17 @@ fn main() {
     );
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
+        core_lib::planaufmass::Plankalibrierung,
+        core_lib::planaufmass::Planebene,
+        core_lib::planaufmass::Plangeometrie,
+        core_lib::planaufmass::Planbedeutung,
+        core_lib::planaufmass::Planmarkierung,
+        core_lib::planaufmass::Planhoehenbezug,
+        core_lib::planaufmass::Planaufmass,
+        core_lib::planaufmass::Planmesswert,
+        core_lib::planaufmass::Planmessgroesse,
+        core_lib::planaufmass::Planbindung,
+        core_lib::planaufmass::Planziel,
         core_lib::portale::Profilfreigabe,
         core_lib::portale::PortalUnterlagenart,
         core_lib::portale::Portalprofil,

@@ -890,6 +890,7 @@ pub(super) async fn erstellen(
                 .find(|f| f.objekt == id.to_string() && f.revision == *revision)
                 .ok_or_else(|| fehler("Raumbuch geändert. Auswahl aktualisieren."))?;
             let r: Raumbuch = serde_json::from_value(f.daten).map_err(fehler)?;
+            core.raumbuch_planquellen_pruefen(p.id, &r).await?;
             let s = r.summen()?;
             let gebaeude = core
                 .fachobjekte(p.id, ObjektArt::Gebaeude)

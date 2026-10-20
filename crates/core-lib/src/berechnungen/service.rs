@@ -12,6 +12,7 @@ impl CoreServices {
         mut plan: FachPlan,
     ) -> CoreResult<(FachPlan, FachErgebnis)> {
         self.gebaeudedaten_einsetzen(pid, &mut plan).await?;
+        self.planwerte_einsetzen(pid, &mut plan).await?;
         self.berechnung_quellen(pid, &plan).await?;
         if let Some(id) = plan.grundstueck_id {
             let p = self.get_project(pid).await?;
@@ -115,6 +116,7 @@ impl CoreServices {
             .find(|f| f.objekt == id.to_string())
             .ok_or_else(|| err("Gebäude gehört nicht zum Projekt"))?;
         let g: crate::plattform::objekte::Gebaeude = decode(&stand.daten)?;
+        self.gebaeude_planquellen_pruefen(pid, id, &g).await?;
         let basis = g.grundlagen(id)?;
         if plan.modul == BerechnungsArt::Hoehen {
             return hoehen_einsetzen(plan, &g, &basis);
@@ -228,6 +230,9 @@ impl CoreServices {
                 .find(|g| g.objekt == id.to_string())
                 .ok_or_else(|| err("Gebäude gehört nicht zum Projekt"))?;
             let g: crate::plattform::objekte::Gebaeude = decode(&geb.daten)?;
+            if plan.gebaeudedaten_uebernehmen == Some(true) {
+                self.gebaeude_planquellen_pruefen(pid, id, &g).await?;
+            }
             if plan.modul == BerechnungsArt::Vollgeschosse {
                 let e: vollgeschosse::Eingabe = decode(&plan.eingaben)?;
                 for s in e.geschosse {
@@ -266,6 +271,7 @@ impl CoreServices {
                 ));
             }
             let r: crate::plattform::objekte::Raumbuch = decode(&f.daten)?;
+            self.raumbuch_planquellen_pruefen(pid, &r).await?;
             if plan.gebaeude_id != Some(r.gebaeude_id) {
                 return Err(err("Raumbuch gehört zu einem anderen Gebäude"));
             }
@@ -366,7 +372,39 @@ impl CoreServices {
             None
         };
         let mut fachquellen = Vec::new();
+        if let (Some(id), Some(daten)) = (plan.gebaeude_id, &geb) {
+            if plan.gebaeudedaten_uebernehmen == Some(true) {
+                self.gebaeudegrundlagen(pid, id).await?;
+                if daten.get("planbindungen").and_then(|v|v.as_array()).is_some_and(|b|!b.is_empty()) {
+                    fachquellen.push(Some(("gebaeudeaufmass-rechenstand".into(), 1, serde_json::json!(crate::planaufmass::RECHENSTAND))));
+                }
+            }
+        }
+        if !plan.planbindungen.is_empty() {
+            fachquellen.push(Some(("planaufmass-rechenstand".into(), 1, serde_json::json!(crate::planaufmass::RECHENSTAND))));
+        }
+        // Fingerprint berücksichtigt sowohl Zeichenmaske als auch die neueste PDF-Version.
+        for b in &plan.planbindungen {
+            let f = self.fachobjekte(pid, ObjektArt::Planaufmass).await?.into_iter()
+                .find(|f| f.objekt == b.aufmass_id.to_string());
+            if let Some(f) = &f {
+                let a: crate::planaufmass::Planaufmass = decode(&f.daten)?;
+                let version = self.document_history(a.dokument.dokument_id).await?.into_iter()
+                    .filter(|d| d.project_id == pid).map(|d| d.version).max();
+                fachquellen.push(Some((format!("pdf:{}", a.dokument.dokument_id.0), version.unwrap_or(0), serde_json::Value::Null)));
+            }
+            fachquellen.push(f.map(|f| (f.objekt, f.revision, f.daten)));
+        }
         for q in &plan.fachquellen {
+            if q.art == ObjektArt::Raumbuch {
+                let f = self.fachobjekte(pid, q.art).await?.into_iter()
+                    .find(|f| f.objekt == q.objekt.to_string()).ok_or_else(|| err("Raumbuch fehlt"))?;
+                let r: crate::plattform::objekte::Raumbuch = decode(&f.daten)?;
+                self.raumbuch_planquellen_pruefen(pid, &r).await?;
+                if !r.planbindungen.is_empty() {
+                    fachquellen.push(Some(("raumaufmass-rechenstand".into(), 1, serde_json::json!(crate::planaufmass::RECHENSTAND))));
+                }
+            }
             fachquellen.push(
                 self.fachobjekte(pid, q.art)
                     .await?
@@ -391,7 +429,7 @@ impl CoreServices {
 }
 /// Traufe und First aus Gebäude/Geschosse als Höhenpunkte (m ü. NHN), bezogen
 /// auf die mittlere Geländehöhe des Gebäudes. Eigene Punkte bleiben erhalten;
-/// übernommene Punkte tragen die Kennung `gebaeude:<id>:<art>` und werden bei
+/// Übernommene Punkte tragen die gültige Positionskennung `gebaeude_<id>_<art>` und werden bei
 /// jeder Prüfung aktualisiert. Geänderte Werte setzen die Bezugsprüfung zurück.
 fn hoehen_einsetzen(
     plan: &mut FachPlan,
@@ -402,10 +440,20 @@ fn hoehen_einsetzen(
     let gelaende = h.gelaende_m.ok_or_else(|| {
         err("Gebäudenullpunkt (m ü. NHN) und mittlere Geländehöhe in Gebäude/Geschosse ergänzen")
     })?;
-    let praefix = format!("gebaeude:{}:", basis.gebaeude_id);
+    let praefix = format!("gebaeude_{}_", basis.gebaeude_id);
+    let altpraefix = format!("gebaeude:{}:", basis.gebaeude_id);
     let mut e: hoehen::Eingabe = decode(&plan.eingaben)?;
     let vorher = e.punkte.clone();
-    e.punkte.retain(|p| !p.id.starts_with(&praefix));
+    e.punkte.retain(|p| !p.id.starts_with(&praefix) && !p.id.starts_with(&altpraefix));
+    // Entwürfe mit der früheren, vom Kennungsvalidator abgewiesenen Schreibweise
+    // erhalten ihre Dachverweise beim expliziten erneuten Gebäudeimport.
+    for d in &mut e.daecher {
+        for id in [&mut d.traufe_id, &mut d.first_id] {
+            if let Some(art) = id.strip_prefix(&altpraefix) {
+                *id = format!("{praefix}{art}");
+            }
+        }
+    }
     let herkunft = g
         .geometrie
         .as_ref()

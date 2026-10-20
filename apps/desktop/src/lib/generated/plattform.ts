@@ -1,5 +1,28 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, };
+export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
+export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], };
+export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach";
+export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null, };
+export type Planhoehenbezug = { punkt: [number, number], hoehe_m: number,
+/**
+ * Zum Beispiel „m ü. NHN“ oder „lokal, OKFF EG = 0“.
+ */
+system: string, };
+export type Planaufmass = { bezeichnung: string, dokument: Dokumentbezug,
+/**
+ * Einsbasiert. Mehrere Aufmaße derselben Seite dürfen verschiedene Maßstäbe haben.
+ */
+seite: number, kalibrierung: Plankalibrierung | null, hoehenbezug: Planhoehenbezug | null, ebenen: Array<Planebene>, markierungen: Array<Planmarkierung>, };
+export type Planmesswert = { id: string, laenge_m: number | null, flaeche_m2: number | null, horizontale_m: number | null, hoehe_m: number | null, neigung_grad: number | null, offen: Array<string>, };
+export type Planmessgroesse = "flaeche" | "laenge" | "horizontale" | "hoehe" | "neigung";
+export type Planbindung = { aufmass_id: string, revision: number, markierung_id: string, groesse: Planmessgroesse,
+/**
+ * Tabelle.Zeilen-ID.Feld; niemals Arraypositionen.
+ */
+ziel: string, };
+export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
@@ -40,7 +63,7 @@ export type Messgroesse = "wohnflaeche" | "versiegelungsansatz" | "gruenansatz" 
 export type Uebernahme = { nachweis_id: string, kennzahl: string, ziel: string, };
 export type Einstufungsquelle = { nachweis_id: string, kennzahl: string, };
 export type Fachquelle = { art: ObjektArt, objekt: string, revision: number, };
-export type FachPlan = { gebaeudedaten_uebernehmen?: boolean, modul: BerechnungsArt, bezeichnung: string, grundstueck_id: string | null, gebaeude_id: string | null, regelkontext: Regelkontext, quellen: Array<Dokumentbezug>, fachquellen: Array<Fachquelle>, uebernahmen: Array<Uebernahme>, eingaben: JsonValue, };
+export type FachPlan = { planbindungen?: Array<Planbindung>, gebaeudedaten_uebernehmen?: boolean, modul: BerechnungsArt, bezeichnung: string, grundstueck_id: string | null, gebaeude_id: string | null, regelkontext: Regelkontext, quellen: Array<Dokumentbezug>, fachquellen: Array<Fachquelle>, uebernahmen: Array<Uebernahme>, eingaben: JsonValue, };
 export type Kennzahl = { id: string, bezeichnung: string, wert: number | null, einheit: Einheit, groesse: Messgroesse, };
 export type Nachweistabelle = { titel: string, spalten: Array<string>, zeilen: Array<Array<string>>, };
 export type FachErgebnis = { rechenstand: string, modul: BerechnungsArt, vollstaendig: boolean, offen: Array<string>, hinweise: Array<string>, tabellen: Array<Nachweistabelle>, kennzahlen: Array<Kennzahl>, };
@@ -115,7 +138,7 @@ tiefenfall_grundlage?: string,
  * Aus einem Gebäudeumriss erzeugte Seite; Lage und Eckhöhen führt der Umriss.
  */
 umriss?: UmrissSeite, };
-export type AbstandsPlan = { bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>, };
+export type AbstandsPlan = { planbindungen?: Array<Planbindung>, bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>, };
 export type AbstandsPolygon = { aussen: Array<APunkt>, innen: Array<Array<APunkt>>, };
 export type AbstandsStatus = "offen" | "tiefenvorpruefung" | "eingehalten" | "konflikt" | "grenzfall";
 export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, wandhoehe_m: number | null, dachanteil_m: number | null, h_m: number | null, faktor: number | null, mindesttiefe_m: number | null, tiefe_m: number | null, herleitung: Array<string>, offen: Array<string>, status: AbstandsStatus, flaeche_m2: number | null, ausserhalb_m2: number | null, polygon: Array<APunkt>, konflikte: Array<AbstandsPolygon>,
@@ -539,11 +562,11 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
-export type Gebaeude = { geometrie?: GebaeudeGeometrie, bezeichnung: string,
+export type Gebaeude = { planbindungen?: Array<Planbindung>, geometrie?: GebaeudeGeometrie, bezeichnung: string,
 /**
  * Flurstücke (IDs der Grundstücksinformationen), auf denen das Gebäude
  * steht, bei Vereinigungsbaulast auch mehrere. Das Baugrundstück leitet der
@@ -605,7 +628,7 @@ export type EmpfaengerDokument = { dokument_id: string, dateiname: string, einge
 export type EmpfaengerUeberblick = { empfaenger: string, dokumente: Array<EmpfaengerDokument>, ziel: UebersichtsZiel, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
-export type Raumbuch = { bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
+export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
 export type Raum = { id: string, nummer: string, bezeichnung: string, nutzung: string, flaeche_m2: number, hoehe_m: number | null, };
 export type RaumSummen = { anzahl: number, flaeche_m2: number, volumen_m3: number | null, };
 export type NutzungsArt = "grz" | "gfz" | "geschossigkeit" | "bmz";

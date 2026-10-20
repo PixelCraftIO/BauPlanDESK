@@ -14,6 +14,7 @@ import Raumbuch from "./Raumbuch.svelte";
 import Verfahrensakte from "../verfahren/Verfahrensakte.svelte";
 import AktenSuche from "../verfahren/AktenSuche.svelte";
 import Nachweise from "./Nachweise.svelte";
+import Planaufmass from "../planaufmass/Planaufmass.svelte";
 export interface FachProps {
   projekt: Project;
   benutzerId: string;
@@ -21,6 +22,12 @@ export interface FachProps {
   darfFreigeben?: boolean;
 }
 export const FACHMODULE = [
+  {
+    id: "planaufmass",
+    titel: "PDF-Aufmaß",
+    gruppe: "Unterlagen",
+    komponente: Planaufmass,
+  },
   {
     id: "ueberbaubarkeit",
     titel: "Überbaubare Grundstücksfläche",

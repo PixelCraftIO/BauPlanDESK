@@ -33,6 +33,7 @@ pub enum ObjektArt {
     Unterlagen,
     Dokumentdaten,
     Raumbuch,
+    Planaufmass,
 }
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
@@ -53,6 +54,7 @@ impl ObjektArt {
             Self::Unterlagen => "unterlagen",
             Self::Dokumentdaten => "dokumentdaten",
             Self::Raumbuch => "raumbuch",
+            Self::Planaufmass => "planaufmass",
         }
     }
 }
@@ -214,6 +216,7 @@ pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
         ObjektArt::Unterlagen => rund::<objekte::Unterlage>(&f.daten),
         ObjektArt::Dokumentdaten => rund::<objekte::Dokumentdaten>(&f.daten),
         ObjektArt::Raumbuch => rund::<objekte::Raumbuch>(&f.daten),
+        ObjektArt::Planaufmass => rund::<crate::planaufmass::Planaufmass>(&f.daten),
     };
     if let Some(neu) = neu {
         f.daten = neu;

@@ -229,7 +229,7 @@ pub async fn gebaeude_auswerten(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
-    Ok(gebaeude.grundlagen(id)?)
+    Ok(state.core.gebaeude_auswerten(projekt_id, id, &gebaeude).await?)
 }
 #[tauri::command]
 pub async fn gebaeudezuordnung_uebertragen(

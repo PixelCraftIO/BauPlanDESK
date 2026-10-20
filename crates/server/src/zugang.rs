@@ -194,6 +194,11 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
                     "abstandsumrisse",
                     "abstandsgelaende",
                     "fachberechnung",
+                    "planaufmass",
+                    "planwerte",
+                    "planraumbuch",
+                    "planabstand",
+                    "plangebaeude",
                     "raumbuchimport",
                     "gebaeudegrundlagen",
                 ]

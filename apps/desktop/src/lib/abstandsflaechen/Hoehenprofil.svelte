@@ -18,11 +18,13 @@
     dateien = [],
     projektId = "",
     onquelle = () => {},
+    planGebunden = false,
   }: {
     wand: AbstandsWand;
     dateien?: DocumentVersion[];
     projektId?: string;
     onquelle?: (d: Dokumentbezug) => void;
+    planGebunden?: boolean;
   } = $props();
   // Nur zur Anzeige und als Vorschlag für neue Punkte; gerechnet wird im Core.
   const laenge = $derived(Math.hypot(wand.bis.x - wand.von.x, wand.bis.y - wand.von.y));
@@ -117,7 +119,8 @@
   }
 </script>
 
-<fieldset class="profil">
+{#if planGebunden}<p class="hinweisbox">Wandhöhen sind mit PDF-Aufmaß verknüpft. Unter „Grundlagen“ die Quelle aktualisieren oder die Verknüpfung lösen, bevor ein eigenes Höhenprofil angelegt wird.</p>{/if}
+<fieldset class="profil" disabled={planGebunden}>
   <legend>Höhenprofil der Wand · Länge {laenge.toLocaleString("de-DE", { maximumFractionDigits: 3 })} m</legend>
   <p class="meta">
     Stationen in Metern ab Wandanfang, Höhen im gemeinsamen Höhenbezug. Zwischen

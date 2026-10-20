@@ -291,6 +291,14 @@ fn auswerten(
     }
 }
 impl CoreServices {
+    async fn nutzungs_planquellen_pruefen(&self, pid: ProjectId, e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResult<()> {
+        let ids = gebaeude_quellids(pid, e, gebaeude);
+        for f in gebaeude.iter().filter(|f|ids.contains(&f.objekt)) {
+            let g: objekte::Gebaeude = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+            self.gebaeude_planquellen_pruefen(pid, f.objekt.parse().map_err(|_|CoreError::InvalidInput("Gebäude-ID ungültig".into()))?, &g).await?;
+        }
+        Ok(())
+    }
     async fn gebaeude_hash(&self, pid: ProjectId, e: &NachweisEingabe) -> CoreResult<ContentHash> {
         if let NachweisEingabe::Fach { objekt, plan } = e {
             return self.berechnungs_fingerprint(pid, *objekt, plan).await;
@@ -298,11 +306,9 @@ impl CoreServices {
         if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
             return hash(&serde_json::to_value(plan).map_err(json_err)?);
         }
-        gebaeude_fingerprint(
-            pid,
-            e,
-            &self.repos.commit.fachstaende(pid, "gebaeude").await?,
-        )
+        let gebaeude = self.repos.commit.fachstaende(pid, "gebaeude").await?;
+        self.nutzungs_planquellen_pruefen(pid, e, &gebaeude).await?;
+        gebaeude_fingerprint(pid, e, &gebaeude)
     }
     pub async fn nachweis_erstellen(
         &self,
@@ -488,9 +494,18 @@ impl CoreServices {
             .fachstaende(pid, "abstandsflaechen")
             .await?;
         let staende = self.repos.commit.fachstaende(pid, "nachweise").await?;
+        let mut abstandsquellen = std::collections::BTreeMap::new();
+        for f in &abstandsplaene {
+            let plan: crate::abstandsflaechen::AbstandsPlan = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+            abstandsquellen.insert(f.objekt.clone(), self.abstands_planquellen_pruefen(pid, &plan).await.is_ok());
+        }
         let mut fach_fingerprints = std::collections::BTreeMap::new();
+        let mut nutzungsquellen = std::collections::BTreeMap::new();
         for f in &staende {
             let n: Nachweisstand = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+            if matches!(&n.eingabe, NachweisEingabe::Nutzung{..}) {
+                nutzungsquellen.insert(n.id, self.nutzungs_planquellen_pruefen(pid, &n.eingabe, &gebaeude).await.is_ok());
+            }
             if let NachweisEingabe::Fach { objekt, plan } = &n.eingabe {
                 fach_fingerprints.insert(
                     n.id,
@@ -522,7 +537,7 @@ impl CoreServices {
                                 })
                         }
                         NachweisEingabe::AbstandProjekt { objekt, plan } => {
-                            abstandsplaene
+                            abstandsquellen.get(&objekt.to_string()) == Some(&true) && abstandsplaene
                                 .iter()
                                 .find(|f| f.objekt == objekt.to_string())
                                 .is_some_and(|f| {
@@ -537,7 +552,7 @@ impl CoreServices {
                                         == Some(d.version)
                                 })
                         }
-                        _ => gebaeude_fingerprint(pid, &stand.eingabe, &gebaeude)
+                        _ => nutzungsquellen.get(&stand.id) != Some(&false) && gebaeude_fingerprint(pid, &stand.eingabe, &gebaeude)
                             .is_ok_and(|h| h == stand.gebaeude_hash),
                     };
                 let freigabe = freigaben
@@ -674,9 +689,9 @@ impl CoreServices {
             .into_iter()
             .find(|f| f.objekt == id.to_string())
             .ok_or_else(|| CoreError::NotFound(id.to_string()))?;
-        serde_json::from_value::<objekte::Raumbuch>(f.daten)
-            .map_err(json_err)?
-            .summen()
+        let r = serde_json::from_value::<objekte::Raumbuch>(f.daten).map_err(json_err)?;
+        self.raumbuch_planquellen_pruefen(pid, &r).await?;
+        r.summen()
     }
     /// Wiederholung nutzt den archivierten Rechts- und Skriptstand, nicht den aktiven Katalog.
     pub async fn nachweis_wiederholen(
@@ -789,11 +804,11 @@ impl CoreServices {
     }
 }
 
-fn gebaeude_fingerprint(
+fn gebaeude_quellids(
     pid: ProjectId,
     e: &NachweisEingabe,
     gebaeude: &[Fachstand],
-) -> CoreResult<ContentHash> {
+) -> std::collections::BTreeSet<String> {
     let mut ids = std::collections::BTreeSet::new();
     if let NachweisEingabe::Nutzung { plan, .. } = e {
         // Auch zugeordnete, aber nicht verknüpfte Gebäude: eine neue Zuordnung
@@ -822,10 +837,18 @@ fn gebaeude_fingerprint(
             }
         }
     }
+    ids
+}
+fn gebaeude_fingerprint(pid: ProjectId, e: &NachweisEingabe, gebaeude: &[Fachstand]) -> CoreResult<ContentHash> {
+    let ids = gebaeude_quellids(pid, e, gebaeude);
     let mut stand = std::collections::BTreeMap::new();
     for f in gebaeude {
         if ids.contains(&f.objekt) {
-            stand.insert(f.objekt.clone(), f.daten.clone());
+            let mut daten=f.daten.clone();
+            if daten.get("planbindungen").and_then(|v|v.as_array()).is_some_and(|b|!b.is_empty()) {
+                daten["planaufmass_rechenstand"]=serde_json::json!(crate::planaufmass::RECHENSTAND);
+            }
+            stand.insert(f.objekt.clone(), daten);
         }
     }
     hash(&serde_json::to_value(stand).map_err(json_err)?)

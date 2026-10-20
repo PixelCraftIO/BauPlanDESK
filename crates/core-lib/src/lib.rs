@@ -52,6 +52,7 @@ pub mod commit;
 pub mod projektbereiche;
 
 pub mod plattform;
+pub mod planaufmass;
 
 pub mod zugriff;
 

@@ -3,6 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { save } from "@tauri-apps/plugin-dialog";
   import Fachliste from "../Fachliste.svelte";
+  import Planquellen from "../planaufmass/Planquellen.svelte";
+  import { abonnieren } from "../projektEreignisse";
   import { FachSitzung } from "../FachSitzung.svelte";
   import { plattformApi } from "../plattformApi";
   import { api, fehlertext, type Project, type DocumentVersion } from "../api";
@@ -82,7 +84,9 @@
         (p) => p.bezeichnung,
       ),
   );
-  const stand = $derived(JSON.stringify([s.id, s.eingabe]));
+  let quellenGeneration = $state(0);
+  $effect(() => abonnieren(projekt.id, ["fachobjekte", "dokumente"], () => { quellenGeneration++; }));
+  const stand = $derived(JSON.stringify([s.id, s.eingabe, quellenGeneration]));
   const aktuell = $derived(ergebnisStand === stand);
   const wand = $derived(s.eingabe?.waende.find((w) => w.id === auswahl));
   let vorgang = "",
@@ -329,6 +333,7 @@
   darf={darf &&
     (katalog.some((r) => r.land === projekt.bundesland) || !!s.eingabe)}
   lesendBedienbar
+  zusatzBeschaeftigt={() => busy}
 >
   {#snippet children(p: AbstandsPlan)}
     <nav aria-label="Abstandsflächenbereiche">
@@ -411,6 +416,7 @@
         >
         <h4>Originalquellen und Planversionen</h4>
         <Dokumentliste {dateien} bind:werte={p.quellen} />
+        <Planquellen projektId={projekt.id} plan={p} onplan={neu=>s.eingabe=neu as AbstandsPlan} onbusy={b=>busy=b}/>
       {:else if bereich === "umrisse"}
         <h3>Gebäudeumrisse</h3>
         <p class="meta">
@@ -636,6 +642,7 @@
           </p>
           {#key w.id}<Hoehenprofil
               wand={w}
+              planGebunden={p.planbindungen?.some(b=>b.ziel.startsWith(`waende.${w.id}.`) && (b.ziel.includes(".gelaende_")||b.ziel.includes(".abschluss_")))??false}
               {dateien}
               projektId={projekt.id}
               onquelle={(d) => {
@@ -646,6 +653,7 @@
           <label
             >Gelände-/Höhenherleitung und Planquelle<textarea
               bind:value={w.hoehenquelle}
+              readonly={p.planbindungen?.some(b=>b.ziel.startsWith(`waende.${w.id}.`))}
               rows="2"
             ></textarea></label
           >
@@ -671,6 +679,7 @@
                   step="any"
                   min="0"
                   bind:value={w.dachhoehe_m}
+                  readonly={p.planbindungen?.some(b=>b.ziel===`waende.${w.id}.dachhoehe_m`)}
                 /></label
               >{#if w.dachart === "dachflaeche"}<label
                   >Dachneigung (Grad)<input
@@ -679,6 +688,7 @@
                     max="90"
                     step="any"
                     bind:value={w.dachneigung_grad}
+                    readonly={p.planbindungen?.some(b=>b.ziel===`waende.${w.id}.dachneigung_grad`)}
                   /></label
                 >{#if p.regeln.gauben}<label
                     >Gesamtlänge Gauben/Dachaufbauten auf dieser Dachfläche (m)<input
@@ -698,6 +708,7 @@
                     max="90"
                     step="any"
                     bind:value={w.dachneigung_grad}
+                    readonly={p.planbindungen?.some(b=>b.ziel===`waende.${w.id}.dachneigung_grad`)}
                   /></label
                 ><label
                   >Neigung Dachseite 2 (Grad)<input
@@ -706,6 +717,7 @@
                     max="90"
                     step="any"
                     value={w.dachneigung_b_grad ?? ""}
+                    readonly={p.planbindungen?.some(b=>b.ziel===`waende.${w.id}.dachneigung_b_grad`)}
                     oninput={(e) => {
                       const v = e.currentTarget.value;
                       w.dachneigung_b_grad = v === "" ? undefined : Number(v);

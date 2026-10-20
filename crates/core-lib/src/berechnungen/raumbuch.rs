@@ -20,6 +20,7 @@ impl CoreServices {
             .find(|f| f.objekt == id.to_string())
             .ok_or_else(|| err("Raumbuch gehört nicht zu diesem Projekt"))?;
         let r: Raumbuch = decode(&f.daten)?;
+        self.raumbuch_planquellen_pruefen(p, &r).await?;
         let mut plan = vorlagen()?
             .into_iter()
             .find(|v| v.plan.modul == modul)

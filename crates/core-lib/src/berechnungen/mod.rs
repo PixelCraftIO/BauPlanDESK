@@ -195,6 +195,9 @@ pub struct Fachquelle {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct FachPlan {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<crate::planaufmass::Planbindung>>")]
+    pub planbindungen: Vec<crate::planaufmass::Planbindung>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub gebaeudedaten_uebernehmen: Option<bool>,

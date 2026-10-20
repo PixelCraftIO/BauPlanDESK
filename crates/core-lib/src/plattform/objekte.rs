@@ -32,6 +32,9 @@ pub struct Dokumentbezug {
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Gebaeude {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<crate::planaufmass::Planbindung>>")]
+    pub planbindungen: Vec<crate::planaufmass::Planbindung>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub geometrie: Option<super::gebaeude::GebaeudeGeometrie>,
@@ -117,6 +120,9 @@ pub struct Dokumentdaten {
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Raumbuch {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<crate::planaufmass::Planbindung>>")]
+    pub planbindungen: Vec<crate::planaufmass::Planbindung>,
     pub bezeichnung: String,
     pub gebaeude_id: Uuid,
     pub geschoss_id: Option<Uuid>,
@@ -199,6 +205,15 @@ pub(super) async fn validieren(
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
+        ObjektArt::Planaufmass => {
+            let plan: crate::planaufmass::Planaufmass = serde_json::from_value(daten).map_err(json_err)?;
+            core.planaufmass_pruefen(p.id, &plan).await?;
+            let (_, bytes) = core.load_version(plan.dokument.dokument_id, plan.dokument.version).await?;
+            if !crate::formular::editor::seiten(&bytes)?.iter().any(|seite|seite.nummer==plan.seite) {
+                return Err(CoreError::InvalidInput("PDF-Seite existiert nicht in dieser Dokumentversion".into()));
+            }
+            serde_json::to_value(plan)
+        }
         ObjektArt::Stellplaetze
         | ObjektArt::Wohnflaechen
         | ObjektArt::Din277
@@ -243,7 +258,8 @@ pub(super) async fn validieren(
             serde_json::to_value(o)
         }
         ObjektArt::Gebaeude => {
-            let g: Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
+            let mut g: Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
+            core.planwerte_gebaeude(p.id, objekt, &mut g).await?;
             text(&g.bezeichnung, 500)?;
             g.grundlagen(Uuid::nil())?;
             if g.geschosse.len() > 200
@@ -366,7 +382,8 @@ pub(super) async fn validieren(
             serde_json::to_value(d)
         }
         ObjektArt::Raumbuch => {
-            let r: Raumbuch = serde_json::from_value(daten).map_err(json_err)?;
+            let mut r: Raumbuch = serde_json::from_value(daten).map_err(json_err)?;
+            core.planwerte_raumbuch(p.id, &mut r).await?;
             text(&r.bezeichnung, 500)?;
             r.summen()?;
             let g = core
@@ -421,6 +438,12 @@ impl CoreServices {
                 ))
             })
             .collect::<CoreResult<Vec<_>>>()?;
+        let lage = super::einbindung::Lagebezug::neu(p, plan);
+        for (id, g) in &quellen {
+            if lage.irgendwo_eindeutig(g) {
+                self.gebaeude_planquellen_pruefen(p, *id, g).await?;
+            }
+        }
         let super::einbindung::GebaeudeEinbindung { plan, hinweise } =
             super::einbindung::einbinden(p, plan, &quellen);
         let bezug = super::einbindung::Lagebezug::neu(p, &plan);
@@ -443,6 +466,7 @@ impl CoreServices {
                             })?;
                         let g: Gebaeude =
                             serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+                        self.gebaeude_planquellen_pruefen(p, id, &g).await?;
                         if !bezug.eindeutig(&g, &b.schluessel) {
                             return Err(CoreError::InvalidInput("Flächenübernahme benötigt ein Gebäude, dessen Flurstücke eindeutig zu diesem Baugrundstück gehören; bei mehreren Grundstücken Flächen getrennt manuell aufteilen".into()));
                         }
@@ -481,6 +505,7 @@ impl CoreServices {
                             ));
                         }
                         if g.flaeche_aus_grundlagen == Some(true) {
+                            self.gebaeude_planquellen_pruefen(p, f.objekt.parse().map_err(|_| CoreError::InvalidInput("Gebäude-ID ungültig".into()))?, &geb).await?;
                             if !bezug.eindeutig(&geb, &b.schluessel) {
                                 return Err(CoreError::InvalidInput(
                                     "Geschossfläche für mehrere Grundstücke getrennt aufteilen"

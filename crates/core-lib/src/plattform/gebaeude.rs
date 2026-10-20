@@ -324,6 +324,10 @@ impl Gebaeude {
     }
 }
 impl CoreServices {
+    pub async fn gebaeude_auswerten(&self, p: ProjectId, id: Uuid, g: &Gebaeude) -> CoreResult<GebaeudeGrundlagen> {
+        self.gebaeude_planquellen_pruefen(p, id, g).await?;
+        g.grundlagen(id)
+    }
     pub async fn gebaeudegrundlagen(
         &self,
         p: ProjectId,
@@ -336,7 +340,7 @@ impl CoreServices {
             .find(|f| f.objekt == id.to_string())
             .ok_or_else(|| fehler("Gebäude gehört nicht zu diesem Projekt"))?;
         let g: Gebaeude = serde_json::from_value(f.daten).map_err(|e| fehler(&e.to_string()))?;
-        g.grundlagen(id)
+        self.gebaeude_auswerten(p, id, &g).await
     }
 }
 

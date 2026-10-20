@@ -12,6 +12,8 @@
   import { FachSitzung } from "../FachSitzung.svelte";
   import { editorRegister } from "../editoren";
   import Fachliste from "../Fachliste.svelte";
+  import Planquellen from "../planaufmass/Planquellen.svelte";
+  import { abonnieren } from "../projektEreignisse";
   import GrundlagenZahl from "./GrundlagenZahl.svelte";
   import GeschossMasse from "./GeschossMasse.svelte";
   import type { GebaeudeGrundlagen } from "../generated/plattform";
@@ -40,6 +42,8 @@
   let nachweise = $state<NachweisAnsicht[]>([]);
   let vorschau = $state<GebaeudeGrundlagen | null>(null);
   let vorschauFehler = $state("");
+  let planBusy = $state(false), quellenGeneration = $state(0);
+  $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente"],()=>{quellenGeneration++}));
   const hoehenfelder = [
     ["nullpunkt_m_nhn", "Gebäudenullpunkt ±0,00 (m ü. NHN)"],
     ["gelaende_m", "Maßgebende mittlere Geländehöhe zu ±0,00 (m)"],
@@ -49,6 +53,7 @@
   ] as const;
   const z = (n: number | null) => n === null ? "Noch unbekannt" : n.toLocaleString("de-DE", {maximumFractionDigits: 3});
   $effect(() => {
+    void quellenGeneration;
     const daten = JSON.stringify(s.eingabe);
     const id = s.id;
     vorschau = null;
@@ -147,7 +152,7 @@
   }
 </script>
 
-<Fachliste titel="Gebäude und Geschosse" {s} bereich="gebaeude" {darf}>
+<Fachliste titel="Gebäude und Geschosse" {s} bereich="gebaeude" {darf} zusatzBeschaeftigt={()=>planBusy}>
   {#snippet zusatz(g)}<span>{z(g.geometrie?.grundflaeche_m2 ?? null)}{g.geometrie?.grundflaeche_m2 !== undefined ? " m² Grundfläche" : ""}</span><br /><span class="meta">{g.geschosse.length ? `${g.geschosse.length} Geschosse erfasst` : "Einzelgeschoss aus Grundfläche"}</span>{/snippet}
   {#snippet children(g)}
     <label
@@ -164,12 +169,12 @@
         <label>Gebäudetyp für GRZ<select value={g.geometrie?.typ ?? ""} onchange={(e) => { (g.geometrie ??= {}).typ = (e.currentTarget.value || undefined) as NonNullable<Gebaeude["geometrie"]>["typ"]; }}>
           <option value="">Noch nicht zugeordnet</option><option value="hauptanlage">Hauptgebäude / Wohnhaus</option><option value="garage">Garage</option><option value="nebenanlage14">Nebenanlage (§ 14)</option><option value="unterirdisch">Unterirdische Anlage</option>
         </select></label>
-        <GrundlagenZahl titel="Gebäudegrundfläche, horizontale Projektion (m²)" min={0} wert={g.geometrie?.grundflaeche_m2} onwert={(v) => { (g.geometrie ??= {}).grundflaeche_m2 = v; }} />
+        <GrundlagenZahl titel="Gebäudegrundfläche, horizontale Projektion (m²)" min={0} wert={g.geometrie?.grundflaeche_m2} readonly={g.planbindungen?.some(b=>b.ziel==="geometrie.grundflaeche_m2")} onwert={(v) => { (g.geometrie ??= {}).grundflaeche_m2 = v; }} />
       </div>
       <p class="meta">Ohne einzeln erfasste Geschosse wird diese Grundfläche zugleich als Fläche eines vorläufigen Einzelgeschosses verwendet. Bei mehreren Geschossen bleibt sie der einmalige Gebäudeumgriff für die GRZ.</p>
     </section>
     <details class="grundlagen-block"><summary>Höhen und Bezugspunkt ergänzen</summary>
-      <div class="raster">{#each hoehenfelder as [key, titel]}<GrundlagenZahl {titel} wert={g.geometrie?.[key]} onwert={(v) => { (g.geometrie ??= {})[key] = v; }} />{/each}</div>
+      <div class="raster">{#each hoehenfelder as [key, titel]}<GrundlagenZahl {titel} wert={g.geometrie?.[key]} readonly={g.planbindungen?.some(b=>b.ziel===`geometrie.${key}`)} onwert={(v) => { (g.geometrie ??= {})[key] = v; }} />{/each}</div>
       <label>Herkunft der Flächen und Höhen<textarea maxlength="4000" value={g.geometrie?.herkunft ?? ""} placeholder="z. B. Vorentwurf, Aufmaß oder Vermessung mit Datum" oninput={(e) => { (g.geometrie ??= {}).herkunft = e.currentTarget.value; }}></textarea></label>
       <p class="meta">Fundamentsohle und Fußbodenhöhe sind unterschiedliche Angaben. Welches Gelände und welche Deckenlage für eine Vollgeschossprüfung maßgebend sind, wird im Nachweis anhand der geltenden Vorschrift geprüft.</p>
     </details>
@@ -254,7 +259,7 @@
             /></label
           >
         </div>
-        <GeschossMasse masse={geschoss.geometrie} onmasse={(m) => { geschoss.geometrie = m; }} geschosse={g.geschosse} id={geschoss.id} />
+        <GeschossMasse masse={geschoss.geometrie} onmasse={(m) => { geschoss.geometrie = m; }} geschosse={g.geschosse} id={geschoss.id} gebundeneFelder={g.planbindungen?.filter(b=>b.ziel.startsWith(`geschosse.${geschoss.id}.`)).map(b=>b.ziel.split(".")[2])??[]} />
         <label
           >Aus Vollgeschossnachweis übernehmen<select
             value={geschoss.einstufungsquelle
@@ -282,7 +287,7 @@
         <button
           type="button"
           class="link"
-          onclick={() => g.geschosse.splice(i, 1)}>Geschoss entfernen</button
+          onclick={() => {g.planbindungen=g.planbindungen?.filter(b=>!b.ziel.startsWith(`geschosse.${geschoss.id}.`));g.geschosse.splice(i, 1)}}>Geschoss entfernen</button
         >
       </fieldset>{/each}
     <button
@@ -296,6 +301,10 @@
           grundlage: "",
         })}>Geschoss hinzufügen</button
     >
+    {#if s.id}<details><summary>Flächen und Höhen aus PDF-Aufmaß verknüpfen</summary>
+      <p class="meta">Gebäude und Geschosse zuerst speichern, dann Markierungen im PDF-Aufmaß zuordnen. Die Gebäudegrundfläche ist die horizontale Projektion; Geschossflächen stammen aus den jeweiligen Außenkonturen. Absolute Höhen in NHN werden auf den Gebäudenullpunkt umgerechnet.</p>
+      <Planquellen projektId={projekt.id} objektId={s.id} plan={g} onplan={neu=>s.eingabe=neu as Gebaeude} onbusy={b=>planBusy=b}/>
+    </details>{/if}
     {#if vorschauFehler}<p role="alert" class="fehlertext">{vorschauFehler}</p>{/if}
     {#if vorschau}<section class="grundlagen-auswertung" aria-label="Abgeleitete Gebäudegrundlagen">
       <h3>Aus den bekannten Angaben</h3>

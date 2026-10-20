@@ -335,6 +335,9 @@ pub struct AbstandsUmriss {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct AbstandsPlan {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<crate::planaufmass::Planbindung>>")]
+    pub planbindungen: Vec<crate::planaufmass::Planbindung>,
     pub bezeichnung: String,
     pub regeln: AbstandsRegeln,
     pub recht: AbstandsRecht,
