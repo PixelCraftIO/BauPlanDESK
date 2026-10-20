@@ -36,6 +36,9 @@ in einem anderen Modul.
 
 ## Bedienung und unterstützte Übernahmen
 
+Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
+Übernahmewege: [planaufmass-datenwege.md](planaufmass-datenwege.md).
+
 1. PDF unter **Projektdateien** importieren.
 2. **PDF-Aufmaß → Neu anlegen**, Unterlage, Seite und Bezeichnung auswählen.
 3. Maßstab setzen oder eine bekannte Strecke kalibrieren. Ein gedruckter
@@ -61,10 +64,17 @@ in einem anderen Modul.
 | Abstandsflächen | Gelände und Wandabschluss an beiden Wandenden, Dachhöhe und Dachneigungen |
 | Gebäude / Geschosse | Horizontale Gebäudeprojektion, Geschossflächen nach Außenmaßen, NHN-Nullpunkt, Gelände-/Trauf-/First-/Fundamenthöhen, Fußboden-/Deckenlage und Höhenabmessungen |
 
-Unter **Gebäude / Geschosse → Flächen und Höhen aus PDF-Aufmaß verknüpfen**
-werden die gezeichneten Außenflächen mit vorhandenen Gebäuden und Geschossen
-verbunden. Diese zuerst speichern, damit Markierungen ihre stabilen IDs wählen
-können. Die Bedeutung **Gebäudegrundfläche – horizontale Projektion** ist vom
+In **Gebäude / Geschosse** bieten die Felder *Gebäudegrundfläche* und
+*Geschossfläche nach Außenmaßen* direkt **Aus PDF-Aufmaß** an. Angeboten werden
+nur Markierungen dieses Gebäudes mit passender Bedeutung (und beim Geschoss mit
+passender Geschosszuordnung); findet sich keine, nennt das Feld die nicht
+passenden Markierungen und den fehlenden Schritt. Höhen und die Liste aller
+Verknüpfungen stehen unter **Höhen und alle Verknüpfungen aus PDF-Aufmaß**.
+Gebäude und Geschosse zuerst speichern, damit Markierungen ihre stabilen IDs
+wählen können. Soll dieselbe Kontur Gebäudegrundfläche und Geschossfläche
+liefern, wird die Markierung im PDF-Aufmaß mit **Duplizieren** kopiert und die
+Kopie als *Geschoss – Außenkante* gekennzeichnet. Das Seitenpanel des
+PDF-Aufmaßes nennt je Bedeutung die Stelle, an der übernommen wird. Die Bedeutung **Gebäudegrundfläche – horizontale Projektion** ist vom
 **Geschoss – Außenkante** getrennt; das EG ist nicht automatisch der gesamte
 Gebäudeumgriff. Die bestehende Gebäudeeinbindung versorgt GRZ/GFZ je zugeordnetem
 Baugrundstück. Die rechtliche Geschosseinstufung bleibt ausdrücklich offen.

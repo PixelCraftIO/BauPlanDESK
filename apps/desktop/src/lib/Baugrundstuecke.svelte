@@ -672,6 +672,8 @@
 {#if gruppen.length && !gruppenAktuell}<p class="hinweisbox">
     Flurstücke oder Grundlagen geändert. Die angezeigte Ermittlung ist veraltet;
     bitte neu ermitteln.
+    <!-- Auch auf GRZ/GFZ-Seiten erreichbar; dort ist die Eingabe bis dahin gesperrt. -->
+    <button type="button" class="sekundaer" disabled={laeuft} onclick={async () => { await neuErmitteln(); await gebaeudeEinbinden(); }}>Neu ermitteln</button>
   </p>{/if}
 {#if !eingabe.flurstuecke.length}<p class="hinweisbox">
     GRZ, GFZ und Geschossigkeit werden je Baugrundstück aus den Flurstücken

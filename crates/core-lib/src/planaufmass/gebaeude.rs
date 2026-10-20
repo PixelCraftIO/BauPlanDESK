@@ -20,7 +20,12 @@ pub fn gebaeudeziele(g: &Gebaeude) -> Vec<Planziel> {
             groesse: Planmessgroesse::Hoehe,
         });
     }
-    for s in &g.geschosse {
+    for (i, s) in g.geschosse.iter().enumerate() {
+        // Unbenannte Geschosse bleiben über ihre Position in der Maske auffindbar.
+        let name_geschoss = match s.bezeichnung.trim() {
+            "" => format!("Geschoss {}", i + 1),
+            b => b.to_string(),
+        };
         for (feld, name, groesse) in [
             (
                 "flaeche_m2",
@@ -35,7 +40,7 @@ pub fn gebaeudeziele(g: &Gebaeude) -> Vec<Planziel> {
         ] {
             z.push(Planziel {
                 ziel: format!("geschosse.{}.{feld}", s.id),
-                titel: format!("{} · {name}", s.bezeichnung),
+                titel: format!("{name_geschoss} · {name}"),
                 groesse,
             });
         }

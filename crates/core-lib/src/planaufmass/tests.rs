@@ -140,3 +140,24 @@ fn rohflaechen_sind_keine_wohnflaechen_oder_regelwerte() {
         None
     );
 }
+#[test]
+fn unbenannte_geschosse_bleiben_als_zielfeld_erkennbar() {
+    let g: crate::plattform::objekte::Gebaeude = serde_json::from_value(serde_json::json!({
+        "bezeichnung": "Lagerhalle", "grundstueck_ids": [], "quelle": null,
+        "geschosse": [
+            {"id": Uuid::from_u128(7), "bezeichnung": " ", "vollgeschoss": null, "grundlage": ""},
+            {"id": Uuid::from_u128(8), "bezeichnung": "OG", "vollgeschoss": null, "grundlage": ""}
+        ]
+    }))
+    .unwrap();
+    let z = gebaeudeziele(&g);
+    let titel = |ziel: String| z.iter().find(|x| x.ziel == ziel).unwrap().titel.clone();
+    assert_eq!(
+        titel(format!("geschosse.{}.flaeche_m2", Uuid::from_u128(7))),
+        "Geschoss 1 · Fläche nach Außenmaßen"
+    );
+    assert_eq!(
+        titel(format!("geschosse.{}.flaeche_m2", Uuid::from_u128(8))),
+        "OG · Fläche nach Außenmaßen"
+    );
+}

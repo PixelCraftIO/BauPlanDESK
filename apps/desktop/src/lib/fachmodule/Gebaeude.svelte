@@ -13,6 +13,8 @@
   import { editorRegister } from "../editoren";
   import Fachliste from "../Fachliste.svelte";
   import Planquellen from "../planaufmass/Planquellen.svelte";
+  import PlanFlaeche from "../planaufmass/PlanFlaeche.svelte";
+  import { aufmasseLaden, type Aufmassquelle } from "../planaufmass/quellen";
   import { abonnieren } from "../projektEreignisse";
   import GrundlagenZahl from "./GrundlagenZahl.svelte";
   import GeschossMasse from "./GeschossMasse.svelte";
@@ -44,6 +46,16 @@
   let vorschauFehler = $state("");
   let planBusy = $state(false), quellenGeneration = $state(0);
   $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente"],()=>{quellenGeneration++}));
+  // Gespeicherte Aufmaße für die direkte Flächenübernahme; neu geladen, sobald
+  // ein Aufmaß oder eine PDF gespeichert wird.
+  let aufmasse = $state<Aufmassquelle[]>([]);
+  $effect(() => {
+    void quellenGeneration;
+    let aktuell = true;
+    aufmasseLaden(projekt.id).then((a) => { if (aktuell) aufmasse = a; }).catch(() => { /* Planquellen zeigt Ladefehler */ });
+    return () => { aktuell = false; };
+  });
+  const geschossGespeichert = (id: string) => !!s.original?.geschosse.some((x) => x.id === id);
   const hoehenfelder = [
     ["nullpunkt_m_nhn", "Gebäudenullpunkt ±0,00 (m ü. NHN)"],
     ["gelaende_m", "Maßgebende mittlere Geländehöhe zu ±0,00 (m)"],
@@ -171,6 +183,7 @@
         </select></label>
         <GrundlagenZahl titel="Gebäudegrundfläche, horizontale Projektion (m²)" min={0} wert={g.geometrie?.grundflaeche_m2} readonly={g.planbindungen?.some(b=>b.ziel==="geometrie.grundflaeche_m2")} onwert={(v) => { (g.geometrie ??= {}).grundflaeche_m2 = v; }} />
       </div>
+      {#if s.id}<PlanFlaeche projektId={projekt.id} gebaeudeId={s.id} {g} {aufmasse} gespeichert={s.original !== null} onplan={(neu) => (s.eingabe = neu)} onbusy={(b) => (planBusy = b)} />{/if}
       <p class="meta">Ohne einzeln erfasste Geschosse wird diese Grundfläche zugleich als Fläche eines vorläufigen Einzelgeschosses verwendet. Bei mehreren Geschossen bleibt sie der einmalige Gebäudeumgriff für die GRZ.</p>
     </section>
     <details class="grundlagen-block"><summary>Höhen und Bezugspunkt ergänzen</summary>
@@ -260,6 +273,7 @@
           >
         </div>
         <GeschossMasse masse={geschoss.geometrie} onmasse={(m) => { geschoss.geometrie = m; }} geschosse={g.geschosse} id={geschoss.id} gebundeneFelder={g.planbindungen?.filter(b=>b.ziel.startsWith(`geschosse.${geschoss.id}.`)).map(b=>b.ziel.split(".")[2])??[]} />
+        {#if s.id}<PlanFlaeche projektId={projekt.id} gebaeudeId={s.id} {g} {aufmasse} geschossId={geschoss.id} geschossName={geschoss.bezeichnung || `Geschoss ${i + 1}`} gespeichert={geschossGespeichert(geschoss.id)} onplan={(neu) => (s.eingabe = neu)} onbusy={(b) => (planBusy = b)} />{/if}
         <label
           >Aus Vollgeschossnachweis übernehmen<select
             value={geschoss.einstufungsquelle
@@ -301,8 +315,8 @@
           grundlage: "",
         })}>Geschoss hinzufügen</button
     >
-    {#if s.id}<details><summary>Flächen und Höhen aus PDF-Aufmaß verknüpfen</summary>
-      <p class="meta">Gebäude und Geschosse zuerst speichern, dann Markierungen im PDF-Aufmaß zuordnen. Die Gebäudegrundfläche ist die horizontale Projektion; Geschossflächen stammen aus den jeweiligen Außenkonturen. Absolute Höhen in NHN werden auf den Gebäudenullpunkt umgerechnet.</p>
+    {#if s.id}<details><summary>Höhen und alle Verknüpfungen aus PDF-Aufmaß</summary>
+      <p class="meta">Flächen lassen sich direkt an den Feldern Gebäudegrundfläche und Geschossfläche übernehmen. Hier werden zusätzlich Höhen verknüpft und alle Verknüpfungen aufgelistet. Gebäude und Geschosse zuerst speichern, dann Markierungen im PDF-Aufmaß zuordnen. Absolute Höhen in NHN werden auf den Gebäudenullpunkt umgerechnet.</p>
       <Planquellen projektId={projekt.id} objektId={s.id} plan={g} onplan={neu=>s.eingabe=neu as Gebaeude} onbusy={b=>planBusy=b}/>
     </details>{/if}
     {#if vorschauFehler}<p role="alert" class="fehlertext">{vorschauFehler}</p>{/if}

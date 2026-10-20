@@ -541,8 +541,12 @@
                   ><button
                     type="button"
                     class="link"
-                    onclick={() =>
-                      (p.waende = p.waende.filter((a) => a.id !== w.id))}
+                    onclick={() => {
+                      p.waende = p.waende.filter((a) => a.id !== w.id);
+                      // Verknüpfungen der entfernten Wand entfallen mit ihr.
+                      if (p.planbindungen)
+                        p.planbindungen = p.planbindungen.filter((b) => !b.ziel.startsWith(`waende.${w.id}.`));
+                    }}
                     >Entfernen</button
                   ></td
                 ></tr

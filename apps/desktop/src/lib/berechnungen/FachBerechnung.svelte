@@ -352,6 +352,9 @@
       s.eingabe.gebaeude_id = r.gebaeude_id;
       s.eingabe.fachquellen = r.fachquellen;
       s.eingabe.uebernahmen = [];
+      // Die Positionen werden ersetzt; ihre PDF-Verknüpfungen hätten kein Ziel mehr.
+      if (s.eingabe.planbindungen)
+        s.eingabe.planbindungen = s.eingabe.planbindungen.filter((b) => !b.ziel.startsWith("positionen."));
       schreiben(
         s.eingabe.eingaben,
         "positionen",

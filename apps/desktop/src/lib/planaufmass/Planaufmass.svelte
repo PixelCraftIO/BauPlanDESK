@@ -70,6 +70,22 @@
     },250);
     return()=>{gone=true;clearTimeout(timer)};
   });
+  // Wohin eine gespeicherte Markierung übernommen wird; nur Bedienhinweis.
+  function ziel(b:Planbedeutung){
+    if(b==="gebaeudegrundflaeche")return "Grundlagen → Gebäude / Geschosse: am Feld „Gebäudegrundfläche“ über „Aus PDF-Aufmaß“ übernehmen. Von dort geht sie in GRZ des Baugrundstücks ein.";
+    if(b==="geschoss_aussenkante")return "Grundlagen → Gebäude / Geschosse: im jeweiligen Geschoss über „Aus PDF-Aufmaß“ übernehmen. Von dort geht sie in GFZ, Geschossigkeit und Vollgeschossprüfung ein.";
+    if(b==="raum"||b==="aufenthaltsraum"||b==="nuf"||b==="tf"||b==="vf")return "Berechnungen → Flächen- und Raumbuch: „Räume aus PDF-Aufmaß übernehmen“ (Gebäude und Geschoss zuordnen). DIN 277 und Wohnfläche können außerdem unter „Quellen / Übernahmen“ verknüpft werden.";
+    if(b==="gelaende"||b==="traufe"||b==="first"||b==="dach"||b==="aussenwand")return "Je nach Ziel: Abstandsflächen → Grundlagen → „PDF-Aufmaß verknüpfen“ (manuelle Wand), Gebäudehöhen → „Quellen / Übernahmen“ oder Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus PDF-Aufmaß“.";
+    if(b==="flurstueck")return "Eine direkte Übernahme in Flurstücke und Baugrundstücksermittlung gibt es noch nicht; die Fläche dient vorerst zur Kontrolle der Katasterangaben.";
+    if(b==="unbestimmt")return "Zuerst eine Bedeutung wählen; sie bestimmt, welche Berechnung den Messwert übernehmen kann.";
+    return "In der Fachberechnung eine Position anlegen und unter „Quellen / Übernahmen → PDF-Aufmaß“ verknüpfen.";
+  }
+  function duplizieren(){
+    if(!s.eingabe||!m)return;
+    merken();
+    const kopie={...structuredClone($state.snapshot(m)),id:crypto.randomUUID(),bezeichnung:`${m.bezeichnung} (Kopie)`};
+    s.eingabe.markierungen.push(kopie);auswahl=kopie.id;
+  }
   function merken(){if(s.eingabe){undo=[...undo.slice(-49),structuredClone($state.snapshot(s.eingabe.markierungen))];redo=[]}}
   function rueckwaerts(){
     if(!s.eingabe||!undo.length)return;
@@ -175,8 +191,14 @@
             <label>Zeichenebene<select bind:value={m.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
             <label>Baugrundstück<select bind:value={m.grundstueck_id}><option value={null}>Nicht zugeordnet</option>{#each grund as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>
             <label>Gebäude<select bind:value={m.gebaeude_id} onchange={()=>{if(m)m.geschoss_id=null}}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
-            {#if m.gebaeude_id}<label>Geschoss<select bind:value={m.geschoss_id}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
-            <button type="button" class="sekundaer" onclick={()=>{merken();p.markierungen=p.markierungen.filter(i=>i.id!==auswahl);auswahl=""}}>Markierung entfernen</button>
+            {#if m.gebaeude_id}<label>Geschoss<select bind:value={m.geschoss_id}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse??[] as g,i}<option value={g.id}>{g.bezeichnung||`Geschoss ${i+1} (ohne Bezeichnung)`}</option>{/each}</select></label>{/if}
+            {#if (m.bedeutung==="gebaeudegrundflaeche"||m.bedeutung==="geschoss_aussenkante")&&!m.gebaeude_id}<p class="hinweisbox">Für die Übernahme ein Gebäude zuordnen.{gebaeude.length?"":" Gebäude zuerst unter Grundlagen → Gebäude / Geschosse anlegen und speichern."}</p>
+            {:else if m.bedeutung==="geschoss_aussenkante"&&!m.geschoss_id}<p class="hinweisbox">Für die Geschossfläche ein Geschoss zuordnen.{gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse.length?"":" Für dieses Gebäude sind noch keine Geschosse gespeichert; ohne einzelne Geschosse dient die Gebäudegrundfläche als Fläche des Einzelgeschosses."}</p>
+            {:else if m.bedeutung==="gebaeudegrundflaeche"&&m.geschoss_id}<p class="hinweisbox">Die Gebäudegrundfläche gilt für das ganze Gebäude; die Geschosszuordnung wird dafür nicht verwendet. Für eine Geschossfläche die Markierung duplizieren und die Kopie als „Geschoss – Außenkante“ kennzeichnen.</p>{/if}
+            <div class="aktionen">
+              <button type="button" class="sekundaer" title="Kopie derselben Kontur, z. B. als Gebäudegrundfläche und Geschoss-Außenkante" onclick={duplizieren}>Duplizieren</button>
+              <button type="button" class="sekundaer" onclick={()=>{merken();p.markierungen=p.markierungen.filter(i=>i.id!==auswahl);auswahl=""}}>Markierung entfernen</button>
+            </div>
           </fieldset>
           <dl class="messwerte">
             <dt>Fläche</dt><dd>{z(wert?.flaeche_m2)} m²</dd>
@@ -187,7 +209,7 @@
           </dl>
           {#if messLaeuft}<p class="meta" role="status">Messwerte werden aktualisiert …</p>{/if}
           {#each wert?.offen??[] as hinweis}<p class="hinweisbox">{hinweis}</p>{/each}
-          <p class="meta">Nach dem Speichern in der Berechnung unter „Quellen / Übernahmen → PDF-Aufmaß“ verknüpfen. Eckpunkte lassen sich mit „Auswählen“ ziehen.</p>
+          <p class="meta">Nach dem Speichern: {ziel(m.bedeutung)} Eckpunkte lassen sich mit „Auswählen“ ziehen.</p>
         {/if}
       </aside>
     </div>
@@ -207,5 +229,6 @@
   .markierungen button{text-align:left}.markierungen span{display:block;font-size:.75rem;font-weight:400}
   .messwerte{display:grid;grid-template-columns:1fr auto;gap:.4rem;font-variant-numeric:tabular-nums}.messwerte dd{margin:0;font-weight:600}
   fieldset{border:0;padding:0;display:grid;gap:.5rem}
+  .aktionen{display:flex;gap:.5rem;flex-wrap:wrap}
   @media(max-width:1100px){.arbeitsplatz{grid-template-columns:1fr}aside{border-left:0;padding-left:0}.quellzeile{grid-template-columns:1fr}}
 </style>
