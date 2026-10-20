@@ -297,6 +297,19 @@ Frontend-Adapter (`pdfGeometry.ts`), nicht in den Core.
 
 ## 4. Umsetzungsstufen
 
+**Stand nach Umsetzung:** Stufe A und Stufe B sind umgesetzt (Ausschnitte mit
+eigenem Maßstab und Bezugslinie, Blatt-/Ausschnittmodus, Vollbild, Zoom um den
+Mauszeiger, Pinch, Leertaste-Pan, scharfes Nachrastern, Live-Maße, Beschriftung
+aus Core-Werten, Kürzel, Markierung verschieben, Entf, Pfeiltasten, Shift-Raste,
+Fang an eigenen Markierungen und Bezugslinien). Abweichungen zum Entwurf: Statt
+`drehung_grad` bestimmt die Richtung der Bezugslinie die Höhenrichtung; eine
+Ebene je Ausschnitt wird beim Anlegen erzeugt und mit dem Ausschnitt umbenannt.
+Noch offen aus A/B: Seitenminiaturen, Ansichtsdrehung in 90°-Schritten,
+Zoomfenster, Koordinaten-/Maßeingabe per Tastatur, Höhenlinie als eigenes
+Werkzeug (die Bezugslinie fängt bereits an waagerechten Kanten).
+
+
+
 | Stufe | Inhalt | Vertrag | Aufwand |
 | --- | --- | --- | --- |
 | A | Vollbild, volle Höhe, Zoom um Mauszeiger, Rad/Pinch, Leertaste-Pan, scharfes Rendern, Live-Maße, Kürzel, Objekt verschieben, `Entf` | keine | 3–5 Tage |

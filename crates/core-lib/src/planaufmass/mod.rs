@@ -67,6 +67,17 @@ pub enum Plangeometrie {
     Strecke { von: Planpunkt, bis: Planpunkt },
     Hoehenpunkt { punkt: Planpunkt },
 }
+impl Plangeometrie {
+    /// Stützpunkte der Geometrie in Seitenkoordinaten.
+    pub fn punkte(&self) -> Vec<Planpunkt> {
+        match self {
+            Self::Polygon { punkte } => punkte.clone(),
+            Self::Rechteck { von, bis } | Self::Strecke { von, bis } => vec![*von, *bis],
+            Self::Kreis { mitte, rand } => vec![*mitte, *rand],
+            Self::Hoehenpunkt { punkt } => vec![*punkt],
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Planbedeutung {
@@ -99,6 +110,63 @@ pub struct Planmarkierung {
     pub grundstueck_id: Option<Uuid>,
     pub gebaeude_id: Option<Uuid>,
     pub geschoss_id: Option<Uuid>,
+    /// Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ausschnitt_id: Option<Uuid>,
+}
+/// Zeichnungsart eines Ausschnitts; bestimmt, ob Höhen gemessen werden können.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Ausschnittart {
+    Grundriss,
+    Lageplan,
+    Schnitt,
+    Ansicht,
+    Detail,
+}
+impl Ausschnittart {
+    /// Nur Schnitte, Ansichten und Details zeigen Höhen lotrecht zur Bezugslinie.
+    pub fn mit_hoehen(self) -> bool {
+        matches!(self, Self::Schnitt | Self::Ansicht | Self::Detail)
+    }
+}
+/// Bezugslinie eines Schnitts/einer Ansicht (z. B. die ±0,00-Linie). Höhen sind
+/// der lotrechte Abstand zu dieser Linie; „oben“ ist die Seite der Linie mit
+/// kleinerem y (Seitenoben). Damit darf ein Schnitt auch gedreht liegen.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Planbezugslinie {
+    pub von: Planpunkt,
+    pub bis: Planpunkt,
+    pub hoehe_m: f64,
+    pub system: String,
+}
+/// Gespeicherte Sicht auf einen Teil der Seite (Grundriss, Schnitt, …) mit
+/// eigenem Maßstab und eigener Bezugslinie. Die PDF bleibt unverändert;
+/// Markierungen behalten Seitenkoordinaten. Ohne eigenen Maßstab gilt der
+/// Maßstab der Seite.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Planausschnitt {
+    pub id: Uuid,
+    pub bezeichnung: String,
+    pub art: Ausschnittart,
+    pub von: Planpunkt,
+    pub bis: Planpunkt,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub kalibrierung: Option<Plankalibrierung>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bezugslinie: Option<Planbezugslinie>,
+}
+impl Planausschnitt {
+    fn enthaelt(&self, p: &Planpunkt) -> bool {
+        let (x0, x1) = (self.von[0].min(self.bis[0]), self.von[0].max(self.bis[0]));
+        let (y0, y1) = (self.von[1].min(self.bis[1]), self.von[1].max(self.bis[1]));
+        p[0] >= x0 - 1. && p[0] <= x1 + 1. && p[1] >= y0 - 1. && p[1] <= y1 + 1.
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -119,6 +187,10 @@ pub struct Planaufmass {
     pub hoehenbezug: Option<Planhoehenbezug>,
     pub ebenen: Vec<Planebene>,
     pub markierungen: Vec<Planmarkierung>,
+    /// Optionale Ausschnitte; ohne sie gelten Maßstab und Höhenbezug der Seite.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Planausschnitt>>")]
+    pub ausschnitte: Vec<Planausschnitt>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Planmesswert {
@@ -234,11 +306,42 @@ impl Planaufmass {
                 return Err(fehler("Ungültiger Höhenbezug"));
             }
         }
-        let faktor = self
+        let seitenfaktor = self
             .kalibrierung
             .as_ref()
             .map(Plankalibrierung::meter_pro_punkt)
             .transpose()?;
+        if self.ausschnitte.len() > 100 {
+            return Err(fehler("Zu viele Ausschnitte"));
+        }
+        let mut ausschnitte = std::collections::HashSet::new();
+        for a in &self.ausschnitte {
+            crate::plattform::text(&a.bezeichnung, 200)?;
+            punkt(&a.von)?;
+            punkt(&a.bis)?;
+            positiv((a.von[0] - a.bis[0]).abs())?;
+            positiv((a.von[1] - a.bis[1]).abs())?;
+            if !ausschnitte.insert(a.id) {
+                return Err(fehler("Ausschnitt doppelt"));
+            }
+            if let Some(k) = &a.kalibrierung {
+                k.meter_pro_punkt()?;
+            }
+            if let Some(b) = &a.bezugslinie {
+                if !a.art.mit_hoehen() {
+                    return Err(fehler(
+                        "Grundriss und Lageplan besitzen keine Bezugslinie für Höhen",
+                    ));
+                }
+                punkt(&b.von)?;
+                punkt(&b.bis)?;
+                positiv(abstand(&b.von, &b.bis))?;
+                crate::plattform::text(&b.system, 200)?;
+                if !b.hoehe_m.is_finite() || b.hoehe_m.abs() > 1e6 {
+                    return Err(fehler("Ungültige Bezugslinie"));
+                }
+            }
+        }
         let mut ids = std::collections::HashSet::new();
         self.markierungen
             .iter()
@@ -247,6 +350,42 @@ impl Planaufmass {
                 if !ids.insert(m.id) || !ebenen.contains(&m.ebene_id) {
                     return Err(fehler("Markierung doppelt oder Zeichenebene fehlt"));
                 }
+                let ausschnitt = m
+                    .ausschnitt_id
+                    .map(|id| {
+                        self.ausschnitte
+                            .iter()
+                            .find(|a| a.id == id)
+                            .ok_or_else(|| fehler("Ausschnitt der Markierung fehlt"))
+                    })
+                    .transpose()?;
+                let faktor = match ausschnitt.and_then(|a| a.kalibrierung.as_ref()) {
+                    Some(k) => Some(k.meter_pro_punkt()?),
+                    None => seitenfaktor,
+                };
+                // Höhenrichtung und Bezug: Bezugslinie des Ausschnitts, sonst die
+                // Seitenvertikale mit dem Höhenbezug der Seite. Ein Ausschnitt ohne
+                // Bezugslinie liefert keine absoluten Höhen.
+                let (aufwaerts, bezug): ([f64; 2], Option<(Planpunkt, f64)>) =
+                    match ausschnitt {
+                        Some(a) => match &a.bezugslinie {
+                            Some(b) => {
+                                let l = abstand(&b.von, &b.bis);
+                                let d = [(b.bis[0] - b.von[0]) / l, (b.bis[1] - b.von[1]) / l];
+                                let mut n = [d[1], -d[0]];
+                                if n[1] > 0. || (n[1] == 0. && n[0] > 0.) {
+                                    n = [-n[0], -n[1]];
+                                }
+                                (n, Some((b.von, b.hoehe_m)))
+                            }
+                            None => ([0., -1.], None),
+                        },
+                        None => (
+                            [0., -1.],
+                            self.hoehenbezug.as_ref().map(|h| (h.punkt, h.hoehe_m)),
+                        ),
+                    };
+                let waagerecht = [-aufwaerts[1], aufwaerts[0]];
                 let mut r = Planmesswert {
                     id: m.id,
                     laenge_m: None,
@@ -285,8 +424,9 @@ impl Planaufmass {
                         punkt(b)?;
                         let l = abstand(a, b);
                         positiv(l)?;
-                        let dx = (a[0] - b[0]).abs();
-                        let dy = (a[1] - b[1]).abs();
+                        let v = [b[0] - a[0], b[1] - a[1]];
+                        let dx = (v[0] * waagerecht[0] + v[1] * waagerecht[1]).abs();
+                        let dy = (v[0] * aufwaerts[0] + v[1] * aufwaerts[1]).abs();
                         r.horizontale_m = faktor.map(|f| dx * f);
                         // Positive Höhendifferenz; absolute Höhen ausschließlich mit Höhenbezug.
                         r.hoehe_m = faktor.map(|f| dy * f);
@@ -295,11 +435,22 @@ impl Planaufmass {
                     }
                     Plangeometrie::Hoehenpunkt { punkt: p } => {
                         punkt(p)?;
-                        r.hoehe_m = faktor
-                            .zip(self.hoehenbezug.as_ref())
-                            .map(|(f, h)| h.hoehe_m + (h.punkt[1] - p[1]) * f);
-                        if self.hoehenbezug.is_none() {
-                            r.offen.push("Höhenbezug fehlt".into());
+                        r.hoehe_m = faktor.zip(bezug).map(|(f, (o, h))| {
+                            h + ((p[0] - o[0]) * aufwaerts[0] + (p[1] - o[1]) * aufwaerts[1]) * f
+                        });
+                        if bezug.is_none() {
+                            r.offen.push(match ausschnitt {
+                                Some(a) if !a.art.mit_hoehen() => format!(
+                                    "Ausschnitt „{}“ ist ein {}; Höhen nur in Schnitt, Ansicht oder Detail",
+                                    a.bezeichnung,
+                                    match a.art {
+                                        Ausschnittart::Lageplan => "Lageplan",
+                                        _ => "Grundriss",
+                                    }
+                                ),
+                                Some(a) => format!("Bezugslinie des Ausschnitts „{}“ fehlt", a.bezeichnung),
+                                None => "Höhenbezug fehlt".into(),
+                            });
                         }
                         (None, None)
                     }
@@ -308,6 +459,11 @@ impl Planaufmass {
                 r.laenge_m = length.zip(faktor).map(|(l, f)| l * f);
                 if faktor.is_none() {
                     r.offen.push("Maßstab / Kalibrierung fehlt".into());
+                }
+                if let Some(a) = ausschnitt
+                    && !m.geometrie.punkte().iter().all(|p| a.enthaelt(p))
+                {
+                    r.offen.push(format!("Liegt außerhalb des Ausschnitts „{}“", a.bezeichnung));
                 }
                 if m.bedeutung == Planbedeutung::Unbestimmt {
                     r.offen.push("Fachliche Bedeutung fehlt".into());

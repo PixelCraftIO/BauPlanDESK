@@ -4,17 +4,28 @@ export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art":
 export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], };
 export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach";
-export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null, };
+export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
+/**
+ * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
+ */
+ausschnitt_id?: string, };
 export type Planhoehenbezug = { punkt: [number, number], hoehe_m: number,
 /**
  * Zum Beispiel „m ü. NHN“ oder „lokal, OKFF EG = 0“.
  */
 system: string, };
+export type Ausschnittart = "grundriss" | "lageplan" | "schnitt" | "ansicht" | "detail";
+export type Planbezugslinie = { von: [number, number], bis: [number, number], hoehe_m: number, system: string, };
+export type Planausschnitt = { id: string, bezeichnung: string, art: Ausschnittart, von: [number, number], bis: [number, number], kalibrierung?: Plankalibrierung, bezugslinie?: Planbezugslinie, };
 export type Planaufmass = { bezeichnung: string, dokument: Dokumentbezug,
 /**
  * Einsbasiert. Mehrere Aufmaße derselben Seite dürfen verschiedene Maßstäbe haben.
  */
-seite: number, kalibrierung: Plankalibrierung | null, hoehenbezug: Planhoehenbezug | null, ebenen: Array<Planebene>, markierungen: Array<Planmarkierung>, };
+seite: number, kalibrierung: Plankalibrierung | null, hoehenbezug: Planhoehenbezug | null, ebenen: Array<Planebene>, markierungen: Array<Planmarkierung>,
+/**
+ * Optionale Ausschnitte; ohne sie gelten Maßstab und Höhenbezug der Seite.
+ */
+ausschnitte?: Array<Planausschnitt>, };
 export type Planmesswert = { id: string, laenge_m: number | null, flaeche_m2: number | null, horizontale_m: number | null, hoehe_m: number | null, neigung_grad: number | null, offen: Array<string>, };
 export type Planmessgroesse = "flaeche" | "laenge" | "horizontale" | "hoehe" | "neigung";
 export type Planbindung = { aufmass_id: string, revision: number, markierung_id: string, groesse: Planmessgroesse,

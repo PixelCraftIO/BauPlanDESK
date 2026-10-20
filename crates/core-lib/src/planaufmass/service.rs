@@ -57,6 +57,7 @@ pub(crate) fn bindungsstand(a: &Planaufmass, markierung: Uuid) -> serde_json::Va
             "grundstueck_id": m.grundstueck_id,
             "gebaeude_id": m.gebaeude_id,
             "geschoss_id": m.geschoss_id,
+            "ausschnitt": m.ausschnitt_id.and_then(|id| a.ausschnitte.iter().find(|x| x.id == id)),
         })
     });
     serde_json::json!({

@@ -34,14 +34,24 @@ dürfen sich ändern, ohne dass etwas veraltet.
 ### 1. Zeichnen (Unterlagen → PDF-Aufmaß)
 
 1. PDF unter Projektdateien importieren, **Neu anlegen**, Unterlage und Seite wählen.
-2. Maßstab setzen oder zwei Punkte kalibrieren.
-3. Fläche zeichnen, **Bedeutung** wählen. Sie entscheidet, wohin der Wert gehen kann.
-4. Baugrundstück, Gebäude und ggf. Geschoss zuordnen. Angeboten werden nur
+2. Blattmaßstab setzen oder zwei Punkte kalibrieren.
+3. Bei mehreren Zeichnungen auf dem Blatt je Zeichnung **Ausschnitt anlegen**
+   (Rahmen ziehen), Art wählen, bei Bedarf eigenen Maßstab setzen. Für
+   Schnitte/Ansichten **Bezugslinie setzen** (±0,00-Linie anklicken, Höhe und
+   System angeben; Gebäudenullpunkt als Vorschlag).
+4. Ausschnitt öffnen (Doppelklick oder „Öffnen“), Fläche zeichnen, **Bedeutung**
+   wählen. Sie entscheidet, wohin der Wert gehen kann.
+5. Baugrundstück, Gebäude und ggf. Geschoss zuordnen. Angeboten werden nur
    **gespeicherte** Gebäude und Geschosse; die Listen laden bei jeder
    Speicherung eines Fachobjekts neu.
-5. Aufmaß speichern. Das Seitenpanel nennt je Bedeutung den nächsten Schritt.
-6. Soll eine Kontur zwei Bedeutungen haben (z. B. Gebäudegrundfläche *und*
+6. Aufmaß speichern. Das Seitenpanel nennt je Bedeutung den nächsten Schritt.
+7. Soll eine Kontur zwei Bedeutungen haben (z. B. Gebäudegrundfläche *und*
    EG-Außenkante), **Duplizieren** und die Kopie umkennzeichnen.
+
+Bedienung: Strg+Rad oder Pinch zoomt um den Mauszeiger, Leertaste oder
+mittlere Maustaste verschiebt, F11 schaltet Vollbild, Esc verlässt Werkzeug,
+Ausschnitt bzw. Vollbild. Werkzeuge über V, M, P, R, K, S, H; Entf, Strg+Z/Y,
+Strg+D, Pfeiltasten (Markierung verschieben), Bild ↑/↓ (Ausschnitt wechseln).
 
 ### 2. Gebäude / Geschosse
 

@@ -74,7 +74,6 @@ with sync_playwright() as p:
     scope.get_by_role("button", name="Zwei Punkte kalibrieren", exact=True).click()
     svg.click(position={"x": 70, "y": 330})
     svg.click(position={"x": 170, "y": 330})
-    scope.get_by_text("Höhenbezug für Ansichten und Schnitte", exact=True).click()
     scope.get_by_label("Bezugshöhe (m)", exact=True).fill("100")
     scope.get_by_role("button", name="Bezugspunkt setzen", exact=True).click()
     svg.click(position={"x": 70, "y": 330})
@@ -108,7 +107,57 @@ with sync_playwright() as p:
     expect(scope.locator(".markierungen button")).to_have_count(2)
     scope.locator(".ebene").nth(1).get_by_label("Sperre", exact=True).check()
     expect(scope.locator(".arbeitsplatz aside").get_by_label("Bedeutung", exact=True)).to_be_disabled()
+    scope.locator(".ebene").nth(1).get_by_label("Sperre", exact=True).uncheck()
+    # Strg+Mausrad zoomt um den Mauszeiger; Vollbild füllt das Fenster, Escape beendet es.
+    svg.hover(position={"x": 100, "y": 100})
+    page.keyboard.down("Control"); page.mouse.wheel(0, -300); page.keyboard.up("Control")
+    expect(scope.locator(".plan-kopf .zoom")).not_to_have_text("125 %")
+    scope.get_by_role("button", name="Vollbild", exact=True).click()
+    expect(scope.locator(".editor.vollbild")).to_be_visible()
+    assert page.evaluate("document.querySelector('.editor.vollbild').getBoundingClientRect().height") > 1000
+    page.keyboard.press("Escape")
+    expect(scope.locator(".editor.vollbild")).to_have_count(0)
+    scope.get_by_role("button", name="1:1", exact=True).click()
+    expect(scope.locator(".plan-kopf .zoom")).to_have_text("100 %")
+    # Ausschnitt: Rahmen aufziehen, als Schnitt kennzeichnen, Bezugslinie setzen, darin einen Höhenpunkt zeichnen.
+    scope.get_by_role("button", name="Ausschnitt anlegen", exact=True).click()
+    svg.click(position={"x": 300, "y": 40})
+    svg.click(position={"x": 560, "y": 300})
+    expect(scope.locator(".ausschnitt")).to_have_count(1)
+    scope.get_by_label("Ausschnittname", exact=True).fill("Schnitt B-B")
+    scope.get_by_label("Ausschnittart", exact=True).select_option("schnitt")
+    scope.locator(".ausschnitt-eigenschaften").get_by_label("Höhe (m)", exact=True).fill("72.64")
+    scope.get_by_role("button", name="Bezugslinie setzen", exact=True).click()
+    expect(scope.locator(".werkzeuge .pfad")).to_contain_text("Schnitt B-B")
+    scope.get_by_role("button", name="1:1", exact=True).click()
+    svg.click(position={"x": 320, "y": 250})
+    svg.click(position={"x": 540, "y": 250})
+    expect(scope.locator(".ausschnitt")).to_contain_text("Bezug 72,64 m ü. NHN")
+    page.keyboard.press("h")
+    expect(scope.get_by_role("button", name="Höhenpunkt", exact=True)).to_have_attribute("aria-pressed", "true")
+    svg.click(position={"x": 400, "y": 150})
+    expect(scope.locator(".markierungen button")).to_have_count(1)
+    expect(svg.locator(".abdunkeln")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(scope.get_by_role("button", name="Blatt 1", exact=True)).to_be_disabled()
+    expect(scope.locator(".markierungen button")).to_have_count(3)
+    # Entf entfernt die gewählte Markierung, Strg+Z holt sie zurück.
+    scope.locator(".markierungen button").nth(2).click()
+    page.keyboard.press("Delete")
+    expect(scope.locator(".markierungen button")).to_have_count(2)
+    page.keyboard.press("Control+z")
+    expect(scope.locator(".markierungen button")).to_have_count(3)
     page.screenshot(path=str(out / "editor.png"), full_page=True)
+    scope.get_by_role("button", name="Speichern", exact=True).click()
+    page.wait_for_function("window.planSaved?.daten.ausschnitte?.[0]?.bezugslinie?.hoehe_m===72.64")
+    ausschnitt = page.evaluate("window.planSaved.daten.ausschnitte[0]")
+    assert ausschnitt["art"] == "schnitt" and ausschnitt["bezeichnung"] == "Schnitt B-B"
+    assert all(abs(a-b)<0.02 for a,b in zip(ausschnitt["von"]+ausschnitt["bis"], [300,40,560,300])), ausschnitt
+    assert all(abs(a-b)<0.02 for a,b in zip(ausschnitt["bezugslinie"]["von"]+ausschnitt["bezugslinie"]["bis"], [320,250,540,250])), ausschnitt
+    assert page.evaluate("window.planSaved.daten.markierungen[2].ausschnitt_id") == ausschnitt["id"]
+    assert page.evaluate("window.planSaved.daten.markierungen[2].geometrie.art") == "hoehenpunkt"
+    assert "ausschnitt_id" not in page.evaluate("window.planSaved.daten.markierungen[0]")
+    assert page.evaluate("window.planSaved.daten.ebenen.some(e=>e.bezeichnung==='Schnitt B-B')")
     # Seitenwechsel darf keinen alten Maßstab für die neue Seite weitergeben.
     scope.get_by_label("Seite", exact=True).fill("2")
     scope.get_by_label("Seite", exact=True).press("Tab")
@@ -116,10 +165,13 @@ with sync_playwright() as p:
     scope.get_by_role("button", name="Speichern", exact=True).click()
     page.wait_for_function("window.planSaved?.daten.seite===2&&window.planSaved.daten.kalibrierung===null")
     assert page.evaluate("window.planSaved.daten.hoehenbezug") is None
+    # Rahmen bleiben als Vorschlag, ihre Bezüge sind neu zu bestätigen.
+    assert page.evaluate("window.planSaved.daten.ausschnitte.length") == 1
+    assert "bezugslinie" not in page.evaluate("window.planSaved.daten.ausschnitte[0]")
     circle = page.evaluate("window.planSaved.daten.markierungen[1].geometrie")
     assert abs(circle["rand"][0] - circle["mitte"][0] - 24) < 0.01, circle
     forbidden = ["dokument_ablegen", "formular_im_projekt_speichern", "formular_vorlage_erstellen"]
     assert not page.evaluate("(names)=>window.calls.some(c=>names.includes(c.cmd))", forbidden)
     assert not errors, errors
     browser.close()
-print("PDF-Aufmaß: Zeichnen, Ebenen, Sperre, Rückgängig, Speichern und Seitenwechsel erfolgreich.")
+print("PDF-Aufmaß: Zeichnen, Ebenen, Sperre, Rückgängig, Zoom, Vollbild, Ausschnitt mit Bezugslinie, Kürzel, Speichern und Seitenwechsel erfolgreich.")

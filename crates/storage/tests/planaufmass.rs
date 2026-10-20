@@ -82,7 +82,9 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
             grundstueck_id: None,
             gebaeude_id: None,
             geschoss_id: None,
+            ausschnitt_id: None,
         }],
+        ausschnitte: vec![],
     };
     let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
     let f = core
@@ -352,6 +354,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 grundstueck_id: None,
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
+                ausschnitt_id: None,
             },
             Planmarkierung {
                 id: hoehe,
@@ -362,6 +365,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 grundstueck_id: None,
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
+                ausschnitt_id: None,
             },
             Planmarkierung {
                 id: dach,
@@ -375,8 +379,10 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 grundstueck_id: None,
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
+                ausschnitt_id: None,
             },
         ],
+        ausschnitte: vec![],
     };
     a.markierungen.push(Planmarkierung {
         id: grundflaeche,
@@ -390,6 +396,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         grundstueck_id: None,
         gebaeude_id: Some(gid),
         geschoss_id: None,
+        ausschnitt_id: None,
     });
     a.markierungen.push(Planmarkierung {
         id: geschossflaeche,
@@ -403,6 +410,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         grundstueck_id: None,
         gebaeude_id: Some(gid),
         geschoss_id: Some(sid),
+        ausschnitt_id: None,
     });
     core.fachobjekt_speichern(
         p.id,

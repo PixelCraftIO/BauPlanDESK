@@ -325,8 +325,27 @@ impl CoreServices {
             if !doc_aktuell(&aufmass.dokument) {
                 offen.push("PDF-Unterlage ist veraltet oder fehlt".into());
             }
-            if aufmass.kalibrierung.is_none() {
+            // Ohne Seitenmaßstab braucht jeder Ausschnitt einen eigenen.
+            if aufmass.kalibrierung.is_none()
+                && (aufmass.ausschnitte.is_empty()
+                    || aufmass.ausschnitte.iter().any(|a| a.kalibrierung.is_none()))
+            {
                 offen.push("Maßstab / Referenzstrecke fehlt".into());
+            }
+            for a in &aufmass.ausschnitte {
+                let hoehenpunkte = aufmass.markierungen.iter().any(|m| {
+                    m.ausschnitt_id == Some(a.id)
+                        && matches!(
+                            m.geometrie,
+                            crate::planaufmass::Plangeometrie::Hoehenpunkt { .. }
+                        )
+                });
+                if a.art.mit_hoehen() && a.bezugslinie.is_none() && hoehenpunkte {
+                    offen.push(format!(
+                        "Ausschnitt „{}“: Bezugslinie für Höhen fehlt",
+                        a.bezeichnung
+                    ));
+                }
             }
             if aufmass.markierungen.is_empty() {
                 offen.push("Noch keine Markierungen erfasst".into());

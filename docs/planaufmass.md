@@ -10,7 +10,17 @@ einem Sammelblatt.
 
 Enthalten sind:
 
-- Maßstab 1:n oder Kalibrierung einer bekannten Strecke über zwei Punkte.
+- Maßstab 1:n oder Kalibrierung einer bekannten Strecke über zwei Punkte,
+  je Blatt oder je Ausschnitt.
+- Ausschnitte: gespeicherte Sichten auf Teile eines Blattes (Grundriss,
+  Lageplan, Schnitt, Ansicht, Detail) mit eigenem Maßstab und, bei Schnitten,
+  Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
+  Ausschnittmodus, Rahmen ziehen und bearbeiten, Abdunkeln des Restblattes.
+- Arbeitsfläche über die volle Fensterhöhe, Vollbild (F11), Zoom um den
+  Mauszeiger (Strg+Rad, Pinch), Verschieben mit Leertaste oder mittlerer
+  Maustaste, scharfes Nachrastern beim Zoomen, Live-Maße am Cursor,
+  Beschriftung der Markierungen mit Core-Messwerten, Tastaturkürzel
+  (V, M, P, R, K, S, H, Entf, Strg+Z/Y/D, Pfeiltasten, Bild ↑/↓, Esc).
 - Polygon, Rechteck, Kreis, Strecke und Höhenpunkt; Eckpunkte verschieben,
   Zeichenaktionen rückgängig machen und wiederholen.
 - Benannte Zeichenebenen mit Sichtbarkeit und Bearbeitungssperre.
@@ -43,10 +53,18 @@ Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
 2. **PDF-Aufmaß → Neu anlegen**, Unterlage, Seite und Bezeichnung auswählen.
 3. Maßstab setzen oder eine bekannte Strecke kalibrieren. Ein gedruckter
    Maßstab gilt nur, wenn die PDF unverändert im angegebenen Papiermaß vorliegt.
-4. Auf einer sichtbaren, ungesperrten Ebene zeichnen, Bedeutung und Einheiten
-   zuordnen. Absolute Höhen benötigen zusätzlich einen bekannten Bezugspunkt
-   und ein benanntes Höhensystem. Ansichten/Schnitte müssen lotrecht zur
-   dargestellten Seite ausgerichtet sein.
+   Liegen mehrere Zeichnungen auf dem Blatt, je Zeichnung mit **Ausschnitt
+   anlegen** einen Rahmen ziehen, Art wählen und bei Bedarf einen eigenen
+   Maßstab setzen (Schnitte sind oft 1:50 neben einem 1:100-Grundriss).
+   Für Schnitte, Ansichten und Details **Bezugslinie setzen**: die ±0,00-Linie
+   (oder eine andere Linie bekannter Höhe) anklicken und Höhe sowie
+   Höhensystem angeben; der Gebäudenullpunkt aus Gebäude/Geschosse wird als
+   Vorschlag angeboten. Höhen sind der lotrechte Abstand zu dieser Linie, der
+   Schnitt darf daher auch gedreht auf dem Blatt liegen.
+4. Ausschnitt öffnen (Doppelklick auf den Rahmen oder „Öffnen“) und darin auf
+   einer sichtbaren, ungesperrten Ebene zeichnen; neue Markierungen gehören
+   zum geöffneten Ausschnitt. Bedeutung und Zuordnung setzen. Ohne Ausschnitte
+   gilt wie bisher der blattweite Höhenbezug (Bezugspunkt, Seitenvertikale).
 5. Aufmaß speichern. In der Fachberechnung eine passende Position anlegen
    und unter **Quellen / Übernahmen → PDF-Aufmaß** das Zielfeld verknüpfen.
 6. Die eingesetzten Werte prüfen und die Berechnung speichern. Neue Maskenstände
@@ -120,9 +138,16 @@ Frontend-Adapter `planaufmass/pdfGeometry.ts` und `PdfPlan.svelte` gekapselt.
 Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
 
 - `Planaufmass`: Dokumentbezug, einsbasierte Seite, optionale Kalibrierung/
-  Höhenreferenz, Ebenen und identifizierbare Markierungen.
-- `Planmarkierung`: UUID, Ebene, Geometrie, Bedeutung sowie optionale
-  Grundstücks-, Gebäude- und Geschoss-IDs.
+  Höhenreferenz, Ebenen, identifizierbare Markierungen und optionale
+  `ausschnitte`.
+- `Planausschnitt`: UUID, Bezeichnung, `art` (`grundriss`, `lageplan`,
+  `schnitt`, `ansicht`, `detail`), Rahmen `von`/`bis` in Seitenpunkten,
+  optionale eigene `kalibrierung` und optionale `bezugslinie`
+  (`Planbezugslinie`: zwei Punkte, `hoehe_m`, `system`; nur für Schnitt,
+  Ansicht, Detail). Ohne eigenen Maßstab gilt der Maßstab der Seite.
+- `Planmarkierung`: UUID, Ebene, Geometrie, Bedeutung, optionale
+  Grundstücks-, Gebäude- und Geschoss-IDs sowie optionale `ausschnitt_id`
+  (Ausschnitt, in dem gezeichnet wurde; nicht nur die Lage).
 - `Planmesswert`: Messgrößen in m, m² und Grad, jeweils `null`, solange diese
   Größe nicht bestimmbar oder für die Geometrie nicht vorhanden ist.
 - `Planbindung`: Aufmaß-ID, ausdrücklich übernommene Revision, Markierungs-ID,
@@ -139,10 +164,18 @@ Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
 
 Koordinaten sind physische PDF-Seitenpunkte (72 Punkte = 1 Zoll) der sichtbaren,
 gedrehten Seite ab links oben; y wächst nach unten. Der PDF.js-Viewport
-berücksichtigt CropBox, Rotation und UserUnit. Zoom und Bildschirmauflösung
-beeinflussen gespeicherte Punkte nicht. Kreise bleiben echte Kreise und werden
-im Core analytisch berechnet. Absolute Höhe ist
-`Bezugshöhe + (Bezug.y − Punkt.y) × MeterProPunkt`.
+berücksichtigt CropBox, Rotation und UserUnit. Zoom, Vollbild und
+Bildschirmauflösung beeinflussen gespeicherte Punkte nicht. Kreise bleiben
+echte Kreise und werden im Core analytisch berechnet. Ohne Ausschnitt ist die
+absolute Höhe `Bezugshöhe + (Bezug.y − Punkt.y) × MeterProPunkt`. Innerhalb
+eines Ausschnitts mit Bezugslinie ist sie `Linienhöhe + lotrechter Abstand zur
+Linie × MeterProPunkt`; „oben“ ist die Seite der Linie mit kleinerem y.
+Strecken liefern Höhendifferenz und Horizontale ebenfalls bezogen auf die
+Bezugslinie. Ein Ausschnitt ohne Bezugslinie liefert keine absoluten Höhen
+(`offen`), ein Grundriss/Lageplan nie; der blattweite Höhenbezug gilt nicht
+innerhalb eines Ausschnitts. Markierungen außerhalb ihres Rahmens werden als
+`offen` gemeldet, nicht verschoben. Live-Maße am Cursor sind Vorschauen des
+Frontends; Beschriftungen und Panelwerte stammen aus `planaufmass_pruefen`.
 
 Tauri stellt `planaufmass_pruefen`, `planaufmass_ziele` und
 `planaufmass_einsetzen` bereit. HTTP bietet dieselben Operationen unter
@@ -203,8 +236,13 @@ zugeordnete GRZ-/GFZ-Nachweise und Berechnungen mit Gebäudeübernahme werden be
 veralteten Gebäudeaufmaßen ungültig. Betroffene Gebäude sind in der Übersicht
 verlinkt. Rein manuelle Gebäude ohne Planbindungen verhalten sich unverändert.
 
-Beim Wechsel der PDF oder Seite bleiben Markierungen zur manuellen Anpassung
-erhalten; Maßstab und Höhenbezug werden entfernt. Alte Dokumentversionen werden
+Beim Wechsel der PDF oder Seite bleiben Markierungen und Ausschnittrahmen zur
+manuellen Anpassung erhalten; Maßstab, Höhenbezug sowie Maßstäbe und
+Bezugslinien der Ausschnitte werden entfernt. `ausschnitte` und
+`ausschnitt_id` sind optional und werden ohne Inhalt nicht serialisiert;
+Aufmaße ohne Ausschnitte rechnen unverändert. Der Bindungsstand enthält den
+Ausschnitt der gebundenen Markierung, sodass eine geänderte Bezugslinie nur die
+daraus übernommenen Werte veraltet. Alte Dokumentversionen werden
 niemals überschrieben. Ebenensperren sind eine Bedienhilfe, keine zusätzliche
 Berechtigungsgrenze.
 
@@ -215,6 +253,10 @@ Für das beschriebene Gesamtziel fehlen noch eigenständige Verbraucheradapter:
 - Flurstücks- und private Grünflächen direkt in Grundstücksinformationen und
   Baugrundstücksermittlung übernehmen; Identität und rechtliche Flächenabzüge
   ausdrücklich erhalten.
+- Seitenminiaturen, Ansichtsdrehung, Vorschläge für Ausschnitte, Maßstab
+  und Höhenkoten aus dem PDF-Text, erweiterter Fang (Schnittpunkte, Lot)
+  und eine Werkzeugkiste mit Vorlagen; siehe
+  [planaufmass-editor-analyse.md](planaufmass-editor-analyse.md).
 - Geschoss-Außenkonturen zusätzlich als transformierte Lagegeometrie für
   Gebäudeumrisse und Wandkorrespondenzen bereitstellen. Die Flächenübernahme
   in Gebäude/Geschosse ist vorhanden; räumliche Planausrichtung noch nicht.
@@ -238,7 +280,9 @@ nicht erfasste projektspezifische Pflichten.
 ## Prüfungen
 
 - Core-Modultests: Kalibrierung, Kreis-/Polygonfläche, Orientierung, Höhen,
-  ungültige Geometrie, Nullwerte, Serialisierung und Altvorlagen.
+  ungültige Geometrie, Nullwerte, Serialisierung und Altvorlagen; Ausschnitte
+  mit eigener Bezugslinie je Schnitt, eigenem Maßstab, gedrehter Bezugslinie,
+  fehlenden Bezügen, Rahmenprüfung und Serialisierung ohne Inhalt.
 - Storage-Integration: reale PDF-/Maskenspeicherung, DIN-277-Übernahme,
   Versionskonflikt, Projekttrennung, falsche Ziel-ID, falsche Messgröße,
   geänderte Maske/PDF, Originalschutz und zentrale offene Punkte.
@@ -251,7 +295,9 @@ nicht erfasste projektspezifische Pflichten.
   Fangtoleranz, End-/Mittel-/Kantenfang und Umfangsbegrenzung.
 - Browser-Test `apps/desktop/tests/planaufmass.py`: echte PDF-Darstellung mit
   kontrolliertem IPC-Testtransport; Zeichnen, Ebenen, Sperren, Rückgängig,
-  Kalibrierung, Höhenbezug, Zoomkoordinaten, Speichern und Seitenwechsel.
+  Kalibrierung, Höhenbezug, Zoomkoordinaten, Strg+Rad-Zoom, Vollbild,
+  Ausschnitt mit Bezugslinie und Höhenpunkt, Tastenkürzel, Speichern und
+  Seitenwechsel.
   Fachwerte werden durch die Core-Tests geprüft.
 
 PDF-Adapterreferenz: [PDF.js API](https://mozilla.github.io/pdf.js/api/draft/api.js.html).

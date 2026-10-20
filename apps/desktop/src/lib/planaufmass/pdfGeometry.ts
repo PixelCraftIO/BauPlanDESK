@@ -88,3 +88,61 @@ export function snap(point: Point, geometry: SnapGeometry, tolerance: number):
   }
   return best;
 }
+
+// Vorschauhilfen für die Zeichenfläche. Maßgebend bleiben die Werte des Cores
+// (planaufmass_pruefen); diese Funktionen zeigen nur während des Zeichnens an.
+type Kalibrierung = { art: "massstab"; nenner: number } | { art: "strecke"; von: Point; bis: Point; meter: number };
+type Geometrie =
+  | { art: "polygon"; punkte: Point[] }
+  | { art: "rechteck"; von: Point; bis: Point }
+  | { art: "kreis"; mitte: Point; rand: Point }
+  | { art: "strecke"; von: Point; bis: Point }
+  | { art: "hoehenpunkt"; punkt: Point };
+export function meterProPunkt(k: Kalibrierung | null | undefined): number | null {
+  if (!k) return null;
+  if (k.art === "massstab") return k.nenner > 0 ? (k.nenner * 0.0254) / 72 : null;
+  const l = Math.hypot(k.bis[0] - k.von[0], k.bis[1] - k.von[1]);
+  return l > 0 && k.meter > 0 ? k.meter / l : null;
+}
+/** Länge/Umfang und Fläche in Seitenpunkten bzw. Metern; nur Vorschau. */
+export function vorschauMass(g: Geometrie, f: number | null): { laenge_m: number | null; flaeche_m2: number | null } {
+  let laenge = 0, flaeche = 0;
+  if (g.art === "polygon") {
+    const n = g.punkte.length;
+    for (let i = 0; i < n; i++) {
+      const a = g.punkte[i], b = g.punkte[(i + 1) % n];
+      laenge += Math.hypot(b[0] - a[0], b[1] - a[1]);
+      flaeche += a[0] * b[1] - b[0] * a[1];
+    }
+    flaeche = Math.abs(flaeche) / 2;
+  } else if (g.art === "rechteck") {
+    const w = Math.abs(g.bis[0] - g.von[0]), h = Math.abs(g.bis[1] - g.von[1]);
+    laenge = 2 * (w + h); flaeche = w * h;
+  } else if (g.art === "kreis") {
+    const r = Math.hypot(g.rand[0] - g.mitte[0], g.rand[1] - g.mitte[1]);
+    laenge = 2 * Math.PI * r; flaeche = Math.PI * r * r;
+  } else if (g.art === "strecke") {
+    laenge = Math.hypot(g.bis[0] - g.von[0], g.bis[1] - g.von[1]);
+  } else return { laenge_m: null, flaeche_m2: null };
+  if (f === null) return { laenge_m: null, flaeche_m2: null };
+  return { laenge_m: laenge * f, flaeche_m2: g.art === "strecke" ? null : flaeche * f * f };
+}
+export function verschieben<G extends Geometrie>(g: G, dx: number, dy: number): G {
+  const v = (p: Point): Point => [p[0] + dx, p[1] + dy];
+  if (g.art === "polygon") return { ...g, punkte: g.punkte.map(v) };
+  if (g.art === "kreis") return { ...g, mitte: v(g.mitte), rand: v(g.rand) };
+  if (g.art === "hoehenpunkt") return { ...g, punkt: v(g.punkt) };
+  return { ...g, von: v(g.von), bis: v(g.bis) };
+}
+export function eckpunkte(g: Geometrie): Point[] {
+  if (g.art === "polygon") return g.punkte;
+  if (g.art === "kreis") return [g.mitte, g.rand];
+  if (g.art === "hoehenpunkt") return [g.punkt];
+  return [g.von, g.bis];
+}
+/** Umgrenzendes Rechteck in Seitenpunkten. */
+export function rahmen(ps: Point[]): { x: number; y: number; w: number; h: number } {
+  const xs = ps.map((p) => p[0]), ys = ps.map((p) => p[1]);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
