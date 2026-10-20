@@ -6,6 +6,7 @@ mod raumbuch;
 mod service;
 pub use abstand::abstandsziele;
 pub use gebaeude::gebaeudeziele;
+pub(crate) use service::bindungsstand;
 pub use service::{Planziel, planziele};
 #[cfg(test)]
 mod tests;

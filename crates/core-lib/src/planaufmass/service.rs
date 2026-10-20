@@ -43,6 +43,32 @@ pub fn planziele(plan: &FachPlan) -> CoreResult<Vec<Planziel>> {
     Ok(ziele)
 }
 
+/// Für eine Bindung maßgebender Stand eines Aufmaßes: Unterlage, Seite,
+/// Kalibrierung, Höhenbezug, Aufmaßbezeichnung und die gebundene Markierung
+/// ohne ihre Zeichenebene. Ebenen, Sichtbarkeit und andere Markierungen gehören
+/// nicht dazu. Grundlage für Aktualitätsprüfung und Nachweis-Fingerprints.
+pub(crate) fn bindungsstand(a: &Planaufmass, markierung: Uuid) -> serde_json::Value {
+    let m = a.markierungen.iter().find(|m| m.id == markierung).map(|m| {
+        serde_json::json!({
+            "id": m.id,
+            "bezeichnung": m.bezeichnung,
+            "bedeutung": m.bedeutung,
+            "geometrie": m.geometrie,
+            "grundstueck_id": m.grundstueck_id,
+            "gebaeude_id": m.gebaeude_id,
+            "geschoss_id": m.geschoss_id,
+        })
+    });
+    serde_json::json!({
+        "bezeichnung": a.bezeichnung,
+        "dokument": a.dokument,
+        "seite": a.seite,
+        "kalibrierung": a.kalibrierung,
+        "hoehenbezug": a.hoehenbezug,
+        "markierung": m,
+    })
+}
+
 impl CoreServices {
     pub(crate) async fn planbindung_aufloesen(
         &self,
@@ -55,12 +81,28 @@ impl CoreServices {
             .into_iter()
             .find(|f| f.objekt == b.aufmass_id.to_string())
             .ok_or_else(|| fehler("Planaufmaß fehlt im Projekt"))?;
-        if f.schema_version != 1 || f.revision != b.revision || b.revision < 1 {
-            return Err(fehler(
-                "Planaufmaß geändert oder Datenversion nicht unterstützt. Quelle erneut prüfen.",
-            ));
+        let geaendert = || {
+            fehler("Planaufmaß geändert oder Datenversion nicht unterstützt. Quelle erneut prüfen.")
+        };
+        if f.schema_version != 1 || b.revision < 1 || f.revision < b.revision {
+            return Err(geaendert());
         }
         let a: Planaufmass = serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
+        // Spätere Revisionen sind nur maßgebend, wenn sich der für diese Bindung
+        // maßgebende Stand geändert hat; Ebenen und andere Markierungen nicht.
+        if f.revision != b.revision {
+            let alt = self
+                .fachverlauf(pid, ObjektArt::Planaufmass, b.aufmass_id)
+                .await?
+                .into_iter()
+                .find(|s| s.revision == b.revision && s.schema_version == 1)
+                .ok_or_else(geaendert)?;
+            let alt: Planaufmass =
+                serde_json::from_value(alt.daten).map_err(|e| fehler(e.to_string()))?;
+            if bindungsstand(&alt, b.markierung_id) != bindungsstand(&a, b.markierung_id) {
+                return Err(geaendert());
+            }
+        }
         let aktuell = self
             .document_history(a.dokument.dokument_id)
             .await?
@@ -73,13 +115,17 @@ impl CoreServices {
                 "PDF-Unterlage hat eine neuere Version. Aufmaß auf neuer Unterlage prüfen.",
             ));
         }
-        let werte = self.planaufmass_pruefen(pid, &a).await?;
         let m = a
             .markierungen
             .iter()
             .find(|m| m.id == b.markierung_id)
             .ok_or_else(|| fehler("Planmarkierung fehlt"))?
             .clone();
+        // Nur die gebundene Markierung prüfen: eine andere, nicht mehr passende
+        // Markierung desselben Aufmaßes blockiert diese Übernahme nicht.
+        let mut einzeln = a.clone();
+        einzeln.markierungen.retain(|x| x.id == m.id);
+        let werte = self.planaufmass_pruefen(pid, &einzeln).await?;
         if m.bedeutung == Planbedeutung::Unbestimmt {
             return Err(fehler("Planmarkierung zuerst fachlich zuordnen"));
         }
@@ -123,22 +169,28 @@ impl CoreServices {
         };
         let gebaeude = self.fachobjekte(pid, ObjektArt::Gebaeude).await?;
         for m in &plan.markierungen {
-            if let Some(id) = m.grundstueck_id {
-                if !grund.iter().any(|g| g.id == id) {
-                    return Err(fehler("Grundstückszuordnung ist nicht mehr aktuell"));
-                }
+            // Die Meldung nennt die Markierung, damit sie im Editor auffindbar ist.
+            let name = |t: &str| fehler(format!("Markierung „{}“: {t}", m.bezeichnung));
+            if let Some(id) = m.grundstueck_id
+                && !grund.iter().any(|g| g.id == id)
+            {
+                return Err(name(
+                    "Baugrundstückszuordnung ist nicht mehr aktuell; Baugrundstück neu wählen",
+                ));
             }
             if let Some(id) = m.gebaeude_id {
                 let g = gebaeude
                     .iter()
                     .find(|g| g.objekt == id.to_string())
-                    .ok_or_else(|| fehler("Gebäude gehört nicht zum Projekt"))?;
+                    .ok_or_else(|| name("Gebäude ist nicht mehr erfasst; Gebäude neu wählen"))?;
                 let g: Gebaeude =
                     serde_json::from_value(g.daten.clone()).map_err(|e| fehler(e.to_string()))?;
-                if let Some(s) = m.geschoss_id {
-                    if !g.geschosse.iter().any(|g| g.id == s) {
-                        return Err(fehler("Geschoss gehört nicht zum Gebäude"));
-                    }
+                if let Some(s) = m.geschoss_id
+                    && !g.geschosse.iter().any(|g| g.id == s)
+                {
+                    return Err(name(
+                        "Geschoss ist im Gebäude nicht mehr erfasst; Geschoss neu wählen",
+                    ));
                 }
             }
         }

@@ -324,9 +324,15 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/planwerte", post(planaufmass_einsetzen))
         .route("/projekte/{id}/planraumbuch", post(planaufmass_raumbuch))
         .route("/projekte/{id}/planabstand", post(planaufmass_abstand))
-        .route("/berechnung/planaufmass/abstandsziele", post(planaufmass_abstandsziele))
+        .route(
+            "/berechnung/planaufmass/abstandsziele",
+            post(planaufmass_abstandsziele),
+        )
         .route("/projekte/{id}/plangebaeude", post(planaufmass_gebaeude))
-        .route("/berechnung/planaufmass/gebaeudeziele", post(planaufmass_gebaeudeziele))
+        .route(
+            "/berechnung/planaufmass/gebaeudeziele",
+            post(planaufmass_gebaeudeziele),
+        )
         .route("/berechnung/planaufmass/ziele", post(planaufmass_ziele))
         .route(
             "/projekte/{id}/nutzung/pruefen",
@@ -538,23 +544,37 @@ async fn planaufmass_ziele(
     Ok(Json(core_lib::planaufmass::planziele(&plan)?))
 }
 async fn planaufmass_einsetzen(
-    State(ApiState { core }): State<ApiState>, Path(id): Path<Uuid>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
     Json(plan): Json<core_lib::berechnungen::FachPlan>,
 ) -> ApiResult<core_lib::berechnungen::FachPlan> {
     Ok(Json(core.planaufmass_einsetzen(ProjectId(id), plan).await?))
 }
 #[derive(Deserialize)]
-struct PlanraumRequest { aufmass_id: Uuid, revision: i64, raumbuch: core_lib::plattform::objekte::Raumbuch }
-async fn planaufmass_raumbuch(
-    State(ApiState { core }): State<ApiState>, Path(id): Path<Uuid>, Json(r): Json<PlanraumRequest>,
-) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
-    Ok(Json(core.planaufmass_raumbuch(ProjectId(id), r.aufmass_id, r.revision, r.raumbuch).await?))
+struct PlanraumRequest {
+    aufmass_id: Uuid,
+    revision: i64,
+    raumbuch: core_lib::plattform::objekte::Raumbuch,
 }
-async fn planaufmass_abstandsziele(Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>) -> ApiResult<Vec<core_lib::planaufmass::Planziel>> {
+async fn planaufmass_raumbuch(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(r): Json<PlanraumRequest>,
+) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
+    Ok(Json(
+        core.planaufmass_raumbuch(ProjectId(id), r.aufmass_id, r.revision, r.raumbuch)
+            .await?,
+    ))
+}
+async fn planaufmass_abstandsziele(
+    Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>,
+) -> ApiResult<Vec<core_lib::planaufmass::Planziel>> {
     Ok(Json(core_lib::planaufmass::abstandsziele(&plan)))
 }
 async fn planaufmass_abstand(
-    State(ApiState { core }): State<ApiState>, Path(id): Path<Uuid>, Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>,
 ) -> ApiResult<core_lib::abstandsflaechen::AbstandsPlan> {
     Ok(Json(core.planaufmass_abstand(ProjectId(id), plan).await?))
 }
@@ -1768,13 +1788,25 @@ async fn gebaeude_auswerten(
     Path(id): Path<Uuid>,
     Json(w): Json<GebaeudeAuswertung>,
 ) -> ApiResult<core_lib::plattform::gebaeude::GebaeudeGrundlagen> {
-    Ok(Json(core.gebaeude_auswerten(ProjectId(id), w.id, &w.gebaeude).await?))
+    Ok(Json(
+        core.gebaeude_auswerten(ProjectId(id), w.id, &w.gebaeude)
+            .await?,
+    ))
 }
-async fn planaufmass_gebaeudeziele(Json(plan): Json<core_lib::plattform::objekte::Gebaeude>) -> ApiResult<Vec<core_lib::planaufmass::Planziel>> {
+async fn planaufmass_gebaeudeziele(
+    Json(plan): Json<core_lib::plattform::objekte::Gebaeude>,
+) -> ApiResult<Vec<core_lib::planaufmass::Planziel>> {
     Ok(Json(core_lib::planaufmass::gebaeudeziele(&plan)))
 }
-async fn planaufmass_gebaeude(State(ApiState { core }): State<ApiState>, Path(id): Path<Uuid>, Json(w): Json<GebaeudeAuswertung>) -> ApiResult<core_lib::plattform::objekte::Gebaeude> {
-    Ok(Json(core.planaufmass_gebaeude(ProjectId(id), w.id, w.gebaeude).await?))
+async fn planaufmass_gebaeude(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<GebaeudeAuswertung>,
+) -> ApiResult<core_lib::plattform::objekte::Gebaeude> {
+    Ok(Json(
+        core.planaufmass_gebaeude(ProjectId(id), w.id, w.gebaeude)
+            .await?,
+    ))
 }
 
 #[cfg(test)]

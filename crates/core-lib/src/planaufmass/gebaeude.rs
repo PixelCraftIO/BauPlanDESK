@@ -20,7 +20,12 @@ pub fn gebaeudeziele(g: &Gebaeude) -> Vec<Planziel> {
             groesse: Planmessgroesse::Hoehe,
         });
     }
-    for s in &g.geschosse {
+    for (i, s) in g.geschosse.iter().enumerate() {
+        // Unbenannte Geschosse bleiben über ihre Position in der Maske auffindbar.
+        let name_geschoss = match s.bezeichnung.trim() {
+            "" => format!("Geschoss {}", i + 1),
+            b => b.to_string(),
+        };
         for (feld, name, groesse) in [
             (
                 "flaeche_m2",
@@ -35,7 +40,7 @@ pub fn gebaeudeziele(g: &Gebaeude) -> Vec<Planziel> {
         ] {
             z.push(Planziel {
                 ziel: format!("geschosse.{}.{feld}", s.id),
-                titel: format!("{} · {name}", s.bezeichnung),
+                titel: format!("{name_geschoss} · {name}"),
                 groesse,
             });
         }
@@ -178,14 +183,24 @@ impl CoreServices {
         id: Uuid,
         g: &Gebaeude,
     ) -> CoreResult<()> {
+        // Verbraucher wie GRZ/GFZ prüfen mehrere Gebäude; die Meldung nennt das betroffene.
+        let benannt = |t: String| {
+            fehler(format!(
+                "Gebäude „{}“: {t} Unter Grundlagen → Gebäude / Geschosse „Aktuellen Aufmaßstand übernehmen“ und speichern.",
+                g.bezeichnung
+            ))
+        };
         let mut neu = g.clone();
-        self.planwerte_gebaeude(pid, id, &mut neu).await?;
+        if let Err(e) = self.planwerte_gebaeude(pid, id, &mut neu).await {
+            return Err(match e {
+                crate::CoreError::InvalidInput(t) => benannt(t),
+                e => e,
+            });
+        }
         if serde_json::to_value(neu).map_err(|e| fehler(e.to_string()))?
             != serde_json::to_value(g).map_err(|e| fehler(e.to_string()))?
         {
-            return Err(fehler(
-                "Gebäudewerte weichen vom PDF-Aufmaß ab. Planquellen aktualisieren und speichern.",
-            ));
+            return Err(benannt("Gebäudewerte weichen vom PDF-Aufmaß ab.".into()));
         }
         Ok(())
     }

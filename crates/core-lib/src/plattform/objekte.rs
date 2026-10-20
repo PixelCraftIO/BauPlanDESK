@@ -206,11 +206,19 @@ pub(super) async fn validieren(
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
         ObjektArt::Planaufmass => {
-            let plan: crate::planaufmass::Planaufmass = serde_json::from_value(daten).map_err(json_err)?;
+            let plan: crate::planaufmass::Planaufmass =
+                serde_json::from_value(daten).map_err(json_err)?;
             core.planaufmass_pruefen(p.id, &plan).await?;
-            let (_, bytes) = core.load_version(plan.dokument.dokument_id, plan.dokument.version).await?;
-            if !crate::formular::editor::seiten(&bytes)?.iter().any(|seite|seite.nummer==plan.seite) {
-                return Err(CoreError::InvalidInput("PDF-Seite existiert nicht in dieser Dokumentversion".into()));
+            let (_, bytes) = core
+                .load_version(plan.dokument.dokument_id, plan.dokument.version)
+                .await?;
+            if !crate::formular::editor::seiten(&bytes)?
+                .iter()
+                .any(|seite| seite.nummer == plan.seite)
+            {
+                return Err(CoreError::InvalidInput(
+                    "PDF-Seite existiert nicht in dieser Dokumentversion".into(),
+                ));
             }
             serde_json::to_value(plan)
         }
@@ -270,7 +278,6 @@ pub(super) async fn validieren(
                     "Zu viele Gebäudezuordnungen oder Geschosse".into(),
                 ));
             }
-            let mut g = g;
             if g.flurstueck_ids.is_empty() || g.flurstuecke_zu_pruefen == Some(false) {
                 g.flurstuecke_zu_pruefen = None;
             }
@@ -505,7 +512,14 @@ impl CoreServices {
                             ));
                         }
                         if g.flaeche_aus_grundlagen == Some(true) {
-                            self.gebaeude_planquellen_pruefen(p, f.objekt.parse().map_err(|_| CoreError::InvalidInput("Gebäude-ID ungültig".into()))?, &geb).await?;
+                            self.gebaeude_planquellen_pruefen(
+                                p,
+                                f.objekt.parse().map_err(|_| {
+                                    CoreError::InvalidInput("Gebäude-ID ungültig".into())
+                                })?,
+                                &geb,
+                            )
+                            .await?;
                             if !bezug.eindeutig(&geb, &b.schluessel) {
                                 return Err(CoreError::InvalidInput(
                                     "Geschossfläche für mehrere Grundstücke getrennt aufteilen"
@@ -533,6 +547,13 @@ impl CoreServices {
                                     "Geschossfläche in den Grundlagen ergänzen".into(),
                                 )
                             })?;
+                            // Einzelgeschoss: Eine im Gebäude festgelegte Einstufung ist
+                            // maßgebend, damit GFZ und Gebäude nicht auseinanderlaufen.
+                            if quelle.implizit
+                                && let Some(v) = quelle.vollgeschoss
+                            {
+                                g.vollgeschoss = v;
+                            }
                         }
                         if let Some(id) = &g.geschoss_id {
                             let quelle = geb

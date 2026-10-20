@@ -372,37 +372,82 @@ impl CoreServices {
             None
         };
         let mut fachquellen = Vec::new();
-        if let (Some(id), Some(daten)) = (plan.gebaeude_id, &geb) {
-            if plan.gebaeudedaten_uebernehmen == Some(true) {
-                self.gebaeudegrundlagen(pid, id).await?;
-                if daten.get("planbindungen").and_then(|v|v.as_array()).is_some_and(|b|!b.is_empty()) {
-                    fachquellen.push(Some(("gebaeudeaufmass-rechenstand".into(), 1, serde_json::json!(crate::planaufmass::RECHENSTAND))));
-                }
+        if let (Some(id), Some(daten)) = (plan.gebaeude_id, &geb)
+            && plan.gebaeudedaten_uebernehmen == Some(true)
+        {
+            self.gebaeudegrundlagen(pid, id).await?;
+            if daten
+                .get("planbindungen")
+                .and_then(|v| v.as_array())
+                .is_some_and(|b| !b.is_empty())
+            {
+                fachquellen.push(Some((
+                    "gebaeudeaufmass-rechenstand".into(),
+                    1,
+                    serde_json::json!(crate::planaufmass::RECHENSTAND),
+                )));
             }
         }
         if !plan.planbindungen.is_empty() {
-            fachquellen.push(Some(("planaufmass-rechenstand".into(), 1, serde_json::json!(crate::planaufmass::RECHENSTAND))));
+            fachquellen.push(Some((
+                "planaufmass-rechenstand".into(),
+                1,
+                serde_json::json!(crate::planaufmass::RECHENSTAND),
+            )));
         }
         // Fingerprint berücksichtigt sowohl Zeichenmaske als auch die neueste PDF-Version.
         for b in &plan.planbindungen {
-            let f = self.fachobjekte(pid, ObjektArt::Planaufmass).await?.into_iter()
+            let f = self
+                .fachobjekte(pid, ObjektArt::Planaufmass)
+                .await?
+                .into_iter()
                 .find(|f| f.objekt == b.aufmass_id.to_string());
             if let Some(f) = &f {
                 let a: crate::planaufmass::Planaufmass = decode(&f.daten)?;
-                let version = self.document_history(a.dokument.dokument_id).await?.into_iter()
-                    .filter(|d| d.project_id == pid).map(|d| d.version).max();
-                fachquellen.push(Some((format!("pdf:{}", a.dokument.dokument_id.0), version.unwrap_or(0), serde_json::Value::Null)));
+                let version = self
+                    .document_history(a.dokument.dokument_id)
+                    .await?
+                    .into_iter()
+                    .filter(|d| d.project_id == pid)
+                    .map(|d| d.version)
+                    .max();
+                fachquellen.push(Some((
+                    format!("pdf:{}", a.dokument.dokument_id.0),
+                    version.unwrap_or(0),
+                    serde_json::Value::Null,
+                )));
             }
-            fachquellen.push(f.map(|f| (f.objekt, f.revision, f.daten)));
+            // Nur der für diese Bindung maßgebende Stand; Ebenen oder andere
+            // Markierungen desselben Aufmaßes machen den Nachweis nicht veraltet.
+            let stand = match &f {
+                Some(f) => {
+                    let a: crate::planaufmass::Planaufmass = decode(&f.daten)?;
+                    Some((
+                        f.objekt.clone(),
+                        b.revision,
+                        crate::planaufmass::bindungsstand(&a, b.markierung_id),
+                    ))
+                }
+                None => None,
+            };
+            fachquellen.push(stand);
         }
         for q in &plan.fachquellen {
             if q.art == ObjektArt::Raumbuch {
-                let f = self.fachobjekte(pid, q.art).await?.into_iter()
-                    .find(|f| f.objekt == q.objekt.to_string()).ok_or_else(|| err("Raumbuch fehlt"))?;
+                let f = self
+                    .fachobjekte(pid, q.art)
+                    .await?
+                    .into_iter()
+                    .find(|f| f.objekt == q.objekt.to_string())
+                    .ok_or_else(|| err("Raumbuch fehlt"))?;
                 let r: crate::plattform::objekte::Raumbuch = decode(&f.daten)?;
                 self.raumbuch_planquellen_pruefen(pid, &r).await?;
                 if !r.planbindungen.is_empty() {
-                    fachquellen.push(Some(("raumaufmass-rechenstand".into(), 1, serde_json::json!(crate::planaufmass::RECHENSTAND))));
+                    fachquellen.push(Some((
+                        "raumaufmass-rechenstand".into(),
+                        1,
+                        serde_json::json!(crate::planaufmass::RECHENSTAND),
+                    )));
                 }
             }
             fachquellen.push(
@@ -444,7 +489,8 @@ fn hoehen_einsetzen(
     let altpraefix = format!("gebaeude:{}:", basis.gebaeude_id);
     let mut e: hoehen::Eingabe = decode(&plan.eingaben)?;
     let vorher = e.punkte.clone();
-    e.punkte.retain(|p| !p.id.starts_with(&praefix) && !p.id.starts_with(&altpraefix));
+    e.punkte
+        .retain(|p| !p.id.starts_with(&praefix) && !p.id.starts_with(&altpraefix));
     // Entwürfe mit der früheren, vom Kennungsvalidator abgewiesenen Schreibweise
     // erhalten ihre Dachverweise beim expliziten erneuten Gebäudeimport.
     for d in &mut e.daecher {

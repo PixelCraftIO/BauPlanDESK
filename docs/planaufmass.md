@@ -36,6 +36,9 @@ in einem anderen Modul.
 
 ## Bedienung und unterstützte Übernahmen
 
+Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
+Übernahmewege: [planaufmass-datenwege.md](planaufmass-datenwege.md).
+
 1. PDF unter **Projektdateien** importieren.
 2. **PDF-Aufmaß → Neu anlegen**, Unterlage, Seite und Bezeichnung auswählen.
 3. Maßstab setzen oder eine bekannte Strecke kalibrieren. Ein gedruckter
@@ -61,10 +64,17 @@ in einem anderen Modul.
 | Abstandsflächen | Gelände und Wandabschluss an beiden Wandenden, Dachhöhe und Dachneigungen |
 | Gebäude / Geschosse | Horizontale Gebäudeprojektion, Geschossflächen nach Außenmaßen, NHN-Nullpunkt, Gelände-/Trauf-/First-/Fundamenthöhen, Fußboden-/Deckenlage und Höhenabmessungen |
 
-Unter **Gebäude / Geschosse → Flächen und Höhen aus PDF-Aufmaß verknüpfen**
-werden die gezeichneten Außenflächen mit vorhandenen Gebäuden und Geschossen
-verbunden. Diese zuerst speichern, damit Markierungen ihre stabilen IDs wählen
-können. Die Bedeutung **Gebäudegrundfläche – horizontale Projektion** ist vom
+In **Gebäude / Geschosse** bieten die Felder *Gebäudegrundfläche* und
+*Geschossfläche nach Außenmaßen* direkt **Aus PDF-Aufmaß** an. Angeboten werden
+nur Markierungen dieses Gebäudes mit passender Bedeutung (und beim Geschoss mit
+passender Geschosszuordnung); findet sich keine, nennt das Feld die nicht
+passenden Markierungen und den fehlenden Schritt. Höhen und die Liste aller
+Verknüpfungen stehen unter **Höhen und alle Verknüpfungen aus PDF-Aufmaß**.
+Gebäude und Geschosse zuerst speichern, damit Markierungen ihre stabilen IDs
+wählen können. Soll dieselbe Kontur Gebäudegrundfläche und Geschossfläche
+liefern, wird die Markierung im PDF-Aufmaß mit **Duplizieren** kopiert und die
+Kopie als *Geschoss – Außenkante* gekennzeichnet. Das Seitenpanel des
+PDF-Aufmaßes nennt je Bedeutung die Stelle, an der übernommen wird. Die Bedeutung **Gebäudegrundfläche – horizontale Projektion** ist vom
 **Geschoss – Außenkante** getrennt; das EG ist nicht automatisch der gesamte
 Gebäudeumgriff. Die bestehende Gebäudeeinbindung versorgt GRZ/GFZ je zugeordnetem
 Baugrundstück. Die rechtliche Geschosseinstufung bleibt ausdrücklich offen.
@@ -165,11 +175,26 @@ Quelltexte enthalten Dokumentversion, Seite, Aufmaß- und Markierungsbezeichnung
 sowie die übernommene Maskenrevision. Die Verknüpfung selbst trägt stabile IDs.
 
 Die Übernahme weist fremde Projekte, fehlende Markierungen, inkompatible Größen,
-andere Einheiten, neue Maskenrevisionen und neuere PDF-Versionen zurück.
-Berechnungs-Fingerprints berücksichtigen die aktuelle Maske und neueste
-PDF-Version. Ein alter Nachweis bleibt unverändert archiviert, wird aber
-als veraltet erkannt. Derzeit macht auch eine rein gestalterische Änderung
-einer referenzierten Maske die Übernahme prüfbedürftig.
+andere Einheiten, geänderte gebundene Markierungen und neuere PDF-Versionen zurück.
+Maßgebend ist der **Bindungsstand** (`bindungsstand`): Unterlage und Version,
+Seite, Kalibrierung, Höhenbezug, Aufmaßbezeichnung sowie Kontur, Bezeichnung,
+Bedeutung und Zuordnung der gebundenen Markierung. Ist das Aufmaß seit der
+Bindung neu gespeichert, vergleicht der Core diesen Stand der gebundenen mit der
+aktuellen Revision (`fachverlauf`). Ebenen, Sichtbarkeit, Sperren und andere
+Markierungen lassen eine Bindung gültig; nur die gebundene Markierung wird
+geprüft, sodass eine andere, nicht mehr passende Markierung desselben Aufmaßes
+keine Übernahme blockiert. Berechnungs-Fingerprints enthalten je Bindung deren
+Bindungsstand und die neueste PDF-Version. Ein alter Nachweis bleibt unverändert
+archiviert, wird aber bei geänderter Quelle als veraltet erkannt.
+
+*Regeländerung:* Archivierte Fachnachweise mit PDF-Verknüpfungen aus dem
+vorherigen Stand erhalten dadurch einmalig einen neuen Fingerprint und gelten
+als neu zu prüfen. Wandherkunft (`hoehenquelle`) führt nun alle Bindungen einer
+Wand mit Aufmaß- und Markierungsbezeichnung statt nur der letzten mit IDs; bereits
+gespeicherte Abstandspläne mit PDF-Bindungen sind einmal mit „Aktuellen
+Aufmaßstand übernehmen“ zu aktualisieren. Fehlermeldungen nennen Gebäude, Raum
+bzw. Markierung. Der Nachweisdruck führt die übernommenen Messwerte mit Aufmaß,
+Markierung, Unterlage und Stand auf.
 Diese Prüfung gilt auch für indirekte Verbraucher des Raumbuchs sowie
 Wandnachweise. Aktuelle Raumbuchberichte verwenden keine veralteten Planflächen.
 Die Projektübersicht führt veraltete Raumquellen und offene Wandangaben auf.

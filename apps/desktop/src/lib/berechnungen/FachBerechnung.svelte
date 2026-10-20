@@ -16,6 +16,7 @@
   import { plattformApi, type Datensatz } from "../plattformApi";
   import { berechnungsApi } from "./api";
   import { abonnieren } from "../projektEreignisse";
+  import { projektNavigation } from "../projektNavigation.svelte";
   import type {
     BerechnungsArt,
     BerechnungsVorlage,
@@ -57,6 +58,14 @@
     importText = $state(""),
     importOffen = $state(false),
     quellId = $state("");
+  // Sprung aus der Projektübersicht: angefragtes Register öffnen (z. B. Quellen).
+  const navigation = projektNavigation();
+  $effect(() => {
+    const a = navigation?.auftrag;
+    const r = a?.ziel.register;
+    if (a?.ziel.bereich === modul && r && ["daten", "regeln", "quellen", "bericht"].includes(r))
+      untrack(() => { bereich = r; });
+  });
   const s = untrack(
     () =>
       new FachSitzung<FachPlan>(
@@ -352,11 +361,31 @@
       s.eingabe.gebaeude_id = r.gebaeude_id;
       s.eingabe.fachquellen = r.fachquellen;
       s.eingabe.uebernahmen = [];
-      schreiben(
-        s.eingabe.eingaben,
-        "positionen",
-        lesen(r.eingaben, "positionen"),
-      );
+      // Abgleich über die stabile Raum-ID: Flächen und Höhen stammen aus dem
+      // Raumbuch, bereits erfasste Zuordnungen bleiben erhalten. Manuelle
+      // Positionen ohne Raumbuchquelle bleiben stehen; entfallene Räume entfallen.
+      const alt = (lesen(s.eingabe.eingaben, "positionen") as Obj[] | undefined) ?? [];
+      const neu = (lesen(r.eingaben, "positionen") as Obj[] | undefined) ?? [];
+      const ausRaumbuch = (x: Obj) => String(x.quelle ?? "").startsWith("Raumbuch");
+      const eigene = modul === "wohnflaechen" ? ["wohnung", "typ", "sonderfaktor", "begruendung"] : ["geschoss", "art", "bereich"];
+      let erhalten = 0;
+      const abgeglichen = neu.map((n) => {
+        const a = alt.find((x) => x.id === n.id);
+        if (!a) return n;
+        erhalten++;
+        const z = { ...n };
+        for (const k of eigene) if (a[k] !== undefined && a[k] !== "" && a[k] !== null) z[k] = a[k];
+        if (z.lichte_hoehe_m == null && a.lichte_hoehe_m != null) z.lichte_hoehe_m = a.lichte_hoehe_m;
+        return z;
+      });
+      const manuell = alt.filter((a) => !neu.some((n) => n.id === a.id) && !ausRaumbuch(a));
+      const entfallen = alt.filter((a) => !neu.some((n) => n.id === a.id) && ausRaumbuch(a)).length;
+      // PDF-Verknüpfungen bleiben nur an manuellen Positionen; Raumbuchzeilen
+      // erhalten ihre Fläche aus dem Raumbuch.
+      const manuelleIds = new Set(manuell.map((x) => String(x.id)));
+      if (s.eingabe.planbindungen)
+        s.eingabe.planbindungen = s.eingabe.planbindungen.filter((b) => !b.ziel.startsWith("positionen.") || manuelleIds.has(b.ziel.split(".")[1]));
+      schreiben(s.eingabe.eingaben, "positionen", [...abgeglichen, ...manuell]);
       for (const f of [
         "aufmass_vollstaendig",
         "wohneinheiten_bestaetigt",
@@ -368,7 +397,7 @@
       }
       s.eingabe.regelkontext.anwendbarkeit_bestaetigt = false;
       s.meldung =
-        "Raumfakten übernommen. Raumarten, Wohnungs-/Geschosszuordnung, Höhenzonen und Maßbezug ausdrücklich prüfen.";
+        `Raumfakten übernommen: ${neu.length - erhalten} neu, ${erhalten} aktualisiert (Zuordnungen erhalten)${entfallen ? `, ${entfallen} nicht mehr im Raumbuch und entfernt` : ""}${manuell.length ? `, ${manuell.length} manuelle Positionen beibehalten` : ""}. Raumarten, Wohnungs-/Geschosszuordnung, Höhenzonen und Maßbezug prüfen.`;
     } catch (e) {
       s.fehler = fehlertext(e);
     } finally {
@@ -506,9 +535,10 @@
           {#if ["wohnflaechen", "din277"].includes(modul)}<details>
               <summary>Raumfakten aus dem Raumbuch übernehmen</summary>
               <p class="meta">
-                Ersetzt die Teilflächenliste. Raumart und
-                Wohnungs-/Geschosszuordnung werden bewusst nicht automatisch
-                festgelegt.
+                Gleicht die Teilflächen über die Raum-ID ab: Flächen und Höhen
+                kommen aus dem Raumbuch, bereits gewählte Raumart und
+                Wohnungs-/Geschosszuordnung bleiben erhalten. Neue Räume sind
+                noch zuzuordnen; manuelle Positionen bleiben stehen.
               </p>
               <label
                 >Raumbuch<select bind:value={raumbuchId}
@@ -522,7 +552,7 @@
                 class="sekundaer"
                 disabled={!raumbuchId}
                 onclick={raumimport}
-                >Raumfakten übernehmen (Teilflächen ersetzen)</button
+                >Raumfakten übernehmen / aktualisieren</button
               >
             </details>{/if}
           {#if quellenFehler}<p class="fehlertext" role="alert">

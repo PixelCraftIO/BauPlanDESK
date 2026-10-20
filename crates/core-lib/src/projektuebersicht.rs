@@ -322,36 +322,77 @@ impl CoreServices {
         for f in self.fachobjekte(p, ObjektArt::Planaufmass).await? {
             let aufmass: crate::planaufmass::Planaufmass = decode(f.daten)?;
             let mut offen = Vec::new();
-            if !doc_aktuell(&aufmass.dokument) { offen.push("PDF-Unterlage ist veraltet oder fehlt".into()); }
-            if aufmass.kalibrierung.is_none() { offen.push("Maßstab / Referenzstrecke fehlt".into()); }
-            if aufmass.markierungen.is_empty() { offen.push("Noch keine Markierungen erfasst".into()); }
+            if !doc_aktuell(&aufmass.dokument) {
+                offen.push("PDF-Unterlage ist veraltet oder fehlt".into());
+            }
+            if aufmass.kalibrierung.is_none() {
+                offen.push("Maßstab / Referenzstrecke fehlt".into());
+            }
+            if aufmass.markierungen.is_empty() {
+                offen.push("Noch keine Markierungen erfasst".into());
+            }
             match aufmass.messen() {
-                Ok(werte) => for w in werte {
-                    let name = aufmass.markierungen.iter().find(|m| m.id == w.id).map(|m| m.bezeichnung.as_str()).unwrap_or("Markierung");
-                    offen.extend(w.offen.into_iter().map(|h| format!("{name}: {h}")));
-                },
+                Ok(werte) => {
+                    for w in werte {
+                        let name = aufmass
+                            .markierungen
+                            .iter()
+                            .find(|m| m.id == w.id)
+                            .map(|m| m.bezeichnung.as_str())
+                            .unwrap_or("Markierung");
+                        offen.extend(w.offen.into_iter().map(|h| format!("{name}: {h}")));
+                    }
+                    // Zuordnungen zu Grundstück, Gebäude und Geschoss am Entstehungsort melden.
+                    if doc_aktuell(&aufmass.dokument)
+                        && let Err(e) = self.planaufmass_pruefen(p, &aufmass).await
+                    {
+                        offen.push(e.to_string());
+                    }
+                }
                 Err(e) => offen.push(e.to_string()),
             }
             if !offen.is_empty() {
-                s.punkt(format!("planaufmass:{}", f.objekt), Grundlagen, Pruefen,
-                    format!("PDF-Aufmaß: {}", aufmass.bezeichnung), offen.join(" · "),
-                    UebersichtsZiel::neu("planaufmass").objekt(id(&f.objekt)?));
+                s.punkt(
+                    format!("planaufmass:{}", f.objekt),
+                    Grundlagen,
+                    Pruefen,
+                    format!("PDF-Aufmaß: {}", aufmass.bezeichnung),
+                    offen.join(" · "),
+                    UebersichtsZiel::neu("planaufmass").objekt(id(&f.objekt)?),
+                );
             }
         }
         for f in self.fachobjekte(p, ObjektArt::Gebaeude).await? {
             let g: crate::plattform::objekte::Gebaeude = decode(f.daten)?;
-            if let Err(e) = self.gebaeude_planquellen_pruefen(p, id(&f.objekt)?, &g).await {
-                s.punkt(format!("gebaeudequellen:{}", f.objekt), Grundlagen, Handeln,
-                    format!("Gebäude: {}", g.bezeichnung), e.to_string(),
-                    UebersichtsZiel::neu("gebaeude").objekt(id(&f.objekt)?));
+            if let Err(e) = self
+                .gebaeude_planquellen_pruefen(p, id(&f.objekt)?, &g)
+                .await
+            {
+                s.punkt(
+                    format!("gebaeudequellen:{}", f.objekt),
+                    Grundlagen,
+                    Handeln,
+                    format!("Gebäude: {}", g.bezeichnung),
+                    e.to_string(),
+                    UebersichtsZiel::neu("gebaeude")
+                        .objekt(id(&f.objekt)?)
+                        .register("planaufmass"),
+                );
             }
         }
         for f in self.fachobjekte(p, ObjektArt::Raumbuch).await? {
             let r: crate::plattform::objekte::Raumbuch = decode(f.daten)?;
             if let Err(e) = self.raumbuch_planquellen_pruefen(p, &r).await {
-                s.punkt(format!("raumquellen:{}", f.objekt), Grundlagen, Handeln,
-                    format!("Raumbuch: {}", r.bezeichnung), e.to_string(),
-                    UebersichtsZiel::neu("raumbuch").objekt(id(&f.objekt)?));
+                s.punkt(
+                    format!("raumquellen:{}", f.objekt),
+                    Grundlagen,
+                    Handeln,
+                    format!("Raumbuch: {}", r.bezeichnung),
+                    e.to_string(),
+                    UebersichtsZiel::neu("raumbuch")
+                        .objekt(id(&f.objekt)?)
+                        .register("planaufmass"),
+                );
             }
         }
         for f in self.fachobjekte(p, ObjektArt::Abstandsflaechen).await? {
@@ -361,23 +402,40 @@ impl CoreServices {
                 Err(e) => vec![e.to_string()],
             };
             if !offen.is_empty() {
-                s.punkt(format!("wandeingaben:{}", f.objekt), Nachweise, Handeln,
-                    format!("{}: Angaben / Prüfung offen", plan.bezeichnung), offen.join(" · "),
-                    UebersichtsZiel::neu("abstand").objekt(id(&f.objekt)?));
+                s.punkt(
+                    format!("wandeingaben:{}", f.objekt),
+                    Nachweise,
+                    Handeln,
+                    format!("{}: Angaben / Prüfung offen", plan.bezeichnung),
+                    offen.join(" · "),
+                    UebersichtsZiel::neu("abstand").objekt(id(&f.objekt)?),
+                );
             }
         }
         for art in crate::berechnungen::BerechnungsArt::ALLE {
             for f in self.fachobjekte(p, art.objekt()).await? {
                 let plan: crate::berechnungen::FachPlan = decode(f.daten)?;
                 let name = plan.bezeichnung.clone();
-                let offen = match self.berechnung_pruefen(p, plan).await {
-                    Ok((_, r)) => r.offen,
-                    Err(e) => vec![e.to_string()],
+                let mit_plan = !plan.planbindungen.is_empty();
+                let (offen, quellfehler) = match self.berechnung_pruefen(p, plan).await {
+                    Ok((_, r)) => (r.offen, false),
+                    Err(e) => (vec![e.to_string()], mit_plan),
                 };
                 if !offen.is_empty() {
-                    s.punkt(format!("eingaben:{}:{}", art.objekt().modul(), f.objekt),
-                        Nachweise, Handeln, format!("{name}: Angaben / Prüfung offen"),
-                        offen.join(" · "), UebersichtsZiel::neu(art.objekt().modul()).objekt(id(&f.objekt)?));
+                    let mut ziel =
+                        UebersichtsZiel::neu(art.objekt().modul()).objekt(id(&f.objekt)?);
+                    // Fehler einer Berechnung mit PDF-Verknüpfungen öffnen die Quellen.
+                    if quellfehler {
+                        ziel = ziel.register("quellen");
+                    }
+                    s.punkt(
+                        format!("eingaben:{}:{}", art.objekt().modul(), f.objekt),
+                        Nachweise,
+                        Handeln,
+                        format!("{name}: Angaben / Prüfung offen"),
+                        offen.join(" · "),
+                        ziel,
+                    );
                 }
             }
         }

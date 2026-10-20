@@ -204,6 +204,46 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
     );
     p.planbindungen[0].revision = f2.revision;
     assert!(core.berechnung_pruefen(project.id, p.clone()).await.is_ok());
+    // Ebenen und weitere Markierungen ändern die gebundene Messung nicht.
+    let mut a: Planaufmass = serde_json::from_value(f2.daten.clone()).unwrap();
+    a.ebenen[0].sichtbar = false;
+    let mut weitere = a.markierungen[0].clone();
+    weitere.id = Uuid::new_v4();
+    weitere.bezeichnung = "Weitere Fläche".into();
+    a.markierungen.push(weitere);
+    let f3 = core
+        .fachobjekt_speichern(
+            project.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f2.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    assert!(f3.revision > f2.revision);
+    assert!(
+        core.berechnung_pruefen(project.id, p.clone()).await.is_ok(),
+        "Gestalterische Änderungen dürfen die Übernahme nicht veralten lassen"
+    );
+    // Die gebundene Markierung selbst bleibt maßgebend.
+    a.markierungen[0].bezeichnung = "Umbenannt".into();
+    core.fachobjekt_speichern(
+        project.id,
+        ObjektArt::Planaufmass,
+        aufmass,
+        f3.revision,
+        save(&a),
+        &user,
+    )
+    .await
+    .unwrap();
+    assert!(
+        core.berechnung_pruefen(project.id, p.clone())
+            .await
+            .is_err()
+    );
     core.store_document(
         project.id,
         Some(doc.document_id),
@@ -442,7 +482,9 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         .plan;
     hp.gebaeude_id = Some(gid);
     hp.gebaeudedaten_uebernehmen = Some(true);
-    core.berechnung_pruefen(p.id, hp.clone()).await.expect("Höhen aus aktuellen Gebäudeplanquellen");
+    core.berechnung_pruefen(p.id, hp.clone())
+        .await
+        .expect("Höhen aus aktuellen Gebäudeplanquellen");
     // Ohne neues Vertragsfeld lesbar; Räume entstehen direkt aus den Masken.
     let alt: Raumbuch = serde_json::from_value(
         serde_json::json!({"bezeichnung":"Räume","gebaeude_id":gid,"geschoss_id":null,"raeume":[]}),
@@ -550,6 +592,9 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         von: [0., 0.],
         bis: [100., 60.],
     };
+    // Die Raumkontur betrifft nur das Raumbuch; der geänderte Höhenbezug alle
+    // Höhenbindungen und damit Gebäude, Gebäudehöhen und Wände.
+    a.hoehenbezug.as_mut().unwrap().system = "m ü. NHN".into();
     core.fachobjekt_speichern(
         p.id,
         ObjektArt::Planaufmass,

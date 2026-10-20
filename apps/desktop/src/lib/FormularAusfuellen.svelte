@@ -12,6 +12,7 @@
   } from "./api";
 
   import { druckPdf } from "./druckPdf";
+  import { abonnieren } from "./projektEreignisse";
   import { LivePdfVorschau } from "./LivePdfVorschau";
   import PdfVorschau from "./PdfVorschau.svelte";
   const vorgang = crypto.randomUUID();
@@ -185,6 +186,14 @@
   onMount(() => {
     void laden();
   });
+  // Berechnungen, Gebäude oder Nachweise derselben Akte geändert: Vorschläge
+  // können veraltet sein. Nicht automatisch ersetzen, nur auf das Neuladen hinweisen.
+  let projektdatenGeaendert = $state(false);
+  $effect(() => {
+    const id = analyse?.quellen?.datenstand.projekt_id;
+    if (!id) return;
+    return abonnieren(id, ["fachobjekte", "nachweise"], () => { projektdatenGeaendert = true; });
+  });
 
   // Abweichungen ermittelt der Core; hier nur Anzeige und Übernahme.
   const veraltet = $derived(
@@ -293,9 +302,10 @@
                 >{/each}</select
             ></label
           >{/if}
-        <button type="button" onclick={() => laden(true)}
+        <button type="button" onclick={() => { projektdatenGeaendert = false; void laden(true); }}
           >Projektdaten neu laden</button
         >
+        {#if projektdatenGeaendert}<p class="hinweisbox" role="status">Berechnungen oder Gebäudedaten wurden inzwischen geändert. „Projektdaten neu laden“ übernimmt die neuen Werte; eigene Eingaben bleiben erhalten.</p>{/if}
       </div>
       <p class="meta">
         Manuell geänderte Werte bleiben beim Laden erhalten. Die verwendeten

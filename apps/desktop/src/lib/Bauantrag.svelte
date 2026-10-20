@@ -183,6 +183,10 @@
   $effect(() =>
     abonnieren(projekt.id, ["dokumente"], () => void dokumenteLaden()),
   );
+  // Gebäude geändert: Gebäudeanzahl und fehlende Angaben neu ermitteln.
+  $effect(() =>
+    abonnieren(projekt.id, ["fachobjekte"], () => void stammdatenAbgleichen()),
+  );
   async function dokumenteLaden() {
     try {
       dokumente = neuesteVersionen(await api.dokumente(projekt.id));

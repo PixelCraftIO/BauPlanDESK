@@ -18,14 +18,20 @@
     dateien = [],
     projektId = "",
     onquelle = () => {},
-    planGebunden = false,
+    planGelaende = false,
+    planOberkante = false,
   }: {
     wand: AbstandsWand;
     dateien?: DocumentVersion[];
     projektId?: string;
     onquelle?: (d: Dokumentbezug) => void;
-    planGebunden?: boolean;
+    /** Geländehöhen bzw. Wandabschluss als Eckwerte aus dem PDF-Aufmaß verknüpft. */
+    planGelaende?: boolean;
+    planOberkante?: boolean;
   } = $props();
+  // Ein Profil darf verknüpfte Eckwerte nicht verdeckt übersteuern; gesperrt
+  // wird nur die jeweils betroffene Liste.
+  const gesperrt = (art: "gelaende" | "oberkante") => (art === "gelaende" ? planGelaende : planOberkante);
   // Nur zur Anzeige und als Vorschlag für neue Punkte; gerechnet wird im Core.
   const laenge = $derived(Math.hypot(wand.bis.x - wand.von.x, wand.bis.y - wand.von.y));
   const runden = (n: number) => Math.round(n * 1000) / 1000;
@@ -119,8 +125,8 @@
   }
 </script>
 
-{#if planGebunden}<p class="hinweisbox">Wandhöhen sind mit PDF-Aufmaß verknüpft. Unter „Grundlagen“ die Quelle aktualisieren oder die Verknüpfung lösen, bevor ein eigenes Höhenprofil angelegt wird.</p>{/if}
-<fieldset class="profil" disabled={planGebunden}>
+{#if planGelaende || planOberkante}<p class="hinweisbox">{planGelaende && planOberkante ? "Geländehöhen und Wandabschluss sind" : planGelaende ? "Geländehöhen sind" : "Wandabschlusshöhen sind"} mit PDF-Aufmaß verknüpft. Für ein eigenes Profil unter „Grundlagen“ die Verknüpfung lösen; die übrigen Angaben bleiben bearbeitbar.</p>{/if}
+<fieldset class="profil">
   <legend>Höhenprofil der Wand · Länge {laenge.toLocaleString("de-DE", { maximumFractionDigits: 3 })} m</legend>
   <p class="meta">
     Stationen in Metern ab Wandanfang, Höhen im gemeinsamen Höhenbezug. Zwischen
@@ -131,7 +137,7 @@
     Zugang oder Zufahrt nicht als Geländeoberfläche ansetzen, soweit das
     Landesrecht sie außer Betracht lässt.
   </p>
-  {#if altwerte}<p class="hinweisbox" role="status">
+  {#if altwerte && !planGelaende && !planOberkante}<p class="hinweisbox" role="status">
       Diese Wand nutzt noch die Einzelwerte an Anfang und Ende
       (Gelände {wand.gelaende_a_m ?? "–"} / {wand.gelaende_b_m ?? "–"} m,
       Abschluss {wand.abschluss_a_m ?? "–"} / {wand.abschluss_b_m ?? "–"} m).
@@ -142,6 +148,7 @@
   {#each [["gelaende", "Geländeoberfläche"], ["oberkante", "Wandoberkante"]] as [liste, titel] (liste)}
     {@const art = liste as "gelaende" | "oberkante"}
     <h5>{titel}</h5>
+    <fieldset class="liste" disabled={gesperrt(art)}>
     <table class="ergebnistabelle">
       <thead><tr><th>Station (m)</th><th>Höhe (m)</th><th>Quelle</th><th></th></tr></thead>
       <tbody>
@@ -181,6 +188,7 @@
       </tbody>
     </table>
     <button type="button" class="sekundaer" onclick={() => neu(art)}>{titel}: Punkt hinzufügen</button>
+    </fieldset>
   {/each}
   <label
     >Zusätzliche Wandteilgrenzen (Stationen in m, mit Semikolon getrennt)<input
@@ -189,7 +197,7 @@
       placeholder="z. B. 4,5; 9"
     /></label
   >
-  {#if projektId && dateien.some((d) => d.file_name.toLowerCase().endsWith(".dxf"))}<details>
+  {#if projektId && !planGelaende && dateien.some((d) => d.file_name.toLowerCase().endsWith(".dxf"))}<details>
       <summary>Geländehöhen aus DXF-Lageplan vorschlagen</summary>
       <p class="meta">
         Liest Höhenkoten (Text mit Dezimalstellen, z. B. „101,35“) und Punkte mit
@@ -238,6 +246,7 @@
 </fieldset>
 
 <style>
+  .liste { border: 0; padding: 0; margin: 0; }
   .profil {
     margin: 1rem 0;
   }

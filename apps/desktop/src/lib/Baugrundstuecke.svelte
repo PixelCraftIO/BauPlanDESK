@@ -396,6 +396,13 @@
     return anzahl;
   }
   async function nachweisSpeichern() {
+    // Ein Nachweis soll dem gespeicherten Stand entsprechen, den auch Formulare
+    // und XBau verwenden: ungespeicherte Eingaben zuerst speichern und neu berechnen.
+    if (geaendert) {
+      await speichern();
+      if (geaendert || fehler) return;
+      await berechnen();
+    }
     if (!ergebnis || !aktuell) return;
     laeuft = true;
     try {
@@ -672,6 +679,8 @@
 {#if gruppen.length && !gruppenAktuell}<p class="hinweisbox">
     Flurstücke oder Grundlagen geändert. Die angezeigte Ermittlung ist veraltet;
     bitte neu ermitteln.
+    <!-- Auch auf GRZ/GFZ-Seiten erreichbar; dort ist die Eingabe bis dahin gesperrt. -->
+    <button type="button" class="sekundaer" disabled={laeuft} onclick={async () => { await neuErmitteln(); await gebaeudeEinbinden(); }}>Neu ermitteln</button>
   </p>{/if}
 {#if !eingabe.flurstuecke.length}<p class="hinweisbox">
     GRZ, GFZ und Geschossigkeit werden je Baugrundstück aus den Flurstücken
@@ -807,7 +816,7 @@
 
 {#if ergebnis}<button
     disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}
-    onclick={nachweisSpeichern}>Nachweisstand speichern</button
+    onclick={nachweisSpeichern}>{geaendert ? "Eingaben speichern und Nachweisstand archivieren" : "Nachweisstand speichern"}</button
   ><Druckknopf
     projektId={projekt.id}
     disabled={!darf || !aktuell || laeuft || !bezugsflaechenAktuell}

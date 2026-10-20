@@ -140,3 +140,56 @@ fn rohflaechen_sind_keine_wohnflaechen_oder_regelwerte() {
         None
     );
 }
+#[test]
+fn unbenannte_geschosse_bleiben_als_zielfeld_erkennbar() {
+    let g: crate::plattform::objekte::Gebaeude = serde_json::from_value(serde_json::json!({
+        "bezeichnung": "Lagerhalle", "grundstueck_ids": [], "quelle": null,
+        "geschosse": [
+            {"id": Uuid::from_u128(7), "bezeichnung": " ", "vollgeschoss": null, "grundlage": ""},
+            {"id": Uuid::from_u128(8), "bezeichnung": "OG", "vollgeschoss": null, "grundlage": ""}
+        ]
+    }))
+    .unwrap();
+    let z = gebaeudeziele(&g);
+    let titel = |ziel: String| z.iter().find(|x| x.ziel == ziel).unwrap().titel.clone();
+    assert_eq!(
+        titel(format!("geschosse.{}.flaeche_m2", Uuid::from_u128(7))),
+        "Geschoss 1 · Fläche nach Außenmaßen"
+    );
+    assert_eq!(
+        titel(format!("geschosse.{}.flaeche_m2", Uuid::from_u128(8))),
+        "OG · Fläche nach Außenmaßen"
+    );
+}
+#[test]
+fn bindungsstand_ignoriert_ebenen_und_andere_markierungen() {
+    let alt = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [10., 10.],
+    });
+    let id = Uuid::from_u128(3);
+    let mut neu = alt.clone();
+    neu.ebenen[0].sichtbar = false;
+    neu.ebenen[0].gesperrt = true;
+    let mut weitere = neu.markierungen[0].clone();
+    weitere.id = Uuid::from_u128(4);
+    weitere.geometrie = Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [20., 20.],
+    };
+    neu.markierungen.push(weitere);
+    assert_eq!(bindungsstand(&alt, id), bindungsstand(&neu, id));
+    // Kontur, Maßstab und Zuordnung der gebundenen Markierung sind maßgebend.
+    let mut kontur = neu.clone();
+    kontur.markierungen[0].geometrie = Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [10., 12.],
+    };
+    assert_ne!(bindungsstand(&alt, id), bindungsstand(&kontur, id));
+    let mut massstab = neu.clone();
+    massstab.kalibrierung = Some(Plankalibrierung::Massstab { nenner: 50. });
+    assert_ne!(bindungsstand(&alt, id), bindungsstand(&massstab, id));
+    let mut zuordnung = neu;
+    zuordnung.markierungen[0].bedeutung = Planbedeutung::Nuf;
+    assert_ne!(bindungsstand(&alt, id), bindungsstand(&zuordnung, id));
+}
