@@ -138,6 +138,78 @@ Ergänzend ein Werkzeug **Höhenlinie**: eine waagerechte Kante anklicken
 (Traufe, Attika, OK Decke) statt eines Punktes. Das vermeidet das Zielen auf
 einen Pixel und passt zu Zeichnungen, in denen Höhen als Linien vorliegen.
 
+### 3.1a Ausschnitte verwalten und darin arbeiten
+
+Ein Ausschnitt ist eine **gespeicherte Sicht auf dieselbe Seite**, keine
+herausgeschnittene PDF. Die Original-PDF bleibt unverändert und einmalig im
+DMS, alle Markierungen bleiben Seitenpunkte, der Fang an PDF-Vektoren und die
+Versionsprüfung funktionieren wie heute. Eine physische Kopie je Schnitt würde
+Dokumente vervielfachen, Koordinaten zwischen Kopie und Blatt auseinanderlaufen
+lassen und bei einer neuen PDF-Version jede Kopie einzeln ungültig machen.
+
+**Verwaltung** im Seitenpanel als eigener Abschnitt oberhalb der Ebenen:
+
+| Spalte | Inhalt |
+| --- | --- |
+| Name, Art | „Schnitt B-B“, Schnitt |
+| Maßstab | 1:50, „vom Blatt“ oder „fehlt“ |
+| Höhenbezug | „±0,00 = 72,64 m ü. NHN“ oder „fehlt“ (nur Schnitt/Ansicht) |
+| Markierungen | Anzahl, davon ohne Bedeutung |
+| Aktionen | Öffnen, Rahmen bearbeiten, Duplizieren, Entfernen |
+
+Dazu ein **Blattmodus** und ein **Ausschnittmodus**:
+
+- *Blatt*: Die ganze Seite mit allen Ausschnittrahmen und ihren Namen. Hier
+  werden Rahmen gezogen, verschoben und benannt. Klick in einen Rahmen oder
+  auf die Zeile öffnet den Ausschnitt.
+- *Ausschnitt*: Die Ansicht zoomt auf den Rahmen und dunkelt den Rest des
+  Blattes ab (nicht ausblenden: Maßketten und Beschriftungen am Rand bleiben
+  lesbar). Es gelten Maßstab, Drehung und Bezugslinie des Ausschnitts; nur
+  seine Markierungen werden angezeigt, andere grau. Neue Markierungen gehören
+  automatisch zu diesem Ausschnitt. Brotkrume „Blatt 1 › Schnitt B-B“, `Esc`
+  oder Klick auf „Blatt“ führt zurück, `Bild ↑/↓` wechselt zum nächsten
+  Ausschnitt.
+- Eine Zeichenebene je Ausschnitt wird automatisch angelegt („Schnitt B-B“),
+  damit die Ebenenliste nicht von Hand gepflegt werden muss.
+
+**Ausschnitte vorschlagen**: Aus dem PDF-Text lassen sich Titel wie
+„SCHNITT B-B“ oder „GRUNDRISS ERDGESCHOSS“ erkennen; aus den extrahierten
+Vektoren ergeben sich zusammenhängende Zeichnungsbereiche mit Leerraum
+dazwischen. Daraus entstehen Rahmenvorschläge mit Namen und Art, die der
+Bearbeiter übernimmt, verschiebt oder verwirft. Gerasterte Scans erhalten keine
+Vorschläge; dort zieht man die Rahmen von Hand.
+
+**Regeln und Randfälle**:
+
+- Ein Blatt ohne Ausschnitte verhält sich wie heute. Ausschnitte sind
+  optional; für ein Blatt mit nur einem Grundriss lohnt sich keiner.
+- Die Zugehörigkeit einer Markierung ist der Ausschnitt, der beim Zeichnen
+  aktiv war, nicht nur die Lage. Überlappende Rahmen sind dadurch zulässig
+  (ein Detail innerhalb eines Grundrisses). Liegt eine Markierung außerhalb
+  ihres Rahmens, meldet der Core dies als offenen Punkt, verschiebt sie aber
+  nicht still.
+- Rahmen bearbeiten verschiebt keine Markierungen; Koordinaten sind
+  Seitenpunkte. Ausschnitt entfernen fragt nach, wenn Markierungen daran
+  hängen; sie bleiben als „ohne Ausschnitt“ erhalten und rechnen mit den
+  Blattwerten, Höhenpunkte werden dann „offen“.
+- Ohne eigenen Maßstab gilt der Blattmaßstab; ein Schnitt ohne Bezugslinie
+  erlaubt Strecken (Differenzen), aber keine absoluten Höhen.
+- Neue PDF-Version: Rahmen bleiben als Vorschlag erhalten, Maßstab und
+  Bezugslinien werden wie heute zurückgesetzt und müssen bestätigt werden.
+- Die Verbraucher zeigen die Herkunft als „Aufmaß › Ausschnitt › Markierung“;
+  `bindungsstand` enthält den Ausschnitt, sodass eine geänderte Bezugslinie
+  in Schnitt B-B nur die daraus übernommenen Werte veraltet.
+- Ein Aufmaß bleibt an eine Seite gebunden. Mehrseitige Plansätze erhalten je
+  Seite ein Aufmaß mit eigenen Ausschnitten; die Seitenminiaturen (3.2)
+  verbinden sie. Bestehende Aufmaße, die als Behelf „je Schnitt eines“ angelegt
+  wurden, bleiben gültig; eine Zusammenführung ist eine bewusste Entscheidung,
+  keine automatische Migration.
+
+Gegenüber dem heutigen Behelf (mehrere Aufmaße derselben Seite) gewinnt man:
+ein Datensatz je Blatt, alle Markierungen im Zusammenhang, je Schnitt eigener
+Maßstab und Nullpunkt, und ein Arbeitsbereich, der nur den relevanten Teil des
+Plans groß zeigt.
+
 ### 3.2 Arbeitsfläche und Navigation (nur Oberfläche)
 
 - **Vollbildmodus** für den Editor (`F11` oder Knopf): Projektkopf, Register
