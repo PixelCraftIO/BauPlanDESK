@@ -205,6 +205,8 @@ fn main() {
         core_lib::plattform::gebaeude::GebaeudeGrundlagen,
         core_lib::plattform::gebaeude::GeschossGrundlagen,
         core_lib::plattform::gebaeude::HoehenNhn,
+        core_lib::plattform::gebaeude::Dachform,
+        core_lib::plattform::gebaeude::Dachgrundlagen,
         core_lib::plattform::verweise::Flurstuecksverweis,
         AufgabenStatus,
         Aufgabe,

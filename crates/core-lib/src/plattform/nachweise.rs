@@ -224,6 +224,12 @@ pub(crate) struct AbstandsGebaeudehoehen {
     pub gelaende_m: Option<f64>,
     pub traufe_m: Option<f64>,
     pub first_m: Option<f64>,
+    /// Dachform und -neigung; ohne Angabe nicht im Archiv, damit ältere
+    /// Nachweise ohne Dachangaben unverändert aktuell bleiben.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dachform: Option<super::gebaeude::Dachform>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dachneigung_grad: Option<f64>,
 }
 pub(crate) const ABSTANDSGEBAEUDE: &str = "abstandsgebaeude-json-1";
 /// Archiv der Gebäudehöhen, auf die sich die Umrisse und Wände eines Abstandsplans
@@ -255,6 +261,8 @@ fn abstandsgebaeude(
                     gelaende_m: geo.gelaende_m,
                     traufe_m: geo.traufe_m,
                     first_m: geo.first_m,
+                    dachform: geo.dachform,
+                    dachneigung_grad: geo.dachneigung_grad,
                 }
             });
         stand.insert(id, g);

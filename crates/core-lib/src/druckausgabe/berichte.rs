@@ -1024,7 +1024,17 @@ pub(super) async fn erstellen(
                             .into_values()
                             .map(|g| match g {
                                 Some(g) => vec![
-                                    g.bezeichnung,
+                                    match g.dachform {
+                                        Some(d) => format!(
+                                            "{} ({}{})",
+                                            g.bezeichnung,
+                                            d.bezeichnung(),
+                                            g.dachneigung_grad
+                                                .map(|n| format!(" {}°", zahl(n)))
+                                                .unwrap_or_default()
+                                        ),
+                                        None => g.bezeichnung,
+                                    },
                                     m(g.nullpunkt_m_nhn),
                                     m(g.gelaende_m),
                                     m(g.traufe_m),

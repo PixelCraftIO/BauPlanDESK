@@ -8,6 +8,7 @@
     Gebaeude,
     NachweisAnsicht,
     FachErgebnis,
+    Dachform,
   } from "../generated/plattform";
   import { plattformApi } from "../plattformApi";
   import { FachSitzung } from "../FachSitzung.svelte";
@@ -73,6 +74,13 @@
     if (i >= 0) g.geschosse.splice(i, 1);
   }
   const geschossGespeichert = (id: string) => !!s.original?.geschosse.some((x) => x.id === id);
+  const DACHFORMEN: [Dachform, string][] = [
+    ["flachdach", "Flachdach"],
+    ["satteldach", "Satteldach"],
+    ["pultdach", "Pultdach"],
+    ["walmdach", "Walmdach"],
+    ["sonstige", "Sonstige Dachform"],
+  ];
   const hoehenfelder = [
     ["nullpunkt_m_nhn", "Gebäudenullpunkt ±0,00 (m ü. NHN)"],
     ["gelaende_m", "Maßgebende mittlere Geländehöhe zu ±0,00 (m)"],
@@ -209,7 +217,13 @@
       <p class="meta">Ohne einzeln erfasste Geschosse wird diese Grundfläche zugleich als Fläche eines vorläufigen Einzelgeschosses verwendet. Bei mehreren Geschossen bleibt sie der einmalige Gebäudeumgriff für die GRZ.</p>
     </section>
     <details class="grundlagen-block"><summary>Höhen und Bezugspunkt ergänzen</summary>
-      <div class="raster">{#each hoehenfelder as [key, titel]}<GrundlagenZahl {titel} wert={g.geometrie?.[key]} readonly={g.planbindungen?.some(b=>b.ziel===`geometrie.${key}`)} onwert={(v) => { (g.geometrie ??= {})[key] = v; }} />{/each}</div>
+      <div class="raster">{#each hoehenfelder as [key, titel]}<GrundlagenZahl {titel} wert={g.geometrie?.[key]} readonly={g.planbindungen?.some(b=>b.ziel===`geometrie.${key}`)} onwert={(v) => { (g.geometrie ??= {})[key] = v; }} />{/each}
+        <label>Dachform<select value={g.geometrie?.dachform ?? ""} onchange={(e) => { const v = e.currentTarget.value as Dachform | ""; if (v) (g.geometrie ??= {}).dachform = v; else if (g.geometrie) delete g.geometrie.dachform; }}>
+          <option value="">Nicht erfasst</option>{#each DACHFORMEN as [code, name]}<option value={code}>{name}</option>{/each}
+        </select></label>
+        <GrundlagenZahl titel="Dachneigung (Grad)" wert={g.geometrie?.dachneigung_grad} onwert={(v) => { (g.geometrie ??= {}).dachneigung_grad = v; }} />
+      </div>
+      {#if vorschau?.dach}<p class="meta">Dach: {vorschau.dach.herleitung}. Der Abstandsflächennachweis übernimmt Dachhöhe und Neigung mit „Höhen übernehmen“ für Giebel und Dachflächen.</p>{/if}
       <label>Herkunft der Flächen und Höhen<textarea maxlength="4000" value={g.geometrie?.herkunft ?? ""} placeholder="z. B. Vorentwurf, Aufmaß oder Vermessung mit Datum" oninput={(e) => { (g.geometrie ??= {}).herkunft = e.currentTarget.value; }}></textarea></label>
       <p class="meta">Fundamentsohle und Fußbodenhöhe sind unterschiedliche Angaben. Welches Gelände und welche Deckenlage für eine Vollgeschossprüfung maßgebend sind, wird im Nachweis anhand der geltenden Vorschrift geprüft.</p>
     </details>

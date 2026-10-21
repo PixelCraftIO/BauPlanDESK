@@ -622,7 +622,16 @@ flurstuecke_zu_pruefen?: boolean,
  */
 grundstueck_ids: Array<string>, geschosse: Array<GebaeudeGeschoss>, quelle: Dokumentbezug | null, };
 export type GebaeudeGeschoss = { geometrie?: GeschossGeometrie, id: string, einstufungsquelle?: Einstufungsquelle, bezeichnung: string, vollgeschoss: boolean | null, grundlage: string, };
-export type GebaeudeGeometrie = { typ?: Bauteiltyp, grundflaeche_m2?: number, nullpunkt_m_nhn?: number, gelaende_m?: number, fundamentsohle_m?: number, traufe_m?: number, first_m?: number, einzelgeschoss?: GeschossGeometrie,
+export type GebaeudeGeometrie = { typ?: Bauteiltyp, grundflaeche_m2?: number, nullpunkt_m_nhn?: number, gelaende_m?: number, fundamentsohle_m?: number, traufe_m?: number, first_m?: number,
+/**
+ * Dachform; `None` = nicht erfasst. Fehlt in älteren Ständen.
+ */
+dachform?: Dachform,
+/**
+ * Dachneigung in Grad (0 bis unter 90); bei mehreren Dachflächen die
+ * maßgebende Neigung. `None` = nicht erfasst.
+ */
+dachneigung_grad?: number, einzelgeschoss?: GeschossGeometrie,
 /**
  * Geprüfte Vollgeschosseinstufung des Einzelgeschosses (nur ohne einzeln
  * erfasste Geschosse); `None` = noch zu prüfen.
@@ -638,9 +647,19 @@ export type GebaeudeGrundlagen = { rechenstand: string, gebaeude_id: string, bez
  * Absolute Höhen (m ü. NHN) aus Gebäudenullpunkt und relativer Angabe;
  * `None`, solange eine der beiden Angaben fehlt. Fehlt in älteren Ständen.
  */
-hoehen_nhn: HoehenNhn, };
+hoehen_nhn: HoehenNhn,
+/**
+ * Dach, sofern eine Dachform erfasst ist. Fehlt in älteren Ständen.
+ */
+dach: Dachgrundlagen | null, };
 export type GeschossGrundlagen = { id: string, bezeichnung: string, implizit: boolean, flaeche_m2: number | null, vollgeschoss: boolean | null, lichte_hoehe_m: number | null, decke_oberkante_m: number | null, decke_ueber_gelaende_m: number | null, unterliegend_m2: number | null, herleitung: string, };
 export type HoehenNhn = { gelaende_m: number | null, traufe_m: number | null, first_m: number | null, };
+export type Dachform = "flachdach" | "satteldach" | "pultdach" | "walmdach" | "sonstige";
+export type Dachgrundlagen = { form: Dachform, neigung_grad: number | null,
+/**
+ * Höhe des Dachs über der Traufe in m; `None`, solange Traufe oder First fehlt.
+ */
+dachhoehe_m: number | null, herleitung: string, };
 export type Flurstuecksverweis = { flurstueck_id: string,
 /**
  * Fachbereich des verweisenden Objekts: `gebaeude` oder `abstandsflaechen`.
