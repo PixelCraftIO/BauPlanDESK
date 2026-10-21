@@ -560,7 +560,13 @@ impl CoreServices {
             let land = self.get_project(p).await?.bundesland;
             r.genehmigte_unterlagen = vorgelegte_unterlagen(&a, &n.pruefung.kopf);
             let mut probe = a.clone();
-            let zugang = crate::kalender::datum_deutsch(n.erfasst_am);
+            // Ist die Nachricht schon als Kommunikation erfasst, gilt deren Zugang.
+            let zugang = a
+                .kommunikation
+                .iter()
+                .find(|c| c.id == kommunikation_id(nachricht))
+                .map(|c| c.datum)
+                .unwrap_or_else(|| crate::kalender::datum_deutsch(n.erfasst_am));
             r.wirkung = match anwenden(
                 &mut probe,
                 nachricht,
@@ -621,7 +627,11 @@ impl CoreServices {
             &n,
             &aus,
             c,
-            w.zugang
+            akte.kommunikation
+                .iter()
+                .find(|k| k.id == c)
+                .map(|k| k.datum)
+                .or(w.zugang)
                 .unwrap_or_else(|| crate::kalender::datum_deutsch(n.erfasst_am)),
             land,
             &w.genehmigte_unterlagen,

@@ -1029,7 +1029,11 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         vid,
         rev,
         profil,
-        Anforderungskatalog::standard().unwrap(),
+        Anforderungskatalog::mitgeliefert()
+            .unwrap()
+            .into_iter()
+            .find(|k| k.id == "nrw-bauvorlagen")
+            .expect("NRW-Bauvorlagenkatalog"),
         &b.u,
     )
     .await
@@ -1060,68 +1064,88 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             match regel(r).as_str() {
                 "antrag" => (
                     Erforderlichkeit::Erforderlich,
-                    vec![&formular, &d.baubeschreibung],
-                    "§§ 1, 5 BauPrüfVO NRW",
+                    vec![&formular],
+                    "§ 70 BauO NRW, amtlicher Vordruck",
+                ),
+                "liegenschaftskarte" => (
+                    Erforderlichkeit::NichtErforderlich,
+                    vec![],
+                    "Vorhaben im Geltungsbereich des B-Plans Nr. 42 (§ 30 BauGB)",
                 ),
                 "lageplan" => (
                     Erforderlichkeit::Erforderlich,
                     vec![&d.lageplan],
                     "§ 3 BauPrüfVO NRW, amtlicher Lageplan",
                 ),
-                "zeichnungen" => (
+                "bauzeichnungen" => (
                     Erforderlichkeit::Erforderlich,
                     vec![&d.grundrisse, &d.schnitt, &d.ansichten],
                     "§ 4 BauPrüfVO NRW",
                 ),
-                "nutzung" => (
+                "baubeschreibung" => (
+                    Erforderlichkeit::Erforderlich,
+                    vec![&d.baubeschreibung],
+                    "§ 5 BauPrüfVO NRW",
+                ),
+                "betriebsbeschreibung" => (
+                    Erforderlichkeit::NichtErforderlich,
+                    vec![],
+                    "Wohngebäude, kein Betrieb",
+                ),
+                "mass" => (
                     Erforderlichkeit::Erforderlich,
                     vec![&d.grz],
                     "B-Plan Nr. 42, BauNVO 2017",
                 ),
-                "abstand" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.lageplan],
-                    "§ 6 BauO NRW 2018, im Lageplan",
-                ),
-                "statik" => (
+                "standsicherheit" => (
                     Erforderlichkeit::Erforderlich,
                     vec![&d.statik],
                     "Erklärung nach Kriterienkatalog (Anlage 2 BauPrüfVO); Nachweis vor Baubeginn",
+                ),
+                "standsicherheit_pruefung" => (
+                    Erforderlichkeit::NichtErforderlich,
+                    vec![],
+                    "Gebäudeklasse 1, Kriterienkatalog: keine Prüfung",
+                ),
+                "brandschutzkonzept" => (
+                    Erforderlichkeit::NichtErforderlich,
+                    vec![],
+                    "Kein Sonderbau",
+                ),
+                "geg" => (
+                    Erforderlichkeit::NichtErforderlich,
+                    vec![],
+                    "GEG-Nachweis wird vor Baubeginn als bautechnischer Nachweis vorgelegt",
                 ),
                 "stellplaetze" => (
                     Erforderlichkeit::Erforderlich,
                     vec![&d.lageplan, &d.baubeschreibung],
                     "§ 48 BauO NRW 2018, Stellplatzsatzung; 2 Stellplätze",
                 ),
-                "erschliessung" => (
+                "entwaesserung" => (
                     Erforderlichkeit::Erforderlich,
                     vec![],
                     "Entwässerungsnachweis von der Bauaufsicht nachgefordert",
                 ),
-                "brandschutz" => (
+                "statistik" => (
+                    Erforderlichkeit::Erforderlich,
+                    vec![&d.statistik],
+                    "HBauStatG",
+                ),
+                "bauvorlageberechtigung" => (
+                    Erforderlichkeit::Erforderlich,
+                    vec![&d.kammer],
+                    "§ 67 BauO NRW, Architektenkammer NRW",
+                ),
+                "abweichungen" => (
                     Erforderlichkeit::NichtErforderlich,
                     vec![],
-                    "Wohngebäude Gebäudeklasse 1: kein gesonderter Brandschutznachweis",
+                    "Festsetzungen des B-Plans Nr. 42 eingehalten; Abweichungsabgleich ohne Bedarf",
                 ),
-                "barrierefrei" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Einfamilienhaus, § 49 BauO NRW 2018 nicht einschlägig",
-                ),
-                "rechte" => (
+                "zustimmungen" => (
                     Erforderlichkeit::NichtErforderlich,
                     vec![],
                     "Bauherr ist Eigentümer (Grundbuch Blatt 1234), keine Baulasten",
-                ),
-                "abweichung" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Festsetzungen des B-Plans Nr. 42 eingehalten",
-                ),
-                "sonderbau" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Kein Sonderbau",
                 ),
                 andere => {
                     b.info(format!(
@@ -1158,6 +1182,83 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         (&d.grundbuch, "2008", "Grundbuchauszug Blatt 1234"),
     ];
     bauantrag(b, &anlagen, true).await;
+
+    // 7a. Verfahrenswahl zum Antragseingang (15.09.2026, neue Fassung der
+    // BauO NRW), Abweichungsabgleich und Unterschriften der Bauvorlagen.
+    let wahl =
+        b.c.verfahrenswahl(
+            b.p.id,
+            Some(vid),
+            core_lib::verfahren::landesrecht::Verfahrensangaben {
+                wohngebaeude: Some(true),
+                erschliessung: Some(true),
+                stichtag: Some(tag("2026-09-15")),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    b.info(format!(
+        "Verfahrenswahl ({}): {}",
+        wahl.fassung.clone().unwrap_or_default(),
+        wahl.vorschlaege
+            .iter()
+            .map(|v| format!("{} {:?}", v.titel, v.eignung))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    use core_lib::verfahren::landesrecht::Eignung;
+    if !wahl.vorschlaege.iter().any(|v| {
+        v.titel == "Vereinfachtes Baugenehmigungsverfahren" && v.eignung == Eignung::Moeglich
+    }) {
+        b.befund("Verfahrenswahl: vereinfachtes Verfahren nicht als möglich belegt");
+    }
+    if wahl.fiktion.is_none() {
+        b.befund("Verfahrenswahl: Genehmigungsfiktion der Fassung ab 01.09.2026 fehlt");
+    }
+    let abgleich = b.c.verfahren_abweichungen(b.p.id, vid).await.unwrap();
+    if !abgleich.offen.is_empty() {
+        b.befund(format!(
+            "Abweichungsbedarf ohne Eintrag: {:?}",
+            abgleich.bedarf
+        ));
+    }
+    for h in &abgleich.hinweise {
+        b.info(format!("Abweichungsabgleich: {h}"));
+    }
+    let bedarf = b.c.verfahren_unterschriften(b.p.id, vid).await.unwrap();
+    let (_, mut a) = akte(b, vid).await;
+    use core_lib::verfahren::landesrecht::{Unterschrift, Unterschriftsart, Unterschriftsrolle};
+    for u in &bedarf {
+        for rolle in &u.fehlend {
+            let (name, art) = match rolle {
+                Unterschriftsrolle::Bauherrschaft => {
+                    ("Max Mustermann", Unterschriftsart::Handschriftlich)
+                }
+                Unterschriftsrolle::Entwurfsverfasser => {
+                    ("Erika Planer", Unterschriftsart::Qualifiziert)
+                }
+                Unterschriftsrolle::Fachplaner => (
+                    "Ingenieurbüro Statik Beispiel",
+                    Unterschriftsart::Qualifiziert,
+                ),
+            };
+            a.unterschriften.push(Unterschrift {
+                id: Uuid::new_v4(),
+                dokument: u.dokument.clone(),
+                rolle: *rolle,
+                name: name.into(),
+                art,
+                datum: tag("2026-09-14"),
+            });
+        }
+    }
+    b.info(format!(
+        "Unterschriften erfasst: {} auf {} Bauvorlagen",
+        a.unterschriften.len(),
+        bedarf.len()
+    ));
+    akte_speichern(b, vid, &a, "Unterschriften").await;
 
     // 8. Abgabestand mit XBau und Druck festhalten.
     let (rev, _) = akte(b, vid).await;
@@ -1534,6 +1635,65 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
     });
     a.status = Verfahrensstatus::InPruefung;
     akte_speichern(b, vid, &a, "Nachforderung").await;
+
+    // 12a. Lage am Stichtag: Genehmigungsfiktion ab Vollständigkeit (29.09.)
+    // im vereinfachten Verfahren nach sechs Wochen; Entwurf der Antwort auf
+    // die Nachforderung; Auswertung der Eingangsbestätigung.
+    let lage = b.c.verfahren_optionen(b.p.id, vid).await.unwrap();
+    for o in &lage.optionen {
+        b.info(format!(
+            "Lage „{}“: {}{}",
+            lage.lage,
+            o.titel,
+            o.frist.map(|f| format!(" bis {f}")).unwrap_or_default()
+        ));
+    }
+    match lage
+        .optionen
+        .iter()
+        .find(|o| o.titel == "Genehmigungsfiktion")
+    {
+        Some(o) if o.frist == Some(tag("2026-11-10")) => {}
+        o => b.befund(format!(
+            "Genehmigungsfiktion nicht zum 10.11.2026 (Entscheidungsfrist der Behörde): {:?}",
+            o.and_then(|o| o.frist)
+        )),
+    }
+    let nf = a
+        .nachforderungen
+        .iter()
+        .find(|n| n.kommunikation == k_nf)
+        .unwrap()
+        .id;
+    let (antwort, antwort_pdf) =
+        b.c.verfahren_schreiben(
+            b.p.id,
+            vid,
+            core_lib::verfahren::schreiben::Schreibenwunsch {
+                art: core_lib::verfahren::schreiben::Schreibenart::Nachforderungsantwort {
+                    nachforderung: nf,
+                },
+                datum: Some(stichtag()),
+                zusatz: String::new(),
+                ablegen: false,
+            },
+            &b.u,
+        )
+        .await
+        .unwrap();
+    assert!(antwort_pdf.starts_with(b"%PDF-"));
+    for h in &antwort.hinweise {
+        b.info(format!("Antwortschreiben (Entwurf): {h}"));
+    }
+    let auswertung =
+        b.c.xbau_auswertung(b.p.id, n.id, Some(vid), &b.u)
+            .await
+            .unwrap();
+    b.info(format!(
+        "XBau-Auswertung {}: {}",
+        auswertung.element,
+        auswertung.wirkung.join(" · ")
+    ));
 
     // 13. Aufgaben und Projektorganisation.
     aufgaben(b, punkt).await;

@@ -54,6 +54,21 @@ jede Zeile ein Textabsatz. Der Abgabestand friert Verfahrensart und Angaben ein.
 XBau-Ausgänge entstehen nur noch aus Abgabeständen der Verfahrensakte; das
 Postfach führt dorthin.
 
+Im laufenden Verfahren kann ein Abgabestand statt des Antrags eine
+Folgenachricht tragen. Sie braucht das Aktenzeichen der Behörde:
+
+| Folgenachricht | Anlass |
+| --- | --- |
+| `baugenehmigung.stellungnahme.0204` | Stellungnahme zur Anhörung |
+| `abweichung.antrag.0220` | gesonderter Antrag auf Abweichung, Ausnahme oder Befreiung |
+| `verlaengerung.antrag.0260` | Verlängerung der Geltungsdauer |
+| `anzeige.baubeginn.0900` | Baubeginnsanzeige |
+| `anzeige.nutzungsaufnahme.0910` | Anzeige der Nutzungsaufnahme |
+| `prozessnachrichten.ruecknahme.1130` | Rücknahme des Antrags |
+
+Erfasste Abweichungen der Akte gehen in `baugenehmigung.antrag.0200` und
+`antragGeaendert.0202` als beantragte Abweichungen mit Code aus der Codeliste mit.
+
 ## Inhalt der Antragsnachricht
 
 Neben Bauherren, Entwurfsverfasser, Gebührenpflichtigem, Maßnahme, Flurstücken
@@ -133,8 +148,14 @@ Verfahrensakte übernehmen:
   Die wiederholte Übernahme in dieselbe Akte bleibt wirkungslos.
 
 Bescheid, Auflagen, Nachforderungen und Fristen
-werden **nicht automatisch aus unbestätigtem XML gesetzt**. Diese fachlichen
-Folgen anhand des Originals in den vorhandenen Bereichen dokumentieren. Eine
+werden **nicht ohne Bestätigung aus dem XML gesetzt**. „Auswerten“ zeigt für
+Eingangsbestätigung (1120), Aktenzeichen (1121), Befundliste (1140), Anhörung,
+Bescheid und Gebührenbescheid (1160) die fachliche Wirkung; erst die Übernahme
+mit bestätigtem Zugangsdatum und genehmigten Unterlagen schreibt sie in die
+Akte (siehe [Genehmigungsverfahren begleiten](../verfahrensakte/genehmigungsverfahren.md)).
+Folgenachrichten (Stellungnahme 0204, Abweichungsantrag 0220, Verlängerung 0260,
+Baubeginn 0900, Nutzungsaufnahme 0910, Rücknahme 1130) entstehen als Abgabestand
+der Verfahrensakte. Eine
 Verfahrenszuordnung ist keine behördliche Verifikation. Belege haben derzeit
 kein automatisches Mapping auf die Versandereignisse eingefrorener Abgaben;
 deren Versandstand bleibt separat beleggebunden in der Verfahrensakte.

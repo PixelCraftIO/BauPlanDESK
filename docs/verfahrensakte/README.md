@@ -1,5 +1,9 @@
 # Verfahrensakte und Büroabläufe
 
+Verfahrenswahl, Abweichungen, Unterschriften, XBau-Auswertung, Schreiben an die
+Behörde, Ablehnung und die Phase nach der Genehmigung beschreibt
+[Genehmigungsverfahren begleiten](genehmigungsverfahren.md).
+
 ## Bedienung
 
 Im Projekt unter **Organisation → Verfahrensakte** ein Verfahren anlegen.
@@ -302,7 +306,11 @@ als JSON geladen werden (maximal 256 KB). Der öffentliche Vertrag
 
 - Katalog: `id`, `version`, `titel`, `hinweis`, optional `bundesland` und `art`.
 - Regeln: stabile `id`, `titel`, `quelle`; optionale Bedingungen `sonderbau`,
-  `ab_gebaeudeklasse` und `nutzung`.
+  `ab_gebaeudeklasse`, `nutzung` und `arten` (Verfahrensarten). `kategorien`
+  nennt Dokumentkategorien, aus denen beim Anwenden passende Unterlagen
+  vorgeschlagen werden.
+- `workflow-regeln/nrw-bauvorlagen.json` ist ein Bauvorlagenkatalog für NRW
+  nach BauPrüfVO; die mitgelieferten Kataloge liefert `GET /api/verfahrenskataloge`.
 - Fehlende oder nicht passende Angaben führen zu einer offenen fachlichen Prüfung,
   niemals automatisch zu „nicht erforderlich“.
 - Inhaltliche Katalogänderungen brauchen eine neue Version. Stabile Regelkennungen
@@ -310,7 +318,7 @@ als JSON geladen werden (maximal 256 KB). Der öffentliche Vertrag
   Freigaben müssen bei geändertem Profil/Regelstand erneut geprüft werden.
 - Bundesland und Verfahrensart müssen zu Projekt und Katalog passen.
 
-Der mitgelieferte Katalog ist **kein amtlich freigegebenes Landespaket** und
+Die mitgelieferten Kataloge sind **keine amtlich freigegebenen Landespakete** und
 bescheinigt keine rechtliche Vollständigkeit. Ein fachlich geprüftes Pilotpaket
 benötigt aktuelle Landesvorschriften, konkrete amtliche Formulare und eine
 verantwortliche fachliche Abnahme. Auch die dokumentierten Grenzen der
