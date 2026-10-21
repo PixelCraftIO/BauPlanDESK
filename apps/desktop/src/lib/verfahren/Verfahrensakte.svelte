@@ -439,6 +439,7 @@
             })}
           onfesthalten={festhalten}
           onbusy={(b) => (s.laeuft = b)}
+          schritte={a.schritte}
         /><ExterneEinreichungen
           eintraege={a.externe_einreichungen ?? []}
           {dateien}

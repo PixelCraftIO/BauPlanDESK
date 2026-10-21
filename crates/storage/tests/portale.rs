@@ -41,6 +41,7 @@ fn abgabewunsch(id: Uuid, docs: Vec<Dokumentbezug>) -> Abgabewunsch {
     Abgabewunsch {
         id,
         xbau_bezug: None,
+        xbau_folge: None,
         titel: "Bauantragsunterlagen".into(),
         dokumente: docs,
         xbau: false,

@@ -717,7 +717,13 @@ export type Abgabestand = { id: string, auftrag_hash: string, titel: string, ers
  * Vom Core aus Originalereignissen und Berichtigungen abgeleitet.
  */
 versandstatus: Versandstatus | null, };
-export type Abgabewunsch = { xbau_bezug?: string, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
+export type Folgewunsch = { "art": "stellungnahme", schritt: string, } | { "art": "abweichungsantrag" } | { "art": "verlaengerung", bis: string | null, } | { "art": "baubeginn", datum: string, pruefung_standsicherheit: boolean, } | { "art": "nutzungsaufnahme", datum: string, standsicherheit_bescheinigt: boolean, brandschutz_bescheinigt: boolean, wiederkehrende_pruefungen: boolean, } | { "art": "ruecknahme" };
+export type Abgabewunsch = { xbau_bezug?: string,
+/**
+ * XBau-Folgenachricht statt des Antrags; fehlt bei Anträgen und
+ * Nachreichungen.
+ */
+xbau_folge?: Folgewunsch, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
 export type Einreichungsweg = "post" | "portal" | "persoenlich" | "email" | "fax" | "sonstiges";
 export type ExterneEinreichung = { id: string,
 /**

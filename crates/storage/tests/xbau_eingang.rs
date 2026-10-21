@@ -192,6 +192,7 @@ async fn behoerdennachrichten_werden_fachlich_uebernommen() {
             f.revision,
             Abgabewunsch {
                 xbau_bezug: None,
+                xbau_folge: None,
                 id: abgabe,
                 titel: "Bauantrag".into(),
                 dokumente: vec![Dokumentbezug {

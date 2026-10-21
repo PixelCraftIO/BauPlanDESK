@@ -199,51 +199,8 @@ fn schreiben(
     }
 
     let mut x = XmlSchreiber::new();
-    x.auf(
-        wurzel,
-        &[
-            ("xmlns:xbau", NAMENSRAUM),
-            ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
-            ("produkt", "BauProjektIO"),
-            ("produkthersteller", "PixelCraft"),
-            ("produktversion", env!("CARGO_PKG_VERSION")),
-            ("standard", "XBau-Hochbau"),
-            ("version", XBAU_VERSION),
-        ],
-    );
-
-    // Nachrichtenkopf
-    let zeit = d.zeitpunkt.to_rfc3339_opts(SecondsFormat::Secs, true);
-    x.auf("nachrichtenkopf.g2g", &[])
-        .auf("identifikation.nachricht", &[])
-        .text("nachrichtenUUID", &d.nachricht_id.to_string())
-        .auf(
-            "nachrichtentyp",
-            &[
-                ("listURI", "urn:xoev-de:xbau:codeliste:xbau-nachrichten"),
-                ("listVersionID", "5.0"),
-            ],
-        )
-        .text("code", element.rsplit('.').next().unwrap_or_default())
-        .zu()
-        .text("erstellungszeitpunkt", &zeit)
-        .zu();
-    let dvdv = [("listVersionID", verzeichnis.version.as_str())];
-    x.auf("leser", &[])
-        .auf("verzeichnisdienst", &dvdv)
-        .text("code", "DVDV")
-        .zu()
-        .text("kennung", d.antrag.bauaufsicht.kennung.trim())
-        .text("name", d.antrag.bauaufsicht.name.trim())
-        .zu();
-    x.auf("autor", &[])
-        .auf("verzeichnisdienst", &dvdv)
-        .text("code", "DVDV")
-        .zu()
-        .text("kennung", d.buero.kennung.trim())
-        .text("name", d.buero.name.trim())
-        .zu();
-    x.zu();
+    wurzel_auf(&mut x, wurzel, false);
+    kopf(&mut x, d, element, verzeichnis, false);
 
     if let Some(k) = bezug {
         x.auf("xbau:bezug", &[])
@@ -334,29 +291,219 @@ fn schreiben(
         inhalt::abweichungen(&mut x, d.vorhaben);
     }
 
-    // Bauvorhaben
-    let bezeichnung = match d.antrag.bezeichnung.trim() {
-        "" => d.projekt.name.trim(),
-        b => b,
-    };
-    x.auf(
+    bauvorhaben(
+        &mut x,
+        d,
+        kanaele,
         if bezug.is_some() {
             "xbau:bauvorhabenAenderungsdaten"
         } else {
             "xbau:bauvorhaben"
         },
-        &[],
-    )
-    .text("xbau:bezeichnungDesBauvorhabens", bezeichnung);
+    )?;
+    if mit_abweichungen && bezug.is_none() {
+        inhalt::abweichungen(&mut x, d.vorhaben);
+    }
+
+    anlagen_schreiben(&mut x, d, anlagen, mimes, "xbau:anlagen");
+    if let Antragsart::Genehmigungsfreistellung {
+        als_bauantrag_weiterfuehren,
+    } = art
+    {
+        x.text(
+            "xbau:alsBauantragWeiterzufuehren",
+            if als_bauantrag_weiterfuehren {
+                "true"
+            } else {
+                "false"
+            },
+        );
+    }
+
+    x.zu();
+    x.fertig()
+}
+
+/// Wurzelelement einer Hochbau- (`xbau:`) oder Kernmodul-Nachricht (`k:`).
+pub(super) fn wurzel_auf(x: &mut XmlSchreiber, wurzel: &'static str, kern: bool) {
+    if kern {
+        x.auf(
+            wurzel,
+            &[
+                ("xmlns:k", super::austausch::KERN),
+                ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
+                ("produkt", "BauProjektIO"),
+                ("produkthersteller", "PixelCraft"),
+                ("produktversion", env!("CARGO_PKG_VERSION")),
+                ("standard", "XBau-Kernmodul"),
+                ("version", "1.4.0"),
+            ],
+        );
+    } else {
+        x.auf(
+            wurzel,
+            &[
+                ("xmlns:xbau", NAMENSRAUM),
+                ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
+                ("produkt", "BauProjektIO"),
+                ("produkthersteller", "PixelCraft"),
+                ("produktversion", env!("CARGO_PKG_VERSION")),
+                ("standard", "XBau-Hochbau"),
+                ("version", XBAU_VERSION),
+            ],
+        );
+    }
+}
+
+/// Nachrichtenkopf vom Büro (Autor) an die Bauaufsicht (Leser).
+pub(super) fn kopf(
+    x: &mut XmlSchreiber,
+    d: &Nachrichtendaten<'_>,
+    element: &str,
+    verzeichnis: &super::Codeliste,
+    kern: bool,
+) {
+    let zeit = d.zeitpunkt.to_rfc3339_opts(SecondsFormat::Secs, true);
+    let (liste, version) = if kern {
+        (
+            "urn:xoev-de:xbau-kernmodul:codeliste:xbau-kernmodul-nachrichten",
+            "3.0",
+        )
+    } else {
+        ("urn:xoev-de:xbau:codeliste:xbau-nachrichten", "5.0")
+    };
+    x.auf("nachrichtenkopf.g2g", &[])
+        .auf("identifikation.nachricht", &[])
+        .text("nachrichtenUUID", &d.nachricht_id.to_string())
+        .auf(
+            "nachrichtentyp",
+            &[("listURI", liste), ("listVersionID", version)],
+        )
+        .text("code", element.rsplit('.').next().unwrap_or_default())
+        .zu()
+        .text("erstellungszeitpunkt", &zeit)
+        .zu();
+    let dvdv = [("listVersionID", verzeichnis.version.as_str())];
+    x.auf("leser", &[])
+        .auf("verzeichnisdienst", &dvdv)
+        .text("code", "DVDV")
+        .zu()
+        .text("kennung", d.antrag.bauaufsicht.kennung.trim())
+        .text("name", d.antrag.bauaufsicht.name.trim())
+        .zu();
+    x.auf("autor", &[])
+        .auf("verzeichnisdienst", &dvdv)
+        .text("code", "DVDV")
+        .zu()
+        .text("kennung", d.buero.kennung.trim())
+        .text("name", d.buero.name.trim())
+        .zu();
+    x.zu();
+}
+
+/// `xbau:Bauvorhaben`: Bezeichnung, Beteiligte, Gegenstand und Verortung.
+pub(super) fn bauvorhaben(
+    x: &mut XmlSchreiber,
+    d: &Nachrichtendaten<'_>,
+    kanaele: Option<&super::Codeliste>,
+    element: &'static str,
+) -> CoreResult<()> {
+    let bezeichnung = match d.antrag.bezeichnung.trim() {
+        "" => d.projekt.name.trim(),
+        b => b,
+    };
+    x.auf(element, &[])
+        .text("xbau:bezeichnungDesBauvorhabens", bezeichnung);
+    beteiligte(x, d, kanaele)?;
+
+    x.auf("xbau:gegenstand", &[])
+        .auf("xbau:anzahlDerGebaeude", &[])
+        .text(
+            "xbau:anzahlDerGebaeudeImBauvorhaben",
+            &d.antrag.anzahl_gebaeude.to_string(),
+        )
+        .zu();
+    for m in &d.antrag.massnahmen {
+        x.auf(
+            "xbau:artDerMassnahme",
+            &[
+                ("listURI", "urn:xoev-de:xbau:codeliste:baumassnahmeart"),
+                ("listVersionID", "2.0"),
+            ],
+        )
+        .text("code", m)
+        .zu();
+    }
+    if let Some(g) = d.vorhaben.gebaeudeklasse {
+        x.auf("xbau:bauordnungsrechtlicheKlassifikation", &[])
+            .auf(
+                "xbau:gebaeudeklasse",
+                &[
+                    ("listURI", "urn:xoev-de:xbau:codeliste:gebaeudeklasse"),
+                    ("listVersionID", "3.0"),
+                ],
+            )
+            .text("code", &g.to_string())
+            .zu()
+            .zu();
+    }
+    if let Some(f) = &d.vorhaben.flaechen {
+        f.schreiben(x);
+    }
+    x.zu(); // gegenstand
+
+    let g = &d.antrag.grundstueck;
+    x.auf("xbau:verortung", &[])
+        .auf("xbau:baugrundstueck", &[])
+        .auf("xbau:grundstueck", &[]);
+    if !g.anschrift.ist_leer() {
+        x.auf("xbau:anschrift", &[]);
+        anschrift_felder(x, &g.anschrift);
+        x.zu();
+    }
+    let land = land_schluessel(d.projekt.bundesland);
+    for f in &g.flurstuecke {
+        x.auf("xbau:flurstueck", &[])
+            .auf("bundesland", &[("listVersionID", BUNDESLAND_VERSION)])
+            .text("code", land)
+            .zu()
+            .auf("kodierungFlurstueck", &[])
+            .auf("gemarkung", &[]);
+        let gemarkung = f.gemarkung.trim();
+        if !f.gemarkungsnummer.trim().is_empty() {
+            x.text("nummer", f.gemarkungsnummer.trim());
+        } else if gemarkung.chars().all(|c| c.is_ascii_digit()) {
+            x.text("nummer", gemarkung);
+        } else {
+            x.text("bezeichnung", gemarkung);
+        }
+        x.zu()
+            .text_optional("flur", &f.flur)
+            .text("zaehler", f.zaehler.trim())
+            .text_optional("nenner", &f.nenner)
+            .zu()
+            .zu();
+    }
+    x.zu().zu().zu(); // grundstueck, baugrundstueck, verortung
+    x.zu(); // bauvorhaben
+    Ok(())
+}
+
+/// `xbau:BeteiligteBauprojekt` als Element `xbau:beteiligte`.
+pub(super) fn beteiligte(
+    x: &mut XmlSchreiber,
+    d: &Nachrichtendaten<'_>,
+    kanaele: Option<&super::Codeliste>,
+) -> CoreResult<()> {
     x.auf("xbau:beteiligte", &[]);
     for b in d.bauherren {
         x.auf("xbau:bauherr", &[]).auf("xbau:bauherr", &[]);
-        akteur(&mut x, b, kanaele);
+        akteur(x, b, kanaele);
         x.zu().zu();
     }
     if let Some(b) = inhalt::bevollmaechtigter(d.vorhaben) {
         x.auf("xbau:bevollmaechtigter", &[]);
-        akteur(&mut x, &b.beteiligter, kanaele);
+        akteur(x, &b.beteiligter, kanaele);
         x.zu();
     }
     // `fehlende_angaben` hat oben geprüft, dass es den Entwurfsverfasser gibt.
@@ -367,7 +514,7 @@ fn schreiben(
     x.auf("xbau:entwurfsverfasser", &[])
         .auf("xbau:personendaten", &[]);
     akteur(
-        &mut x,
+        x,
         &Beteiligter::Person {
             id: ev.id,
             vorname: ev.vorname.clone(),
@@ -406,10 +553,10 @@ fn schreiben(
             .zu();
     }
     x.zu().zu(); // berechtigung, entwurfsverfasser
-    inhalt::weitere_beteiligte(&mut x, d.vorhaben, kanaele);
+    inhalt::weitere_beteiligte(x, d.vorhaben, kanaele);
     x.auf("xbau:gebuehrenpflichtiger", &[]);
     akteur(
-        &mut x,
+        x,
         d.antrag
             .gebuehrenpflichtiger
             .as_ref()
@@ -418,89 +565,36 @@ fn schreiben(
     );
     x.zu();
     x.zu(); // beteiligte
+    Ok(())
+}
 
-    x.auf("xbau:gegenstand", &[])
-        .auf("xbau:anzahlDerGebaeude", &[])
-        .text(
-            "xbau:anzahlDerGebaeudeImBauvorhaben",
-            &d.antrag.anzahl_gebaeude.to_string(),
-        )
-        .zu();
-    for m in &d.antrag.massnahmen {
-        x.auf(
-            "xbau:artDerMassnahme",
-            &[
-                ("listURI", "urn:xoev-de:xbau:codeliste:baumassnahmeart"),
-                ("listVersionID", "2.0"),
-            ],
-        )
-        .text("code", m)
-        .zu();
-    }
-    if let Some(g) = d.vorhaben.gebaeudeklasse {
-        x.auf("xbau:bauordnungsrechtlicheKlassifikation", &[])
-            .auf(
-                "xbau:gebaeudeklasse",
-                &[
-                    ("listURI", "urn:xoev-de:xbau:codeliste:gebaeudeklasse"),
-                    ("listVersionID", "3.0"),
-                ],
-            )
-            .text("code", &g.to_string())
-            .zu()
-            .zu();
-    }
-    if let Some(f) = &d.vorhaben.flaechen {
-        f.schreiben(&mut x);
-    }
-    x.zu(); // gegenstand
-
-    let g = &d.antrag.grundstueck;
-    x.auf("xbau:verortung", &[])
-        .auf("xbau:baugrundstueck", &[])
-        .auf("xbau:grundstueck", &[]);
-    if !g.anschrift.ist_leer() {
-        x.auf("xbau:anschrift", &[]);
-        anschrift_felder(&mut x, &g.anschrift);
-        x.zu();
-    }
-    let land = land_schluessel(d.projekt.bundesland);
-    for f in &g.flurstuecke {
-        x.auf("xbau:flurstueck", &[])
-            .auf("bundesland", &[("listVersionID", BUNDESLAND_VERSION)])
-            .text("code", land)
-            .zu()
-            .auf("kodierungFlurstueck", &[])
-            .auf("gemarkung", &[]);
-        let gemarkung = f.gemarkung.trim();
-        if !f.gemarkungsnummer.trim().is_empty() {
-            x.text("nummer", f.gemarkungsnummer.trim());
-        } else if gemarkung.chars().all(|c| c.is_ascii_digit()) {
-            x.text("nummer", gemarkung);
-        } else {
-            x.text("bezeichnung", gemarkung);
-        }
-        x.zu()
-            .text_optional("flur", &f.flur)
-            .text("zaehler", f.zaehler.trim())
-            .text_optional("nenner", &f.nenner)
-            .zu()
-            .zu();
-    }
-    x.zu().zu().zu(); // grundstueck, baugrundstueck, verortung
-    x.zu(); // bauvorhaben
-    if mit_abweichungen && bezug.is_none() {
-        inhalt::abweichungen(&mut x, d.vorhaben);
-    }
-
-    x.auf("xbau:anlagen", &[]);
+/// Anlagen der Nachricht mit Art und MIME-Typ aus den Codelisten.
+pub(super) fn anlagen_schreiben(
+    x: &mut XmlSchreiber,
+    d: &Nachrichtendaten<'_>,
+    anlagen: &super::Codeliste,
+    mimes: &super::Codeliste,
+    element: &'static str,
+) {
+    x.auf(element, &[]);
     for a in d.anlagen {
         let mime = mime_typ(&a.dateiname).unwrap_or_default();
         x.auf("anlage", &[])
             .text("bezeichnung", a.bezeichnung.trim())
             .text("versionsnummer", &a.versionsnummer.to_string())
             .text("datum", &a.datum.to_string())
-            .auf("anlageart", &[("listVersionID", anlagen.version.as_str())])
+            .auf(
+                "anlageart",
+                // Im Kernmodul ist die Liste nicht fest vorgegeben.
+                &if element == "anlagen" {
+                    vec![
+                        ("listURI", ANLAGEN),
+                        ("listVersionID", anlagen.version.as_str()),
+                    ]
+                } else {
+                    vec![("listVersionID", anlagen.version.as_str())]
+                },
+            )
             .text("code", &a.anlageart)
             .zu()
             .auf(
@@ -521,22 +615,6 @@ fn schreiben(
             .zu();
     }
     x.zu(); // anlagen
-    if let Antragsart::Genehmigungsfreistellung {
-        als_bauantrag_weiterfuehren,
-    } = art
-    {
-        x.text(
-            "xbau:alsBauantragWeiterzufuehren",
-            if als_bauantrag_weiterfuehren {
-                "true"
-            } else {
-                "false"
-            },
-        );
-    }
-
-    x.zu();
-    x.fertig()
 }
 
 pub(crate) fn mime_pruefen(dateiname: &str, mimes: &super::Codeliste) -> CoreResult<()> {
@@ -761,7 +839,7 @@ pub(crate) mod tests {
         (projekt, antrag, buero)
     }
 
-    fn anlagen() -> Vec<Anlagendatei> {
+    pub(crate) fn anlagen() -> Vec<Anlagendatei> {
         vec![Anlagendatei {
             dokumentid: Uuid::new_v4(),
             bezeichnung: "Lageplan § 7 BauVorlV".into(),
@@ -778,7 +856,7 @@ pub(crate) mod tests {
 
     /// Prüft XML mit `xmllint` gegen die XBau-Schemas. `None`, wenn
     /// `xmllint` fehlt; das ist lokal erlaubt, in CI (`CI` gesetzt) ein Fehler.
-    fn schemafehler(xml: &str) -> Option<Result<(), String>> {
+    pub(crate) fn schemafehler(xml: &str) -> Option<Result<(), String>> {
         let dir = tempfile_dir();
         let datei = dir.join("nachricht.xml");
         std::fs::write(&datei, xml).unwrap();
@@ -832,7 +910,7 @@ pub(crate) mod tests {
         abweichungen: Vec::new(),
     };
 
-    fn daten<'a>(
+    pub(crate) fn daten<'a>(
         projekt: &'a Project,
         antrag: &'a Bauantrag,
         buero: &'a Buero,

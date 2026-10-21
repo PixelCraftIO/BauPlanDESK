@@ -242,6 +242,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     };
     let w = Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: Uuid::new_v4(),
         titel: "Nachreichung zwei Punkte".into(),
         dokumente: vec![ref2.clone()],
@@ -1120,6 +1121,7 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
         .unwrap();
     let w = core_lib::verfahren::abgabe::Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: Uuid::new_v4(),
         titel: "Antragspaket".into(),
         dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
@@ -1502,6 +1504,7 @@ async fn eingereichte_akte(
     let f = speichern(&core, p.id, vid, 0, &a, &user).await;
     let w = Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: Uuid::new_v4(),
         titel: "Bauantrag".into(),
         dokumente: vec![dok.clone()],

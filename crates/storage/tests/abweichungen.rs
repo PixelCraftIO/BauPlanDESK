@@ -96,6 +96,7 @@ async fn unterschreitung_sperrt_die_abgabe_bis_zum_antrag() {
         .unwrap();
     let wunsch = |id| Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id,
         titel: "Bauantrag".into(),
         dokumente: vec![Dokumentbezug {

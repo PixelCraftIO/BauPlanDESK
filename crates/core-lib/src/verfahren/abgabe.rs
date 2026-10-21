@@ -116,11 +116,54 @@ pub struct Abgabestand {
     /// Vom Core aus Originalereignissen und Berichtigungen abgeleitet.
     pub versandstatus: Option<Versandstatus>,
 }
+/// Folgenachricht im laufenden Verfahren statt der Antragsnachricht.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Folgewunsch {
+    /// Stellungnahme zur Anhörung (0204); die Beanstandungen des Schritts mit
+    /// ihrer Reaktion, sonst das Anschreiben.
+    Stellungnahme { schritt: Uuid },
+    /// Isolierter Antrag auf Abweichung (0220) mit den Abweichungen der Akte.
+    Abweichungsantrag,
+    /// Antrag auf Verlängerung der Geltungsdauer (0260).
+    Verlaengerung { bis: Option<NaiveDate> },
+    /// Baubeginnsanzeige (0900).
+    Baubeginn {
+        datum: NaiveDate,
+        pruefung_standsicherheit: bool,
+    },
+    /// Anzeige der Nutzungsaufnahme (0910).
+    Nutzungsaufnahme {
+        datum: NaiveDate,
+        standsicherheit_bescheinigt: bool,
+        brandschutz_bescheinigt: bool,
+        wiederkehrende_pruefungen: bool,
+    },
+    /// Rücknahme des Antrags (1130); das Anschreiben ist die Erklärung.
+    Ruecknahme,
+}
+impl Folgewunsch {
+    pub fn bezeichnung(&self) -> &'static str {
+        match self {
+            Self::Stellungnahme { .. } => "Stellungnahme zur Anhörung",
+            Self::Abweichungsantrag => "Antrag auf Abweichung",
+            Self::Verlaengerung { .. } => "Antrag auf Verlängerung",
+            Self::Baubeginn { .. } => "Baubeginnsanzeige",
+            Self::Nutzungsaufnahme { .. } => "Anzeige der Nutzungsaufnahme",
+            Self::Ruecknahme => "Rücknahme",
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Abgabewunsch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub xbau_bezug: Option<Uuid>,
+    /// XBau-Folgenachricht statt des Antrags; fehlt bei Anträgen und
+    /// Nachreichungen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub xbau_folge: Option<Folgewunsch>,
     pub id: Uuid,
     pub titel: String,
     pub dokumente: Vec<Dokumentbezug>,
@@ -168,6 +211,121 @@ pub(crate) fn anlagedatum(
         .unwrap_or_else(|| crate::kalender::datum_deutsch(d.created_at))
 }
 impl CoreServices {
+    /// Folgenachricht (Dateiname, XML) aus der Akte und dem eingefrorenen Stand.
+    #[allow(clippy::too_many_arguments)]
+    async fn folgenachricht(
+        &self,
+        p: ProjectId,
+        a: &Verfahrensakte,
+        f: &Folgewunsch,
+        daten: &crate::xbau::Nachrichtendaten<'_>,
+        aktenzeichen: &str,
+        anschreiben: &str,
+        wer: &Benutzer,
+    ) -> CoreResult<(String, String)> {
+        use crate::xbau::folge::{Folgeart, Stellungnahmepunkt, folgenachricht};
+        let genehmigt = || {
+            super::termine::wirksame_bescheide(a).any(|b| {
+                matches!(
+                    b.entscheidung,
+                    Entscheidung::Genehmigt | Entscheidung::TeilweiseGenehmigt
+                )
+            })
+        };
+        let kopf;
+        let punkte: Vec<Stellungnahmepunkt>;
+        let art = match f {
+            Folgewunsch::Stellungnahme { schritt } => {
+                let s = a
+                    .schritte
+                    .iter()
+                    .find(|s| s.id == *schritt && s.art == Schrittart::Anhoerung)
+                    .ok_or_else(|| fehler("Anhörung nicht in dieser Akte"))?;
+                kopf = self
+                    .xbau_nachrichten(p, wer)
+                    .await?
+                    .into_iter()
+                    .find(|n| crate::xbau::postfach::kommunikation_id(n.id) == s.kommunikation)
+                    .map(|n| n.nachricht.pruefung.kopf)
+                    .ok_or_else(|| {
+                        fehler(
+                            "Die Anhörung kam nicht per XBau; Stellungnahme ohne XBau festhalten",
+                        )
+                    })?;
+                punkte = if s.gruende.is_empty() {
+                    vec![Stellungnahmepunkt {
+                        regelverstoss: "Anhörung".into(),
+                        stellungnahme: anschreiben.into(),
+                    }]
+                } else {
+                    s.gruende
+                        .iter()
+                        .map(|g| Stellungnahmepunkt {
+                            regelverstoss: g.text.chars().take(500).collect(),
+                            stellungnahme: g.reaktion.clone(),
+                        })
+                        .collect()
+                };
+                Folgeart::Stellungnahme {
+                    anhoerung: &kopf,
+                    punkte: &punkte,
+                }
+            }
+            Folgewunsch::Abweichungsantrag => {
+                if daten.vorhaben.abweichungen.iter().all(|x| x.erleichterung) {
+                    return Err(fehler(
+                        "Keine beantragte Abweichung mit XBau-Code in dieser Akte; Abweichung erfassen und Codeliste „Abweichung Art“ einspielen",
+                    ));
+                }
+                Folgeart::Abweichungsantrag {
+                    abweichungen: &daten.vorhaben.abweichungen,
+                }
+            }
+            Folgewunsch::Verlaengerung { bis } => {
+                if !genehmigt() {
+                    return Err(fehler(
+                        "Eine Verlängerung setzt eine erteilte Genehmigung in dieser Akte voraus",
+                    ));
+                }
+                Folgeart::Verlaengerung { bis: *bis }
+            }
+            Folgewunsch::Baubeginn {
+                datum,
+                pruefung_standsicherheit,
+            } => {
+                if !genehmigt() && a.art != Verfahrensart::Freistellung {
+                    return Err(fehler(
+                        "Die Baubeginnsanzeige setzt eine erteilte Genehmigung oder eine Genehmigungsfreistellung voraus",
+                    ));
+                }
+                Folgeart::Baubeginn {
+                    datum: *datum,
+                    pruefung_standsicherheit: *pruefung_standsicherheit,
+                }
+            }
+            Folgewunsch::Nutzungsaufnahme {
+                datum,
+                standsicherheit_bescheinigt,
+                brandschutz_bescheinigt,
+                wiederkehrende_pruefungen,
+            } => Folgeart::Nutzungsaufnahme {
+                datum: *datum,
+                standsicherheit_bescheinigt: *standsicherheit_bescheinigt,
+                brandschutz_bescheinigt: *brandschutz_bescheinigt,
+                gebaeudeklasse4: daten.vorhaben.gebaeudeklasse == Some(4),
+                wiederkehrende_pruefungen: *wiederkehrende_pruefungen,
+            },
+            Folgewunsch::Ruecknahme => {
+                if anschreiben.trim().is_empty() {
+                    return Err(fehler("Die Rücknahme braucht die Erklärung im Anschreiben"));
+                }
+                Folgeart::Ruecknahme {
+                    information: anschreiben,
+                }
+            }
+        };
+        Ok((art.dateiname(), folgenachricht(daten, art, aktenzeichen)?))
+    }
     /// Hinweise, wenn die Landes-Verfahrensart des Bauantrags der Akte widerspricht.
     pub(crate) fn verfahrensart_abgleichen(
         &self,
@@ -247,8 +405,13 @@ impl CoreServices {
             });
         }
         crate::plattform::text(&w.titel, 500)?;
-        if !w.xbau && w.xbau_bezug.is_some() {
+        if !w.xbau && (w.xbau_bezug.is_some() || w.xbau_folge.is_some()) {
             return Err(fehler("XBau-Bezug erfordert eine XBau-Ausgabe"));
+        }
+        if w.xbau_bezug.is_some() && w.xbau_folge.is_some() {
+            return Err(fehler(
+                "Eine Folgenachricht ist keine Nachreichung zum Antrag; Bezug entfernen",
+            ));
         }
         if w.dokumente.is_empty() || w.dokumente.len() > 100 || w.anschreiben.len() > 16000 {
             return Err(fehler(
@@ -318,12 +481,16 @@ impl CoreServices {
         };
         // Jede Unterschreitung im aktuellen Planungsstand ist beantragt oder
         // begründet nicht erforderlich; sonst wird nicht festgehalten.
-        if super::abweichungen::betroffen(&a.art) {
+        if super::abweichungen::betroffen(&a.art)
+            && w.xbau_folge
+                .as_ref()
+                .is_none_or(|f| *f == Folgewunsch::Abweichungsantrag)
+        {
             let abgleich = self.verfahren_abweichungen(p, vid).await?;
             hinweise.extend(super::abweichungen::abgabe_pruefen(&a, &abgleich)?);
         }
         let fragen = grundlagen.antragsangaben.fragen();
-        let xbau_art = if w.xbau {
+        let xbau_art = if w.xbau && w.xbau_folge.is_none() {
             Some(a.art.xbau_antrag(&grundlagen.antragsangaben, &fragen)?)
         } else {
             None
@@ -519,7 +686,7 @@ impl CoreServices {
         let mut ausgaben = Vec::new();
         let zip = zip(&stand, &docs, &inhalte)?;
         ausgaben.push(("zip", "Unterlagen.zip", zip));
-        if let Some(art) = xbau_art {
+        if w.xbau {
             let namen =
                 crate::xbau::paket::eindeutige_namen(docs.iter().map(|d| d.file_name.as_str()));
             let plandaten = self.plandaten(p).await?;
@@ -560,7 +727,11 @@ impl CoreServices {
                 nachricht_id: w.id,
                 zeitpunkt: stand.erstellt_am,
             };
-            let xml = if let Some(id) = w.xbau_bezug {
+            let (nachricht, xml) = if let Some(f) = &w.xbau_folge {
+                self.folgenachricht(p, &a, f, &daten, &aktenzeichen, &w.anschreiben, wer)
+                    .await?
+            } else if let Some(id) = w.xbau_bezug {
+                let art = xbau_art.expect("Antragsart ohne Folgenachricht");
                 let n = self
                     .xbau_nachrichten(p, wer)
                     .await?
@@ -581,12 +752,16 @@ impl CoreServices {
                     _ if !aktenzeichen.is_empty() => kopf.aktenzeichen = Some(aktenzeichen.clone()),
                     _ => {}
                 }
-                crate::xbau::antrag_geaendert(&daten, art, &kopf)?
+                (
+                    art.dateiname(true)?,
+                    crate::xbau::antrag_geaendert(&daten, art, &kopf)?,
+                )
             } else {
-                crate::xbau::antrag(&daten, art)?
+                let art = xbau_art.expect("Antragsart ohne Folgenachricht");
+                (art.dateiname(false)?, crate::xbau::antrag(&daten, art)?)
             };
             let bytes = crate::xbau::paket::packen_nachricht(
-                &art.dateiname(w.xbau_bezug.is_some())?,
+                &nachricht,
                 &xml,
                 &namen
                     .iter()

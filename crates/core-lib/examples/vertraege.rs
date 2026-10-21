@@ -199,6 +199,7 @@ fn main() {
         core_lib::verfahren::abgabe::Abgabedokument,
         core_lib::verfahren::abgabe::Artefakt,
         core_lib::verfahren::abgabe::Abgabestand,
+        core_lib::verfahren::abgabe::Folgewunsch,
         core_lib::verfahren::abgabe::Abgabewunsch,
         core_lib::verfahren::externe_einreichung::Einreichungsweg,
         core_lib::verfahren::externe_einreichung::ExterneEinreichung,

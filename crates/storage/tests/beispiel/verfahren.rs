@@ -1171,6 +1171,7 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             rev,
             Abgabewunsch {
                 xbau_bezug: None,
+                xbau_folge: None,
                 id: abgabe,
                 titel: "Bauantrag Neubau EFH Mustermann (Bauvorlagen mit XBau)".into(),
                 dokumente: dokumente.clone(),

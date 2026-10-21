@@ -110,6 +110,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     .unwrap();
     let abgabe = |xbau_bezug, titel: &str| core_lib::verfahren::abgabe::Abgabewunsch {
         xbau_bezug,
+        xbau_folge: None,
         id: uuid::Uuid::new_v4(),
         titel: titel.into(),
         dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
@@ -341,6 +342,46 @@ async fn bauantrag_erfassen_und_exportieren() {
         ausgang.nachricht.pruefung.kopf.antragsreferenz
     );
 
+    // Folgenachrichten über denselben Abgabeweg: Verlängerung erst nach einer
+    // Genehmigung, Rücknahme mit der Erklärung aus dem Anschreiben.
+    use core_lib::verfahren::abgabe::Folgewunsch;
+    let mut verl = abgabe(None, "Verlängerung");
+    verl.xbau_folge = Some(Folgewunsch::Verlaengerung { bis: None });
+    let e = core
+        .verfahren_abgabe_festhalten(p.id, vid, revision().await, verl, &chefin)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("erteilte Genehmigung"), "{e}");
+    let mut ruecknahme = abgabe(None, "Rücknahme");
+    ruecknahme.xbau_folge = Some(Folgewunsch::Ruecknahme);
+    assert!(
+        core.verfahren_abgabe_festhalten(p.id, vid, revision().await, ruecknahme.clone(), &chefin)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Erklärung")
+    );
+    ruecknahme.anschreiben = "Der Bauantrag wird zurückgenommen.".into();
+    let ruecknahme_id = ruecknahme.id;
+    core.verfahren_abgabe_festhalten(p.id, vid, revision().await, ruecknahme, &chefin)
+        .await
+        .unwrap();
+    let r = core_lib::xbau::austausch::pruefen(
+        "XBau.zip",
+        &core
+            .verfahren_artefakt(p.id, vid, ruecknahme_id, "xbau", &chefin)
+            .await
+            .unwrap()
+            .1,
+        core.xbau_pruefer.as_ref(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r.kopf.element, "prozessnachrichten.ruecknahme.1130");
+    assert_eq!(r.kopf.aktenzeichen.as_deref(), Some("BA-42"));
+    assert_eq!(r.anlagen.len(), 1);
+
     // Gemeinsamer Abgabestand friert auch XBau ein: spätere Büro- und
     // Planänderungen dürfen weder XML noch Anlagenbytes neu erzeugen.
     core.buero_speichern(buero("Neuer Büroname"), &chefin)
@@ -368,6 +409,7 @@ async fn bauantrag_erfassen_und_exportieren() {
     // werden abgewiesen statt als Bauantrag gesendet.
     let abgabe = |xbau_bezug| core_lib::verfahren::abgabe::Abgabewunsch {
         xbau_bezug,
+        xbau_folge: None,
         id: uuid::Uuid::new_v4(),
         titel: "Abgabe".into(),
         dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
@@ -1283,6 +1325,7 @@ async fn xbau_abgabe(
         1,
         core_lib::verfahren::abgabe::Abgabewunsch {
             xbau_bezug: None,
+            xbau_folge: None,
             id,
             titel: "Bauantrag".into(),
             dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
