@@ -246,6 +246,14 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/verfahren/{verfahren}/schreiben",
             post(verfahren_schreiben),
         )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/optionen",
+            get(verfahren_optionen),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/folgeverfahren",
+            post(verfahren_folgeverfahren),
+        )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
         .route("/projekte/{id}/termine.ics", get(verfahren_termine_ics))
@@ -1411,6 +1419,26 @@ async fn verfahren_abweichungen(
     core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
         .await?;
     Ok(Json(core.verfahren_abweichungen(ProjectId(p), id).await?))
+}
+async fn verfahren_optionen(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<core_lib::verfahren::optionen::Verfahrenslage> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(core.verfahren_optionen(ProjectId(p), id).await?))
+}
+async fn verfahren_folgeverfahren(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<core_lib::verfahren::optionen::Folgeverfahrenswunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.verfahren_folgeverfahren(ProjectId(p), id, w, &wer)
+            .await?,
+    ))
 }
 /// Schreiben mit PDF (Base64), damit der Client es speichern kann.
 #[derive(Serialize)]

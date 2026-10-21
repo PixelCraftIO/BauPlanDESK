@@ -166,6 +166,30 @@ pub async fn verfahren_schreiben(
     Ok(r)
 }
 #[tauri::command]
+pub async fn verfahren_optionen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<core_lib::verfahren::optionen::Verfahrenslage, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_optionen(projekt_id, id).await?)
+}
+#[tauri::command]
+pub async fn verfahren_folgeverfahren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    wunsch: core_lib::verfahren::optionen::Folgeverfahrenswunsch,
+) -> Result<Fachstand, CmdError> {
+    Ok(state
+        .core
+        .verfahren_folgeverfahren(projekt_id, id, wunsch, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
 pub async fn verfahren_erinnerungen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

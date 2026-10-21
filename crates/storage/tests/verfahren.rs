@@ -45,6 +45,8 @@ fn leer() -> Verfahrensakte {
         bescheide: vec![],
         gebuehren: vec![],
         unterschriften: vec![],
+        ablehnungsgruende: vec![],
+        nachbarbekanntgaben: vec![],
         ereignisse: vec![],
     }
 }

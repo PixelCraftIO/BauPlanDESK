@@ -91,6 +91,8 @@ pub(super) async fn pruefen(
         .chain(a.abweichungen.iter().map(|v| v.id))
         .chain(a.gebuehren.iter().map(|v| v.id))
         .chain(a.unterschriften.iter().map(|v| v.id))
+        .chain(a.ablehnungsgruende.iter().map(|v| v.id))
+        .chain(a.nachbarbekanntgaben.iter().map(|v| v.id))
         .chain(a.schritte.iter().flat_map(|s| &s.gruende).map(|v| v.id))
     {
         add(id)?;
@@ -292,6 +294,60 @@ pub(super) async fn pruefen(
     }
     abweichungen::eintraege_pruefen(a, alt, &mut dokumente)?;
     landesrecht::unterschriften_pruefen(a, &mut dokumente)?;
+    for g in &a.ablehnungsgruende {
+        let b = a
+            .bescheide
+            .iter()
+            .find(|b| b.id == g.bescheid)
+            .ok_or_else(|| fehler("Ablehnungsgrund benötigt den Bescheid dieser Akte"))?;
+        if !matches!(
+            b.entscheidung,
+            Entscheidung::Abgelehnt | Entscheidung::TeilweiseGenehmigt
+        ) {
+            return Err(fehler(
+                "Ablehnungsgründe gehören zu einem ablehnenden oder teilweise genehmigenden Bescheid",
+            ));
+        }
+        if let Some(f) = g.folgeverfahren
+            && f != vid
+        {
+            core.verfahrensakte(p, f).await?;
+        }
+    }
+    beanstandungen(
+        &a.ablehnungsgruende
+            .iter()
+            .map(|g| Beanstandung {
+                id: g.id,
+                text: g.text.clone(),
+                grundlage: g.grundlage.clone(),
+                reaktion: g.reaktion.clone(),
+                abweichung: g.abweichung,
+            })
+            .collect::<Vec<_>>(),
+        a,
+    )?;
+    for n in &a.nachbarbekanntgaben {
+        text(&n.name, 500)?;
+        let b = a
+            .bescheide
+            .iter()
+            .find(|b| b.id == n.bescheid)
+            .ok_or_else(|| fehler("Bekanntgabe benötigt den Bescheid dieser Akte"))?;
+        if n.datum < b.datum || n.datum > crate::kalender::heute() {
+            return Err(fehler(
+                "Bekanntgabe liegt nicht vor dem Bescheid und nicht in der Zukunft",
+            ));
+        }
+        if n.angefochten
+            .is_some_and(|d| d < n.datum || d > crate::kalender::heute())
+        {
+            return Err(fehler(
+                "Anfechtung liegt nach der Bekanntgabe und nicht in der Zukunft",
+            ));
+        }
+        dokumente.extend(n.beleg.iter().cloned());
+    }
     let heute = crate::kalender::heute();
     zukunft_pruefen(a, alt, heute)?;
     externe_einreichung::pruefen(a, alt, kontext, heute, &mut dokumente)?;
@@ -493,6 +549,20 @@ pub(super) async fn pruefen(
         behalten(&alt.bescheide, &a.bescheide, |v| v.id)?;
         behalten(&alt.schritte, &a.schritte, |v| v.id)?;
         behalten(&alt.gebuehren, &a.gebuehren, |v| v.id)?;
+        behalten(&alt.ablehnungsgruende, &a.ablehnungsgruende, |v| v.id)?;
+        behalten(&alt.nachbarbekanntgaben, &a.nachbarbekanntgaben, |v| v.id)?;
+        for v in &alt.ablehnungsgruende {
+            let n = a
+                .ablehnungsgruende
+                .iter()
+                .find(|n| n.id == v.id)
+                .expect("geprüft");
+            if n.text != v.text || n.grundlage != v.grundlage || n.bescheid != v.bescheid {
+                return Err(fehler(
+                    "Wortlaut eines gespeicherten Ablehnungsgrunds bleibt unverändert",
+                ));
+            }
+        }
         for v in alt.schritte.iter().flat_map(|s| &s.gruende) {
             let n = a
                 .schritte

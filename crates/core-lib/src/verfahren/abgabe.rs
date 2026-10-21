@@ -541,6 +541,7 @@ impl CoreServices {
                     .await,
             );
         }
+        hinweise.extend(super::optionen::vorgaenger_hinweise(self, p, &a).await?);
         // Nachweise, deren Grundlagen sich seit dem letzten Stand geändert
         // haben (etwa durch eine Planänderung), gehören nicht ungeprüft in
         // eine Abgabe.

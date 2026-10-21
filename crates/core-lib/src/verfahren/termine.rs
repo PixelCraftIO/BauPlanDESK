@@ -292,6 +292,25 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
             );
         }
     }
+    // Nachbarn: eigene Rechtsbehelfsfrist ab ihrer Bekanntgabe.
+    for n in a
+        .nachbarbekanntgaben
+        .iter()
+        .filter(|n| n.angefochten.is_none())
+    {
+        if !wirksame_bescheide(a).any(|b| b.id == n.bescheid) {
+            continue;
+        }
+        neu(
+            n.id,
+            Terminart::Rechtsbehelfsfrist,
+            format!("Rechtsbehelfsfrist {} (Bekanntgabe am {})", n.name, n.datum.format("%d.%m.%Y")),
+            fristen::rechtsbehelf_ende(land, n.datum),
+            VORLAUF_RECHTSBEHELF,
+            a.verantwortlich,
+            "Ein Monat ab Bekanntgabe an den Nachbarn bei ordnungsgemäßer Rechtsbehelfsbelehrung (§§ 70, 74 VwGO); danach ist die Genehmigung ihm gegenüber bestandskräftig.".into(),
+        );
+    }
     for g in a.gebuehren.iter().filter(|g| g.bezahlt.is_none()) {
         if let Some(f) = &g.frist {
             neu(

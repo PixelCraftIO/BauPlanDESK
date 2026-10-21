@@ -18,6 +18,7 @@
     Berichtigungsgegenstand,
     Ereignisart,
     ExterneEinreichungswunsch,
+    Verfahrensart,
   } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
@@ -41,6 +42,7 @@
   import Verfahrenswahl from "./Verfahrenswahl.svelte";
   import Unterschriften from "./Unterschriften.svelte";
   import Schreiben from "./Schreiben.svelte";
+  import Lage from "./Lage.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -181,6 +183,30 @@
       s.laeuft = false;
     }
   }
+  /** Legt ein Folgeverfahren an und öffnet es. */
+  async function folgeverfahren(art: Verfahrensart, bezeichnung: string) {
+    if (!(await s.speichern())) return;
+    s.laeuft = true;
+    s.fehler = null;
+    try {
+      const f = await verfahrenApi.folgeverfahren(projekt.id, s.id!, {
+        id: crypto.randomUUID(),
+        art,
+        bezeichnung,
+      });
+      await s.laden();
+      const neu = s.liste.find((n) => n.objekt === f.objekt);
+      if (neu) {
+        s.verwerfen();
+        s.bearbeiten(neu);
+        tab = "stamm";
+      }
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    } finally {
+      s.laeuft = false;
+    }
+  }
   const festhalten = (w: Abgabewunsch) =>
     aktion((b) => verfahrenApi.abgabe(projekt.id, s.id!, b, w));
   async function extern(w: ExterneEinreichungswunsch) {
@@ -244,6 +270,14 @@
       <button type="button" class="link" onclick={dateienLaden}
         >Dokumentversionen aktualisieren</button
       >
+      <Lage
+        projektId={projekt.id}
+        verfahrenId={s.id}
+        revision={s.revision}
+        {darf}
+        onregister={(r) => (tab = r)}
+        onfolgeverfahren={folgeverfahren}
+      />
       {#if tab === "stamm"}<fieldset disabled={!darf}>
           <div class="raster">
             <label
@@ -484,6 +518,15 @@
             projektId={projekt.id}
             art={a.art}
             abweichungen={a.abweichungen ?? []}
+            bind:ablehnungsgruende={
+              () => a.ablehnungsgruende ?? [],
+              (w) => (a.ablehnungsgruende = w)
+            }
+            bind:nachbarbekanntgaben={
+              () => a.nachbarbekanntgaben ?? [],
+              (w) => (a.nachbarbekanntgaben = w)
+            }
+            gruendeAlt={s.original?.ablehnungsgruende?.map((g) => g.id) ?? []}
             alt={s.original?.bescheide.map((v) => v.id) ?? []}
             auflagenAlt={s.original?.bescheide.flatMap((b) =>
               b.auflagen.map((p) => p.id),

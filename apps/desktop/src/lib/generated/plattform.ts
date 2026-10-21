@@ -713,6 +713,28 @@ hinweise: Array<string>,
  * Abgelegte Dokumentversion, wenn gewünscht.
  */
 dokument: Dokumentbezug | null, };
+export type Ablehnungsgrund = { id: string,
+/**
+ * Ablehnender Bescheid dieser Akte.
+ */
+bescheid: string, text: string, grundlage: string, reaktion: string, abweichung?: string,
+/**
+ * Folgeverfahren, in dem der Grund ausgeräumt wird.
+ */
+folgeverfahren?: string, };
+export type Nachbarbekanntgabe = { id: string, bescheid: string, name: string, datum: string, beleg: Dokumentbezug | null,
+/**
+ * Tag, an dem der Nachbar Widerspruch oder Klage erhoben hat.
+ */
+angefochten?: string, };
+export type Optionsaktion = { "art": "schreiben", schreiben: string, } | { "art": "folgeverfahren", verfahrensart: Verfahrensart, } | { "art": "register", register: string, };
+export type Handlungsoption = { titel: string, beschreibung: string, frist: string | null, rechtsgrundlage: string, aktion: Optionsaktion | null, };
+export type Verfahrenslage = {
+/**
+ * Kurze Beschreibung der Lage, z. B. „Anhörung offen“.
+ */
+lage: string, optionen: Array<Handlungsoption>, };
+export type Folgeverfahrenswunsch = { id: string, art: Verfahrensart, bezeichnung: string, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -758,7 +780,15 @@ gebuehren?: Array<Gebuehrenbescheid>,
  * Erfasste Unterschriften auf Dokumentversionen (§ 70 Abs. 3 BauO NRW
  * u. ä.); ältere Akten lesen die Angabe leer.
  */
-unterschriften?: Array<Unterschrift>, ereignisse: Array<Aktenereignis>, };
+unterschriften?: Array<Unterschrift>,
+/**
+ * Gründe ablehnender Bescheide; ältere Akten lesen die Angabe leer.
+ */
+ablehnungsgruende?: Array<Ablehnungsgrund>,
+/**
+ * Bekanntgaben der Genehmigung an Nachbarn.
+ */
+nachbarbekanntgaben?: Array<Nachbarbekanntgabe>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null,
 /**

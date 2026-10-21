@@ -31,6 +31,8 @@ import type {
   Unterschriftsrolle,
   Schreibenwunsch,
   Schreibenergebnis,
+  Verfahrenslage,
+  Folgeverfahrenswunsch,
 } from "../generated/plattform";
 /** Bezeichnungen wie `Unterschriftsrolle::bezeichnung` im Core. */
 export const UNTERSCHRIFTSROLLE: Record<Unterschriftsrolle, string> = {
@@ -176,6 +178,14 @@ export const verfahrenApi = {
       wunsch,
       ziel,
     }),
+  optionen: (projektId: string, id: string) =>
+    invoke<Verfahrenslage>("verfahren_optionen", { projektId, id }),
+  folgeverfahren: (
+    projektId: string,
+    id: string,
+    wunsch: Folgeverfahrenswunsch,
+  ) =>
+    invoke<Fachstand>("verfahren_folgeverfahren", { projektId, id, wunsch }),
   unterschriften: (projektId: string, id: string) =>
     invoke<Unterschriftsbedarf[]>("verfahren_unterschriften", {
       projektId,
