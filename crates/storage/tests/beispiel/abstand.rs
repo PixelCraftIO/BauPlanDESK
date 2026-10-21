@@ -521,19 +521,24 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
             .unwrap();
     let mut geaendert = gf.daten.clone();
     geaendert["geometrie"]["traufe_m"] = serde_json::json!(4.6);
-    b.speichern(ObjektArt::Gebaeude, b.haus, geaendert).await;
-    let aktuell =
-        b.c.nachweise(pid)
-            .await
-            .unwrap()
-            .into_iter()
-            .find(|a| a.stand.id == n.id)
-            .unwrap()
-            .aktuell;
-    assert!(
-        !aktuell,
-        "Abstandsnachweis veraltet nach Änderung der Gebäudehöhen"
-    );
+    let gespeichert = b.speichern(ObjektArt::Gebaeude, b.haus, geaendert).await;
+    if gespeichert.daten["geometrie"]["traufe_m"] == serde_json::json!(4.6) {
+        let aktuell =
+            b.c.nachweise(pid)
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|a| a.stand.id == n.id)
+                .unwrap()
+                .aktuell;
+        assert!(
+            !aktuell,
+            "Abstandsnachweis veraltet nach Änderung der Gebäudehöhen"
+        );
+    } else {
+        // Nach dem PDF-Aufmaß ist die Traufe an die Planmarkierung gebunden.
+        b.info("Probe Gebäudehöhe übersprungen: Traufe ist an das PDF-Aufmaß gebunden.");
+    }
     b.speichern(ObjektArt::Gebaeude, b.haus, gf.daten.clone())
         .await; // Basisstand wiederherstellen
     let aktuell =

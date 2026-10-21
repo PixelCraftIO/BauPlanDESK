@@ -66,8 +66,58 @@ async fn beispiel_abstand() {
     assert!(r.ueberdeckungen.is_empty());
     assert!(r.konfliktfrei && n.stand.vollstaendig);
     assert!(n.freigabe.is_some(), "Abstandsnachweis freigegeben");
+    // Grundbuchangaben sind keine Rechengrundlage; die Katasterfläche schon.
+    let mut r = b.p.planungsrecht.clone();
+    let f = r
+        .grundstuecksinformationen
+        .as_mut()
+        .unwrap()
+        .flurstuecke
+        .iter_mut()
+        .find(|f| f.id == "fs-412")
+        .unwrap();
+    f.grundbuchblatt = "4321".into();
+    f.bemerkung = "Grundbuchauszug vom 01.10.2026".into();
+    b.bereich(
+        core_lib::projektbereiche::ProjektBereich::Grundstuecksinformationen,
+        r,
+    )
+    .await;
+    assert!(
+        aktuell(&b, n.stand.id).await,
+        "Grundbuchangaben ändern den Abstandsnachweis nicht"
+    );
+    let mut r = b.p.planungsrecht.clone();
+    let f = r
+        .grundstuecksinformationen
+        .as_mut()
+        .unwrap()
+        .flurstuecke
+        .iter_mut()
+        .find(|f| f.id == "fs-412")
+        .unwrap();
+    f.flaeche_m2 = 630.;
+    b.bereich(
+        core_lib::projektbereiche::ProjektBereich::Grundstuecksinformationen,
+        r,
+    )
+    .await;
+    assert!(
+        !aktuell(&b, n.stand.id).await,
+        "geänderte Katasterfläche macht den Nachweis veraltet"
+    );
     eprintln!("BEFUNDE ({}):", b.befunde.len());
     for x in &b.befunde {
         eprintln!(" - {x}");
     }
+}
+
+async fn aktuell(b: &basis::Beispiel, id: uuid::Uuid) -> bool {
+    b.c.nachweise(b.p.id)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|a| a.stand.id == id)
+        .unwrap()
+        .aktuell
 }

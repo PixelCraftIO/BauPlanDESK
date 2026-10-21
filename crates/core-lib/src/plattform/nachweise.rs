@@ -269,6 +269,45 @@ fn abstandsgebaeude(
         pruefstatus: "Höhenangaben der verknüpften Gebäude zum Berechnungszeitpunkt".into(),
     })
 }
+fn abstandsflurstuecke(
+    p: &Project,
+    plan: &crate::abstandsflaechen::AbstandsPlan,
+) -> Vec<crate::grundstuecksinformationen::FlurstuecksInfo> {
+    let ids = plan
+        .grundstuecke
+        .iter()
+        .flat_map(|g| &g.flurstueck_ids)
+        .collect::<std::collections::HashSet<_>>();
+    let mut infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht)
+        .flurstuecke
+        .into_iter()
+        .filter(|f| ids.contains(&f.id))
+        .collect::<Vec<_>>();
+    infos.sort_by(|a, b| a.id.cmp(&b.id));
+    infos
+}
+fn abstandsgrundlagen(
+    p: &Project,
+    regeln: &[RegelArchiv],
+    flurstuecke: serde_json::Value,
+) -> CoreResult<ContentHash> {
+    hash(
+        &serde_json::json!({"land":p.bundesland,"flurstuecke":flurstuecke,"planrechtskontext":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft,&p.planungsrecht.ergaenzende_grundlage),"regeln":regeln.iter().filter(|r|r.format!="abstandsquellen-json-1"&&r.format!=ABSTANDSGEBAEUDE).map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>()}),
+    )
+}
+/// Grundlagenhash älterer Abstandsnachweise über die vollständigen Flurstücksangaben.
+/// Sie bleiben aktuell, solange sich daran nichts ändert.
+fn grundlagen_abstand_alt(
+    p: &Project,
+    regeln: &[RegelArchiv],
+    e: &NachweisEingabe,
+) -> CoreResult<Option<ContentHash>> {
+    let NachweisEingabe::AbstandProjekt { plan, .. } = e else {
+        return Ok(None);
+    };
+    let infos = abstandsflurstuecke(p, plan);
+    abstandsgrundlagen(p, regeln, serde_json::to_value(infos).map_err(json_err)?).map(Some)
+}
 fn grundlagen_fuer(
     p: &Project,
     regeln: &[RegelArchiv],
@@ -280,20 +319,19 @@ fn grundlagen_fuer(
         );
     }
     if let NachweisEingabe::AbstandProjekt { plan, .. } = e {
-        let ids = plan
-            .grundstuecke
-            .iter()
-            .flat_map(|g| &g.flurstueck_ids)
-            .collect::<std::collections::HashSet<_>>();
-        let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
-        let mut infos = infos
-            .flurstuecke
-            .iter()
-            .filter(|f| ids.contains(&f.id))
+        // Nur Identität, Fläche und Rolle der Flurstücke sind Rechengrundlage;
+        // Grundbuch-, Eigentümer- und Belegangaben ändern das Ergebnis nicht.
+        let flurstuecke = abstandsflurstuecke(p, plan)
+            .into_iter()
+            .map(|f| {
+                serde_json::json!({"id":f.id,"gemarkung":f.gemarkung,"gemarkungsnummer":f.gemarkungsnummer,"flur":f.flur,"nummer":f.nummer,"flaeche_m2":f.flaeche_m2,"rolle":f.rolle})
+            })
             .collect::<Vec<_>>();
-        infos.sort_by(|a, b| a.id.cmp(&b.id));
-        hash(
-            &serde_json::json!({"land":p.bundesland,"flurstuecke":infos,"planrechtskontext":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft,&p.planungsrecht.ergaenzende_grundlage),"regeln":regeln.iter().filter(|r|r.format!="abstandsquellen-json-1"&&r.format!=ABSTANDSGEBAEUDE).map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>()}),
+        // Das festgesetzte Baugebiet geht ab Rechenstand 3 in den Projektabgleich ein.
+        abstandsgrundlagen(
+            p,
+            regeln,
+            serde_json::json!({"flurstuecke":flurstuecke,"baugebiet":p.planungsrecht.festgesetzte_werte.baugebiet}),
         )
     } else {
         grundlagen(p, regeln)
@@ -595,8 +633,14 @@ impl CoreServices {
             .map(|f| {
                 let stand: Nachweisstand = serde_json::from_value(f.daten).map_err(json_err)?;
                 let aktuell = archiv(self, &p, &stand.eingabe)
-                    .and_then(|r| grundlagen_fuer(&p, &r, &stand.eingabe))
-                    .is_ok_and(|h| h == stand.grundlagen_hash)
+                    .and_then(|r| {
+                        Ok(
+                            grundlagen_fuer(&p, &r, &stand.eingabe)? == stand.grundlagen_hash
+                                || grundlagen_abstand_alt(&p, &r, &stand.eingabe)?
+                                    == Some(stand.grundlagen_hash.clone()),
+                        )
+                    })
+                    .unwrap_or(false)
                     && match &stand.eingabe {
                         NachweisEingabe::Fach { plan, .. } => {
                             stand.ergebnis["rechenstand"] == plan.modul.rechenstand()
