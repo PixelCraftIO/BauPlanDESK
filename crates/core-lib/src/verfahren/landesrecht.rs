@@ -48,6 +48,22 @@ pub struct Fiktionsregel {
     pub vereinfacht_wochen: u32,
     pub hinweis: String,
 }
+/// Amtliche Textquelle einer Fassung und ihr letzter Abruf. Ein Abruf ist
+/// keine fachliche Abnahme (`Fassung::geprueft`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Rechtsquelle {
+    /// Gesetz oder Verordnung mit Fassung, z. B. „BauPrüfVO, Fassung 26.11.2024“.
+    pub titel: String,
+    pub url: String,
+    /// Tag, an dem der Text unter `url` gelesen und mit dem Regelpaket
+    /// verglichen wurde; `None`, wenn der Abruf scheiterte.
+    pub abgerufen: Option<NaiveDate>,
+    /// Ergebnis des letzten Abrufversuchs, z. B. warum der Text fehlte.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(as = "Option<String>", optional)]
+    pub vermerk: String,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Fassung {
@@ -60,6 +76,10 @@ pub struct Fassung {
     pub verfahrensfrei: String,
     pub verfahren: Vec<Verfahrensregel>,
     pub fiktion: Option<Fiktionsregel>,
+    /// Amtliche Textquellen dieser Fassung; leer, wenn keine erfasst sind.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Rechtsquelle>>", optional)]
+    pub quellen: Vec<Rechtsquelle>,
 }
 impl Fassung {
     pub fn gilt(&self, tag: NaiveDate) -> bool {
@@ -350,6 +370,18 @@ pub fn verfahrenswahl(
             "Die Bedingungen dieser Fassung sind nicht fachlich abgenommen; Fundstellen am Gesetzestext prüfen."
                 .into(),
         );
+        let fehlend: Vec<&str> = f
+            .quellen
+            .iter()
+            .filter(|q| q.abgerufen.is_none())
+            .map(|q| q.titel.as_str())
+            .collect();
+        if !fehlend.is_empty() {
+            hinweise.push(format!(
+                "Amtlicher Text bei der letzten Quellenprüfung nicht abrufbar: {}. Die Werte stammen aus Sekundärquellen.",
+                fehlend.join("; ")
+            ));
+        }
     }
     if let Some(b) = paket
         .fassungen
@@ -546,6 +578,44 @@ mod tests {
         assert!(alt.fiktion.is_none());
         assert_eq!(neu.fiktion.as_ref().unwrap().vereinfacht_wochen, 6);
         assert!(p.fassung(Bundesland::By, tag("2026-09-01")).is_none());
+    }
+    #[test]
+    fn ungepruefte_fassung_nennt_nicht_abgerufene_quellen() {
+        let p = Regelpaket::mitgeliefert().unwrap();
+        for f in &p.fassungen {
+            // Der Abruf ersetzt die fachliche Abnahme nicht.
+            assert!(!f.geprueft, "{}", f.titel);
+            assert!(!f.quellen.is_empty(), "{}", f.titel);
+        }
+        let w = verfahrenswahl(
+            &p,
+            Bundesland::Nw,
+            tag("2026-09-01"),
+            Vorhabenmerkmale::default(),
+        );
+        assert!(
+            w.hinweise
+                .iter()
+                .any(|h| h.contains("nicht abrufbar") && h.contains("BauPrüfVO")),
+            "{:?}",
+            w.hinweise
+        );
+        // Ohne Quellen bleibt es beim bisherigen Hinweis; Altpakete bleiben lesbar.
+        let mut alt: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../workflow-regeln/landesrecht.json"))
+                .unwrap();
+        for f in alt["fassungen"].as_array_mut().unwrap() {
+            f.as_object_mut().unwrap().remove("quellen");
+        }
+        let alt: Regelpaket = serde_json::from_value(alt).unwrap();
+        let w = verfahrenswahl(
+            &alt,
+            Bundesland::Nw,
+            tag("2026-09-01"),
+            Vorhabenmerkmale::default(),
+        );
+        assert!(!w.hinweise.iter().any(|h| h.contains("nicht abrufbar")));
+        assert!(!serde_json::to_string(&alt).unwrap().contains("quellen"));
     }
     #[test]
     fn befreiungsbedarf_schliesst_freistellung_aus_und_offenes_bleibt_offen() {

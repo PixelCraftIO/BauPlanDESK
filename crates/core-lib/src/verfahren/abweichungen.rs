@@ -495,10 +495,63 @@ pub fn xbau_code(
             .collect();
         match treffer.as_slice() {
             [t] => t.code.clone(),
-            _ => return None,
+            [] => return None,
+            _ => {
+                // Mehrdeutig, z. B. „Ausnahme (Bebauungsplan)“ und „Ausnahme
+                // (Veränderungssperre)“: nur die BauGB-Fundstelle entscheidet.
+                // Landesrechtliche Abweichungen bleiben eine Wahl des Büros.
+                let r = &e.rechtsgrundlage;
+                let zusatz = if !r.contains("BauGB") {
+                    return None;
+                } else if nennt_paragraf(r, "31") {
+                    "bebauungsplan"
+                } else if nennt_paragraf(r, "14") {
+                    "veränderungssperre"
+                } else {
+                    return None;
+                };
+                match treffer
+                    .iter()
+                    .filter(|c| c.beschreibung.to_lowercase().contains(zusatz))
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                {
+                    [t] => t.code.clone(),
+                    _ => return None,
+                }
+            }
         }
     };
     Some((liste.uri.clone(), liste.version.clone(), code))
+}
+/// `§ 31` in „§ 31 Abs. 1 BauGB“, nicht in „§ 310“.
+fn nennt_paragraf(text: &str, nr: &str) -> bool {
+    let muster = format!("§ {nr}");
+    text.match_indices(&muster).any(|(i, _)| {
+        !text[i + muster.len()..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+    })
+}
+/// Codes, aus denen für eine Abweichung ohne eindeutigen Code zu wählen ist.
+pub fn xbau_code_kandidaten(
+    e: &Abweichung,
+    listen: &crate::xbau::codeliste::Codelisten,
+) -> Vec<crate::xbau::codeliste::Codeeintrag> {
+    let Some(liste) = listen.liste(e.art.codeliste()) else {
+        return vec![];
+    };
+    if e.art == Abweichungsart::Erleichterung {
+        return liste.eintraege.clone();
+    }
+    let wort = e.art.bezeichnung().to_lowercase();
+    liste
+        .eintraege
+        .iter()
+        .filter(|c| c.beschreibung.to_lowercase().contains(&wort))
+        .cloned()
+        .collect()
 }
 impl CoreServices {
     /// Bedarf aus dem aktuellen Planungsstand. Nicht ermittelbare Bereiche
@@ -844,6 +897,57 @@ mod tests {
         assert_eq!(xbau_code(&gewaehlt, &listen).unwrap().2, "10");
         gewaehlt.xbau_code = "99".into();
         assert!(xbau_code(&gewaehlt, &listen).is_none());
+    }
+
+    #[test]
+    fn mitgelieferte_listen_liefern_codes_fuer_ausnahme_und_befreiung() {
+        let mut listen = crate::xbau::codeliste::Codelisten::default();
+        for xml in [
+            include_str!("../../../../codelisten/xbau-abweichungart_2.1.xml"),
+            include_str!("../../../../codelisten/xbau-erleichterung.gegenstand_1.0.xml"),
+        ] {
+            listen.hinzufuegen(crate::xbau::codeliste::Codeliste::genericode(xml).unwrap());
+        }
+        let mit = |art: Abweichungsart, rechtsgrundlage: &str| {
+            let mut e = eintrag("x", "b");
+            e.art = art;
+            e.rechtsgrundlage = rechtsgrundlage.into();
+            e
+        };
+        let befreiung = xbau_code(
+            &mit(Abweichungsart::Befreiung, "§ 31 Abs. 2 BauGB"),
+            &listen,
+        );
+        assert_eq!(
+            befreiung,
+            Some((ABWEICHUNGART.into(), "2.1".into(), "1".into()))
+        );
+        let code = |e: &Abweichung| xbau_code(e, &listen).map(|c| c.2);
+        assert_eq!(
+            code(&mit(Abweichungsart::Ausnahme, "§ 31 Abs. 1 BauGB")).as_deref(),
+            Some("2")
+        );
+        assert_eq!(
+            code(&mit(Abweichungsart::Ausnahme, "§ 14 Abs. 2 BauGB")).as_deref(),
+            Some("5")
+        );
+        assert_eq!(code(&mit(Abweichungsart::Ausnahme, "§ 310 BauGB")), None);
+        // Landesrechtliche Abweichung: Codes 3 und 4 (MBO) bleiben Wahl des Büros.
+        let abw = mit(Abweichungsart::Abweichung, "§ 69 BauO NRW");
+        assert_eq!(code(&abw), None);
+        let k: Vec<_> = xbau_code_kandidaten(&abw, &listen)
+            .into_iter()
+            .map(|c| c.code)
+            .collect();
+        assert_eq!(k, ["3", "4"]);
+        let mut erl = mit(Abweichungsart::Erleichterung, "Sonderbau");
+        assert_eq!(code(&erl), None);
+        assert_eq!(xbau_code_kandidaten(&erl, &listen).len(), 24);
+        erl.xbau_code = "19".into();
+        assert_eq!(
+            xbau_code(&erl, &listen),
+            Some((ERLEICHTERUNG_GEGENSTAND.into(), "1.0".into(), "19".into()))
+        );
     }
 
     #[test]

@@ -11,8 +11,25 @@ Benötigt für den Bauantrag:
 | `urn:xoev-de:xbau:codeliste:anlagen`       | Art der Anlage (Bauvorlage) | Version 4.0 (Entwurf, 07.10.2026) |
 | `urn:xoev-de:xbau:codeliste:xbau-mimetypes`| Dateitypen der Anlagen      | Version 1 (19.12.2018)        |
 
-Die mitgelieferten Dateien sind aus den Tabellen der XRepository-Seiten
-übertragen. Die MIME-Types-Liste erlaubt nur PDF, IFC (auch XML/ZIP) und BCF;
+Für beantragte Abweichungen und Erleichterungen (Element `abweichung` bzw.
+`erleichterung` im Antrag):
+
+| Kennung                                              | Inhalt                                   | Mitgeliefert |
+|------------------------------------------------------|------------------------------------------|--------------|
+| `urn:xoev-de:xbau:codeliste:abweichungart`           | Art der Abweichung (Befreiung, Ausnahme, Abweichung nach MBO) | Version 2.1 (Endfassung, 17.12.2024) |
+| `urn:xoev-de:xbau:codeliste:erleichterung.gegenstand`| Gegenstand einer Erleichterung für Sonderbauten (Ziffern § 51 MBO) | Version 1.0 (Endfassung) |
+
+Anlagen und MIME-Types sind aus den Tabellen der XRepository-Seiten
+übertragen. Abweichungsart und Erleichterung sind die unveränderten
+Genericode-Dateien des XRepository (abgerufen am 21.10.2026, siehe
+[Prüfprotokoll](../docs/verfahrensakte/rechtspruefung-nrw.md)).
+
+Befreiung und Ausnahme erhalten ihren Code automatisch (Ausnahme nach
+§ 31 Abs. 1 BauGB oder § 14 Abs. 2 BauGB je nach Rechtsgrundlage). Für eine
+landesrechtliche Abweichung bietet die Liste zwei Codes nach der
+Musterbauordnung (3: § 67 Abs. 1 MBO, 4: § 67 Abs. 2 Satz 2 MBO); welcher für
+die Landesbauordnung passt, entscheidet das Büro im Feld „XBau-Code“. Das gilt
+auch für Erleichterungen. Bis dahin nennt die Abgabe die möglichen Codes. Die MIME-Types-Liste erlaubt nur PDF, IFC (auch XML/ZIP) und BCF;
 andere Dateien (DXF, Bilder) müssen als PDF beigefügt werden.
 
 Die Dateien aus diesem Ordner werden mit der App ausgeliefert. Neuere
@@ -26,8 +43,9 @@ Ordner des Datenverzeichnisses ab und verwendet sie sofort, ohne Neustart.
 
 Landeslisten der Verfahrensarten (`urn:xoev-de:xbau:<land>:codeliste:verfahrensart`,
 Typ 4) werden nicht mitgeliefert. XBau gibt keine bundesweite Liste vor. Für
-Nordrhein-Westfalen war bei Redaktionsschluss keine Liste im XRepository zu
-finden. Ohne Liste enthält die XBau-Nachricht keine Verfahrensart; das ist
+Nordrhein-Westfalen gibt es unter `urn:xoev-de:xbau:nw:codeliste:verfahrensart`
+keine Liste im XRepository (Abfrage am 21.10.2026: HTTP 404; vorhanden sind
+die Listen für BE, BW, BY, HE und HH). Ohne Liste enthält die XBau-Nachricht keine Verfahrensart; das ist
 zulässig, weil das Element optional ist. Stellt das Land oder die Bauaufsicht
 eine Liste bereit, wird sie wie oben eingespielt.
 

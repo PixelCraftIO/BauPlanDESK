@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"
+             xmlns:xoev-cl="http://xoev.de/schemata/genericode/1_0"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://docs.oasis-open.org/codelist/ns/genericode/1.0/ http://docs.oasis-open.org/codelist/cs-genericode-1.0/xsd/genericode.xsd http://xoev.de/schemata/genericode/1_0 http://xoev.de/schemata/genericode/1_0/xoev-cl-attributes.xsd">
+   <Annotation>
+      <Description>
+         <xoev-cl:beschreibung>Definition der Arten von beantragten Erleichterungen gemäß § 51 Musterbauordnung (Anforderungen und Erleichterungen für Sonderbauten). Die Einträge der Codeliste entsprechen den Ziffern aus § 51 MBO (Liste von Erleichterungstatbeständen) zuzüglich eines Eintrags "Sonstiges".</xoev-cl:beschreibung>
+         <xoev-cl:datumgueltigkeitab>2017-01-12</xoev-cl:datumgueltigkeitab>
+      </Description>
+   </Annotation>
+   <Identification>
+      <ShortName>XBau Erleichterung Gegenstand</ShortName>
+      <LongName>Definition der Arten von beantragten Erleichterungen für Sonderbauten</LongName>
+      <Version>1.0</Version>
+      <CanonicalUri>urn:xoev-de:xbau:codeliste:erleichterung.gegenstand</CanonicalUri>
+      <CanonicalVersionUri>urn:xoev-de:xbau:codeliste:erleichterung.gegenstand_1.0</CanonicalVersionUri>
+      <Agency>
+         <ShortName>BSW</ShortName>
+         <LongName>Behörde für Stadtentwicklung und Wohnen, Hamburg</LongName>
+      </Agency>
+   </Identification>
+   <ColumnSet>
+      <Column Id="SCHLUESSEL" Use="required">
+         <ShortName>Gliederungsnummer</ShortName>
+         <LongName>Gliederungsnummer</LongName>
+         <Data Type="string"/>
+      </Column>
+      <Column Id="Bezeichnung" Use="required">
+         <ShortName>Bezeichnung</ShortName>
+         <LongName>Bezeichnung der Arten von beantragten Erleichterungen</LongName>
+         <Data Type="string"/>
+      </Column>
+      <Key Id="codeKey">
+         <Annotation>
+            <AppInfo>
+               <xoev-cl:xoev-code/>
+            </AppInfo>
+         </Annotation>
+         <ShortName>codeKey</ShortName>
+         <ColumnRef Ref="SCHLUESSEL"/>
+      </Key>
+   </ColumnSet>
+   <SimpleCodeList>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>1</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 1: die Anordnung der baulichen Anlagen auf dem Grundstück</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>2</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 2: die Abstände von Nachbargrenzen, von anderen baulichen Anlagen auf dem Grundstück und von öffentlichen Verkehrsflächen sowie auf die Größe der freizuhaltenden Flächen der Grundstücke</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>3</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 3: die Öffnungen nach öffentlichen Verkehrsflächen und nach angrenzenden Grundstücken</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>4</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 4: die Anlage von Zu- und Abfahrten</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>5</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 5: die Anlage von Grünstreifen, Baumpflanzungen und anderen Pflanzungen sowie die Begrünung oder Beseitigung von Halden und Gruben</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>6</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 6: die Bauart und Anordnung aller für die Stand- und Verkehrssicherheit, den Brand-, Wärme-, Schall- oder Gesundheitsschutz wesentlichen Bauteile und die Verwendung von Baustoffen</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>7</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 7: Brandschutzanlagen,:einrichtungen und:vorkehrungen</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>8</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 8: die Löschwasserrückhaltung</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>9</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 9: die Anordnung und Herstellung von Aufzügen, Treppen, Treppenräumen, Fluren, Ausgängen und sonstigen Rettungswegen</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>10</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 10: die Beleuchtung und Energieversorgung</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>11</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 11: die Lüftung und Rauchableitung</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>12</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 12: die Feuerungsanlagen und Heizräume</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>13</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 13: die Wasserversorgung</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>14</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 14: die Aufbewahrung und Entsorgung von Abwasser und festen Abfallstoffen</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>15</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 15: die Stellplätze und Garagen</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>16</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 16: die barrierefreie Nutzbarkeit</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>17</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 17: die zulässige Zahl der Benutzer, Anordnung und Zahl der zulässigen Sitz- und Stehplätze bei Versammlungsstätten, Tribünen und Fliegenden Bauten</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>18</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 18: die Zahl der Toiletten für Besucher</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>19</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 19: Umfang, Inhalt und Zahl besonderer Bauvorlagen, insbesondere eines Brandschutzkonzepts</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>20</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 20: weitere zu erbringende Bescheinigungen</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>21</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 21: die Bestellung und Qualifikation des Bauleiters und der Fachbauleiter</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>22</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 22: den Betrieb und die Nutzung einschließlich der Bestellung und der Qualifikation eines Brandschutzbeauftragten</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>23</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Ziffer 23: Erst-, Wiederholungs- und Nachprüfungen und die Bescheinigungen, die hier- über zu erbringen sind</SimpleValue>
+         </Value>
+      </Row>
+      <Row>
+         <Value ColumnRef="SCHLUESSEL">
+            <SimpleValue>24</SimpleValue>
+         </Value>
+         <Value ColumnRef="Bezeichnung">
+            <SimpleValue>Sonstiges: Der Gegenstand der angefragten Erleichterung ist nicht unter denen, die in der Rechtsgrundlage aufgezählt sind.</SimpleValue>
+         </Value>
+      </Row>
+   </SimpleCodeList>
+</gc:CodeList>
