@@ -132,7 +132,7 @@ fn streams_zusammenfassen(d: &mut Document) {
         }
     }
 }
-fn speichern(mut d: Document) -> CoreResult<Vec<u8>> {
+pub(super) fn speichern(mut d: Document) -> CoreResult<Vec<u8>> {
     let mut b = Vec::new();
     streams_zusammenfassen(&mut d);
     d.compress();

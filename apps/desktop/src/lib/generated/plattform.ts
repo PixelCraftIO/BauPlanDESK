@@ -680,6 +680,39 @@ export type Verfahrensangaben = { wohngebaeude: boolean | null, grosser_sonderba
  * Stichtag (Antragseingang); ohne Angabe heute.
  */
 stichtag: string | null, };
+export type Briefblock = { "art": "absatz", text: string, } | { "art": "abschnitt", titel: string, } | { "art": "hinweis", text: string, } | { "art": "tabelle", koepfe: Array<string>, zeilen: Array<Array<string>>, } | { "art": "unterschrift", felder: Array<[string, string]>, };
+export type Brief = { absender: string, empfaenger: string, datum: string, betreff: string,
+/**
+ * Aktenzeichen der Behörde; leer = ohne.
+ */
+aktenzeichen: string, bloecke: Array<Briefblock>, };
+export type Schreibenart = { "art": "nachforderungsantwort", nachforderung: string, } | { "art": "fristverlaengerung",
+/**
+ * Forderungspunkt oder Verfahrensschritt mit Frist.
+ */
+bezug: string, bis: string, grund: string, } | { "art": "stellungnahme", schritt: string, } | { "art": "abweichungsantrag" } | { "art": "sachstandsanfrage" } | { "art": "ruecknahme" };
+export type Schreibenwunsch = { art: Schreibenart,
+/**
+ * Datum des Schreibens; ohne Angabe heute.
+ */
+datum: string | null,
+/**
+ * Zusätzlicher Text vor dem Gruß.
+ */
+zusatz: string,
+/**
+ * Als Projektunterlage ablegen.
+ */
+ablegen: boolean, };
+export type Schreibenergebnis = { dateiname: string, brief: Brief,
+/**
+ * Hinweise zur Vollständigkeit (fehlende Antworten, Unterlagen …).
+ */
+hinweise: Array<string>,
+/**
+ * Abgelegte Dokumentversion, wenn gewünscht.
+ */
+dokument: Dokumentbezug | null, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.

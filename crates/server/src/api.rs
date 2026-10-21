@@ -22,7 +22,7 @@ use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
 use core_lib::xbau::{Bauantrag, Buero, Codeliste, GespeicherterBauantrag};
 use core_lib::{CoreError, CoreServices};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub struct ApiError(CoreError);
@@ -241,6 +241,10 @@ fn routen(core: CoreServices) -> Router {
         .route(
             "/projekte/{id}/verfahren/{verfahren}/abweichungen",
             get(verfahren_abweichungen),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/schreiben",
+            post(verfahren_schreiben),
         )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
@@ -1407,6 +1411,26 @@ async fn verfahren_abweichungen(
     core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
         .await?;
     Ok(Json(core.verfahren_abweichungen(ProjectId(p), id).await?))
+}
+/// Schreiben mit PDF (Base64), damit der Client es speichern kann.
+#[derive(Serialize)]
+struct Schreibenantwort {
+    #[serde(flatten)]
+    ergebnis: core_lib::verfahren::schreiben::Schreibenergebnis,
+    pdf_base64: String,
+}
+async fn verfahren_schreiben(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<core_lib::verfahren::schreiben::Schreibenwunsch>,
+) -> ApiResult<Schreibenantwort> {
+    use base64::Engine as _;
+    let (ergebnis, pdf) = core.verfahren_schreiben(ProjectId(p), id, w, &wer).await?;
+    Ok(Json(Schreibenantwort {
+        ergebnis,
+        pdf_base64: base64::engine::general_purpose::STANDARD.encode(pdf),
+    }))
 }
 async fn verfahren_artefakt(
     State(ApiState { core }): State<ApiState>,

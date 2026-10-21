@@ -171,8 +171,24 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
             hinweis,
         })
     };
+    // NRW: Werden Mängel nicht fristgerecht behoben, gilt der Bauantrag als
+    // zurückgenommen (§ 71 BauO NRW); die Wiedervorlage nennt die Folge.
+    let ruecknahmefiktion = land == Bundesland::Nw && a.art.baugenehmigung();
     for p in offene_forderungspunkte(a) {
         if let Some(f) = &p.frist {
+            let hinweis = if ruecknahmefiktion && !f.grund.contains("§ 71 BauO NRW") {
+                format!(
+                    "{}{}Fristversäumnis: Der Antrag gilt als zurückgenommen (§ 71 BauO NRW). Rechtzeitig nachreichen oder Fristverlängerung beantragen.",
+                    f.grund.trim(),
+                    if f.grund.trim().is_empty() {
+                        ""
+                    } else {
+                        " · "
+                    }
+                )
+            } else {
+                f.grund.clone()
+            };
             neu(
                 p.id,
                 Terminart::Forderungspunkt,
@@ -180,7 +196,7 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
                 f.datum,
                 f.erinnerung_tage,
                 p.verantwortlich,
-                f.grund.clone(),
+                hinweis,
             );
         }
     }

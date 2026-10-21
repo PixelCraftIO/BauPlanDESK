@@ -40,6 +40,7 @@
   import Gebuehren from "./Gebuehren.svelte";
   import Verfahrenswahl from "./Verfahrenswahl.svelte";
   import Unterschriften from "./Unterschriften.svelte";
+  import Schreiben from "./Schreiben.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -199,6 +200,7 @@
     ["kommunikation", "Kommunikation"],
     ["nachforderungen", "Nachforderungen"],
     ["schritte", "Behördliche Schritte"],
+    ["schreiben", "Schreiben"],
     ["abgaben", "Abgabestände"],
     ["bescheide", "Bescheide / Auflagen"],
     ["beziehungen", "Korrekturen"],
@@ -380,6 +382,13 @@
             {darfFreigeben}
           />
         </fieldset>
+      {:else if tab === "schreiben"}<Schreiben
+          akte={a}
+          projektId={projekt.id}
+          verfahrenId={s.id}
+          {darf}
+          ondokument={dateienLaden}
+        />
       {:else if tab === "unterschriften"}<fieldset disabled={!darf}>
           <Unterschriften
             bind:eintraege={

@@ -145,6 +145,26 @@ pub async fn verfahren_abweichungen(
         .await?;
     Ok(state.core.verfahren_abweichungen(projekt_id, id).await?)
 }
+/// Erzeugt ein Schreiben an die Behörde; mit Ziel wird das PDF gespeichert.
+#[tauri::command]
+pub async fn verfahren_schreiben(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    wunsch: core_lib::verfahren::schreiben::Schreibenwunsch,
+    ziel: Option<PathBuf>,
+) -> Result<core_lib::verfahren::schreiben::Schreibenergebnis, CmdError> {
+    let (r, pdf) = state
+        .core
+        .verfahren_schreiben(projekt_id, id, wunsch, &state.benutzer())
+        .await?;
+    if let Some(ziel) = ziel {
+        tokio::fs::write(ziel, pdf)
+            .await
+            .map_err(|e| CoreError::Storage(e.to_string()))?;
+    }
+    Ok(r)
+}
 #[tauri::command]
 pub async fn verfahren_erinnerungen(
     state: State<'_, AppState>,

@@ -29,6 +29,8 @@ import type {
   Verfahrenswahl,
   Unterschriftsbedarf,
   Unterschriftsrolle,
+  Schreibenwunsch,
+  Schreibenergebnis,
 } from "../generated/plattform";
 /** Bezeichnungen wie `Unterschriftsrolle::bezeichnung` im Core. */
 export const UNTERSCHRIFTSROLLE: Record<Unterschriftsrolle, string> = {
@@ -160,6 +162,19 @@ export const verfahrenApi = {
       projektId,
       id,
       angaben,
+    }),
+  /** Schreiben an die Behörde; mit Ziel wird das PDF dort gespeichert. */
+  schreiben: (
+    projektId: string,
+    id: string,
+    wunsch: Schreibenwunsch,
+    ziel: string | null,
+  ) =>
+    invoke<Schreibenergebnis>("verfahren_schreiben", {
+      projektId,
+      id,
+      wunsch,
+      ziel,
     }),
   unterschriften: (projektId: string, id: string) =>
     invoke<Unterschriftsbedarf[]>("verfahren_unterschriften", {

@@ -541,6 +541,20 @@ impl CoreServices {
                     .await,
             );
         }
+        // Nachweise, deren Grundlagen sich seit dem letzten Stand geändert
+        // haben (etwa durch eine Planänderung), gehören nicht ungeprüft in
+        // eine Abgabe.
+        let mut nachweise = self.nachweise(p).await?;
+        nachweise.sort_by_key(|n| std::cmp::Reverse(n.stand.erstellt_am));
+        let mut gesehen = std::collections::HashSet::new();
+        for n in nachweise {
+            if gesehen.insert(n.stand.bezeichnung.clone()) && !n.aktuell {
+                hinweise.push(format!(
+                    "Nachweis „{}“ beruht nicht mehr auf dem aktuellen Planungsstand (z. B. nach einer Planänderung). Neu erstellen, bevor er eingereicht wird.",
+                    n.stand.bezeichnung
+                ));
+            }
+        }
         for r in &a.anforderungen {
             if r.erforderlich == Erforderlichkeit::Ungeklaert {
                 hinweise.push(format!("Anforderung ungeklärt: {}", r.titel));

@@ -12,6 +12,7 @@ pub mod planindex;
 pub mod profile;
 mod pruefung;
 mod regeln;
+pub mod schreiben;
 pub mod suche;
 pub mod termine;
 use crate::plattform::objekte::Dokumentbezug;
