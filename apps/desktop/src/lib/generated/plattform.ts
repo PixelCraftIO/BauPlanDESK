@@ -444,7 +444,8 @@ abgaben: Array<string>,
 bescheid: string | null, ersetzt_durch: Dokumentbezug | null, };
 export type Planunterlage = { dokument_id: DocumentId,
 /**
- * Dateiname aus dem jüngsten Abgabestand.
+ * Dateiname aus dem jüngsten Abgabestand; bei nur extern eingereichten
+ * Unterlagen der Dateiname im DMS (leer, wenn nicht mehr vorhanden).
  */
 name: string,
 /**
@@ -709,6 +710,11 @@ export type Druckkatalog = { gestaltung: Druckgestaltung, projekt_version: numbe
  * Vorschlag für die aufstellende Person; leer, wenn weder Bauantrag noch
  * Büroangaben eine/n Entwurfsverfasser/in eindeutig benennen.
  */
-aufgestellt_von: string, };
+aufgestellt_von: string,
+/**
+ * Vorschlag für das Aktenzeichen: das der Verfahrensakte, wenn das Projekt
+ * genau ein Aktenzeichen führt; sonst leer.
+ */
+aktenzeichen: string, };
 export type Druckposition = { titel: string, erste_seite: number, seiten: number, };
 export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe: Freigabe | null, };

@@ -129,6 +129,7 @@
       if (!initialisiert) {
         absender = katalog.absender;
         aufgestelltVon = katalog.aufgestellt_von ?? "";
+        aktenzeichen = katalog.aktenzeichen ?? "";
         gestaltung = {
           ...(katalog.gestaltung ?? {
             kopfzeile: "{Projekt}",

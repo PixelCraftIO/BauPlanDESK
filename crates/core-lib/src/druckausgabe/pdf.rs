@@ -80,8 +80,61 @@ pub(super) fn bild(bytes: &[u8]) -> CoreResult<Document> {
     d.trailer.set("Root", cat);
     Ok(d)
 }
+/// Fasst inhaltsgleiche Streams (eingebettete Schriften, Bilder, Formular-
+/// XObjects) zusammen. Jede Anlage und jeder Bericht bettet seine Schrift selbst
+/// ein; ohne Zusammenfassen wächst ein Bauvorlagenpaket um die volle Schriftdatei
+/// je Abschnitt. Gleiche Streams sind gleichwertig und dürfen geteilt werden.
+fn streams_zusammenfassen(d: &mut Document) {
+    use sha2::{Digest, Sha256};
+    fn ersetzen(o: &mut Object, karte: &std::collections::HashMap<ObjectId, ObjectId>) {
+        match o {
+            Object::Reference(id) => {
+                if let Some(neu) = karte.get(id) {
+                    *id = *neu;
+                }
+            }
+            Object::Array(a) => a.iter_mut().for_each(|o| ersetzen(o, karte)),
+            Object::Dictionary(d) => d.iter_mut().for_each(|(_, o)| ersetzen(o, karte)),
+            Object::Stream(s) => s.dict.iter_mut().for_each(|(_, o)| ersetzen(o, karte)),
+            _ => {}
+        }
+    }
+    // Mehrere Durchläufe: Formulare werden erst gleich, wenn ihre Schriften es sind.
+    for _ in 0..4 {
+        let mut erste = std::collections::HashMap::<[u8; 32], ObjectId>::new();
+        let mut karte = std::collections::HashMap::new();
+        let mut ids = d.objects.keys().copied().collect::<Vec<_>>();
+        ids.sort();
+        for id in ids {
+            if let Some(Object::Stream(s)) = d.objects.get(&id) {
+                let mut h = Sha256::new();
+                h.update(format!("{:?}", s.dict).as_bytes());
+                h.update([0]);
+                h.update(&s.content);
+                match erste.entry(h.finalize().into()) {
+                    std::collections::hash_map::Entry::Occupied(e) => {
+                        karte.insert(id, *e.get());
+                    }
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert(id);
+                    }
+                }
+            }
+        }
+        if karte.is_empty() {
+            break;
+        }
+        for id in karte.keys() {
+            d.objects.remove(id);
+        }
+        for o in d.objects.values_mut() {
+            ersetzen(o, &karte);
+        }
+    }
+}
 fn speichern(mut d: Document) -> CoreResult<Vec<u8>> {
     let mut b = Vec::new();
+    streams_zusammenfassen(&mut d);
     d.compress();
     d.save_to(&mut b).map_err(fehler)?;
     if b.len() > 128 * 1024 * 1024 {
@@ -660,6 +713,38 @@ pub(super) fn paket(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn gleiche_streams_werden_einmal_gespeichert() {
+        let mut d = Document::with_version("1.7");
+        let schrift = || Stream::new(dictionary! {"Length1"=>3}, b"abc".to_vec());
+        let a = d.add_object(schrift());
+        let b = d.add_object(schrift());
+        let anders = d.add_object(Stream::new(dictionary! {}, b"xyz".to_vec()));
+        let fa = d.add_object(dictionary! {"FontFile2"=>a});
+        let fb =
+            d.add_object(dictionary! {"FontFile2"=>b, "Weitere"=>vec![b.into(), anders.into()]});
+        streams_zusammenfassen(&mut d);
+        assert!(d.objects.contains_key(&a) && !d.objects.contains_key(&b));
+        assert!(d.objects.contains_key(&anders));
+        let verweis = |id| {
+            d.get_dictionary(id)
+                .unwrap()
+                .get(b"FontFile2")
+                .unwrap()
+                .as_reference()
+                .unwrap()
+        };
+        assert_eq!((verweis(fa), verweis(fb)), (a, a));
+        let weitere = d
+            .get_dictionary(fb)
+            .unwrap()
+            .get(b"Weitere")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(weitere[0].as_reference().unwrap(), a);
+    }
+
     use super::*;
     #[test]
     fn lange_unicode_berichte_und_verzeichnis_bleiben_paginiert() {
