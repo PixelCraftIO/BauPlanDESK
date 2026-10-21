@@ -129,29 +129,54 @@ impl Grundstuecksinformationen {
         let mut ids = std::collections::HashSet::new();
         let mut kataster = std::collections::HashSet::new();
         let mut vorhaben_buchgrundstuecke = std::collections::HashSet::new();
-        for f in &self.flurstuecke {
-            if [&f.id, &f.gemarkung, &f.nummer]
-                .iter()
-                .any(|s| s.trim().is_empty() || s.len() > 500)
-                || [
-                    &f.flur,
-                    &f.grundbuchbezirk,
-                    &f.grundbuchblatt,
-                    &f.eigentuemer,
-                ]
-                .iter()
-                .any(|s| s.len() > 500)
+        for (i, f) in self.flurstuecke.iter().enumerate() {
+            // Die Meldung nennt Flurstück und Feld, damit die Eingabe auffindbar ist.
+            let name = match f.nummer.trim() {
+                "" => format!("{}. Flurstück", i + 1),
+                n => format!("Flurstück {n}"),
+            };
+            let fehler = |t: &str| Err(CoreError::InvalidInput(format!("{name}: {t}")));
+            if f.id.trim().is_empty() || f.id.len() > 500 {
+                return fehler("interne Kennung fehlt");
+            }
+            if f.gemarkung.trim().is_empty() || f.gemarkung.len() > 500 {
+                return fehler("Gemarkung angeben (höchstens 500 Zeichen)");
+            }
+            if f.nummer.trim().is_empty() || f.nummer.len() > 500 {
+                return fehler("Flurstücksnummer angeben (höchstens 500 Zeichen)");
+            }
+            if [
+                &f.flur,
+                &f.grundbuchbezirk,
+                &f.grundbuchblatt,
+                &f.eigentuemer,
+            ]
+            .iter()
+            .any(|s| s.len() > 500)
                 || f.bemerkung.len() > 4000
-                || f.gemarkungsnummer.len() > 4
+            {
+                return fehler("Angaben zu lang (je Feld höchstens 500 Zeichen, Bemerkung 4000)");
+            }
+            if f.gemarkungsnummer.len() > 4
                 || !f.gemarkungsnummer.bytes().all(|b| b.is_ascii_digit())
-                || f.eigentuemer_kunden.len() > 20
+            {
+                return fehler(
+                    "Gemarkungsnummer besteht aus höchstens vier Ziffern, ohne Landesschlüssel (z. B. 1234 statt 051234)",
+                );
+            }
+            if f.eigentuemer_kunden.len() > 20
                 || (1..f.eigentuemer_kunden.len())
                     .any(|i| f.eigentuemer_kunden[..i].contains(&f.eigentuemer_kunden[i]))
-                || f.laufende_nummer == Some(0)
-                || !f.flaeche_m2.is_finite()
-                || f.flaeche_m2 <= 0.
             {
-                return Err(CoreError::InvalidInput("Flurstück benötigt Gemarkung, Nummer und positive Fläche. Grundbuchangaben sind optional; eine angegebene laufende Nummer muss positiv sein, eine Gemarkungsnummer besteht aus höchstens vier Ziffern.".into()));
+                return fehler("Eigentümer höchstens 20 und jeweils nur einmal zuordnen");
+            }
+            if f.laufende_nummer == Some(0) {
+                return fehler(
+                    "laufende Nummer im Bestandsverzeichnis muss positiv sein oder leer bleiben",
+                );
+            }
+            if !f.flaeche_m2.is_finite() || f.flaeche_m2 <= 0. {
+                return fehler("Fläche laut Kataster in m² angeben (größer als 0)");
             }
             if f.rolle.ist_vorhaben()
                 && !f.grundbuchbezirk.trim().is_empty()
@@ -171,9 +196,7 @@ impl Grundstuecksinformationen {
                     f.nummer.trim().to_lowercase(),
                 ))
             {
-                return Err(CoreError::InvalidInput(
-                    "Flurstück wurde mehrfach erfasst".into(),
-                ));
+                return fehler("wurde mehrfach erfasst (gleiche Gemarkung, Flur und Nummer)");
             }
         }
         if !self.flurstuecke.is_empty() && self.vorhaben().next().is_none() {

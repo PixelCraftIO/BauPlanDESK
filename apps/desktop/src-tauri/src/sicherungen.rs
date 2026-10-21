@@ -133,6 +133,17 @@ pub async fn sicherung_wiederherstellen(
     // Erst nach Integritätsprüfung werden absolute Pfade auf das neue Profil gesetzt.
     let result = async {
         db_sqlite::SqliteDatabase::datei_pruefen(&ziel.join("bauprojekt.db")).await?;
+        // Das wiederhergestellte Profil startet als Einzelplatz mit Anmeldung
+        // über das Rechnerkonto; wer wiederherstellt, verwaltet es auch dort.
+        let db = db_sqlite::SqliteDatabase::open(&ziel.join("bauprojekt.db")).await?;
+        let uebernahme = core_lib::anmeldung::verwaltung_nach_wiederherstellung(
+            &db.repositories(),
+            &whoami::username(),
+            &whoami::realname(),
+        )
+        .await;
+        db.schliessen().await;
+        uebernahme?;
         let config = ziel.join("einstellungen");
         tokio::fs::create_dir_all(&config)
             .await

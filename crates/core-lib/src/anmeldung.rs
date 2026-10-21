@@ -374,3 +374,75 @@ impl CoreServices {
         self.repos.benutzer.get(b.id).await
     }
 }
+
+/// Einzelplatz: Wer eine Sicherung als Administrator wiederherstellt, verwaltet
+/// auch das neue Profil – selbst wenn das Rechnerkonto dort unbekannt ist oder
+/// nur eine geringere Rolle hat (anderer Rechner, anderer Benutzername). Ohne
+/// Kennwortanmeldung gäbe es sonst keinen Weg zurück zur Benutzerverwaltung.
+/// Der Vorgang wird im wiederhergestellten Profil protokolliert.
+pub async fn verwaltung_nach_wiederherstellung(
+    repos: &crate::repository::Repositories,
+    rechnerkonto: &str,
+    anzeigename: &str,
+) -> CoreResult<Benutzer> {
+    use crate::benutzer::{BenutzerAenderung, NeuerBenutzer};
+    let name = benutzer::anmeldename_normalisieren(rechnerkonto)?;
+    if name == SYSTEM {
+        return Err(CoreError::InvalidInput(
+            "Systemkonto ist nicht zulässig".into(),
+        ));
+    }
+    let (b, aktion, details) = match repos.benutzer.by_anmeldename(&name).await? {
+        Some(b) if b.rolle == Rolle::Administrator && b.aktiv => return Ok(b),
+        Some(b) => {
+            let neu = repos
+                .benutzer
+                .update(BenutzerAenderung {
+                    id: b.id,
+                    anzeigename: b.anzeigename.clone(),
+                    rolle: Rolle::Administrator,
+                    aktiv: true,
+                })
+                .await?;
+            let details = format!(
+                "{} ({}): bei der Wiederherstellung der Sicherung von {} zum Administrator",
+                neu.anzeigename,
+                neu.anmeldename,
+                b.rolle.name()
+            );
+            (neu, Aktion::BenutzerGeaendert, details)
+        }
+        None => {
+            let anzeige = match anzeigename.trim() {
+                "" => name.clone(),
+                n => n.to_string(),
+            };
+            let neu = repos
+                .benutzer
+                .create(NeuerBenutzer {
+                    anmeldename: name,
+                    anzeigename: anzeige,
+                    rolle: Rolle::Administrator,
+                })
+                .await?;
+            let details = format!(
+                "{} ({}): bei der Wiederherstellung der Sicherung als Administrator angelegt",
+                neu.anzeigename, neu.anmeldename
+            );
+            (neu, Aktion::BenutzerAngelegt, details)
+        }
+    };
+    repos
+        .protokoll
+        .append(crate::domain::NeuerProtokolleintrag {
+            zeit: Utc::now(),
+            benutzer_id: b.id,
+            benutzer_name: b.anzeigename.clone(),
+            aktion,
+            project_id: None,
+            document_id: None,
+            details,
+        })
+        .await?;
+    Ok(b)
+}

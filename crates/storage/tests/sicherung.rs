@@ -359,3 +359,74 @@ fn archivnamen_sind_portabel_und_umkehrbar() {
         assert!(sicherung::originalname(kaputt).is_err(), "{kaputt}");
     }
 }
+
+#[tokio::test]
+async fn wiederherstellende_verwaltung_wird_administrator_im_neuen_profil() {
+    use core_lib::{
+        CoreServices,
+        benutzer::{BenutzerAenderung, NeuerBenutzer, Rolle},
+        lbo::LboEngine,
+        license::DevelopmentLicense,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("bauprojekt.db"))
+        .await
+        .unwrap();
+    let c = CoreServices::new(
+        db.repositories(),
+        std::sync::Arc::new(
+            storage::LocalStorage::new(dir.path().join("dateien"), "local").unwrap(),
+        ),
+        std::sync::Arc::new(LboEngine::new()),
+        std::sync::Arc::new(DevelopmentLicense),
+    );
+    let admin = c.anmelden("alt\\buero", "Büro alt").await.unwrap();
+    let leser = c
+        .benutzer_anlegen(
+            NeuerBenutzer {
+                anmeldename: "neu".into(),
+                anzeigename: "Neuer Rechner".into(),
+                rolle: Rolle::Lesen,
+            },
+            &admin,
+        )
+        .await
+        .unwrap();
+    // Unbekanntes Rechnerkonto: wird als Administrator angelegt.
+    let b = core_lib::anmeldung::verwaltung_nach_wiederherstellung(
+        &db.repositories(),
+        "ANDERER\\Planer",
+        "Planerin",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (b.anmeldename.as_str(), b.rolle),
+        ("planer", Rolle::Administrator)
+    );
+    assert_eq!(c.anmelden("planer", "").await.unwrap().id, b.id);
+    // Vorhandenes Konto mit geringerer Rolle oder deaktiviert: wird Administrator.
+    c.benutzer_aendern(
+        BenutzerAenderung {
+            id: leser.id,
+            anzeigename: leser.anzeigename.clone(),
+            rolle: Rolle::Lesen,
+            aktiv: false,
+        },
+        &admin,
+    )
+    .await
+    .unwrap();
+    let b = core_lib::anmeldung::verwaltung_nach_wiederherstellung(&db.repositories(), "neu", "")
+        .await
+        .unwrap();
+    assert_eq!(
+        (b.id, b.rolle, b.aktiv),
+        (leser.id, Rolle::Administrator, true)
+    );
+    assert!(
+        core_lib::anmeldung::verwaltung_nach_wiederherstellung(&db.repositories(), "system", "")
+            .await
+            .is_err()
+    );
+}
