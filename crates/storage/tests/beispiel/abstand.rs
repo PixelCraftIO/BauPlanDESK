@@ -98,6 +98,18 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         "{gh:?}"
     );
     let giebelhoehe = first - traufe; // 3,25 m
+    let dach =
+        b.c.gebaeudegrundlagen(pid, b.haus)
+            .await
+            .unwrap()
+            .dach
+            .expect("Dachform Wohnhaus");
+    if dach.form != core_lib::plattform::gebaeude::Dachform::Satteldach
+        || dach.neigung_grad != Some(DACHNEIGUNG)
+        || !dach.dachhoehe_m.is_some_and(|h| nah(h, giebelhoehe))
+    {
+        b.befund(format!("Dach aus Gebäude/Geschosse: {dach:?}"));
+    }
     // Plausibilität Satteldach: halbe Gebäudetiefe 4,50 m × tan 36° = 3,27 m (First − Traufe 3,25 m).
     let erwartet = 4.5 * DACHNEIGUNG.to_radians().tan();
     if (erwartet - giebelhoehe).abs() > 0.1 {
@@ -277,20 +289,18 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
                 "Giebelseite"
             }
         );
-        w.dachhoehe_m = Some(giebelhoehe);
-        w.dachneigung_grad = Some(DACHNEIGUNG);
-        if traufseite {
-            w.dachart = Dachart::Dachflaeche;
-            w.dachgrundlage =
-                "Satteldach 36°, Dachfläche über der Traufwand (≤ 45°, keine Gauben)".into();
+        // Dachhöhe und Neigung aus Gebäude/Geschosse (wie „Höhen übernehmen“).
+        w.dachart = if traufseite {
+            Dachart::Dachflaeche
         } else {
-            w.dachart = Dachart::Giebel;
-            w.dachneigung_b_grad = Some(DACHNEIGUNG);
-            w.dachgrundlage = format!(
-                "Giebeldreieck First − Traufe = {} m, beide Dachseiten 36°",
-                format!("{giebelhoehe:.2}").replace('.', ",")
-            );
+            Dachart::Giebel
+        };
+        w.dachhoehe_m = dach.dachhoehe_m;
+        w.dachneigung_grad = dach.neigung_grad;
+        if !traufseite {
+            w.dachneigung_b_grad = dach.neigung_grad;
         }
+        w.dachgrundlage = format!("Gebäude Wohnhaus: {}", dach.herleitung);
     }
     for (seite, name) in namen.iter().enumerate() {
         let w = wand_mut(&mut plan, UMRISS_GARAGE, seite);
@@ -553,14 +563,6 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         aktuell,
         "mit den ursprünglichen Gebäudehöhen wieder aktuell"
     );
-    b.ausbau(
-        "Abstandsflächen/Datenfluss: Aus Gebäude/Geschosse werden nur Gelände und Traufe angeboten (UI `traufeUebernehmen`/`hoehenUebernehmen`); \
-         Giebelhöhe (First − Traufe) und Dachneigung müssen je Giebelwand von Hand eingegeben werden, obwohl `first_m` im Gebäude vorliegt. \
-         Das Gebäudemodell (plattform/gebaeude.rs GebaeudeGeometrie) kennt weder Dachform noch Dachneigung noch Grundrissumriss; \
-         Umrissecken erhalten auch die Geländehöhe des Gebäudes nicht automatisch. Vorschlag: Dachform/-neigung im Gebäude führen und beim \
-         Umriss „Seiten als Wände übernehmen“ Dachart, Giebelhöhe und Eckgelände vorbelegen.",
-    );
-
     // --- 10. PDF (Druckausgabe), Ablage und Exporte ---
     b.neu_laden().await;
     let auftrag = Druckauftrag {

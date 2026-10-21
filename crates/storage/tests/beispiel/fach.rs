@@ -967,22 +967,47 @@ pub async fn fach(b: &mut Beispiel) {
         x_dg,
     );
     let mut raum_ids: BTreeMap<Uuid, Planraum> = BTreeMap::new();
+    // Schrägenstreifen „<Raum> – Schräge …“ sind Höhenzonen ihres Raums: Die
+    // Raummarkierung umfasst den Streifen, der Streifen wird als Zone gekennzeichnet.
+    let mut zonen: Vec<(Uuid, Uuid)> = Vec::new();
     for (o, liste, geschoss, aus) in [
         (O_KG, raeume_kg(), kg, x_kg),
         (O_EG, raeume_eg(), eg, x_eg),
         (O_DG, raeume_dg(), dg, x_dg),
     ] {
-        for r in liste {
+        let zone_von = |r: &Planraum, z: &Planraum| z.name.starts_with(&format!("{} – ", r.name));
+        for r in liste
+            .iter()
+            .filter(|r| !liste.iter().any(|e| zone_von(e, r)))
+        {
+            let mut ganz = r.clone();
+            for z in liste.iter().filter(|z| zone_von(r, z)) {
+                ganz.y0 = ganz.y0.min(z.y0);
+                ganz.y1 = ganz.y1.max(z.y1);
+            }
             let id = m(
                 e_raum,
                 r.name,
                 r.bedeutung,
-                rechteck(innen(o, r.x0, r.y0), innen(o, r.x1, r.y1)),
+                rechteck(innen(o, ganz.x0, ganz.y0), innen(o, ganz.x1, ganz.y1)),
                 Some(haus),
                 geschoss,
                 aus,
             );
-            raum_ids.insert(id, r);
+            for z in liste.iter().filter(|z| zone_von(r, z)) {
+                let zid = m(
+                    e_raum,
+                    z.name,
+                    z.bedeutung,
+                    rechteck(innen(o, z.x0, z.y0), innen(o, z.x1, z.y1)),
+                    Some(haus),
+                    geschoss,
+                    aus,
+                );
+                zonen.push((zid, id));
+                raum_ids.insert(zid, z.clone());
+            }
+            raum_ids.insert(id, ganz);
         }
     }
     let m_null = m(
@@ -1166,6 +1191,11 @@ pub async fn fach(b: &mut Beispiel) {
     };
 
     // Messwerte prüfen
+    for (zone, raum) in &zonen {
+        if let Some(z) = aufmass.markierungen.iter_mut().find(|x| x.id == *zone) {
+            z.hoehenzone_von = Some(*raum);
+        }
+    }
     let werte = b.c.planaufmass_pruefen(pid, &aufmass).await.unwrap();
     let wert = |id: Uuid| werte.iter().find(|w| w.id == id).unwrap().clone();
     for w in &werte {
@@ -1500,6 +1530,22 @@ pub async fn fach(b: &mut Beispiel) {
             if raum.nutzung.is_empty() || raum.nutzung == "Aufenthaltsraum" {
                 raum.nutzung = "Wohnen".into();
             }
+            // Schrägenstreifen zwischen den Linien 1,00 m und 2,00 m lichter Höhe.
+            for z in &mut raum.hoehenzonen {
+                assert!(nahe(z.flaeche_m2, flaeche(&raum_ids[&z.id])));
+                z.bezeichnung = "Schräge 1,00–2,00 m".into();
+                z.lichte_hoehe_min_m = Some(1.0);
+                z.lichte_hoehe_max_m = Some(2.0);
+            }
+        }
+        if kurz == "DG" {
+            let n: usize = r.raeume.iter().map(|x| x.hoehenzonen.len()).sum();
+            if r.raeume.len() != 6 || n != 5 {
+                b.befund(format!(
+                    "Raumbuch DG: {} Räume mit {n} Höhenzonen statt 6 Räume mit 5 Zonen",
+                    r.raeume.len()
+                ));
+            }
         }
         // Zweite Übernahme erhält Nummern/Höhen und erzeugt keine Dubletten.
         let r2 =
@@ -1518,9 +1564,6 @@ pub async fn fach(b: &mut Beispiel) {
             summen.volumen_m3.map(|v| (v * 100.).round() / 100.)
         ));
         raumbuecher.insert(kurz, rid);
-        if kurz == "DG" {
-            b.ausbau("Raumbuch/Planaufmaß kennen je Raum nur eine Fläche und eine Höhe. Für die WoFlV-Anrechnung der Dachschrägen (1–2 m zur Hälfte) müssen die DG-Räume als getrennte Teilräume „… – Schräge 1–2 m“ gezeichnet werden; diese erscheinen dann als eigene Räume im Raumbuch (11 statt 6 Räume), in der DIN 277 und in den Raumsummen. Es fehlen Höhenzonen/Teilflächen je Raum, die berechnung_aus_raumbuch als mehrere Positionen desselben Raums übergibt.");
-        }
     }
 
     // 4. Fachberechnungen ----------------------------------------------------
@@ -1662,7 +1705,15 @@ pub async fn fach(b: &mut Beispiel) {
     );
     let mut diele = String::new();
     for p in &mut pos {
-        let id: Uuid = p["id"].as_str().unwrap().parse().unwrap();
+        // Höhenzonen haben die ID „Raum_Zone“; maßgebend ist die Zone.
+        let id: Uuid = p["id"]
+            .as_str()
+            .unwrap()
+            .rsplit('_')
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
         let r = &raum_ids[&id];
         p["wohnung"] = json!("Wohnung 1 (Einfamilienhaus)");
         p["typ"] = json!(r.woflv.unwrap());
@@ -1692,7 +1743,7 @@ pub async fn fach(b: &mut Beispiel) {
     regel(
         &mut wp,
         "Wohnflächenverordnung (WoFlV) vom 25.11.2003, §§ 2–4",
-        "Geprüft E. Planer, 21.10.2026: Raumbuch EG/DG aus PDF-Aufmaß EP-01, Dachschrägen getrennt erfasst",
+        "Geprüft E. Planer, 21.10.2026: Raumbuch EG/DG aus PDF-Aufmaß EP-01, Dachschrägen als Höhenzonen erfasst",
     );
     let (wp, wr) = fach_sichern(b, wf_id, wp).await;
     let wohnflaeche = kennzahl(&wr, "wohnflaeche").unwrap();

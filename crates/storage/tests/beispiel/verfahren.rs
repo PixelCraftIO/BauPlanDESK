@@ -16,7 +16,7 @@ use super::basis::*;
 use bytes::Bytes;
 use chrono::NaiveDate;
 use core_lib::{
-    dokumentkategorien::{Dokumentkategorie, KategorieZuordnung},
+    dokumentkategorien::KategorieZuordnung,
     domain::DocumentVersion,
     formular::{
         editor::{EigenesPdfFeld, felder_hinzufuegen},
@@ -223,28 +223,19 @@ pub struct Dokumente {
     pub vollstaendigkeit: DocumentVersion,
 }
 
+/// Der Standardkatalog enthält alle im Beispiel verwendeten Kategorien.
 async fn kategorien_ergaenzen(b: &mut Beispiel) {
-    let mut k = b.c.kategorienkatalog().await.unwrap();
-    for (id, name) in [
-        ("grundbuch", "Grundbuchauszug"),
-        ("schriftverkehr", "Schriftverkehr Behörde"),
-        ("bescheinigung", "Bescheinigungen und Nachweise"),
-        ("entwaesserung", "Entwässerung"),
+    let k = b.c.kategorienkatalog().await.unwrap();
+    for id in [
+        "grundbuch",
+        "schriftverkehr",
+        "bescheinigung",
+        "entwaesserung",
     ] {
-        if k.kategorien.iter().any(|x| x.id == id) {
-            continue;
+        if k.kategorie(id).is_err() {
+            b.befund(format!("Standardkategorie „{id}“ fehlt"));
         }
-        k.kategorien.push(Dokumentkategorie {
-            id: id.into(),
-            name: name.into(),
-            eltern_id: None,
-            aktiv: true,
-        });
     }
-    b.c.kategorienkatalog_speichern(k, &b.system).await.unwrap();
-    b.ausbau(
-        "Dokumentkategorien: Der Standardkatalog kennt keine Kategorie für Grundbuchauszug, Behördenschreiben, Bescheinigungen (Kammer/Bauvorlageberechtigung) und Entwässerung, obwohl die XBau-Anlagenarten dafür eigene Codes haben (2008, 1003, 0401, 1806). Für das Beispiel als Bürokategorien ergänzt (crates/core-lib/src/dokumentkategorien.rs, KategorienKatalog::default).",
-    );
 }
 
 async fn dokumente_anlegen(b: &mut Beispiel) -> Dokumente {
@@ -923,14 +914,41 @@ async fn bauantrag(b: &mut Beispiel, anlagen: &[(&DocumentVersion, &str, &str)],
     antrag.entwurfsverfasser = Some(b.entwurfsverfasser);
     antrag.massnahmen = vec!["11".into()];
     antrag.grundstueck.anschrift = anschrift("Lindenweg", "12", "59999", "Musterstadt");
+    // Die Anlagenart folgt der Dokumentkategorie; gewählt wird nur, wo sie
+    // davon abweicht (z. B. amtlicher statt einfacher Lageplan).
+    let mut aus_kategorie = 0;
     antrag.anlagen = anlagen
         .iter()
-        .map(|(d, art, bez)| core_lib::xbau::Anlagenwahl {
-            dokument: d.document_id,
-            anlageart: (*art).into(),
-            bezeichnung: (*bez).into(),
+        .map(|(d, art, bez)| {
+            let vorschlag = alt
+                .anlagenart_vorschlaege
+                .get(&d.document_id.0.to_string())
+                .map(|v| v.anlageart.as_str());
+            if vorschlag == Some(*art) {
+                aus_kategorie += 1;
+            }
+            core_lib::xbau::Anlagenwahl {
+                dokument: d.document_id,
+                anlageart: if vorschlag == Some(*art) {
+                    String::new()
+                } else {
+                    (*art).into()
+                },
+                bezeichnung: (*bez).into(),
+            }
         })
         .collect();
+    if bewerten {
+        b.info(format!(
+            "Bauantrag: {aus_kategorie} von {} Anlagenarten aus der Dokumentkategorie, die übrigen gewählt.",
+            anlagen.len()
+        ));
+        if aus_kategorie < 5 {
+            b.befund(format!(
+                "Anlagenart-Vorschläge aus Dokumentkategorien: nur {aus_kategorie}"
+            ));
+        }
+    }
     let neu =
         b.c.bauantrag_speichern(b.p.id, antrag, alt.version, &b.u)
             .await
@@ -942,7 +960,7 @@ async fn bauantrag(b: &mut Beispiel, anlagen: &[(&DocumentVersion, &str, &str)],
         b.info(format!("Bauantrag Hinweis: {h}"));
     }
     if bewerten && neu.verfahrensarten.is_none() {
-        b.ausbau("Bauantrag: Für NRW ist keine Codeliste der Verfahrensarten (urn:xoev-de:xbau:nw:codeliste:verfahrensart) geladen; codelisten/ liefert keine Landesliste mit. Das vereinfachte Verfahren (§ 64 BauO NRW) kann daher nicht als xbau:verfahrensart übermittelt werden, und jeder Code wird mit „Codeliste fehlt“ abgelehnt.");
+        b.info("Bauantrag: Für NRW ist keine Landesliste der Verfahrensarten veröffentlicht; die XBau-Nachricht enthält keine Verfahrensart (optional). Eine Liste der Bauaufsicht ließe sich im Bauantrag einspielen.");
     }
     // Ohne geladene NRW-Codeliste nur ein informativer Hinweis, keine
     // unerfüllbare Aufforderung.
@@ -1140,7 +1158,6 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         (&d.grundbuch, "2008", "Grundbuchauszug Blatt 1234"),
     ];
     bauantrag(b, &anlagen, true).await;
-    b.ausbau("Anlagenart je Bauvorlage muss im Bauantrag gesondert gewählt werden; weder Dokumentkategorie (z. B. „lageplan“) noch Unterlagenregister oder Anforderung liefern einen Vorschlag (keine Zuordnung Kategorie → XBau-Anlageart, vgl. verfahren/abgabe.rs: anlageart nur aus Bauantrag.anlagen, sonst leer und Export-Fehler). Dieselbe Zuordnung wird damit viermal gepflegt.");
 
     // 8. Abgabestand mit XBau und Druck festhalten.
     let (rev, _) = akte(b, vid).await;
@@ -1439,26 +1456,42 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             "E-Mail-Anhang ohne Kategorie abgelegt (Kategorie der Nachricht wird nicht vererbt).",
         );
     }
-    b.ausbau(format!(
-        "E-Mail-Archiv → Verfahrensakte: Es gibt keinen Übernahmeweg wie xbau_in_verfahren; Datum ({}), Betreff und Absender der archivierten E-Mail müssen für die Kommunikation von Hand abgeschrieben werden (crates/core-lib/src/email.rs bietet nur archivierte_email/email_anhang_ablegen).",
-        gelesen.inhalt.datum.clone().unwrap_or_default()
-    ));
+    // E-Mail als Kommunikation in die Akte: Datum, Betreff, Absender, Text,
+    // Original und der bereits abgelegte Anhang kommen aus dem Archiv.
+    let (rev, _) = akte(b, vid).await;
+    let email = bezug(&mail);
+    if let Err(e) =
+        b.c.email_in_verfahren(b.p.id, email.clone(), vid, rev, true, None, &b.u)
+            .await
+    {
+        b.befund(format!("E-Mail in die Verfahrensakte übernehmen: {e}"));
+    }
+    let k_nf = core_lib::email::verfahren::kommunikation_id(&email);
     let (_, mut a) = akte(b, vid).await;
-    let k_nf = Uuid::new_v4();
+    match a.kommunikation.iter().find(|k| k.id == k_nf) {
+        Some(k) => {
+            if k.datum != tag("2026-10-08") || k.betreff != gelesen.inhalt.betreff {
+                b.befund(format!(
+                    "E-Mail-Übernahme: Datum {} / Betreff „{}“",
+                    k.datum, k.betreff
+                ));
+            }
+            if !k
+                .bezuege
+                .iter()
+                .any(|x| matches!(x, Bezug::Dokument { dokument } if dokument.dokument_id == ah.document_id))
+            {
+                b.befund("E-Mail-Übernahme: abgelegter Anhang nicht verknüpft");
+            }
+            b.info(format!(
+                "E-Mail übernommen: {} · {}",
+                k.datum,
+                k.beteiligte.replace('\n', " · ")
+            ));
+        }
+        None => b.befund("E-Mail-Übernahme: Kommunikation fehlt in der Akte"),
+    }
     let punkt = Uuid::new_v4();
-    a.kommunikation.push(Kommunikation {
-        id: k_nf,
-        art: Kommunikationsart::Email,
-        eingehend: true,
-        datum: tag("2026-10-08"),
-        betreff: gelesen.inhalt.betreff.clone(),
-        beteiligte: "Bauaufsicht Stadt Musterstadt <bauaufsicht@musterstadt.example>".into(),
-        inhalt: gelesen.inhalt.text.clone(),
-        original: Some(bezug(&mail)),
-        bezuege: vec![Bezug::Dokument {
-            dokument: bezug(&ah),
-        }],
-    });
     a.nachforderungen.push(Nachforderung {
         id: Uuid::new_v4(),
         kommunikation: k_nf,
@@ -1832,8 +1865,10 @@ fn xbau_plausibel(b: &mut Beispiel, xml: &str, d: &Dokumente) {
     if !enthaelt("vereinfacht") && !enthaelt("xbau:verfahrensart") {
         b.info("XBau-Antrag ohne Verfahrensart: Das vereinfachte Verfahren ist in der Nachricht nicht erkennbar.");
     }
-    if enthaelt("<xbau:nichtGelisteterWert>nicht angegeben</xbau:nichtGelisteterWert>") {
-        b.ausbau("XBau-Antrag: Fachrichtung des Tragwerksplaners wird als „nicht angegeben“ übermittelt; Projektbeteiligte (kunden::Projektbeteiligter) haben kein Feld für die Fachrichtung, obwohl die XBau-Codeliste beteiligterfachrichtung sie vorsieht (xbau/inhalt.rs weitere_beteiligte).");
+    // Tragwerksplaner mit Fachrichtung 1 (Tragwerksplanung/Standsicherheit).
+    let kompakt: String = xml.lines().map(str::trim).collect();
+    if !kompakt.contains("beteiligterfachrichtung\" listVersionID=\"3.0\"><code>1</code>") {
+        b.befund("XBau-Antrag: Fachrichtung des Tragwerksplaners (Code 1) fehlt");
     }
     // Anlagendatum: Plandatum der Dokumentdaten (Grundrisse 08.09., Lageplan 02.09.).
     assert!(enthaelt("<datum>2026-09-08</datum>") && enthaelt("<datum>2026-09-02</datum>"));

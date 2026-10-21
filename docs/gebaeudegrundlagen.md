@@ -18,6 +18,10 @@ OK Decke = OK Fertigfußboden + lichte Raumhöhe + Deckendicke. Die Deckendicke 
 
 Unterliegende Geschosse werden über IDs ausgewählt, niemals über Listenpositionen. Fremde und auf sich selbst verweisende Vergleichsgeschosse sind ungültig. Eine vollständige Höhenzone entsteht nur bei ausdrücklich bestätigter einheitlicher Raumhöhe über die gesamte Fläche. Für Dachschrägen werden eigene Höhenzonen im Nachweis erfasst.
 
+## Dach
+
+`GebaeudeGeometrie.dachform` (Flach-, Sattel-, Pult-, Walmdach, sonstige) und `dachneigung_grad` (0 bis unter 90°) sind optional. Ist eine Dachform erfasst, liefert `GebaeudeGrundlagen.dach` die Dachhöhe First − Traufe (Flachdach: 0 m) mit Herleitung; fehlende Neigung oder Höhen stehen unter `offen`. Beim Flachdach müssen Traufe (Attika) und First übereinstimmen. Die Anrechnung der Dachhöhe bleibt beim Verbraucher: Der Abstandsflächennachweis übernimmt mit „Höhen übernehmen“ Dachhöhe und Neigung für Giebel- und Dachflächenwände (Satteldach: beide Giebelseiten) und archiviert Dachform und Neigung im Nachweis. Ältere Gebäude ohne Dachangaben und ihre Nachweise bleiben unverändert.
+
 ## Verbraucher und Aktualität
 
 - **GRZ:** `Bauteil.gebaeude_id` bindet Fläche und Typ an das Gebäude. Die bestehende BauNVO-Engine bestimmt die Anrechnung. Das Gebäude muss eindeutig der aktuellen Grundstückseinheit zugeordnet sein. Dieselbe Gebäudegrundfläche darf je Einheit nur einmal verknüpft sein. Überlagerungen und Doppelungen mit manuellen Positionen müssen zusätzlich geprüft werden; Schnittflächen lassen sich ohne Geometrie nicht bestimmen.

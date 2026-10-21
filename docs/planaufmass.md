@@ -124,6 +124,17 @@ Raumnummer, Bezeichnung, Nutzung und Raumhöhe. Änderungen der Klassifikation
 sind deshalb im bestehenden Raum bewusst nachzuführen. Ein gelöschter Planraum
 wird nicht still im Raumbuch gelöscht; die fehlende Quelle muss geklärt werden.
 
+**Höhenzonen:** Eine Raumfläche lässt sich in den Eigenschaften als „Höhenzone
+von Raum …“ kennzeichnen (`Planmarkierung.hoehenzone_von`), z. B. der Streifen
+einer Dachschräge zwischen den Linien 1 m und 2 m lichter Höhe. Die Raum-
+markierung umfasst dabei die ganze Raumfläche. Die Übernahme legt die Zone
+mit Planbindung `raeume.<raum>.hoehenzonen.<zone>.flaeche_m2` im Raum an;
+eine früher als eigener Raum übernommene Fläche wird zur Zone und behält ihre
+Höhe als kleinste lichte Höhe. Die Wohnflächenübernahme bildet je Zone eine
+Position `Raum_Zone` mit der kleinsten lichten Höhe; DIN 277 zählt weiter eine
+Position je Raum. Der Bindungsstand enthält `hoehenzone_von` nur, wenn es
+gesetzt ist; bestehende Bindungen bleiben aktuell.
+
 Unter **Abstandsflächen → Grundlagen → PDF-Aufmaß verknüpfen** werden bestehende
 manuelle Wände als Ziel angeboten. Absolute Höhen benötigen dasselbe
 Höhensystem. Bereits vorhandene Gelände-/Oberkantenprofile müssen ausdrücklich

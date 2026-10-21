@@ -286,7 +286,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
     let p =
         b.c.beteiligte_setzen(
             b.p.id,
-            serde_json::from_value(json!([{"kunde": b.tragwerksplaner.id, "rolle": "fachplaner"}]))
+            serde_json::from_value(json!([{"kunde": b.tragwerksplaner.id, "rolle": "fachplaner", "fachrichtung": "Tragwerksplanung/Standsicherheit"}]))
                 .unwrap(),
             b.p.version,
             &b.u,
@@ -382,6 +382,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
         "bezeichnung": "Wohnhaus", "grundstueck_ids": [], "flurstueck_ids": ["fs-412"], "quelle": null,
         "geometrie": {"typ": "hauptanlage", "grundflaeche_m2": 99, "nullpunkt_m_nhn": NULLPUNKT_NHN,
             "gelaende_m": -0.3, "fundamentsohle_m": -3.1, "traufe_m": 4.2, "first_m": 7.45,
+            "dachform": "satteldach", "dachneigung_grad": 36,
             "herkunft": "Entwurfsplanung Planungsbüro Planer, Stand 10/2026"},
         "geschosse": [
             geschoss(b.kg, "KG", false, "§ 2 Abs. 6 BauO NRW: Deckenoberkante höchstens 1,60 m über Gelände", -2.8, 2.4, 0.3),
@@ -392,7 +393,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
     b.speichern(ObjektArt::Gebaeude, b.haus, haus).await;
     let garage = json!({
         "bezeichnung": "Garage", "grundstueck_ids": [], "flurstueck_ids": ["fs-412"], "quelle": null,
-        "geometrie": {"typ": "garage", "grundflaeche_m2": 21, "einzelgeschoss_vollgeschoss": false,
+        "geometrie": {"typ": "garage", "grundflaeche_m2": 21, "dachform": "flachdach", "einzelgeschoss_vollgeschoss": false,
             "einzelgeschoss_grundlage": "Garage ohne Aufenthaltsräume, lichte Höhe 2,50 m; kein Vollgeschoss im Sinne von § 20 BauNVO"},
         "geschosse": []
     });
