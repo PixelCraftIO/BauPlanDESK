@@ -652,9 +652,12 @@ impl CoreServices {
                     for e in &g.abweichungen {
                         match super::abweichungen::xbau_code(e, &codelisten) {
                             Some((uri, version, code))
-                                if matches!(a.art, Verfahrensart::Bauantrag
-                                    | Verfahrensart::Aenderungsantrag
-                                    | Verfahrensart::Nutzungsaenderung) =>
+                                if matches!(
+                                    a.art,
+                                    Verfahrensart::Bauantrag
+                                        | Verfahrensart::Aenderungsantrag
+                                        | Verfahrensart::Nutzungsaenderung
+                                ) =>
                             {
                                 liste.push(crate::xbau::BeantragteAbweichung {
                                     id: e.id,
@@ -678,12 +681,38 @@ impl CoreServices {
                                 });
                             }
                             Some(_) => {}
-                            None => hinweise.push(format!(
-                                "{} „{}“ steht nicht in der XBau-Nachricht: Codeliste {} einspielen oder Code wählen. Antrag und Begründung als Anlage beifügen.",
-                                e.art.bezeichnung(),
-                                e.gegenstand.trim(),
-                                e.art.codeliste()
-                            )),
+                            None => {
+                                let kandidaten =
+                                    super::abweichungen::xbau_code_kandidaten(e, &codelisten);
+                                let abhilfe = match codelisten.liste(e.art.codeliste()) {
+                                    None => format!(
+                                        "Codeliste {} einspielen oder Code wählen",
+                                        e.art.codeliste()
+                                    ),
+                                    Some(l) if kandidaten.is_empty() || kandidaten.len() > 5 => {
+                                        format!(
+                                            "Code aus der Codeliste {} {} wählen",
+                                            l.name, l.version
+                                        )
+                                    }
+                                    Some(l) => format!(
+                                        "Code aus der Codeliste {} {} wählen ({})",
+                                        l.name,
+                                        l.version,
+                                        kandidaten
+                                            .iter()
+                                            .map(|c| format!("{} {}", c.code, c.beschreibung))
+                                            .collect::<Vec<_>>()
+                                            .join("; ")
+                                    ),
+                                };
+                                hinweise.push(format!(
+                                    "{} „{}“ steht nicht in der XBau-Nachricht: {}. Antrag und Begründung als Anlage beifügen.",
+                                    e.art.bezeichnung(),
+                                    e.gegenstand.trim(),
+                                    abhilfe
+                                ))
+                            }
                         }
                     }
                     liste

@@ -1,7 +1,7 @@
 {
  "id": "landesrecht",
  "version": "2026-10-21",
- "hinweis": "Regelpaket ohne fachliche Abnahme. Die Verfahrenswahl nennt Bedingungen und Fundstellen und entscheidet nicht. Maßgebend ist die bei Antragseingang geltende Fassung der Landesbauordnung. Werte mit „geprueft: false“ stammen aus Gliederung, amtlichen Portalen oder Fachveröffentlichungen und sind am Gesetzestext zu prüfen.",
+ "hinweis": "Regelpaket ohne fachliche Abnahme. Die Verfahrenswahl nennt Bedingungen und Fundstellen und entscheidet nicht. Maßgebend ist die bei Antragseingang geltende Fassung der Landesbauordnung. Werte mit „geprueft: false“ stammen aus Gliederung, amtlichen Portalen oder Fachveröffentlichungen und sind am Gesetzestext zu prüfen. Stand der Quellenprüfung: docs/verfahrensakte/rechtspruefung-nrw.md.",
  "fassungen": [
   {
    "land": "NW",
@@ -44,7 +44,11 @@
      ]
     }
    ],
-   "fiktion": null
+   "fiktion": null,
+   "quellen": [
+    {"titel": "BauO NRW 2018, Fassung ab 01.01.2024 (spätere Änderungen vor 01.09.2026 nicht geprüft)", "url": "https://recht.nrw.de/lrgv/gesetz/01012024-bauordnung-fuer-das-land-nordrhein-westfalen-landesbauordnung-2018-bauo-nrw/", "abgerufen": null, "vermerk": "Abruf am 2026-10-21 gescheitert: recht.nrw.de lieferte nur die Platzhalterseite „Dieser Server ist in Vorbereitung!“, Unterseiten HTTP 404. URL aus der Suche, nicht bestätigt."},
+    {"titel": "BauPrüfVO NRW, Fassung 26.11.2024", "url": "https://recht.nrw.de/lrgv/rechtsverordnung/26112024-verordnung-ueber-bautechnische-pruefungen-baupruefvo-1/", "abgerufen": null, "vermerk": "Abruf am 2026-10-21 gescheitert: recht.nrw.de lieferte nur die Platzhalterseite „Dieser Server ist in Vorbereitung!“, Unterseiten HTTP 404. URL aus der Suche, nicht bestätigt."}
+   ]
   },
   {
    "land": "NW",
@@ -91,7 +95,12 @@
     "regulaer_monate": 3,
     "vereinfacht_wochen": 6,
     "hinweis": "Genehmigungsfiktion für Anträge, die ab 01.09.2026 eingehen; Frist ab Vollständigkeit. Abweichungen nach § 69 BauO NRW sind nur erfasst, soweit sie beantragt sind. Fristlängen laut Fachveröffentlichungen; Wortlaut und Fristbeginn im Gesetz prüfen."
-   }
+   },
+   "quellen": [
+    {"titel": "BauO NRW 2018, Fassung ab 01.09.2026 (zuletzt geändert durch Gesetz vom 21.07.2026, GV. NRW. S. 537)", "url": "https://recht.nrw.de/lrgv/gesetz/01092026-landesbauordnung-2018-bauo-nrw-2018/", "abgerufen": null, "vermerk": "Abruf am 2026-10-21 gescheitert: recht.nrw.de lieferte nur die Platzhalterseite „Dieser Server ist in Vorbereitung!“, Unterseiten HTTP 404. URL aus der Suche, nicht bestätigt."},
+    {"titel": "BauO NRW 2018, Fassung ab 01.09.2026, PDF", "url": "https://recht.nrw.de/system/files/pdf/state-law-and-regulations/2026/08/02/4c959a/01-09-2026-bauo-nrw-2018-landesbauordnung-2018.pdf", "abgerufen": null, "vermerk": "Abruf am 2026-10-21 gescheitert: recht.nrw.de lieferte nur die Platzhalterseite „Dieser Server ist in Vorbereitung!“, Unterseiten HTTP 404. URL aus der Suche, nicht bestätigt."},
+    {"titel": "BauPrüfVO NRW, Fassung 26.11.2024", "url": "https://recht.nrw.de/lrgv/rechtsverordnung/26112024-verordnung-ueber-bautechnische-pruefungen-baupruefvo-1/", "abgerufen": null, "vermerk": "Abruf am 2026-10-21 gescheitert: recht.nrw.de lieferte nur die Platzhalterseite „Dieser Server ist in Vorbereitung!“, Unterseiten HTTP 404. URL aus der Suche, nicht bestätigt."}
+   ]
   }
  ],
  "unterschriften": [

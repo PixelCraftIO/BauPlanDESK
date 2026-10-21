@@ -39,6 +39,10 @@ Vollständigkeitsdatum oder Prüfverfahren erscheint keine Fiktion.
 `gilt_bis`) die Verfahren mit Bedingungen und Fundstellen, die
 Genehmigungsfiktion und die Unterschriftsregeln. Hinterlegt sind die BauO NRW
 bis 31.08.2026 und ab 01.09.2026; beide Fassungen tragen `geprueft: false`.
+Je Fassung nennt `quellen` die amtlichen Textquellen mit dem Tag des letzten
+erfolgreichen Abrufs (`abgerufen`) und einem Vermerk. Fehlt der Abruf, sagt
+die Verfahrenswahl das. Stand der Prüfung:
+[Rechtsprüfung NRW](rechtspruefung-nrw.md).
 
 **Stammdaten → Verfahrenswahl** wertet Wohngebäude, Gebäudeklasse,
 Bebauungsplan, Erschließung, Sonderbau und geplante Abweichungen aus. Jedes
@@ -80,9 +84,11 @@ mehr braucht, wird als „entfallen“ markiert und nicht gelöscht.
 
 Gespeicherte Einträge bleiben unverändert (Wortlautschutz). Die Entscheidung der
 Behörde steht am Bescheid (`abweichungsentscheidungen`). Im XBau-Antrag gehen die
-Einträge mit Code aus der Codeliste `abweichungart` bzw.
-`erleichterung.gegenstand` mit. Fehlt die Codeliste, gibt die Abgabe einen
-Hinweis.
+Einträge mit Code aus der Codeliste `abweichungart` (mitgeliefert: 2.1) bzw.
+`erleichterung.gegenstand` (1.0) mit. Befreiung und Ausnahme erhalten den Code
+aus der Rechtsgrundlage; für Abweichungen nach Landesrecht und Erleichterungen
+wählt das Büro den Code. Fehlt er, nennt die Abgabe die möglichen Codes und
+der Eintrag geht als Anlage mit.
 
 ## Unterschriften
 
