@@ -55,7 +55,7 @@ pub fn lageplan_dxf() -> String {
 fn nah(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-6
 }
-fn wand_mut<'a>(p: &'a mut AbstandsPlan, umriss: Uuid, seite: usize) -> &'a mut AbstandsWand {
+fn wand_mut(p: &mut AbstandsPlan, umriss: Uuid, seite: usize) -> &mut AbstandsWand {
     p.waende
         .iter_mut()
         .find(|w| {
@@ -76,7 +76,7 @@ pub fn wand_id(p: &AbstandsPlan, umriss: Uuid, seite: usize) -> Uuid {
         .expect("Umrisswand")
         .id
 }
-fn ergebnis<'a>(r: &'a AbstandsErgebnis, id: Uuid) -> &'a WandErgebnis {
+fn ergebnis(r: &AbstandsErgebnis, id: Uuid) -> &WandErgebnis {
     r.waende.iter().find(|w| w.id == id).expect("Wandergebnis")
 }
 
@@ -553,7 +553,7 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         aktuell,
         "mit den ursprünglichen Gebäudehöhen wieder aktuell"
     );
-    b.befund(
+    b.ausbau(
         "Abstandsflächen/Datenfluss: Aus Gebäude/Geschosse werden nur Gelände und Traufe angeboten (UI `traufeUebernehmen`/`hoehenUebernehmen`); \
          Giebelhöhe (First − Traufe) und Dachneigung müssen je Giebelwand von Hand eingegeben werden, obwohl `first_m` im Gebäude vorliegt. \
          Das Gebäudemodell (plattform/gebaeude.rs GebaeudeGeometrie) kennt weder Dachform noch Dachneigung noch Grundrissumriss; \

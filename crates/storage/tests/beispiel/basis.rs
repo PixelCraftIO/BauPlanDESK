@@ -52,6 +52,8 @@ pub struct Beispiel {
     pub eg: Uuid,
     pub dg: Uuid,
     pub befunde: Vec<String>,
+    /// Funktionslücken ohne Fehler in Eintragung oder Ergebnis (Ausbauvorschläge).
+    pub ausbau: Vec<String>,
 }
 
 impl Beispiel {
@@ -61,6 +63,12 @@ impl Beispiel {
     /// Erwartete Information des Cores (kein Problem), nur zur Nachvollziehbarkeit.
     pub fn info(&self, text: impl Into<String>) {
         eprintln!("INFO: {}", text.into());
+    }
+    /// Fehlende Funktion, die den Ablauf erleichtern würde; das Ergebnis ist korrekt.
+    pub fn ausbau(&mut self, text: impl Into<String>) {
+        let t = text.into();
+        eprintln!("AUSBAU: {t}");
+        self.ausbau.push(t);
     }
     /// Problem bei Eintragung oder Berechnung, das behoben oder bewertet werden muss.
     pub fn befund(&mut self, text: impl Into<String>) {
@@ -267,6 +275,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
         eg: Uuid::new_v4(),
         dg: Uuid::new_v4(),
         befunde: vec![],
+        ausbau: vec![],
     };
     b.neu_laden().await;
     let p =

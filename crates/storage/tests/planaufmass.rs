@@ -884,7 +884,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
             x_schnitt,
         ),
     ];
-    let mut a = Planaufmass {
+    let a = Planaufmass {
         bezeichnung: "Grundriss und Schnitt".into(),
         dokument: dokument.clone(),
         seite: 1,

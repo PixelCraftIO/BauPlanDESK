@@ -73,8 +73,7 @@ fn pdf_text(s: &str) -> String {
         .replace('§', "Par.")
         .replace('²', "2")
         .replace('–', "-")
-        .replace('„', "\"")
-        .replace('“', "\"")
+        .replace(['„', '“'], "\"")
         .replace('\\', "\\\\")
         .replace('(', "\\(")
         .replace(')', "\\)")
@@ -243,7 +242,7 @@ async fn kategorien_ergaenzen(b: &mut Beispiel) {
         });
     }
     b.c.kategorienkatalog_speichern(k, &b.system).await.unwrap();
-    b.befund(
+    b.ausbau(
         "Dokumentkategorien: Der Standardkatalog kennt keine Kategorie für Grundbuchauszug, Behördenschreiben, Bescheinigungen (Kammer/Bauvorlageberechtigung) und Entwässerung, obwohl die XBau-Anlagenarten dafür eigene Codes haben (2008, 1003, 0401, 1806). Für das Beispiel als Bürokategorien ergänzt (crates/core-lib/src/dokumentkategorien.rs, KategorienKatalog::default).",
     );
 }
@@ -943,7 +942,7 @@ async fn bauantrag(b: &mut Beispiel, anlagen: &[(&DocumentVersion, &str, &str)],
         b.info(format!("Bauantrag Hinweis: {h}"));
     }
     if bewerten && neu.verfahrensarten.is_none() {
-        b.befund("Bauantrag: Für NRW ist keine Codeliste der Verfahrensarten (urn:xoev-de:xbau:nw:codeliste:verfahrensart) geladen; codelisten/ liefert keine Landesliste mit. Das vereinfachte Verfahren (§ 64 BauO NRW) kann daher nicht als xbau:verfahrensart übermittelt werden, und jeder Code wird mit „Codeliste fehlt“ abgelehnt.");
+        b.ausbau("Bauantrag: Für NRW ist keine Codeliste der Verfahrensarten (urn:xoev-de:xbau:nw:codeliste:verfahrensart) geladen; codelisten/ liefert keine Landesliste mit. Das vereinfachte Verfahren (§ 64 BauO NRW) kann daher nicht als xbau:verfahrensart übermittelt werden, und jeder Code wird mit „Codeliste fehlt“ abgelehnt.");
     }
     // Ohne geladene NRW-Codeliste nur ein informativer Hinweis, keine
     // unerfüllbare Aufforderung.
@@ -1141,7 +1140,7 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         (&d.grundbuch, "2008", "Grundbuchauszug Blatt 1234"),
     ];
     bauantrag(b, &anlagen, true).await;
-    b.befund("Anlagenart je Bauvorlage muss im Bauantrag gesondert gewählt werden; weder Dokumentkategorie (z. B. „lageplan“) noch Unterlagenregister oder Anforderung liefern einen Vorschlag (keine Zuordnung Kategorie → XBau-Anlageart, vgl. verfahren/abgabe.rs: anlageart nur aus Bauantrag.anlagen, sonst leer und Export-Fehler). Dieselbe Zuordnung wird damit viermal gepflegt.");
+    b.ausbau("Anlagenart je Bauvorlage muss im Bauantrag gesondert gewählt werden; weder Dokumentkategorie (z. B. „lageplan“) noch Unterlagenregister oder Anforderung liefern einen Vorschlag (keine Zuordnung Kategorie → XBau-Anlageart, vgl. verfahren/abgabe.rs: anlageart nur aus Bauantrag.anlagen, sonst leer und Export-Fehler). Dieselbe Zuordnung wird damit viermal gepflegt.");
 
     // 8. Abgabestand mit XBau und Druck festhalten.
     let (rev, _) = akte(b, vid).await;
@@ -1440,7 +1439,7 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             "E-Mail-Anhang ohne Kategorie abgelegt (Kategorie der Nachricht wird nicht vererbt).",
         );
     }
-    b.befund(format!(
+    b.ausbau(format!(
         "E-Mail-Archiv → Verfahrensakte: Es gibt keinen Übernahmeweg wie xbau_in_verfahren; Datum ({}), Betreff und Absender der archivierten E-Mail müssen für die Kommunikation von Hand abgeschrieben werden (crates/core-lib/src/email.rs bietet nur archivierte_email/email_anhang_ablegen).",
         gelesen.inhalt.datum.clone().unwrap_or_default()
     ));
@@ -1834,7 +1833,7 @@ fn xbau_plausibel(b: &mut Beispiel, xml: &str, d: &Dokumente) {
         b.info("XBau-Antrag ohne Verfahrensart: Das vereinfachte Verfahren ist in der Nachricht nicht erkennbar.");
     }
     if enthaelt("<xbau:nichtGelisteterWert>nicht angegeben</xbau:nichtGelisteterWert>") {
-        b.befund("XBau-Antrag: Fachrichtung des Tragwerksplaners wird als „nicht angegeben“ übermittelt; Projektbeteiligte (kunden::Projektbeteiligter) haben kein Feld für die Fachrichtung, obwohl die XBau-Codeliste beteiligterfachrichtung sie vorsieht (xbau/inhalt.rs weitere_beteiligte).");
+        b.ausbau("XBau-Antrag: Fachrichtung des Tragwerksplaners wird als „nicht angegeben“ übermittelt; Projektbeteiligte (kunden::Projektbeteiligter) haben kein Feld für die Fachrichtung, obwohl die XBau-Codeliste beteiligterfachrichtung sie vorsieht (xbau/inhalt.rs weitere_beteiligte).");
     }
     // Anlagendatum: Plandatum der Dokumentdaten (Grundrisse 08.09., Lageplan 02.09.).
     assert!(enthaelt("<datum>2026-09-08</datum>") && enthaelt("<datum>2026-09-02</datum>"));

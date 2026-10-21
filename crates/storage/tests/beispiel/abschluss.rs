@@ -67,7 +67,7 @@ pub async fn bauvorlagenpaket(b: &mut Beispiel) -> Vec<u8> {
     }
     let auftrag = Druckauftrag {
         gestaltung: None,
-        aktenzeichen: String::new(),
+        aktenzeichen: katalog.aktenzeichen.clone(),
         datum: Some(stichtag()),
         titel: "Bauvorlagen · Neubau Einfamilienhaus Mustermann".into(),
         absender: katalog.absender.clone(),
@@ -81,6 +81,9 @@ pub async fn bauvorlagenpaket(b: &mut Beispiel) -> Vec<u8> {
         projekt_version: b.p.version,
         quellen,
     };
+    if katalog.aktenzeichen.is_empty() {
+        b.info("Druckkatalog: kein Aktenzeichen (keine Verfahrensakte mit Aktenzeichen)");
+    }
     if katalog.aufgestellt_von.is_empty() {
         b.befund("Druckkatalog schlägt keine aufstellende Person vor (Entwurfsverfasserin im Bauantrag/Büro)");
     }
