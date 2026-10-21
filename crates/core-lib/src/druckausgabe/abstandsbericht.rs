@@ -241,18 +241,29 @@ pub(super) fn abstand(
                         )
                     },
                 ),
-                (
-                    "Dachansatz",
-                    if w.dachart == Dachart::Flach {
-                        "Kein zusätzlicher Dachhöhenanteil".into()
+                ("Dachansatz", {
+                    let grundlage = if w.dachgrundlage.trim().is_empty() {
+                        String::new()
                     } else {
-                        format!(
-                            "{} · manueller Faktor {}",
-                            w.dachgrundlage,
+                        format!("{} · ", w.dachgrundlage)
+                    };
+                    match w.dachart {
+                        Dachart::Flach => "Kein zusätzlicher Dachhöhenanteil".into(),
+                        // Faktor aus dem Regelpaket; Herleitung nennt Faktor und Quelle.
+                        Dachart::Dachflaeche => format!(
+                            "{grundlage}Dachflächenregel des Regelpakets · Dachanteil {} m",
+                            optional(e.dachanteil_m)
+                        ),
+                        Dachart::Giebel if p.regeln.giebel.is_some() => format!(
+                            "{grundlage}Giebelregel des Regelpakets · Dachanteil {} m",
+                            optional(e.dachanteil_m)
+                        ),
+                        _ => format!(
+                            "{grundlage}manueller Faktor {}",
                             optional(w.dachfaktor_manuell)
-                        )
-                    },
-                ),
+                        ),
+                    }
+                }),
                 (
                     "Wandhöhe / Dachanteil",
                     format!(

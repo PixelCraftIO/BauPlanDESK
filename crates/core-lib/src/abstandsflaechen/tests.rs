@@ -94,14 +94,14 @@ fn grenzgarage_zaehlt_nur_wandlaengen_an_der_grenze() {
     w.nutzung_geprueft = true;
     w.grenzkennung = "Sued".into();
     let grenze = w.clone();
-    for (i, (dx, dy)) in [(6., 3.5), (-6., 0.), (0., -3.5)].into_iter().enumerate() {
+    for (i, (dx, dy)) in [(0., 3.5), (-6., 0.), (0., -3.5)].into_iter().enumerate() {
         let mut a = grenze.clone();
         a.id = Uuid::from_u128(20 + i as u128);
         a.grenzkennung = String::new();
         a.von = p.waende.last().unwrap().bis.clone();
         a.bis = APunkt {
-            x: a.von.x + if dx == 6. { 0. } else { dx },
-            y: a.von.y + if dx == 6. { dy } else { dy },
+            x: a.von.x + dx,
+            y: a.von.y + dy,
         };
         p.waende.push(a);
     }
@@ -666,4 +666,48 @@ fn rechenstand_1_wird_unveraendert_wiederholt() {
     // Gleiche Geometrie wie im aktuellen Stand.
     assert_eq!(w.polygon, berechnen(&p).unwrap().waende[0].polygon);
     assert!(berechnen_stand(&p, "abstand-projekt-9").is_err());
+}
+
+#[test]
+fn alle_frueheren_rechenstaende_bleiben_wiederholbar() {
+    // Die Nachweiswiederholung akzeptiert nur RECHENSTAND und die kompatiblen
+    // Stände; jeder Vorgänger muss dort geführt sein.
+    let p = plan();
+    for stand in ["abstand-projekt-1", "abstand-projekt-2"] {
+        assert!(RECHENSTAENDE_KOMPATIBEL.contains(&stand), "{stand}");
+        assert_eq!(berechnen_stand(&p, stand).unwrap().rechenstand, stand);
+    }
+    let r = berechnen_stand(&p, "abstand-projekt-2").unwrap();
+    let h = &r.waende[0].herleitung;
+    assert!(h.iter().any(|h| h.starts_with("T = max(0.4 × H")), "{h:?}");
+    let r = berechnen(&p).unwrap();
+    assert!(
+        r.waende[0]
+            .herleitung
+            .iter()
+            .any(|h| h.starts_with("T = max(0,4 × H"))
+    );
+}
+
+#[test]
+fn projektabgleich_meldet_abweichendes_baugebiet_nur_ab_stand_3() {
+    let p = plan();
+    let mut recht = crate::domain::Planungsrecht::default();
+    recht.festgesetzte_werte.baugebiet = Some(crate::calc::Baugebiet::MK);
+    let mut r = berechnen(&p).unwrap();
+    assert!(r.vollstaendig);
+    projektabgleich(&p, &recht, &mut r);
+    assert!(!r.vollstaendig && !r.konfliktfrei);
+    assert!(
+        r.offen
+            .iter()
+            .any(|o| o.contains("Festsetzung des Projekts (MK)")),
+        "{:?}",
+        r.offen
+    );
+    // Archivierte ältere Stände bleiben unverändert wiederholbar.
+    let alt = berechnen_stand(&p, "abstand-projekt-2").unwrap();
+    let mut wiederholt = alt.clone();
+    projektabgleich(&p, &recht, &mut wiederholt);
+    assert_eq!(wiederholt, alt);
 }

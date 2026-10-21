@@ -238,7 +238,7 @@ pub(super) async fn erstellen(
                 warnung.push("VERALTET: Die zugrunde liegenden Angaben wurden nach der Berechnung geändert. Vor einer Einreichung neu berechnen.");
             }
             if !n.stand.vollstaendig {
-                warnung.push("UNVOLLSTÄNDIG: Offene Prüfpunkte sind unten ausgewiesen.");
+                warnung.push("UNVOLLSTÄNDIG: Offene Prüfpunkte und nicht abschließend bewertete Ergebnisse (z. B. Grenzfälle) sind unten ausgewiesen.");
             }
             if !warnung.is_empty() {
                 z.push(hinweis(warnung.join(" ")));
@@ -823,6 +823,44 @@ pub(super) async fn erstellen(
                         &[3., 1.],
                         docs.into_iter()
                             .map(|d| vec![d.file_name, format!("Version {}", d.version)])
+                            .collect(),
+                    ));
+                } else if r.format == crate::plattform::nachweise::ABSTANDSGEBAEUDE {
+                    let stand: std::collections::BTreeMap<
+                        String,
+                        Option<crate::plattform::nachweise::AbstandsGebaeudehoehen>,
+                    > = serde_json::from_str(&r.inhalt).map_err(fehler)?;
+                    let m = |v: Option<f64>| {
+                        v.map(|v| format!("{} m", zahl(v)))
+                            .unwrap_or_else(|| "–".into())
+                    };
+                    z.push(tabelle(
+                        &[
+                            "Verknüpftes Gebäude",
+                            "±0,00 in NHN",
+                            "Gelände (rel.)",
+                            "Traufe (rel.)",
+                            "First (rel.)",
+                        ],
+                        &[2., 1., 1., 1., 1.],
+                        stand
+                            .into_values()
+                            .map(|g| match g {
+                                Some(g) => vec![
+                                    g.bezeichnung,
+                                    m(g.nullpunkt_m_nhn),
+                                    m(g.gelaende_m),
+                                    m(g.traufe_m),
+                                    m(g.first_m),
+                                ],
+                                None => vec![
+                                    "Gebäude nicht mehr vorhanden".into(),
+                                    "–".into(),
+                                    "–".into(),
+                                    "–".into(),
+                                    "–".into(),
+                                ],
+                            })
                             .collect(),
                     ));
                 } else {

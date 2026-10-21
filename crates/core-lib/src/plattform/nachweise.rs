@@ -216,6 +216,59 @@ fn grundlagen(p: &Project, regeln: &[RegelArchiv]) -> CoreResult<ContentHash> {
     hash(&daten)
 }
 
+/// Höhenangaben eines im Abstandsplan verknüpften Gebäudes zum Berechnungszeitpunkt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct AbstandsGebaeudehoehen {
+    pub bezeichnung: String,
+    pub nullpunkt_m_nhn: Option<f64>,
+    pub gelaende_m: Option<f64>,
+    pub traufe_m: Option<f64>,
+    pub first_m: Option<f64>,
+}
+pub(crate) const ABSTANDSGEBAEUDE: &str = "abstandsgebaeude-json-1";
+/// Archiv der Gebäudehöhen, auf die sich die Umrisse und Wände eines Abstandsplans
+/// beziehen. Die Höhen sind im Plan nur Kopien; ändert sich ein verknüpftes Gebäude
+/// (oder fehlt es), ist der Nachweis veraltet. Ältere Nachweise ohne diesen Eintrag
+/// bleiben unverändert aktuell.
+fn abstandsgebaeude(
+    plan: &crate::abstandsflaechen::AbstandsPlan,
+    gebaeude: &[Fachstand],
+) -> CoreResult<RegelArchiv> {
+    let ids = plan
+        .umrisse
+        .iter()
+        .filter_map(|u| u.gebaeude_id)
+        .chain(plan.waende.iter().filter_map(|w| w.gebaeude_id))
+        .map(|id| id.to_string())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut stand = std::collections::BTreeMap::new();
+    for id in ids {
+        let g = gebaeude
+            .iter()
+            .find(|f| f.objekt == id)
+            .and_then(|f| serde_json::from_value::<super::objekte::Gebaeude>(f.daten.clone()).ok())
+            .map(|g| {
+                let geo = g.geometrie.unwrap_or_default();
+                AbstandsGebaeudehoehen {
+                    bezeichnung: g.bezeichnung,
+                    nullpunkt_m_nhn: geo.nullpunkt_m_nhn,
+                    gelaende_m: geo.gelaende_m,
+                    traufe_m: geo.traufe_m,
+                    first_m: geo.first_m,
+                }
+            });
+        stand.insert(id, g);
+    }
+    let inhalt = serde_json::to_string(&stand).map_err(json_err)?;
+    Ok(RegelArchiv {
+        id: "abstandsgebaeude".into(),
+        version: "1".into(),
+        sha256: ContentHash::of(inhalt.as_bytes()),
+        format: ABSTANDSGEBAEUDE.into(),
+        inhalt,
+        pruefstatus: "Höhenangaben der verknüpften Gebäude zum Berechnungszeitpunkt".into(),
+    })
+}
 fn grundlagen_fuer(
     p: &Project,
     regeln: &[RegelArchiv],
@@ -240,7 +293,7 @@ fn grundlagen_fuer(
             .collect::<Vec<_>>();
         infos.sort_by(|a, b| a.id.cmp(&b.id));
         hash(
-            &serde_json::json!({"land":p.bundesland,"flurstuecke":infos,"planrechtskontext":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft,&p.planungsrecht.ergaenzende_grundlage),"regeln":regeln.iter().filter(|r|r.format!="abstandsquellen-json-1").map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>()}),
+            &serde_json::json!({"land":p.bundesland,"flurstuecke":infos,"planrechtskontext":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft,&p.planungsrecht.ergaenzende_grundlage),"regeln":regeln.iter().filter(|r|r.format!="abstandsquellen-json-1"&&r.format!=ABSTANDSGEBAEUDE).map(|r|(&r.id,&r.version,&r.sha256)).collect::<Vec<_>>()}),
         )
     } else {
         grundlagen(p, regeln)
@@ -258,7 +311,8 @@ fn auswerten(
             Ok((serde_json::to_value(r).map_err(json_err)?, voll))
         }
         NachweisEingabe::AbstandProjekt { plan, .. } => {
-            let r = crate::abstandsflaechen::berechnen(plan)?;
+            let mut r = crate::abstandsflaechen::berechnen(plan)?;
+            crate::abstandsflaechen::projektabgleich(plan, &p.planungsrecht, &mut r);
             let voll = r.vollstaendig && r.konfliktfrei;
             Ok((serde_json::to_value(r).map_err(json_err)?, voll))
         }
@@ -434,6 +488,8 @@ impl CoreServices {
                 inhalt,
                 pruefstatus: "Originalquellen mit konkreten Dateiversionen und SHA-256".into(),
             });
+            let gebaeude = self.repos.commit.fachstaende(pid, "gebaeude").await?;
+            regeln.push(abstandsgebaeude(plan, &gebaeude)?);
         }
         let grundlagen_hash = grundlagen_fuer(&p, &regeln, &eingabe)?;
         let (ergebnis, vollstaendig) = auswerten(self, &p, &eingabe)?;
@@ -559,6 +615,14 @@ impl CoreServices {
                         }
                         NachweisEingabe::AbstandProjekt { objekt, plan } => {
                             abstandsquellen.get(&objekt.to_string()) == Some(&true)
+                                && stand
+                                    .regeln
+                                    .iter()
+                                    .filter(|r| r.format == ABSTANDSGEBAEUDE)
+                                    .all(|r| {
+                                        abstandsgebaeude(plan, &gebaeude)
+                                            .is_ok_and(|a| a.sha256 == r.sha256)
+                                    })
                                 && abstandsplaene
                                     .iter()
                                     .find(|f| f.objekt == objekt.to_string())
@@ -791,8 +855,9 @@ impl CoreServices {
                         "Archivierter Rechen-/Regelstand passt nicht zum verfügbaren Kern".into(),
                     ));
                 }
-                serde_json::to_value(crate::abstandsflaechen::berechnen_stand(plan, stand)?)
-                    .map_err(json_err)
+                let mut r = crate::abstandsflaechen::berechnen_stand(plan, stand)?;
+                crate::abstandsflaechen::projektabgleich(plan, &p.planungsrecht, &mut r);
+                serde_json::to_value(r).map_err(json_err)
             }
             NachweisEingabe::Abstand { eingabe, .. } => {
                 let engine = LboEngine::new();

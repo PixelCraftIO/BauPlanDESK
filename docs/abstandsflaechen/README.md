@@ -258,10 +258,25 @@ als Grenzfall; jede messbare Überschreitung bleibt Konflikt. Bei Grenzgaragen u
 anderen Grenzanlagen zählen nur Wände mit Grenzkennung zur Längensumme; Wände
 derselben Anlage ohne Grenzkennung (z. B. die Stirnseite zur Straße) sind als Teil
 der privilegierten Anlage abstandsfrei, werden also weder doppelt gezählt noch
-einzeln als Konflikt geführt. Nachweise mit `abstand-projekt-1` und `-2`
-wiederholt `berechnen_stand` unverändert; sie werden durch den neuen Stand als
-veraltet erkannt und können neu berechnet werden. Vertrag und gespeicherte Pläne
-ändern sich nicht.
+einzeln als Konflikt geführt. Herleitungen verwenden einheitlich Dezimalkomma
+(höchstens drei Nachkommastellen). Nachweise mit `abstand-projekt-1` und `-2`
+bleiben archiviert und wiederholt `berechnen_stand` unverändert
+(`RECHENSTAENDE_KOMPATIBEL`); ein neu erstellter Nachweis rechnet mit Stand 3.
+Vertrag und gespeicherte Pläne ändern sich nicht.
+
+Neue Abstandsnachweise archivieren zusätzlich die Höhenangaben der im Plan
+verknüpften Gebäude (`abstandsgebaeude-json-1`: Bezeichnung, ±0,00 in NHN,
+Gelände, Traufe, First). Ändern sich diese Angaben oder fehlt ein Gebäude, gilt
+der Nachweis als veraltet; die PDF-Ausgabe weist die archivierten Höhen aus.
+Ältere Nachweise ohne diesen Eintrag sind davon nicht betroffen.
+
+Ab Stand 3 gleicht `projektabgleich` den Plan mit dem Planungsrecht des Projekts
+ab: Ein Baugebiet, das von der Festsetzung (`festgesetzte_werte.baugebiet`)
+abweicht, und eine Grenze eines Vorhabengrundstücks, deren Fläche mehr als 2 %
+von der Katasterfläche der zugeordneten Flurstücke abweicht, sind offene Punkte
+(Plan unvollständig). Der Abgleich nutzt nur den im Nachweis archivierten
+Rechtskontext und läuft bei der Prüfung, der Nachweiserstellung und der
+Wiederholung gleich; ältere Stände bleiben unberührt.
 
 Die Planskizzen- und Abwicklungsblätter verwenden WinAnsi-kodierten Text
 (Umlaute statt Umschreibungen).

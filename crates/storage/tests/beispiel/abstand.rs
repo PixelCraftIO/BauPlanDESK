@@ -426,18 +426,15 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
     // --- 7. Proben: Werden widersprüchliche Eingaben bemerkt? (nicht gespeichert) ---
     let mut probe = plan.clone();
     probe.recht.gebiet = "MK".into();
-    if let Ok(pr) = b.c.abstandsplan_pruefen(pid, &probe).await
-        && pr
-            .waende
+    let pr = b.c.abstandsplan_pruefen(pid, &probe).await.unwrap();
+    assert!(
+        pr.offen
             .iter()
-            .all(|w| !w.offen.iter().any(|o| o.contains("Baugebiet")))
-    {
-        b.befund(
-            "Abstandsflächen: Baugebiet im Abstandsplan (Freitext „MK“) wird nicht mit der Festsetzung des Projekts (WA, Bebauungsplan Nr. 42) \
-             abgeglichen; der Core rechnet still mit 0,25 H statt 0,4 H (service.rs `abstandsplan_pruefen` prüft nur Flurstück-IDs). \
-             Vorschlag: Gebiet aus `festgesetzte_werte.baugebiet` vorbelegen und Abweichung als offenen Punkt melden.",
-        );
-    }
+            .any(|o| o.contains("Festsetzung des Projekts (WA)")),
+        "{:?}",
+        pr.offen
+    );
+    assert!(!pr.vollstaendig);
     let mut probe = plan.clone();
     probe.grundstuecke[0].grenze = vec![
         APunkt { x: 0., y: 0. },
@@ -445,20 +442,12 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         APunkt { x: 20., y: 30. },
         APunkt { x: 0., y: 30. },
     ];
-    if let Ok(pr) = b.c.abstandsplan_pruefen(pid, &probe).await
-        && pr.offen.is_empty()
-        && pr.waende.iter().all(|w| {
-            !w.offen
-                .iter()
-                .any(|o| o.contains("Fläche") || o.contains("Flurstück"))
-        })
-    {
-        b.befund(
-            "Abstandsflächen: Grundstücksgrenze mit 600 m² wird für Flurstück 412 (Kataster 620 m²) ohne Hinweis akzeptiert; die Flurstücksfläche \
-             aus Grundstücksinformationen wird nicht gegen die Grenzgeometrie geprüft (service.rs:20–29 prüft nur die Existenz der Flurstücks-ID). \
-             Vorschlag: Abweichung > 1–2 % als offenen Prüfpunkt ausgeben.",
-        );
-    }
+    let pr = b.c.abstandsplan_pruefen(pid, &probe).await.unwrap();
+    assert!(
+        pr.offen.iter().any(|o| o.contains("Katasterfläche 620 m²")),
+        "{:?}",
+        pr.offen
+    );
     let mut probe = plan.clone();
     for u in &mut probe.umrisse {
         u.grundstueck_id = Some(G411);
@@ -541,16 +530,24 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
             .find(|a| a.stand.id == n.id)
             .unwrap()
             .aktuell;
-    if aktuell {
-        b.befund(
-            "Abstandsflächen: Nach Änderung der Traufhöhe des verknüpften Gebäudes „Wohnhaus“ (4,20 → 4,60 m) bleibt der Abstandsnachweis „aktuell“. \
-             Umrisse tragen `gebaeude_id`, die Oberkante ist aber nur eine Kopie; nachweise.rs:556–571 prüft für AbstandProjekt nur Plan-Hash und \
-             Quelldokumente, nicht die Gebäudestände. Vorschlag: übernommene Gebäudehöhen (Traufe/First/Gelände) mit Gebäuderevision im Plan führen \
-             und bei Abweichung veralten bzw. im Plan einen offenen Punkt „Gebäudehöhen geändert“ melden.",
-        );
-    }
+    assert!(
+        !aktuell,
+        "Abstandsnachweis veraltet nach Änderung der Gebäudehöhen"
+    );
     b.speichern(ObjektArt::Gebaeude, b.haus, gf.daten.clone())
         .await; // Basisstand wiederherstellen
+    let aktuell =
+        b.c.nachweise(pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|a| a.stand.id == n.id)
+            .unwrap()
+            .aktuell;
+    assert!(
+        aktuell,
+        "mit den ursprünglichen Gebäudehöhen wieder aktuell"
+    );
     b.befund(
         "Abstandsflächen/Datenfluss: Aus Gebäude/Geschosse werden nur Gelände und Traufe angeboten (UI `traufeUebernehmen`/`hoehenUebernehmen`); \
          Giebelhöhe (First − Traufe) und Dachneigung müssen je Giebelwand von Hand eingegeben werden, obwohl `first_m` im Gebäude vorliegt. \
@@ -587,31 +584,13 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
     eprintln!("  PDF Abstandsflächennachweis: {} Seiten", seiten.len());
     assert!(seiten.iter().any(|s| s.contains("Wandabwicklungen")));
     assert!(seiten.last().unwrap().contains("W8"));
-    // Text der Berichtsseiten ist im PDF-Strom nicht im Klartext; geprüft mit pdftotext.
-    if plan.regeln.giebel.is_some()
-        && plan
-            .waende
-            .iter()
-            .any(|w| w.dachart == Dachart::Giebel && w.dachfaktor_manuell.is_none())
-    {
-        b.befund(
-            "Abstandsflächen/PDF: Die Zeile „Dachansatz“ lautet bei jeder geneigten Dachart „<Dachgrundlage> · manueller Faktor Nicht ermittelt“ – \
-             auch für Giebelwände mit automatischer Giebelregel (Faktor 1/3) und für Traufwände (Faktor 0). Das liest sich wie ein fehlender Wert. \
-             Ursache druckausgabe/abstandsbericht.rs:245–253. Vorschlag: angewandten Faktor und Regelquelle aus dem Ergebnis ausgeben, \
-             „manueller Faktor“ nur bei Dachart Manuell bzw. Giebel ohne Giebelregel.",
-        );
-    }
-    if r.waende
-        .iter()
-        .flat_map(|w| &w.herleitung)
-        .any(|h| h.starts_with("T = max(0.4") || h.starts_with("Dachfläche: 3.25"))
-    {
-        b.befund(
-            "Abstandsflächen/Herleitung: Gemischte Dezimalschreibweise im Nachweis – „Dachfläche: 3.25 m × 0 bei 38°“ und „T = max(0.4 × H, 3 m)“ \
-             mit Punkt, übrige Zeilen mit Komma (4,5 m; 0,333). Ursache abstandsflaechen/mod.rs:868–872, 994–997, 1054, 1076–1078 formatieren mit \
-             `{}` statt `hoehen::zahl`. Ungerundete Werte (z. B. Garagenwandhöhe 2,799999999999997 aus 75,14 − 72,34) würden so ebenfalls \
-             ungekürzt erscheinen.",
-        );
+    if r.waende.iter().flat_map(|w| &w.herleitung).any(|h| {
+        h.contains("0000000")
+            || h.contains("9999999")
+            || h.starts_with("T = max(0.")
+            || h.starts_with("Dachfläche: 3.")
+    }) {
+        b.befund("Abstandsflächen/Herleitung: Dezimalschreibweise uneinheitlich oder ungerundet.");
     }
     if !n.vollstaendig && r.offen.is_empty() && r.waende.iter().all(|w| w.offen.is_empty()) {
         b.befund(
