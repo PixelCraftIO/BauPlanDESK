@@ -26,10 +26,20 @@
     sonderbau = $state("ungeklaert"),
     nutzung = $state(""),
     katalog = $state<Anforderungskatalog | null>(null),
+    kataloge = $state<Anforderungskatalog[]>([]),
     fehler = $state("");
   onMount(async () => {
     try {
-      katalog = await verfahrenApi.profil();
+      kataloge = (await verfahrenApi.kataloge().catch(() => [])).filter(
+        (k) =>
+          (!k.bundesland || k.bundesland === projekt.bundesland) &&
+          (!k.art || k.art === art),
+      );
+      // Ein Landespaket für das Bundesland des Projekts geht vor.
+      katalog =
+        kataloge.find((k) => k.bundesland === projekt.bundesland) ??
+        kataloge[0] ??
+        (await verfahrenApi.profil());
       if (stand) {
         klasse = stand.vorhaben.gebaeudeklasse ?? undefined;
         sonderbau =
@@ -75,7 +85,17 @@
         >Ja</option
       ><option value="false">Nein</option></select
     ></label
-  ><label>Nutzung<input maxlength="500" bind:value={nutzung} /></label><label
+  ><label>Nutzung<input maxlength="500" bind:value={nutzung} /></label
+  >{#if kataloge.length > 1}<label
+      >Katalog<select
+        value={katalog?.id ?? ""}
+        onchange={(e) =>
+          (katalog =
+            kataloge.find((k) => k.id === e.currentTarget.value) ?? katalog)}
+        >{#each kataloge as k (k.id)}<option value={k.id}>{k.titel}</option
+          >{/each}</select
+      ></label
+    >{/if}<label
     >Eigenen Katalog laden<input
       type="file"
       accept=".json"

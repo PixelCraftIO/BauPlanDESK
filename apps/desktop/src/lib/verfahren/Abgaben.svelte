@@ -6,8 +6,10 @@
     Abgabewunsch,
     Behoerde,
     Dokumentbezug,
+    Folgewunsch,
     Nachrichtenstand,
     Planunterlage,
+    Verfahrensschritt,
   } from "../generated/plattform";
   import { xbau as xbauApi } from "../xbau/api";
   import Dokumentliste from "./Dokumentliste.svelte";
@@ -26,6 +28,7 @@
     gespeichert = [],
     portalZiele = {},
     onportal,
+    schritte = [],
   }: {
     eintraege: Abgabestand[];
     dateien: DocumentVersion[];
@@ -39,7 +42,45 @@
     gespeichert?: Abgabestand[];
     portalZiele?: Record<string, string>;
     onportal?: (abgabe: string) => void;
+    /** Verfahrensschritte der Akte; Anhörungen erlauben eine Stellungnahme (0204). */
+    schritte?: Verfahrensschritt[];
   } = $props();
+  const anhoerungen = $derived(schritte.filter((s) => s.art === "anhoerung"));
+  // Folgenachricht statt Antrag: Art und ihre besonderen Angaben.
+  let folgeDatum = $state(heute()),
+    folgeBis = $state(""),
+    pruefungStandsicherheit = $state(false),
+    standsicherheit = $state(false),
+    brandschutz = $state(false),
+    wiederkehrend = $state(false);
+  function folgewunsch(wahl: string): Folgewunsch | undefined {
+    const [art, schritt] = wahl.split(":").slice(1);
+    switch (art) {
+      case "stellungnahme":
+        return { art: "stellungnahme", schritt };
+      case "abweichungsantrag":
+        return { art: "abweichungsantrag" };
+      case "verlaengerung":
+        return { art: "verlaengerung", bis: folgeBis || null };
+      case "baubeginn":
+        return {
+          art: "baubeginn",
+          datum: folgeDatum,
+          pruefung_standsicherheit: pruefungStandsicherheit,
+        };
+      case "nutzungsaufnahme":
+        return {
+          art: "nutzungsaufnahme",
+          datum: folgeDatum,
+          standsicherheit_bescheinigt: standsicherheit,
+          brandschutz_bescheinigt: brandschutz,
+          wiederkehrende_pruefungen: wiederkehrend,
+        };
+      case "ruecknahme":
+        return { art: "ruecknahme" };
+    }
+    return undefined;
+  }
   let titel = $state("Bauantragsunterlagen"),
     dokumente = $state<Dokumentbezug[]>([]),
     xbau = $state(false),
@@ -81,14 +122,26 @@
   let fingerprint = "",
     vorgang = "";
   async function festhalten() {
-    const bezug = xbau && xbauBezug ? xbauBezug : undefined;
-    const q = JSON.stringify([titel, dokumente, xbau, bezug, druck, anschreiben]);
+    const folge =
+      xbau && xbauBezug.startsWith("folge:") ? folgewunsch(xbauBezug) : undefined;
+    const bezug =
+      xbau && xbauBezug && !folge ? xbauBezug : undefined;
+    const q = JSON.stringify([
+      titel,
+      dokumente,
+      xbau,
+      bezug,
+      folge,
+      druck,
+      anschreiben,
+    ]);
     if (q !== fingerprint) {
       fingerprint = q;
       vorgang = crypto.randomUUID();
     }
     await onfesthalten({
       xbau_bezug: bezug,
+      xbau_folge: folge,
       id: vorgang,
       titel,
       dokumente: structuredClone($state.snapshot(dokumente)),
@@ -159,9 +212,49 @@
               0,
               8,
             )}</option
-          >{/each}</select
+          >{/each}{#each anhoerungen as a (a.id)}<option
+            value={`folge:stellungnahme:${a.id}`}
+            >Stellungnahme zur Anhörung{a.frist ? ` (Frist ${a.frist.datum})` : ""}</option
+          >{/each}<option value="folge:abweichungsantrag"
+          >Antrag auf Abweichung (isoliert)</option
+        ><option value="folge:verlaengerung"
+          >Antrag auf Verlängerung der Geltungsdauer</option
+        ><option value="folge:baubeginn">Baubeginnsanzeige</option><option
+          value="folge:nutzungsaufnahme">Anzeige der Nutzungsaufnahme</option
+        ><option value="folge:ruecknahme">Rücknahme des Antrags</option></select
       ></label
-    >{/if}<label
+    >{#if xbauBezug === "folge:verlaengerung"}<label
+        >Verlängerung bis (optional)<input
+          type="date"
+          bind:value={folgeBis}
+        /></label
+      >{:else if xbauBezug === "folge:baubeginn" || xbauBezug === "folge:nutzungsaufnahme"}<label
+        >{xbauBezug === "folge:baubeginn"
+          ? "Baubeginn am"
+          : "Nutzungsaufnahme am"}<input
+          type="date"
+          bind:value={folgeDatum}
+        /></label
+      >{/if}{#if xbauBezug === "folge:baubeginn"}<label class="haken"
+        ><input type="checkbox" bind:checked={pruefungStandsicherheit} />Prüfung
+        des Standsicherheitsnachweises erforderlich (Erklärung des
+        Tragwerksplaners)</label
+      >{:else if xbauBezug === "folge:nutzungsaufnahme"}<label class="haken"
+        ><input type="checkbox" bind:checked={standsicherheit} />Standsicherheit
+        bescheinigt</label
+      ><label class="haken"
+        ><input type="checkbox" bind:checked={brandschutz} />Brandschutz
+        bescheinigt</label
+      ><label class="haken"
+        ><input type="checkbox" bind:checked={wiederkehrend} />Wiederkehrende
+        Prüfungen erforderlich</label
+      >{:else if xbauBezug === "folge:ruecknahme"}<p class="meta">
+        Die Erklärung der Rücknahme steht im Anschreiben.
+      </p>{:else if xbauBezug.startsWith("folge:stellungnahme")}<p class="meta">
+        Die Stellungnahme besteht aus den Reaktionen zu den Beanstandungen der
+        Anhörung (Register Behördliche Schritte); ohne Beanstandungen aus dem
+        Anschreiben.
+      </p>{/if}{/if}<label
     ><input type="checkbox" bind:checked={druck} />Druck-PDF mit
     Inhaltsverzeichnis zusätzlich erzeugen (druckbare Dateien)</label
   ><label

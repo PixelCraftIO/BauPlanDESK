@@ -1,5 +1,6 @@
 <script lang="ts">
   import type {
+    Abweichung,
     Kommunikation,
     Schrittart,
     Verfahrensschritt,
@@ -13,14 +14,29 @@
     kommunikation,
     dateien,
     benutzer,
+    abweichungen = [],
     alt = [],
+    gruendeAlt = [],
   }: {
     eintraege: Verfahrensschritt[];
     kommunikation: Kommunikation[];
     dateien: DocumentVersion[];
     benutzer: Benutzer[];
+    abweichungen?: Abweichung[];
     alt?: string[];
+    /** Gespeicherte Beanstandungen; ihr Wortlaut bleibt laut Core unverändert. */
+    gruendeAlt?: string[];
   } = $props();
+  let neuerGrund = $state<Record<string, string>>({});
+  function grund(v: Verfahrensschritt) {
+    const text = neuerGrund[v.id]?.trim();
+    if (!text) return;
+    v.gruende = [
+      ...(v.gruende ?? []),
+      { id: crypto.randomUUID(), text, grundlage: "", reaktion: "" },
+    ];
+    neuerGrund[v.id] = "";
+  }
   // Ältere Akten führen noch keine Verfahrensschritte.
   eintraege ??= [];
   const eingehend = $derived(kommunikation.filter((k) => k.eingehend));
@@ -113,6 +129,54 @@
           ></label
         >{/if}<Zustaendigkeit {benutzer} bind:wert={v.verantwortlich} />
     </div>
+    {#if v.art === "anhoerung"}<h4>Beanstandungen und Reaktion</h4>
+      {#each v.gruende ?? [] as g (g.id)}<div class="beanstandung">
+          <p>
+            <strong>{g.text}</strong>{#if g.grundlage}<span class="meta">
+                · {g.grundlage}</span
+              >{/if}
+          </p>
+          <div class="raster">
+            <label
+              >Reaktion (Stellungnahme, Planänderung …)<textarea
+                rows="2"
+                maxlength="16000"
+                bind:value={g.reaktion}
+              ></textarea></label
+            ><label
+              >Mit Abweichungsantrag<select
+                value={g.abweichung ?? ""}
+                onchange={(e) =>
+                  (g.abweichung = e.currentTarget.value || undefined)}
+                ><option value="">Keiner</option
+                >{#each abweichungen as e (e.id)}<option value={e.id}
+                    >{e.gegenstand || e.vorschrift}</option
+                  >{/each}</select
+              ></label
+            >
+          </div>
+          {#if !gruendeAlt.includes(g.id)}<button
+              type="button"
+              class="link"
+              onclick={() =>
+                (v.gruende = (v.gruende ?? []).filter((n) => n.id !== g.id))}
+              >Noch nicht gespeicherte Beanstandung verwerfen</button
+            >{/if}
+        </div>{/each}
+      <div class="raster">
+        <label
+          >Weitere Beanstandung (Wortlaut der Behörde)<input
+            maxlength="4000"
+            bind:value={neuerGrund[v.id]}
+          /></label
+        >
+      </div>
+      <button
+        type="button"
+        class="sekundaer"
+        disabled={!neuerGrund[v.id]?.trim()}
+        onclick={() => grund(v)}>Beanstandung erfassen</button
+      >{/if}
     {#if v.art === "zurueckstellung"}<p class="meta">
         Die Wiedervorlage endet mit dem Fristende oder einem Folgeschreiben der
         Behörde; danach steht ihre Entscheidung aus.

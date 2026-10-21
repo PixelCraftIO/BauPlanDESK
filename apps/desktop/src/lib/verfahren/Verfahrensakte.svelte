@@ -18,6 +18,7 @@
     Berichtigungsgegenstand,
     Ereignisart,
     ExterneEinreichungswunsch,
+    Verfahrensart,
   } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
@@ -36,6 +37,13 @@
   import Kommunikation from "./Kommunikation.svelte";
   import Nachforderungen from "./Nachforderungen.svelte";
   import Bescheide from "./Bescheide.svelte";
+  import Abweichungsantraege from "./Abweichungsantraege.svelte";
+  import Gebuehren from "./Gebuehren.svelte";
+  import Verfahrenswahl from "./Verfahrenswahl.svelte";
+  import Unterschriften from "./Unterschriften.svelte";
+  import Schreiben from "./Schreiben.svelte";
+  import Lage from "./Lage.svelte";
+  import Bauausfuehrung from "./Bauausfuehrung.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -176,6 +184,30 @@
       s.laeuft = false;
     }
   }
+  /** Legt ein Folgeverfahren an und öffnet es. */
+  async function folgeverfahren(art: Verfahrensart, bezeichnung: string) {
+    if (!(await s.speichern())) return;
+    s.laeuft = true;
+    s.fehler = null;
+    try {
+      const f = await verfahrenApi.folgeverfahren(projekt.id, s.id!, {
+        id: crypto.randomUUID(),
+        art,
+        bezeichnung,
+      });
+      await s.laden();
+      const neu = s.liste.find((n) => n.objekt === f.objekt);
+      if (neu) {
+        s.verwerfen();
+        s.bearbeiten(neu);
+        tab = "stamm";
+      }
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    } finally {
+      s.laeuft = false;
+    }
+  }
   const festhalten = (w: Abgabewunsch) =>
     aktion((b) => verfahrenApi.abgabe(projekt.id, s.id!, b, w));
   async function extern(w: ExterneEinreichungswunsch) {
@@ -190,11 +222,15 @@
     ["stamm", "Verfahren"],
     ["profil", "Vorhabenprofil"],
     ["anforderungen", "Anforderungen"],
+    ["abweichungen", "Abweichungen / Befreiungen"],
+    ["unterschriften", "Unterschriften"],
     ["kommunikation", "Kommunikation"],
     ["nachforderungen", "Nachforderungen"],
     ["schritte", "Behördliche Schritte"],
+    ["schreiben", "Schreiben"],
     ["abgaben", "Abgabestände"],
     ["bescheide", "Bescheide / Auflagen"],
+    ["ausfuehrung", "Bauausführung"],
     ["beziehungen", "Korrekturen"],
     ["chronik", "Verfahrenschronik"],
   ];
@@ -236,6 +272,14 @@
       <button type="button" class="link" onclick={dateienLaden}
         >Dokumentversionen aktualisieren</button
       >
+      <Lage
+        projektId={projekt.id}
+        verfahrenId={s.id}
+        revision={s.revision}
+        {darf}
+        onregister={(r) => (tab = r)}
+        onfolgeverfahren={folgeverfahren}
+      />
       {#if tab === "stamm"}<fieldset disabled={!darf}>
           <div class="raster">
             <label
@@ -357,6 +401,14 @@
                 }}
               />Vorhabenprofil fachlich bestätigt</label
             >{/if}
+        <Verfahrenswahl
+            projektId={projekt.id}
+            verfahrenId={s.id}
+            onuebernehmen={(art, pruef) => {
+              a.art = art;
+              a.pruefverfahren = pruef ?? undefined;
+            }}
+          />
         </fieldset>
       {:else if tab === "anforderungen"}<fieldset disabled={!darf}>
           <Anforderungen
@@ -364,6 +416,48 @@
             {dateien}
             {benutzer}
             {darfFreigeben}
+          />
+        </fieldset>
+      {:else if tab === "ausfuehrung"}<fieldset disabled={!darf}>
+          <Bauausfuehrung
+            bind:nachweise={
+              () => a.bautechnische_nachweise ?? [],
+              (w) => (a.bautechnische_nachweise = w)
+            }
+            bind:vorbereitung={a.bauvorbereitung}
+            bescheide={a.bescheide}
+            {dateien}
+            projektId={projekt.id}
+            verfahrenId={s.id}
+            revision={s.revision}
+          />
+        </fieldset>
+      {:else if tab === "schreiben"}<Schreiben
+          akte={a}
+          projektId={projekt.id}
+          verfahrenId={s.id}
+          {darf}
+          ondokument={dateienLaden}
+        />
+      {:else if tab === "unterschriften"}<fieldset disabled={!darf}>
+          <Unterschriften
+            bind:eintraege={
+              () => a.unterschriften ?? [], (w) => (a.unterschriften = w)
+            }
+            projektId={projekt.id}
+            verfahrenId={s.id}
+          />
+        </fieldset>
+      {:else if tab === "abweichungen"}<fieldset disabled={!darf}>
+          <Abweichungsantraege
+            bind:eintraege={
+              () => a.abweichungen ?? [], (w) => (a.abweichungen = w)
+            }
+            bescheide={a.bescheide}
+            {dateien}
+            projektId={projekt.id}
+            verfahrenId={s.id}
+            alt={s.original?.abweichungen?.map((v) => v.id) ?? []}
           />
         </fieldset>
       {:else if tab === "kommunikation"}<fieldset disabled={!darf}>
@@ -389,6 +483,10 @@
           <Schritte
             bind:eintraege={a.schritte}
             kommunikation={a.kommunikation}
+            abweichungen={a.abweichungen ?? []}
+            gruendeAlt={s.original?.schritte?.flatMap((v) =>
+              (v.gruende ?? []).map((g) => g.id),
+            ) ?? []}
             {dateien}
             {benutzer}
             alt={s.original?.schritte?.map((v) => v.id) ?? []}
@@ -420,6 +518,7 @@
             })}
           onfesthalten={festhalten}
           onbusy={(b) => (s.laeuft = b)}
+          schritte={a.schritte}
         /><ExterneEinreichungen
           eintraege={a.externe_einreichungen ?? []}
           {dateien}
@@ -434,6 +533,16 @@
             {benutzer}
             projektId={projekt.id}
             art={a.art}
+            abweichungen={a.abweichungen ?? []}
+            bind:ablehnungsgruende={
+              () => a.ablehnungsgruende ?? [],
+              (w) => (a.ablehnungsgruende = w)
+            }
+            bind:nachbarbekanntgaben={
+              () => a.nachbarbekanntgaben ?? [],
+              (w) => (a.nachbarbekanntgaben = w)
+            }
+            gruendeAlt={s.original?.ablehnungsgruende?.map((g) => g.id) ?? []}
             alt={s.original?.bescheide.map((v) => v.id) ?? []}
             auflagenAlt={s.original?.bescheide.flatMap((b) =>
               b.auflagen.map((p) => p.id),
@@ -442,6 +551,13 @@
               .filter((v) => !v.zugestellt)
               .map((v) => v.id) ?? []}
             onberichtigen={(g, grund) => berichtigen(a, g, grund)}
+          />
+          <Gebuehren
+            bind:eintraege={() => a.gebuehren ?? [], (w) => (a.gebuehren = w)}
+            kommunikation={a.kommunikation}
+            {dateien}
+            {benutzer}
+            alt={s.original?.gebuehren?.map((v) => v.id) ?? []}
           />
         </fieldset>
       {:else if tab === "beziehungen"}<h3>Korrektur- und Ersatzbeziehungen</h3>

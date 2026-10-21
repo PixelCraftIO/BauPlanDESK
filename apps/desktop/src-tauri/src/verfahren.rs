@@ -21,6 +21,36 @@ use uuid::Uuid;
 pub fn verfahrensprofil() -> Result<Anforderungskatalog, CmdError> {
     Ok(Anforderungskatalog::standard()?)
 }
+/// Mitgelieferte Anforderungskataloge (Büroprofil und Landespakete).
+#[tauri::command]
+pub fn verfahrenskataloge() -> Result<Vec<Anforderungskatalog>, CmdError> {
+    Ok(Anforderungskatalog::mitgeliefert()?)
+}
+#[tauri::command]
+pub async fn verfahren_verfahrenswahl(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Option<Uuid>,
+    angaben: core_lib::verfahren::landesrecht::Verfahrensangaben,
+) -> Result<core_lib::verfahren::landesrecht::Verfahrenswahl, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahrenswahl(projekt_id, id, angaben).await?)
+}
+#[tauri::command]
+pub async fn verfahren_unterschriften(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<Vec<core_lib::verfahren::landesrecht::Unterschriftsbedarf>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_unterschriften(projekt_id, id).await?)
+}
 #[tauri::command]
 pub async fn verfahren_profil_anwenden(
     state: State<'_, AppState>,
@@ -102,6 +132,78 @@ pub async fn verfahren_planunterlagen(
         .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
         .await?;
     Ok(state.core.verfahren_planunterlagen(projekt_id, id).await?)
+}
+#[tauri::command]
+pub async fn verfahren_abweichungen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<core_lib::verfahren::abweichungen::Abweichungsabgleich, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_abweichungen(projekt_id, id).await?)
+}
+/// Erzeugt ein Schreiben an die Behörde; mit Ziel wird das PDF gespeichert.
+#[tauri::command]
+pub async fn verfahren_schreiben(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    wunsch: core_lib::verfahren::schreiben::Schreibenwunsch,
+    ziel: Option<PathBuf>,
+) -> Result<core_lib::verfahren::schreiben::Schreibenergebnis, CmdError> {
+    let (r, pdf) = state
+        .core
+        .verfahren_schreiben(projekt_id, id, wunsch, &state.benutzer())
+        .await?;
+    if let Some(ziel) = ziel {
+        tokio::fs::write(ziel, pdf)
+            .await
+            .map_err(|e| CoreError::Storage(e.to_string()))?;
+    }
+    Ok(r)
+}
+#[tauri::command]
+pub async fn verfahren_optionen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<core_lib::verfahren::optionen::Verfahrenslage, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_optionen(projekt_id, id).await?)
+}
+#[tauri::command]
+pub async fn verfahren_folgeverfahren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    wunsch: core_lib::verfahren::optionen::Folgeverfahrenswunsch,
+) -> Result<Fachstand, CmdError> {
+    Ok(state
+        .core
+        .verfahren_folgeverfahren(projekt_id, id, wunsch, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn verfahren_checkliste(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    phase: core_lib::verfahren::ausfuehrung::Phase,
+) -> Result<core_lib::verfahren::ausfuehrung::Phasencheckliste, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .verfahren_checkliste(projekt_id, id, phase)
+        .await?)
 }
 #[tauri::command]
 pub async fn verfahren_erinnerungen(

@@ -245,6 +245,83 @@ pub struct Vorhabenangaben {
     /// einen Nachtrag beantragt (`prozessmerkmale/nachtragsbaugenehmigung`).
     pub hauptgenehmigung: Option<String>,
     pub flaechen: Option<FlaechenBauNvo>,
+    /// Beantragte Abweichungen und angefragte Erleichterungen mit Code der
+    /// eingespielten Codeliste; siehe [`crate::verfahren::abweichungen`].
+    pub abweichungen: Vec<BeantragteAbweichung>,
+}
+
+/// Abweichung (`AbweichungBeantragt`) oder Erleichterung
+/// (`ErleichterungAngefragt`) für die Antragsnachricht.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BeantragteAbweichung {
+    pub id: uuid::Uuid,
+    /// Erleichterung statt Abweichung.
+    pub erleichterung: bool,
+    /// Kennung, Version und Code der Codeliste.
+    pub liste: String,
+    pub version: String,
+    pub code: String,
+    pub vorschrift: String,
+    pub beschreibung: String,
+    pub begruendung: String,
+}
+
+fn textabsaetze(x: &mut XmlSchreiber, name: &'static str, text: &str) {
+    let absaetze: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|z| !z.is_empty())
+        .collect();
+    if absaetze.is_empty() {
+        return;
+    }
+    x.auf(name, &[]);
+    for a in absaetze {
+        x.text("textabsatz", a);
+    }
+    x.zu();
+}
+
+/// `beantragteAbweichung` und `angefragteErleichterung` in Schemareihenfolge.
+pub(super) fn abweichungen(x: &mut XmlSchreiber, v: &Vorhabenangaben) {
+    for a in v.abweichungen.iter().filter(|a| !a.erleichterung) {
+        x.auf("xbau:beantragteAbweichung", &[])
+            .text("xbau:id", &a.id.to_string())
+            .auf(
+                "xbau:art",
+                &[
+                    ("listURI", a.liste.as_str()),
+                    ("listVersionID", a.version.as_str()),
+                ],
+            )
+            .text("code", &a.code)
+            .zu();
+        textabsaetze(x, "xbau:vorschrift", &a.vorschrift);
+        textabsaetze(x, "xbau:beschreibung", &a.beschreibung);
+        textabsaetze(x, "xbau:begruendung", &a.begruendung);
+        x.zu();
+    }
+    for a in v.abweichungen.iter().filter(|a| a.erleichterung) {
+        x.auf("xbau:angefragteErleichterung", &[])
+            .text("xbau:id", &a.id.to_string())
+            .auf(
+                "xbau:gegenstand",
+                &[
+                    ("listURI", a.liste.as_str()),
+                    ("listVersionID", a.version.as_str()),
+                ],
+            )
+            .text("code", &a.code)
+            .zu();
+        let beschreibung = if a.beschreibung.trim().is_empty() {
+            &a.vorschrift
+        } else {
+            &a.beschreibung
+        };
+        textabsaetze(x, "xbau:beschreibung", beschreibung);
+        textabsaetze(x, "xbau:begruendung", &a.begruendung);
+        x.zu();
+    }
 }
 
 /// Fehlende Angaben und unzulässige Zeichen der weiteren Beteiligten.

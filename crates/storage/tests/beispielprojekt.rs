@@ -41,7 +41,7 @@ async fn gesamtablauf() {
         &[
             "Nachforderung",
             "Entwässerungsnachweis",
-            "Erschließung und Entwässerung",
+            "Entwässerungsplanung",
         ],
     )
     .await;

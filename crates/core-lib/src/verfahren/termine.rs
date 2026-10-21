@@ -44,6 +44,8 @@ pub enum Terminart {
     /// Bearbeitungsfrist oder Genehmigungsfiktion laut Behörde; endet mit der
     /// Entscheidung und wird danach überfällig.
     Bearbeitungsfrist,
+    /// Zahlungsfrist eines Gebührenbescheids; endet mit der erfassten Zahlung.
+    Zahlung,
 }
 impl Terminart {
     pub fn bezeichnung(&self) -> &'static str {
@@ -58,6 +60,7 @@ impl Terminart {
             Self::Fertigstellung => "Fertigstellungsfrist",
             Self::Beteiligung => "Beteiligung",
             Self::Bearbeitungsfrist => "Bearbeitungsfrist",
+            Self::Zahlung => "Zahlungsfrist",
         }
     }
 }
@@ -168,8 +171,24 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
             hinweis,
         })
     };
+    // NRW: Werden Mängel nicht fristgerecht behoben, gilt der Bauantrag als
+    // zurückgenommen (§ 71 BauO NRW); die Wiedervorlage nennt die Folge.
+    let ruecknahmefiktion = land == Bundesland::Nw && a.art.baugenehmigung();
     for p in offene_forderungspunkte(a) {
         if let Some(f) = &p.frist {
+            let hinweis = if ruecknahmefiktion && !f.grund.contains("§ 71 BauO NRW") {
+                format!(
+                    "{}{}Fristversäumnis: Der Antrag gilt als zurückgenommen (§ 71 BauO NRW). Rechtzeitig nachreichen oder Fristverlängerung beantragen.",
+                    f.grund.trim(),
+                    if f.grund.trim().is_empty() {
+                        ""
+                    } else {
+                        " · "
+                    }
+                )
+            } else {
+                f.grund.clone()
+            };
             neu(
                 p.id,
                 Terminart::Forderungspunkt,
@@ -177,7 +196,7 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
                 f.datum,
                 f.erinnerung_tage,
                 p.verantwortlich,
-                f.grund.clone(),
+                hinweis,
             );
         }
     }
@@ -270,6 +289,45 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
                      Landesbauordnung prüfen und bescheinigen lassen.",
                     f.grund
                 ),
+            );
+        }
+    }
+    // Nachbarn: eigene Rechtsbehelfsfrist ab ihrer Bekanntgabe.
+    for n in a
+        .nachbarbekanntgaben
+        .iter()
+        .filter(|n| n.angefochten.is_none())
+    {
+        if !wirksame_bescheide(a).any(|b| b.id == n.bescheid) {
+            continue;
+        }
+        neu(
+            n.id,
+            Terminart::Rechtsbehelfsfrist,
+            format!("Rechtsbehelfsfrist {} (Bekanntgabe am {})", n.name, n.datum.format("%d.%m.%Y")),
+            fristen::rechtsbehelf_ende(land, n.datum),
+            VORLAUF_RECHTSBEHELF,
+            a.verantwortlich,
+            "Ein Monat ab Bekanntgabe an den Nachbarn bei ordnungsgemäßer Rechtsbehelfsbelehrung (§§ 70, 74 VwGO); danach ist die Genehmigung ihm gegenüber bestandskräftig.".into(),
+        );
+    }
+    for g in a.gebuehren.iter().filter(|g| g.bezahlt.is_none()) {
+        if let Some(f) = &g.frist {
+            neu(
+                g.id,
+                Terminart::Zahlung,
+                format!(
+                    "{} bezahlen",
+                    if g.vorauszahlung {
+                        "Gebührenvorauszahlung"
+                    } else {
+                        "Gebühren"
+                    }
+                ),
+                f.datum,
+                f.erinnerung_tage,
+                g.verantwortlich,
+                f.grund.clone(),
             );
         }
     }

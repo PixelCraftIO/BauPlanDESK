@@ -53,6 +53,11 @@ Stichtag aller Angaben ist der 21.10.2026.
   - Portalabgabe über Bauportal.NRW und externe Einreichung mit Beleg.
   - Nachforderung per E-Mail, aus dem E-Mail-Archiv in die Verfahrensakte
     übernommen; Termine und Wiedervorlagen.
+  - Verfahrenswahl nach BauO NRW (Fassung ab 01.09.2026) und NRW-Bauvorlagenkatalog;
+    Abweichungsabgleich ohne Unterschreitung und erfasste Unterschriften.
+  - Lage der Akte mit voraussichtlicher Genehmigungsfiktion am 10.11.2026,
+    Entwurf des Antwortschreibens auf die Nachforderung (PDF) und fachliche
+    Auswertung der XBau-Eingangsbestätigung.
 - **Ausgaben:**
   - Berechnungsheft und Abstandsflächennachweis.
   - Bauvorlagenpaket mit Deckblatt, Anschreiben, Inhaltsverzeichnis und Trennblättern.

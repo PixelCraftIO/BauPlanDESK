@@ -38,10 +38,17 @@ fn leer() -> Verfahrensakte {
         kommunikation: vec![],
         nachforderungen: vec![],
         anforderungen: vec![],
+        abweichungen: vec![],
         dokumentbeziehungen: vec![],
         abgaben: vec![],
         externe_einreichungen: vec![],
         bescheide: vec![],
+        gebuehren: vec![],
+        unterschriften: vec![],
+        ablehnungsgruende: vec![],
+        nachbarbekanntgaben: vec![],
+        bautechnische_nachweise: vec![],
+        bauvorbereitung: None,
         ereignisse: vec![],
     }
 }
@@ -240,6 +247,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
     };
     let w = Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: Uuid::new_v4(),
         titel: "Nachreichung zwei Punkte".into(),
         dokumente: vec![ref2.clone()],
@@ -428,6 +436,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     });
     let err = ablehnen(&versuch, f.revision).await;
     assert!(err.contains("aus einem versendeten Abgabestand"), "{err}");
@@ -454,10 +463,12 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
             }),
             erledigt: false,
             nachweise: vec![],
+            faelligkeit: None,
         }],
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     });
     a.status = Verfahrensstatus::Entschieden;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
@@ -1116,6 +1127,7 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
         .unwrap();
     let w = core_lib::verfahren::abgabe::Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: Uuid::new_v4(),
         titel: "Antragspaket".into(),
         dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {
@@ -1305,6 +1317,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         frist: Some(frist(heute + chrono::Duration::days(10))),
         stellungnahme: None,
         folgeschreiben: None,
+        gruende: vec![],
         verantwortlich: Some(user.id.0),
     };
     a.schritte.push(schritt.clone());
@@ -1358,6 +1371,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         frist: None,
         stellungnahme: None,
         folgeschreiben: None,
+        gruende: vec![],
         verantwortlich: None,
     };
     a.schritte.push(zurueck.clone());
@@ -1496,6 +1510,7 @@ async fn eingereichte_akte(
     let f = speichern(&core, p.id, vid, 0, &a, &user).await;
     let w = Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: Uuid::new_v4(),
         titel: "Bauantrag".into(),
         dokumente: vec![dok.clone()],
@@ -1652,6 +1667,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     };
     let mut v = a.clone();
     v.bescheide.push(bescheid(Entscheidung::Genehmigt));
@@ -1674,6 +1690,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         frist: None,
         erledigt: false,
         nachweise: vec![],
+        faelligkeit: None,
     });
     v.bescheide.push(abgelehnt);
     v.status = Verfahrensstatus::Entschieden;
@@ -1772,6 +1789,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         }),
         erledigt: true,
         nachweise: vec![dok.clone()],
+        faelligkeit: None,
     };
     let mut vorbehalt = befristung.clone();
     vorbehalt.id = Uuid::new_v4();
@@ -2122,10 +2140,12 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
             frist: None,
             erledigt: false,
             nachweise: vec![],
+            faelligkeit: None,
         }],
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     };
     // Genehmigt werden nur Unterlagen, die der Behörde vorlagen.
     a.bescheide.push(neuer_bescheid(anderer, None));
@@ -2244,6 +2264,7 @@ async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
         frist: Some(frist(20, 30)),
         stellungnahme: None,
         folgeschreiben: None,
+        gruende: vec![],
         verantwortlich: None,
     };
     a.schritte.push(einvernehmen.clone());
@@ -2281,6 +2302,7 @@ async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: true,
+        abweichungsentscheidungen: vec![],
     };
     a.bescheide.push(Bescheid {
         entscheidung: Entscheidung::Abgelehnt,
@@ -2308,6 +2330,7 @@ async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
         id: Uuid::new_v4(),
         entscheidung: Entscheidung::Abgelehnt,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
         zugestellt: Some(heute),
         ..teil.clone()
     });

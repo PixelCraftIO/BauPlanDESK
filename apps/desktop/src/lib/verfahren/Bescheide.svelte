@@ -1,5 +1,8 @@
 <script lang="ts">
   import type {
+    Abweichung,
+    Ablehnungsgrund,
+    Nachbarbekanntgabe,
     Bescheid,
     Bescheidfristen,
     Berichtigungsgegenstand,
@@ -17,6 +20,7 @@
     verfahrenApi,
     NEBENBESTIMMUNG,
     PFLICHT,
+    FAELLIGKEIT,
     baugenehmigung,
   } from "./api";
   let {
@@ -26,6 +30,10 @@
     abgegeben,
     projektId,
     art,
+    abweichungen = [],
+    ablehnungsgruende = $bindable([]),
+    nachbarbekanntgaben = $bindable([]),
+    gruendeAlt = [],
     alt = [],
     auflagenAlt = [],
     ohneZustellung = [],
@@ -38,6 +46,12 @@
     benutzer: Benutzer[];
     projektId: string;
     art: Verfahrensart;
+    /** Beantragte Abweichungen der Akte; der Bescheid entscheidet je Eintrag. */
+    abweichungen?: Abweichung[];
+    ablehnungsgruende?: Ablehnungsgrund[];
+    nachbarbekanntgaben?: Nachbarbekanntgabe[];
+    /** Gespeicherte Ablehnungsgründe; ihr Wortlaut bleibt unverändert. */
+    gruendeAlt?: string[];
     alt?: string[];
     /** Gespeicherte Nebenbestimmungen; ihr Wortlaut bleibt laut Core unverändert. */
     auflagenAlt?: string[];
@@ -45,6 +59,34 @@
     ohneZustellung?: string[];
     onberichtigen: (g: Berichtigungsgegenstand, grund: string) => void;
   } = $props();
+  let neuerGrund = $state<Record<string, string>>({}),
+    nachbar = $state<Record<string, string>>({}),
+    nachbarDatum = $state<Record<string, string>>({});
+  function grund(b: Bescheid) {
+    const text = neuerGrund[b.id]?.trim();
+    if (!text) return;
+    ablehnungsgruende = [
+      ...ablehnungsgruende,
+      {
+        id: crypto.randomUUID(),
+        bescheid: b.id,
+        text,
+        grundlage: "",
+        reaktion: "",
+      },
+    ];
+    neuerGrund[b.id] = "";
+  }
+  function bekanntgabe(b: Bescheid) {
+    const name = nachbar[b.id]?.trim();
+    const datum = nachbarDatum[b.id];
+    if (!name || !datum) return;
+    nachbarbekanntgaben = [
+      ...nachbarbekanntgaben,
+      { id: crypto.randomUUID(), bescheid: b.id, name, datum, beleg: null },
+    ];
+    nachbar[b.id] = "";
+  }
   /** Bescheide, deren gespeichertes Zustelldatum gerade berichtigt wird. */
   let zustellungOffen = $state<Record<string, boolean>>({});
   const genehmigend = (b: Bescheid) =>
@@ -201,6 +243,123 @@
           einer externen Einreichung. Beides im Register Abgabestände erfassen.
         </p>{/if}
     </fieldset>
+    {#if abweichungen.some((e) => !e.entfallen) || b.abweichungsentscheidungen?.length}<fieldset
+        disabled={fest}
+      >
+        <legend>Entscheidung über Abweichungen, Ausnahmen und Befreiungen</legend>
+        {#each abweichungen.filter((e) => !e.entfallen || b.abweichungsentscheidungen?.some((d) => d.abweichung === e.id)) as e (e.id)}{@const d =
+            b.abweichungsentscheidungen?.find((d) => d.abweichung === e.id)}<div
+            class="raster"
+          >
+            <label
+              >{e.gegenstand || e.vorschrift}<select
+                value={d ? String(d.zugelassen) : ""}
+                onchange={(ev) => {
+                  const v = ev.currentTarget.value;
+                  const rest = (b.abweichungsentscheidungen ?? []).filter(
+                    (x) => x.abweichung !== e.id,
+                  );
+                  b.abweichungsentscheidungen = v
+                    ? [
+                        ...rest,
+                        {
+                          abweichung: e.id,
+                          zugelassen: v === "true",
+                          begruendung: d?.begruendung ?? "",
+                          nebenbestimmung: d?.nebenbestimmung ?? "",
+                        },
+                      ]
+                    : rest;
+                }}
+                ><option value="">Im Bescheid nicht entschieden</option
+                ><option value="true">Zugelassen</option><option value="false"
+                  >Nicht zugelassen</option
+                ></select
+              ></label
+            >{#if d}<label
+                >Nebenbestimmung zur Zulassung<input
+                  bind:value={d.nebenbestimmung}
+                  maxlength="16000"
+                /></label
+              ><label
+                >Begründung der Behörde<input
+                  bind:value={d.begruendung}
+                  maxlength="16000"
+                /></label
+              >{/if}
+          </div>{/each}
+        {#if !fest}<p class="meta">
+            Nach dem Speichern bleiben die Entscheidungen wie der Bescheid
+            unverändert.
+          </p>{/if}
+      </fieldset>{/if}
+    {#if b.entscheidung === "abgelehnt" || b.entscheidung === "teilweise_genehmigt"}<h4>
+        Ablehnungsgründe
+      </h4>
+      {#each ablehnungsgruende.filter((g) => g.bescheid === b.id) as g (g.id)}<div
+          class="raster"
+        >
+          <p><strong>{g.text}</strong></p>
+          <label
+            >Reaktion im Folgeantrag<textarea
+              rows="2"
+              maxlength="16000"
+              bind:value={g.reaktion}
+            ></textarea></label
+          >{#if !gruendeAlt.includes(g.id)}<button
+              type="button"
+              class="link"
+              onclick={() =>
+                (ablehnungsgruende = ablehnungsgruende.filter(
+                  (n) => n.id !== g.id,
+                ))}>Verwerfen</button
+            >{/if}
+        </div>{/each}
+      <label
+        >Grund (Wortlaut des Bescheids)<input
+          maxlength="4000"
+          bind:value={neuerGrund[b.id]}
+        /></label
+      ><button
+        type="button"
+        class="sekundaer"
+        disabled={!neuerGrund[b.id]?.trim()}
+        onclick={() => grund(b)}>Ablehnungsgrund erfassen</button
+      >{/if}
+    {#if genehmigend(b)}<h4>Bekanntgabe an Nachbarn</h4>
+      <p class="meta">
+        Die Rechtsbehelfsfrist eines Nachbarn läuft erst ab seiner
+        Bekanntgabe; danach ist die Genehmigung ihm gegenüber bestandskräftig.
+      </p>
+      {#each nachbarbekanntgaben.filter((n) => n.bescheid === b.id) as n (n.id)}<div
+          class="raster"
+        >
+          <span>{n.name} · bekanntgegeben am {n.datum}</span><label
+            >Angefochten am<input
+              type="date"
+              max={heute()}
+              value={n.angefochten ?? ""}
+              onchange={(e) =>
+                (n.angefochten = e.currentTarget.value || undefined)}
+            /></label
+          ><Dokumentfeld {dateien} bind:wert={n.beleg} label="Beleg" />
+        </div>{/each}
+      <div class="raster">
+        <label>Nachbar<input maxlength="500" bind:value={nachbar[b.id]} /></label
+        ><label
+          >Bekanntgegeben am<input
+            type="date"
+            max={heute()}
+            bind:value={nachbarDatum[b.id]}
+          /></label
+        >
+      </div>
+      <button
+        type="button"
+        class="sekundaer"
+        disabled={!nachbar[b.id]?.trim() || !nachbarDatum[b.id]}
+        onclick={() => bekanntgabe(b)}>Bekanntgabe erfassen</button
+      >{/if}
     {#if f}<section aria-label="Berechnete Fristen">
         <h4>Berechnete Fristen</h4>
         {@render fristzeile("Rechtsbehelfsfrist", f.rechtsbehelfsfrist)}
@@ -250,7 +409,18 @@
               readonly={auflagenAlt.includes(p.id)}
               bind:value={p.ausloeser}
             /></label
-          ><Zustaendigkeit {benutzer} bind:wert={p.verantwortlich} />
+          ><Zustaendigkeit {benutzer} bind:wert={p.verantwortlich} />{#if PFLICHT.includes(p.art ?? "auflage")}<label
+              >Fällig<select
+                value={p.faelligkeit ?? ""}
+                onchange={(e) =>
+                  (p.faelligkeit = (e.currentTarget.value ||
+                    undefined) as typeof p.faelligkeit)}
+                ><option value="">Nicht zugeordnet</option
+                >{#each Object.entries(FAELLIGKEIT) as [w, t]}<option value={w}
+                    >{t}</option
+                  >{/each}</select
+              ></label
+            >{/if}
         </div>
         {#if auflagenAlt.includes(p.id)}<p class="meta">
             Wortlaut aus dem Bescheid, nach dem Speichern unveränderlich.

@@ -377,7 +377,12 @@ export type Auflage = { id: string,
 /**
  * Ältere Akten ohne diese Angabe lesen sie als Auflage.
  */
-art: Nebenbestimmungsart, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>, };
+art: Nebenbestimmungsart, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>,
+/**
+ * Wann die Pflicht erfüllt sein muss (vor Baubeginn …); ältere Einträge
+ * lesen die Angabe leer.
+ */
+faelligkeit?: Faelligkeit, };
 export type Verlaengerung = {
 /**
  * Bescheid, dessen Geltungsdauer verlängert wird (Genehmigung oder
@@ -400,7 +405,12 @@ verlaengerung?: Verlaengerung,
  * Bauarbeiten vorab und beendet das Verfahren nicht. Ältere Bescheide
  * lesen die Angabe als `false`.
  */
-teilbaugenehmigung?: boolean, };
+teilbaugenehmigung?: boolean,
+/**
+ * Entscheidungen über beantragte Abweichungen, Ausnahmen und Befreiungen.
+ * Ältere Bescheide lesen die Angabe leer.
+ */
+abweichungsentscheidungen?: Array<Abweichungsentscheidung>, };
 export type Schrittart = "anhoerung" | "zurueckstellung" | "einvernehmen" | "fachbeteiligung" | "nachbarbeteiligung";
 export type Verfahrensschritt = { id: string, art: Schrittart, kommunikation: string,
 /**
@@ -415,12 +425,17 @@ stellungnahme: string | null, verantwortlich: string | null,
  * Zurückstellung: eingegangenes Folgeschreiben der Behörde, das sie vor
  * ihrem Fristende beendet. Ältere Akten lesen die Angabe leer.
  */
-folgeschreiben?: string, };
+folgeschreiben?: string,
+/**
+ * Anhörung: Beanstandungen der Behörde, auf die die Stellungnahme
+ * eingeht. Ältere Akten lesen die Angabe leer.
+ */
+gruende?: Array<Beanstandung>, };
 export type Pruefverfahren = "regulaer" | "vereinfacht";
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
-export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben";
+export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben" | "abweichung" | "gebuehr";
 export type Berichtigungsgegenstand = { "art": "zustellung", bescheid: string, } | { "art": "vollstaendigkeit" } | { "art": "ruecknahme" } | { "art": "baubeginn" } | { "art": "fertigstellung" };
 export type Wertberichtigung = { gegenstand: Berichtigungsgegenstand, grund: string, vorher: string, nachher: string, };
 export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null,
@@ -474,7 +489,7 @@ staende: Array<Planstand>,
  * Abweichungen, z. B. ein im Anlagenverzeichnis anders ausgewiesener Index.
  */
 hinweise: Array<string>, };
-export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung" | "beteiligung" | "bearbeitungsfrist";
+export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung" | "beteiligung" | "bearbeitungsfrist" | "zahlung";
 export type Termin = { verfahren: string, verfahrensbezeichnung: string,
 /**
  * Akteneintrag, zu dem der Termin gehört (Punkt, Nebenbestimmung, Schritt
@@ -498,6 +513,277 @@ export type Erinnerung = { verfahren: string, objekt: string, titel: string, dat
  * Art der Wiedervorlage; bestimmt, wann sie endet.
  */
 art: Terminart, };
+export type Abweichungsart = "abweichung" | "ausnahme" | "befreiung" | "erleichterung";
+export type Nachbarzustimmung = { id: string, name: string,
+/**
+ * Flurstück des Angrenzers, frei formuliert.
+ */
+flurstueck: string,
+/**
+ * `None` angefragt, `Some(true)` zugestimmt, `Some(false)` verweigert.
+ */
+zugestimmt: boolean | null, datum: string | null,
+/**
+ * Unterschriebene Zustimmung oder Ablehnung.
+ */
+beleg: Dokumentbezug | null, };
+export type Abweichung = { id: string, art: Abweichungsart,
+/**
+ * Betroffene Vorschrift, z. B. „§ 6 Abs. 5 BauO NRW (Tiefe der Abstandsfläche)“.
+ */
+vorschrift: string,
+/**
+ * Rechtsgrundlage der Zulassung, z. B. „§ 31 Abs. 2 BauGB“.
+ */
+rechtsgrundlage: string,
+/**
+ * Was weicht ab (Bauteil, Wand, Festsetzung).
+ */
+gegenstand: string, soll: string, ist: string,
+/**
+ * Warum die Zulassung gerechtfertigt ist (Schutzziel, nachbarliche und
+ * öffentliche Belange).
+ */
+begruendung: string,
+/**
+ * Schlüssel des abgeleiteten Bedarfs, den dieser Eintrag abdeckt.
+ */
+herkunft?: string, nachbarn?: Array<Nachbarzustimmung>,
+/**
+ * Begründende Unterlagen (Lageplanausschnitt, Gutachten).
+ */
+dokumente?: Array<Dokumentbezug>,
+/**
+ * Code der eingespielten XBau-Codeliste (siehe [`Abweichungsart::codeliste`]);
+ * leer = Vorschlag nach der Art.
+ */
+xbau_code?: string,
+/**
+ * Nicht (mehr) erforderlich, mit Begründung (z. B. Planänderung,
+ * Baulast). Der Eintrag bleibt in der Akte.
+ */
+entfallen?: string, };
+export type Abweichungsentscheidung = { abweichung: string, zugelassen: boolean, begruendung: string,
+/**
+ * Nebenbestimmung zur Zulassung, wörtlich aus dem Bescheid.
+ */
+nebenbestimmung: string, };
+export type Abweichungsbedarf = {
+/**
+ * Stabiler Schlüssel aus Herkunft und Gegenstand.
+ */
+schluessel: string, art: Abweichungsart, vorschrift: string, rechtsgrundlage: string, gegenstand: string, soll: string, ist: string,
+/**
+ * Nachweis, aus dem der Bedarf stammt.
+ */
+quelle: string, };
+export type Abweichungsabgleich = { bedarf: Array<Abweichungsbedarf>,
+/**
+ * Schlüssel des Bedarfs ohne Eintrag in der Akte.
+ */
+offen: Array<string>,
+/**
+ * Einträge, deren Bedarf im aktuellen Planungsstand nicht mehr besteht.
+ */
+ohne_bedarf: Array<string>,
+/**
+ * Einträge, deren Soll oder Ist vom aktuellen Bedarf abweicht.
+ */
+geaendert: Array<string>,
+/**
+ * Nicht ermittelbare Bereiche und weitere Hinweise.
+ */
+hinweise: Array<string>, };
+export type Beanstandung = { id: string, text: string, grundlage: string,
+/**
+ * Wie der Antrag reagiert: Stellungnahme, Planänderung, Abweichungsantrag.
+ */
+reaktion: string,
+/**
+ * Abweichung dieser Akte, mit der die Beanstandung ausgeräumt werden soll.
+ */
+abweichung?: string, };
+export type FormellerBefund = {
+/**
+ * Code der Befundart laut Nachricht.
+ */
+art: string, text: string, };
+export type MateriellerBefund = { rechtsbereich: string, regelverstoss: string, begruendung: string, };
+export type BescheidNebenbestimmung = { art: Nebenbestimmungsart,
+/**
+ * Code der XBau-Liste „Nebenbestimmung Art“ (1 Bedingung … 6
+ * aufschiebende Bedingung).
+ */
+xbau_code: string, text: string, };
+export type BescheidAbweichung = {
+/**
+ * Kennung der beantragten Abweichung (aus dem eigenen Antrag).
+ */
+id: string, zugelassen: boolean, vorschrift: string, begruendung: string, nebenbestimmung: string, };
+export type Auswertung = { "art": "eingangsbestaetigung", information: string, } | { "art": "aktenzeichen", aktenzeichen: string, } | { "art": "befundliste", vollstaendig: boolean, befunde: Array<FormellerBefund>, frist: string | null, anschreiben: string, } | { "art": "anhoerung", aufforderung: string, befunde: Array<MateriellerBefund>, frist: string | null, } | { "art": "bescheid", genehmigung: boolean, nebenbestimmungen: Array<BescheidNebenbestimmung>, abweichungen: Array<BescheidAbweichung>, begruendung: string, rechtsbehelfsbelehrung: string, hinweise: string, } | { "art": "gebuehrenbescheid", vorauszahlung: boolean,
+/**
+ * Summe in Eurocent, wenn die Kostenberechnung sie nennt.
+ */
+summe_cent: number | null, begruendung: string, verwendungszweck: string, frist: string | null, rechtsbehelfsbelehrung: string, } | { "art": "sonstige" };
+export type Gebuehrenbescheid = { id: string,
+/**
+ * Eingegangenes Schreiben dieser Akte.
+ */
+kommunikation: string, datum: string,
+/**
+ * Betrag in Eurocent, wenn bekannt.
+ */
+betrag_cent: number | null, vorauszahlung: boolean, verwendungszweck: string, frist: Frist | null,
+/**
+ * Tag der Zahlung; beendet die Wiedervorlage.
+ */
+bezahlt: string | null, verantwortlich: string | null, };
+export type Nachrichtenauswertung = { nachricht: string, element: string, titel: string, auswertung: Auswertung,
+/**
+ * Was die Übernahme in der gewählten Akte bewirkt; leer ohne Akte.
+ */
+wirkung: Array<string>,
+/**
+ * Bescheid: vorgeschlagene genehmigte Unterlagen aus den versendeten
+ * Abgabeständen des Antrags.
+ */
+genehmigte_unterlagen: Array<Dokumentbezug>,
+/**
+ * Bereits fachlich in die gewählte Akte übernommen.
+ */
+uebernommen: boolean, };
+export type Uebernahmewunsch = { verfahren: string, basis: number,
+/**
+ * Bestätigtes Zugangsdatum; ohne Angabe der Tag der Erfassung im Journal.
+ */
+zugang: string | null,
+/**
+ * Bescheid: ausdrücklich genehmigte Unterlagen.
+ */
+genehmigte_unterlagen: Array<Dokumentbezug>, };
+export type Unterschriftsrolle = "bauherrschaft" | "entwurfsverfasser" | "fachplaner";
+export type Unterschriftsart = "handschriftlich" | "qualifiziert" | "portal";
+export type Unterschrift = { id: string, dokument: Dokumentbezug, rolle: Unterschriftsrolle, name: string, art: Unterschriftsart, datum: string, };
+export type Unterschriftsbedarf = { dokument: Dokumentbezug, name: string, kategorie: string, erforderlich: Array<Unterschriftsrolle>, fehlend: Array<Unterschriftsrolle>, quelle: string, };
+export type Merkmal = "wohngebaeude" | "gebaeudeklasse_bis" | "bebauungsplan" | "keine_planungsrechtliche_abweichung" | "erschliessung" | "gemeinde_verzicht" | "kein_grosser_sonderbau" | "grosser_sonderbau";
+export type Fiktionsregel = { rechtsgrundlage: string, regulaer_monate: number, vereinfacht_wochen: number, hinweis: string, };
+export type Vorhabenmerkmale = { gebaeudeklasse: number | null, sonderbau: boolean | null, grosser_sonderbau: boolean | null, wohngebaeude: boolean | null, bebauungsplan: boolean | null, planungsrechtliche_abweichung: boolean | null, erschliessung: boolean | null, gemeinde_verzicht: boolean | null, };
+export type Eignung = "moeglich" | "ausgeschlossen" | "pruefen";
+export type Bedingungsergebnis = { text: string, erfuellt: boolean | null, quelle: string, };
+export type Verfahrensvorschlag = { art: Verfahrensart, pruefverfahren: Pruefverfahren | null, titel: string, rechtsgrundlage: string, eignung: Eignung, bedingungen: Array<Bedingungsergebnis>, };
+export type Verfahrenswahl = { stichtag: string,
+/**
+ * Angewandte Fassung; leer ohne Regelpaket für das Land.
+ */
+fassung: string | null, geprueft: boolean, merkmale: Vorhabenmerkmale, vorschlaege: Array<Verfahrensvorschlag>,
+/**
+ * Genehmigungsfiktion nach der Fassung, falls vorgesehen.
+ */
+fiktion: Fiktionsregel | null, hinweise: Array<string>, };
+export type Verfahrensangaben = { wohngebaeude: boolean | null, grosser_sonderbau: boolean | null, erschliessung: boolean | null, gemeinde_verzicht: boolean | null,
+/**
+ * Stichtag (Antragseingang); ohne Angabe heute.
+ */
+stichtag: string | null, };
+export type Briefblock = { "art": "absatz", text: string, } | { "art": "abschnitt", titel: string, } | { "art": "hinweis", text: string, } | { "art": "tabelle", koepfe: Array<string>, zeilen: Array<Array<string>>, } | { "art": "unterschrift", felder: Array<[string, string]>, };
+export type Brief = { absender: string, empfaenger: string, datum: string, betreff: string,
+/**
+ * Aktenzeichen der Behörde; leer = ohne.
+ */
+aktenzeichen: string, bloecke: Array<Briefblock>, };
+export type Schreibenart = { "art": "nachforderungsantwort", nachforderung: string, } | { "art": "fristverlaengerung",
+/**
+ * Forderungspunkt oder Verfahrensschritt mit Frist.
+ */
+bezug: string, bis: string, grund: string, } | { "art": "stellungnahme", schritt: string, } | { "art": "abweichungsantrag" } | { "art": "sachstandsanfrage" } | { "art": "ruecknahme" };
+export type Schreibenwunsch = { art: Schreibenart,
+/**
+ * Datum des Schreibens; ohne Angabe heute.
+ */
+datum: string | null,
+/**
+ * Zusätzlicher Text vor dem Gruß.
+ */
+zusatz: string,
+/**
+ * Als Projektunterlage ablegen.
+ */
+ablegen: boolean, };
+export type Schreibenergebnis = { dateiname: string, brief: Brief,
+/**
+ * Hinweise zur Vollständigkeit (fehlende Antworten, Unterlagen …).
+ */
+hinweise: Array<string>,
+/**
+ * Abgelegte Dokumentversion, wenn gewünscht.
+ */
+dokument: Dokumentbezug | null, };
+export type Ablehnungsgrund = { id: string,
+/**
+ * Ablehnender Bescheid dieser Akte.
+ */
+bescheid: string, text: string, grundlage: string, reaktion: string, abweichung?: string,
+/**
+ * Folgeverfahren, in dem der Grund ausgeräumt wird.
+ */
+folgeverfahren?: string, };
+export type Nachbarbekanntgabe = { id: string, bescheid: string, name: string, datum: string, beleg: Dokumentbezug | null,
+/**
+ * Tag, an dem der Nachbar Widerspruch oder Klage erhoben hat.
+ */
+angefochten?: string, };
+export type Optionsaktion = { "art": "schreiben", schreiben: string, } | { "art": "folgeverfahren", verfahrensart: Verfahrensart, } | { "art": "register", register: string, };
+export type Handlungsoption = { titel: string, beschreibung: string, frist: string | null, rechtsgrundlage: string, aktion: Optionsaktion | null, };
+export type Verfahrenslage = {
+/**
+ * Kurze Beschreibung der Lage, z. B. „Anhörung offen“.
+ */
+lage: string, optionen: Array<Handlungsoption>, };
+export type Folgeverfahrenswunsch = { id: string, art: Verfahrensart, bezeichnung: string, };
+export type Faelligkeit = "mit_antrag" | "vor_baubeginn" | "waehrend_bauausfuehrung" | "vor_nutzungsaufnahme" | "dauerhaft";
+export type Nachweisart = "standsicherheit" | "brandschutz" | "waermeschutz" | "schallschutz" | "sonstiges";
+export type Pruefart = "keine" | "bauaufsicht" | "pruefingenieur" | "sachverstaendiger";
+export type BautechnischerNachweis = { id: string, art: Nachweisart, bezeichnung: string, pruefung: Pruefart,
+/**
+ * Prüfende Person oder Stelle.
+ */
+pruefer: string, faellig: Faelligkeit,
+/**
+ * Bei der Behörde vorgelegt am.
+ */
+vorgelegt: string | null,
+/**
+ * Geprüft bzw. bescheinigt am (Prüfbericht, Bescheinigung).
+ */
+bescheinigt: string | null, dokumente?: Array<Dokumentbezug>, };
+export type Bauvorbereitung = {
+/**
+ * Bauleiterin oder Bauleiter.
+ */
+bauleitung: string,
+/**
+ * Der Behörde benannt am.
+ */
+bauleitung_benannt: string | null,
+/**
+ * Grundrissfläche und Höhenlage abgesteckt am.
+ */
+absteckung: string | null,
+/**
+ * Baubeginn angezeigt am.
+ */
+baubeginnanzeige: string | null,
+/**
+ * Fertigstellung bzw. Nutzungsaufnahme angezeigt am.
+ */
+nutzungsanzeige: string | null, belege?: Array<Dokumentbezug>, };
+export type Phase = "baubeginn" | "nutzungsaufnahme";
+export type Voraussetzung = { titel: string, erfuellt: boolean | null, hinweis: string, quelle: string, };
+export type Phasencheckliste = { phase: Phase, voraussetzungen: Array<Voraussetzung>,
+/**
+ * Alle belegt.
+ */
+bereit: boolean, hinweise: Array<string>, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -524,14 +810,53 @@ bearbeitungsfrist?: Frist, profil: Profilstand | null, kommunikation: Array<Komm
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */
-schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>,
+schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>,
+/**
+ * Abweichungen, Ausnahmen, Befreiungen und Erleichterungen. Ältere Akten
+ * lesen die Angabe leer; leer wird sie nicht geschrieben.
+ */
+abweichungen?: Array<Abweichung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>,
 /**
  * Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese
  * Angabe lesen sie leer; leer wird sie nicht geschrieben.
  */
-externe_einreichungen?: Array<ExterneEinreichung>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+externe_einreichungen?: Array<ExterneEinreichung>, bescheide: Array<Bescheid>,
+/**
+ * Gebührenbescheide mit Zahlungsfrist; ältere Akten lesen die Angabe leer.
+ */
+gebuehren?: Array<Gebuehrenbescheid>,
+/**
+ * Erfasste Unterschriften auf Dokumentversionen (§ 70 Abs. 3 BauO NRW
+ * u. ä.); ältere Akten lesen die Angabe leer.
+ */
+unterschriften?: Array<Unterschrift>,
+/**
+ * Gründe ablehnender Bescheide; ältere Akten lesen die Angabe leer.
+ */
+ablehnungsgruende?: Array<Ablehnungsgrund>,
+/**
+ * Bekanntgaben der Genehmigung an Nachbarn.
+ */
+nachbarbekanntgaben?: Array<Nachbarbekanntgabe>,
+/**
+ * Bautechnische Nachweise mit Vorlage und Prüfung.
+ */
+bautechnische_nachweise?: Array<BautechnischerNachweis>,
+/**
+ * Bauleitung, Absteckung und Anzeigen.
+ */
+bauvorbereitung?: Bauvorbereitung, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
-export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
+export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null,
+/**
+ * Verfahrensarten, für die die Anforderung gilt; fehlt = alle.
+ */
+arten?: Array<Verfahrensart>,
+/**
+ * Dokumentkategorien, deren Unterlagen die Anforderung belegen können;
+ * ihre neuesten Versionen werden beim Anwenden vorgeschlagen.
+ */
+kategorien?: Array<string>, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };
 export type Profilstand = { vorhaben: Vorhabenprofil, katalog: Anforderungskatalog, bestaetigt_von: string | null, bestaetigt_am: string | null, };
 export type Versandstatus = "versendet" | "eingegangen" | "zurueckgewiesen" | "ungeklaert";
@@ -550,7 +875,13 @@ export type Abgabestand = { id: string, auftrag_hash: string, titel: string, ers
  * Vom Core aus Originalereignissen und Berichtigungen abgeleitet.
  */
 versandstatus: Versandstatus | null, };
-export type Abgabewunsch = { xbau_bezug?: string, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
+export type Folgewunsch = { "art": "stellungnahme", schritt: string, } | { "art": "abweichungsantrag" } | { "art": "verlaengerung", bis: string | null, } | { "art": "baubeginn", datum: string, pruefung_standsicherheit: boolean, } | { "art": "nutzungsaufnahme", datum: string, standsicherheit_bescheinigt: boolean, brandschutz_bescheinigt: boolean, wiederkehrende_pruefungen: boolean, } | { "art": "ruecknahme" };
+export type Abgabewunsch = { xbau_bezug?: string,
+/**
+ * XBau-Folgenachricht statt des Antrags; fehlt bei Anträgen und
+ * Nachreichungen.
+ */
+xbau_folge?: Folgewunsch, id: string, titel: string, dokumente: Array<Dokumentbezug>, xbau: boolean, druck: boolean, anschreiben: string, };
 export type Einreichungsweg = "post" | "portal" | "persoenlich" | "email" | "fax" | "sonstiges";
 export type ExterneEinreichung = { id: string,
 /**

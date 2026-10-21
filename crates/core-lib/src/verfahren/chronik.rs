@@ -32,6 +32,10 @@ pub enum Ereignisart {
     Notiz,
     /// Übrige Verfahrensangaben (Stammdaten, Anforderungen, Profil …).
     Angaben,
+    /// Abweichungen, Ausnahmen und Befreiungen.
+    Abweichung,
+    /// Gebührenbescheide und Zahlungen.
+    Gebuehr,
 }
 impl Ereignisart {
     pub fn bezeichnung(&self) -> &'static str {
@@ -52,6 +56,8 @@ impl Ereignisart {
             Self::Berichtigung => "Berichtigung",
             Self::Notiz => "Notiz",
             Self::Angaben => "Verfahrensangaben",
+            Self::Abweichung => "Abweichungen",
+            Self::Gebuehr => "Gebühren",
         }
     }
 }
@@ -278,7 +284,12 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
     wenn(alt.status != a.status, Status);
     wenn(alt.vollstaendigkeit != a.vollstaendigkeit, Vollstaendigkeit);
     wenn(alt.ruecknahme != a.ruecknahme, Ruecknahme);
-    wenn(alt.ausfuehrung != a.ausfuehrung, Ausfuehrung);
+    wenn(
+        alt.ausfuehrung != a.ausfuehrung
+            || alt.bautechnische_nachweise != a.bautechnische_nachweise
+            || alt.bauvorbereitung != a.bauvorbereitung,
+        Ausfuehrung,
+    );
     let neue_kommunikation = a
         .kommunikation
         .iter()
@@ -306,6 +317,8 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         alt.externe_einreichungen != a.externe_einreichungen,
         Versand,
     );
+    wenn(alt.abweichungen != a.abweichungen, Abweichung);
+    wenn(alt.gebuehren != a.gebuehren, Gebuehr);
     for b in &a.bescheide {
         match alt.bescheide.iter().find(|v| v.id == b.id) {
             None => wenn(true, Bescheid),
@@ -333,6 +346,9 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         || alt.portal != a.portal
         || alt.anforderungen != a.anforderungen
         || alt.dokumentbeziehungen != a.dokumentbeziehungen
+        || alt.unterschriften != a.unterschriften
+        || alt.ablehnungsgruende != a.ablehnungsgruende
+        || alt.nachbarbekanntgaben != a.nachbarbekanntgaben
         || (!neue_kommunikation && alt.kommunikation != a.kommunikation);
     wenn(angaben, Angaben);
     if r.is_empty() && !neue_ereignisse.is_empty() {

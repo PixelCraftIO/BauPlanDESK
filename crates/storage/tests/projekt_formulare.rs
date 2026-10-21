@@ -449,6 +449,7 @@ async fn veraltete_werte_zuordnung_und_entfernter_bauherr() {
         .unwrap();
     let w = core_lib::verfahren::abgabe::Abgabewunsch {
         xbau_bezug: None,
+        xbau_folge: None,
         id: uuid::Uuid::new_v4(),
         titel: "Antrag".into(),
         dokumente: vec![core_lib::plattform::objekte::Dokumentbezug {

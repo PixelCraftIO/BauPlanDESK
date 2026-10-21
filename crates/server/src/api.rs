@@ -22,7 +22,7 @@ use core_lib::license::Lizenzstatus;
 use core_lib::service::{CadPlan, FormularAnalyse};
 use core_lib::xbau::{Bauantrag, Buero, Codeliste, GespeicherterBauantrag};
 use core_lib::{CoreError, CoreServices};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub struct ApiError(CoreError);
@@ -205,6 +205,15 @@ fn routen(core: CoreServices) -> Router {
             get(nachweis_wiederholen),
         )
         .route("/projekte/{id}/verfahrensprofil", get(verfahrensprofil))
+        .route("/verfahrenskataloge", get(verfahrenskataloge))
+        .route(
+            "/projekte/{id}/verfahrenswahl",
+            post(verfahren_verfahrenswahl),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/unterschriften",
+            get(verfahren_unterschriften),
+        )
         .route(
             "/projekte/{id}/verfahren/{verfahren}/profil",
             post(verfahren_profil),
@@ -228,6 +237,26 @@ fn routen(core: CoreServices) -> Router {
         .route(
             "/projekte/{id}/verfahren/{verfahren}/planunterlagen",
             get(verfahren_planunterlagen),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/abweichungen",
+            get(verfahren_abweichungen),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/schreiben",
+            post(verfahren_schreiben),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/optionen",
+            get(verfahren_optionen),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/checkliste",
+            get(verfahren_checkliste),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/folgeverfahren",
+            post(verfahren_folgeverfahren),
         )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
@@ -302,6 +331,10 @@ fn routen(core: CoreServices) -> Router {
         .route(
             "/projekte/{p}/xbau/nachrichten/{id}/belege",
             post(xbau_beleg),
+        )
+        .route(
+            "/projekte/{p}/xbau/nachrichten/{id}/auswertung",
+            get(xbau_auswertung).post(xbau_auswertung_uebernehmen),
         )
         .route(
             "/projekte/{p}/xbau/nachrichten/{id}/verfahren",
@@ -1276,6 +1309,41 @@ async fn druckausgabe(
         .into_response())
 }
 
+async fn verfahrenskataloge() -> ApiResult<Vec<core_lib::verfahren::profile::Anforderungskatalog>> {
+    Ok(Json(
+        core_lib::verfahren::profile::Anforderungskatalog::mitgeliefert()?,
+    ))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Verfahrenswahlwunsch {
+    #[serde(default)]
+    verfahren: Option<Uuid>,
+    #[serde(default)]
+    angaben: core_lib::verfahren::landesrecht::Verfahrensangaben,
+}
+async fn verfahren_verfahrenswahl(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path(p): Path<Uuid>,
+    Json(w): Json<Verfahrenswahlwunsch>,
+) -> ApiResult<core_lib::verfahren::landesrecht::Verfahrenswahl> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(
+        core.verfahrenswahl(ProjectId(p), w.verfahren, w.angaben)
+            .await?,
+    ))
+}
+async fn verfahren_unterschriften(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Vec<core_lib::verfahren::landesrecht::Unterschriftsbedarf>> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(core.verfahren_unterschriften(ProjectId(p), id).await?))
+}
 async fn verfahrensprofil() -> ApiResult<core_lib::verfahren::profile::Anforderungskatalog> {
     Ok(Json(
         core_lib::verfahren::profile::Anforderungskatalog::standard()?,
@@ -1346,6 +1414,72 @@ async fn verfahren_planunterlagen(
     Path((p, id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Vec<core_lib::verfahren::planindex::Planunterlage>> {
     Ok(Json(core.verfahren_planunterlagen(ProjectId(p), id).await?))
+}
+async fn verfahren_abweichungen(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<core_lib::verfahren::abweichungen::Abweichungsabgleich> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(core.verfahren_abweichungen(ProjectId(p), id).await?))
+}
+async fn verfahren_optionen(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<core_lib::verfahren::optionen::Verfahrenslage> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(core.verfahren_optionen(ProjectId(p), id).await?))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Checklistenfrage {
+    phase: core_lib::verfahren::ausfuehrung::Phase,
+}
+async fn verfahren_checkliste(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<Checklistenfrage>,
+) -> ApiResult<core_lib::verfahren::ausfuehrung::Phasencheckliste> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(
+        core.verfahren_checkliste(ProjectId(p), id, q.phase).await?,
+    ))
+}
+async fn verfahren_folgeverfahren(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<core_lib::verfahren::optionen::Folgeverfahrenswunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.verfahren_folgeverfahren(ProjectId(p), id, w, &wer)
+            .await?,
+    ))
+}
+/// Schreiben mit PDF (Base64), damit der Client es speichern kann.
+#[derive(Serialize)]
+struct Schreibenantwort {
+    #[serde(flatten)]
+    ergebnis: core_lib::verfahren::schreiben::Schreibenergebnis,
+    pdf_base64: String,
+}
+async fn verfahren_schreiben(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<core_lib::verfahren::schreiben::Schreibenwunsch>,
+) -> ApiResult<Schreibenantwort> {
+    use base64::Engine as _;
+    let (ergebnis, pdf) = core.verfahren_schreiben(ProjectId(p), id, w, &wer).await?;
+    Ok(Json(Schreibenantwort {
+        ergebnis,
+        pdf_base64: base64::engine::general_purpose::STANDARD.encode(pdf),
+    }))
 }
 async fn verfahren_artefakt(
     State(ApiState { core }): State<ApiState>,
@@ -1633,6 +1767,34 @@ struct XbauVerfahrenswunsch {
     /// Bestätigtes Zugangs- bzw. Versanddatum; fehlt es, gilt der Erfassungstag.
     #[serde(default)]
     zugang: Option<chrono::NaiveDate>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XbauAuswertungsfrage {
+    #[serde(default)]
+    verfahren: Option<Uuid>,
+}
+async fn xbau_auswertung(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<XbauAuswertungsfrage>,
+) -> ApiResult<core_lib::verfahren::eingang::Nachrichtenauswertung> {
+    Ok(Json(
+        core.xbau_auswertung(ProjectId(p), id, q.verfahren, &wer)
+            .await?,
+    ))
+}
+async fn xbau_auswertung_uebernehmen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<core_lib::verfahren::eingang::Uebernahmewunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.xbau_auswertung_uebernehmen(ProjectId(p), id, w, &wer)
+            .await?,
+    ))
 }
 async fn xbau_verfahren(
     Extension(wer): Extension<Benutzer>,

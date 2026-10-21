@@ -2,13 +2,19 @@
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
 pub mod abgleich;
+pub mod abweichungen;
+pub mod ausfuehrung;
 pub mod chronik;
+pub mod eingang;
 pub mod externe_einreichung;
 pub mod fristen;
+pub mod landesrecht;
+pub mod optionen;
 pub mod planindex;
 pub mod profile;
 mod pruefung;
 mod regeln;
+pub mod schreiben;
 pub mod suche;
 pub mod termine;
 use crate::plattform::objekte::Dokumentbezug;
@@ -313,6 +319,11 @@ pub struct Auflage {
     pub frist: Option<Frist>,
     pub erledigt: bool,
     pub nachweise: Vec<Dokumentbezug>,
+    /// Wann die Pflicht erfüllt sein muss (vor Baubeginn …); ältere Einträge
+    /// lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub faelligkeit: Option<ausfuehrung::Faelligkeit>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -336,6 +347,11 @@ pub struct Bescheid {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub teilbaugenehmigung: bool,
+    /// Entscheidungen über beantragte Abweichungen, Ausnahmen und Befreiungen.
+    /// Ältere Bescheide lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<abweichungen::Abweichungsentscheidung>>", optional)]
+    pub abweichungsentscheidungen: Vec<abweichungen::Abweichungsentscheidung>,
 }
 /// Verlängerung der Geltungsdauer durch einen Bescheid der Behörde.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -417,6 +433,64 @@ pub struct Verfahrensschritt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub folgeschreiben: Option<Uuid>,
+    /// Anhörung: Beanstandungen der Behörde, auf die die Stellungnahme
+    /// eingeht. Ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Beanstandung>>", optional)]
+    pub gruende: Vec<Beanstandung>,
+}
+/// Grund einer Ablehnung im Bescheid; die Reaktion zeigt, wie ein
+/// Folgeverfahren ihn ausräumt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Ablehnungsgrund {
+    pub id: Uuid,
+    /// Ablehnender Bescheid dieser Akte.
+    pub bescheid: Uuid,
+    pub text: String,
+    #[serde(default)]
+    pub grundlage: String,
+    #[serde(default)]
+    pub reaktion: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub abweichung: Option<Uuid>,
+    /// Folgeverfahren, in dem der Grund ausgeräumt wird.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folgeverfahren: Option<Uuid>,
+}
+/// Bekanntgabe einer Genehmigung an einen Nachbarn; sie setzt dessen
+/// Rechtsbehelfsfrist in Lauf.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Nachbarbekanntgabe {
+    pub id: Uuid,
+    pub bescheid: Uuid,
+    pub name: String,
+    pub datum: NaiveDate,
+    pub beleg: Option<Dokumentbezug>,
+    /// Tag, an dem der Nachbar Widerspruch oder Klage erhoben hat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub angefochten: Option<NaiveDate>,
+}
+/// Beanstandung der Behörde (Anhörung, Ablehnung) und die Reaktion darauf.
+/// Wortlaut und Grundlage bleiben nach dem Speichern unverändert.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Beanstandung {
+    pub id: Uuid,
+    pub text: String,
+    #[serde(default)]
+    pub grundlage: String,
+    /// Wie der Antrag reagiert: Stellungnahme, Planänderung, Abweichungsantrag.
+    #[serde(default)]
+    pub reaktion: String,
+    /// Abweichung dieser Akte, mit der die Beanstandung ausgeräumt werden soll.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub abweichung: Option<Uuid>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
@@ -511,6 +585,11 @@ pub struct Verfahrensakte {
     #[serde(default)]
     pub schritte: Vec<Verfahrensschritt>,
     pub anforderungen: Vec<Anforderung>,
+    /// Abweichungen, Ausnahmen, Befreiungen und Erleichterungen. Ältere Akten
+    /// lesen die Angabe leer; leer wird sie nicht geschrieben.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<abweichungen::Abweichung>>", optional)]
+    pub abweichungen: Vec<abweichungen::Abweichung>,
     pub dokumentbeziehungen: Vec<Dokumentbeziehung>,
     pub abgaben: Vec<abgabe::Abgabestand>,
     /// Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese
@@ -519,6 +598,31 @@ pub struct Verfahrensakte {
     #[ts(as = "Option<Vec<externe_einreichung::ExterneEinreichung>>", optional)]
     pub externe_einreichungen: Vec<externe_einreichung::ExterneEinreichung>,
     pub bescheide: Vec<Bescheid>,
+    /// Gebührenbescheide mit Zahlungsfrist; ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<eingang::Gebuehrenbescheid>>", optional)]
+    pub gebuehren: Vec<eingang::Gebuehrenbescheid>,
+    /// Erfasste Unterschriften auf Dokumentversionen (§ 70 Abs. 3 BauO NRW
+    /// u. ä.); ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<landesrecht::Unterschrift>>", optional)]
+    pub unterschriften: Vec<landesrecht::Unterschrift>,
+    /// Gründe ablehnender Bescheide; ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Ablehnungsgrund>>", optional)]
+    pub ablehnungsgruende: Vec<Ablehnungsgrund>,
+    /// Bekanntgaben der Genehmigung an Nachbarn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Nachbarbekanntgabe>>", optional)]
+    pub nachbarbekanntgaben: Vec<Nachbarbekanntgabe>,
+    /// Bautechnische Nachweise mit Vorlage und Prüfung.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<ausfuehrung::BautechnischerNachweis>>", optional)]
+    pub bautechnische_nachweise: Vec<ausfuehrung::BautechnischerNachweis>,
+    /// Bauleitung, Absteckung und Anzeigen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bauvorbereitung: Option<ausfuehrung::Bauvorbereitung>,
     pub ereignisse: Vec<Aktenereignis>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]

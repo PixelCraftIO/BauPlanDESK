@@ -2,6 +2,7 @@
 //! Fachberichte. Erzeugt keine DMS-Version und bestätigt keine Einreichung.
 mod abstandsbericht;
 mod berichte;
+pub mod brief;
 mod layout;
 mod pdf;
 mod vorlage;

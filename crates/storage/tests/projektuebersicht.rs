@@ -143,6 +143,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
     let punkt = Uuid::new_v4();
     let mut akte = Verfahrensakte {
         portal: None,
+        abweichungen: vec![],
         bezeichnung: "Bauantrag Wohnhaus".into(),
         art: Verfahrensart::Bauantrag,
         antragsangaben: Default::default(),
@@ -210,6 +211,12 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         abgaben: vec![],
         externe_einreichungen: vec![],
         bescheide: vec![],
+        gebuehren: vec![],
+        unterschriften: vec![],
+        ablehnungsgruende: vec![],
+        nachbarbekanntgaben: vec![],
+        bautechnische_nachweise: vec![],
+        bauvorbereitung: None,
         ereignisse: vec![],
     };
     let af = c

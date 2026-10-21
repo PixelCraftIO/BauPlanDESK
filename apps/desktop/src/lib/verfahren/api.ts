@@ -23,7 +23,57 @@ import type {
   Planunterlage,
   Einreichungsweg,
   ExterneEinreichungswunsch,
+  Abweichungsart,
+  Abweichungsabgleich,
+  Verfahrensangaben,
+  Verfahrenswahl,
+  Unterschriftsbedarf,
+  Unterschriftsrolle,
+  Schreibenwunsch,
+  Schreibenergebnis,
+  Verfahrenslage,
+  Folgeverfahrenswunsch,
+  Phasencheckliste,
+  Phase,
+  Faelligkeit,
+  Nachweisart,
+  Pruefart,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Faelligkeit::bezeichnung` im Core. */
+export const FAELLIGKEIT: Record<Faelligkeit, string> = {
+  mit_antrag: "Mit dem Antrag",
+  vor_baubeginn: "Vor Baubeginn",
+  waehrend_bauausfuehrung: "Während der Bauausführung",
+  vor_nutzungsaufnahme: "Vor Nutzungsaufnahme",
+  dauerhaft: "Dauerhaft",
+};
+/** Bezeichnungen wie `Nachweisart::bezeichnung` im Core. */
+export const NACHWEISART: Record<Nachweisart, string> = {
+  standsicherheit: "Standsicherheit",
+  brandschutz: "Brandschutz",
+  waermeschutz: "Wärmeschutz / GEG",
+  schallschutz: "Schallschutz",
+  sonstiges: "Sonstiger Nachweis",
+};
+export const PRUEFART: Record<Pruefart, string> = {
+  keine: "Keine Prüfung vorgeschrieben",
+  bauaufsicht: "Bauaufsicht",
+  pruefingenieur: "Prüfingenieur/in",
+  sachverstaendiger: "Staatlich anerkannte/r Sachverständige/r",
+};
+/** Bezeichnungen wie `Unterschriftsrolle::bezeichnung` im Core. */
+export const UNTERSCHRIFTSROLLE: Record<Unterschriftsrolle, string> = {
+  bauherrschaft: "Bauherrschaft",
+  entwurfsverfasser: "Entwurfsverfasser/in",
+  fachplaner: "Fachplaner/in",
+};
+/** Bezeichnungen wie `Abweichungsart::bezeichnung` im Core. */
+export const ABWEICHUNGSART: Record<Abweichungsart, string> = {
+  abweichung: "Abweichung",
+  ausnahme: "Ausnahme",
+  befreiung: "Befreiung",
+  erleichterung: "Erleichterung",
+};
 /** Bezeichnungen wie `Einreichungsstatus::bezeichnung` im Core. */
 export const EINREICHUNG: Record<Einreichungsstatus, string> = {
   entwurf: "Entwurf",
@@ -93,6 +143,8 @@ export const EREIGNISART: Record<Ereignisart, string> = {
   berichtigung: "Berichtigung",
   notiz: "Notiz",
   angaben: "Verfahrensangaben",
+  abweichung: "Abweichungen",
+  gebuehr: "Gebühren",
 };
 /** Nebenbestimmungsarten mit erfüllbarer Pflicht (`Nebenbestimmungsart::pflicht`). */
 export const PFLICHT: Nebenbestimmungsart[] = ["auflage", "bedingung"];
@@ -128,6 +180,46 @@ export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
 };
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
+  /** Mitgelieferte Kataloge: Büroprofil und Landespakete. */
+  kataloge: () => invoke<Anforderungskatalog[]>("verfahrenskataloge"),
+  verfahrenswahl: (
+    projektId: string,
+    id: string | null,
+    angaben: Verfahrensangaben,
+  ) =>
+    invoke<Verfahrenswahl>("verfahren_verfahrenswahl", {
+      projektId,
+      id,
+      angaben,
+    }),
+  /** Schreiben an die Behörde; mit Ziel wird das PDF dort gespeichert. */
+  schreiben: (
+    projektId: string,
+    id: string,
+    wunsch: Schreibenwunsch,
+    ziel: string | null,
+  ) =>
+    invoke<Schreibenergebnis>("verfahren_schreiben", {
+      projektId,
+      id,
+      wunsch,
+      ziel,
+    }),
+  checkliste: (projektId: string, id: string, phase: Phase) =>
+    invoke<Phasencheckliste>("verfahren_checkliste", { projektId, id, phase }),
+  optionen: (projektId: string, id: string) =>
+    invoke<Verfahrenslage>("verfahren_optionen", { projektId, id }),
+  folgeverfahren: (
+    projektId: string,
+    id: string,
+    wunsch: Folgeverfahrenswunsch,
+  ) =>
+    invoke<Fachstand>("verfahren_folgeverfahren", { projektId, id, wunsch }),
+  unterschriften: (projektId: string, id: string) =>
+    invoke<Unterschriftsbedarf[]>("verfahren_unterschriften", {
+      projektId,
+      id,
+    }),
   profilAnwenden: (
     projektId: string,
     id: string,
@@ -179,6 +271,9 @@ export const verfahrenApi = {
       projektId,
       auftrag,
     }),
+  /** Abweichungsbedarf aus dem Planungsstand, abgeglichen mit der gespeicherten Akte. */
+  abweichungen: (projektId: string, id: string) =>
+    invoke<Abweichungsabgleich>("verfahren_abweichungen", { projektId, id }),
   /** Planindex und Einreichungsstatus, im Core aus der gespeicherten Akte abgeleitet. */
   planunterlagen: (projektId: string, id: string) =>
     invoke<Planunterlage[]>("verfahren_planunterlagen", { projektId, id }),

@@ -150,6 +150,12 @@ fn genehmigt(b: &Bescheid) -> bool {
     )
 }
 
+/// Ende der Monatsfrist für einen Rechtsbehelf ab Bekanntgabe, verschoben
+/// auf den nächsten Werktag (§§ 57, 70, 74 VwGO).
+pub fn rechtsbehelf_ende(land: Bundesland, bekanntgabe: NaiveDate) -> NaiveDate {
+    naechster_werktag(land, nach_monaten(bekanntgabe, 1))
+}
+
 pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Bescheidfristen {
     let mut r = Bescheidfristen {
         bescheid: b.id,
@@ -206,7 +212,7 @@ pub fn berechnen(land: Bundesland, art: &Verfahrensart, b: &Bescheid) -> Beschei
     };
     r.rechtsbehelfsfrist = Some(Fristberechnung {
         beginn: zugestellt,
-        ende: naechster_werktag(land, nach_monaten(zugestellt, 1)),
+        ende: rechtsbehelf_ende(land, zugestellt),
         grundlage: "Ein Monat nach Bekanntgabe (§§ 70, 74 VwGO); Fristende an Wochenenden \
                     und Feiertagen am nächsten Werktag (§ 57 Abs. 2 VwGO, § 222 Abs. 2 ZPO)"
             .into(),
@@ -361,6 +367,7 @@ mod tests {
             ersetzt: None,
             verlaengerung: None,
             teilbaugenehmigung: false,
+            abweichungsentscheidungen: vec![],
         }
     }
     fn tag(s: &str) -> NaiveDate {
