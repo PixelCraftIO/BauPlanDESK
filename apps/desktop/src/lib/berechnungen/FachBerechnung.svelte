@@ -371,11 +371,18 @@
       let erhalten = 0;
       const abgeglichen = neu.map((n) => {
         const a = alt.find((x) => x.id === n.id);
-        if (!a) return n;
-        erhalten++;
+        // Höhenzone („Raum_Zone“) neu: Raumart und Wohnung vom selben Raum
+        // übernehmen, nicht dessen Höhe.
+        const raum = String(n.id).split("_")[0];
+        const verwandt = !a && String(n.id).includes("_")
+          ? alt.find((x) => x.id === raum || String(x.id).startsWith(`${raum}_`))
+          : undefined;
+        const quelle = a ?? verwandt;
+        if (!quelle) return n;
+        if (a) erhalten++;
         const z = { ...n };
-        for (const k of eigene) if (a[k] !== undefined && a[k] !== "" && a[k] !== null) z[k] = a[k];
-        if (z.lichte_hoehe_m == null && a.lichte_hoehe_m != null) z.lichte_hoehe_m = a.lichte_hoehe_m;
+        for (const k of eigene) if (k !== "begruendung" || a) if (quelle[k] !== undefined && quelle[k] !== "" && quelle[k] !== null) z[k] = quelle[k];
+        if (a && z.lichte_hoehe_m == null && a.lichte_hoehe_m != null) z.lichte_hoehe_m = a.lichte_hoehe_m;
         return z;
       });
       const manuell = alt.filter((a) => !neu.some((n) => n.id === a.id) && !ausRaumbuch(a));

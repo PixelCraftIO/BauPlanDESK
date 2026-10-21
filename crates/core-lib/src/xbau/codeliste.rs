@@ -281,6 +281,90 @@ impl Codelisten {
     }
 }
 
+/// Laufend ergänzbarer Codelistenstand der Installation. Leser erhalten einen
+/// unveränderlichen Schnappschuss; eine eingespielte Liste gilt ab dem nächsten
+/// Aufruf, ohne Neustart.
+#[derive(Debug, Default)]
+pub struct CodelistenRegister(std::sync::RwLock<std::sync::Arc<Codelisten>>);
+
+impl CodelistenRegister {
+    pub fn new(codelisten: Codelisten) -> Self {
+        Self(std::sync::RwLock::new(std::sync::Arc::new(codelisten)))
+    }
+
+    pub fn aktuell(&self) -> std::sync::Arc<Codelisten> {
+        self.0.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Ersetzt bzw. ergänzt eine Liste (gleiche Kennung ersetzt).
+    pub fn hinzufuegen(&self, liste: Codeliste) {
+        let mut stand = self.0.write().unwrap_or_else(|e| e.into_inner());
+        let mut neu = (**stand).clone();
+        neu.hinzufuegen(liste);
+        *stand = std::sync::Arc::new(neu);
+    }
+}
+
+/// Höchstgröße einer eingespielten Genericode-Datei.
+const MAX_GENERICODE: usize = 4 * 1024 * 1024;
+
+/// Prüft eine einzuspielende Genericode-Datei und liefert die Liste samt
+/// Dateinamen für den Codelisten-Ordner (aus der Kennung abgeleitet, damit
+/// eine neuere Version dieselbe Datei ersetzt).
+pub fn einspielbar(xml: &str) -> CoreResult<(Codeliste, String)> {
+    if xml.len() > MAX_GENERICODE {
+        return Err(CoreError::InvalidInput(
+            "Die Codeliste ist größer als 4 MB".into(),
+        ));
+    }
+    let liste = Codeliste::genericode(xml)?;
+    if !liste.uri.starts_with("urn:") || liste.uri.len() > 200 {
+        return Err(CoreError::InvalidInput(format!(
+            "Genericode-Codeliste: Die Kennung „{}“ ist keine URN",
+            liste.uri
+        )));
+    }
+    if liste.version.trim().is_empty() || liste.eintraege.is_empty() {
+        return Err(CoreError::InvalidInput(
+            "Genericode-Codeliste: Version und mindestens ein Eintrag sind erforderlich".into(),
+        ));
+    }
+    let datei = liste
+        .uri
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        + ".xml";
+    Ok((liste, datei))
+}
+
+impl crate::CoreServices {
+    /// Spielt eine Genericode-Codeliste ein (z. B. die Landesliste der
+    /// Verfahrensarten, die eine Bauaufsicht bereitstellt). `ablegen` speichert
+    /// die Datei im Codelisten-Ordner des Adapters; erst danach gilt die Liste,
+    /// damit sie auch nach einem Neustart vorhanden ist.
+    pub async fn xbau_codeliste_einspielen(
+        &self,
+        xml: &str,
+        wer: &crate::benutzer::Benutzer,
+        ablegen: impl FnOnce(&str, &str) -> CoreResult<()>,
+    ) -> CoreResult<Codeliste> {
+        self.pruefe(wer, crate::benutzer::Recht::BueroangabenAendern)
+            .await?;
+        let (liste, datei) = einspielbar(xml)?;
+        ablegen(&datei, xml)?;
+        self.codelisten.hinzufuegen(liste.clone());
+        tracing::info!(uri = %liste.uri, version = %liste.version, "Codeliste eingespielt");
+        Ok(liste)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,5 +456,23 @@ mod tests {
         assert!(c.liste(VERZEICHNISDIENST).is_some());
         assert!(c.benoetigt(ANLAGEN, "XBau Anlage Art").is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn einspielbare_liste_ersetzt_gleiche_kennung_im_laufenden_register() {
+        let xml = BEISPIEL;
+        let (liste, datei) = einspielbar(xml).unwrap();
+        assert_eq!(datei, "urn_xoev-de_kosit_codeliste_verzeichnisdienst.xml");
+        let register = CodelistenRegister::new(Codelisten::default());
+        let vorher = register.aktuell();
+        register.hinzufuegen(liste.clone());
+        assert!(vorher.liste(&liste.uri).is_none());
+        assert_eq!(register.aktuell().liste(&liste.uri), Some(&liste));
+        assert!(einspielbar("<kein/>").is_err());
+        let ohne_urn = xml.replace(
+            "urn:xoev-de:kosit:codeliste:verzeichnisdienst",
+            "http://beispiel.de/liste",
+        );
+        assert!(einspielbar(&ohne_urn).is_err());
     }
 }

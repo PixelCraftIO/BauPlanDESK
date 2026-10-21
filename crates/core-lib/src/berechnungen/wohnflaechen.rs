@@ -105,8 +105,11 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
     for q in &a.raumregeln {
         quote(q.faktor, "Raumfaktor")?;
         quote(q.maximaler_faktor, "Maximaler Raumfaktor")?;
-        text(&q.bezeichnung)?;
-        text(&q.quelle)?;
+        text_feld(
+            &q.bezeichnung,
+            format!("Raumregel „{}“: Bezeichnung", q.typ),
+        )?;
+        text_feld(&q.quelle, format!("Raumregel „{}“: Quelle", q.typ))?;
         if q.faktor > q.maximaler_faktor {
             return Err(err("Raumfaktor über maximalem Faktor"));
         }
@@ -121,8 +124,11 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
             .ok_or_else(|| err("Abzug verweist auf unbekannte Teilfläche"))?;
         wert(b.flaeche_m2, "Abzugsfläche")?;
         wert(b.hoehe_m, "Bauteilhöhe")?;
-        text(&b.bezeichnung)?;
-        text(&b.grundlage)?;
+        text_feld(&b.bezeichnung, format!("Abzug „{}“: Bezeichnung", b.id))?;
+        text_feld(
+            &b.grundlage,
+            format!("Abzug „{}“: Grundlage", b.bezeichnung),
+        )?;
         let abziehen = match b.typ.as_str() {
             "treppe" => b.stufen >= a.treppe_ab_stufen,
             "pfeiler_schornstein" => {
@@ -151,19 +157,45 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
     let mut wohnungen: BTreeMap<String, f64> = BTreeMap::new();
     let mut rows = vec![];
     for p in &e.positionen {
-        text(&p.wohnung)?;
-        text(&p.raum)?;
+        let name = if p.raum.trim().is_empty() {
+            &p.id
+        } else {
+            &p.raum
+        };
+        text_feld(&p.raum, format!("Position „{}“: Raum", p.id))?;
         if p.quelle.trim().is_empty() {
             r.offen(format!("Aufmaßquelle fehlt: {} / {}", p.wohnung, p.raum));
         }
         if let Some(h) = p.lichte_hoehe_m {
             wert(h, "Lichte Höhe")?;
         }
+        // Ein unveränderter Raumbuch-Import ist prüfbar: fehlende Wohnungs-
+        // zuordnung und Raumart bleiben je Position offen und werden nicht
+        // angerechnet. Eine angegebene, aber unbekannte Raumart ist ein Fehler.
+        let mut zuordnung = true;
+        if p.wohnung.trim().is_empty() {
+            r.offen(format!("Position „{name}“: Wohnung zuordnen"));
+            zuordnung = false;
+        } else {
+            text_feld(&p.wohnung, format!("Position „{name}“: Wohnung"))?;
+        }
+        if p.typ.trim().is_empty() {
+            r.offen(format!("Position „{name}“: Raumart (WoFlV) zuordnen"));
+            zuordnung = false;
+        }
+        if !zuordnung {
+            continue;
+        }
         let regel = a
             .raumregeln
             .iter()
             .find(|r| r.typ == p.typ)
-            .ok_or_else(|| err("Raumtyp fehlt im gewählten Regelpaket"))?;
+            .ok_or_else(|| {
+                err(format!(
+                    "Position „{name}“: Raumart „{}“ fehlt im gewählten Regelpaket",
+                    p.typ
+                ))
+            })?;
         let brutto = aufmass(p.form, p.laenge_m, p.breite_m, p.breite2_m, p.aufmass_m2)?;
         if brutto <= 0. {
             r.offen(format!("{}: Fläche noch nicht erfasst", p.raum));

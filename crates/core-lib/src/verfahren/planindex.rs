@@ -7,11 +7,12 @@
 //!   Dokument. Es wird nichts gespeichert; das Ergebnis ist bei jedem Lesen neu
 //!   abgeleitet und damit nie veraltet.
 //! - Planindex: Je Dokument erhält jede Version, die erstmals in einem
-//!   versendeten oder eingegangenen Abgabestand enthalten war, den nächsten
-//!   Buchstaben (A, B, …, Z, AA, …). Maßgebend ist die Reihenfolge der
-//!   Einreichung (Datum des maßgebenden Versandereignisses, dann Erstellung des
-//!   Abgabestands). Zurückgewiesene, ungeklärte und nicht versendete Stände
-//!   vergeben keinen Index.
+//!   versendeten oder eingegangenen Abgabestand oder in einer maßgebenden
+//!   externen Einreichung ([`externe_einreichung::einreichungsfolge`])
+//!   enthalten war, den nächsten Buchstaben (A, B, …, Z, AA, …). Maßgebend ist
+//!   die Reihenfolge der Einreichung (Datum des maßgebenden Versandereignisses
+//!   bzw. Einreichungstag, dann Erstellung bzw. Erfassung). Zurückgewiesene,
+//!   ungeklärte und nicht versendete Stände vergeben keinen Index.
 //! - Status: siehe [`Einreichungsstatus`]. Der Bürostatus einer Unterlage
 //!   ([`crate::plattform::objekte::UnterlagenStatus`]: Entwurf, Prüfung,
 //!   Freigegeben) bleibt ein eigenes, manuelles Merkmal der internen Freigabe.
@@ -25,7 +26,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Einreichungsstatus {
-    /// In keinem versendeten Abgabestand enthalten.
+    /// In keinem versendeten Abgabestand und keiner externen Einreichung enthalten.
     Entwurf,
     /// Erstmals mit dem ersten versendeten Abgabestand der Akte eingereicht.
     Eingereicht,
@@ -69,7 +70,8 @@ pub struct Planstand {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Planunterlage {
     pub dokument_id: DocumentId,
-    /// Dateiname aus dem jüngsten Abgabestand.
+    /// Dateiname aus dem jüngsten Abgabestand; bei nur extern eingereichten
+    /// Unterlagen der Dateiname im DMS (leer, wenn nicht mehr vorhanden).
     pub name: String,
     /// Zuletzt vergebener Planindex; `None`, solange nichts eingereicht ist.
     pub planindex: Option<String>,
@@ -105,18 +107,6 @@ fn versendet(b: &abgabe::Abgabestand) -> bool {
     )
 }
 
-/// Versendete Abgabestände in Einreichungsfolge mit maßgebendem Datum.
-fn einreichungsfolge(a: &Verfahrensakte) -> Vec<(&abgabe::Abgabestand, NaiveDate)> {
-    let mut v: Vec<_> = a
-        .abgaben
-        .iter()
-        .filter(|b| versendet(b))
-        .filter_map(|b| abgabe::letztes_versandereignis(b).map(|e| (b, e.datum)))
-        .collect();
-    v.sort_by_key(|(b, d)| (*d, b.erstellt_am, b.id));
-    v
-}
-
 /// Leitet Planindex und Status aller Unterlagen der Akte ab. `dms` nennt die
 /// aktuelle DMS-Version je Dokument (darf leer sein).
 pub fn ableiten(a: &Verfahrensakte, dms: &HashMap<DocumentId, i64>) -> Vec<Planunterlage> {
@@ -138,23 +128,39 @@ pub fn ableiten(a: &Verfahrensakte, dms: &HashMap<DocumentId, i64>) -> Vec<Planu
             reihenfolge.push(d);
         }
     };
-    let folge = einreichungsfolge(a);
-    let erste = folge.first().map(|(b, _)| b.id);
-    for (b, datum) in &folge {
-        for d in &b.dokumente {
-            let id = d.dokument.dokument_id;
+    // Versendete Abgabestände und externe Einreichungen; das Datum des
+    // Versandereignisses zählt unabhängig vom Ableitungstag.
+    let folge = externe_einreichung::einreichungsfolge(a, NaiveDate::MAX);
+    let erste = folge.first().map(|e| e.id);
+    for e in &folge {
+        // (Dokument, Abgabeunterlage mit Name und ausgewiesenem Index)
+        let dokumente: Vec<(&Dokumentbezug, Option<&abgabe::Abgabedokument>)> = match e.quelle {
+            externe_einreichung::Einreichungsquelle::Abgabe(b) => {
+                b.dokumente.iter().map(|d| (&d.dokument, Some(d))).collect()
+            }
+            externe_einreichung::Einreichungsquelle::Extern(x) => {
+                x.dokumente.iter().map(|d| (d, None)).collect()
+            }
+        };
+        let abgabe = matches!(e.quelle, externe_einreichung::Einreichungsquelle::Abgabe(_));
+        for (d, unterlage) in dokumente {
+            let id = d.dokument_id;
             merken(id, &mut reihenfolge);
-            namen.insert(id, d.name.clone());
-            let r = roh.entry((id, d.dokument.version)).or_default();
+            if let Some(u) = unterlage {
+                namen.insert(id, u.name.clone());
+            }
+            let r = roh.entry((id, d.version)).or_default();
             if r.index.is_none() {
                 let n = anzahl.entry(id).or_default();
                 r.index = Some(*n);
                 *n += 1;
-                r.eingereicht_am = Some(*datum);
-                r.erstmals = Some(b.id);
-                r.ausgewiesen = d.planindex.clone();
+                r.eingereicht_am = Some(e.datum);
+                r.erstmals = Some(e.id);
+                r.ausgewiesen = unterlage.and_then(|u| u.planindex.clone());
             }
-            r.abgaben.push(b.id);
+            if abgabe {
+                r.abgaben.push(e.id);
+            }
         }
     }
     // Vorbereitete oder nicht zugestellte Stände: Version bekannt, kein Index.
@@ -314,13 +320,23 @@ impl CoreServices {
     ) -> CoreResult<Vec<Planunterlage>> {
         let (_, a) = self.verfahrensakte(p, vid).await?;
         let mut dms = HashMap::new();
+        let mut namen = HashMap::new();
         for u in ableiten(&a, &HashMap::new()) {
             // Gelöschte oder nicht mehr lesbare Dokumente bleiben ohne DMS-Stand.
             if let Ok(d) = self.repos.documents.latest(u.dokument_id).await {
                 dms.insert(u.dokument_id, d.version);
+                namen.insert(u.dokument_id, d.file_name);
             }
         }
-        Ok(ableiten(&a, &dms))
+        let mut liste = ableiten(&a, &dms);
+        // Nur extern eingereichte Unterlagen tragen keinen Namen aus einem
+        // Abgabestand; dann gilt der Dateiname im DMS.
+        for u in liste.iter_mut().filter(|u| u.name.is_empty()) {
+            if let Some(n) = namen.get(&u.dokument_id) {
+                u.name = n.clone();
+            }
+        }
+        Ok(liste)
     }
 }
 
@@ -421,6 +437,69 @@ mod tests {
             .iter()
             .find(|s| s.version == v)
             .unwrap()
+    }
+
+    fn extern_eingereicht(
+        docs: &[(DocumentId, i64)],
+        t: u32,
+    ) -> externe_einreichung::ExterneEinreichung {
+        externe_einreichung::ExterneEinreichung {
+            id: Uuid::new_v4(),
+            datum: tag(t),
+            weg: externe_einreichung::Einreichungsweg::Portal,
+            beleg: None,
+            bemerkung: String::new(),
+            dokumente: docs
+                .iter()
+                .map(|(d, v)| Dokumentbezug {
+                    dokument_id: *d,
+                    version: *v,
+                })
+                .collect(),
+            berichtigt: None,
+            erfasst_am: Utc::now(),
+            erfasst_von: Uuid::nil(),
+        }
+    }
+
+    #[test]
+    fn externe_einreichung_vergibt_index_und_status() {
+        let lage = DocumentId::new();
+        let mut a = akte();
+        a.externe_einreichungen
+            .push(extern_eingereicht(&[(lage, 1)], 2));
+        let l = ableiten(&a, &HashMap::from([(lage, 1)]));
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].status, Einreichungsstatus::Eingereicht);
+        assert_eq!(l[0].planindex.as_deref(), Some("A"));
+        let s = stand(&l, lage, 1);
+        assert_eq!(s.eingereicht_am, Some(tag(2)));
+        // Nur versendete Abgabestände stehen unter `abgaben`.
+        assert!(s.abgaben.is_empty());
+        // Eine spätere Abgabe mit neuer Version ist Nachreichung mit Index B.
+        a.abgaben
+            .push(abgabe(&[(lage, 2)], Some((Versandstatus::Versendet, 9))));
+        let l = ableiten(&a, &HashMap::new());
+        assert_eq!(stand(&l, lage, 1).status, Einreichungsstatus::Ersetzt);
+        assert_eq!(stand(&l, lage, 2).planindex.as_deref(), Some("B"));
+        assert_eq!(stand(&l, lage, 2).status, Einreichungsstatus::Nachgereicht);
+        assert_eq!(
+            index_bei_einreichung(
+                &a,
+                &[Dokumentbezug {
+                    dokument_id: lage,
+                    version: 3
+                }]
+            ),
+            ["C"]
+        );
+        // Eine berichtigte externe Einreichung zählt nicht mehr.
+        let mut a = akte();
+        let alt = extern_eingereicht(&[(lage, 1)], 2);
+        let mut neu = extern_eingereicht(&[], 2);
+        neu.berichtigt = Some(alt.id);
+        a.externe_einreichungen.extend([alt, neu]);
+        assert_eq!(ableiten(&a, &HashMap::new()).len(), 0);
     }
 
     #[test]

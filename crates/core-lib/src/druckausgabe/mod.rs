@@ -89,6 +89,10 @@ pub struct Druckkatalog {
     /// Büroangaben eine/n Entwurfsverfasser/in eindeutig benennen.
     #[serde(default)]
     pub aufgestellt_von: String,
+    /// Vorschlag für das Aktenzeichen: das der Verfahrensakte, wenn das Projekt
+    /// genau ein Aktenzeichen führt; sonst leer.
+    #[serde(default)]
+    pub aktenzeichen: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Druckposition {
@@ -268,6 +272,21 @@ impl CoreServices {
             absender,
             eintraege,
             aufgestellt_von: self.aufsteller_vorschlag(&projekt).await?,
+            aktenzeichen: self.aktenzeichen_vorschlag(p).await?,
+        })
+    }
+    async fn aktenzeichen_vorschlag(&self, p: ProjectId) -> CoreResult<String> {
+        let mut zeichen = std::collections::BTreeSet::new();
+        for f in self.repos.commit.fachstaende(p, "verfahren").await? {
+            if let Ok(a) = serde_json::from_value::<crate::verfahren::Verfahrensakte>(f.daten)
+                && !a.aktenzeichen.trim().is_empty()
+            {
+                zeichen.insert(a.aktenzeichen.trim().to_owned());
+            }
+        }
+        Ok(match zeichen.len() {
+            1 => zeichen.pop_first().unwrap_or_default(),
+            _ => String::new(),
         })
     }
     pub async fn druckausgabe(&self, p: ProjectId, a: Druckauftrag) -> CoreResult<Druckergebnis> {
@@ -595,6 +614,13 @@ impl CoreServices {
                 }
                 Druckquelle::Baugrundstueck => {
                     b.baugrundstueck.get_or_insert(nr);
+                }
+                Druckquelle::Dokument {
+                    dokument_id,
+                    version,
+                    ..
+                } => {
+                    b.dokumente.entry((*dokument_id, *version)).or_insert(nr);
                 }
                 _ => {}
             }

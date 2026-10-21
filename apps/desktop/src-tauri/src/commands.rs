@@ -885,7 +885,32 @@ pub async fn buero_speichern(state: State<'_, AppState>, buero: Buero) -> CmdRes
 
 #[tauri::command]
 pub fn xbau_codelisten(state: State<'_, AppState>) -> Vec<Codeliste> {
-    state.core.codelisten.alle().cloned().collect()
+    state.core.codelisten.aktuell().alle().cloned().collect()
+}
+
+/// Genericode-Codeliste einspielen: Datei im Codelisten-Ordner des
+/// Datenverzeichnisses ablegen (gilt auch nach Neustart und in Sicherungen)
+/// und sofort verwenden.
+#[tauri::command]
+pub async fn xbau_codeliste_einspielen(
+    state: State<'_, AppState>,
+    pfad: PathBuf,
+) -> CmdResult<Codeliste> {
+    let xml = tokio::fs::read_to_string(&pfad)
+        .await
+        .map_err(|e| CmdError {
+            art: "datei",
+            meldung: format!("{}: {e}", pfad.display()),
+        })?;
+    let ordner = state.data_dir.join("codelisten");
+    Ok(state
+        .core
+        .xbau_codeliste_einspielen(&xml, &state.benutzer(), |datei, inhalt| {
+            std::fs::create_dir_all(&ordner)
+                .and_then(|_| std::fs::write(ordner.join(datei), inhalt))
+                .map_err(|e| core_lib::CoreError::InvalidInput(format!("Codelisten-Ordner: {e}")))
+        })
+        .await?)
 }
 
 #[tauri::command]

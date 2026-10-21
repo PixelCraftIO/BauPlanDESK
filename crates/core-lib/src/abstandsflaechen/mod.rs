@@ -12,9 +12,12 @@ pub use umriss::{UmrissAbgleich, umrisse_abgleichen, umrisse_einbinden};
 use uuid::Uuid;
 /// Ab Version 2: Höhenprofile, Wandteile und Wandhöhenansatz des Regelpakets.
 /// Pläne ohne diese Angaben rechnen wie Version 1.
-pub const RECHENSTAND: &str = "abstand-projekt-2";
+/// 3: Abstandsfläche, die die maßgebliche Grenze von innen nur berührt, ist
+/// eingehalten; Grenzanlagen zählen nur ihre Wandlängen an der Grenze, übrige
+/// Wände derselben Anlage haben keine eigene Abstandsfläche.
+pub const RECHENSTAND: &str = "abstand-projekt-3";
 /// Ältere Rechenstände, die der aktuelle Kern für Altpläne unverändert reproduziert.
-pub const RECHENSTAENDE_KOMPATIBEL: &[&str] = &["abstand-projekt-1"];
+pub const RECHENSTAENDE_KOMPATIBEL: &[&str] = &["abstand-projekt-1", "abstand-projekt-2"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct APunkt {
@@ -742,11 +745,15 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
 /// den Endwerten, Texte und Felder von Version 1).
 pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsErgebnis> {
     plan.validate()?;
-    let v1 = match stand {
-        RECHENSTAND => false,
-        "abstand-projekt-1" => true,
+    let (v1, v3) = match stand {
+        RECHENSTAND => (false, true),
+        "abstand-projekt-2" => (false, false),
+        "abstand-projekt-1" => (true, false),
         _ => return Err(err("Unbekannter Rechenstand der Abstandsberechnung")),
     };
+    // Ab Stand 3 einheitlich mit Dezimalkomma und höchstens drei Nachkommastellen;
+    // ältere Stände behalten ihre archivierten Herleitungstexte.
+    let z = |v: f64| if v3 { hoehen::zahl(v) } else { v.to_string() };
     let ansatz = plan.regeln.wandhoehe.unwrap_or_default();
     let mut offen = Vec::new();
     if plan.waende.is_empty() {
@@ -866,7 +873,10 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                         .max_by(|a, b| a.ueber_grad.total_cmp(&b.ueber_grad));
                     let mut f = r.map(|r| r.faktor).unwrap_or(0.);
                     e.herleitung.push(format!(
-                        "Dachfläche: {h} m × {f} bei {n}°; {}",
+                        "Dachfläche: {} m × {} bei {}°; {}",
+                        z(h),
+                        z(f),
+                        z(n),
                         r.map(|r| r.quelle.as_str())
                             .unwrap_or("unterhalb erster konfigurierter Schwelle")
                     ));
@@ -876,10 +886,11 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                     {
                         f = g.faktor;
                         e.herleitung.push(format!(
-                            "Gauben/Dachaufbauten {} m > {} × Wandlänge {} m: Dachhöhe {h} m × {}; {}",
+                            "Gauben/Dachaufbauten {} m > {} × Wandlänge {} m: Dachhöhe {} m × {}; {}",
                             hoehen::zahl(lg),
                             hoehen::zahl(g.anteil_ueber),
                             hoehen::zahl(laenge),
+                            z(h),
                             hoehen::zahl(f),
                             g.quelle
                         ));
@@ -934,7 +945,9 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                 if !w.dachgrundlage.trim().is_empty() {
                     w.dachhoehe_m.zip(w.dachfaktor_manuell).map(|(h, f)| {
                         e.herleitung.push(format!(
-                            "Fachlich angesetzter Dach-/Giebelanteil: {h} m × {f}; {}",
+                            "Fachlich angesetzter Dach-/Giebelanteil: {} m × {}; {}",
+                            z(h),
+                            z(f),
                             w.dachgrundlage
                         ));
                         h * f
@@ -989,11 +1002,13 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
             e.faktor = Some(r.faktor);
             e.mindesttiefe_m = Some(r.mindesttiefe_m);
             e.herleitung.push(if r.faktor == 0. {
-                format!("T = {} m (feste Tiefe); {}", r.mindesttiefe_m, r.quelle)
+                format!("T = {} m (feste Tiefe); {}", z(r.mindesttiefe_m), r.quelle)
             } else {
                 format!(
                     "T = max({} × H, {} m); {}",
-                    r.faktor, r.mindesttiefe_m, r.quelle
+                    z(r.faktor),
+                    z(r.mindesttiefe_m),
+                    r.quelle
                 )
             });
             Some((r.faktor, r.mindesttiefe_m))
@@ -1033,8 +1048,21 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                                 a.fall,
                                 Wandfall::Garage | Wandfall::Carport | Wandfall::Nebengebaeude
                             )
+                            // Ab Rechenstand 3 zählen nur Wände an der Grenze.
+                            && (!v3 || !a.grenzkennung.trim().is_empty())
                     })
                     .collect::<Vec<_>>();
+                // Ab Rechenstand 3: Wand derselben Anlage, die selbst nicht an der
+                // Grenze steht, wenn die Anlage mit einer Wand an der Grenze steht.
+                let gleiche_anlage = |a: &&AbstandsWand| match (a.gebaeude_id, w.gebaeude_id) {
+                    (Some(x), Some(y)) => x == y,
+                    _ => !w.gebaeude.trim().is_empty() && a.gebaeude.trim() == w.gebaeude.trim(),
+                };
+                let teil_der_anlage = v3
+                    && w.grenzkennung.trim().is_empty()
+                    && anlagen.iter().any(|a| {
+                        a.id != w.id && a.fall == w.fall && a.nutzung_geprueft && gleiche_anlage(a)
+                    });
                 let sum = |grenze: bool| {
                     anlagen
                         .iter()
@@ -1044,14 +1072,18 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                 };
                 if r.typen.iter().any(|s| s == typ)
                     && w.nutzung_geprueft
-                    && !w.grenzkennung.trim().is_empty()
+                    && (!w.grenzkennung.trim().is_empty() || teil_der_anlage)
                     && e.h_m.is_some_and(|h| h <= r.hoehe_m)
                     && sum(true) <= r.laenge_je_grenze_m
                     && sum(false) <= r.laenge_gesamt_m
                 {
                     e.tiefe_m = Some(0.);
                     verlauf = vec![(0., 0.), (laenge, 0.)];
-                    e.herleitung.push(format!("Grenzanlage: Höhe ≤ {}, Grenzlänge {} ≤ {}, Gesamtlänge {} ≤ {}; Nutzung/Bedingungen bestätigt; {}",r.hoehe_m,sum(true),r.laenge_je_grenze_m,sum(false),r.laenge_gesamt_m,r.quelle));
+                    if teil_der_anlage {
+                        e.herleitung.push(format!("Wand einer Grenzanlage, die an der Grenze steht: ohne eigene Abstandsfläche; Höhe ≤ {}, Grenzlänge gesamt {} ≤ {}; {}", hoehen::zahl(r.hoehe_m), hoehen::zahl(sum(false)), hoehen::zahl(r.laenge_gesamt_m), r.quelle));
+                    } else {
+                        e.herleitung.push(format!("Grenzanlage: Höhe ≤ {}, Grenzlänge {} ≤ {}, Gesamtlänge {} ≤ {}; Nutzung/Bedingungen bestätigt; {}",z(r.hoehe_m),z(sum(true)),z(r.laenge_je_grenze_m),z(sum(false)),z(r.laenge_gesamt_m),r.quelle));
+                    }
                 } else {
                     e.offen.push("Grenzanlagenprivileg nicht vollständig belegt oder Höchstmaße/Summen überschritten; Regelabstand bleibt angesetzt".into());
                 }
@@ -1075,7 +1107,8 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                 });
                 e.herleitung.push(format!(
                     "Besonderer belegter Ansatz: {} m; {}",
-                    s.tiefe_m, s.grundlage
+                    z(s.tiefe_m),
+                    s.grundlage
                 ));
             } else {
                 e.offen
@@ -1083,7 +1116,7 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
             }
         }
         if !verlauf.is_empty() && laenge >= 0.001 {
-            geometrie::wand(plan, w, &mut e, &verlauf)?;
+            geometrie::wand(plan, w, &mut e, &verlauf, v3)?;
         }
         if !e.offen.is_empty() {
             e.status = AbstandsStatus::Offen;
@@ -1120,6 +1153,62 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
         vollstaendig,
         konfliktfrei,
     })
+}
+/// Abgleich mit dem Planungsrecht des Projekts (ab Rechenstand 3): Das Baugebiet
+/// muss der Festsetzung entsprechen, und die Grenze eines Vorhabengrundstücks muss
+/// zur Katasterfläche seiner Flurstücke passen (Toleranz 2 %). Abweichungen sind
+/// offene Punkte. Der Abgleich hängt nur vom archivierten Rechtskontext ab und ist
+/// damit bei der Nachweiswiederholung reproduzierbar.
+pub fn projektabgleich(
+    plan: &AbstandsPlan,
+    recht: &crate::domain::Planungsrecht,
+    r: &mut AbstandsErgebnis,
+) {
+    if r.rechenstand != RECHENSTAND {
+        return;
+    }
+    let mut neu = Vec::new();
+    if let Some(g) = recht.festgesetzte_werte.baugebiet
+        && g.code() != plan.recht.gebiet.trim()
+    {
+        neu.push(format!(
+            "Baugebiet „{}“ weicht von der Festsetzung des Projekts ({}) ab; Gebiet im Abstandsplan angleichen",
+            plan.recht.gebiet,
+            g.code()
+        ));
+    }
+    let infos = crate::grundstuecksinformationen::informationen(recht);
+    for g in &plan.grundstuecke {
+        let flurstuecke = g
+            .flurstueck_ids
+            .iter()
+            .filter_map(|id| infos.flurstuecke.iter().find(|f| &f.id == id))
+            .collect::<Vec<_>>();
+        let kataster = flurstuecke.iter().map(|f| f.flaeche_m2).sum::<f64>();
+        if kataster <= 0. || !flurstuecke.iter().any(|f| f.rolle.ist_vorhaben()) {
+            continue;
+        }
+        let flaeche = |p: &[APunkt]| {
+            use geo::Area;
+            geometrie::polygon(p)
+                .map(|p| p.unsigned_area())
+                .unwrap_or(0.)
+        };
+        let grenze = flaeche(&g.grenze) - g.innenringe.iter().map(|r| flaeche(r)).sum::<f64>();
+        if (grenze - kataster).abs() > 0.02 * kataster {
+            neu.push(format!(
+                "{}: Grenze umschließt {} m², Katasterfläche {} m² (Abweichung über 2 %); Grenzgeometrie, Maßstab und Flurstückszuordnung prüfen",
+                g.bezeichnung,
+                hoehen::zahl((grenze * 100.).round() / 100.),
+                hoehen::zahl(kataster)
+            ));
+        }
+    }
+    if !neu.is_empty() {
+        r.offen.extend(neu);
+        r.vollstaendig = false;
+        r.konfliktfrei = false;
+    }
 }
 /// Wandhöhe wie in Rechenstand 1: größte Höhe der beiden Wandenden.
 fn alt_wandhoehe(w: &AbstandsWand, e: &mut WandErgebnis) -> Option<f64> {

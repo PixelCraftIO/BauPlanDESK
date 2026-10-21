@@ -40,6 +40,12 @@ pub struct Eingabe {
     pub punkte: Vec<Punkt>,
     pub daecher: Vec<Dach>,
     pub bezug_geprueft: bool,
+    /// Bezugshöhe (m im Höhensystem des Plans) für die bei Gebäudeübernahme
+    /// eingesetzten Trauf-/Firstpunkte, z. B. die festgesetzte Straßenoberkante.
+    /// Fehlt sie, gilt die mittlere Geländehöhe des Gebäudes. Ohne Wert wird das
+    /// Feld nicht serialisiert; bestehende Pläne und Nachweise bleiben gleich.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bezugshoehe_m: Option<f64>,
 }
 fn hoehe(v: f64) -> CoreResult<()> {
     if !v.is_finite() || v.abs() > 1e6 {
@@ -53,6 +59,9 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
     ids(e.punkte.iter().map(|p| p.id.as_str()))?;
     ids(e.daecher.iter().map(|p| p.id.as_str()))?;
     ids(e.regeln.iter().map(|p| p.art.as_str()))?;
+    if let Some(b) = e.bezugshoehe_m {
+        hoehe(b)?;
+    }
     let mut rows = vec![];
     for g in &e.regeln {
         for n in [g.minimum_m, g.maximum_m].into_iter().flatten() {

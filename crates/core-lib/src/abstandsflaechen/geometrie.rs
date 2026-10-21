@@ -77,6 +77,7 @@ pub(super) fn wand(
     w: &AbstandsWand,
     e: &mut WandErgebnis,
     verlauf: &[(f64, f64)],
+    beruehrung_eingehalten: bool,
 ) -> CoreResult<()> {
     if verlauf.iter().all(|v| v.1 == 0.) && w.polygon_manuell.is_none() {
         e.flaeche_m2 = Some(0.);
@@ -215,7 +216,19 @@ pub(super) fn wand(
         .iter()
         .map(|a| Euclidean.distance(poly.exterior(), a.exterior()))
         .fold(f64::INFINITY, f64::min);
-    e.status = if flaeche > 1e-8 {
+    // Ab Rechenstand 3: Berührung der Grenze von innen ist der übliche
+    // Mindestabstand und eingehalten; Überschreitungen bis 1 mm² gelten als
+    // Rundung. Jede größere Fläche jenseits der Grenze bleibt ein Konflikt.
+    e.status = if beruehrung_eingehalten {
+        if flaeche > 1e-6 {
+            AbstandsStatus::Konflikt
+        } else {
+            if flaeche > 0. || randabstand <= 0.000001 {
+                e.herleitung.push("Abstandsfläche reicht bis an die maßgebliche Grenze (Berührung von innen, Rechentoleranz 1 mm²).".into());
+            }
+            AbstandsStatus::Eingehalten
+        }
+    } else if flaeche > 1e-8 {
         AbstandsStatus::Konflikt
     } else if flaeche > 0. || randabstand <= 0.000001 {
         AbstandsStatus::Grenzfall

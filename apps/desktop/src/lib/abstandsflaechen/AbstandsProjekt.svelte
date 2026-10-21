@@ -118,8 +118,8 @@
   async function gebaeudehoehen(id: string | undefined) {
     const g = gebaeude.find((g) => g.objekt === id);
     if (!g) return null;
-    const h = (await plattformApi.gebaeudeAuswerten(projekt.id, g.objekt, $state.snapshot(g.daten) as Gebaeude)).hoehen_nhn;
-    return { name: g.daten.bezeichnung, ...h };
+    const r = await plattformApi.gebaeudeAuswerten(projekt.id, g.objekt, $state.snapshot(g.daten) as Gebaeude);
+    return { name: g.daten.bezeichnung, ...r.hoehen_nhn, dach: r.dach ?? null };
   }
   /** Gelände und Traufe (m ü. NHN) des verknüpften Gebäudes als Höhenprofil. */
   async function hoehenUebernehmen(w: AbstandsWand) {
@@ -140,6 +140,23 @@
       w.gelaende_a_m = w.gelaende_b_m = w.abschluss_a_m = w.abschluss_b_m = null;
       w.hoehenquelle = `Gebäude ${h.name}: Höhen aus Gebäude/Geschosse (m ü. NHN)`;
       hoehenHinweis = "Höhen übernommen. Gelände entlang der Wand, Giebel und abweichende Wandabschlüsse je Wand prüfen.";
+      // Dachhöhe und Neigung aus dem Gebäude; die Anrechnung bestimmt der Core je Dachart.
+      const d = h.dach;
+      if (d?.form === "flachdach" && w.dachart === "ungeklaert") w.dachart = "flach";
+      else if (d && d.form !== "flachdach" && (w.dachart === "giebel" || w.dachart === "dachflaeche")) {
+        w.dachhoehe_m = d.dachhoehe_m;
+        w.dachneigung_grad = d.neigung_grad;
+        // Beim Satteldach haben beide Seiten des Giebels dieselbe Neigung.
+        if (w.dachart === "giebel") {
+          if (d.form === "satteldach" && d.neigung_grad !== null) w.dachneigung_b_grad = d.neigung_grad;
+          else delete w.dachneigung_b_grad;
+        }
+        w.dachgrundlage = `Gebäude ${h.name}: ${d.herleitung}`;
+        hoehenHinweis += d.form === "satteldach" || w.dachart === "dachflaeche"
+          ? " Dachhöhe und Neigung aus dem Gebäude übernommen."
+          : " Dachhöhe und Neigung übernommen; Neigung der zweiten Giebelseite prüfen.";
+      } else if (!d && (w.dachart === "giebel" || w.dachart === "dachflaeche"))
+        hoehenHinweis += " Für Giebel und Dachflächen Dachform und Neigung in Gebäude/Geschosse erfassen.";
     } catch (e) {
       hoehenHinweis = fehlertext(e);
     }

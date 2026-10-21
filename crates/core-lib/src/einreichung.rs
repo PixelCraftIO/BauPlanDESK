@@ -98,9 +98,32 @@ pub struct DokumentVergleich {
     pub eingereichte_kategorie_erfasst: bool,
     pub aktuell: DocumentVersion,
     pub zuletzt_eingereicht: Option<DocumentVersion>,
+    /// Einreichungspaket der zuletzt eingereichten Version.
     pub paket_id: Option<Uuid>,
+    /// Verfahrensakte, wenn die zuletzt eingereichte Version aus einem
+    /// versendeten Abgabestand oder einer externen Einreichung stammt.
+    #[serde(default)]
+    pub verfahren: Option<Uuid>,
     pub eingereicht_am: Option<NaiveDate>,
     pub status: VergleichsStatus,
+}
+/// Einreichung aus einer Verfahrensakte an denselben Empfänger: versendeter
+/// Abgabestand oder nachgetragene externe Einreichung (siehe
+/// [`crate::verfahren::externe_einreichung::einreichungsfolge`]).
+#[derive(Debug, Clone)]
+pub struct Verfahrenseinreichung {
+    /// Verfahrensakte der Einreichung.
+    pub verfahren: Uuid,
+    /// Kennung des Abgabestands bzw. der externen Einreichung.
+    pub id: Uuid,
+    pub datum: NaiveDate,
+    /// Ordnet Einreichungen desselben Tages.
+    pub erfasst_am: DateTime<Utc>,
+    /// Eingereichte Versionen; Kategorie zum Abgabezeitpunkt, `None` = nicht erfasst.
+    pub dokumente: Vec<(
+        DocumentVersion,
+        Option<Option<crate::dokumentkategorien::KategorieStand>>,
+    )>,
 }
 /// Nach tatsächlichem Einreichungsdatum; bei gleichem Tag nach Bestätigungszeit.
 /// Nur bestätigte Pakete desselben Empfängers und Projekts beeinflussen den Stand.
@@ -110,8 +133,29 @@ pub fn vergleichen(
     docs: Vec<DocumentVersion>,
     chronik: &[Einreichung],
 ) -> Vec<DokumentVergleich> {
-    let mut stand = BTreeMap::new();
-    let mut pakete: Vec<_> = chronik
+    vergleichen_mit_verfahren(projekt, empfaenger, docs, chronik, &[])
+}
+/// Wie [`vergleichen`], zusätzlich mit den Einreichungen der Verfahrensakten
+/// an diesen Empfänger. Maßgebend ist die jüngste Einreichung (Datum, dann
+/// Erfassungs- bzw. Bestätigungszeit) über beide Quellen. `paket_id` nennt
+/// nur Einreichungspakete; bei Akteneinreichungen steht die Akte in
+/// `verfahren`.
+pub fn vergleichen_mit_verfahren(
+    projekt: ProjectId,
+    empfaenger: &str,
+    docs: Vec<DocumentVersion>,
+    chronik: &[Einreichung],
+    verfahren: &[Verfahrenseinreichung],
+) -> Vec<DokumentVergleich> {
+    struct Stand<'a> {
+        version: &'a DocumentVersion,
+        datum: NaiveDate,
+        paket: Option<Uuid>,
+        verfahren: Option<Uuid>,
+        kategorie: Option<Option<crate::dokumentkategorien::KategorieStand>>,
+    }
+    type Reihung = (NaiveDate, DateTime<Utc>, Uuid);
+    let mut eintraege: Vec<(Reihung, Vec<Stand>)> = chronik
         .iter()
         .filter(|e| {
             e.stand.projekt_id == projekt
@@ -119,47 +163,69 @@ pub fn vergleichen(
                     .empfaenger
                     .trim()
                     .eq_ignore_ascii_case(empfaenger.trim())
-                && e.einreichung.is_some()
+        })
+        .filter_map(|e| {
+            let b = e.einreichung.as_ref()?;
+            Some((
+                (b.datum, b.bestaetigt_am, e.stand.id),
+                e.stand
+                    .dokumente
+                    .iter()
+                    .map(|d| Stand {
+                        version: d,
+                        datum: b.datum,
+                        paket: Some(e.stand.id),
+                        verfahren: None,
+                        kategorie: e
+                            .stand
+                            .kategorien
+                            .get(&d.document_id.0.to_string())
+                            .cloned(),
+                    })
+                    .collect(),
+            ))
         })
         .collect();
-    pakete.sort_by_key(|e| {
-        let b = e.einreichung.as_ref().unwrap();
-        (b.datum, b.bestaetigt_am, e.stand.id)
-    });
-    for e in pakete {
-        for d in &e.stand.dokumente {
-            stand.insert(d.document_id.0, (d, e));
+    eintraege.extend(verfahren.iter().map(|v| {
+        (
+            (v.datum, v.erfasst_am, v.id),
+            v.dokumente
+                .iter()
+                .map(|(d, k)| Stand {
+                    version: d,
+                    datum: v.datum,
+                    paket: None,
+                    verfahren: Some(v.verfahren),
+                    kategorie: k.clone(),
+                })
+                .collect(),
+        )
+    }));
+    eintraege.sort_by_key(|(k, _)| *k);
+    let mut stand = BTreeMap::new();
+    for (_, dokumente) in eintraege {
+        for d in dokumente {
+            stand.insert(d.version.document_id.0, d);
         }
     }
     docs.into_iter()
         .map(|aktuell| {
             let alt = stand.get(&aktuell.document_id.0);
-            let status = match alt {
+            let status = match alt.map(|s| s.version) {
                 None => VergleichsStatus::Neu,
-                Some((d, _)) if d.version == aktuell.version => {
-                    VergleichsStatus::BereitsEingereicht
-                }
-                Some((d, _)) if aktuell.version < d.version => VergleichsStatus::Aelter,
-                Some((d, _)) if d.sha256 == aktuell.sha256 => VergleichsStatus::GleicherInhalt,
+                Some(d) if d.version == aktuell.version => VergleichsStatus::BereitsEingereicht,
+                Some(d) if aktuell.version < d.version => VergleichsStatus::Aelter,
+                Some(d) if d.sha256 == aktuell.sha256 => VergleichsStatus::GleicherInhalt,
                 Some(_) => VergleichsStatus::Geaendert,
             };
             DokumentVergleich {
                 kategorie: None,
-                eingereichte_kategorie_erfasst: alt.is_some_and(|(_, e)| {
-                    e.stand
-                        .kategorien
-                        .contains_key(&aktuell.document_id.0.to_string())
-                }),
-                eingereichte_kategorie: alt.and_then(|(_, e)| {
-                    e.stand
-                        .kategorien
-                        .get(&aktuell.document_id.0.to_string())
-                        .cloned()
-                        .flatten()
-                }),
-                zuletzt_eingereicht: alt.map(|(d, _)| (*d).clone()),
-                paket_id: alt.map(|(_, e)| e.stand.id),
-                eingereicht_am: alt.map(|(_, e)| e.einreichung.as_ref().unwrap().datum),
+                eingereichte_kategorie_erfasst: alt.is_some_and(|s| s.kategorie.is_some()),
+                eingereichte_kategorie: alt.and_then(|s| s.kategorie.clone().flatten()),
+                zuletzt_eingereicht: alt.map(|s| s.version.clone()),
+                paket_id: alt.and_then(|s| s.paket),
+                verfahren: alt.and_then(|s| s.verfahren),
+                eingereicht_am: alt.map(|s| s.datum),
                 aktuell,
                 status,
             }
@@ -222,3 +288,47 @@ pub fn packen(stand: &PaketStand, inhalte: &[Vec<u8>]) -> CoreResult<Vec<u8>> {
     Ok(zip.finish().map_err(err)?.into_inner())
 }
 mod service;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn version(d: DocumentId, p: ProjectId, v: i64, inhalt: &[u8]) -> DocumentVersion {
+        DocumentVersion {
+            document_id: d,
+            project_id: p,
+            version: v,
+            file_name: "Lageplan.pdf".into(),
+            storage_key: String::new(),
+            sha256: ContentHash::of(inhalt),
+            size_bytes: inhalt.len() as u64,
+            created_by: String::new(),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn verfahrenseinreichung_zaehlt_als_eingereicht() {
+        let p = ProjectId(Uuid::new_v4());
+        let (lage, ansicht) = (DocumentId(Uuid::new_v4()), DocumentId(Uuid::new_v4()));
+        let vid = Uuid::new_v4();
+        let tag = |t| NaiveDate::from_ymd_opt(2026, 9, t).unwrap();
+        let extern_ = Verfahrenseinreichung {
+            verfahren: vid,
+            id: Uuid::new_v4(),
+            datum: tag(15),
+            erfasst_am: Utc::now(),
+            dokumente: vec![(version(lage, p, 1, b"a"), None)],
+        };
+        let docs = vec![version(lage, p, 2, b"b"), version(ansicht, p, 1, b"c")];
+        // Ohne Akteneinreichungen: alles neu (bisheriges Verhalten).
+        let alt = vergleichen(p, "Bauamt", docs.clone(), &[]);
+        assert!(alt.iter().all(|v| v.status == VergleichsStatus::Neu));
+        let v = vergleichen_mit_verfahren(p, "Bauamt", docs, &[], &[extern_]);
+        assert_eq!(v[0].status, VergleichsStatus::Geaendert);
+        assert_eq!(v[0].eingereicht_am, Some(tag(15)));
+        assert_eq!((v[0].verfahren, v[0].paket_id), (Some(vid), None));
+        assert!(!v[0].eingereichte_kategorie_erfasst);
+        assert_eq!(v[1].status, VergleichsStatus::Neu);
+    }
+}

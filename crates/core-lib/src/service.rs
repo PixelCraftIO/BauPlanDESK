@@ -37,7 +37,7 @@ pub struct CoreServices {
     pub lbo: Arc<LboEngine>,
     pub license: Arc<dyn LicenseProvider>,
     pub formulare: Arc<Formularkatalog>,
-    pub codelisten: Arc<Codelisten>,
+    pub codelisten: Arc<crate::xbau::codeliste::CodelistenRegister>,
     pub xbau_pruefer: Arc<dyn xbau::austausch::SchemaPruefer>,
     /// Netzwerkbetrieb: Rechte nur für Konten mit eigenem Kennwort, siehe
     /// [`crate::anmeldung`].
@@ -98,7 +98,9 @@ impl CoreServices {
             lbo,
             license,
             formulare: Arc::new(Formularkatalog::default()),
-            codelisten: Arc::new(Codelisten::eingebaut()),
+            codelisten: Arc::new(crate::xbau::codeliste::CodelistenRegister::new(
+                Codelisten::eingebaut(),
+            )),
             xbau_pruefer: xbau::austausch::kein_pruefer(),
             kennwortpflicht: false,
         }
@@ -112,7 +114,7 @@ impl CoreServices {
 
     /// XBau-Codelisten injizieren (siehe [`crate::xbau::codeliste`]).
     pub fn mit_codelisten(mut self, codelisten: Codelisten) -> Self {
-        self.codelisten = Arc::new(codelisten);
+        self.codelisten = Arc::new(crate::xbau::codeliste::CodelistenRegister::new(codelisten));
         self
     }
 
@@ -748,10 +750,25 @@ impl CoreServices {
         }
         let mut liste: Vec<Beteiligtenzuordnung> = Vec::with_capacity(beteiligte.len());
         let mut namen = Vec::with_capacity(beteiligte.len());
-        for z in beteiligte {
-            if !liste.contains(&z) {
+        for mut z in beteiligte {
+            z.fachrichtung = z.fachrichtung.trim().to_string();
+            if z.fachrichtung.chars().count() > 100 {
+                return Err(CoreError::InvalidInput(
+                    "Fachrichtung: höchstens 100 Zeichen".into(),
+                ));
+            }
+            if let Some(m) = crate::xbau::din91379::meldung("Fachrichtung", &z.fachrichtung) {
+                return Err(CoreError::InvalidInput(m));
+            }
+            if !liste
+                .iter()
+                .any(|v: &Beteiligtenzuordnung| v.rolle == z.rolle && v.kunde == z.kunde)
+            {
                 let k = self.repos.kunden.kunde(z.kunde).await?;
-                namen.push(format!("{} ({})", k.anzeigename(), z.rolle.name()));
+                namen.push(match z.fachrichtung.as_str() {
+                    "" => format!("{} ({})", k.anzeigename(), z.rolle.name()),
+                    f => format!("{} ({}, {f})", k.anzeigename(), z.rolle.name()),
+                });
                 liste.push(z);
             }
         }
@@ -935,22 +952,45 @@ impl CoreServices {
             antrag.anzahl_gebaeude = u32::try_from(gebaeude.len()).unwrap_or(u32::MAX);
         }
         let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
-        let mut fehlende_angaben = antrag.fehlende_angaben(&self.buero().await?, &bauherren);
-        fehlende_angaben.extend(self.codelisten.fehlende());
-        fehlende_angaben.extend(self.anlagen_pruefen(&antrag).await?);
-        if let Err(e) = self
-            .codelisten
-            .verfahrensart(p.bundesland, &antrag.verfahrensart)
-        {
+        // Geprüft wird, was die Abgabe übermittelt: Anlagen ohne gewählte Art
+        // erhalten dort die Anlagenart ihrer Dokumentkategorie.
+        let vorschlaege = self.anlagenart_vorschlaege(project).await?;
+        let mut pruefstand = antrag.clone();
+        for a in &mut pruefstand.anlagen {
+            if a.anlageart.trim().is_empty()
+                && let Some(v) = vorschlaege.get(&a.dokument)
+            {
+                a.anlageart = v.anlageart.clone();
+            }
+        }
+        let mut fehlende_angaben = pruefstand.fehlende_angaben(&self.buero().await?, &bauherren);
+        let codelisten = self.codelisten.aktuell();
+        fehlende_angaben.extend(codelisten.fehlende());
+        fehlende_angaben.extend(self.anlagen_pruefen(&pruefstand).await?);
+        if let Err(e) = codelisten.verfahrensart(p.bundesland, &antrag.verfahrensart) {
             fehlende_angaben.push(e.to_string());
         }
-        let verfahrensarten = self
-            .codelisten
+        let verfahrensarten = codelisten
             .liste(&crate::xbau::codeliste::verfahrensart_uri(p.bundesland))
             .cloned();
+        let projektbeteiligte = self.repos.kunden.beteiligte(project).await?;
         let mut hinweise = kunden::zustimmungshinweise(
             &self.repos.kunden.bauherren(project).await?,
-            &self.repos.kunden.beteiligte(project).await?,
+            &projektbeteiligte,
+        );
+        hinweise.extend(
+            projektbeteiligte
+                .iter()
+                .filter(|b| {
+                    b.rolle == kunden::Beteiligtenrolle::Fachplaner
+                        && b.fachrichtung.trim().is_empty()
+                })
+                .map(|b| {
+                    format!(
+                        "Fachplaner {}: Fachrichtung unter Beteiligte angeben; die XBau-Nachricht nennt sonst „nicht angegeben“.",
+                        b.kunde.anzeigename()
+                    )
+                }),
         );
         let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
         hinweise.extend(
@@ -993,14 +1033,19 @@ impl CoreServices {
             flurstuecke_zentral,
             gebaeude_zentral,
             verfahrensarten,
+            anlagenart_vorschlaege: vorschlaege
+                .into_iter()
+                .map(|(dokument, v)| (dokument.0.to_string(), v))
+                .collect(),
         })
     }
 
     /// Anlagen, die beim Export abgelehnt würden: Dokument gelöscht,
     /// Dateityp oder Anlagenart nicht in der jeweiligen Codeliste.
     async fn anlagen_pruefen(&self, antrag: &Bauantrag) -> CoreResult<Vec<String>> {
-        let mimes = self.codelisten.liste(crate::xbau::codeliste::MIMETYPES);
-        let arten = self.codelisten.liste(crate::xbau::codeliste::ANLAGEN);
+        let codelisten = self.codelisten.aktuell();
+        let mimes = codelisten.liste(crate::xbau::codeliste::MIMETYPES);
+        let arten = codelisten.liste(crate::xbau::codeliste::ANLAGEN);
         let mut fehlt = Vec::new();
         for a in &antrag.anlagen {
             let datei = match self.repos.documents.latest(a.dokument).await {

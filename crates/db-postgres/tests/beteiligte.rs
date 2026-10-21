@@ -35,7 +35,11 @@ async fn beteiligte_rollen_reihenfolge_und_fremdschluessel() {
     };
     let eigentuemer = repos.kunden.kunde_anlegen(kunde("Eigner")).await.unwrap();
     let planer = repos.kunden.kunde_anlegen(kunde("Planer")).await.unwrap();
-    let z = |rolle, kunde| Beteiligtenzuordnung { rolle, kunde };
+    let z = |rolle, kunde| Beteiligtenzuordnung {
+        rolle,
+        kunde,
+        fachrichtung: String::new(),
+    };
     let p2 = repos
         .kunden
         .beteiligte_setzen(

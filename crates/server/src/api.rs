@@ -307,6 +307,10 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{p}/xbau/nachrichten/{id}/verfahren",
             post(xbau_verfahren),
         )
+        .route(
+            "/projekte/{p}/dokumente/{id}/email/{version}/verfahren",
+            post(email_verfahren),
+        )
         .route("/lbo/regelpakete", get(rule_packs))
         .route("/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/projekte/{id}/abstandsregeln", get(abstandsregeln))
@@ -329,6 +333,7 @@ fn routen(core: CoreServices) -> Router {
             post(planaufmass_abstandsziele),
         )
         .route("/projekte/{id}/plangebaeude", post(planaufmass_gebaeude))
+        .route("/projekte/{id}/planaufgaben", post(planaufmass_aufgaben))
         .route(
             "/berechnung/planaufmass/gebaeudeziele",
             post(planaufmass_gebaeudeziele),
@@ -765,7 +770,7 @@ async fn buero_speichern(
 }
 
 async fn codelisten(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Codeliste>> {
-    Ok(Json(core.codelisten.alle().cloned().collect()))
+    Ok(Json(core.codelisten.aktuell().alle().cloned().collect()))
 }
 
 /// Prozentkodierung für `filename*` (RFC 5987).
@@ -1193,6 +1198,39 @@ async fn email_anhang_ablegen(
         s.core
             .email_anhang_ablegen(DocumentId(id), version, index, &wer)
             .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmailVerfahrenswunsch {
+    verfahren: Uuid,
+    basis: i64,
+    eingehend: bool,
+    /// Bestätigter Zugang bzw. Versand; fehlt es, gilt das Sendedatum.
+    #[serde(default)]
+    datum: Option<chrono::NaiveDate>,
+}
+async fn email_verfahren(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id, version)): Path<(Uuid, Uuid, i64)>,
+    Json(w): Json<EmailVerfahrenswunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.email_in_verfahren(
+            ProjectId(p),
+            core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: DocumentId(id),
+                version,
+            },
+            w.verfahren,
+            w.basis,
+            w.eingehend,
+            w.datum,
+            &wer,
+        )
+        .await?,
     ))
 }
 
@@ -1792,6 +1830,13 @@ async fn gebaeude_auswerten(
         core.gebaeude_auswerten(ProjectId(id), w.id, &w.gebaeude)
             .await?,
     ))
+}
+async fn planaufmass_aufgaben(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(plan): Json<core_lib::planaufmass::Planaufmass>,
+) -> ApiResult<Vec<core_lib::planaufmass::Planaufgabe>> {
+    Ok(Json(core.planaufmass_aufgaben(ProjectId(id), &plan).await?))
 }
 async fn planaufmass_gebaeudeziele(
     Json(plan): Json<core_lib::plattform::objekte::Gebaeude>,

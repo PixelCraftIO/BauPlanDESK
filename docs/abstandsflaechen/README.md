@@ -250,6 +250,34 @@ Bestehende Pläne behalten ihr eingebettetes Paket. Das NRW-Skript der einfachen
 Tiefenvorprüfung (`lbo-rules/nw.rhai`, Version `2026.2`) rechnet im Kerngebiet
 jetzt mit 0,25 H; ältere Tiefenvorprüfungen werden dadurch als veraltet
 erkannt und bleiben mit ihrem archivierten Skript wiederholbar.
+
+**Version 3 des Rechenkerns (`abstand-projekt-3`, Regeländerung):**
+Eine Abstandsfläche, die die maßgebliche Grenze von innen genau berührt (Restfläche
+jenseits der Grenze höchstens 1 mm² Rechentoleranz), gilt als eingehalten statt
+als Grenzfall; jede messbare Überschreitung bleibt Konflikt. Bei Grenzgaragen und
+anderen Grenzanlagen zählen nur Wände mit Grenzkennung zur Längensumme; Wände
+derselben Anlage ohne Grenzkennung (z. B. die Stirnseite zur Straße) sind als Teil
+der privilegierten Anlage abstandsfrei, werden also weder doppelt gezählt noch
+einzeln als Konflikt geführt. Herleitungen verwenden einheitlich Dezimalkomma
+(höchstens drei Nachkommastellen). Nachweise mit `abstand-projekt-1` und `-2`
+bleiben archiviert und wiederholt `berechnen_stand` unverändert
+(`RECHENSTAENDE_KOMPATIBEL`); ein neu erstellter Nachweis rechnet mit Stand 3.
+Vertrag und gespeicherte Pläne ändern sich nicht.
+
+Neue Abstandsnachweise archivieren zusätzlich die Höhenangaben der im Plan
+verknüpften Gebäude (`abstandsgebaeude-json-1`: Bezeichnung, ±0,00 in NHN,
+Gelände, Traufe, First). Ändern sich diese Angaben oder fehlt ein Gebäude, gilt
+der Nachweis als veraltet; die PDF-Ausgabe weist die archivierten Höhen aus.
+Ältere Nachweise ohne diesen Eintrag sind davon nicht betroffen.
+
+Ab Stand 3 gleicht `projektabgleich` den Plan mit dem Planungsrecht des Projekts
+ab: Ein Baugebiet, das von der Festsetzung (`festgesetzte_werte.baugebiet`)
+abweicht, und eine Grenze eines Vorhabengrundstücks, deren Fläche mehr als 2 %
+von der Katasterfläche der zugeordneten Flurstücke abweicht, sind offene Punkte
+(Plan unvollständig). Der Abgleich nutzt nur den im Nachweis archivierten
+Rechtskontext und läuft bei der Prüfung, der Nachweiserstellung und der
+Wiederholung gleich; ältere Stände bleiben unberührt.
+
 Die Planskizzen- und Abwicklungsblätter verwenden WinAnsi-kodierten Text
 (Umlaute statt Umschreibungen).
 

@@ -81,6 +81,50 @@ fn sicherung_nur_mit_beleg_wirksam_und_richtiger_einheit() {
     assert!(!berechnen(&p).unwrap().konfliktfrei);
 }
 #[test]
+fn grenzgarage_zaehlt_nur_wandlaengen_an_der_grenze() {
+    // Garage 6 × 3,5 m an der Grenze: eine Wand an der Grenze, drei weitere
+    // Wände ohne eigene Abstandsfläche; Gesamtwandlänge 19 m > 9 m ist unerheblich.
+    let mut p = plan();
+    let w = &mut p.waende[0];
+    w.fall = Wandfall::Garage;
+    w.gebaeude = "Garage".into();
+    w.abschluss_a_m = Some(102.5);
+    w.abschluss_b_m = Some(102.5);
+    w.bis.x = w.von.x + 6.;
+    w.nutzung_geprueft = true;
+    w.grenzkennung = "Sued".into();
+    let grenze = w.clone();
+    for (i, (dx, dy)) in [(0., 3.5), (-6., 0.), (0., -3.5)].into_iter().enumerate() {
+        let mut a = grenze.clone();
+        a.id = Uuid::from_u128(20 + i as u128);
+        a.grenzkennung = String::new();
+        a.von = p.waende.last().unwrap().bis.clone();
+        a.bis = APunkt {
+            x: a.von.x + dx,
+            y: a.von.y + dy,
+        };
+        p.waende.push(a);
+    }
+    let r = berechnen(&p).unwrap();
+    assert!(
+        r.waende.iter().all(|w| w.tiefe_m == Some(0.)),
+        "{:?}",
+        r.waende
+            .iter()
+            .map(|w| (&w.offen, w.tiefe_m))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        r.waende[1]
+            .herleitung
+            .iter()
+            .any(|h| h.contains("ohne eigene Abstandsfläche"))
+    );
+    // Rechenstand 2: wie bisher Summe aller Wände, Privileg entfällt.
+    let alt = berechnen_stand(&p, "abstand-projekt-2").unwrap();
+    assert!(alt.waende.iter().any(|w| w.tiefe_m != Some(0.)));
+}
+#[test]
 fn garage_summen_und_grundstueckslage() {
     let mut p = plan();
     let w = &mut p.waende[0];
@@ -177,13 +221,31 @@ fn unvollstaendig_nan_und_selbstschnitt() {
 }
 
 #[test]
-fn numerische_grenznaehe_ist_keine_freigabe() {
+fn beruehrung_der_grenze_ist_eingehalten_ueberschreitung_nicht() {
+    // Wand genau im Mindestabstand: Die Abstandsfläche reicht bis an die Grenze.
     let mut p = plan();
     p.waende[0].von.y = 3.2;
     p.waende[0].bis.y = 3.2;
     let r = berechnen(&p).unwrap();
-    assert!(!r.konfliktfrei);
-    assert_eq!(r.waende[0].status, AbstandsStatus::Grenzfall);
+    assert_eq!(r.waende[0].status, AbstandsStatus::Eingehalten);
+    assert!(r.konfliktfrei);
+    assert!(
+        r.waende[0]
+            .herleitung
+            .iter()
+            .any(|h| h.contains("bis an die maßgebliche Grenze"))
+    );
+    // Archivierte Stände nach Rechenstand 2 bleiben unverändert reproduzierbar.
+    let alt = berechnen_stand(&p, "abstand-projekt-2").unwrap();
+    assert_eq!(alt.waende[0].status, AbstandsStatus::Grenzfall);
+    assert!(!alt.konfliktfrei);
+    // Messbare Überschreitung (1 cm über die ganze Wand) bleibt ein Konflikt.
+    p.waende[0].von.y = 3.19;
+    p.waende[0].bis.y = 3.19;
+    assert_eq!(
+        berechnen(&p).unwrap().waende[0].status,
+        AbstandsStatus::Konflikt
+    );
 }
 #[test]
 fn manueller_umriss_braucht_wirksamen_sonderbeleg() {
@@ -604,4 +666,48 @@ fn rechenstand_1_wird_unveraendert_wiederholt() {
     // Gleiche Geometrie wie im aktuellen Stand.
     assert_eq!(w.polygon, berechnen(&p).unwrap().waende[0].polygon);
     assert!(berechnen_stand(&p, "abstand-projekt-9").is_err());
+}
+
+#[test]
+fn alle_frueheren_rechenstaende_bleiben_wiederholbar() {
+    // Die Nachweiswiederholung akzeptiert nur RECHENSTAND und die kompatiblen
+    // Stände; jeder Vorgänger muss dort geführt sein.
+    let p = plan();
+    for stand in ["abstand-projekt-1", "abstand-projekt-2"] {
+        assert!(RECHENSTAENDE_KOMPATIBEL.contains(&stand), "{stand}");
+        assert_eq!(berechnen_stand(&p, stand).unwrap().rechenstand, stand);
+    }
+    let r = berechnen_stand(&p, "abstand-projekt-2").unwrap();
+    let h = &r.waende[0].herleitung;
+    assert!(h.iter().any(|h| h.starts_with("T = max(0.4 × H")), "{h:?}");
+    let r = berechnen(&p).unwrap();
+    assert!(
+        r.waende[0]
+            .herleitung
+            .iter()
+            .any(|h| h.starts_with("T = max(0,4 × H"))
+    );
+}
+
+#[test]
+fn projektabgleich_meldet_abweichendes_baugebiet_nur_ab_stand_3() {
+    let p = plan();
+    let mut recht = crate::domain::Planungsrecht::default();
+    recht.festgesetzte_werte.baugebiet = Some(crate::calc::Baugebiet::MK);
+    let mut r = berechnen(&p).unwrap();
+    assert!(r.vollstaendig);
+    projektabgleich(&p, &recht, &mut r);
+    assert!(!r.vollstaendig && !r.konfliktfrei);
+    assert!(
+        r.offen
+            .iter()
+            .any(|o| o.contains("Festsetzung des Projekts (MK)")),
+        "{:?}",
+        r.offen
+    );
+    // Archivierte ältere Stände bleiben unverändert wiederholbar.
+    let alt = berechnen_stand(&p, "abstand-projekt-2").unwrap();
+    let mut wiederholt = alt.clone();
+    projektabgleich(&p, &recht, &mut wiederholt);
+    assert_eq!(wiederholt, alt);
 }

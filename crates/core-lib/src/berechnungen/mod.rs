@@ -313,6 +313,10 @@ pub(super) fn text(s: &str) -> CoreResult<()> {
         Ok(())
     }
 }
+/// Wie [`text`], die Meldung nennt Position und Feld (z. B. „Position „EG.01 Wohnen“: Wohnung“).
+pub(super) fn text_feld(s: &str, wo: impl std::fmt::Display) -> CoreResult<()> {
+    text(s).map_err(|_| err(format!("{wo}: Angabe mit 1 bis 4.000 Zeichen erforderlich")))
+}
 pub(super) fn ids<'a>(v: impl Iterator<Item = &'a str>) -> CoreResult<()> {
     let mut ids = std::collections::HashSet::new();
     for id in v {
@@ -340,9 +344,9 @@ pub(super) fn decode<T: serde::de::DeserializeOwned>(v: &serde_json::Value) -> C
 }
 /// Nur Rechenlogik. Quellen-/Projekt- und Übernahmeprüfung liegt in CoreServices.
 pub fn berechnen(p: &FachPlan) -> CoreResult<FachErgebnis> {
-    text(&p.bezeichnung)?;
-    text(&p.regelkontext.bezeichnung)?;
-    text(&p.regelkontext.version)?;
+    text_feld(&p.bezeichnung, "Bezeichnung der Berechnung")?;
+    text_feld(&p.regelkontext.bezeichnung, "Regelkontext: Bezeichnung")?;
+    text_feld(&p.regelkontext.version, "Regelkontext: Version / Fassung")?;
     for s in [
         &p.regelkontext.quelle,
         &p.regelkontext.geltungsbereich,
@@ -355,7 +359,7 @@ pub fn berechnen(p: &FachPlan) -> CoreResult<FachErgebnis> {
     let mut r = match p.modul {
         BerechnungsArt::Stellplaetze => stellplaetze::berechnen(&decode(&p.eingaben)?)?,
         BerechnungsArt::Wohnflaechen => wohnflaechen::berechnen(&decode(&p.eingaben)?)?,
-        BerechnungsArt::Din277 => din277::berechnen(&decode(&p.eingaben)?)?,
+        BerechnungsArt::Din277 => din277::berechnen(&din277::eingabe(&p.eingaben)?)?,
         BerechnungsArt::Vollgeschosse => vollgeschosse::berechnen(&decode(&p.eingaben)?)?,
         BerechnungsArt::Hoehen => hoehen::berechnen(&decode(&p.eingaben)?)?,
         BerechnungsArt::Ueberbaubarkeit => ueberbaubarkeit::berechnen(&decode(&p.eingaben)?)?,
@@ -402,7 +406,7 @@ pub(crate) fn normalisieren(p: &mut FachPlan) -> CoreResult<()> {
         BerechnungsArt::Wohnflaechen => {
             serde_json::to_value(decode::<wohnflaechen::Eingabe>(&p.eingaben)?)
         }
-        BerechnungsArt::Din277 => serde_json::to_value(decode::<din277::Eingabe>(&p.eingaben)?),
+        BerechnungsArt::Din277 => serde_json::to_value(din277::eingabe(&p.eingaben)?),
         BerechnungsArt::Vollgeschosse => {
             serde_json::to_value(decode::<vollgeschosse::Eingabe>(&p.eingaben)?)
         }

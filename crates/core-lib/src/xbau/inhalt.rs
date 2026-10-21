@@ -32,6 +32,8 @@ pub enum WeitereRolle {
 pub struct WeitererBeteiligter {
     pub rolle: WeitereRolle,
     pub beteiligter: Beteiligter,
+    /// Fachrichtung im Projekt; leer = nicht angegeben.
+    pub fachrichtung: String,
 }
 
 /// Flächen und Maßzahlen nach BauNVO (XBau `FlaechenBauNVO`) eines einzigen
@@ -63,33 +65,50 @@ impl FlaechenBauNvo {
     /// Bebauungsplan festsetzt (Orientierungs- und Umgebungswerte sind keine
     /// Festsetzung).
     pub fn aus_pruefung(pruefung: &NutzungsPruefung, flaeche_m2: f64) -> Option<Self> {
+        Self::aus_pruefung_mit_hinweis(pruefung, flaeche_m2).0
+    }
+
+    /// Wie [`Self::aus_pruefung`], mit Hinweis, wenn eine Angabe nicht
+    /// eindeutig übermittelt werden kann.
+    ///
+    /// Zahl der Vollgeschosse bei mehreren Gebäuden (je Gebäude ein Nachweis):
+    /// XBau kennt nur eine Angabe je Bauvorhaben. Übermittelt wird die größte
+    /// Zahl der Vollgeschosse der Gebäude (wie
+    /// [`crate::flaechen::FlaechenErgebnis::vollgeschosse`]) und die für alle
+    /// Gebäude gemeinsame Festsetzung. Fehlt die Zahl für einzelne Gebäude
+    /// oder weichen die Festsetzungen ab, entfällt die Angabe mit Hinweis.
+    pub fn aus_pruefung_mit_hinweis(
+        pruefung: &NutzungsPruefung,
+        flaeche_m2: f64,
+    ) -> (Option<Self>, Option<String>) {
         let nachweis = |art: &str| {
             let mut n = pruefung.nachweise.iter().filter(|n| n.art == art);
             match (n.next(), n.next()) {
                 (Some(a), None) => Some(a),
-                // Je Gebäude verschiedene Nachweise: keine Gesamtangabe.
                 _ => None,
             }
         };
         let ist = |art: &str| nachweis(art).and_then(|n| n.ist).filter(|v| v.is_finite());
-        let soll = |art: &str| {
-            nachweis(art)
+        let soll_von = |n: &crate::festsetzungen::Nachweis| {
+            Some(n)
                 .filter(|n| n.quelle == Quelle::Festsetzung)
                 .and_then(|n| n.soll)
                 .filter(|v| v.is_finite())
         };
+        let soll = |art: &str| nachweis(art).and_then(soll_von);
         let ganz = |v: Option<f64>| {
             v.filter(|v| *v >= 1.0 && v.fract() == 0.0 && *v <= f64::from(u32::MAX))
                 .map(|v| v as u32)
         };
+        let (vollgeschosse, vollgeschosse_soll, hinweis) = vollgeschosse(pruefung, soll_von);
         let baumasse = pruefung
             .aufstellung
             .as_ref()
             .and_then(|a| a.mass.baumasse_m3)
             .filter(|_| ist("bmz").is_some());
         let f = Self {
-            anzahl_vollgeschosse: ganz(ist("vollgeschosse")),
-            zulaessige_vollgeschosse: ganz(soll("vollgeschosse")),
+            anzahl_vollgeschosse: ganz(vollgeschosse),
+            zulaessige_vollgeschosse: ganz(vollgeschosse_soll),
             flaeche_baugrundstueck_m2: Some(flaeche_m2).filter(|v| v.is_finite() && *v > 0.0),
             grundflaeche_m2: ist("grundflaeche"),
             grz_soll: soll("grz"),
@@ -101,7 +120,7 @@ impl FlaechenBauNvo {
             bmz_soll: soll("bmz"),
             bmz_geplant: ist("bmz"),
         };
-        (f != Self::default()).then_some(f)
+        ((f != Self::default()).then_some(f), hinweis)
     }
 
     /// Flächen aus dem aktuellen Berechnungsstand des Projekts. Liefert einen
@@ -147,7 +166,7 @@ impl FlaechenBauNvo {
                     .as_ref()
                     .map(|a| a.mass.grundstuecksflaeche_m2)
                     .unwrap_or(eingabe.mass.grundstuecksflaeche_m2);
-                (Self::aus_pruefung(&pruefung, flaeche), None)
+                Self::aus_pruefung_mit_hinweis(&pruefung, flaeche)
             }
             Ok(None) => (None, None),
             Err(e) => nicht(format!("Berechnung nicht verwendbar: {e}")),
@@ -269,6 +288,35 @@ fn anzeigename(b: &Beteiligter) -> String {
     .to_string()
 }
 
+/// Fachrichtungen von Projektbeteiligten (XBau-Codeliste
+/// `beteiligterfachrichtung`, Version 3.0, im Schema als Aufzählung festgelegt;
+/// ohne „99 keine Fachrichtung“).
+pub const FACHRICHTUNGEN: [(&str, &str); 6] = [
+    ("1", "Tragwerksplanung/Standsicherheit"),
+    ("2", "Schallschutz"),
+    ("3", "Brandschutz"),
+    ("4", "Lüftung"),
+    ("5", "Sicherheit"),
+    ("6", "Wärmeschutz"),
+];
+
+/// Code einer erfassten Fachrichtung: gleich Code, Bezeichnung oder einem
+/// Teil der Bezeichnung („Tragwerksplanung“), ohne Groß-/Kleinschreibung.
+pub fn fachrichtungscode(text: &str) -> Option<&'static str> {
+    let text = text.trim().to_lowercase();
+    if text.is_empty() {
+        return None;
+    }
+    FACHRICHTUNGEN
+        .iter()
+        .find(|(code, name)| {
+            *code == text
+                || name.to_lowercase() == text
+                || name.split('/').any(|t| t.to_lowercase() == text)
+        })
+        .map(|(code, _)| *code)
+}
+
 /// `weitereBeteiligte` (alle außer dem ersten Bevollmächtigten).
 pub(super) fn weitere_beteiligte(
     x: &mut XmlSchreiber,
@@ -313,12 +361,21 @@ pub(super) fn weitere_beteiligte(
             }
         }
         x.zu().auf("xbau:fachrichtung", &[]);
-        match b.rolle {
-            // Die Fachrichtung des Fachplaners ist nicht erfasst.
-            WeitereRolle::Fachplaner => {
+        // Erfasste Fachrichtung: als Code, wenn sie in der Schemaliste steht,
+        // sonst als Freitext.
+        let text = b.fachrichtung.trim();
+        match (fachrichtungscode(text), b.rolle) {
+            (Some(code), _) => {
+                x.auf("xbau:code", &fachrichtungen).text("code", code).zu();
+            }
+            (None, _) if !text.is_empty() => {
+                x.text("xbau:nichtGelisteterWert", text);
+            }
+            // Fachplaner ohne erfasste Fachrichtung.
+            (None, WeitereRolle::Fachplaner) => {
                 x.text("xbau:nichtGelisteterWert", "nicht angegeben");
             }
-            _ => {
+            (None, _) => {
                 x.auf("xbau:code", &fachrichtungen).text("code", "99").zu();
             }
         }
@@ -378,4 +435,53 @@ fn kanal<'a>(l: &'a Codeliste, merkmal: &str) -> Option<&'a str> {
 /// Codeliste Erreichbarkeit, wenn geladen.
 pub(super) fn kanaele(c: &Codelisten) -> Option<&Codeliste> {
     c.liste(ERREICHBARKEIT)
+}
+
+/// Zahl der Vollgeschosse (Ist, Festsetzung) des Bauvorhabens aus den
+/// Nachweisen „vollgeschosse“ (einer je Gebäude bei mehreren Gebäuden), mit
+/// Hinweis, wenn sie nicht eindeutig ist.
+fn vollgeschosse(
+    pruefung: &NutzungsPruefung,
+    soll_von: impl Fn(&crate::festsetzungen::Nachweis) -> Option<f64>,
+) -> (Option<f64>, Option<f64>, Option<String>) {
+    let n: Vec<_> = pruefung
+        .nachweise
+        .iter()
+        .filter(|n| n.art == "vollgeschosse")
+        .collect();
+    match n.as_slice() {
+        [] => return (None, None, None),
+        [a] => return (a.ist.filter(|v| v.is_finite()), soll_von(a), None),
+        _ => {}
+    }
+    let mut offen = Vec::new();
+    let ist: Vec<_> = n
+        .iter()
+        .filter_map(|n| n.ist.filter(|v| v.is_finite()))
+        .collect();
+    let ist = if ist.is_empty() {
+        // Für kein Gebäude ermittelt: wie bei einem Gebäude ohne Angabe.
+        None
+    } else if ist.len() < n.len() {
+        offen.push("anzahlVollgeschosse (nicht für alle Gebäude ermittelt)");
+        None
+    } else {
+        ist.into_iter().reduce(f64::max)
+    };
+    let soll: Vec<_> = n.iter().map(|n| soll_von(n)).collect();
+    let soll = match soll.first().copied().flatten() {
+        Some(s) if soll.iter().all(|v| *v == Some(s)) => Some(s),
+        None if soll.iter().all(Option::is_none) => None,
+        _ => {
+            offen.push("zulaessigeAnzahlVollgeschosse (je Gebäude unterschiedlich festgesetzt)");
+            None
+        }
+    };
+    let hinweis = (!offen.is_empty()).then(|| {
+        format!(
+            "Zahl der Vollgeschosse nicht in der XBau-Nachricht: {}. Die Angaben je Gebäude enthält der Nachweis der Zahl der Vollgeschosse.",
+            offen.join("; ")
+        )
+    });
+    (ist, soll, hinweis)
 }

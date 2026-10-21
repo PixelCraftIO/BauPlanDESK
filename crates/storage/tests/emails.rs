@@ -222,3 +222,132 @@ async fn archivierte_nachrichten_lesen_ohne_neue_datei_oder_version() {
         .unwrap();
     }
 }
+
+#[tokio::test]
+async fn email_wird_einmal_als_kommunikation_mit_anhang_uebernommen() {
+    use core_lib::{
+        plattform::{ObjektArt, objekte::Dokumentbezug},
+        verfahren::{Bezug, Kommunikationsart},
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(tmp.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("mail-archiv", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Mailarchiv".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let d = core
+        .store_document_kategorisiert(
+            p.id,
+            "Bauantrag.eml",
+            Bytes::from(muster_eml()),
+            Some("email".into()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let anhang = core
+        .email_anhang_ablegen(d.document_id, 1, 0, &user)
+        .await
+        .unwrap();
+    let mut akten = Vec::new();
+    for name in ["Erstantrag", "Zweite Akte"] {
+        let vid = uuid::Uuid::new_v4();
+        let a = serde_json::json!({"bezeichnung":name,"art":"bauantrag","status":"vorbereitung","behoerde":{"id":uuid::Uuid::new_v4(),"name":"Bauamt","kennung":"bab:091620000","kontakt":""},"aktenzeichen":"","verantwortlich":null,"vorgaenger":null,"profil":null,"kommunikation":[],"nachforderungen":[],"anforderungen":[],"dokumentbeziehungen":[],"abgaben":[],"bescheide":[],"ereignisse":[]});
+        core.fachobjekt_speichern(p.id, ObjektArt::Verfahren, vid, 0, a, &user)
+            .await
+            .unwrap();
+        akten.push(vid);
+    }
+    let email = Dokumentbezug {
+        dokument_id: d.document_id,
+        version: 1,
+    };
+    let (stand, _) = core.verfahrensakte(p.id, akten[0]).await.unwrap();
+    // Datum vor dem Sendedatum (15.10.2026) ist unzulässig.
+    let tag = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+    assert!(
+        core.email_in_verfahren(
+            p.id,
+            email.clone(),
+            akten[0],
+            stand.revision,
+            false,
+            Some(tag("2026-10-14")),
+            &user
+        )
+        .await
+        .is_err()
+    );
+    let f = core
+        .email_in_verfahren(
+            p.id,
+            email.clone(),
+            akten[0],
+            stand.revision,
+            false,
+            None,
+            &user,
+        )
+        .await
+        .unwrap();
+    let (_, a) = core.verfahrensakte(p.id, akten[0]).await.unwrap();
+    let k = &a.kommunikation[0];
+    assert_eq!(k.art, Kommunikationsart::Email);
+    assert!(!k.eingehend);
+    assert_eq!(k.datum, tag("2026-10-15"));
+    assert_eq!(k.betreff, "Bauantrag Musterstrasse");
+    assert_eq!(
+        k.beteiligte,
+        "Von: Daniel Müller <daniel@example.org>\nAn: Bauamt <amt@example.org>"
+    );
+    assert!(k.inhalt.starts_with("Bitte pruefen Sie den Bauantrag."));
+    assert!(
+        k.inhalt
+            .contains("- Lageplan.pdf (als Projektunterlage abgelegt)")
+    );
+    assert_eq!(k.original.as_ref(), Some(&email));
+    assert_eq!(
+        k.bezuege,
+        [Bezug::Dokument {
+            dokument: Dokumentbezug {
+                dokument_id: anhang.document_id,
+                version: anhang.version,
+            }
+        }]
+    );
+    // Wiederholt: keine Änderung; in einer anderen Akte: abgewiesen.
+    let wieder = core
+        .email_in_verfahren(
+            p.id,
+            email.clone(),
+            akten[0],
+            f.revision,
+            false,
+            None,
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(wieder.revision, f.revision);
+    let (zweite, _) = core.verfahrensakte(p.id, akten[1]).await.unwrap();
+    let err = core
+        .email_in_verfahren(p.id, email, akten[1], zweite.revision, true, None, &user)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Erstantrag"), "{err}");
+}

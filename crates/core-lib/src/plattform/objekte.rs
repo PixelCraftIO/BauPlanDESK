@@ -135,9 +135,37 @@ pub struct Raum {
     pub nummer: String,
     pub bezeichnung: String,
     pub nutzung: String,
+    /// Grundfläche des Raums einschließlich seiner Höhenzonen.
     pub flaeche_m2: f64,
+    /// Lichte Höhe der Restfläche außerhalb der Höhenzonen.
     pub hoehe_m: Option<f64>,
+    /// Teilflächen mit abweichender lichter Höhe, z. B. unter Dachschrägen.
+    /// Leer = einheitliche Raumhöhe. Fehlt in älteren Ständen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Hoehenzone>>")]
+    pub hoehenzonen: Vec<Hoehenzone>,
 }
+/// Teilfläche eines Raums mit abweichender lichter Höhe. Reine Raumfakten:
+/// Die Anrechnung (z. B. WoFlV) bestimmt das jeweilige Fachmodul anhand der
+/// kleinsten lichten Höhe. Zonen werden daher an den maßgebenden Höhenlinien
+/// (z. B. 1 m und 2 m) abgegrenzt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Hoehenzone {
+    pub id: Uuid,
+    pub bezeichnung: String,
+    pub flaeche_m2: f64,
+    /// Kleinste lichte Höhe in der Zone (m); `None` = noch nicht erfasst
+    /// (z. B. nach Übernahme aus dem PDF-Aufmaß).
+    pub lichte_hoehe_min_m: Option<f64>,
+    /// Größte lichte Höhe in der Zone (m); für den Rauminhalt bei geneigter
+    /// Decke. `None` = nicht erfasst.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub lichte_hoehe_max_m: Option<f64>,
+}
+/// Höchstzahl Höhenzonen je Raum.
+const MAX_ZONEN: usize = 50;
 #[derive(Debug, Serialize, ts_rs::TS)]
 pub struct RaumSummen {
     pub anzahl: usize,
@@ -166,8 +194,54 @@ impl Raumbuch {
             {
                 return Err(CoreError::InvalidInput("Räume benötigen eindeutige IDs/Nummern, endliche Fläche und gegebenenfalls positive Höhe".into()));
             }
+            let raum = format!("Raum {} „{}“", r.nummer.trim(), r.bezeichnung.trim());
+            if r.hoehenzonen.len() > MAX_ZONEN {
+                return Err(CoreError::InvalidInput(format!(
+                    "{raum}: höchstens {MAX_ZONEN} Höhenzonen"
+                )));
+            }
+            let mut zonen_ids = std::collections::HashSet::new();
+            let mut zonen_flaeche = 0.;
+            // Rauminhalt: Restfläche × Raumhöhe + Zonen × mittlere Höhe.
+            let mut zonen_volumen = Some(0.);
+            for z in &r.hoehenzonen {
+                text(&z.bezeichnung, 200)?;
+                let gueltig = |h: f64| h.is_finite() && h >= 0.;
+                if !zonen_ids.insert(z.id)
+                    || !z.flaeche_m2.is_finite()
+                    || z.flaeche_m2 < 0.
+                    || z.lichte_hoehe_min_m.is_some_and(|h| !gueltig(h))
+                    || z.lichte_hoehe_max_m
+                        .is_some_and(|m| !gueltig(m) || z.lichte_hoehe_min_m.is_some_and(|h| m < h))
+                {
+                    return Err(CoreError::InvalidInput(format!(
+                        "{raum}, Höhenzone „{}“: eindeutige ID, Fläche ≥ 0 und lichte Höhen ≥ 0 (größte nicht unter kleinster) erforderlich",
+                        z.bezeichnung
+                    )));
+                }
+                zonen_flaeche += z.flaeche_m2;
+                zonen_volumen = zonen_volumen
+                    .zip(z.lichte_hoehe_min_m.zip(z.lichte_hoehe_max_m))
+                    .map(|(v, (min, max))| v + z.flaeche_m2 * (min + max) / 2.);
+            }
+            if zonen_flaeche > r.flaeche_m2 + 0.005 {
+                return Err(CoreError::InvalidInput(format!(
+                    "{raum}: Höhenzonen ({zonen_flaeche:.2} m²) größer als die Raumfläche ({:.2} m²)",
+                    r.flaeche_m2
+                )));
+            }
+            let rest = (r.flaeche_m2 - zonen_flaeche).max(0.);
+            // Ohne Höhenzonen wie bisher: Rauminhalt nur mit Raumhöhe.
+            let rest_volumen = if !r.hoehenzonen.is_empty() && rest < 0.005 {
+                Some(0.)
+            } else {
+                r.hoehe_m.map(|h| rest * h)
+            };
             flaeche += r.flaeche_m2;
-            volumen = volumen.zip(r.hoehe_m).map(|(v, h)| v + r.flaeche_m2 * h);
+            volumen = volumen
+                .zip(rest_volumen)
+                .zip(zonen_volumen)
+                .map(|((v, a), b)| v + a + b);
         }
         if !flaeche.is_finite() || volumen.is_some_and(|v| !v.is_finite()) {
             return Err(CoreError::InvalidInput(

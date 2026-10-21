@@ -39,3 +39,32 @@ pub async fn email_laden(
         .await?;
     Ok(state.core.archivierte_email(dokument_id, version).await?)
 }
+/// Archivierte E-Mail als Kommunikation in eine Verfahrensakte übernehmen.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn email_in_verfahren(
+    state: State<'_, AppState>,
+    projekt_id: core_lib::domain::ProjectId,
+    dokument_id: DocumentId,
+    version: i64,
+    verfahren: uuid::Uuid,
+    basis: i64,
+    eingehend: bool,
+    datum: Option<chrono::NaiveDate>,
+) -> Result<core_lib::commit::Fachstand, CmdError> {
+    Ok(state
+        .core
+        .email_in_verfahren(
+            projekt_id,
+            core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id,
+                version,
+            },
+            verfahren,
+            basis,
+            eingehend,
+            datum,
+            &state.benutzer(),
+        )
+        .await?)
+}

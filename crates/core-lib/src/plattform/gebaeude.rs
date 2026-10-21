@@ -29,6 +29,15 @@ pub struct GebaeudeGeometrie {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub first_m: Option<f64>,
+    /// Dachform; `None` = nicht erfasst. Fehlt in älteren Ständen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub dachform: Option<Dachform>,
+    /// Dachneigung in Grad (0 bis unter 90); bei mehreren Dachflächen die
+    /// maßgebende Neigung. `None` = nicht erfasst.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub dachneigung_grad: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub einzelgeschoss: Option<GeschossGeometrie>,
@@ -44,6 +53,38 @@ pub struct GebaeudeGeometrie {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub herkunft: Option<String>,
+}
+/// Dachform des Gebäudes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Dachform {
+    Flachdach,
+    Satteldach,
+    Pultdach,
+    Walmdach,
+    Sonstige,
+}
+impl Dachform {
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Flachdach => "Flachdach",
+            Self::Satteldach => "Satteldach",
+            Self::Pultdach => "Pultdach",
+            Self::Walmdach => "Walmdach",
+            Self::Sonstige => "Sonstige Dachform",
+        }
+    }
+}
+/// Dachangaben für Verbraucher (z. B. Giebel und Dachflächen im
+/// Abstandsflächennachweis). Die Dachhöhe ist First − Traufe; ihre
+/// Anrechnung regelt das jeweilige Fachmodul.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct Dachgrundlagen {
+    pub form: Dachform,
+    pub neigung_grad: Option<f64>,
+    /// Höhe des Dachs über der Traufe in m; `None`, solange Traufe oder First fehlt.
+    pub dachhoehe_m: Option<f64>,
+    pub herleitung: String,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -100,12 +141,21 @@ pub struct GebaeudeGrundlagen {
     /// `None`, solange eine der beiden Angaben fehlt. Fehlt in älteren Ständen.
     #[serde(default)]
     pub hoehen_nhn: HoehenNhn,
+    /// Dach, sofern eine Dachform erfasst ist. Fehlt in älteren Ständen.
+    #[serde(default)]
+    pub dach: Option<Dachgrundlagen>,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS)]
 pub struct HoehenNhn {
     pub gelaende_m: Option<f64>,
     pub traufe_m: Option<f64>,
     pub first_m: Option<f64>,
+}
+/// Deutsche Zahl mit höchstens drei Nachkommastellen.
+fn zahl(v: f64) -> String {
+    let t = format!("{:.3}", v);
+    let t = t.trim_end_matches('0').trim_end_matches('.');
+    t.replace('.', ",")
 }
 fn fehler(s: &str) -> CoreError {
     CoreError::InvalidInput(s.into())
@@ -186,6 +236,20 @@ impl Gebaeude {
         if g.traufe_m.zip(g.first_m).is_some_and(|(t, f)| t > f) {
             return Err(fehler("Firsthöhe darf nicht unter der Traufhöhe liegen"));
         }
+        if g.dachneigung_grad
+            .is_some_and(|n| !n.is_finite() || !(0. ..90.).contains(&n))
+        {
+            return Err(fehler("Dachneigung: 0 bis unter 90 Grad"));
+        }
+        if g.dachform == Some(Dachform::Flachdach)
+            && g.traufe_m
+                .zip(g.first_m)
+                .is_some_and(|(t, f)| f - t > 0.005)
+        {
+            return Err(fehler(
+                "Flachdach: Firsthöhe und Traufhöhe (Attika) müssen übereinstimmen",
+            ));
+        }
         if g.herkunft
             .as_ref()
             .is_some_and(|s| s.chars().count() > 4000)
@@ -259,6 +323,43 @@ impl Gebaeude {
             return Err(fehler("Geschossflächensumme außerhalb des Zahlenbereichs"));
         }
         let mut offen = vec![];
+        let dach = g.dachform.map(|form| {
+            let dachhoehe_m = match form {
+                Dachform::Flachdach => Some(0.),
+                _ => g.traufe_m.zip(g.first_m).map(|(t, f)| f - t),
+            };
+            let neigung = g
+                .dachneigung_grad
+                .map(|n| format!(" {}°", zahl(n)))
+                .unwrap_or_default();
+            let herleitung = match (form, dachhoehe_m) {
+                (Dachform::Flachdach, _) => "Flachdach".to_string(),
+                (_, Some(h)) => format!(
+                    "{}{neigung}, Dachhöhe = First {} m − Traufe {} m = {} m (zu ±0,00)",
+                    form.bezeichnung(),
+                    zahl(g.first_m.unwrap_or_default()),
+                    zahl(g.traufe_m.unwrap_or_default()),
+                    zahl(h)
+                ),
+                (_, None) => format!("{}{neigung}, Dachhöhe noch unbekannt", form.bezeichnung()),
+            };
+            Dachgrundlagen {
+                form,
+                neigung_grad: g.dachneigung_grad,
+                dachhoehe_m,
+                herleitung,
+            }
+        });
+        if let Some(d) = &dach
+            && d.form != Dachform::Flachdach
+        {
+            if d.neigung_grad.is_none() {
+                offen.push("Dachneigung noch unbekannt".into());
+            }
+            if d.dachhoehe_m.is_none() {
+                offen.push("Traufe und First für die Dachhöhe ergänzen".into());
+            }
+        }
         if g.grundflaeche_m2.is_none() {
             offen.push("Gebäudegrundfläche noch unbekannt".into());
         }
@@ -290,6 +391,7 @@ impl Gebaeude {
                 traufe_m: g.nullpunkt_m_nhn.zip(g.traufe_m).map(|(n, h)| n + h),
                 first_m: g.nullpunkt_m_nhn.zip(g.first_m).map(|(n, h)| n + h),
             },
+            dach,
         })
     }
     fn geschossgrundlagen(
@@ -375,6 +477,42 @@ mod tests {
                 .geschossflaechensumme_m2,
             Some(0.)
         );
+    }
+    #[test]
+    fn dach_aus_traufe_first_und_neigung_ohne_angabe_kein_dach() {
+        let mut d = alt();
+        d["geometrie"] = json!({"traufe_m":4.2,"first_m":7.45});
+        assert_eq!(
+            geb(d.clone()).grundlagen(Uuid::new_v4()).unwrap().dach,
+            None
+        );
+        d["geometrie"]["dachform"] = json!("satteldach");
+        let r = geb(d.clone()).grundlagen(Uuid::new_v4()).unwrap();
+        let dach = r.dach.unwrap();
+        assert!((dach.dachhoehe_m.unwrap() - 3.25).abs() < 1e-9);
+        assert_eq!(dach.neigung_grad, None);
+        assert!(r.offen.contains(&"Dachneigung noch unbekannt".to_string()));
+        d["geometrie"]["dachneigung_grad"] = json!(36);
+        let dach = geb(d.clone())
+            .grundlagen(Uuid::new_v4())
+            .unwrap()
+            .dach
+            .unwrap();
+        assert_eq!(
+            dach.herleitung,
+            "Satteldach 36°, Dachhöhe = First 7,45 m − Traufe 4,2 m = 3,25 m (zu ±0,00)"
+        );
+        for falsch in [json!(90), json!(-1)] {
+            let mut f = d.clone();
+            f["geometrie"]["dachneigung_grad"] = falsch;
+            assert!(geb(f).grundlagen(Uuid::new_v4()).is_err());
+        }
+        let mut flach = d.clone();
+        flach["geometrie"]["dachform"] = json!("flachdach");
+        assert!(geb(flach.clone()).grundlagen(Uuid::new_v4()).is_err());
+        flach["geometrie"]["first_m"] = json!(4.2);
+        let dach = geb(flach).grundlagen(Uuid::new_v4()).unwrap().dach.unwrap();
+        assert_eq!(dach.dachhoehe_m, Some(0.));
     }
     #[test]
     fn wohnhaus_mit_vier_geschossen_und_garage_ohne_eg() {

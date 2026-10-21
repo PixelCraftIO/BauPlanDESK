@@ -304,7 +304,20 @@ pub fn arbeitsbedarf(a: &crate::verfahren::Verfahrensakte) -> Vec<Portalbedarf> 
             });
         }
         for b in &v.abgaben {
-            if !dateistand_belegt(b) {
+            // Nachträglich festgehaltene Portalabgabe einer bereits als externe
+            // Einreichung (mit Beleg) erfassten Portaleinreichung derselben
+            // Dateiversionen: belegt, solange kein Portalereignis widerspricht.
+            let extern_belegt = b.ereignisse.is_empty()
+                && crate::verfahren::externe_einreichung::extern_belegt(
+                    a,
+                    &b.dateien
+                        .iter()
+                        .map(|f| &f.original.dokument)
+                        .collect::<Vec<_>>(),
+                    NaiveDate::MAX,
+                )
+                .is_some();
+            if !dateistand_belegt(b) && !extern_belegt {
                 r.push(Portalbedarf{vorgang:v.id,abgabe:Some(b.id),titel:"Portalabgabe und Dateistand prüfen".into(),hinweis:format!("{}: Für diesen Stand fehlen eine vollständig abgeglichene Abgabe oder deren gültiger Beleg. Originalereignisse im Portalbereich prüfen.",v.ziel.stelle)});
             }
         }

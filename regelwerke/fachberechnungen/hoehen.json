@@ -48,6 +48,16 @@
       "groesse": null
     },
     {
+      "name": "bezugshoehe_m",
+      "titel": "Bezugshöhe übernommener Gebäudehöhen (m; leer = mittleres Gelände)",
+      "typ": "optional_number",
+      "optionen": [],
+      "readonly": false,
+      "gruppe": "daten",
+      "referenz": null,
+      "groesse": null
+    },
+    {
       "name": "bezug_geprueft",
       "titel": "Höhenbezug und Punkte geprüft",
       "typ": "checkbox",

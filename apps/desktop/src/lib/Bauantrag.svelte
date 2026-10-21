@@ -2,9 +2,10 @@
   import { editorAnmelden } from "./editoren";
   import { projektNavigation } from "./projektNavigation.svelte";
   import { untrack } from "svelte";
-  import { ask } from "@tauri-apps/plugin-dialog";
+  import { ask, open } from "@tauri-apps/plugin-dialog";
   import {
     CODELISTE_ANLAGEN,
+    LAENDER,
     MASSNAHMEN,
     alsBeteiligter,
     anschriftZeile,
@@ -141,6 +142,37 @@
     void projekt.id;
     untrack(laden);
   });
+
+  let codelistenhinweis = $state<string | null>(null);
+  /** Genericode-Datei (z. B. Landesliste der Verfahrensarten, von der
+   *  Bauaufsicht oder aus dem XRepository) einspielen; gilt sofort. */
+  async function codelisteEinspielen() {
+    const pfad = await open({
+      title: "Codeliste einspielen (Genericode)",
+      filters: [{ name: "Genericode-Codeliste", extensions: ["xml"] }],
+    });
+    if (!pfad || Array.isArray(pfad)) return;
+    codelistenhinweis = null;
+    try {
+      const l = await api.xbauCodelisteEinspielen(pfad);
+      codelistenhinweis = `Codeliste „${l.name || l.uri}“, Version ${l.version} eingespielt (${l.eintraege.length} Einträge).`;
+      const [g, listen] = await Promise.all([
+        api.bauantrag(projekt.id),
+        api.xbauCodelisten(),
+      ]);
+      anlagenarten = listen.find((x) => x.uri === CODELISTE_ANLAGEN) ?? null;
+      if (!geaendert) uebernehmen(g);
+      else if (gespeichert)
+        gespeichert = {
+          ...gespeichert,
+          verfahrensarten: g.verfahrensarten,
+          fehlende_angaben: g.fehlende_angaben,
+          hinweise: g.hinweise,
+        };
+    } catch (e) {
+      onfehler(fehlertext(e));
+    }
+  }
 
   // Bauherren geändert (die Projektversion steigt): Liste und fehlende
   // Angaben neu laden, ohne ungespeicherte Eingaben zu verwerfen.
@@ -283,9 +315,22 @@
     antrag.anlagen = an
       ? [
           ...antrag.anlagen,
-          { dokument: d.document_id, anlageart: "", bezeichnung: "" },
+          {
+            dokument: d.document_id,
+            // Vorschlag aus der Dokumentkategorie; jederzeit änderbar.
+            anlageart:
+              gespeichert?.anlagenart_vorschlaege?.[d.document_id]?.anlageart ??
+              "",
+            bezeichnung: "",
+          },
         ]
       : antrag.anlagen.filter((a) => a.dokument !== d.document_id);
+  }
+
+  /** Anlagenart, die die Abgabe ohne eigene Wahl aus der Kategorie übernimmt. */
+  function vorschlagText(id: string): string | null {
+    const v = gespeichert?.anlagenart_vorschlaege?.[id];
+    return v ? `– ${v.anlageart} aus Kategorie „${v.kategorie}“ –` : null;
   }
 
   const dokumentName = (id: string) =>
@@ -418,13 +463,24 @@
           <button type="button" onclick={() => (antrag!.verfahrensart = "")}
             >Angabe entfernen</button
           >
+          <button type="button" onclick={codelisteEinspielen}
+            >Codeliste einspielen …</button
+          >
         </p>
       {:else}
         <p class="meta">
-          Verfahrensart: Für die Angabe in der XBau-Nachricht die Codeliste
-          des Landes aus dem XRepository in den Codelisten-Ordner legen.
+          Verfahrensart: Für {LAENDER.find((l) => l.code === projekt.bundesland)
+            ?.name ?? projekt.bundesland} ist keine Landesliste der
+          Verfahrensarten geladen; die XBau-Nachricht enthält dann keine
+          Verfahrensart (zulässig). Stellt das Land oder die Bauaufsicht eine
+          Liste bereit (Genericode, z. B. aus dem XRepository), kann sie hier
+          eingespielt werden.
+          <button type="button" onclick={codelisteEinspielen}
+            >Codeliste einspielen …</button
+          >
         </p>
       {/if}
+      {#if codelistenhinweis}<p class="meta">{codelistenhinweis}</p>{/if}
     </fieldset>
 
     <fieldset disabled={!darf}>
@@ -703,7 +759,10 @@
                         bind:value={a.anlageart}
                         aria-label="Art der Anlage"
                       >
-                        <option value="">– bitte wählen –</option>
+                        <option value=""
+                          >{vorschlagText(d.document_id) ??
+                            "– bitte wählen –"}</option
+                        >
                         {#each anlagenarten.eintraege as e}<option
                             value={e.code}
                             title={e.beschreibung}

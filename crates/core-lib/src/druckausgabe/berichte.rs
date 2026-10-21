@@ -42,12 +42,60 @@ pub(super) struct Bezuege {
     pub nachweise: std::collections::HashMap<uuid::Uuid, u32>,
     pub raumbuecher: std::collections::HashMap<uuid::Uuid, u32>,
     pub baugrundstueck: Option<u32>,
+    /// Beigefügte Dokumentversionen (z. B. Pläne, aus denen PDF-Aufmaße
+    /// oder Quellunterlagen Berechnungen speisen).
+    pub dokumente: std::collections::HashMap<(crate::domain::DocumentId, i64), u32>,
     pub verfasser: Vec<(String, String)>,
 }
 impl Bezuege {
     fn anlage(a: Option<&u32>) -> String {
         a.map(|a| format!("Anlage {a}"))
             .unwrap_or_else(|| "Nicht beigefügt".into())
+    }
+    fn dokument(&self, d: &crate::plattform::objekte::Dokumentbezug) -> Option<u32> {
+        self.dokumente.get(&(d.dokument_id, d.version)).copied()
+    }
+}
+/// Dokumentversion, auf der ein gebundener PDF-Aufmaßstand beruht.
+async fn aufmassdokument(
+    core: &CoreServices,
+    p: &Project,
+    b: &crate::planaufmass::Planbindung,
+) -> CoreResult<Option<crate::plattform::objekte::Dokumentbezug>> {
+    Ok(core
+        .fachverlauf(p.id, crate::plattform::ObjektArt::Planaufmass, b.aufmass_id)
+        .await?
+        .into_iter()
+        .find(|f| f.revision == b.revision)
+        .and_then(|f| f.daten.get("dokument").cloned())
+        .and_then(|d| serde_json::from_value(d).ok()))
+}
+/// Gebäude des Projekts nach Objekt-ID. Der Druck benennt damit Gebäude, die
+/// archivierte Nutzungsnachweise nur über ihre ID führen; ein aktueller
+/// Nachweis beruht auf genau diesem Gebäudestand.
+async fn gebaeude(
+    core: &CoreServices,
+    p: &Project,
+) -> CoreResult<std::collections::HashMap<String, crate::plattform::objekte::Gebaeude>> {
+    Ok(core
+        .fachobjekte(p.id, crate::plattform::ObjektArt::Gebaeude)
+        .await?
+        .into_iter()
+        .filter_map(|f| Some((f.objekt, serde_json::from_value(f.daten).ok()?)))
+        .collect())
+}
+/// Lesbarer Gegenstand eines Vergleichs: Gebäudebezeichnung statt Gebäude-ID.
+fn gegenstandsname(
+    g: Option<&str>,
+    gebaeude: &std::collections::HashMap<String, crate::plattform::objekte::Gebaeude>,
+) -> String {
+    match g {
+        None => String::new(),
+        Some(id) => match gebaeude.get(id) {
+            Some(g) => g.bezeichnung.clone(),
+            None if uuid::Uuid::parse_str(id).is_ok() => "Gebäude (nicht mehr erfasst)".into(),
+            None => id.to_string(),
+        },
     }
 }
 /// Ergebnis eines Fachadapters.
@@ -238,7 +286,7 @@ pub(super) async fn erstellen(
                 warnung.push("VERALTET: Die zugrunde liegenden Angaben wurden nach der Berechnung geändert. Vor einer Einreichung neu berechnen.");
             }
             if !n.stand.vollstaendig {
-                warnung.push("UNVOLLSTÄNDIG: Offene Prüfpunkte sind unten ausgewiesen.");
+                warnung.push("UNVOLLSTÄNDIG: Offene Prüfpunkte und nicht abschließend bewertete Ergebnisse (z. B. Grenzfälle) sind unten ausgewiesen.");
             }
             if !warnung.is_empty() {
                 z.push(hinweis(warnung.join(" ")));
@@ -444,6 +492,10 @@ pub(super) async fn erstellen(
                                     )
                                     .ok()
                                 });
+                            let anlage = stand.as_ref().and_then(|a| bezuege.dokument(&a.dokument));
+                            if let Some(a) = anlage {
+                                verweise.push(a);
+                            }
                             let (aufmass, markierung, unterlage) = match &stand {
                                 Some(a) => (
                                     a.bezeichnung.clone(),
@@ -452,7 +504,16 @@ pub(super) async fn erstellen(
                                         .find(|m| m.id == b.markierung_id)
                                         .map(|m| m.bezeichnung.clone())
                                         .unwrap_or_else(|| "Markierung fehlt".into()),
-                                    format!("Version {} · Seite {}", a.dokument.version, a.seite),
+                                    match anlage {
+                                        Some(n) => format!(
+                                            "Version {} · Seite {} · Anlage {n}",
+                                            a.dokument.version, a.seite
+                                        ),
+                                        None => format!(
+                                            "Version {} · Seite {}",
+                                            a.dokument.version, a.seite
+                                        ),
+                                    },
                                 ),
                                 None => ("Aufmaßstand fehlt".into(), String::new(), String::new()),
                             };
@@ -502,9 +563,15 @@ pub(super) async fn erstellen(
                             .into_iter()
                             .find(|m| m.project_id == p.id && m.version == d.version)
                             .ok_or_else(|| fehler("Archivierte Berechnungsquelle fehlt"))?;
+                        let anlage = bezuege.dokument(d);
+                        if let Some(a) = anlage {
+                            verweise.push(a);
+                        }
                         z.push(text(format!(
-                            "Quellunterlage: {} · Version {}",
-                            m.file_name, d.version
+                            "Quellunterlage: {} · Version {} ({})",
+                            m.file_name,
+                            d.version,
+                            Bezuege::anlage(anlage.as_ref())
                         )));
                     }
                 }
@@ -524,6 +591,9 @@ pub(super) async fn erstellen(
                         .into_iter()
                         .flatten()
                         .collect::<Vec<_>>();
+                    verweise.extend(docs.iter().filter_map(|d| {
+                        bezuege.dokumente.get(&(d.document_id, d.version)).copied()
+                    }));
                     super::abstandsbericht::abstand(&mut z, plan, &r, &docs)?;
                 }
                 NachweisEingabe::Abstand {
@@ -564,6 +634,7 @@ pub(super) async fn erstellen(
                 NachweisEingabe::Nutzung { fach, plan } => {
                     let r: Nutzung =
                         serde_json::from_value(n.stand.ergebnis.clone()).map_err(fehler)?;
+                    let gebaeude = gebaeude(core, p).await?;
                     for (index, g) in r.baugrundstuecke.into_iter().enumerate() {
                         if index > 0 {
                             z.push(Zeile::Seitenwechsel);
@@ -591,6 +662,99 @@ pub(super) async fn erstellen(
                         )));
                         if let Some(a) = bezuege.baugrundstueck {
                             verweise.push(a);
+                        }
+                        // Gebäude der Aufstellung mit ihren Plangrundlagen und,
+                        // für GFZ und Geschossigkeit, der Vollgeschosseinstufung.
+                        let ids: std::collections::BTreeSet<String> = eingabe
+                            .eingabe
+                            .aufstellung
+                            .iter()
+                            .flat_map(|a| {
+                                a.bauteile
+                                    .iter()
+                                    .filter_map(|b| b.gebaeude_id.map(|i| i.to_string()))
+                                    .chain(a.geschosse.iter().filter_map(|s| s.gebaeude_id.clone()))
+                            })
+                            .collect();
+                        let mehrere_gebaeude = ids.len() > 1;
+                        let geschossig =
+                            matches!(fach, NutzungsArt::Gfz | NutzungsArt::Geschossigkeit);
+                        let mut grundlagen = Vec::new();
+                        for id in &ids {
+                            let Some(geb) = gebaeude.get(id) else {
+                                continue;
+                            };
+                            let mut plaene: Vec<u32> = geb
+                                .quelle
+                                .iter()
+                                .filter_map(|d| bezuege.dokument(d))
+                                .collect();
+                            for b in &geb.planbindungen {
+                                if let Some(d) = aufmassdokument(core, p, b).await?
+                                    && let Some(a) = bezuege.dokument(&d)
+                                {
+                                    plaene.push(a);
+                                }
+                            }
+                            plaene.sort_unstable();
+                            plaene.dedup();
+                            verweise.extend(&plaene);
+                            let mut einstufung = Vec::new();
+                            if geschossig {
+                                let quellen: std::collections::BTreeSet<uuid::Uuid> = eingabe
+                                    .eingabe
+                                    .aufstellung
+                                    .iter()
+                                    .flat_map(|a| &a.geschosse)
+                                    .filter(|s| s.gebaeude_id.as_deref() == Some(id.as_str()))
+                                    .filter_map(|s| s.geschoss_id.as_ref())
+                                    .filter_map(|sid| {
+                                        geb.geschosse.iter().find(|x| x.id.to_string() == *sid)
+                                    })
+                                    .filter_map(|x| x.einstufungsquelle.as_ref())
+                                    .map(|q| q.nachweis_id)
+                                    .collect();
+                                for q in quellen {
+                                    let name = staende
+                                        .iter()
+                                        .find(|s| s.stand.id == q)
+                                        .map(|s| s.stand.bezeichnung.clone())
+                                        .unwrap_or_else(|| "Vollgeschossnachweis".into());
+                                    let anlage = bezuege.nachweise.get(&q);
+                                    if let Some(a) = anlage {
+                                        verweise.push(*a);
+                                    }
+                                    einstufung
+                                        .push(format!("{name} ({})", Bezuege::anlage(anlage)));
+                                }
+                            }
+                            if plaene.is_empty() && einstufung.is_empty() {
+                                continue;
+                            }
+                            grundlagen.push(vec![
+                                geb.bezeichnung.clone(),
+                                if plaene.is_empty() {
+                                    "–".into()
+                                } else {
+                                    plaene
+                                        .iter()
+                                        .map(|a| format!("Anlage {a}"))
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                },
+                                if einstufung.is_empty() {
+                                    "–".into()
+                                } else {
+                                    einstufung.join("; ")
+                                },
+                            ]);
+                        }
+                        if !grundlagen.is_empty() {
+                            z.push(tabelle(
+                                &["Gebäude", "Planunterlage", "Vollgeschosseinstufung"],
+                                &[1.2, 1.4, 2.4],
+                                grundlagen,
+                            ));
                         }
                         let k = &g.pruefung.kennzahlen;
                         let mut formeln = Vec::new();
@@ -707,7 +871,20 @@ pub(super) async fn erstellen(
                                         .and_then(|r| r.geschosse.get(i))
                                         .copied();
                                     reihen.push(vec![
-                                        s.bezeichnung.clone(),
+                                        if mehrere_gebaeude {
+                                            format!(
+                                                "{} · {}",
+                                                gegenstandsname(
+                                                    s.gebaeude_id
+                                                        .as_deref()
+                                                        .or(Some("Bestandsgebäude")),
+                                                    &gebaeude
+                                                ),
+                                                s.bezeichnung
+                                            )
+                                        } else {
+                                            s.bezeichnung.clone()
+                                        },
                                         if s.vollgeschoss {
                                             "Vollgeschoss"
                                         } else {
@@ -776,7 +953,7 @@ pub(super) async fn erstellen(
                                     format!(
                                         "{} {}",
                                         vergleichname(&v.art),
-                                        v.gegenstand.unwrap_or_default()
+                                        gegenstandsname(v.gegenstand.as_deref(), &gebaeude)
                                     ),
                                     optional(v.ist),
                                     v.soll
@@ -823,6 +1000,54 @@ pub(super) async fn erstellen(
                         &[3., 1.],
                         docs.into_iter()
                             .map(|d| vec![d.file_name, format!("Version {}", d.version)])
+                            .collect(),
+                    ));
+                } else if r.format == crate::plattform::nachweise::ABSTANDSGEBAEUDE {
+                    let stand: std::collections::BTreeMap<
+                        String,
+                        Option<crate::plattform::nachweise::AbstandsGebaeudehoehen>,
+                    > = serde_json::from_str(&r.inhalt).map_err(fehler)?;
+                    let m = |v: Option<f64>| {
+                        v.map(|v| format!("{} m", zahl(v)))
+                            .unwrap_or_else(|| "–".into())
+                    };
+                    z.push(tabelle(
+                        &[
+                            "Verknüpftes Gebäude",
+                            "±0,00 in NHN",
+                            "Gelände (rel.)",
+                            "Traufe (rel.)",
+                            "First (rel.)",
+                        ],
+                        &[2., 1., 1., 1., 1.],
+                        stand
+                            .into_values()
+                            .map(|g| match g {
+                                Some(g) => vec![
+                                    match g.dachform {
+                                        Some(d) => format!(
+                                            "{} ({}{})",
+                                            g.bezeichnung,
+                                            d.bezeichnung(),
+                                            g.dachneigung_grad
+                                                .map(|n| format!(" {}°", zahl(n)))
+                                                .unwrap_or_default()
+                                        ),
+                                        None => g.bezeichnung,
+                                    },
+                                    m(g.nullpunkt_m_nhn),
+                                    m(g.gelaende_m),
+                                    m(g.traufe_m),
+                                    m(g.first_m),
+                                ],
+                                None => vec![
+                                    "Gebäude nicht mehr vorhanden".into(),
+                                    "–".into(),
+                                    "–".into(),
+                                    "–".into(),
+                                    "–".into(),
+                                ],
+                            })
                             .collect(),
                     ));
                 } else {
@@ -964,10 +1189,31 @@ pub(super) async fn erstellen(
                 })
                 .unwrap_or_else(|| "Nicht bezeichnet".into());
             stand = format!("Raumbuch Revision {revision}");
+            let mut plaene = Vec::new();
+            for b in &r.planbindungen {
+                if let Some(d) = aufmassdokument(core, p, b).await?
+                    && let Some(a) = bezuege.dokument(&d)
+                {
+                    plaene.push(a);
+                }
+            }
+            plaene.sort_unstable();
+            plaene.dedup();
+            verweise.extend(&plaene);
             z.push(abschnitt("Raumaufstellung"));
             z.push(text(format!(
                 "Gebäude: {gebaeude} · Dokumentstand {revision}"
             )));
+            if !plaene.is_empty() {
+                z.push(text(format!(
+                    "Flächen und Höhen per PDF-Aufmaß aus: {}",
+                    plaene
+                        .iter()
+                        .map(|a| format!("Anlage {a}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )));
+            }
             z.push(tabelle(
                 &[
                     "Raum",
@@ -1204,6 +1450,22 @@ fn abzugsart(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn gegenstand_nennt_gebaeudebezeichnung() {
+        let id = uuid::Uuid::new_v4().to_string();
+        let g: crate::plattform::objekte::Gebaeude = serde_json::from_value(serde_json::json!({
+            "bezeichnung": "Garage", "grundstueck_ids": [], "geschosse": [], "quelle": null
+        }))
+        .unwrap();
+        let m = std::collections::HashMap::from([(id.clone(), g)]);
+        assert_eq!(gegenstandsname(Some(&id), &m), "Garage");
+        assert_eq!(
+            gegenstandsname(Some(&uuid::Uuid::new_v4().to_string()), &m),
+            "Gebäude (nicht mehr erfasst)"
+        );
+        assert_eq!(gegenstandsname(Some("Vorhaben"), &m), "Vorhaben");
+        assert_eq!(gegenstandsname(None, &m), "");
+    }
     #[test]
     fn fachtitel_ersetzt_wiederholende_bezeichnungen() {
         let grz = "Nachweis der Grundflächenzahl (GRZ, § 19 BauNVO)";

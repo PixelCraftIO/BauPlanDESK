@@ -55,7 +55,9 @@ impl CoreServices {
                 )));
             }
         }
-        berechnen(plan)
+        let mut r = berechnen(plan)?;
+        projektabgleich(plan, &self.get_project(p).await?.planungsrecht, &mut r);
+        Ok(r)
     }
     /// Identität und Bezeichnung der Gebäude aus Gebäude/Geschosse.
     async fn gebaeudenamen(&self, p: ProjectId) -> CoreResult<Vec<(Uuid, String)>> {

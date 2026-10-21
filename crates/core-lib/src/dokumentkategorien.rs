@@ -41,6 +41,10 @@ impl Default for KategorienKatalog {
             ("email", "E-Mail"),
             ("bescheid", "Bescheid"),
             ("foto", "Foto"),
+            ("grundbuch", "Grundbuchauszug"),
+            ("schriftverkehr", "Schriftverkehr Behörde"),
+            ("bescheinigung", "Bescheinigungen und Nachweise"),
+            ("entwaesserung", "Entwässerung"),
         ];
         let mut kategorien: Vec<_> = haupt
             .into_iter()
@@ -75,9 +79,14 @@ impl Default for KategorienKatalog {
 impl KategorienKatalog {
     /// Neue Standardkategorien auch in bereits gespeicherten Bürokatalogen anbieten.
     /// Bestehende Namen, Hierarchien, Archivierungen und Revisionen bleiben erhalten.
+    /// Hat das Büro bereits eine gleichnamige Kategorie auf derselben Ebene angelegt,
+    /// wird die Standardkategorie nicht zusätzlich angeboten.
     fn standard_ergaenzen(mut self) -> Self {
         for mut k in Self::default().kategorien {
-            if !self.kategorien.iter().any(|vorhanden| vorhanden.id == k.id) {
+            let gleichnamig = self.kategorien.iter().any(|v| {
+                v.eltern_id == k.eltern_id && v.name.to_lowercase() == k.name.to_lowercase()
+            });
+            if !gleichnamig && !self.kategorien.iter().any(|vorhanden| vorhanden.id == k.id) {
                 if let Some(parent) = &k.eltern_id
                     && self.kategorien.iter().any(|p| &p.id == parent && !p.aktiv)
                 {

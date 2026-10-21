@@ -4,6 +4,7 @@ mod anhaenge;
 mod msg;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;
+pub mod verfahren;
 use crate::{
     CoreError, CoreResult, CoreServices,
     domain::{DocumentId, DocumentVersion},

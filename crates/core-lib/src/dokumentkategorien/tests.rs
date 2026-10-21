@@ -77,3 +77,23 @@ fn katalog_erhaelt_identitaeten_und_verhindert_mehrdeutige_hierarchien() {
     assert!(neu.zuweisbar(Some("lageplan")).is_err());
     assert!(neu.snapshot("lageplan").is_ok());
 }
+#[test]
+fn neue_standardkategorien_ohne_doppelte_buerokategorien() {
+    let mut alt = KategorienKatalog {
+        revision: 3,
+        ..Default::default()
+    };
+    alt.kategorien
+        .retain(|k| !["grundbuch", "entwaesserung", "bescheinigung"].contains(&k.id.as_str()));
+    alt.kategorien.push(Dokumentkategorie {
+        id: "buero-grundbuch".into(),
+        name: "grundbuchauszug".into(),
+        eltern_id: None,
+        aktiv: true,
+    });
+    let neu = alt.clone().standard_ergaenzen();
+    assert!(neu.kategorie("grundbuch").is_err());
+    assert_eq!(neu.kategorie("entwaesserung").unwrap().name, "Entwässerung");
+    assert!(neu.kategorie("bescheinigung").unwrap().aktiv);
+    assert!(neu.validieren(&alt).is_ok());
+}

@@ -4,7 +4,7 @@ use crate::{
     domain::ProjectId,
     plattform::{
         ObjektArt,
-        objekte::{Raum, Raumbuch},
+        objekte::{Hoehenzone, Raum, Raumbuch},
     },
 };
 fn nutzung(b: Planbedeutung) -> Option<&'static str> {
@@ -40,6 +40,9 @@ impl CoreServices {
             let Some(nutzung) = nutzung(m.bedeutung) else {
                 continue;
             };
+            if m.hoehenzone_von.is_some() {
+                continue;
+            }
             if m.gebaeude_id != Some(r.gebaeude_id)
                 || (r.geschoss_id.is_some() && m.geschoss_id != r.geschoss_id)
             {
@@ -70,6 +73,7 @@ impl CoreServices {
                     nutzung: nutzung.into(),
                     flaeche_m2: flaeche,
                     hoehe_m: None,
+                    hoehenzonen: vec![],
                 });
             }
             r.planbindungen.retain(|b| b.ziel != ziel);
@@ -79,6 +83,51 @@ impl CoreServices {
             return Err(fehler(
                 "Keine Raum-/NUF-/TF-/VF-Markierungen für das gewählte Gebäude und Geschoss vorhanden",
             ));
+        }
+        // Höhenzonen: Teilflächen der übernommenen Räume. Eine früher als
+        // eigener Raum übernommene Fläche wird zur Zone (Höhe bleibt erhalten).
+        for m in &a.markierungen {
+            let Some(raum_id) = m.hoehenzone_von else {
+                continue;
+            };
+            if nutzung(m.bedeutung).is_none() || !r.raeume.iter().any(|r| r.id == raum_id) {
+                continue;
+            }
+            let ziel = format!("raeume.{raum_id}.hoehenzonen.{}.flaeche_m2", m.id);
+            let b = Planbindung {
+                aufmass_id,
+                revision,
+                markierung_id: m.id,
+                groesse: Planmessgroesse::Flaeche,
+                ziel: ziel.clone(),
+            };
+            let (_, _, flaeche) = self.planbindung_aufloesen(pid, &b).await?;
+            let frueher = r
+                .raeume
+                .iter()
+                .position(|x| x.id == m.id)
+                .map(|i| r.raeume.remove(i));
+            if frueher.is_some() {
+                let alt = format!("raeume.{}.", m.id);
+                r.planbindungen.retain(|b| !b.ziel.starts_with(&alt));
+            }
+            let raum = r
+                .raeume
+                .iter_mut()
+                .find(|x| x.id == raum_id)
+                .expect("geprüft");
+            match raum.hoehenzonen.iter_mut().find(|z| z.id == m.id) {
+                Some(z) => z.flaeche_m2 = flaeche,
+                None => raum.hoehenzonen.push(Hoehenzone {
+                    id: m.id,
+                    bezeichnung: m.bezeichnung.clone(),
+                    flaeche_m2: flaeche,
+                    lichte_hoehe_min_m: frueher.and_then(|f| f.hoehe_m),
+                    lichte_hoehe_max_m: None,
+                }),
+            }
+            r.planbindungen.retain(|b| b.ziel != ziel);
+            r.planbindungen.push(b);
         }
         self.planwerte_raumbuch(pid, &mut r).await?;
         r.summen()?;
@@ -98,14 +147,15 @@ impl CoreServices {
                 return Err(fehler("Raumfeld mehrfach verknüpft"));
             }
             let t: Vec<_> = b.ziel.split('.').collect();
-            if t.len() != 3
-                || t[0] != "raeume"
-                || t[2] != "flaeche_m2"
-                || b.groesse != Planmessgroesse::Flaeche
-            {
-                return Err(fehler(
-                    "Raumbuch unterstützt Planflächen über stabile Raum-IDs",
-                ));
+            // raeume.<raum>.flaeche_m2 oder raeume.<raum>.hoehenzonen.<zone>.flaeche_m2
+            let ungueltig = || fehler("Raumbuch unterstützt Planflächen über stabile Raum-IDs");
+            let zone = match t.as_slice() {
+                ["raeume", _, "flaeche_m2"] => None,
+                ["raeume", _, "hoehenzonen", z, "flaeche_m2"] => Some(*z),
+                _ => return Err(ungueltig()),
+            };
+            if b.groesse != Planmessgroesse::Flaeche {
+                return Err(ungueltig());
             }
             // Fehler nennen den Raum, damit die Quelle im Raumbuch auffindbar ist.
             let name = r
@@ -136,7 +186,22 @@ impl CoreServices {
                 .iter_mut()
                 .find(|r| r.id.to_string() == t[1])
                 .ok_or_else(|| fehler("Verknüpfter Raum fehlt"))?;
-            raum.flaeche_m2 = wert;
+            match zone {
+                None => raum.flaeche_m2 = wert,
+                Some(z) => {
+                    if m.hoehenzone_von != Some(raum.id) {
+                        return Err(fehler(format!(
+                            "{name}: Die Planfläche „{}“ ist im PDF-Aufmaß keine Höhenzone dieses Raums mehr. Im Raumbuch erneut aus dem PDF-Aufmaß übernehmen oder die Verknüpfung lösen.",
+                            m.bezeichnung
+                        )));
+                    }
+                    raum.hoehenzonen
+                        .iter_mut()
+                        .find(|x| x.id.to_string() == z)
+                        .ok_or_else(|| fehler(format!("{name}: Verknüpfte Höhenzone fehlt")))?
+                        .flaeche_m2 = wert;
+                }
+            }
         }
         Ok(())
     }

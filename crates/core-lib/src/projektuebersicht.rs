@@ -325,8 +325,27 @@ impl CoreServices {
             if !doc_aktuell(&aufmass.dokument) {
                 offen.push("PDF-Unterlage ist veraltet oder fehlt".into());
             }
-            if aufmass.kalibrierung.is_none() {
+            // Ohne Seitenmaßstab braucht jeder Ausschnitt einen eigenen.
+            if aufmass.kalibrierung.is_none()
+                && (aufmass.ausschnitte.is_empty()
+                    || aufmass.ausschnitte.iter().any(|a| a.kalibrierung.is_none()))
+            {
                 offen.push("Maßstab / Referenzstrecke fehlt".into());
+            }
+            for a in &aufmass.ausschnitte {
+                let hoehenpunkte = aufmass.markierungen.iter().any(|m| {
+                    m.ausschnitt_id == Some(a.id)
+                        && matches!(
+                            m.geometrie,
+                            crate::planaufmass::Plangeometrie::Hoehenpunkt { .. }
+                        )
+                });
+                if a.art.mit_hoehen() && a.bezugslinie.is_none() && hoehenpunkte {
+                    offen.push(format!(
+                        "Ausschnitt „{}“: Bezugslinie für Höhen fehlt",
+                        a.bezeichnung
+                    ));
+                }
             }
             if aufmass.markierungen.is_empty() {
                 offen.push("Noch keine Markierungen erfasst".into());
@@ -478,7 +497,8 @@ impl CoreServices {
         if unterlagen == 0 && akten.is_empty() {
             s.punkt("anforderungen",Unterlagen,Handeln,"Anforderungen an den Bauantrag erfassen","Eine Verfahrensakte mit Vorhabenprofil anlegen oder die Bürocheckliste im Unterlagenregister verwenden. Ohne Anforderungen lässt sich der Unterlagenstand nicht bewerten.",UebersichtsZiel::neu("verfahren"));
         }
-        // Pro Behörde getrennt: (Empfängeridentität, Dokument) → jüngster tatsächlich versendeter Originalstand.
+        // Pro Behörde getrennt: (Empfängeridentität, Dokument) → jüngster tatsächlich versendeter
+        // oder extern eingereichter Originalstand.
         let mut empfangene: BTreeMap<(Uuid, Uuid), Empfang> = BTreeMap::new();
         for f in akten {
             let a: Verfahrensakte = decode(f.daten)?;
@@ -754,7 +774,19 @@ impl CoreServices {
             for b in &a.abgaben {
                 let stand = versandstand(b);
                 let datum = crate::verfahren::abgabe::letztes_versandereignis(b).map(|e| e.datum);
+                // Nach der tatsächlichen Einreichung festgehalten: belegt durch
+                // die externe Einreichung derselben Dokumentversionen.
+                let extern_belegt = if stand.is_none() {
+                    crate::verfahren::externe_einreichung::extern_belegt(
+                        &a,
+                        &b.dokumente.iter().map(|d| &d.dokument).collect::<Vec<_>>(),
+                        heute,
+                    )
+                } else {
+                    None
+                };
                 let label = match stand {
+                    None if extern_belegt.is_some() => "Extern eingereicht (belegt)",
                     None => "Zusammengestellt · Versand unbestätigt",
                     Some(Versandstatus::Versendet) => "Versendet",
                     Some(Versandstatus::Eingegangen) => "Eingang bestätigt",
@@ -767,11 +799,12 @@ impl CoreServices {
                     empfaenger: a.behoerde.name.clone(),
                     quelle: a.bezeichnung.clone(),
                     status: label.into(),
-                    datum,
+                    datum: datum.or(extern_belegt.map(|e| e.datum)),
                     dokumente: b.dokumente.len(),
                     ziel: ziel("abgaben").eintrag(b.id),
                 });
                 if !zurueck
+                    && extern_belegt.is_none()
                     && matches!(
                         stand,
                         None | Some(Versandstatus::Zurueckgewiesen | Versandstatus::Ungeklaert)
@@ -812,6 +845,30 @@ impl CoreServices {
                         }) {
                             empfangene.insert(key, neue);
                         }
+                    }
+                }
+            }
+            // Nachgetragene externe Einreichungen belegen den Behördenstand ebenso.
+            for e in crate::verfahren::externe_einreichung::gueltige_externe(&a, heute) {
+                for d in &e.dokumente {
+                    let key = (a.behoerde.id, d.dokument_id.0);
+                    let neue = Empfang {
+                        datum: e.datum,
+                        erstellt_am: e.erfasst_am,
+                        abgabe: e.id,
+                        version: d.version,
+                        name: aktuell
+                            .get(&d.dokument_id.0)
+                            .map(|v| v.file_name.clone())
+                            .unwrap_or_else(|| "Dokument nicht mehr im Projekt".into()),
+                        empfaenger: a.behoerde.name.clone(),
+                        verfahren: vid,
+                    };
+                    if empfangene.get(&key).is_none_or(|alt| {
+                        (neue.datum, neue.erstellt_am, neue.abgabe)
+                            > (alt.datum, alt.erstellt_am, alt.abgabe)
+                    }) {
+                        empfangene.insert(key, neue);
                     }
                 }
             }

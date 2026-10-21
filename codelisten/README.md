@@ -20,4 +20,15 @@ Versionen legt man ohne Programm-Update in den Ordner `codelisten` im
 Datenverzeichnis der App (Server: `BAUPROJEKT_CODELISTEN_DIR`); eine Datei
 dort ersetzt die mitgelieferte Liste mit derselben Kennung.
 
+Im Bauantrag lässt sich eine Liste auch über „Codeliste einspielen …“ wählen
+(Recht „Büroangaben ändern“). Die App prüft die Datei, legt sie in diesem
+Ordner des Datenverzeichnisses ab und verwendet sie sofort, ohne Neustart.
+
+Landeslisten der Verfahrensarten (`urn:xoev-de:xbau:<land>:codeliste:verfahrensart`,
+Typ 4) werden nicht mitgeliefert. XBau gibt keine bundesweite Liste vor. Für
+Nordrhein-Westfalen war bei Redaktionsschluss keine Liste im XRepository zu
+finden. Ohne Liste enthält die XBau-Nachricht keine Verfahrensart; das ist
+zulässig, weil das Element optional ist. Stellt das Land oder die Bauaufsicht
+eine Liste bereit, wird sie wie oben eingespielt.
+
 Eingebaut ist nur der Verzeichnisdienst (`DVDV`, Version 1).

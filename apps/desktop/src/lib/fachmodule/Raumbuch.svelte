@@ -112,12 +112,14 @@
     </div>
     <details bind:open={planOffen}>
       <summary>Räume aus PDF-Aufmaß übernehmen</summary>
-      <p class="meta">Übernimmt Raum-, Aufenthaltsraum-, NUF-, TF- und VF-Markierungen des gewählten Gebäudes/Geschosses. Neue Räume werden angelegt; vorhandene Raumnummern, Nutzungen und Höhen bleiben erhalten. Flächen bleiben mit der Planquelle verknüpft.</p>
+      <p class="meta">Übernimmt Raum-, Aufenthaltsraum-, NUF-, TF- und VF-Markierungen des gewählten Gebäudes/Geschosses. Neue Räume werden angelegt; vorhandene Raumnummern, Nutzungen und Höhen bleiben erhalten. Flächen bleiben mit der Planquelle verknüpft. Im PDF-Aufmaß als „Höhenzone von Raum“ gekennzeichnete Flächen werden Höhenzonen dieses Raums.</p>
       <label>PDF-Aufmaß<select aria-label="PDF-Aufmaß" bind:value={aufmassId}><option value="">Aufmaß auswählen</option>{#each aufmasse as a}<option value={a.objekt}>{a.daten.bezeichnung} · R{a.revision}</option>{/each}</select></label>
       <button type="button" disabled={!aufmassId||!r.gebaeude_id||importBusy} onclick={planraeume}>Planräume anlegen / aktualisieren</button>
       {#each r.planbindungen??[] as b}
         {@const a=aufmasse.find(a=>a.objekt===b.aufmass_id)}
-        <p class="meta">{a?.daten.bezeichnung??"Planquelle fehlt"} · R{b.revision} · Raum {r.raeume.find(raum=>b.ziel===`raeume.${raum.id}.flaeche_m2`)?.bezeichnung??"fehlt"}
+        {@const raum=r.raeume.find(raum=>b.ziel.startsWith(`raeume.${raum.id}.`))}
+        {@const zone=raum?.hoehenzonen?.find(z=>b.ziel===`raeume.${raum.id}.hoehenzonen.${z.id}.flaeche_m2`)}
+        <p class="meta">{a?.daten.bezeichnung??"Planquelle fehlt"} · R{b.revision} · Raum {raum?.bezeichnung??"fehlt"}{zone?`, Höhenzone ${zone.bezeichnung}`:""}
         {#if a&&a.revision!==b.revision}<strong> – Quelle geändert</strong>{/if}
         <button type="button" class="link" onclick={()=>r.planbindungen=r.planbindungen?.filter(q=>q!==b)}>Verknüpfung lösen</button></p>{/each}
     </details>
@@ -172,6 +174,23 @@
                   class="link"
                   onclick={() => {r.planbindungen=r.planbindungen?.filter(b=>!b.ziel.startsWith(`raeume.${raum.id}.`));r.raeume.splice(i, 1)}}>Entfernen</button
                 ></td
+              ></tr
+            ><tr class="hoehenzonen"
+              ><td colspan="6"
+                ><details open={!!raum.hoehenzonen?.length}
+                  ><summary
+                    >Höhenzonen{raum.hoehenzonen?.length ? ` (${raum.hoehenzonen.length}, ${z(raum.hoehenzonen.reduce((a, x) => a + (x.flaeche_m2 || 0), 0))} m² von ${z(raum.flaeche_m2 || 0)} m²)` : ""}</summary
+                  >
+                  <p class="meta">Teilflächen mit abweichender lichter Höhe, z. B. unter Dachschrägen, an den Linien 1 m und 2 m abgegrenzt. Die übrige Fläche hat die lichte Raumhöhe. Die Wohnflächenberechnung rechnet jede Zone nach ihrer kleinsten lichten Höhe an.</p>
+                  {#each raum.hoehenzonen ?? [] as zone, j (zone.id)}<div class="raster"
+                      ><label>Bezeichnung<input aria-label="Bezeichnung der Höhenzone" bind:value={zone.bezeichnung} required /></label
+                      ><label>Fläche m²<input aria-label="Fläche der Höhenzone m²" type="number" min="0" step="any" bind:value={zone.flaeche_m2} disabled={r.planbindungen?.some(b=>b.ziel===`raeume.${raum.id}.hoehenzonen.${zone.id}.flaeche_m2`)} required /></label
+                      ><label>Kleinste lichte Höhe m<input aria-label="Kleinste lichte Höhe m" type="number" min="0" step="any" bind:value={zone.lichte_hoehe_min_m} /></label
+                      ><label>Größte lichte Höhe m<input aria-label="Größte lichte Höhe m" type="number" min="0" step="any" value={zone.lichte_hoehe_max_m ?? ""} oninput={(e) => { const v = e.currentTarget.value; if (v === "") delete zone.lichte_hoehe_max_m; else zone.lichte_hoehe_max_m = e.currentTarget.valueAsNumber; }} /></label
+                      ><button type="button" class="link" onclick={() => { r.planbindungen = r.planbindungen?.filter(b => b.ziel !== `raeume.${raum.id}.hoehenzonen.${zone.id}.flaeche_m2`); raum.hoehenzonen?.splice(j, 1); }}>Zone entfernen</button
+                    ></div>{/each}
+                  <button type="button" class="sekundaer" onclick={() => (raum.hoehenzonen ??= []).push({ id: crypto.randomUUID(), bezeichnung: `Zone ${(raum.hoehenzonen?.length ?? 0) + 1}`, flaeche_m2: 0, lichte_hoehe_min_m: null })}>Höhenzone hinzufügen</button>
+                </details></td
               ></tr
             >{/each}</tbody
         >

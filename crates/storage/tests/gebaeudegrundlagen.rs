@@ -529,3 +529,129 @@ async fn flurstueckszuordnung_uebersteht_umgruppierung_und_speist_formular_und_b
             .is_empty()
     );
 }
+
+/// Gebäudeübernahme ergänzt nur, was das Gebäude liefert: manuelle Höhenzonen
+/// nicht einheitlicher Geschosse und eine gewählte Bezugshöhe bleiben erhalten.
+#[tokio::test]
+async fn gebaeudeuebernahme_erhaelt_manuelle_zonen_und_bezugshoehe() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("grundlagen", "Prüfbüro").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Übernahme".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Planungsrecht {
+                    bau_nvo: Some(core_lib::flaechen::BauNvo::V2017),
+                    bebauungsplan_art: core_lib::domain::BebauungsplanArt::Qualifiziert,
+                    baugrundstuecke: Some(core_lib::baugrundstuecke::musterplan()),
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let grund = core_lib::grundstueckskontext::ermitteln(&p).unwrap();
+    let (haus, eg, dg) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let daten = json!({"bezeichnung":"Wohnhaus","grundstueck_ids":[],"flurstueck_ids":grund[0].flurstueck_ids,"quelle":null,
+        "geometrie":{"grundflaeche_m2":99,"typ":"hauptanlage","nullpunkt_m_nhn":72.64,"gelaende_m":-0.3,"traufe_m":4.2,"first_m":7.45,"herkunft":"Schnitt A-A"},
+        "geschosse":[
+            {"id":eg,"bezeichnung":"EG","vollgeschoss":null,"grundlage":"","geometrie":{"flaeche_m2":99,"fussboden_m":0,"lichte_hoehe_m":2.6,"lichte_hoehe_einheitlich":true,"deckendicke_m":0.25}},
+            {"id":dg,"bezeichnung":"DG","vollgeschoss":null,"grundlage":"","geometrie":{"flaeche_m2":99,"fussboden_m":2.85,"lichte_hoehe_m":2.3,"lichte_hoehe_einheitlich":false,"deckendicke_m":0.2}}]});
+    core.fachobjekt_speichern(p.id, ObjektArt::Gebaeude, haus, 0, daten, &user)
+        .await
+        .unwrap();
+    let vorlage = |art: BerechnungsArt| -> FachPlan {
+        let mut v = vorlagen()
+            .unwrap()
+            .into_iter()
+            .find(|v| v.plan.modul == art)
+            .unwrap()
+            .plan;
+        v.grundstueck_id = Some(grund[0].id);
+        v.gebaeude_id = Some(haus);
+        v.gebaeudedaten_uebernehmen = Some(true);
+        v
+    };
+
+    // 3. Vollgeschosse: DG ohne einheitliche Höhe behält seine manuellen Zonen.
+    let mut vp = vorlage(BerechnungsArt::Vollgeschosse);
+    vp.eingaben["regeln"]["vergleich_unterliegend"] = json!(false);
+    vp.eingaben["regeln"]["oberirdisch_pruefen"] = json!(false);
+    let (mut vp, _) = core.berechnung_pruefen(p.id, vp).await.unwrap();
+    let zonen = |p: &FachPlan, g: Uuid| -> Vec<String> {
+        p.eingaben["teilflaechen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|t| t["geschoss_id"] == json!(g.to_string()))
+            .map(|t| t["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(zonen(&vp, eg), vec![format!("zone-{eg}")]);
+    assert!(zonen(&vp, dg).is_empty());
+    let teil = vp.eingaben["teilflaechen"].as_array_mut().unwrap();
+    teil.push(json!({"id":"dg-hoch","geschoss_id":dg.to_string(),"bezeichnung":"DG ≥ 2,30 m","flaeche_m2":55.12,"lichte_hoehe_m":2.3}));
+    teil.push(json!({"id":"dg-niedrig","geschoss_id":dg.to_string(),"bezeichnung":"DG Schrägen","flaeche_m2":43.88,"lichte_hoehe_m":1.6}));
+    // Eine manuelle Zone im EG wird durch die übernommene Zone ersetzt.
+    teil.push(json!({"id":"eg-manuell","geschoss_id":eg.to_string(),"bezeichnung":"EG","flaeche_m2":10,"lichte_hoehe_m":2.6}));
+    vp.eingaben["aufmass_geprueft"] = json!(true);
+    vp.eingaben["sonderfaelle_geprueft"] = json!(true);
+    let (vp2, r) = core.berechnung_pruefen(p.id, vp).await.unwrap();
+    assert_eq!(zonen(&vp2, dg), vec!["dg-hoch", "dg-niedrig"]);
+    assert_eq!(zonen(&vp2, eg), vec![format!("zone-{eg}")]);
+    assert!(
+        !r.offen.iter().any(|o| o.contains("DG: Höhenzonen")),
+        "{:?}",
+        r.offen
+    );
+    let k = |id: String| r.kennzahlen.iter().find(|k| k.id == id).unwrap().wert;
+    assert_eq!(k(format!("geschoss:{dg}")), Some(0.), "55,7 % < 2/3");
+    // Erneute Prüfung ist stabil (keine zurückgesetzten Bestätigungen).
+    let (vp3, _) = core.berechnung_pruefen(p.id, vp2.clone()).await.unwrap();
+    assert_eq!(vp3, vp2);
+
+    // 4. Gebäudehöhen: ohne Angabe mittleres Gelände, sonst die gewählte Bezugshöhe.
+    let bezug = |p: &FachPlan| -> Vec<f64> {
+        p.eingaben["punkte"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|x| x["id"].as_str().unwrap().starts_with("gebaeude_"))
+            .map(|x| x["bezug_m"].as_f64().unwrap())
+            .collect()
+    };
+    let (hp, _) = core
+        .berechnung_pruefen(p.id, vorlage(BerechnungsArt::Hoehen))
+        .await
+        .unwrap();
+    assert!(
+        bezug(&hp).iter().all(|b| (b - 72.34).abs() < 1e-9),
+        "{:?}",
+        bezug(&hp)
+    );
+    assert!(hp.eingaben.get("bezugshoehe_m").is_none());
+    let mut hp = hp;
+    hp.eingaben["bezugshoehe_m"] = json!(72.4);
+    hp.eingaben["bezug_geprueft"] = json!(true);
+    let (hp2, _) = core.berechnung_pruefen(p.id, hp).await.unwrap();
+    assert_eq!(bezug(&hp2), vec![72.4, 72.4]);
+    assert_eq!(
+        hp2.eingaben["bezug_geprueft"],
+        json!(false),
+        "geänderter Bezug wird neu bestätigt"
+    );
+    let q = hp2.eingaben["punkte"][1]["quelle"].as_str().unwrap();
+    assert!(q.contains("Bezugshöhe 72,4"), "{q}");
+    let (hp3, _) = core.berechnung_pruefen(p.id, hp2.clone()).await.unwrap();
+    assert_eq!(hp3, hp2, "gewählte Bezugshöhe wird nicht überschrieben");
+}

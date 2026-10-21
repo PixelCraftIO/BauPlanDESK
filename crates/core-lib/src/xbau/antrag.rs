@@ -1142,7 +1142,11 @@ pub(crate) mod tests {
         Vorhabenangaben {
             beteiligte: rollen
                 .into_iter()
-                .map(|(rolle, beteiligter)| WeitererBeteiligter { rolle, beteiligter })
+                .map(|(rolle, beteiligter)| WeitererBeteiligter {
+                    rolle,
+                    beteiligter,
+                    fachrichtung: String::new(),
+                })
                 .collect(),
             gebaeudeklasse: Some(4),
             hauptgenehmigung: Some("BG-2025-0815".into()),
@@ -1212,6 +1216,36 @@ pub(crate) mod tests {
         assert!(k.contains("<kommunikation><kanal listVersionID=\"3\"><code>02</code></kanal><kennung>+49 89 123456</kennung></kommunikation>"));
         assert!(k.contains("<ansprechpartner><name><familienname><name>Dr. Jens Weber</name></familienname><vorname></vorname></name></ansprechpartner>"));
         gegen_schema_pruefen(&xml);
+        assert!(k.contains(
+            "<xbau:fachrichtung><xbau:nichtGelisteterWert>nicht angegeben</xbau:nichtGelisteterWert>"
+        ));
+
+        // Erfasste Fachrichtung: als Code der Schemaliste, sonst als Freitext.
+        for (text, erwartet) in [
+            (
+                "tragwerksplanung",
+                "<code>1</code></xbau:code></xbau:fachrichtung>",
+            ),
+            (
+                "Wärmeschutz",
+                "<code>6</code></xbau:code></xbau:fachrichtung>",
+            ),
+            (
+                "Vermessung",
+                "<xbau:fachrichtung><xbau:nichtGelisteterWert>Vermessung</xbau:nichtGelisteterWert>",
+            ),
+        ] {
+            let mut v2 = vorhabenangaben();
+            v2.beteiligte.last_mut().unwrap().fachrichtung = text.into();
+            let d = Nachrichtendaten {
+                vorhaben: &v2,
+                ..daten(&projekt, &ba, &buero, &anlagen, &c)
+            };
+            let xml = baugenehmigung_antrag(&d).unwrap();
+            let k: String = xml.lines().map(str::trim).collect();
+            assert!(k.contains(erwartet), "{text}: {xml}");
+            gegen_schema_pruefen(&xml);
+        }
 
         // Ohne Codeliste Erreichbarkeit: Kanal als Zusatz.
         let ohne = test_codelisten();
@@ -1344,8 +1378,46 @@ pub(crate) mod tests {
         let f = crate::xbau::FlaechenBauNvo::aus_pruefung(&pruefung(Quelle::Festsetzung), 812.0)
             .unwrap();
         assert_eq!((f.grz_soll, f.grz_geplant), (Some(0.4), Some(0.3)));
-        // Je Gebäude verschiedene Vollgeschosse: keine Gesamtangabe.
-        assert_eq!(f.anzahl_vollgeschosse, None);
+        // Je Gebäude ein Nachweis: größte Zahl und gemeinsame Festsetzung.
+        assert_eq!(
+            (f.anzahl_vollgeschosse, f.zulaessige_vollgeschosse),
+            (Some(3), Some(3))
+        );
+        assert_eq!(
+            crate::xbau::FlaechenBauNvo::aus_pruefung_mit_hinweis(
+                &pruefung(Quelle::Festsetzung),
+                812.0
+            )
+            .1,
+            None
+        );
+        // Wohnhaus (1) + Garage (0) bei festgesetzten II Vollgeschossen.
+        let mut p = pruefung(Quelle::Festsetzung);
+        p.nachweise.retain(|n| n.art != "vollgeschosse");
+        p.nachweise
+            .push(n("vollgeschosse", 1.0, 2.0, Quelle::Festsetzung));
+        p.nachweise
+            .push(n("vollgeschosse", 0.0, 2.0, Quelle::Festsetzung));
+        let (f, h) = crate::xbau::FlaechenBauNvo::aus_pruefung_mit_hinweis(&p, 812.0);
+        let f = f.unwrap();
+        assert_eq!(
+            (f.anzahl_vollgeschosse, f.zulaessige_vollgeschosse, h),
+            (Some(1), Some(2), None)
+        );
+        // Mehrdeutig: kein stilles Weglassen, sondern Hinweis.
+        p.nachweise.last_mut().unwrap().ist = None;
+        p.nachweise[2].soll = Some(3.0);
+        let (f, h) = crate::xbau::FlaechenBauNvo::aus_pruefung_mit_hinweis(&p, 812.0);
+        let f = f.unwrap();
+        assert_eq!(
+            (f.anzahl_vollgeschosse, f.zulaessige_vollgeschosse),
+            (None, None)
+        );
+        let h = h.unwrap();
+        assert!(
+            h.contains("anzahlVollgeschosse") && h.contains("zulaessigeAnzahlVollgeschosse"),
+            "{h}"
+        );
         let f =
             crate::xbau::FlaechenBauNvo::aus_pruefung(&pruefung(Quelle::Orientierungswert), 812.0)
                 .unwrap();

@@ -274,6 +274,8 @@ export interface GespeicherterBauantrag {
   gebaeude_zentral?: boolean;
   /** Geladene Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts. */
   verfahrensarten?: Codeliste;
+  /** Anlagenart je Dokument-ID aus der Dokumentkategorie (gilt ohne eigene Wahl). */
+  anlagenart_vorschlaege?: Record<string, { anlageart: string; kategorie: string }>;
 }
 
 // --- Kunden ------------------------------------------------------------------
@@ -336,7 +338,20 @@ export function beteiligtenrolleName(r: Beteiligtenrolle): string {
 export interface Projektbeteiligter {
   rolle: Beteiligtenrolle;
   kunde: Kunde;
+  /** Fachrichtung im Projekt (XBau `fachrichtung`); leer = nicht angegeben. */
+  fachrichtung?: string;
 }
+
+/** Fachrichtungen der XBau-Schemaliste `beteiligterfachrichtung` 3.0 (siehe
+ *  core-lib xbau::FACHRICHTUNGEN); andere Angaben gehen als Freitext. */
+export const FACHRICHTUNGEN: { code: string; name: string }[] = [
+  { code: "1", name: "Tragwerksplanung/Standsicherheit" },
+  { code: "2", name: "Schallschutz" },
+  { code: "3", name: "Brandschutz" },
+  { code: "4", name: "Lüftung" },
+  { code: "5", name: "Sicherheit" },
+  { code: "6", name: "Wärmeschutz" },
+];
 
 export interface Kunde extends Kundendaten {
   id: string;
@@ -1090,6 +1105,8 @@ export interface DokumentVergleich {
   aktuell: DocumentVersion;
   zuletzt_eingereicht: DocumentVersion | null;
   paket_id: string | null;
+  /** Verfahrensakte, wenn der Stand aus einem versendeten Abgabestand oder einer externen Einreichung stammt. */
+  verfahren?: string | null;
   eingereicht_am: string | null;
   status:
     | "neu"
@@ -1117,6 +1134,26 @@ const ablage = (cmd: string, args: Record<string, unknown>) =>
 export const api = {
   emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
   emailAnhangAblegen: (dokumentId: string, version: number, index: number) => ablage("email_anhang_ablegen", { dokumentId, version, index }),
+  /** Archivierte E-Mail als Kommunikation in eine Verfahrensakte übernehmen. */
+  emailInVerfahren: (
+    projektId: string,
+    dokumentId: string,
+    version: number,
+    verfahren: string,
+    basis: number,
+    eingehend: boolean,
+    /** Bestätigter Zugang bzw. Versand; ohne Angabe das Sendedatum. */
+    datum: string | null = null,
+  ) =>
+    invoke<import("./generated/plattform").Fachstand>("email_in_verfahren", {
+      projektId,
+      dokumentId,
+      version,
+      verfahren,
+      basis,
+      eingehend,
+      datum,
+    }),
   kategorienkatalog: () =>
     invoke<import("./generated/plattform").KategorienKatalog>("kategorienkatalog"),
   kategorienkatalogSpeichern: (
@@ -1375,7 +1412,7 @@ export const api = {
     invoke<Projektbeteiligter[]>("beteiligte", { projektId }),
   beteiligteSetzen: (
     projektId: string,
-    beteiligte: { rolle: Beteiligtenrolle; kunde: string }[],
+    beteiligte: { rolle: Beteiligtenrolle; kunde: string; fachrichtung?: string }[],
     version: number,
   ) => invoke<Project>("beteiligte_setzen", { projektId, beteiligte, version }),
   bauantrag: (projektId: string) =>
@@ -1389,6 +1426,8 @@ export const api = {
   buero: () => invoke<Buero>("buero"),
   bueroSpeichern: (buero: Buero) => invoke<Buero>("buero_speichern", { buero }),
   xbauCodelisten: () => invoke<Codeliste[]>("xbau_codelisten"),
+  xbauCodelisteEinspielen: (pfad: string) =>
+    invoke<Codeliste>("xbau_codeliste_einspielen", { pfad }),
   formularAnalysieren: (dokumentId: string, bezug?: FormularBezug) =>
     invoke<FormularAnalyse>("formular_analysieren", { dokumentId, bezug }),
   formularAusfuellen: (

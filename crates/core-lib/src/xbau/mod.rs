@@ -10,6 +10,7 @@
 //! Die Schemas liegen unter `crates/core-lib/xbau/2.7`; Tests und Laufzeit
 //! prüfen erzeugte Nachrichten dagegen.
 
+pub mod anlagenart;
 mod antrag;
 pub mod austausch;
 pub mod codeliste;
@@ -32,7 +33,10 @@ pub use antrag::{
     baugenehmigung_antrag,
 };
 pub use codeliste::{Codeeintrag, Codeliste, Codelisten};
-pub use inhalt::{FlaechenBauNvo, Vorhabenangaben, WeitereRolle, WeitererBeteiligter};
+pub use inhalt::{
+    FACHRICHTUNGEN, FlaechenBauNvo, Vorhabenangaben, WeitereRolle, WeitererBeteiligter,
+    fachrichtungscode,
+};
 
 /// Version des XBau-Standards, die der Export erzeugt.
 pub const XBAU_VERSION: &str = "2.7";
@@ -574,6 +578,9 @@ pub struct GespeicherterBauantrag {
     /// [`Bauantrag::verfahrensart`] gewählt.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verfahrensarten: Option<Codeliste>,
+    /// Anlagenart je Dokument (ID) aus seiner Dokumentkategorie
+    /// ([`anlagenart::vorschlag`]); gilt für Anlagen ohne eigene Wahl.
+    pub anlagenart_vorschlaege: std::collections::BTreeMap<String, anlagenart::Anlagenartvorschlag>,
 }
 
 /// Art der Maßnahme (XBau-interne Codeliste `baumassnahmeart`, Version 2.0).

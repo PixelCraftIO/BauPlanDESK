@@ -3,18 +3,35 @@ import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Plan
 export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, };
 export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], };
-export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach";
-export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null, };
+export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass";
+export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
+/**
+ * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
+ */
+ausschnitt_id?: string,
+/**
+ * Raummarkierung, deren Höhenzone (Teilfläche mit abweichender lichter
+ * Höhe, z. B. unter einer Dachschräge) diese Fläche ist. Das Raumbuch
+ * übernimmt sie als Höhenzone des Raums, nicht als eigenen Raum.
+ */
+hoehenzone_von?: string, };
 export type Planhoehenbezug = { punkt: [number, number], hoehe_m: number,
 /**
  * Zum Beispiel „m ü. NHN“ oder „lokal, OKFF EG = 0“.
  */
 system: string, };
+export type Ausschnittart = "grundriss" | "lageplan" | "schnitt" | "ansicht" | "detail";
+export type Planbezugslinie = { von: [number, number], bis: [number, number], hoehe_m: number, system: string, };
+export type Planausschnitt = { id: string, bezeichnung: string, art: Ausschnittart, von: [number, number], bis: [number, number], kalibrierung?: Plankalibrierung, bezugslinie?: Planbezugslinie, };
 export type Planaufmass = { bezeichnung: string, dokument: Dokumentbezug,
 /**
  * Einsbasiert. Mehrere Aufmaße derselben Seite dürfen verschiedene Maßstäbe haben.
  */
-seite: number, kalibrierung: Plankalibrierung | null, hoehenbezug: Planhoehenbezug | null, ebenen: Array<Planebene>, markierungen: Array<Planmarkierung>, };
+seite: number, kalibrierung: Plankalibrierung | null, hoehenbezug: Planhoehenbezug | null, ebenen: Array<Planebene>, markierungen: Array<Planmarkierung>,
+/**
+ * Optionale Ausschnitte; ohne sie gelten Maßstab und Höhenbezug der Seite.
+ */
+ausschnitte?: Array<Planausschnitt>, };
 export type Planmesswert = { id: string, laenge_m: number | null, flaeche_m2: number | null, horizontale_m: number | null, hoehe_m: number | null, neigung_grad: number | null, offen: Array<string>, };
 export type Planmessgroesse = "flaeche" | "laenge" | "horizontale" | "hoehe" | "neigung";
 export type Planbindung = { aufmass_id: string, revision: number, markierung_id: string, groesse: Planmessgroesse,
@@ -23,6 +40,32 @@ export type Planbindung = { aufmass_id: string, revision: number, markierung_id:
  */
 ziel: string, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
+export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";
+export type Planaufgabe = {
+/**
+ * `gebaeude` oder `abstand`.
+ */
+verbraucher: string,
+/**
+ * Gebäude-ID bzw. ID des Abstandsplans.
+ */
+objekt: string, objekt_name: string,
+/**
+ * Anzeigegruppe, z. B. „Lagerhalle · OG“ oder „Südwand“.
+ */
+gruppe: string, ziel: string, titel: string, groesse: Planmessgroesse, bedeutung: Planbedeutung, geometrie: Aufgabengeometrie, gebaeude_id: string | null, geschoss_id: string | null, grundstueck_id: string | null,
+/**
+ * Zielfeld trägt bereits einen (manuellen) Wert.
+ */
+wert_vorhanden: boolean,
+/**
+ * Bereits verknüpfte Markierung (aus einem beliebigen Aufmaß).
+ */
+gebunden: string | null,
+/**
+ * Passende, noch nicht verknüpfte Markierung dieses Aufmaßes.
+ */
+markierung: string | null, hinweis: string | null, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
@@ -407,7 +450,8 @@ abgaben: Array<string>,
 bescheid: string | null, ersetzt_durch: Dokumentbezug | null, };
 export type Planunterlage = { dokument_id: DocumentId,
 /**
- * Dateiname aus dem jüngsten Abgabestand.
+ * Dateiname aus dem jüngsten Abgabestand; bei nur extern eingereichten
+ * Unterlagen der Dateiname im DMS (leer, wenn nicht mehr vorhanden).
  */
 name: string,
 /**
@@ -584,7 +628,16 @@ flurstuecke_zu_pruefen?: boolean,
  */
 grundstueck_ids: Array<string>, geschosse: Array<GebaeudeGeschoss>, quelle: Dokumentbezug | null, };
 export type GebaeudeGeschoss = { geometrie?: GeschossGeometrie, id: string, einstufungsquelle?: Einstufungsquelle, bezeichnung: string, vollgeschoss: boolean | null, grundlage: string, };
-export type GebaeudeGeometrie = { typ?: Bauteiltyp, grundflaeche_m2?: number, nullpunkt_m_nhn?: number, gelaende_m?: number, fundamentsohle_m?: number, traufe_m?: number, first_m?: number, einzelgeschoss?: GeschossGeometrie,
+export type GebaeudeGeometrie = { typ?: Bauteiltyp, grundflaeche_m2?: number, nullpunkt_m_nhn?: number, gelaende_m?: number, fundamentsohle_m?: number, traufe_m?: number, first_m?: number,
+/**
+ * Dachform; `None` = nicht erfasst. Fehlt in älteren Ständen.
+ */
+dachform?: Dachform,
+/**
+ * Dachneigung in Grad (0 bis unter 90); bei mehreren Dachflächen die
+ * maßgebende Neigung. `None` = nicht erfasst.
+ */
+dachneigung_grad?: number, einzelgeschoss?: GeschossGeometrie,
 /**
  * Geprüfte Vollgeschosseinstufung des Einzelgeschosses (nur ohne einzeln
  * erfasste Geschosse); `None` = noch zu prüfen.
@@ -600,9 +653,19 @@ export type GebaeudeGrundlagen = { rechenstand: string, gebaeude_id: string, bez
  * Absolute Höhen (m ü. NHN) aus Gebäudenullpunkt und relativer Angabe;
  * `None`, solange eine der beiden Angaben fehlt. Fehlt in älteren Ständen.
  */
-hoehen_nhn: HoehenNhn, };
+hoehen_nhn: HoehenNhn,
+/**
+ * Dach, sofern eine Dachform erfasst ist. Fehlt in älteren Ständen.
+ */
+dach: Dachgrundlagen | null, };
 export type GeschossGrundlagen = { id: string, bezeichnung: string, implizit: boolean, flaeche_m2: number | null, vollgeschoss: boolean | null, lichte_hoehe_m: number | null, decke_oberkante_m: number | null, decke_ueber_gelaende_m: number | null, unterliegend_m2: number | null, herleitung: string, };
 export type HoehenNhn = { gelaende_m: number | null, traufe_m: number | null, first_m: number | null, };
+export type Dachform = "flachdach" | "satteldach" | "pultdach" | "walmdach" | "sonstige";
+export type Dachgrundlagen = { form: Dachform, neigung_grad: number | null,
+/**
+ * Höhe des Dachs über der Traufe in m; `None`, solange Traufe oder First fehlt.
+ */
+dachhoehe_m: number | null, herleitung: string, };
 export type Flurstuecksverweis = { flurstueck_id: string,
 /**
  * Fachbereich des verweisenden Objekts: `gebaeude` oder `abstandsflaechen`.
@@ -629,7 +692,31 @@ export type EmpfaengerUeberblick = { empfaenger: string, dokumente: Array<Empfae
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
-export type Raum = { id: string, nummer: string, bezeichnung: string, nutzung: string, flaeche_m2: number, hoehe_m: number | null, };
+export type Raum = { id: string, nummer: string, bezeichnung: string, nutzung: string,
+/**
+ * Grundfläche des Raums einschließlich seiner Höhenzonen.
+ */
+flaeche_m2: number,
+/**
+ * Lichte Höhe der Restfläche außerhalb der Höhenzonen.
+ */
+hoehe_m: number | null,
+/**
+ * Teilflächen mit abweichender lichter Höhe, z. B. unter Dachschrägen.
+ * Leer = einheitliche Raumhöhe. Fehlt in älteren Ständen.
+ */
+hoehenzonen?: Array<Hoehenzone>, };
+export type Hoehenzone = { id: string, bezeichnung: string, flaeche_m2: number,
+/**
+ * Kleinste lichte Höhe in der Zone (m); `None` = noch nicht erfasst
+ * (z. B. nach Übernahme aus dem PDF-Aufmaß).
+ */
+lichte_hoehe_min_m: number | null,
+/**
+ * Größte lichte Höhe in der Zone (m); für den Rauminhalt bei geneigter
+ * Decke. `None` = nicht erfasst.
+ */
+lichte_hoehe_max_m?: number, };
 export type RaumSummen = { anzahl: number, flaeche_m2: number, volumen_m3: number | null, };
 export type NutzungsArt = "grz" | "gfz" | "geschossigkeit" | "bmz";
 export type NachweisEingabe = { "art": "fach", objekt: string, plan: FachPlan, } | { "art": "abstand_projekt", objekt: string, plan: AbstandsPlan, } | { "art": "nutzung", fach: NutzungsArt, plan: BaugrundstuecksPlan, } | { "art": "abstand", gegenstand: string, eingabe: AbstandsflaecheInput, };
@@ -672,6 +759,11 @@ export type Druckkatalog = { gestaltung: Druckgestaltung, projekt_version: numbe
  * Vorschlag für die aufstellende Person; leer, wenn weder Bauantrag noch
  * Büroangaben eine/n Entwurfsverfasser/in eindeutig benennen.
  */
-aufgestellt_von: string, };
+aufgestellt_von: string,
+/**
+ * Vorschlag für das Aktenzeichen: das der Verfahrensakte, wenn das Projekt
+ * genau ein Aktenzeichen führt; sonst leer.
+ */
+aktenzeichen: string, };
 export type Druckposition = { titel: string, erste_seite: number, seiten: number, };
 export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe: Freigabe | null, };
