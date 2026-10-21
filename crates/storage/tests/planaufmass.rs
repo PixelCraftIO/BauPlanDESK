@@ -83,6 +83,7 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
             gebaeude_id: None,
             geschoss_id: None,
             ausschnitt_id: None,
+            hoehenzone_von: None,
         }],
         ausschnitte: vec![],
     };
@@ -355,6 +356,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
                 ausschnitt_id: None,
+                hoehenzone_von: None,
             },
             Planmarkierung {
                 id: hoehe,
@@ -366,6 +368,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
                 ausschnitt_id: None,
+                hoehenzone_von: None,
             },
             Planmarkierung {
                 id: dach,
@@ -380,6 +383,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
                 ausschnitt_id: None,
+                hoehenzone_von: None,
             },
         ],
         ausschnitte: vec![],
@@ -397,6 +401,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         gebaeude_id: Some(gid),
         geschoss_id: None,
         ausschnitt_id: None,
+        hoehenzone_von: None,
     });
     a.markierungen.push(Planmarkierung {
         id: geschossflaeche,
@@ -411,6 +416,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         gebaeude_id: Some(gid),
         geschoss_id: Some(sid),
         ausschnitt_id: None,
+        hoehenzone_von: None,
     });
     core.fachobjekt_speichern(
         p.id,
@@ -804,6 +810,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
             gebaeude_id: Some(gebaeude),
             geschoss_id: geschoss,
             ausschnitt_id: Some(aus),
+            hoehenzone_von: None,
         }
     };
     let rechteck = |a: [f64; 2], b: [f64; 2]| Plangeometrie::Rechteck { von: a, bis: b };
@@ -1209,4 +1216,217 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
         "{:?}",
         w.offen
     );
+}
+
+#[tokio::test]
+async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
+    use core_lib::plattform::objekte::Raumbuch;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Dachgeschoss".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "DG.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let gid = Uuid::new_v4();
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Gebaeude,
+        gid,
+        0,
+        serde_json::json!({"bezeichnung":"Haus","grundstueck_ids":[],"geschosse":[],"quelle":null}),
+        &user,
+    )
+    .await
+    .unwrap();
+    let (ebene, raum, zone, aid, rid) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let markierung = |id, name: &str, bis: [f64; 2], von_raum: Option<Uuid>| Planmarkierung {
+        id,
+        ebene_id: ebene,
+        bezeichnung: name.into(),
+        bedeutung: Planbedeutung::Aufenthaltsraum,
+        geometrie: Plangeometrie::Rechteck { von: [0., 0.], bis },
+        grundstueck_id: None,
+        gebaeude_id: Some(gid),
+        geschoss_id: None,
+        ausschnitt_id: None,
+        hoehenzone_von: von_raum,
+    };
+    // 10 m × 5 m Raum, davon 10 m × 1 m Schräge zwischen 1 m und 2 m.
+    let mut a = Planaufmass {
+        bezeichnung: "DG".into(),
+        dokument: Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        },
+        seite: 1,
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Räume".into(),
+            sichtbar: true,
+            gesperrt: false,
+        }],
+        markierungen: vec![
+            markierung(raum, "Schlafen", [100., 50.], None),
+            markierung(zone, "Schräge 1–2 m", [100., 10.], None),
+        ],
+        ausschnitte: vec![],
+    };
+    // Eine Zone muss auf einen Raum zeigen, der selbst keine Zone ist.
+    let mut falsch = a.clone();
+    falsch.markierungen[1].hoehenzone_von = Some(zone);
+    assert!(falsch.messen().is_err());
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Planaufmass,
+        aid,
+        0,
+        serde_json::to_value(&a).unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+    // Zunächst als eigener Raum übernommen (wie bisher).
+    let leer: Raumbuch = serde_json::from_value(
+        serde_json::json!({"bezeichnung":"DG","gebaeude_id":gid,"geschoss_id":null,"raeume":[]}),
+    )
+    .unwrap();
+    let mut r = core.planaufmass_raumbuch(p.id, aid, 1, leer).await.unwrap();
+    assert_eq!(r.raeume.len(), 2);
+    r.raeume.iter_mut().find(|x| x.id == zone).unwrap().hoehe_m = Some(1.0);
+    r.raeume.iter_mut().find(|x| x.id == raum).unwrap().hoehe_m = Some(2.5);
+    // Als Höhenzone gekennzeichnet: wird Zone des Raums, Höhe bleibt erhalten.
+    a.markierungen[1].hoehenzone_von = Some(raum);
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Planaufmass,
+        aid,
+        1,
+        serde_json::to_value(&a).unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+    let r = core.planaufmass_raumbuch(p.id, aid, 2, r).await.unwrap();
+    assert_eq!(r.raeume.len(), 1);
+    let z = &r.raeume[0].hoehenzonen[0];
+    assert_eq!(
+        (z.id, z.flaeche_m2, z.lichte_hoehe_min_m),
+        (zone, 10., Some(1.0))
+    );
+    assert!(
+        r.planbindungen
+            .iter()
+            .any(|b| b.ziel == format!("raeume.{raum}.hoehenzonen.{zone}.flaeche_m2"))
+    );
+    assert!(
+        !r.planbindungen
+            .iter()
+            .any(|b| b.ziel.starts_with(&format!("raeume.{zone}.")))
+    );
+    let summen = r.summen().unwrap();
+    assert_eq!(summen.flaeche_m2, 50.);
+    assert_eq!(
+        summen.volumen_m3, None,
+        "Zone ohne größte Höhe: Rauminhalt offen"
+    );
+    let mut mit_max = r.clone();
+    mit_max.raeume[0].hoehenzonen[0].lichte_hoehe_max_m = Some(2.0);
+    // 40 m² × 2,5 m + 10 m² × (1 m + 2 m) / 2
+    assert_eq!(mit_max.summen().unwrap().volumen_m3, Some(115.));
+    mit_max.raeume[0].hoehenzonen[0].flaeche_m2 = 51.;
+    assert!(mit_max.summen().is_err(), "Zonen größer als der Raum");
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Raumbuch,
+        rid,
+        0,
+        serde_json::to_value(&r).unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+
+    let mut wohn = core
+        .berechnung_aus_raumbuch(p.id, rid, BerechnungsArt::Wohnflaechen)
+        .await
+        .unwrap();
+    let pos = wohn.eingaben["positionen"].as_array().unwrap().clone();
+    assert_eq!(pos.len(), 2);
+    assert_eq!(
+        (
+            pos[0]["aufmass_m2"].as_f64(),
+            pos[0]["lichte_hoehe_m"].as_f64()
+        ),
+        (Some(40.), Some(2.5))
+    );
+    assert_eq!(pos[1]["id"], format!("{raum}_{zone}"));
+    assert_eq!(
+        (
+            pos[1]["aufmass_m2"].as_f64(),
+            pos[1]["lichte_hoehe_m"].as_f64()
+        ),
+        (Some(10.), Some(1.0))
+    );
+    // Mit Raumart und Wohnung: 40 m² voll + 10 m² zur Hälfte.
+    let vorlage = &vorlagen()
+        .unwrap()
+        .into_iter()
+        .find(|v| v.plan.modul == BerechnungsArt::Wohnflaechen)
+        .unwrap()
+        .plan
+        .eingaben["positionen"][0];
+    for p in wohn.eingaben["positionen"].as_array_mut().unwrap() {
+        p["typ"] = vorlage["typ"].clone();
+        p["wohnung"] = "WE 1".into();
+    }
+    let e: core_lib::berechnungen::wohnflaechen::Eingabe =
+        serde_json::from_value(wohn.eingaben.clone()).unwrap();
+    let ergebnis = core_lib::berechnungen::wohnflaechen::berechnen(&e).unwrap();
+    let wf = ergebnis
+        .kennzahlen
+        .iter()
+        .find(|k| k.id == "wohnflaeche")
+        .and_then(|k| k.wert)
+        .unwrap();
+    assert!((wf - 45.).abs() < 1e-9, "{wf}");
 }

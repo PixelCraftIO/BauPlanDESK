@@ -49,7 +49,7 @@ pub fn planziele(plan: &FachPlan) -> CoreResult<Vec<Planziel>> {
 /// nicht dazu. Grundlage für Aktualitätsprüfung und Nachweis-Fingerprints.
 pub(crate) fn bindungsstand(a: &Planaufmass, markierung: Uuid) -> serde_json::Value {
     let m = a.markierungen.iter().find(|m| m.id == markierung).map(|m| {
-        serde_json::json!({
+        let mut stand = serde_json::json!({
             "id": m.id,
             "bezeichnung": m.bezeichnung,
             "bedeutung": m.bedeutung,
@@ -58,7 +58,12 @@ pub(crate) fn bindungsstand(a: &Planaufmass, markierung: Uuid) -> serde_json::Va
             "gebaeude_id": m.gebaeude_id,
             "geschoss_id": m.geschoss_id,
             "ausschnitt": m.ausschnitt_id.and_then(|id| a.ausschnitte.iter().find(|x| x.id == id)),
-        })
+        });
+        // Nur wenn gesetzt, damit bestehende Bindungsstände gleich bleiben.
+        if let Some(raum) = m.hoehenzone_von {
+            stand["hoehenzone_von"] = serde_json::json!(raum);
+        }
+        stand
     });
     serde_json::json!({
         "bezeichnung": a.bezeichnung,
@@ -122,10 +127,13 @@ impl CoreServices {
             .find(|m| m.id == b.markierung_id)
             .ok_or_else(|| fehler("Planmarkierung fehlt"))?
             .clone();
-        // Nur die gebundene Markierung prüfen: eine andere, nicht mehr passende
-        // Markierung desselben Aufmaßes blockiert diese Übernahme nicht.
+        // Nur die gebundene Markierung prüfen (bei einer Höhenzone mit ihrem
+        // Raum): eine andere, nicht mehr passende Markierung desselben Aufmaßes
+        // blockiert diese Übernahme nicht.
         let mut einzeln = a.clone();
-        einzeln.markierungen.retain(|x| x.id == m.id);
+        einzeln
+            .markierungen
+            .retain(|x| x.id == m.id || Some(x.id) == m.hoehenzone_von);
         let werte = self.planaufmass_pruefen(pid, &einzeln).await?;
         if m.bedeutung == Planbedeutung::Unbestimmt {
             return Err(fehler("Planmarkierung zuerst fachlich zuordnen"));

@@ -903,6 +903,7 @@ pub async fn fach(b: &mut Beispiel) {
             gebaeude_id: gebaeude,
             geschoss_id: geschoss,
             ausschnitt_id: Some(aus),
+            hoehenzone_von: None,
         });
         id
     };
@@ -1143,6 +1144,7 @@ pub async fn fach(b: &mut Beispiel) {
             gebaeude_id: None,
             geschoss_id: None,
             ausschnitt_id: Some(x_eg),
+            hoehenzone_von: None,
         });
         id
     };
@@ -1158,6 +1160,7 @@ pub async fn fach(b: &mut Beispiel) {
             gebaeude_id: None,
             geschoss_id: None,
             ausschnitt_id: Some(x_eg),
+            hoehenzone_von: None,
         });
         id
     };

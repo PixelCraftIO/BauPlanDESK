@@ -30,6 +30,7 @@ fn plan(g: Plangeometrie) -> Planaufmass {
             gebaeude_id: None,
             geschoss_id: None,
             ausschnitt_id: None,
+            hoehenzone_von: None,
         }],
         ausschnitte: vec![],
     }
@@ -227,6 +228,7 @@ fn hoehenpunkt(id: u128, p: Planpunkt, ausschnitt: Option<u128>) -> Planmarkieru
         gebaeude_id: None,
         geschoss_id: None,
         ausschnitt_id: ausschnitt.map(Uuid::from_u128),
+        hoehenzone_von: None,
     }
 }
 #[test]

@@ -84,10 +84,67 @@ impl CoreServices {
                 .and_then(|g| geschosse.get(&g).cloned())
                 .unwrap_or_default()
         };
-        plan.eingaben["positionen"]=serde_json::Value::Array(r.raeume.iter().map(|raum|{
-    if modul==BerechnungsArt::Wohnflaechen {serde_json::json!({"id":raum.id.to_string(),"wohnung":"","raum":format!("{} {}",raum.nummer,raum.bezeichnung),"typ":"","form":"aufmass","laenge_m":0,"breite_m":0,"breite2_m":0,"aufmass_m2":raum.flaeche_m2,"lichte_hoehe_m":raum.hoehe_m,"sonderfaktor":null,"begruendung":"Raumart, Wohnungszuordnung und Höhenzonen prüfen","quelle":format!("Raumbuch {} · Revision {} · Raum {}",r.bezeichnung,f.revision,raum.nummer)})}
-    else {serde_json::json!({"id":raum.id.to_string(),"geschoss":din_geschoss(raum),"raum":format!("{} {}",raum.nummer,raum.bezeichnung),"art":din_art(raum),"bereich":"R","form":"aufmass","laenge_m":0,"breite_m":0,"breite2_m":0,"aufmass_m2":raum.flaeche_m2,"quelle":format!("Raumbuch {} · Revision {} · Klassifikation und Maßbezug prüfen",r.bezeichnung,f.revision)})}
-  }).collect());
+        // Wohnfläche: je Höhenzone eine eigene Position (ID „Raum_Zone“) mit
+        // der kleinsten lichten Höhe der Zone; die Restfläche behält die Raum-ID
+        // und die Raumhöhe. Die Anrechnung nach Höhe bestimmt das WoFlV-Modul.
+        // DIN 277 zählt die Grundfläche unabhängig von der Höhe: ein Raum, eine Position.
+        let wohnflaeche = |raum: &crate::plattform::objekte::Raum| {
+            let name = format!("{} {}", raum.nummer, raum.bezeichnung);
+            let quelle = format!(
+                "Raumbuch {} · Revision {} · Raum {}",
+                r.bezeichnung, f.revision, raum.nummer
+            );
+            let position = |id: String,
+                            name: String,
+                            flaeche: f64,
+                            hoehe: Option<f64>,
+                            begruendung: &str| {
+                serde_json::json!({"id":id,"wohnung":"","raum":name,"typ":"","form":"aufmass","laenge_m":0,"breite_m":0,"breite2_m":0,"aufmass_m2":flaeche,"lichte_hoehe_m":hoehe,"sonderfaktor":null,"begruendung":begruendung,"quelle":quelle})
+            };
+            if raum.hoehenzonen.is_empty() {
+                return vec![position(
+                    raum.id.to_string(),
+                    name,
+                    raum.flaeche_m2,
+                    raum.hoehe_m,
+                    "Raumart, Wohnungszuordnung und Höhenzonen prüfen",
+                )];
+            }
+            let zonen: f64 = raum.hoehenzonen.iter().map(|z| z.flaeche_m2).sum();
+            let rest = raum.flaeche_m2 - zonen;
+            let mut liste = Vec::new();
+            if rest >= 0.005 {
+                liste.push(position(
+                    raum.id.to_string(),
+                    name.clone(),
+                    rest,
+                    raum.hoehe_m,
+                    "Raumart und Wohnungszuordnung prüfen; Restfläche außerhalb der Höhenzonen",
+                ));
+            }
+            for z in &raum.hoehenzonen {
+                liste.push(position(
+                    format!("{}_{}", raum.id, z.id),
+                    format!("{name} – {}", z.bezeichnung),
+                    z.flaeche_m2,
+                    z.lichte_hoehe_min_m,
+                    "Raumart und Wohnungszuordnung prüfen; Höhenzone des Raumbuchs (kleinste lichte Höhe)",
+                ));
+            }
+            liste
+        };
+        plan.eingaben["positionen"] = serde_json::Value::Array(
+            r.raeume
+                .iter()
+                .flat_map(|raum| {
+                    if modul == BerechnungsArt::Wohnflaechen {
+                        wohnflaeche(raum)
+                    } else {
+                        vec![serde_json::json!({"id":raum.id.to_string(),"geschoss":din_geschoss(raum),"raum":format!("{} {}",raum.nummer,raum.bezeichnung),"art":din_art(raum),"bereich":"R","form":"aufmass","laenge_m":0,"breite_m":0,"breite2_m":0,"aufmass_m2":raum.flaeche_m2,"quelle":format!("Raumbuch {} · Revision {} · Klassifikation und Maßbezug prüfen",r.bezeichnung,f.revision)})]
+                    }
+                })
+                .collect(),
+        );
         Ok(plan)
     }
 }

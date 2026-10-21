@@ -395,6 +395,10 @@
             <fieldset disabled={objektGesperrt}>
               <label>Bezeichnung<input bind:value={m.bezeichnung} required/></label>
               <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung}>{#each bedeutungen as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+              {#if ["raum","aufenthaltsraum","nuf","tf","vf"].includes(m.bedeutung)}
+                {@const raeume=p.markierungen.filter(x=>x.id!==m!.id&&!x.hoehenzone_von&&["raum","aufenthaltsraum","nuf","tf","vf"].includes(x.bedeutung)&&x.gebaeude_id===m!.gebaeude_id&&x.geschoss_id===m!.geschoss_id)}
+                {#if raeume.length||m.hoehenzone_von}<label>Höhenzone von Raum<select aria-label="Höhenzone von Raum" value={m.hoehenzone_von??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.hoehenzone_von=v;else delete m!.hoehenzone_von}}><option value="">Keine – eigener Raum</option>{#each raeume as x (x.id)}<option value={x.id}>{x.bezeichnung}</option>{/each}{#if m.hoehenzone_von&&!raeume.some(x=>x.id===m!.hoehenzone_von)}<option value={m.hoehenzone_von}>Raum nicht mehr passend</option>{/if}</select></label>{/if}
+              {/if}
               {#if ausschnitte.length}<label>Ausschnitt<select aria-label="Ausschnitt der Markierung" value={m.ausschnitt_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m.ausschnitt_id=v;else delete m.ausschnitt_id}}><option value="">Ganzes Blatt</option>{#each ausschnitte as a}<option value={a.id}>{a.bezeichnung}</option>{/each}</select></label>{/if}
               <label>Zeichenebene<select bind:value={m.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
               <label>Baugrundstück<select bind:value={m.grundstueck_id}><option value={null}>Nicht zugeordnet</option>{#each grund as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>

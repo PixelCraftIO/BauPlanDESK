@@ -230,6 +230,7 @@ fn main() {
         Dokumentdaten,
         Raumbuch,
         Raum,
+        Hoehenzone,
         RaumSummen,
         NutzungsArt,
         NachweisEingabe,

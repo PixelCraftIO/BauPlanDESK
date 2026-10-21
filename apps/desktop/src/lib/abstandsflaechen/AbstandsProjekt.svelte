@@ -147,7 +147,10 @@
         w.dachhoehe_m = d.dachhoehe_m;
         w.dachneigung_grad = d.neigung_grad;
         // Beim Satteldach haben beide Seiten des Giebels dieselbe Neigung.
-        if (w.dachart === "giebel") w.dachneigung_b_grad = d.form === "satteldach" ? d.neigung_grad : null;
+        if (w.dachart === "giebel") {
+          if (d.form === "satteldach" && d.neigung_grad !== null) w.dachneigung_b_grad = d.neigung_grad;
+          else delete w.dachneigung_b_grad;
+        }
         w.dachgrundlage = `Gebäude ${h.name}: ${d.herleitung}`;
         hoehenHinweis += d.form === "satteldach" || w.dachart === "dachflaeche"
           ? " Dachhöhe und Neigung aus dem Gebäude übernommen."

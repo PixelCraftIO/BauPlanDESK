@@ -8,7 +8,13 @@ export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string
 /**
  * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
  */
-ausschnitt_id?: string, };
+ausschnitt_id?: string,
+/**
+ * Raummarkierung, deren Höhenzone (Teilfläche mit abweichender lichter
+ * Höhe, z. B. unter einer Dachschräge) diese Fläche ist. Das Raumbuch
+ * übernimmt sie als Höhenzone des Raums, nicht als eigenen Raum.
+ */
+hoehenzone_von?: string, };
 export type Planhoehenbezug = { punkt: [number, number], hoehe_m: number,
 /**
  * Zum Beispiel „m ü. NHN“ oder „lokal, OKFF EG = 0“.
@@ -686,7 +692,31 @@ export type EmpfaengerUeberblick = { empfaenger: string, dokumente: Array<Empfae
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
-export type Raum = { id: string, nummer: string, bezeichnung: string, nutzung: string, flaeche_m2: number, hoehe_m: number | null, };
+export type Raum = { id: string, nummer: string, bezeichnung: string, nutzung: string,
+/**
+ * Grundfläche des Raums einschließlich seiner Höhenzonen.
+ */
+flaeche_m2: number,
+/**
+ * Lichte Höhe der Restfläche außerhalb der Höhenzonen.
+ */
+hoehe_m: number | null,
+/**
+ * Teilflächen mit abweichender lichter Höhe, z. B. unter Dachschrägen.
+ * Leer = einheitliche Raumhöhe. Fehlt in älteren Ständen.
+ */
+hoehenzonen?: Array<Hoehenzone>, };
+export type Hoehenzone = { id: string, bezeichnung: string, flaeche_m2: number,
+/**
+ * Kleinste lichte Höhe in der Zone (m); `None` = noch nicht erfasst
+ * (z. B. nach Übernahme aus dem PDF-Aufmaß).
+ */
+lichte_hoehe_min_m: number | null,
+/**
+ * Größte lichte Höhe in der Zone (m); für den Rauminhalt bei geneigter
+ * Decke. `None` = nicht erfasst.
+ */
+lichte_hoehe_max_m?: number, };
 export type RaumSummen = { anzahl: number, flaeche_m2: number, volumen_m3: number | null, };
 export type NutzungsArt = "grz" | "gfz" | "geschossigkeit" | "bmz";
 export type NachweisEingabe = { "art": "fach", objekt: string, plan: FachPlan, } | { "art": "abstand_projekt", objekt: string, plan: AbstandsPlan, } | { "art": "nutzung", fach: NutzungsArt, plan: BaugrundstuecksPlan, } | { "art": "abstand", gegenstand: string, eingabe: AbstandsflaecheInput, };

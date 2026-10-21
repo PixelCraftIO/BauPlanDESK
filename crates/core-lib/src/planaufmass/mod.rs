@@ -125,6 +125,21 @@ pub struct Planmarkierung {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub ausschnitt_id: Option<Uuid>,
+    /// Raummarkierung, deren Höhenzone (Teilfläche mit abweichender lichter
+    /// Höhe, z. B. unter einer Dachschräge) diese Fläche ist. Das Raumbuch
+    /// übernimmt sie als Höhenzone des Raums, nicht als eigenen Raum.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub hoehenzone_von: Option<Uuid>,
+}
+impl Planbedeutung {
+    /// Flächen, die das Raumbuch als Raum (oder Höhenzone) übernimmt.
+    pub fn raumartig(self) -> bool {
+        matches!(
+            self,
+            Self::Raum | Self::Aufenthaltsraum | Self::Nuf | Self::Tf | Self::Vf
+        )
+    }
 }
 /// Zeichnungsart eines Ausschnitts; bestimmt, ob Höhen gemessen werden können.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
@@ -364,6 +379,27 @@ impl Planaufmass {
                 if !b.hoehe_m.is_finite() || b.hoehe_m.abs() > 1e6 {
                     return Err(fehler("Ungültige Bezugslinie"));
                 }
+            }
+        }
+        for m in &self.markierungen {
+            let Some(raum) = m.hoehenzone_von else {
+                continue;
+            };
+            let eltern = self
+                .markierungen
+                .iter()
+                .find(|e| e.id == raum && e.id != m.id)
+                .ok_or_else(|| fehler(format!("{}: Raum der Höhenzone fehlt", m.bezeichnung)))?;
+            if !m.bedeutung.raumartig()
+                || !eltern.bedeutung.raumartig()
+                || eltern.hoehenzone_von.is_some()
+                || eltern.gebaeude_id != m.gebaeude_id
+                || eltern.geschoss_id != m.geschoss_id
+            {
+                return Err(fehler(format!(
+                    "{}: Eine Höhenzone ist eine Raumfläche im selben Gebäude und Geschoss wie ihr Raum „{}“, der selbst keine Höhenzone ist",
+                    m.bezeichnung, eltern.bezeichnung
+                )));
             }
         }
         let mut ids = std::collections::HashSet::new();
