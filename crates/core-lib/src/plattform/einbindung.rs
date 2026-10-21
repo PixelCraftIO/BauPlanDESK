@@ -108,6 +108,13 @@ impl Lagebezug {
         let l = self.lage(g);
         l.einheiten.len() == 1 && l.einheiten.contains(schluessel)
     }
+    /// Wie [`Self::eindeutig`], mit der öffentlichen Grundstücks-ID.
+    pub(crate) fn eindeutig_id(&self, g: &Gebaeude, id: Uuid) -> bool {
+        self.einheiten
+            .iter()
+            .find(|e| grundstueck_id(self.p, e) == id)
+            .is_some_and(|e| self.eindeutig(g, e))
+    }
     /// Wie [`Self::moeglich`], mit der öffentlichen Grundstücks-ID.
     pub(crate) fn moeglich_id(&self, g: &Gebaeude, id: Uuid) -> bool {
         self.einheiten

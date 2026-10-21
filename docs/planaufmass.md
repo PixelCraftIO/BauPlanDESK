@@ -134,7 +134,19 @@ Grundstücks-IDs wird die Flurstückszuordnung geprüft.
 Die Zuordnung verwendet **Tabelle.Zeilen-ID.Feld**, keine Listenposition.
 Eine Quelle darf mehrere Berechnungen versorgen. Mehrere konkurrierende
 Quellen für dasselbe Zielfeld werden zurückgewiesen. Grundstück und Gebäude
-müssen zwischen Markierung und Zielberechnung übereinstimmen.
+müssen zwischen Markierung und Zielberechnung übereinstimmen. Ausnahme:
+grundstücksbezogene Bilanzen (Freiflächen, Entwässerung, ohne Gebäude) dürfen
+Markierungen eines Gebäudes binden, das laut seinen Flurstücken eindeutig auf
+ihrer Grundstückseinheit steht (z. B. die Gebäudegrundfläche als Dachfläche).
+Das Höhensystem einer Höhenbindung (Gebäude, Gebäudehöhen, Wände) ist das der
+Markierung (`Planaufmass::hoehensystem`): die Bezugslinie ihres Ausschnitts,
+ohne Ausschnitt der blattweite Höhenbezug – wie bei der Messung selbst.
+Die automatische Quellangabe einer Zielzeile nennt Dateiname, Plannummer/Index
+(aus den Dokumentdaten), Version, Seite, Aufmaß, Markierung und Aufmaßrevision,
+aber keine technischen IDs; mehrere Bindungen derselben Zeile werden als
+„Fläche: … | Höhe: …“ zusammengeführt. Aufmaß-Aufgaben schlagen eine Markierung
+je Gebäude höchstens einmal vor (nicht für bereits gebundene) und berücksichtigen
+bei Höhenmaßen Plausibilität (Deckendicke < 0,60 m) und Bezeichnung.
 Eine aktive Gebäudeübernahme muss vor der direkten PDF-Verknüpfung deaktiviert
 werden, damit nicht zwei Lieferanten dieselben Eingaben überschreiben.
 Die DIN-277-Übernahme benötigt eine explizite NUF/TF/VF/KGF-Kennzeichnung.

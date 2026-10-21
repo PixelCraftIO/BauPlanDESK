@@ -60,6 +60,31 @@ pub struct Eingabe {
     #[serde(default)]
     pub rauminhalt_erforderlich: bool,
 }
+/// Liest die Eingaben; eine fehlende oder unbekannte Flächenart wird je
+/// Position verständlich gemeldet statt als technischer Lesefehler.
+pub(super) fn eingabe(v: &serde_json::Value) -> CoreResult<Eingabe> {
+    if let Some(positionen) = v.get("positionen").and_then(|p| p.as_array()) {
+        for p in positionen {
+            let art = p.get("art").and_then(|a| a.as_str());
+            if !matches!(art, Some("nuf" | "tf" | "vf" | "kgf")) {
+                let name = ["raum", "id"]
+                    .iter()
+                    .find_map(|k| p.get(k).and_then(|v| v.as_str()))
+                    .filter(|n| !n.trim().is_empty())
+                    .unwrap_or("ohne Bezeichnung");
+                return Err(err(format!(
+                    "Position „{name}“: Flächenart (NUF, TF, VF oder KGF) zuordnen{}",
+                    match art {
+                        Some(a) if !a.is_empty() =>
+                            format!(" – „{a}“ ist keine DIN-277-Flächenart"),
+                        _ => String::new(),
+                    }
+                )));
+            }
+        }
+    }
+    decode(v)
+}
 pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
     let mut r = FachErgebnis::neu(BerechnungsArt::Din277);
     ids(e.positionen.iter().map(|p| p.id.as_str()))?;
@@ -68,8 +93,8 @@ pub fn berechnen(e: &Eingabe) -> CoreResult<FachErgebnis> {
     let mut gruppen: BTreeMap<(String, String, Flaechenart), f64> = BTreeMap::new();
     let mut rows = vec![];
     for p in &e.positionen {
-        text(&p.geschoss)?;
-        text(&p.raum)?;
+        text_feld(&p.raum, format!("Position „{}“: Raum / Bauteil", p.id))?;
+        text_feld(&p.geschoss, format!("Position „{}“: Geschoss", p.raum))?;
         if !["R", "S"].contains(&p.bereich.as_str()) {
             return Err(err("DIN-277-Bereich als R oder S klassifizieren"));
         }

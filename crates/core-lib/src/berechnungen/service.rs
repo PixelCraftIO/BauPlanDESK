@@ -189,6 +189,21 @@ impl CoreServices {
                 });
             }
         }
+        // Geschosse ohne einheitliche lichte Höhe (z. B. Dachgeschoss mit
+        // Schrägen) liefert die Übernahme keine Zone; dort bleiben die manuell
+        // erfassten Höhenzonen erhalten. Frühere automatische Zonen solcher
+        // Geschosse und Zonen nicht mehr vorhandener Geschosse entfallen.
+        let manuell: Vec<_> = e
+            .teilflaechen
+            .iter()
+            .filter(|t| {
+                geschosse.iter().any(|s| s.id == t.geschoss_id)
+                    && !zonen.iter().any(|z| z.geschoss_id == t.geschoss_id)
+                    && t.id != format!("zone-{}", t.geschoss_id)
+            })
+            .cloned()
+            .collect();
+        zonen.extend(manuell);
         e.geschosse = geschosse;
         e.teilflaechen = zonen;
         if vorher != (e.geschosse.clone(), e.teilflaechen.clone()) {
@@ -473,7 +488,8 @@ impl CoreServices {
     }
 }
 /// Traufe und First aus Gebäude/Geschosse als Höhenpunkte (m ü. NHN), bezogen
-/// auf die mittlere Geländehöhe des Gebäudes. Eigene Punkte bleiben erhalten;
+/// auf die gewählte Bezugshöhe (`bezugshoehe_m`), sonst auf die mittlere
+/// Geländehöhe des Gebäudes. Eigene Punkte bleiben erhalten;
 /// Übernommene Punkte tragen die gültige Positionskennung `gebaeude_<id>_<art>` und werden bei
 /// jeder Prüfung aktualisiert. Geänderte Werte setzen die Bezugsprüfung zurück.
 fn hoehen_einsetzen(
@@ -482,12 +498,20 @@ fn hoehen_einsetzen(
     basis: &crate::plattform::gebaeude::GebaeudeGrundlagen,
 ) -> CoreResult<()> {
     let h = &basis.hoehen_nhn;
-    let gelaende = h.gelaende_m.ok_or_else(|| {
-        err("Gebäudenullpunkt (m ü. NHN) und mittlere Geländehöhe in Gebäude/Geschosse ergänzen")
-    })?;
     let praefix = format!("gebaeude_{}_", basis.gebaeude_id);
     let altpraefix = format!("gebaeude:{}:", basis.gebaeude_id);
     let mut e: hoehen::Eingabe = decode(&plan.eingaben)?;
+    // Eine gewählte Bezugshöhe (z. B. festgesetzte Straßenoberkante) bleibt
+    // maßgebend; nur ohne sie gilt die mittlere Geländehöhe des Gebäudes.
+    let (bezug, bezugstext) = match e.bezugshoehe_m {
+        Some(b) => (b, format!("Bezug gewählte Bezugshöhe {} m", zahl(b))),
+        None => (
+            h.gelaende_m.ok_or_else(|| {
+                err("Gebäudenullpunkt (m ü. NHN) und mittlere Geländehöhe in Gebäude/Geschosse ergänzen oder eine Bezugshöhe angeben")
+            })?,
+            "Bezug mittlere Geländehöhe".to_string(),
+        ),
+    };
     let vorher = e.punkte.clone();
     e.punkte
         .retain(|p| !p.id.starts_with(&praefix) && !p.id.starts_with(&altpraefix));
@@ -518,9 +542,9 @@ fn hoehen_einsetzen(
             bezeichnung: format!("{} · {name}", g.bezeichnung),
             art: art.into(),
             absolut_m: wert,
-            bezug_m: gelaende,
+            bezug_m: bezug,
             quelle: format!(
-                "Gebäude {} · {herkunft} · Nullpunkt + relative Höhe; Bezug mittlere Geländehöhe · {}",
+                "Gebäude {} · {herkunft} · Nullpunkt + relative Höhe; {bezugstext} · {}",
                 g.bezeichnung,
                 crate::plattform::gebaeude::RECHENSTAND
             ),

@@ -366,3 +366,39 @@ fn ausschnitte_sind_optional_und_werden_ohne_inhalt_nicht_serialisiert() {
         .push(schnitt(12, [60., 0.], [90., 50.], None));
     assert_eq!(bindungsstand(&mit, id), bindungsstand(&andere, id));
 }
+#[test]
+fn hoehensystem_folgt_der_bezugslinie_des_ausschnitts() {
+    let mut p = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [10., 10.],
+    });
+    p.markierungen.clear();
+    p.hoehenbezug = Some(Planhoehenbezug {
+        punkt: [0., 0.],
+        hoehe_m: 0.,
+        system: "lokal, OKFF EG = 0".into(),
+    });
+    p.ausschnitte = vec![
+        schnitt(
+            10,
+            [0., 0.],
+            [200., 200.],
+            Some(([0., 150.], [200., 150.], 72.64)),
+        ),
+        schnitt(11, [300., 0.], [500., 200.], None),
+    ];
+    p.markierungen.push(hoehenpunkt(20, [100., 100.], Some(10)));
+    p.markierungen.push(hoehenpunkt(21, [400., 50.], Some(11)));
+    p.markierungen.push(hoehenpunkt(22, [600., 50.], None));
+    let m = |i: usize| p.markierungen[i].clone();
+    // Im Schnitt gilt dessen Bezugslinie, nicht der blattweite Höhenbezug.
+    assert_eq!(p.hoehensystem(&m(0)), Some("m ü. NHN"));
+    // Ausschnitt ohne Bezugslinie liefert keine absoluten Höhen (wie messen).
+    assert_eq!(p.hoehensystem(&m(1)), None);
+    assert!(p.messen().unwrap()[1].hoehe_m.is_none());
+    // Ohne Ausschnitt: blattweiter Höhenbezug.
+    assert_eq!(p.hoehensystem(&m(2)), Some("lokal, OKFF EG = 0"));
+    p.hoehenbezug = None;
+    assert_eq!(p.hoehensystem(&m(2)), None);
+    assert_eq!(p.hoehensystem(&m(0)), Some("m ü. NHN"));
+}

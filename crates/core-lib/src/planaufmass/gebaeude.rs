@@ -128,11 +128,12 @@ impl CoreServices {
                     ));
                 }
             } else {
+                // Maßgebend ist das Höhensystem der Markierung (Bezugslinie ihres
+                // Ausschnitts, sonst blattweiter Höhenbezug).
                 if !matches!(m.geometrie, Plangeometrie::Hoehenpunkt { .. })
                     || !a
-                        .hoehenbezug
-                        .as_ref()
-                        .is_some_and(|h| matches!(h.system.as_str(), "NHN" | "m ü. NHN"))
+                        .hoehensystem(&m)
+                        .is_some_and(|s| matches!(s, "NHN" | "m ü. NHN"))
                 {
                     return Err(fehler(
                         "Gebäudehöhen benötigen einen Höhenpunkt im System „m ü. NHN“",

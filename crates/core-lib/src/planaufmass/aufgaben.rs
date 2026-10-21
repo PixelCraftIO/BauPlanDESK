@@ -153,6 +153,29 @@ fn gefuellt(v: &serde_json::Value, ziel: &str) -> bool {
     feld.is_some_and(|f| !f.is_null())
 }
 
+/// Plausibler Bereich einer Höhenabmessung (m): Deckendicken sind dünn,
+/// lichte Höhen und Geschosshöhen nicht.
+fn hoehenmass_plausibel(feld: &str, h: f64) -> bool {
+    match feld {
+        "deckendicke_m" => h > 0. && h < 0.6,
+        "lichte_hoehe_m" | "geschosshoehe_m" => h >= 0.6,
+        _ => true,
+    }
+}
+/// Namensbestandteile, an denen eine Höhenmaß-Markierung ihr Ziel erkennen lässt.
+fn hoehenmass_name(feld: &str) -> Option<&'static [&'static str]> {
+    match feld {
+        "lichte_hoehe_m" => Some(&["licht"]),
+        "geschosshoehe_m" => Some(&["geschosshöhe", "geschosshoehe"]),
+        "deckendicke_m" => Some(&["decke", "kehlbalken"]),
+        _ => None,
+    }
+}
+fn benannt(m: &Planmarkierung, namen: &[&str]) -> bool {
+    let b = m.bezeichnung.to_lowercase();
+    namen.iter().any(|n| b.contains(n))
+}
+
 impl CoreServices {
     pub async fn planaufmass_aufgaben(
         &self,
@@ -160,6 +183,16 @@ impl CoreServices {
         plan: &Planaufmass,
     ) -> CoreResult<Vec<Planaufgabe>> {
         let mut aufgaben = Vec::new();
+        // Gemessene Höhendifferenzen für die Plausibilität von Höhenabmessungen;
+        // ein nicht messbares Aufmaß schränkt die Vorschläge nicht ein.
+        let hoehen: std::collections::HashMap<Uuid, f64> = plan
+            .messen()
+            .map(|w| {
+                w.into_iter()
+                    .filter_map(|w| w.hoehe_m.map(|h| (w.id, h)))
+                    .collect()
+            })
+            .unwrap_or_default();
         let frei = |gebunden: Option<Uuid>, geometrie, filter: &dyn Fn(&Planmarkierung) -> bool| {
             if gebunden.is_some() {
                 return None;
@@ -176,6 +209,10 @@ impl CoreServices {
                 .map_err(|_| fehler("Gebäude-ID ungültig"))?;
             let g: Gebaeude =
                 serde_json::from_value(f.daten.clone()).map_err(|e| fehler(e.to_string()))?;
+            // Eine Markierung versorgt höchstens ein Gebäudefeld: bereits gebundene
+            // oder für ein anderes Ziel vorgeschlagene Markierungen sind vergeben.
+            let mut vergeben: std::collections::HashSet<Uuid> =
+                g.planbindungen.iter().map(|b| b.markierung_id).collect();
             for z in gebaeudeziele(&g) {
                 let t: Vec<&str> = z.ziel.split('.').collect();
                 let geschoss = t[0] == "geschosse";
@@ -186,11 +223,22 @@ impl CoreServices {
                     .iter()
                     .find(|b| b.ziel == z.ziel)
                     .map(|b| b.markierung_id);
-                let markierung = frei(gebunden, geometrie, &|m| {
+                let feld = t[t.len() - 1];
+                let passend = |m: &Planmarkierung| {
                     m.gebaeude_id == Some(id)
                         && m.bedeutung == bedeutung
                         && (!geschoss || m.geschoss_id == geschoss_id)
-                });
+                        && !vergeben.contains(&m.id)
+                        && hoehen
+                            .get(&m.id)
+                            .is_none_or(|h| hoehenmass_plausibel(feld, *h))
+                };
+                // Unter mehreren passenden Markierungen die fachlich benannte bevorzugen.
+                let markierung = frei(gebunden, geometrie, &|m| {
+                    passend(m) && hoehenmass_name(feld).is_some_and(|n| benannt(m, n))
+                })
+                .or_else(|| frei(gebunden, geometrie, &passend));
+                vergeben.extend(markierung);
                 let gruppe = match geschoss_id
                     .and_then(|s| g.geschosse.iter().enumerate().find(|(_, x)| x.id == s))
                 {

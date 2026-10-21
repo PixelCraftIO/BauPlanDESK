@@ -704,3 +704,509 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
     assert_eq!(r.raeume[0].flaeche_m2, 60.);
     assert_eq!(r.raeume[0].nummer, "EG-01");
 }
+
+/// Höhen aus Schnitt-Bezugslinien, getrennte Höhenmaß-Vorschläge, lesbare
+/// Quellangaben, Raumbuch-Importe für DIN 277/WoFlV und Gebäudeflächen in
+/// grundstücksbezogenen Bilanzen.
+#[tokio::test]
+async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
+    use core_lib::plattform::objekte::{Gebaeude, Raumbuch};
+    use serde_json::json;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Ausschnitte".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: core_lib::domain::Planungsrecht {
+                    bau_nvo: Some(core_lib::flaechen::BauNvo::V2017),
+                    bebauungsplan_art: core_lib::domain::BebauungsplanArt::Qualifiziert,
+                    baugrundstuecke: Some(core_lib::baugrundstuecke::musterplan()),
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let grund = core_lib::grundstueckskontext::ermitteln(&p).unwrap();
+    assert!(grund.len() >= 2);
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "EP-01_Schnitt.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let dokument = Dokumentbezug {
+        dokument_id: doc.document_id,
+        version: 1,
+    };
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Dokumentdaten,
+        doc.document_id.0,
+        0,
+        json!({"dokument": dokument, "dokumentart": "Bauzeichnung", "plannummer": "EP-01",
+            "revisionsindex": "a", "massstab": "1:100", "verfasser": "", "datum": null}),
+        &user,
+    )
+    .await
+    .unwrap();
+    let (haus, nachbar, sid) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    for (id, name, g) in [
+        (haus, "Haus", &grund[0]),
+        (nachbar, "Nachbarhaus", &grund[1]),
+    ] {
+        core.fachobjekt_speichern(
+            p.id,
+            ObjektArt::Gebaeude,
+            id,
+            0,
+            json!({"bezeichnung": name, "grundstueck_ids": [], "flurstueck_ids": g.flurstueck_ids,
+                "geschosse": [{"id": sid, "bezeichnung": "EG", "vollgeschoss": null, "grundlage": ""}],
+                "geometrie": {"typ": "hauptanlage"}, "quelle": null}),
+            &user,
+        )
+        .await
+        .unwrap();
+    }
+    let (ebene, x_grund, x_schnitt) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let mut ids = std::collections::BTreeMap::new();
+    let mut m = |name: &str,
+                 bedeutung: Planbedeutung,
+                 geometrie: Plangeometrie,
+                 gebaeude: Uuid,
+                 geschoss: Option<Uuid>,
+                 aus: Uuid| {
+        let id = Uuid::new_v4();
+        ids.insert(name.to_string(), id);
+        Planmarkierung {
+            id,
+            ebene_id: ebene,
+            bezeichnung: name.into(),
+            bedeutung,
+            geometrie,
+            grundstueck_id: (gebaeude == haus).then_some(grund[0].id),
+            gebaeude_id: Some(gebaeude),
+            geschoss_id: geschoss,
+            ausschnitt_id: Some(aus),
+        }
+    };
+    let rechteck = |a: [f64; 2], b: [f64; 2]| Plangeometrie::Rechteck { von: a, bis: b };
+    let strecke = |a: [f64; 2], b: [f64; 2]| Plangeometrie::Strecke { von: a, bis: b };
+    let punkt = |p: [f64; 2]| Plangeometrie::Hoehenpunkt { punkt: p };
+    let markierungen = vec![
+        m(
+            "Gebäudeprojektion",
+            Planbedeutung::Gebaeudegrundflaeche,
+            rechteck([0., 0.], [100., 80.]),
+            haus,
+            None,
+            x_grund,
+        ),
+        m(
+            "Nachbarhaus",
+            Planbedeutung::Gebaeudegrundflaeche,
+            rechteck([110., 0.], [190., 50.]),
+            nachbar,
+            None,
+            x_grund,
+        ),
+        m(
+            "Büro",
+            Planbedeutung::Nuf,
+            rechteck([0., 0.], [50., 40.]),
+            haus,
+            Some(sid),
+            x_grund,
+        ),
+        m(
+            "Wohnen",
+            Planbedeutung::Aufenthaltsraum,
+            rechteck([50., 0.], [100., 40.]),
+            haus,
+            Some(sid),
+            x_grund,
+        ),
+        m(
+            "±0,00",
+            Planbedeutung::Nullpunkt,
+            punkt([310., 200.]),
+            haus,
+            None,
+            x_schnitt,
+        ),
+        m(
+            "Traufe",
+            Planbedeutung::Traufe,
+            punkt([320., 140.]),
+            haus,
+            None,
+            x_schnitt,
+        ),
+        // Neutral benannt; die Deckendicke steht vor der lichten Höhe.
+        m(
+            "Maß 1",
+            Planbedeutung::Hoehenmass,
+            strecke([410., 175.], [410., 172.]),
+            haus,
+            Some(sid),
+            x_schnitt,
+        ),
+        m(
+            "Maß 2",
+            Planbedeutung::Hoehenmass,
+            strecke([400., 200.], [400., 175.]),
+            haus,
+            Some(sid),
+            x_schnitt,
+        ),
+        m(
+            "Körperhöhe",
+            Planbedeutung::Hoehenmass,
+            strecke([420., 200.], [420., 140.]),
+            haus,
+            None,
+            x_schnitt,
+        ),
+    ];
+    let mut a = Planaufmass {
+        bezeichnung: "Grundriss und Schnitt".into(),
+        dokument: dokument.clone(),
+        seite: 1,
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        // Kein blattweiter Höhenbezug: Höhen kommen aus der Bezugslinie des Schnitts.
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Aufmaß".into(),
+            sichtbar: true,
+            gesperrt: false,
+        }],
+        markierungen,
+        ausschnitte: vec![
+            Planausschnitt {
+                id: x_grund,
+                bezeichnung: "Grundriss EG".into(),
+                art: Ausschnittart::Grundriss,
+                von: [0., 0.],
+                bis: [200., 200.],
+                kalibrierung: None,
+                bezugslinie: None,
+            },
+            Planausschnitt {
+                id: x_schnitt,
+                bezeichnung: "Schnitt A-A".into(),
+                art: Ausschnittart::Schnitt,
+                von: [300., 0.],
+                bis: [600., 300.],
+                kalibrierung: None,
+                bezugslinie: Some(Planbezugslinie {
+                    von: [300., 200.],
+                    bis: [600., 200.],
+                    hoehe_m: 100.,
+                    system: "m ü. NHN".into(),
+                }),
+            },
+        ],
+    };
+    let aid = Uuid::new_v4();
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aid,
+            0,
+            serde_json::to_value(&a).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let bindung = |name: &str, groesse, ziel: &str| Planbindung {
+        aufmass_id: aid,
+        revision: f.revision,
+        markierung_id: ids[name],
+        groesse,
+        ziel: ziel.into(),
+    };
+    let gebaeude = |id: Uuid| {
+        let core = &core;
+        async move {
+            let f = core.fachobjekte(p.id, ObjektArt::Gebaeude).await.unwrap();
+            let f = f.into_iter().find(|f| f.objekt == id.to_string()).unwrap();
+            (
+                f.revision,
+                serde_json::from_value::<Gebaeude>(f.daten).unwrap(),
+            )
+        }
+    };
+
+    // 1. Höhenpunkte im Schnitt mit Bezugslinie „m ü. NHN“ ohne blattweiten Höhenbezug.
+    let (rev, mut g) = gebaeude(haus).await;
+    g.planbindungen = vec![
+        bindung(
+            "Gebäudeprojektion",
+            Planmessgroesse::Flaeche,
+            "geometrie.grundflaeche_m2",
+        ),
+        bindung("±0,00", Planmessgroesse::Hoehe, "geometrie.nullpunkt_m_nhn"),
+        bindung("Traufe", Planmessgroesse::Hoehe, "geometrie.traufe_m"),
+    ];
+    let g = core.planaufmass_gebaeude(p.id, haus, g).await.unwrap();
+    let geo = g.geometrie.clone().unwrap();
+    assert_eq!(geo.grundflaeche_m2, Some(80.));
+    assert_eq!(geo.nullpunkt_m_nhn, Some(100.));
+    assert!((geo.traufe_m.unwrap() - 6.).abs() < 1e-9);
+    // Maßgebend ist das System der Bezugslinie, nicht der blattweite Höhenbezug.
+    let mut lokal = a.clone();
+    lokal.ausschnitte[1].bezugslinie.as_mut().unwrap().system = "lokal".into();
+    lokal.hoehenbezug = Some(Planhoehenbezug {
+        punkt: [0., 0.],
+        hoehe_m: 0.,
+        system: "m ü. NHN".into(),
+    });
+    let f_lokal = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aid,
+            f.revision,
+            serde_json::to_value(&lokal).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let mut gl = g.clone();
+    for b in &mut gl.planbindungen {
+        b.revision = f_lokal.revision;
+    }
+    let e = core.planaufmass_gebaeude(p.id, haus, gl).await.unwrap_err();
+    assert!(e.to_string().contains("m ü. NHN"), "{e}");
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aid,
+            f_lokal.revision,
+            serde_json::to_value(&a).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let bindung = |name: &str, groesse, ziel: &str| Planbindung {
+        aufmass_id: aid,
+        revision: f.revision,
+        markierung_id: ids[name],
+        groesse,
+        ziel: ziel.into(),
+    };
+    let mut g = g;
+    for b in &mut g.planbindungen {
+        b.revision = f.revision;
+    }
+    let g = core.planaufmass_gebaeude(p.id, haus, g).await.unwrap();
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Gebaeude,
+        haus,
+        rev,
+        serde_json::to_value(&g).unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+
+    // 2. Höhenmaße: je Ziel eine plausible, noch nicht vergebene Markierung.
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    let vorschlag = |feld: &str| {
+        aufgaben
+            .iter()
+            .find(|x| x.objekt == haus && x.ziel == format!("geschosse.{sid}.{feld}"))
+            .unwrap()
+            .markierung
+    };
+    assert_eq!(vorschlag("lichte_hoehe_m"), Some(ids["Maß 2"]));
+    assert_eq!(vorschlag("deckendicke_m"), Some(ids["Maß 1"]));
+    assert_eq!(
+        vorschlag("geschosshoehe_m"),
+        None,
+        "kein doppelter Vorschlag"
+    );
+    let gebunden: Vec<_> = g.planbindungen.iter().map(|b| b.markierung_id).collect();
+    assert!(
+        aufgaben
+            .iter()
+            .filter(|x| x.objekt == haus)
+            .all(|x| x.markierung.is_none_or(|m| !gebunden.contains(&m))),
+        "gebundene Markierungen werden nicht erneut vorgeschlagen"
+    );
+
+    // 7. Quellangaben: Dateiname/Plannummer statt UUIDs, mehrere Quellen je Zeile.
+    let mut dp = vorlagen()
+        .unwrap()
+        .into_iter()
+        .find(|v| v.plan.modul == BerechnungsArt::Din277)
+        .unwrap()
+        .plan;
+    dp.grundstueck_id = Some(grund[0].id);
+    dp.gebaeude_id = Some(haus);
+    dp.eingaben["volumen"] = json!([{"id": "koerper", "bezeichnung": "Baukörper", "form": "aufmass",
+        "laenge_m": 0, "breite_m": 0, "breite2_m": 0, "aufmass_m2": 0, "hoehe_m": 0, "quelle": ""}]);
+    dp.planbindungen = vec![
+        bindung(
+            "Gebäudeprojektion",
+            Planmessgroesse::Flaeche,
+            "volumen.koerper.aufmass_m2",
+        ),
+        bindung(
+            "Körperhöhe",
+            Planmessgroesse::Hoehe,
+            "volumen.koerper.hoehe_m",
+        ),
+    ];
+    let (dp2, _) = core.berechnung_pruefen(p.id, dp.clone()).await.unwrap();
+    let q = dp2.eingaben["volumen"][0]["quelle"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        q.contains("EP-01_Schnitt.pdf") && q.contains("Plan EP-01 Index a"),
+        "{q}"
+    );
+    assert!(
+        q.contains("Fläche:") && q.contains("Gebäudeprojektion"),
+        "{q}"
+    );
+    assert!(q.contains("Höhe:") && q.contains("Körperhöhe"), "{q}");
+    assert!(
+        !q.contains(&aid.to_string()) && !q.contains(&doc.document_id.0.to_string()),
+        "{q}"
+    );
+    let (dp3, _) = core.berechnung_pruefen(p.id, dp2.clone()).await.unwrap();
+    assert_eq!(
+        dp3, dp2,
+        "Quellangabe ist stabil und wächst nicht bei erneuter Prüfung"
+    );
+
+    // 8. Grundstücksbezogene Bilanz bindet die Gebäudefläche eines Gebäudes auf dem Grundstück.
+    let mut fp = vorlagen()
+        .unwrap()
+        .into_iter()
+        .find(|v| v.plan.modul == BerechnungsArt::Freiflaechen)
+        .unwrap()
+        .plan;
+    fp.grundstueck_id = Some(grund[0].id);
+    fp.eingaben["positionen"][0]["typ"] = json!("dach");
+    fp.planbindungen = vec![bindung(
+        "Gebäudeprojektion",
+        Planmessgroesse::Flaeche,
+        "positionen.flaeche1.flaeche_m2",
+    )];
+    let (fp2, _) = core.berechnung_pruefen(p.id, fp.clone()).await.unwrap();
+    assert_eq!(fp2.eingaben["positionen"][0]["flaeche_m2"], json!(80.));
+    fp.planbindungen = vec![bindung(
+        "Nachbarhaus",
+        Planmessgroesse::Flaeche,
+        "positionen.flaeche1.flaeche_m2",
+    )];
+    let e = core.berechnung_pruefen(p.id, fp.clone()).await.unwrap_err();
+    assert!(e.to_string().contains("Nachbarhaus"), "{e}");
+    // Gebäudebezogene Berechnungen bleiben streng: fremdes Gebäude wird abgewiesen.
+    let mut fremd = dp.clone();
+    fremd.planbindungen = vec![bindung(
+        "Nachbarhaus",
+        Planmessgroesse::Flaeche,
+        "volumen.koerper.aufmass_m2",
+    )];
+    assert!(core.berechnung_pruefen(p.id, fremd).await.is_err());
+
+    // 5./6. Raumbuch-Import: DIN 277 übernimmt Klassifikation und Geschoss,
+    // fehlende Angaben werden je Position lesbar gemeldet; WoFlV-Import ist prüfbar.
+    let leer = Raumbuch {
+        planbindungen: vec![],
+        bezeichnung: "Raumbuch EG".into(),
+        gebaeude_id: haus,
+        geschoss_id: Some(sid),
+        raeume: vec![],
+    };
+    let r = core
+        .planaufmass_raumbuch(p.id, aid, f.revision, leer)
+        .await
+        .unwrap();
+    let rid = Uuid::new_v4();
+    core.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Raumbuch,
+        rid,
+        0,
+        serde_json::to_value(&r).unwrap(),
+        &user,
+    )
+    .await
+    .unwrap();
+    let mut din = core
+        .berechnung_aus_raumbuch(p.id, rid, BerechnungsArt::Din277)
+        .await
+        .unwrap();
+    din.grundstueck_id = Some(grund[0].id);
+    let pos = din.eingaben["positionen"].as_array().unwrap().clone();
+    let buero = pos
+        .iter()
+        .find(|x| x["id"] == json!(ids["Büro"].to_string()))
+        .unwrap();
+    assert_eq!(
+        (buero["art"].as_str(), buero["geschoss"].as_str()),
+        (Some("nuf"), Some("EG"))
+    );
+    let e = core
+        .berechnung_pruefen(p.id, din.clone())
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        e.contains("Wohnen") && e.contains("Flächenart") && !e.contains("unknown variant"),
+        "{e}"
+    );
+    for x in din.eingaben["positionen"].as_array_mut().unwrap() {
+        if x["art"] == json!("") {
+            x["art"] = json!("nuf");
+        }
+    }
+    core.berechnung_pruefen(p.id, din).await.unwrap();
+    let mut wohn = core
+        .berechnung_aus_raumbuch(p.id, rid, BerechnungsArt::Wohnflaechen)
+        .await
+        .unwrap();
+    wohn.grundstueck_id = Some(grund[0].id);
+    let (_, w) = core.berechnung_pruefen(p.id, wohn).await.unwrap();
+    assert!(
+        w.offen
+            .iter()
+            .any(|o| o.contains("Wohnen") && o.contains("Wohnung zuordnen")),
+        "{:?}",
+        w.offen
+    );
+    assert!(
+        w.offen.iter().any(|o| o.contains("Raumart")),
+        "{:?}",
+        w.offen
+    );
+}

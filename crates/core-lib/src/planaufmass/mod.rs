@@ -292,6 +292,19 @@ fn polygon(punkte: &[Planpunkt]) -> CoreResult<(f64, f64)> {
     Ok((area, length))
 }
 impl Planaufmass {
+    /// Höhensystem, in dem die Markierung absolute Höhen liefert: die
+    /// Bezugslinie ihres Ausschnitts, ohne Ausschnitt der blattweite
+    /// Höhenbezug. Entspricht der Höhenermittlung in [`Self::messen`]; ein
+    /// Ausschnitt ohne Bezugslinie liefert keine absoluten Höhen (`None`).
+    pub fn hoehensystem(&self, m: &Planmarkierung) -> Option<&str> {
+        match m
+            .ausschnitt_id
+            .and_then(|id| self.ausschnitte.iter().find(|a| a.id == id))
+        {
+            Some(a) => a.bezugslinie.as_ref().map(|b| b.system.as_str()),
+            None => self.hoehenbezug.as_ref().map(|h| h.system.as_str()),
+        }
+    }
     pub fn messen(&self) -> CoreResult<Vec<Planmesswert>> {
         crate::plattform::text(&self.bezeichnung, 500)?;
         if self.seite == 0

@@ -215,20 +215,149 @@ impl CoreServices {
             return Err(fehler("Zu viele Planverknüpfungen"));
         }
         let mut ziele = std::collections::HashSet::new();
+        // Quellangaben je Zielzeile in Bindungsreihenfolge; mehrere Bindungen
+        // einer Zeile ergänzen sich, statt sich zu überschreiben.
+        let mut quellen: Vec<Zeilenquellen> = Vec::new();
         for b in plan.planbindungen.clone() {
             if !ziele.insert(b.ziel.clone()) || plan.uebernahmen.iter().any(|u| u.ziel == b.ziel) {
                 return Err(fehler("Eingabefeld hat mehrere Quellen"));
             }
             let (a, m, wert) = self.planbindung_aufloesen(pid, &b).await?;
             if m.grundstueck_id != plan.grundstueck_id || m.gebaeude_id != plan.gebaeude_id {
-                return Err(fehler(
-                    "Planmarkierung und Berechnung benötigen dieselbe Grundstücks-/Gebäudezuordnung",
-                ));
+                self.gebaeude_auf_grundstueck(pid, plan, &m).await?;
             }
-            einsetzen(plan, &b, &m, &a, wert)?;
+            if einsetzen(plan, &b, &m, &a, wert)? {
+                let text = format!(
+                    "{} · {}",
+                    self.planunterlage(pid, &a).await?,
+                    quelltext(&a, &m, &b)
+                );
+                let t: Vec<_> = b.ziel.splitn(3, '.').collect();
+                let feld = match b.groesse {
+                    Planmessgroesse::Flaeche => "Fläche",
+                    Planmessgroesse::Laenge => "Länge",
+                    Planmessgroesse::Horizontale => "Horizontale",
+                    Planmessgroesse::Hoehe => "Höhe",
+                    Planmessgroesse::Neigung => "Neigung",
+                };
+                let eintrag = (feld, text);
+                match quellen.iter_mut().find(|(x, y, _)| x == t[0] && y == t[1]) {
+                    Some((_, _, v)) => v.push(eintrag),
+                    None => quellen.push((t[0].into(), t[1].into(), vec![eintrag])),
+                }
+            }
+        }
+        for (tabelle, id, texte) in quellen {
+            let text = match texte.as_slice() {
+                // Eine Quelle: ohne Feldvorsatz.
+                [(_, einzig)] => einzig.clone(),
+                _ => texte
+                    .iter()
+                    .map(|(feld, t)| format!("{feld}: {t}"))
+                    .collect::<Vec<_>>()
+                    .join(" | "),
+            };
+            if let Some(obj) = zeile(plan, &tabelle, &id) {
+                obj.insert("quelle".into(), serde_json::json!(text));
+            }
         }
         Ok(())
     }
+    /// Grundstücksbezogene Bilanzen (Freiflächen, Entwässerung) dürfen
+    /// Markierungen eines Gebäudes binden, das eindeutig auf ihrer
+    /// Grundstückseinheit steht (z. B. die Gebäudegrundfläche als Dachfläche).
+    async fn gebaeude_auf_grundstueck(
+        &self,
+        pid: ProjectId,
+        plan: &FachPlan,
+        m: &Planmarkierung,
+    ) -> CoreResult<()> {
+        let abweichend = || {
+            fehler("Planmarkierung und Berechnung benötigen dieselbe Grundstücks-/Gebäudezuordnung")
+        };
+        let (Some(grund), Some(gid), None) = (plan.grundstueck_id, m.gebaeude_id, plan.gebaeude_id)
+        else {
+            return Err(abweichend());
+        };
+        if !matches!(
+            plan.modul,
+            BerechnungsArt::Freiflaechen | BerechnungsArt::Entwaesserung
+        ) || m.grundstueck_id.is_some_and(|g| g != grund)
+        {
+            return Err(abweichend());
+        }
+        let p = self.get_project(pid).await?;
+        let lageplan = crate::grundstuecksinformationen::plan(&p.planungsrecht)?;
+        let f = self
+            .fachobjekte(pid, ObjektArt::Gebaeude)
+            .await?
+            .into_iter()
+            .find(|f| f.objekt == gid.to_string())
+            .ok_or_else(|| fehler("Gebäude der Planmarkierung fehlt im Projekt"))?;
+        let g: Gebaeude = serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
+        let eindeutig = lageplan.is_some_and(|l| {
+            crate::plattform::einbindung::Lagebezug::neu(pid, &l).eindeutig_id(&g, grund)
+        });
+        if !eindeutig {
+            return Err(fehler(format!(
+                "Planmarkierung „{}“ gehört zum Gebäude „{}“, das nicht eindeutig auf dem Baugrundstück dieser Bilanz steht",
+                m.bezeichnung, g.bezeichnung
+            )));
+        }
+        Ok(())
+    }
+    /// Lesbare Bezeichnung der PDF-Unterlage: Dateiname, Plannummer und
+    /// Index aus den Dokumentdaten (falls erfasst) und Dokumentversion.
+    async fn planunterlage(&self, pid: ProjectId, a: &Planaufmass) -> CoreResult<String> {
+        let datei = self
+            .document_history(a.dokument.dokument_id)
+            .await?
+            .into_iter()
+            .find(|d| d.project_id == pid && d.version == a.dokument.version)
+            .map(|d| d.file_name)
+            .unwrap_or_else(|| "PDF-Unterlage".into());
+        let daten = self
+            .fachobjekte(pid, ObjektArt::Dokumentdaten)
+            .await?
+            .into_iter()
+            .find(|f| f.objekt == a.dokument.dokument_id.0.to_string())
+            .and_then(|f| {
+                serde_json::from_value::<crate::plattform::objekte::Dokumentdaten>(f.daten).ok()
+            })
+            .filter(|d| d.dokument.dokument_id == a.dokument.dokument_id);
+        let mut t = datei;
+        if let Some(d) = daten.filter(|d| !d.plannummer.trim().is_empty()) {
+            t.push_str(&format!(" · Plan {}", d.plannummer.trim()));
+            if !d.revisionsindex.trim().is_empty() {
+                t.push_str(&format!(" Index {}", d.revisionsindex.trim()));
+            }
+        }
+        Ok(format!("PDF {t} V{}", a.dokument.version))
+    }
+}
+
+/// Tabelle, Zeilen-ID und die Quellangaben (Messgröße, Text) einer Zielzeile.
+type Zeilenquellen = (String, String, Vec<(&'static str, String)>);
+/// Herkunft einer Bindung ohne technische Kennungen.
+fn quelltext(a: &Planaufmass, m: &Planmarkierung, b: &Planbindung) -> String {
+    format!(
+        "Seite {} · {} · {} · Aufmaß R{} · {}",
+        a.seite, a.bezeichnung, m.bezeichnung, b.revision, RECHENSTAND
+    )
+}
+fn zeile<'a>(
+    plan: &'a mut FachPlan,
+    tabelle: &str,
+    id: &str,
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    plan.eingaben
+        .get_mut(tabelle)
+        .and_then(|v| v.as_array_mut())
+        .and_then(|v| {
+            v.iter_mut()
+                .find(|v| v.get("id").and_then(|v| v.as_str()) == Some(id))
+        })
+        .and_then(|v| v.as_object_mut())
 }
 
 /// Bewusst begrenzte Eingangsgrößen: Rohaufmaß ist keine rechtlich angerechnete Fläche.
@@ -250,20 +379,23 @@ pub fn zielgroesse(modul: BerechnungsArt, tabelle: &str, feld: &str) -> Option<P
         _ => None,
     }
 }
+/// Setzt den Messwert ein; `true`, wenn die Zielzeile eine Quellangabe führt.
 fn einsetzen(
     plan: &mut FachPlan,
     b: &Planbindung,
     m: &Planmarkierung,
     a: &Planaufmass,
     wert: f64,
-) -> CoreResult<()> {
+) -> CoreResult<bool> {
     let teile: Vec<_> = b.ziel.split('.').collect();
     if teile.len() != 3 || zielgroesse(plan.modul, teile[0], teile[2]) != Some(b.groesse) {
         return Err(fehler("Dieses Feld unterstützt diese Planmessgröße nicht"));
     }
     // Absolute Höhen dürfen nicht aus einer bloßen Streckenlänge entstehen.
     if plan.modul == BerechnungsArt::Hoehen && teile[0] == "punkte" {
-        if !matches!(m.geometrie, Plangeometrie::Hoehenpunkt { .. }) || a.hoehenbezug.is_none() {
+        // Höhensystem der Markierung: Bezugslinie ihres Ausschnitts, sonst blattweit.
+        let aufmass_system = a.hoehensystem(m);
+        if !matches!(m.geometrie, Plangeometrie::Hoehenpunkt { .. }) || aufmass_system.is_none() {
             return Err(fehler(
                 "Absolute Höhe benötigt einen Höhenpunkt mit benanntem Höhenbezug",
             ));
@@ -273,7 +405,7 @@ fn einsetzen(
             .get("hoehenbezug")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        if Some(system) != a.hoehenbezug.as_ref().map(|h| h.system.as_str()) {
+        if Some(system) != aufmass_system {
             return Err(fehler(
                 "Höhensysteme von Aufmaß und Berechnung stimmen nicht überein",
             ));
@@ -320,21 +452,5 @@ fn einsetzen(
     if teile[2] == "aufmass_m2" {
         obj.insert("form".into(), serde_json::json!("aufmass"));
     }
-    if obj.contains_key("quelle") {
-        obj.insert(
-            "quelle".into(),
-            serde_json::json!(format!(
-                "PDF {} V{} · Seite {} · {} · {} · Aufmaß {} R{} · {}",
-                a.dokument.dokument_id.0,
-                a.dokument.version,
-                a.seite,
-                a.bezeichnung,
-                m.bezeichnung,
-                b.aufmass_id,
-                b.revision,
-                RECHENSTAND
-            )),
-        );
-    }
-    Ok(())
+    Ok(obj.contains_key("quelle"))
 }

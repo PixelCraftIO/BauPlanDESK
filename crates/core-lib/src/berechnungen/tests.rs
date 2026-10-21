@@ -271,3 +271,89 @@ fn vollgeschoss_unvollstaendige_hoehenzone_ist_keine_negative_einstufung() {
     );
     assert!(!r.vollstaendig);
 }
+#[test]
+fn wohnflaechen_import_ohne_zuordnung_bleibt_je_position_offen() {
+    let mut p = wohn();
+    p.eingaben["positionen"][0]["raum"] = json!("EG.01 Wohnen");
+    p.eingaben["positionen"][0]["wohnung"] = json!("");
+    p.eingaben["positionen"][0]["typ"] = json!("");
+    let r = berechnen(&p).unwrap();
+    assert!(!r.vollstaendig);
+    assert!(
+        r.offen
+            .iter()
+            .any(|o| o.contains("EG.01 Wohnen") && o.contains("Wohnung"))
+    );
+    assert!(
+        r.offen
+            .iter()
+            .any(|o| o.contains("EG.01 Wohnen") && o.contains("Raumart"))
+    );
+    // Nicht zugeordnete Positionen werden nicht angerechnet.
+    assert_eq!(k(&r, "wohnflaeche"), 0.);
+    // Unbekannte Raumart bleibt ein Fehler, benennt aber Position und Wert.
+    p.eingaben["positionen"][0]["wohnung"] = json!("Wohnung 1");
+    p.eingaben["positionen"][0]["typ"] = json!("gibt_es_nicht");
+    let e = berechnen(&p).unwrap_err().to_string();
+    assert!(
+        e.contains("EG.01 Wohnen") && e.contains("gibt_es_nicht"),
+        "{e}"
+    );
+    // Fehlende Pflichttexte nennen Feld und Position.
+    p.eingaben["positionen"][0]["typ"] = json!("wohnraum");
+    p.eingaben["positionen"][0]["raum"] = json!("");
+    let e = berechnen(&p).unwrap_err().to_string();
+    assert!(
+        e.contains("Raum") && e.contains(p.eingaben["positionen"][0]["id"].as_str().unwrap()),
+        "{e}"
+    );
+    let mut p = wohn();
+    p.bezeichnung = String::new();
+    assert!(
+        berechnen(&p)
+            .unwrap_err()
+            .to_string()
+            .contains("Bezeichnung der Berechnung")
+    );
+}
+#[test]
+fn din277_fehlende_flaechenart_wird_lesbar_gemeldet() {
+    let mut p = plan(BerechnungsArt::Din277);
+    p.eingaben["positionen"][0]["raum"] = json!("KG.01 Hobbyraum");
+    p.eingaben["positionen"][0]["art"] = json!("");
+    for e in [
+        berechnen(&p).unwrap_err(),
+        normalisieren(&mut p.clone()).unwrap_err(),
+    ] {
+        let e = e.to_string();
+        assert!(
+            e.contains("KG.01 Hobbyraum") && e.contains("Flächenart"),
+            "{e}"
+        );
+        assert!(!e.contains("unknown variant"), "{e}");
+    }
+    p.eingaben["positionen"][0]["art"] = json!("wohnen");
+    assert!(berechnen(&p).unwrap_err().to_string().contains("„wohnen“"));
+    p.eingaben["positionen"][0]["art"] = json!("nuf");
+    p.eingaben["positionen"][0]["geschoss"] = json!("");
+    let e = berechnen(&p).unwrap_err().to_string();
+    assert!(
+        e.contains("KG.01 Hobbyraum") && e.contains("Geschoss"),
+        "{e}"
+    );
+}
+#[test]
+fn hoehen_bezugshoehe_ist_optional_und_ohne_wert_nicht_serialisiert() {
+    let mut p = plan(BerechnungsArt::Hoehen);
+    normalisieren(&mut p).unwrap();
+    let alt = p.clone();
+    normalisieren(&mut p).unwrap();
+    assert!(p.eingaben.get("bezugshoehe_m").is_none());
+    assert_eq!(p, alt, "Bestehende Pläne bleiben kanonisch unverändert");
+    p.eingaben["bezugshoehe_m"] = json!(72.4);
+    normalisieren(&mut p).unwrap();
+    assert_eq!(p.eingaben["bezugshoehe_m"], json!(72.4));
+    berechnen(&p).unwrap();
+    p.eingaben["bezugshoehe_m"] = json!(1e9);
+    assert!(berechnen(&p).is_err());
+}

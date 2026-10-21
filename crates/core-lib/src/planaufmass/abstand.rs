@@ -111,8 +111,7 @@ impl CoreServices {
             );
             if absolut {
                 if !matches!(m.geometrie, Plangeometrie::Hoehenpunkt { .. })
-                    || a.hoehenbezug.as_ref().map(|h| h.system.as_str())
-                        != Some(plan.hoehenbezug.as_str())
+                    || a.hoehensystem(&m) != Some(plan.hoehenbezug.as_str())
                 {
                     return Err(fehler(
                         "Wandhöhe benötigt einen absoluten Höhenpunkt im selben Höhensystem",
