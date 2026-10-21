@@ -362,7 +362,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
     b.bereich(ProjektBereich::Grundstuecksinformationen, r)
         .await;
 
-    // Gebäude mit Geschossen (Satteldach 38°, Kniestock 1,00 m, Keller).
+    // Gebäude mit Geschossen (Satteldach 36°, Kniestock 1,00 m, Keller).
     let geschoss =
         |id: Uuid, name: &str, voll: bool, grund: &str, ff: f64, lichte: f64, decke: f64| {
             json!({"id": id, "bezeichnung": name, "vollgeschoss": voll, "grundlage": grund,
@@ -377,7 +377,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
         "geschosse": [
             geschoss(b.kg, "KG", false, "§ 2 Abs. 6 BauO NRW: Deckenoberkante höchstens 1,60 m über Gelände", -2.8, 2.4, 0.3),
             geschoss(b.eg, "EG", true, "§ 2 Abs. 6 BauO NRW: lichte Höhe 2,60 m über der gesamten Grundfläche", 0., 2.6, 0.25),
-            geschoss(b.dg, "DG", false, "§ 2 Abs. 6 BauO NRW: lichte Höhe 2,30 m auf weniger als zwei Dritteln der Grundfläche (Kniestock 1,00 m, 38°)", 2.85, 2.3, 0.2),
+            geschoss(b.dg, "DG", false, "§ 2 Abs. 6 BauO NRW: lichte Höhe 2,30 m auf weniger als zwei Dritteln der Grundfläche (Kniestock 1,00 m, 36°)", 2.85, 2.3, 0.2),
         ]
     });
     b.speichern(ObjektArt::Gebaeude, b.haus, haus).await;

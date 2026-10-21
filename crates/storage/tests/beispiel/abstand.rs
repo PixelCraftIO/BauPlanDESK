@@ -27,7 +27,7 @@ pub const G411: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0001_0411
 pub const G413: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0001_0413);
 pub const UMRISS_HAUS: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0002_0001);
 pub const UMRISS_GARAGE: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0002_0002);
-pub const DACHNEIGUNG: f64 = 38.;
+pub const DACHNEIGUNG: f64 = 36.;
 
 fn lw(ebene: &str, p: &[(f64, f64)]) -> String {
     let mut s = format!("0\nLWPOLYLINE\n8\n{ebene}\n90\n{}\n70\n1\n", p.len());
@@ -98,12 +98,12 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         "{gh:?}"
     );
     let giebelhoehe = first - traufe; // 3,25 m
-    // Plausibilität Satteldach: halbe Gebäudetiefe 4,50 m × tan 38° = 3,52 m.
+    // Plausibilität Satteldach: halbe Gebäudetiefe 4,50 m × tan 36° = 3,27 m (First − Traufe 3,25 m).
     let erwartet = 4.5 * DACHNEIGUNG.to_radians().tan();
     if (erwartet - giebelhoehe).abs() > 0.1 {
         b.befund(format!(
             "Abstandsflächen/Gebäude: Giebelhöhe First − Traufe = {giebelhoehe:.2} m passt nicht zur Dachneigung {DACHNEIGUNG}° bei 9,00 m Giebelbreite \
-             (erwartet 4,50 × tan 38° = {erwartet:.2} m, entspricht {:.1}°). Der Core prüft Giebelhöhe, beide Dachneigungen und Wandlänge nicht \
+             (erwartet 4,50 × tan 36° = {erwartet:.2} m, entspricht {:.1}°). Der Core prüft Giebelhöhe, beide Dachneigungen und Wandlänge nicht \
              gegeneinander; die Basisdaten (Traufe +4,20 / First +7,45) sind in sich nicht stimmig. Gerechnet wird mit der Giebelhöhe aus den Gebäudehöhen; mit 3,52 m ergäbe sich H = 5,67 m, die Tiefe bliebe 3,00 m.",
             (giebelhoehe / 4.5).atan().to_degrees()
         ));
@@ -214,7 +214,7 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
                 r.plan_nummer, r.plan_bezeichnung
             ),
             geprueft: true,
-            pruefvermerk: "Geprüft E. Planer 21.10.2026: Traufwände H = 76,84 − 72,34 = 4,50 m (Dach 38° ≤ 45° nicht angerechnet), 0,4 H = 1,80 m < 3,00 m → 3,00 m; \
+            pruefvermerk: "Geprüft E. Planer 21.10.2026: Traufwände H = 76,84 − 72,34 = 4,50 m (Dach 36° ≤ 45° nicht angerechnet), 0,4 H = 1,80 m < 3,00 m → 3,00 m; \
                 Giebelwände H = 4,50 + 3,25/3 = 5,58 m, 0,4 H = 2,23 m → 3,00 m; Grenzgarage § 6 Abs. 8 Satz 1 Nr. 1: Wandhöhe 2,80 m ≤ 3 m, Grenzlänge 6,00 m ≤ 9 m"
                 .into(),
         },
@@ -282,12 +282,12 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         if traufseite {
             w.dachart = Dachart::Dachflaeche;
             w.dachgrundlage =
-                "Satteldach 38°, Dachfläche über der Traufwand (≤ 45°, keine Gauben)".into();
+                "Satteldach 36°, Dachfläche über der Traufwand (≤ 45°, keine Gauben)".into();
         } else {
             w.dachart = Dachart::Giebel;
             w.dachneigung_b_grad = Some(DACHNEIGUNG);
             w.dachgrundlage = format!(
-                "Giebeldreieck First − Traufe = {} m, beide Dachseiten 38°",
+                "Giebeldreieck First − Traufe = {} m, beide Dachseiten 36°",
                 format!("{giebelhoehe:.2}").replace('.', ",")
             );
         }
