@@ -21,6 +21,36 @@ use uuid::Uuid;
 pub fn verfahrensprofil() -> Result<Anforderungskatalog, CmdError> {
     Ok(Anforderungskatalog::standard()?)
 }
+/// Mitgelieferte Anforderungskataloge (Büroprofil und Landespakete).
+#[tauri::command]
+pub fn verfahrenskataloge() -> Result<Vec<Anforderungskatalog>, CmdError> {
+    Ok(Anforderungskatalog::mitgeliefert()?)
+}
+#[tauri::command]
+pub async fn verfahren_verfahrenswahl(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Option<Uuid>,
+    angaben: core_lib::verfahren::landesrecht::Verfahrensangaben,
+) -> Result<core_lib::verfahren::landesrecht::Verfahrenswahl, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahrenswahl(projekt_id, id, angaben).await?)
+}
+#[tauri::command]
+pub async fn verfahren_unterschriften(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<Vec<core_lib::verfahren::landesrecht::Unterschriftsbedarf>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_unterschriften(projekt_id, id).await?)
+}
 #[tauri::command]
 pub async fn verfahren_profil_anwenden(
     state: State<'_, AppState>,

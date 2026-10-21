@@ -25,7 +25,17 @@ import type {
   ExterneEinreichungswunsch,
   Abweichungsart,
   Abweichungsabgleich,
+  Verfahrensangaben,
+  Verfahrenswahl,
+  Unterschriftsbedarf,
+  Unterschriftsrolle,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Unterschriftsrolle::bezeichnung` im Core. */
+export const UNTERSCHRIFTSROLLE: Record<Unterschriftsrolle, string> = {
+  bauherrschaft: "Bauherrschaft",
+  entwurfsverfasser: "Entwurfsverfasser/in",
+  fachplaner: "Fachplaner/in",
+};
 /** Bezeichnungen wie `Abweichungsart::bezeichnung` im Core. */
 export const ABWEICHUNGSART: Record<Abweichungsart, string> = {
   abweichung: "Abweichung",
@@ -139,6 +149,23 @@ export const EINREICHUNGSWEG: Record<Einreichungsweg, string> = {
 };
 export const verfahrenApi = {
   profil: () => invoke<Anforderungskatalog>("verfahrensprofil"),
+  /** Mitgelieferte Kataloge: Büroprofil und Landespakete. */
+  kataloge: () => invoke<Anforderungskatalog[]>("verfahrenskataloge"),
+  verfahrenswahl: (
+    projektId: string,
+    id: string | null,
+    angaben: Verfahrensangaben,
+  ) =>
+    invoke<Verfahrenswahl>("verfahren_verfahrenswahl", {
+      projektId,
+      id,
+      angaben,
+    }),
+  unterschriften: (projektId: string, id: string) =>
+    invoke<Unterschriftsbedarf[]>("verfahren_unterschriften", {
+      projektId,
+      id,
+    }),
   profilAnwenden: (
     projektId: string,
     id: string,

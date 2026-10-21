@@ -775,6 +775,7 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         externe_einreichungen: vec![],
         bescheide: vec![],
         gebuehren: vec![],
+        unterschriften: vec![],
         ereignisse: vec![],
     };
     core.fachobjekt_speichern(

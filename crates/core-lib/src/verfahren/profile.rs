@@ -19,6 +19,15 @@ pub struct Profilregel {
     pub sonderbau: Option<bool>,
     pub ab_gebaeudeklasse: Option<u32>,
     pub nutzung: Option<String>,
+    /// Verfahrensarten, für die die Anforderung gilt; fehlt = alle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub arten: Option<Vec<Verfahrensart>>,
+    /// Dokumentkategorien, deren Unterlagen die Anforderung belegen können;
+    /// ihre neuesten Versionen werden beim Anwenden vorgeschlagen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub kategorien: Vec<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -45,6 +54,16 @@ impl Anforderungskatalog {
         ))
         .map_err(|e| fehler(e.to_string()))
     }
+    /// Mitgelieferte Kataloge: Büroprofil und Landespakete.
+    pub fn mitgeliefert() -> CoreResult<Vec<Self>> {
+        Ok(vec![
+            Self::standard()?,
+            serde_json::from_str(include_str!(
+                "../../../../workflow-regeln/nrw-bauvorlagen.json"
+            ))
+            .map_err(|e| fehler(e.to_string()))?,
+        ])
+    }
     pub fn pruefen(&self) -> CoreResult<()> {
         crate::plattform::text(&self.id, 120)?;
         crate::plattform::text(&self.version, 120)?;
@@ -57,7 +76,11 @@ impl Anforderungskatalog {
             crate::plattform::text(&r.id, 120)?;
             crate::plattform::text(&r.titel, 500)?;
             crate::plattform::text(&r.quelle, 4000)?;
-            if !ids.insert(&r.id) || r.ab_gebaeudeklasse.is_some_and(|n| !(1..=5).contains(&n)) {
+            if !ids.insert(&r.id)
+                || r.ab_gebaeudeklasse.is_some_and(|n| !(1..=5).contains(&n))
+                || r.arten.as_ref().is_some_and(|a| a.is_empty())
+                || r.kategorien.len() > 50
+            {
                 return Err(fehler("Ungültige oder doppelte Profilregel"));
             }
         }
@@ -74,6 +97,7 @@ impl Anforderungskatalog {
         }
         self.regeln
             .iter()
+            .filter(|r| r.arten.as_ref().is_none_or(|a| a.contains(&profil.art)))
             .map(|r| {
                 let passt = r.sonderbau.is_none_or(|s| profil.sonderbau == Some(s))
                     && r.ab_gebaeudeklasse
@@ -220,12 +244,45 @@ impl CoreServices {
             .profil
             .as_ref()
             .is_some_and(|s| s.vorhaben != profil || s.katalog != katalog);
-        for r in katalog.vorschlaege(id, &profil)? {
+        let kategorien = self.kategoriesnapshots(p).await?;
+        let dateien = self.list_documents(p).await?;
+        for mut r in katalog.vorschlaege(id, &profil)? {
+            // Unterlagen passender Kategorie vorschlagen; die Erforderlichkeit
+            // bleibt ungeklärt und die Freigabe offen.
+            let regel = katalog.regeln.iter().find(|x| {
+                Uuid::new_v5(
+                    &id,
+                    format!("anforderung/{}/{}", katalog.id, x.id).as_bytes(),
+                ) == r.id
+            });
+            if let Some(regel) = regel.filter(|x| !x.kategorien.is_empty()) {
+                r.dokumente = dateien
+                    .iter()
+                    .filter(|d| {
+                        kategorien
+                            .get(&d.document_id.0.to_string())
+                            .cloned()
+                            .flatten()
+                            .is_some_and(|k| {
+                                regel.kategorien.contains(&k.id)
+                                    || k.hauptkategorie
+                                        .is_some_and(|h| regel.kategorien.contains(&h))
+                            })
+                    })
+                    .map(|d| Dokumentbezug {
+                        dokument_id: d.document_id,
+                        version: d.version,
+                    })
+                    .collect();
+            }
             if let Some(alt) = a.anforderungen.iter_mut().find(|a| a.id == r.id) {
                 if geaendert {
                     alt.titel = r.titel;
                     alt.quelle = r.quelle;
                     alt.freigegeben = false;
+                }
+                if alt.dokumente.is_empty() {
+                    alt.dokumente = r.dokumente;
                 }
             } else {
                 a.anforderungen.push(r);
@@ -245,6 +302,49 @@ impl CoreServices {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn nrw_katalog_filtert_nach_verfahrensart_und_kennt_die_kategorien() {
+        let kataloge = Anforderungskatalog::mitgeliefert().unwrap();
+        let nrw = kataloge.iter().find(|k| k.id == "nrw-bauvorlagen").unwrap();
+        nrw.pruefen().unwrap();
+        assert_eq!(nrw.bundesland, Some(crate::domain::Bundesland::Nw));
+        let standard = crate::dokumentkategorien::KategorienKatalog::default();
+        for r in &nrw.regeln {
+            for k in &r.kategorien {
+                assert!(standard.kategorie(k).is_ok(), "{}: {k}", r.id);
+            }
+        }
+        let vid = Uuid::new_v4();
+        let profil = |art| Vorhabenprofil {
+            bundesland: crate::domain::Bundesland::Nw,
+            art,
+            gebaeudeklasse: Some(2),
+            sonderbau: Some(false),
+            nutzung: "Wohnen".into(),
+        };
+        let bauantrag = nrw
+            .vorschlaege(vid, &profil(Verfahrensart::Bauantrag))
+            .unwrap();
+        let vorbescheid = nrw
+            .vorschlaege(vid, &profil(Verfahrensart::Vorbescheid))
+            .unwrap();
+        assert!(
+            bauantrag
+                .iter()
+                .any(|r| r.titel.contains("Baubeschreibung"))
+        );
+        assert!(
+            !vorbescheid
+                .iter()
+                .any(|r| r.titel.contains("Baubeschreibung"))
+        );
+        assert!(
+            vorbescheid
+                .iter()
+                .any(|r| r.quelle.contains("§ 16 BauPrüfVO"))
+        );
+        assert!(bauantrag.len() > vorbescheid.len());
+    }
     #[test]
     fn bedingungen_lassen_fachentscheidungen_offen_und_identitaeten_stabil() {
         let mut k = Anforderungskatalog::standard().unwrap();

@@ -205,6 +205,15 @@ fn routen(core: CoreServices) -> Router {
             get(nachweis_wiederholen),
         )
         .route("/projekte/{id}/verfahrensprofil", get(verfahrensprofil))
+        .route("/verfahrenskataloge", get(verfahrenskataloge))
+        .route(
+            "/projekte/{id}/verfahrenswahl",
+            post(verfahren_verfahrenswahl),
+        )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/unterschriften",
+            get(verfahren_unterschriften),
+        )
         .route(
             "/projekte/{id}/verfahren/{verfahren}/profil",
             post(verfahren_profil),
@@ -1284,6 +1293,41 @@ async fn druckausgabe(
         .into_response())
 }
 
+async fn verfahrenskataloge() -> ApiResult<Vec<core_lib::verfahren::profile::Anforderungskatalog>> {
+    Ok(Json(
+        core_lib::verfahren::profile::Anforderungskatalog::mitgeliefert()?,
+    ))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Verfahrenswahlwunsch {
+    #[serde(default)]
+    verfahren: Option<Uuid>,
+    #[serde(default)]
+    angaben: core_lib::verfahren::landesrecht::Verfahrensangaben,
+}
+async fn verfahren_verfahrenswahl(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path(p): Path<Uuid>,
+    Json(w): Json<Verfahrenswahlwunsch>,
+) -> ApiResult<core_lib::verfahren::landesrecht::Verfahrenswahl> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(
+        core.verfahrenswahl(ProjectId(p), w.verfahren, w.angaben)
+            .await?,
+    ))
+}
+async fn verfahren_unterschriften(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Vec<core_lib::verfahren::landesrecht::Unterschriftsbedarf>> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(core.verfahren_unterschriften(ProjectId(p), id).await?))
+}
 async fn verfahrensprofil() -> ApiResult<core_lib::verfahren::profile::Anforderungskatalog> {
     Ok(Json(
         core_lib::verfahren::profile::Anforderungskatalog::standard()?,

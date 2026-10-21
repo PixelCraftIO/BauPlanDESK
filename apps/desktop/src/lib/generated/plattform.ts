@@ -656,6 +656,30 @@ zugang: string | null,
  * Bescheid: ausdrücklich genehmigte Unterlagen.
  */
 genehmigte_unterlagen: Array<Dokumentbezug>, };
+export type Unterschriftsrolle = "bauherrschaft" | "entwurfsverfasser" | "fachplaner";
+export type Unterschriftsart = "handschriftlich" | "qualifiziert" | "portal";
+export type Unterschrift = { id: string, dokument: Dokumentbezug, rolle: Unterschriftsrolle, name: string, art: Unterschriftsart, datum: string, };
+export type Unterschriftsbedarf = { dokument: Dokumentbezug, name: string, kategorie: string, erforderlich: Array<Unterschriftsrolle>, fehlend: Array<Unterschriftsrolle>, quelle: string, };
+export type Merkmal = "wohngebaeude" | "gebaeudeklasse_bis" | "bebauungsplan" | "keine_planungsrechtliche_abweichung" | "erschliessung" | "gemeinde_verzicht" | "kein_grosser_sonderbau" | "grosser_sonderbau";
+export type Fiktionsregel = { rechtsgrundlage: string, regulaer_monate: number, vereinfacht_wochen: number, hinweis: string, };
+export type Vorhabenmerkmale = { gebaeudeklasse: number | null, sonderbau: boolean | null, grosser_sonderbau: boolean | null, wohngebaeude: boolean | null, bebauungsplan: boolean | null, planungsrechtliche_abweichung: boolean | null, erschliessung: boolean | null, gemeinde_verzicht: boolean | null, };
+export type Eignung = "moeglich" | "ausgeschlossen" | "pruefen";
+export type Bedingungsergebnis = { text: string, erfuellt: boolean | null, quelle: string, };
+export type Verfahrensvorschlag = { art: Verfahrensart, pruefverfahren: Pruefverfahren | null, titel: string, rechtsgrundlage: string, eignung: Eignung, bedingungen: Array<Bedingungsergebnis>, };
+export type Verfahrenswahl = { stichtag: string,
+/**
+ * Angewandte Fassung; leer ohne Regelpaket für das Land.
+ */
+fassung: string | null, geprueft: boolean, merkmale: Vorhabenmerkmale, vorschlaege: Array<Verfahrensvorschlag>,
+/**
+ * Genehmigungsfiktion nach der Fassung, falls vorgesehen.
+ */
+fiktion: Fiktionsregel | null, hinweise: Array<string>, };
+export type Verfahrensangaben = { wohngebaeude: boolean | null, grosser_sonderbau: boolean | null, erschliessung: boolean | null, gemeinde_verzicht: boolean | null,
+/**
+ * Stichtag (Antragseingang); ohne Angabe heute.
+ */
+stichtag: string | null, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -696,9 +720,23 @@ externe_einreichungen?: Array<ExterneEinreichung>, bescheide: Array<Bescheid>,
 /**
  * Gebührenbescheide mit Zahlungsfrist; ältere Akten lesen die Angabe leer.
  */
-gebuehren?: Array<Gebuehrenbescheid>, ereignisse: Array<Aktenereignis>, };
+gebuehren?: Array<Gebuehrenbescheid>,
+/**
+ * Erfasste Unterschriften auf Dokumentversionen (§ 70 Abs. 3 BauO NRW
+ * u. ä.); ältere Akten lesen die Angabe leer.
+ */
+unterschriften?: Array<Unterschrift>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
-export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
+export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null,
+/**
+ * Verfahrensarten, für die die Anforderung gilt; fehlt = alle.
+ */
+arten?: Array<Verfahrensart>,
+/**
+ * Dokumentkategorien, deren Unterlagen die Anforderung belegen können;
+ * ihre neuesten Versionen werden beim Anwenden vorgeschlagen.
+ */
+kategorien?: Array<string>, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };
 export type Profilstand = { vorhaben: Vorhabenprofil, katalog: Anforderungskatalog, bestaetigt_von: string | null, bestaetigt_am: string | null, };
 export type Versandstatus = "versendet" | "eingegangen" | "zurueckgewiesen" | "ungeklaert";

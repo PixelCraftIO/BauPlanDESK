@@ -341,6 +341,7 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
         || alt.portal != a.portal
         || alt.anforderungen != a.anforderungen
         || alt.dokumentbeziehungen != a.dokumentbeziehungen
+        || alt.unterschriften != a.unterschriften
         || (!neue_kommunikation && alt.kommunikation != a.kommunikation);
     wenn(angaben, Angaben);
     if r.is_empty() && !neue_ereignisse.is_empty() {

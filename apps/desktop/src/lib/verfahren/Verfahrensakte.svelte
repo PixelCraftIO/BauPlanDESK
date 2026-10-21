@@ -38,6 +38,8 @@
   import Bescheide from "./Bescheide.svelte";
   import Abweichungsantraege from "./Abweichungsantraege.svelte";
   import Gebuehren from "./Gebuehren.svelte";
+  import Verfahrenswahl from "./Verfahrenswahl.svelte";
+  import Unterschriften from "./Unterschriften.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -193,6 +195,7 @@
     ["profil", "Vorhabenprofil"],
     ["anforderungen", "Anforderungen"],
     ["abweichungen", "Abweichungen / Befreiungen"],
+    ["unterschriften", "Unterschriften"],
     ["kommunikation", "Kommunikation"],
     ["nachforderungen", "Nachforderungen"],
     ["schritte", "Behördliche Schritte"],
@@ -360,6 +363,14 @@
                 }}
               />Vorhabenprofil fachlich bestätigt</label
             >{/if}
+        <Verfahrenswahl
+            projektId={projekt.id}
+            verfahrenId={s.id}
+            onuebernehmen={(art, pruef) => {
+              a.art = art;
+              a.pruefverfahren = pruef ?? undefined;
+            }}
+          />
         </fieldset>
       {:else if tab === "anforderungen"}<fieldset disabled={!darf}>
           <Anforderungen
@@ -367,6 +378,15 @@
             {dateien}
             {benutzer}
             {darfFreigeben}
+          />
+        </fieldset>
+      {:else if tab === "unterschriften"}<fieldset disabled={!darf}>
+          <Unterschriften
+            bind:eintraege={
+              () => a.unterschriften ?? [], (w) => (a.unterschriften = w)
+            }
+            projektId={projekt.id}
+            verfahrenId={s.id}
           />
         </fieldset>
       {:else if tab === "abweichungen"}<fieldset disabled={!darf}>

@@ -7,6 +7,7 @@ pub mod chronik;
 pub mod eingang;
 pub mod externe_einreichung;
 pub mod fristen;
+pub mod landesrecht;
 pub mod planindex;
 pub mod profile;
 mod pruefung;
@@ -557,6 +558,11 @@ pub struct Verfahrensakte {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<eingang::Gebuehrenbescheid>>", optional)]
     pub gebuehren: Vec<eingang::Gebuehrenbescheid>,
+    /// Erfasste Unterschriften auf Dokumentversionen (§ 70 Abs. 3 BauO NRW
+    /// u. ä.); ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<landesrecht::Unterschrift>>", optional)]
+    pub unterschriften: Vec<landesrecht::Unterschrift>,
     pub ereignisse: Vec<Aktenereignis>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]

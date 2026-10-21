@@ -1,0 +1,102 @@
+{
+ "id": "landesrecht",
+ "version": "2026-10-21",
+ "hinweis": "Regelpaket ohne fachliche Abnahme. Die Verfahrenswahl nennt Bedingungen und Fundstellen und entscheidet nicht. Maßgebend ist die bei Antragseingang geltende Fassung der Landesbauordnung. Werte mit „geprueft: false“ stammen aus Gliederung, amtlichen Portalen oder Fachveröffentlichungen und sind am Gesetzestext zu prüfen.",
+ "fassungen": [
+  {
+   "land": "NW",
+   "titel": "BauO NRW 2018 (Anträge bis 31.08.2026)",
+   "gilt_ab": null,
+   "gilt_bis": "2026-08-31",
+   "geprueft": false,
+   "verfahrensfrei": "§ 62 BauO NRW (Katalog verfahrensfreier Vorhaben)",
+   "verfahren": [
+    {
+     "art": "freistellung",
+     "pruefverfahren": null,
+     "titel": "Genehmigungsfreistellung",
+     "rechtsgrundlage": "§ 63 BauO NRW",
+     "bedingungen": [
+      {"merkmal": "wohngebaeude", "wert": null, "quelle": "§ 63 BauO NRW"},
+      {"merkmal": "gebaeudeklasse_bis", "wert": 3, "quelle": "§ 63 BauO NRW"},
+      {"merkmal": "bebauungsplan", "wert": null, "quelle": "§ 63 BauO NRW (Geltungsbereich eines Bebauungsplans, § 30 Abs. 1 oder 2 BauGB)"},
+      {"merkmal": "keine_planungsrechtliche_abweichung", "wert": null, "quelle": "§ 63 BauO NRW (keine Ausnahme oder Befreiung)"},
+      {"merkmal": "erschliessung", "wert": null, "quelle": "§ 63 BauO NRW"},
+      {"merkmal": "gemeinde_verzicht", "wert": null, "quelle": "§ 63 BauO NRW: Gemeinde erklärt nicht binnen eines Monats, dass ein Verfahren durchgeführt werden soll"}
+     ]
+    },
+    {
+     "art": "bauantrag",
+     "pruefverfahren": "vereinfacht",
+     "titel": "Vereinfachtes Baugenehmigungsverfahren",
+     "rechtsgrundlage": "§ 64 BauO NRW",
+     "bedingungen": [
+      {"merkmal": "kein_grosser_sonderbau", "wert": null, "quelle": "§ 64 BauO NRW; große Sonderbauten nach § 50 BauO NRW prüfen"}
+     ]
+    },
+    {
+     "art": "bauantrag",
+     "pruefverfahren": "regulaer",
+     "titel": "Baugenehmigungsverfahren",
+     "rechtsgrundlage": "§ 65 BauO NRW",
+     "bedingungen": [
+      {"merkmal": "grosser_sonderbau", "wert": null, "quelle": "§ 65 BauO NRW; große Sonderbauten nach § 50 BauO NRW prüfen"}
+     ]
+    }
+   ],
+   "fiktion": null
+  },
+  {
+   "land": "NW",
+   "titel": "BauO NRW 2018 in der ab 01.09.2026 geltenden Fassung (Gesetz vom 21.07.2026, GV. NRW. 2026 S. 537)",
+   "gilt_ab": "2026-09-01",
+   "gilt_bis": null,
+   "geprueft": false,
+   "verfahrensfrei": "§ 62 BauO NRW (Katalog verfahrensfreier Vorhaben, ab 01.09.2026 geändert)",
+   "verfahren": [
+    {
+     "art": "freistellung",
+     "pruefverfahren": null,
+     "titel": "Genehmigungsfreistellung",
+     "rechtsgrundlage": "§ 63 BauO NRW (neu gefasst ab 01.09.2026)",
+     "bedingungen": [
+      {"merkmal": "gebaeudeklasse_bis", "wert": null, "quelle": "§ 63 BauO NRW: Anwendungsbereich ab 01.09.2026 erweitert; Gebäudeklassen und Nutzungen im Gesetzestext prüfen"},
+      {"merkmal": "bebauungsplan", "wert": null, "quelle": "§ 63 BauO NRW"},
+      {"merkmal": "keine_planungsrechtliche_abweichung", "wert": null, "quelle": "§ 63 BauO NRW"},
+      {"merkmal": "erschliessung", "wert": null, "quelle": "§ 63 BauO NRW"},
+      {"merkmal": "gemeinde_verzicht", "wert": null, "quelle": "§ 63 BauO NRW"}
+     ]
+    },
+    {
+     "art": "bauantrag",
+     "pruefverfahren": "vereinfacht",
+     "titel": "Vereinfachtes Baugenehmigungsverfahren",
+     "rechtsgrundlage": "§ 64 BauO NRW",
+     "bedingungen": [
+      {"merkmal": "kein_grosser_sonderbau", "wert": null, "quelle": "§ 64 BauO NRW; große Sonderbauten nach § 50 BauO NRW prüfen"}
+     ]
+    },
+    {
+     "art": "bauantrag",
+     "pruefverfahren": "regulaer",
+     "titel": "Baugenehmigungsverfahren",
+     "rechtsgrundlage": "§ 65 BauO NRW",
+     "bedingungen": [
+      {"merkmal": "grosser_sonderbau", "wert": null, "quelle": "§ 65 BauO NRW; große Sonderbauten nach § 50 BauO NRW prüfen"}
+     ]
+    }
+   ],
+   "fiktion": {
+    "rechtsgrundlage": "§ 74 BauO NRW (ab 01.09.2026)",
+    "regulaer_monate": 3,
+    "vereinfacht_wochen": 6,
+    "hinweis": "Genehmigungsfiktion für Anträge, die ab 01.09.2026 eingehen; Frist ab Vollständigkeit. Abweichungen nach § 69 BauO NRW sind nur erfasst, soweit sie beantragt sind. Fristlängen laut Fachveröffentlichungen; Wortlaut und Fristbeginn im Gesetz prüfen."
+   }
+  }
+ ],
+ "unterschriften": [
+  {"land": "NW", "kategorien": ["bauantrag"], "rollen": ["bauherrschaft", "entwurfsverfasser"], "quelle": "§ 70 Abs. 3 BauO NRW"},
+  {"land": "NW", "kategorien": ["lageplan", "grundriss", "schnitt", "ansicht", "baubeschreibung", "berechnung"], "rollen": ["entwurfsverfasser"], "quelle": "§ 70 Abs. 3 BauO NRW; bauvorlageberechtigt nach § 67 BauO NRW"},
+  {"land": "NW", "kategorien": ["statik", "gutachten", "entwaesserung"], "rollen": ["fachplaner"], "quelle": "§ 70 Abs. 3 BauO NRW (von Fachplanern nach § 54 Abs. 2 bearbeitete Unterlagen)"}
+ ]
+}

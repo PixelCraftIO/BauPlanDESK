@@ -90,6 +90,7 @@ pub(super) async fn pruefen(
         .chain(a.antragsangaben.vorbescheidfragen.iter().map(|v| v.id))
         .chain(a.abweichungen.iter().map(|v| v.id))
         .chain(a.gebuehren.iter().map(|v| v.id))
+        .chain(a.unterschriften.iter().map(|v| v.id))
         .chain(a.schritte.iter().flat_map(|s| &s.gruende).map(|v| v.id))
     {
         add(id)?;
@@ -290,6 +291,7 @@ pub(super) async fn pruefen(
         }
     }
     abweichungen::eintraege_pruefen(a, alt, &mut dokumente)?;
+    landesrecht::unterschriften_pruefen(a, &mut dokumente)?;
     let heute = crate::kalender::heute();
     zukunft_pruefen(a, alt, heute)?;
     externe_einreichung::pruefen(a, alt, kontext, heute, &mut dokumente)?;

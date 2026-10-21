@@ -683,6 +683,11 @@ impl CoreServices {
             versand: vec![],
             versandstatus: None,
         };
+        stand.hinweise.extend(super::landesrecht::abgabe_hinweise(
+            projekt.bundesland,
+            &stand.dokumente,
+            &a.unterschriften,
+        )?);
         let mut ausgaben = Vec::new();
         let zip = zip(&stand, &docs, &inhalte)?;
         ausgaben.push(("zip", "Unterlagen.zip", zip));
