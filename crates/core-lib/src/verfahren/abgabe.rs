@@ -87,6 +87,10 @@ pub struct Abgabegrundlagen {
     /// Baugenehmigung) beim Festhalten; fehlt in älteren Abgabeständen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hauptgenehmigung: Option<String>,
+    /// Beantragte Abweichungen, Ausnahmen und Befreiungen beim Festhalten
+    /// (ohne entfallene); fehlen in älteren Abgabeständen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub abweichungen: Vec<super::abweichungen::Abweichung>,
 }
 /// Größte Summe der Unterlagen eines Abgabestands. Dieselbe Grenze gilt für
 /// den entpackten Inhalt eines XBau-Pakets, damit eine Abgabe mit XBau nicht
@@ -305,7 +309,19 @@ impl CoreServices {
             aktenzeichen: Some(aktenzeichen.clone()),
             gebaeudeklasse: a.profil.as_ref().and_then(|p| p.vorhaben.gebaeudeklasse),
             hauptgenehmigung,
+            abweichungen: a
+                .abweichungen
+                .iter()
+                .filter(|e| e.aktiv())
+                .cloned()
+                .collect(),
         };
+        // Jede Unterschreitung im aktuellen Planungsstand ist beantragt oder
+        // begründet nicht erforderlich; sonst wird nicht festgehalten.
+        if super::abweichungen::betroffen(&a.art) {
+            let abgleich = self.verfahren_abweichungen(p, vid).await?;
+            hinweise.extend(super::abweichungen::abgabe_pruefen(&a, &abgleich)?);
+        }
         let fragen = grundlagen.antragsangaben.fragen();
         let xbau_art = if w.xbau {
             Some(a.art.xbau_antrag(&grundlagen.antragsangaben, &fragen)?)
@@ -420,6 +436,48 @@ impl CoreServices {
                 gebaeudeklasse: g.gebaeudeklasse,
                 hauptgenehmigung: g.hauptgenehmigung.clone(),
                 flaechen,
+                abweichungen: {
+                    let codelisten = self.codelisten.aktuell();
+                    let mut liste = Vec::new();
+                    for e in &g.abweichungen {
+                        match super::abweichungen::xbau_code(e, &codelisten) {
+                            Some((uri, version, code))
+                                if matches!(a.art, Verfahrensart::Bauantrag
+                                    | Verfahrensart::Aenderungsantrag
+                                    | Verfahrensart::Nutzungsaenderung) =>
+                            {
+                                liste.push(crate::xbau::BeantragteAbweichung {
+                                    id: e.id,
+                                    erleichterung: e.art
+                                        == super::abweichungen::Abweichungsart::Erleichterung,
+                                    liste: uri,
+                                    version,
+                                    code,
+                                    vorschrift: format!(
+                                        "{}\n{}",
+                                        e.vorschrift.trim(),
+                                        e.rechtsgrundlage.trim()
+                                    ),
+                                    beschreibung: format!(
+                                        "{}\nSoll: {}\nIst: {}",
+                                        e.gegenstand.trim(),
+                                        e.soll.trim(),
+                                        e.ist.trim()
+                                    ),
+                                    begruendung: e.begruendung.clone(),
+                                });
+                            }
+                            Some(_) => {}
+                            None => hinweise.push(format!(
+                                "{} „{}“ steht nicht in der XBau-Nachricht: Codeliste {} einspielen oder Code wählen. Antrag und Begründung als Anlage beifügen.",
+                                e.art.bezeichnung(),
+                                e.gegenstand.trim(),
+                                e.art.codeliste()
+                            )),
+                        }
+                    }
+                    liste
+                },
             }
         } else {
             crate::xbau::Vorhabenangaben::default()

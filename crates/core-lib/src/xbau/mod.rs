@@ -34,8 +34,8 @@ pub use antrag::{
 };
 pub use codeliste::{Codeeintrag, Codeliste, Codelisten};
 pub use inhalt::{
-    FACHRICHTUNGEN, FlaechenBauNvo, Vorhabenangaben, WeitereRolle, WeitererBeteiligter,
-    fachrichtungscode,
+    BeantragteAbweichung, FACHRICHTUNGEN, FlaechenBauNvo, Vorhabenangaben, WeitereRolle,
+    WeitererBeteiligter, fachrichtungscode,
 };
 
 /// Version des XBau-Standards, die der Export erzeugt.

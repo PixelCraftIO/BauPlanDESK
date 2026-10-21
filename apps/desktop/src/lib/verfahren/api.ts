@@ -23,7 +23,16 @@ import type {
   Planunterlage,
   Einreichungsweg,
   ExterneEinreichungswunsch,
+  Abweichungsart,
+  Abweichungsabgleich,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Abweichungsart::bezeichnung` im Core. */
+export const ABWEICHUNGSART: Record<Abweichungsart, string> = {
+  abweichung: "Abweichung",
+  ausnahme: "Ausnahme",
+  befreiung: "Befreiung",
+  erleichterung: "Erleichterung",
+};
 /** Bezeichnungen wie `Einreichungsstatus::bezeichnung` im Core. */
 export const EINREICHUNG: Record<Einreichungsstatus, string> = {
   entwurf: "Entwurf",
@@ -179,6 +188,9 @@ export const verfahrenApi = {
       projektId,
       auftrag,
     }),
+  /** Abweichungsbedarf aus dem Planungsstand, abgeglichen mit der gespeicherten Akte. */
+  abweichungen: (projektId: string, id: string) =>
+    invoke<Abweichungsabgleich>("verfahren_abweichungen", { projektId, id }),
   /** Planindex und Einreichungsstatus, im Core aus der gespeicherten Akte abgeleitet. */
   planunterlagen: (projektId: string, id: string) =>
     invoke<Planunterlage[]>("verfahren_planunterlagen", { projektId, id }),

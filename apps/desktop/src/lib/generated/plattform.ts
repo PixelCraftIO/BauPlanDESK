@@ -400,7 +400,12 @@ verlaengerung?: Verlaengerung,
  * Bauarbeiten vorab und beendet das Verfahren nicht. Ältere Bescheide
  * lesen die Angabe als `false`.
  */
-teilbaugenehmigung?: boolean, };
+teilbaugenehmigung?: boolean,
+/**
+ * Entscheidungen über beantragte Abweichungen, Ausnahmen und Befreiungen.
+ * Ältere Bescheide lesen die Angabe leer.
+ */
+abweichungsentscheidungen?: Array<Abweichungsentscheidung>, };
 export type Schrittart = "anhoerung" | "zurueckstellung" | "einvernehmen" | "fachbeteiligung" | "nachbarbeteiligung";
 export type Verfahrensschritt = { id: string, art: Schrittart, kommunikation: string,
 /**
@@ -498,6 +503,87 @@ export type Erinnerung = { verfahren: string, objekt: string, titel: string, dat
  * Art der Wiedervorlage; bestimmt, wann sie endet.
  */
 art: Terminart, };
+export type Abweichungsart = "abweichung" | "ausnahme" | "befreiung" | "erleichterung";
+export type Nachbarzustimmung = { id: string, name: string,
+/**
+ * Flurstück des Angrenzers, frei formuliert.
+ */
+flurstueck: string,
+/**
+ * `None` angefragt, `Some(true)` zugestimmt, `Some(false)` verweigert.
+ */
+zugestimmt: boolean | null, datum: string | null,
+/**
+ * Unterschriebene Zustimmung oder Ablehnung.
+ */
+beleg: Dokumentbezug | null, };
+export type Abweichung = { id: string, art: Abweichungsart,
+/**
+ * Betroffene Vorschrift, z. B. „§ 6 Abs. 5 BauO NRW (Tiefe der Abstandsfläche)“.
+ */
+vorschrift: string,
+/**
+ * Rechtsgrundlage der Zulassung, z. B. „§ 31 Abs. 2 BauGB“.
+ */
+rechtsgrundlage: string,
+/**
+ * Was weicht ab (Bauteil, Wand, Festsetzung).
+ */
+gegenstand: string, soll: string, ist: string,
+/**
+ * Warum die Zulassung gerechtfertigt ist (Schutzziel, nachbarliche und
+ * öffentliche Belange).
+ */
+begruendung: string,
+/**
+ * Schlüssel des abgeleiteten Bedarfs, den dieser Eintrag abdeckt.
+ */
+herkunft?: string, nachbarn?: Array<Nachbarzustimmung>,
+/**
+ * Begründende Unterlagen (Lageplanausschnitt, Gutachten).
+ */
+dokumente?: Array<Dokumentbezug>,
+/**
+ * Code der eingespielten XBau-Codeliste (siehe [`Abweichungsart::codeliste`]);
+ * leer = Vorschlag nach der Art.
+ */
+xbau_code?: string,
+/**
+ * Nicht (mehr) erforderlich, mit Begründung (z. B. Planänderung,
+ * Baulast). Der Eintrag bleibt in der Akte.
+ */
+entfallen?: string, };
+export type Abweichungsentscheidung = { abweichung: string, zugelassen: boolean, begruendung: string,
+/**
+ * Nebenbestimmung zur Zulassung, wörtlich aus dem Bescheid.
+ */
+nebenbestimmung: string, };
+export type Abweichungsbedarf = {
+/**
+ * Stabiler Schlüssel aus Herkunft und Gegenstand.
+ */
+schluessel: string, art: Abweichungsart, vorschrift: string, rechtsgrundlage: string, gegenstand: string, soll: string, ist: string,
+/**
+ * Nachweis, aus dem der Bedarf stammt.
+ */
+quelle: string, };
+export type Abweichungsabgleich = { bedarf: Array<Abweichungsbedarf>,
+/**
+ * Schlüssel des Bedarfs ohne Eintrag in der Akte.
+ */
+offen: Array<string>,
+/**
+ * Einträge, deren Bedarf im aktuellen Planungsstand nicht mehr besteht.
+ */
+ohne_bedarf: Array<string>,
+/**
+ * Einträge, deren Soll oder Ist vom aktuellen Bedarf abweicht.
+ */
+geaendert: Array<string>,
+/**
+ * Nicht ermittelbare Bereiche und weitere Hinweise.
+ */
+hinweise: Array<string>, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -524,7 +610,12 @@ bearbeitungsfrist?: Frist, profil: Profilstand | null, kommunikation: Array<Komm
 /**
  * Ältere Akten ohne diese Angabe lesen sie leer.
  */
-schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>,
+schritte: Array<Verfahrensschritt>, anforderungen: Array<Anforderung>,
+/**
+ * Abweichungen, Ausnahmen, Befreiungen und Erleichterungen. Ältere Akten
+ * lesen die Angabe leer; leer wird sie nicht geschrieben.
+ */
+abweichungen?: Array<Abweichung>, dokumentbeziehungen: Array<Dokumentbeziehung>, abgaben: Array<Abgabestand>,
 /**
  * Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese
  * Angabe lesen sie leer; leer wird sie nicht geschrieben.

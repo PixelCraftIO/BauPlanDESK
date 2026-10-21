@@ -2,6 +2,7 @@
 //! geschrieben; DMS-Versionen, Abgabestände und Entscheidungen bleiben getrennt.
 pub mod abgabe;
 pub mod abgleich;
+pub mod abweichungen;
 pub mod chronik;
 pub mod externe_einreichung;
 pub mod fristen;
@@ -336,6 +337,11 @@ pub struct Bescheid {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub teilbaugenehmigung: bool,
+    /// Entscheidungen über beantragte Abweichungen, Ausnahmen und Befreiungen.
+    /// Ältere Bescheide lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<abweichungen::Abweichungsentscheidung>>", optional)]
+    pub abweichungsentscheidungen: Vec<abweichungen::Abweichungsentscheidung>,
 }
 /// Verlängerung der Geltungsdauer durch einen Bescheid der Behörde.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -511,6 +517,11 @@ pub struct Verfahrensakte {
     #[serde(default)]
     pub schritte: Vec<Verfahrensschritt>,
     pub anforderungen: Vec<Anforderung>,
+    /// Abweichungen, Ausnahmen, Befreiungen und Erleichterungen. Ältere Akten
+    /// lesen die Angabe leer; leer wird sie nicht geschrieben.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<abweichungen::Abweichung>>", optional)]
+    pub abweichungen: Vec<abweichungen::Abweichung>,
     pub dokumentbeziehungen: Vec<Dokumentbeziehung>,
     pub abgaben: Vec<abgabe::Abgabestand>,
     /// Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese

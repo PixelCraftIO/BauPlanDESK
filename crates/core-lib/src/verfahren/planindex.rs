@@ -427,6 +427,7 @@ mod tests {
             ersetzt: None,
             verlaengerung: None,
             teilbaugenehmigung: false,
+            abweichungsentscheidungen: vec![],
         }
     }
     fn stand(l: &[Planunterlage], d: DocumentId, v: i64) -> &Planstand {

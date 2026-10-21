@@ -104,6 +104,18 @@ pub async fn verfahren_planunterlagen(
     Ok(state.core.verfahren_planunterlagen(projekt_id, id).await?)
 }
 #[tauri::command]
+pub async fn verfahren_abweichungen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+) -> Result<core_lib::verfahren::abweichungen::Abweichungsabgleich, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.verfahren_abweichungen(projekt_id, id).await?)
+}
+#[tauri::command]
 pub async fn verfahren_erinnerungen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

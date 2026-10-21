@@ -36,6 +36,7 @@
   import Kommunikation from "./Kommunikation.svelte";
   import Nachforderungen from "./Nachforderungen.svelte";
   import Bescheide from "./Bescheide.svelte";
+  import Abweichungsantraege from "./Abweichungsantraege.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -190,6 +191,7 @@
     ["stamm", "Verfahren"],
     ["profil", "Vorhabenprofil"],
     ["anforderungen", "Anforderungen"],
+    ["abweichungen", "Abweichungen / Befreiungen"],
     ["kommunikation", "Kommunikation"],
     ["nachforderungen", "Nachforderungen"],
     ["schritte", "Behördliche Schritte"],
@@ -366,6 +368,18 @@
             {darfFreigeben}
           />
         </fieldset>
+      {:else if tab === "abweichungen"}<fieldset disabled={!darf}>
+          <Abweichungsantraege
+            bind:eintraege={
+              () => a.abweichungen ?? [], (w) => (a.abweichungen = w)
+            }
+            bescheide={a.bescheide}
+            {dateien}
+            projektId={projekt.id}
+            verfahrenId={s.id}
+            alt={s.original?.abweichungen?.map((v) => v.id) ?? []}
+          />
+        </fieldset>
       {:else if tab === "kommunikation"}<fieldset disabled={!darf}>
           <Kommunikation
             bind:eintraege={a.kommunikation}
@@ -434,6 +448,7 @@
             {benutzer}
             projektId={projekt.id}
             art={a.art}
+            abweichungen={a.abweichungen ?? []}
             alt={s.original?.bescheide.map((v) => v.id) ?? []}
             auflagenAlt={s.original?.bescheide.flatMap((b) =>
               b.auflagen.map((p) => p.id),

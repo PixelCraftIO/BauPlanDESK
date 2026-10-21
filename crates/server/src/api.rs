@@ -229,6 +229,10 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{id}/verfahren/{verfahren}/planunterlagen",
             get(verfahren_planunterlagen),
         )
+        .route(
+            "/projekte/{id}/verfahren/{verfahren}/abweichungen",
+            get(verfahren_abweichungen),
+        )
         .route("/projekte/{id}/erinnerungen", get(verfahren_erinnerungen))
         .route("/projekte/{id}/bescheidfristen", post(bescheidfristen))
         .route("/projekte/{id}/termine.ics", get(verfahren_termine_ics))
@@ -1346,6 +1350,15 @@ async fn verfahren_planunterlagen(
     Path((p, id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Vec<core_lib::verfahren::planindex::Planunterlage>> {
     Ok(Json(core.verfahren_planunterlagen(ProjectId(p), id).await?))
+}
+async fn verfahren_abweichungen(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<core_lib::verfahren::abweichungen::Abweichungsabgleich> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(core.verfahren_abweichungen(ProjectId(p), id).await?))
 }
 async fn verfahren_artefakt(
     State(ApiState { core }): State<ApiState>,

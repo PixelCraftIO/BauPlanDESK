@@ -327,6 +327,13 @@ fn schreiben(
         x.zu().zu();
     }
 
+    // Abweichungen gehören nur zum Bauantrag; im geänderten Antrag stehen sie
+    // vor den Vorhabendaten, im Antrag danach.
+    let mit_abweichungen = matches!(art, Antragsart::Baugenehmigung);
+    if mit_abweichungen && bezug.is_some() {
+        inhalt::abweichungen(&mut x, d.vorhaben);
+    }
+
     // Bauvorhaben
     let bezeichnung = match d.antrag.bezeichnung.trim() {
         "" => d.projekt.name.trim(),
@@ -482,6 +489,9 @@ fn schreiben(
     }
     x.zu().zu().zu(); // grundstueck, baugrundstueck, verortung
     x.zu(); // bauvorhaben
+    if mit_abweichungen && bezug.is_none() {
+        inhalt::abweichungen(&mut x, d.vorhaben);
+    }
 
     x.auf("xbau:anlagen", &[]);
     for a in d.anlagen {
@@ -819,6 +829,7 @@ pub(crate) mod tests {
         gebaeudeklasse: None,
         hauptgenehmigung: None,
         flaechen: None,
+        abweichungen: Vec::new(),
     };
 
     fn daten<'a>(
@@ -1162,6 +1173,28 @@ pub(crate) mod tests {
                 gfz_geplant: Some(0.9),
                 ..Default::default()
             }),
+            abweichungen: vec![
+                crate::xbau::BeantragteAbweichung {
+                    id: Uuid::new_v4(),
+                    erleichterung: false,
+                    liste: crate::verfahren::abweichungen::ABWEICHUNGART.into(),
+                    version: "2.0".into(),
+                    code: "2".into(),
+                    vorschrift: "§ 6 Abs. 5 BauO NRW".into(),
+                    beschreibung: "Nordwand Garage\nAbstandsfläche 0,4 m über der Grenze".into(),
+                    begruendung: "Schutzziel Belichtung gewahrt".into(),
+                },
+                crate::xbau::BeantragteAbweichung {
+                    id: Uuid::new_v4(),
+                    erleichterung: true,
+                    liste: crate::verfahren::abweichungen::ERLEICHTERUNG_GEGENSTAND.into(),
+                    version: "1.0".into(),
+                    code: "01".into(),
+                    vorschrift: "Rettungswege".into(),
+                    beschreibung: String::new(),
+                    begruendung: String::new(),
+                },
+            ],
         }
     }
 
@@ -1212,6 +1245,11 @@ pub(crate) mod tests {
         assert!(k.contains("<xbau:gebaeudeklasse listURI=\"urn:xoev-de:xbau:codeliste:gebaeudeklasse\" listVersionID=\"3.0\"><code>4</code>"));
         assert!(k.contains("<xbau:grundflaechen><xbau:grundflaeche>243.60</xbau:grundflaeche><xbau:grundflaechenzahlSoll>0.40</xbau:grundflaechenzahlSoll><xbau:grundflaechenzahlGeplant>0.30</xbau:grundflaechenzahlGeplant></xbau:grundflaechen>"));
         assert!(!xml.contains("xbau:baumassen"), "ohne Werte keine Gruppe");
+        // Abweichung und Erleichterung nach dem Bauvorhaben, vor den Anlagen.
+        let abw = k.find("<xbau:beantragteAbweichung>").expect("Abweichung");
+        assert!(k.find("</xbau:bauvorhaben>").unwrap() < abw);
+        assert!(abw < k.find("<xbau:angefragteErleichterung>").unwrap());
+        assert!(k.contains("<xbau:vorschrift><textabsatz>§ 6 Abs. 5 BauO NRW</textabsatz></xbau:vorschrift><xbau:beschreibung><textabsatz>Nordwand Garage</textabsatz><textabsatz>Abstandsfläche 0,4 m über der Grenze</textabsatz></xbau:beschreibung>"), "{xml}");
         // Organisation mit Erreichbarkeit und Ansprechpartner.
         assert!(k.contains("<kommunikation><kanal listVersionID=\"3\"><code>02</code></kanal><kennung>+49 89 123456</kennung></kommunikation>"));
         assert!(k.contains("<ansprechpartner><name><familienname><name>Dr. Jens Weber</name></familienname><vorname></vorname></name></ansprechpartner>"));

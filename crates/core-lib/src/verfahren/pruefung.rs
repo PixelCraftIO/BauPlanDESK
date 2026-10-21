@@ -88,6 +88,7 @@ pub(super) async fn pruefen(
         .chain(a.dokumentbeziehungen.iter().map(|v| v.id))
         .chain(a.ereignisse.iter().map(|v| v.id))
         .chain(a.antragsangaben.vorbescheidfragen.iter().map(|v| v.id))
+        .chain(a.abweichungen.iter().map(|v| v.id))
     {
         add(id)?;
     }
@@ -104,6 +105,11 @@ pub(super) async fn pruefen(
     for b in &a.abgaben {
         for e in &b.versand {
             add(e.id)?;
+        }
+    }
+    for e in &a.abweichungen {
+        for n in &e.nachbarn {
+            add(n.id)?;
         }
     }
     let mut dokumente = Vec::new();
@@ -261,6 +267,7 @@ pub(super) async fn pruefen(
             }
         }
     }
+    abweichungen::eintraege_pruefen(a, alt, &mut dokumente)?;
     let heute = crate::kalender::heute();
     zukunft_pruefen(a, alt, heute)?;
     externe_einreichung::pruefen(a, alt, kontext, heute, &mut dokumente)?;

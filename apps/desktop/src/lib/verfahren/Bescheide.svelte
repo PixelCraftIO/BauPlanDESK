@@ -1,5 +1,6 @@
 <script lang="ts">
   import type {
+    Abweichung,
     Bescheid,
     Bescheidfristen,
     Berichtigungsgegenstand,
@@ -26,6 +27,7 @@
     abgegeben,
     projektId,
     art,
+    abweichungen = [],
     alt = [],
     auflagenAlt = [],
     ohneZustellung = [],
@@ -38,6 +40,8 @@
     benutzer: Benutzer[];
     projektId: string;
     art: Verfahrensart;
+    /** Beantragte Abweichungen der Akte; der Bescheid entscheidet je Eintrag. */
+    abweichungen?: Abweichung[];
     alt?: string[];
     /** Gespeicherte Nebenbestimmungen; ihr Wortlaut bleibt laut Core unverändert. */
     auflagenAlt?: string[];
@@ -201,6 +205,56 @@
           einer externen Einreichung. Beides im Register Abgabestände erfassen.
         </p>{/if}
     </fieldset>
+    {#if abweichungen.some((e) => !e.entfallen) || b.abweichungsentscheidungen?.length}<fieldset
+        disabled={fest}
+      >
+        <legend>Entscheidung über Abweichungen, Ausnahmen und Befreiungen</legend>
+        {#each abweichungen.filter((e) => !e.entfallen || b.abweichungsentscheidungen?.some((d) => d.abweichung === e.id)) as e (e.id)}{@const d =
+            b.abweichungsentscheidungen?.find((d) => d.abweichung === e.id)}<div
+            class="raster"
+          >
+            <label
+              >{e.gegenstand || e.vorschrift}<select
+                value={d ? String(d.zugelassen) : ""}
+                onchange={(ev) => {
+                  const v = ev.currentTarget.value;
+                  const rest = (b.abweichungsentscheidungen ?? []).filter(
+                    (x) => x.abweichung !== e.id,
+                  );
+                  b.abweichungsentscheidungen = v
+                    ? [
+                        ...rest,
+                        {
+                          abweichung: e.id,
+                          zugelassen: v === "true",
+                          begruendung: d?.begruendung ?? "",
+                          nebenbestimmung: d?.nebenbestimmung ?? "",
+                        },
+                      ]
+                    : rest;
+                }}
+                ><option value="">Im Bescheid nicht entschieden</option
+                ><option value="true">Zugelassen</option><option value="false"
+                  >Nicht zugelassen</option
+                ></select
+              ></label
+            >{#if d}<label
+                >Nebenbestimmung zur Zulassung<input
+                  bind:value={d.nebenbestimmung}
+                  maxlength="16000"
+                /></label
+              ><label
+                >Begründung der Behörde<input
+                  bind:value={d.begruendung}
+                  maxlength="16000"
+                /></label
+              >{/if}
+          </div>{/each}
+        {#if !fest}<p class="meta">
+            Nach dem Speichern bleiben die Entscheidungen wie der Bescheid
+            unverändert.
+          </p>{/if}
+      </fieldset>{/if}
     {#if f}<section aria-label="Berechnete Fristen">
         <h4>Berechnete Fristen</h4>
         {@render fristzeile("Rechtsbehelfsfrist", f.rechtsbehelfsfrist)}

@@ -38,6 +38,7 @@ fn leer() -> Verfahrensakte {
         kommunikation: vec![],
         nachforderungen: vec![],
         anforderungen: vec![],
+        abweichungen: vec![],
         dokumentbeziehungen: vec![],
         abgaben: vec![],
         externe_einreichungen: vec![],
@@ -428,6 +429,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     });
     let err = ablehnen(&versuch, f.revision).await;
     assert!(err.contains("aus einem versendeten Abgabestand"), "{err}");
@@ -458,6 +460,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     });
     a.status = Verfahrensstatus::Entschieden;
     let f = speichern(&core, p.id, vid, f.revision, &a, &user).await;
@@ -1652,6 +1655,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     };
     let mut v = a.clone();
     v.bescheide.push(bescheid(Entscheidung::Genehmigt));
@@ -2126,6 +2130,7 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
     };
     // Genehmigt werden nur Unterlagen, die der Behörde vorlagen.
     a.bescheide.push(neuer_bescheid(anderer, None));
@@ -2281,6 +2286,7 @@ async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
         ersetzt: None,
         verlaengerung: None,
         teilbaugenehmigung: true,
+        abweichungsentscheidungen: vec![],
     };
     a.bescheide.push(Bescheid {
         entscheidung: Entscheidung::Abgelehnt,
@@ -2308,6 +2314,7 @@ async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
         id: Uuid::new_v4(),
         entscheidung: Entscheidung::Abgelehnt,
         teilbaugenehmigung: false,
+        abweichungsentscheidungen: vec![],
         zugestellt: Some(heute),
         ..teil.clone()
     });

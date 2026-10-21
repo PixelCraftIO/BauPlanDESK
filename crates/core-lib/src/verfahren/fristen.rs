@@ -361,6 +361,7 @@ mod tests {
             ersetzt: None,
             verlaengerung: None,
             teilbaugenehmigung: false,
+            abweichungsentscheidungen: vec![],
         }
     }
     fn tag(s: &str) -> NaiveDate {
