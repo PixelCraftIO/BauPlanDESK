@@ -355,7 +355,11 @@ async fn beteiligte_in_rollen_und_zustimmung_des_eigentuemers() {
         .bauherren_setzen(p.id, vec![anna.id], p.version, &chefin)
         .await
         .unwrap();
-    let z = |rolle, kunde| Beteiligtenzuordnung { rolle, kunde };
+    let z = |rolle, kunde| Beteiligtenzuordnung {
+        rolle,
+        kunde,
+        fachrichtung: String::new(),
+    };
     let p = core
         .beteiligte_setzen(
             p.id,
@@ -387,6 +391,32 @@ async fn beteiligte_in_rollen_und_zustimmung_des_eigentuemers() {
         ],
         "nach Rolle geordnet, ohne Dubletten"
     );
+
+    // Die Fachrichtung wird je Zuordnung gespeichert (bereinigt, geprüft).
+    let mut mit_fach = z(Beteiligtenrolle::Fachplaner, statik.id);
+    mit_fach.fachrichtung = "  Tragwerksplanung ".into();
+    let p = core
+        .beteiligte_setzen(
+            p.id,
+            vec![
+                mit_fach.clone(),
+                z(Beteiligtenrolle::Grundstueckseigentuemer, erben.id),
+                z(Beteiligtenrolle::Grundstueckseigentuemer, anna.id),
+            ],
+            p.version,
+            &chefin,
+        )
+        .await
+        .unwrap();
+    let b = core.beteiligte(p.id).await.unwrap();
+    assert_eq!(b[2].fachrichtung, "Tragwerksplanung");
+    assert_eq!(b[0].fachrichtung, "");
+    mit_fach.fachrichtung = format!("Statik{}", '\u{1}');
+    assert!(matches!(
+        core.beteiligte_setzen(p.id, vec![mit_fach], p.version, &chefin)
+            .await,
+        Err(CoreError::InvalidInput(_))
+    ));
 
     // Nur der Eigentümer, der nicht Bauherr ist, muss zustimmen.
     let g = core.bauantrag(p.id).await.unwrap();
@@ -504,6 +534,7 @@ async fn flurstueckseigentuemer_sind_kunden_und_projektbeteiligte() {
             vec![Beteiligtenzuordnung {
                 rolle: Beteiligtenrolle::Grundstueckseigentuemer,
                 kunde: emil.id,
+                fachrichtung: String::new(),
             }],
             p.version,
             &chefin,

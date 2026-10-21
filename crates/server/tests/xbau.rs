@@ -713,6 +713,194 @@ async fn ohne_codelisten_nennt_der_export_die_fehlende_liste() {
     );
 }
 
+/// Platzhalter-Landesliste (keine veröffentlichten Werte), nur für den Test.
+const TEST_LANDESLISTE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
+  <Identification><ShortName>verfahrensart</ShortName><LongName>Test-Verfahrensarten</LongName>
+    <Version>0.1</Version><CanonicalUri>urn:xoev-de:xbau:nw:codeliste:verfahrensart</CanonicalUri></Identification>
+  <ColumnSet>
+    <Column Id="code" Use="required"><ShortName>code</ShortName></Column>
+    <Column Id="beschreibung" Use="required"><ShortName>beschreibung</ShortName></Column>
+    <Key Id="k"><ShortName>k</ShortName><ColumnRef Ref="code"/></Key>
+  </ColumnSet>
+  <SimpleCodeList>
+    <Row><Value ColumnRef="code"><SimpleValue>T1</SimpleValue></Value><Value ColumnRef="beschreibung"><SimpleValue>Testverfahren</SimpleValue></Value></Row>
+  </SimpleCodeList>
+</gc:CodeList>"#;
+
+#[tokio::test]
+async fn eingespielte_landesliste_gilt_sofort_und_braucht_bueroverwaltung() {
+    let dir = tempfile::tempdir().unwrap();
+    let core = core(dir.path(), true).await;
+    let chefin = core.anmelden("chefin", "Clara Chefin").await.unwrap();
+    let ben = core
+        .benutzer_anlegen(
+            NeuerBenutzer {
+                anmeldename: "ben".into(),
+                anzeigename: "Ben".into(),
+                rolle: Rolle::Bearbeitung,
+            },
+            &chefin,
+        )
+        .await
+        .unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Test".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &chefin,
+        )
+        .await
+        .unwrap();
+    assert!(
+        core.bauantrag(p.id)
+            .await
+            .unwrap()
+            .verfahrensarten
+            .is_none()
+    );
+    let mut abgelegt = None;
+    assert!(matches!(
+        core.xbau_codeliste_einspielen(TEST_LANDESLISTE, &ben, |_, _| Ok(()))
+            .await,
+        Err(CoreError::Forbidden(_))
+    ));
+    // Schlägt das Ablegen fehl, gilt die Liste nicht.
+    assert!(
+        core.xbau_codeliste_einspielen(TEST_LANDESLISTE, &chefin, |_, _| Err(
+            CoreError::InvalidInput("Ordner schreibgeschützt".into())
+        ))
+        .await
+        .is_err()
+    );
+    assert!(
+        core.bauantrag(p.id)
+            .await
+            .unwrap()
+            .verfahrensarten
+            .is_none()
+    );
+    let liste = core
+        .xbau_codeliste_einspielen(TEST_LANDESLISTE, &chefin, |datei, _| {
+            abgelegt = Some(datei.to_string());
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        abgelegt.as_deref(),
+        Some("urn_xoev-de_xbau_nw_codeliste_verfahrensart.xml")
+    );
+    let g = core.bauantrag(p.id).await.unwrap();
+    assert_eq!(g.verfahrensarten.as_ref(), Some(&liste));
+    let mut antrag = g.antrag;
+    antrag.verfahrensart = "T1".into();
+    let g = core
+        .bauantrag_speichern(p.id, antrag, g.version, &chefin)
+        .await
+        .unwrap();
+    assert!(
+        !g.fehlende_angaben
+            .iter()
+            .any(|f| f.contains("Verfahrensart")),
+        "{:?}",
+        g.fehlende_angaben
+    );
+}
+
+#[tokio::test]
+async fn anlagenart_folgt_ohne_eigene_wahl_der_dokumentkategorie() {
+    let dir = tempfile::tempdir().unwrap();
+    let core = core(dir.path(), true).await;
+    // Anlagenliste mit dem Code, den die Kategorie „Lageplan“ vorschlägt.
+    core.codelisten.hinzufuegen(Codeliste {
+        uri: ANLAGEN.into(),
+        version: "test".into(),
+        name: "Anlagen".into(),
+        eintraege: vec![Codeeintrag {
+            code: "1803".into(),
+            beschreibung: "Lageplan".into(),
+        }],
+    });
+    let chefin = core.anmelden("chefin", "Clara Chefin").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Test".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &chefin,
+        )
+        .await
+        .unwrap();
+    let mut docs = Vec::new();
+    for name in ["Lageplan.pdf", "Notiz.pdf"] {
+        docs.push(
+            core.store_document(
+                p.id,
+                None,
+                None,
+                name,
+                Bytes::from_static(b"%PDF-1.7"),
+                &chefin,
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    core.dokumentkategorie_speichern(
+        docs[0].document_id,
+        core_lib::dokumentkategorien::KategorieZuordnung {
+            revision: 0,
+            kategorie: Some("lageplan".into()),
+        },
+        &chefin,
+    )
+    .await
+    .unwrap();
+    let g = core.bauantrag(p.id).await.unwrap();
+    let v = &g.anlagenart_vorschlaege[&docs[0].document_id.0.to_string()];
+    assert_eq!(
+        (v.anlageart.as_str(), v.kategorie.as_str()),
+        ("1803", "Lageplan")
+    );
+    assert!(
+        !g.anlagenart_vorschlaege
+            .contains_key(&docs[1].document_id.0.to_string())
+    );
+    let mut antrag = g.antrag;
+    for d in &docs {
+        antrag.anlagen.push(Anlagenwahl {
+            dokument: d.document_id,
+            anlageart: String::new(),
+            bezeichnung: String::new(),
+        });
+    }
+    let g = core
+        .bauantrag_speichern(p.id, antrag, g.version, &chefin)
+        .await
+        .unwrap();
+    let ohne_art: Vec<_> = g
+        .fehlende_angaben
+        .iter()
+        .filter(|f| f.contains("Art der Anlage wählen"))
+        .collect();
+    // Nur die Notiz ohne Kategorie braucht noch eine Wahl; gespeichert bleibt leer.
+    assert_eq!(
+        ohne_art,
+        ["2. Anlage: Art der Anlage wählen"],
+        "{:?}",
+        g.fehlende_angaben
+    );
+    assert!(g.antrag.anlagen[0].anlageart.is_empty());
+}
+
 #[tokio::test]
 async fn buero_aendern_braucht_projektleitung() {
     let dir = tempfile::tempdir().unwrap();
@@ -869,10 +1057,12 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
             Beteiligtenzuordnung {
                 rolle: Beteiligtenrolle::Bevollmaechtigter,
                 kunde: kunden[0].id,
+                fachrichtung: String::new(),
             },
             Beteiligtenzuordnung {
                 rolle: Beteiligtenrolle::Grundstueckseigentuemer,
                 kunde: kunden[1].id,
+                fachrichtung: String::new(),
             },
         ],
         p.version,

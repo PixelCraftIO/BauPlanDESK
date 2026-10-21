@@ -1197,7 +1197,7 @@ impl KundenRepository for SqliteDatabase {
 
     async fn beteiligte(&self, project: ProjectId) -> CoreResult<Vec<Projektbeteiligter>> {
         let mut liste = sqlx::query(
-            "SELECT b.rolle, b.position, k.* FROM projekt_beteiligte b JOIN kunden k ON k.id = b.kunde_id
+            "SELECT b.rolle, b.position, b.fachrichtung AS beteiligt_fachrichtung, k.* FROM projekt_beteiligte b JOIN kunden k ON k.id = b.kunde_id
               WHERE b.project_id = ?",
         )
         .bind(project.to_string())
@@ -1208,13 +1208,23 @@ impl KundenRepository for SqliteDatabase {
         .map(|row| {
             let rolle: String = row.try_get("rolle").map_err(db_err)?;
             let position: i64 = row.try_get("position").map_err(db_err)?;
-            Ok((rolle.parse::<Beteiligtenrolle>()?, position, kunde_from_row(row)?))
+            let fachrichtung: String = row.try_get("beteiligt_fachrichtung").map_err(db_err)?;
+            Ok((
+                rolle.parse::<Beteiligtenrolle>()?,
+                position,
+                kunde_from_row(row)?,
+                fachrichtung,
+            ))
         })
         .collect::<CoreResult<Vec<_>>>()?;
-        liste.sort_by_key(|(rolle, position, _)| (*rolle, *position));
+        liste.sort_by_key(|(rolle, position, _, _)| (*rolle, *position));
         Ok(liste
             .into_iter()
-            .map(|(rolle, _, kunde)| Projektbeteiligter { rolle, kunde })
+            .map(|(rolle, _, kunde, fachrichtung)| Projektbeteiligter {
+                rolle,
+                kunde,
+                fachrichtung,
+            })
             .collect())
     }
 
@@ -1248,12 +1258,13 @@ impl KundenRepository for SqliteDatabase {
             .map_err(db_err)?;
         for (position, z) in beteiligte.iter().enumerate() {
             sqlx::query(
-                "INSERT INTO projekt_beteiligte (project_id, kunde_id, rolle, position) VALUES (?, ?, ?, ?)",
+                "INSERT INTO projekt_beteiligte (project_id, kunde_id, rolle, position, fachrichtung) VALUES (?, ?, ?, ?, ?)",
             )
             .bind(project.to_string())
             .bind(z.kunde.to_string())
             .bind(z.rolle.code())
             .bind(position as i64)
+            .bind(&z.fachrichtung)
             .execute(&mut *tx)
             .await
             .map_err(|e| {

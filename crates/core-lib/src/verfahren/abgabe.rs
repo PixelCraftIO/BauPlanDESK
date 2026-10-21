@@ -173,9 +173,8 @@ impl CoreServices {
     ) -> Vec<String> {
         use super::abgleich::Landesverfahrensart;
         let uri = crate::xbau::codeliste::verfahrensart_uri(projekt.bundesland);
-        let beschreibung = match self
-            .codelisten
-            .verfahrensart(projekt.bundesland, &antrag.verfahrensart)
+        let codelisten = self.codelisten.aktuell();
+        let beschreibung = match codelisten.verfahrensart(projekt.bundesland, &antrag.verfahrensart)
         {
             Ok(Some((liste, code))) => liste
                 .eintraege
@@ -188,7 +187,7 @@ impl CoreServices {
         };
         let landesart = match &beschreibung {
             Some(b) => Landesverfahrensart::Gewaehlt(b),
-            None if self.codelisten.liste(&uri).is_none() => Landesverfahrensart::KeineListe(&uri),
+            None if codelisten.liste(&uri).is_none() => Landesverfahrensart::KeineListe(&uri),
             None => Landesverfahrensart::NichtGewaehlt,
         };
         super::abgleich::verfahrensart_hinweise(&akte.art, akte.pruefverfahren.as_ref(), landesart)
@@ -294,7 +293,7 @@ impl CoreServices {
         if w.xbau && a.art == Verfahrensart::Aenderungsantrag && hauptgenehmigung.is_none() {
             hinweise.push("Änderungsantrag ohne Bezug auf die erteilte Baugenehmigung: In der Akte das Vorgängerverfahren mit Aktenzeichen eintragen, damit die XBau-Nachricht den Nachtrag zuordnet.".into());
         }
-        let grundlagen = Abgabegrundlagen {
+        let mut grundlagen = Abgabegrundlagen {
             bauherren: self.bauherren_fuer_antrag(p, &antrag).await?,
             buero: self.buero().await?,
             projekt: projekt.clone(),
@@ -370,6 +369,36 @@ impl CoreServices {
                 hinweise.push(format!(
                     "Nicht vollständig enthalten oder ungeprüft: {}",
                     r.titel
+                ));
+            }
+        }
+        // Ohne Wahl im Bauantrag gilt die Anlagenart der Dokumentkategorie; der
+        // eingefrorene Stand hält sie fest, damit das Paket nachvollziehbar bleibt.
+        if w.xbau {
+            let vorschlaege = self.anlagenart_vorschlaege(p).await?;
+            let anlagen = &mut grundlagen.antrag.anlagen;
+            for d in &docs {
+                let wahl = anlagen.iter_mut().find(|a| a.dokument == d.document_id);
+                if wahl
+                    .as_ref()
+                    .is_some_and(|a| !a.anlageart.trim().is_empty())
+                {
+                    continue;
+                }
+                let Some(v) = vorschlaege.get(&d.document_id) else {
+                    continue;
+                };
+                match wahl {
+                    Some(a) => a.anlageart = v.anlageart.clone(),
+                    None => anlagen.push(crate::xbau::Anlagenwahl {
+                        dokument: d.document_id,
+                        anlageart: v.anlageart.clone(),
+                        bezeichnung: String::new(),
+                    }),
+                }
+                hinweise.push(format!(
+                    "{}: Anlagenart {} aus der Dokumentkategorie „{}“ übernommen (im Bauantrag nicht gewählt).",
+                    d.file_name, v.anlageart, v.kategorie
                 ));
             }
         }
@@ -461,6 +490,7 @@ impl CoreServices {
                     }
                 })
                 .collect::<Vec<_>>();
+            let codelisten = self.codelisten.aktuell();
             let daten = crate::xbau::Nachrichtendaten {
                 projekt: &projekt,
                 antrag: &stand.grundlagen.antrag,
@@ -468,7 +498,7 @@ impl CoreServices {
                 buero: &stand.grundlagen.buero,
                 vorhaben: &vorhaben,
                 anlagen: &anlagen,
-                codelisten: &self.codelisten,
+                codelisten: &codelisten,
                 nachricht_id: w.id,
                 zeitpunkt: stand.erstellt_am,
             };

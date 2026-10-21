@@ -3,6 +3,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
     BETEILIGTENROLLEN,
+    FACHRICHTUNGEN,
     anschriftZeile,
     beteiligtenrolleName,
     api,
@@ -47,7 +48,7 @@
   let laeuft = $state(false);
 
   const schluessel = (l: Projektbeteiligter[]) =>
-    l.map((b) => `${b.rolle}:${b.kunde.id}`).join();
+    l.map((b) => `${b.rolle}:${b.kunde.id}:${(b.fachrichtung ?? "").trim()}`).join();
   const vorschlaege = $derived(
     alle
       .filter(
@@ -79,7 +80,7 @@
   function hinzufuegen(k: Kunde) {
     // Je Rolle in Erfassungsreihenfolge, Rollen in fester Reihenfolge.
     const reihenfolge = BETEILIGTENROLLEN.map((r) => r.code);
-    gewaehlt = [...gewaehlt, { rolle, kunde: k }].sort(
+    gewaehlt = [...gewaehlt, { rolle, kunde: k, fachrichtung: "" }].sort(
       (a, b) => reihenfolge.indexOf(a.rolle) - reihenfolge.indexOf(b.rolle),
     );
   }
@@ -108,7 +109,11 @@
       onprojekt(
         await api.beteiligteSetzen(
           projekt.id,
-          gewaehlt.map((b) => ({ rolle: b.rolle, kunde: b.kunde.id })),
+          gewaehlt.map((b) => ({
+            rolle: b.rolle,
+            kunde: b.kunde.id,
+            fachrichtung: b.fachrichtung ?? "",
+          })),
           projekt.version,
         ),
       );
@@ -194,6 +199,18 @@
                   .filter(Boolean)
                   .join(" · ")}</span
               >
+              {#if b.rolle === "fachplaner"}
+                <label class="meta"
+                  >Fachrichtung
+                  <input
+                    list="fachrichtungen"
+                    bind:value={b.fachrichtung}
+                    disabled={!darf}
+                    maxlength="100"
+                    placeholder="z. B. Tragwerksplanung/Standsicherheit"
+                  /></label
+                >
+              {/if}
             </div>
             {#if darf}
               <button
@@ -209,6 +226,9 @@
     {/if}
   {/each}
   {#if !gewaehlt.length}<p class="meta">Noch keine weiteren Beteiligten.</p>{/if}
+  <datalist id="fachrichtungen">
+    {#each FACHRICHTUNGEN as f (f.code)}<option value={f.name}></option>{/each}
+  </datalist>
 
   {#if darf}
     <label

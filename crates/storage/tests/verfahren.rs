@@ -924,6 +924,7 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
         vec![Beteiligtenzuordnung {
             rolle: Beteiligtenrolle::Grundstueckseigentuemer,
             kunde: eigentuemer.id,
+            fachrichtung: String::new(),
         }],
         p.version,
         &user,
@@ -992,10 +993,12 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
                 Beteiligtenzuordnung {
                     rolle: Beteiligtenrolle::Grundstueckseigentuemer,
                     kunde: eigentuemer.id,
+                    fachrichtung: String::new(),
                 },
                 Beteiligtenzuordnung {
                     rolle: Beteiligtenrolle::Erbbauberechtigter,
                     kunde: frieda.id,
+                    fachrichtung: String::new(),
                 },
             ],
             p.version,

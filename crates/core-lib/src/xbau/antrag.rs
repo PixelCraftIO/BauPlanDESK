@@ -1142,7 +1142,11 @@ pub(crate) mod tests {
         Vorhabenangaben {
             beteiligte: rollen
                 .into_iter()
-                .map(|(rolle, beteiligter)| WeitererBeteiligter { rolle, beteiligter })
+                .map(|(rolle, beteiligter)| WeitererBeteiligter {
+                    rolle,
+                    beteiligter,
+                    fachrichtung: String::new(),
+                })
                 .collect(),
             gebaeudeklasse: Some(4),
             hauptgenehmigung: Some("BG-2025-0815".into()),
@@ -1212,6 +1216,36 @@ pub(crate) mod tests {
         assert!(k.contains("<kommunikation><kanal listVersionID=\"3\"><code>02</code></kanal><kennung>+49 89 123456</kennung></kommunikation>"));
         assert!(k.contains("<ansprechpartner><name><familienname><name>Dr. Jens Weber</name></familienname><vorname></vorname></name></ansprechpartner>"));
         gegen_schema_pruefen(&xml);
+        assert!(k.contains(
+            "<xbau:fachrichtung><xbau:nichtGelisteterWert>nicht angegeben</xbau:nichtGelisteterWert>"
+        ));
+
+        // Erfasste Fachrichtung: als Code der Schemaliste, sonst als Freitext.
+        for (text, erwartet) in [
+            (
+                "tragwerksplanung",
+                "<code>1</code></xbau:code></xbau:fachrichtung>",
+            ),
+            (
+                "Wärmeschutz",
+                "<code>6</code></xbau:code></xbau:fachrichtung>",
+            ),
+            (
+                "Vermessung",
+                "<xbau:fachrichtung><xbau:nichtGelisteterWert>Vermessung</xbau:nichtGelisteterWert>",
+            ),
+        ] {
+            let mut v2 = vorhabenangaben();
+            v2.beteiligte.last_mut().unwrap().fachrichtung = text.into();
+            let d = Nachrichtendaten {
+                vorhaben: &v2,
+                ..daten(&projekt, &ba, &buero, &anlagen, &c)
+            };
+            let xml = baugenehmigung_antrag(&d).unwrap();
+            let k: String = xml.lines().map(str::trim).collect();
+            assert!(k.contains(erwartet), "{text}: {xml}");
+            gegen_schema_pruefen(&xml);
+        }
 
         // Ohne Codeliste Erreichbarkeit: Kanal als Zusatz.
         let ohne = test_codelisten();

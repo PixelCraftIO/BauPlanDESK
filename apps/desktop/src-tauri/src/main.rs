@@ -210,6 +210,7 @@ fn main() {
             commands::buero,
             commands::buero_speichern,
             commands::xbau_codelisten,
+            commands::xbau_codeliste_einspielen,
             commands::formular_analysieren,
             commands::pdf_vorschau,
             commands::formular_livevorschau,

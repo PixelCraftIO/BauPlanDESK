@@ -401,10 +401,14 @@ impl std::str::FromStr for Beteiligtenrolle {
 }
 
 /// Zuordnung eines Kunden in einer Rolle, wie sie gespeichert wird.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Beteiligtenzuordnung {
     pub rolle: Beteiligtenrolle,
     pub kunde: KundeId,
+    /// Fachrichtung im Projekt, z. B. „Tragwerksplanung“ (XBau
+    /// `fachrichtung`); leer = nicht angegeben. Fehlt in älteren Aufrufen.
+    #[serde(default)]
+    pub fachrichtung: String,
 }
 
 /// Ein Kunde in seiner Rolle im Projekt.
@@ -412,6 +416,10 @@ pub struct Beteiligtenzuordnung {
 pub struct Projektbeteiligter {
     pub rolle: Beteiligtenrolle,
     pub kunde: Kunde,
+    /// Siehe [`Beteiligtenzuordnung::fachrichtung`]; fehlt in älteren
+    /// eingefrorenen Abgabeständen.
+    #[serde(default)]
+    pub fachrichtung: String,
 }
 
 /// Grundstückseigentümer und Erbbauberechtigte, die nicht zugleich Bauherr
@@ -473,32 +481,44 @@ pub fn antragsbeteiligte(
     bauherren: &[Beteiligter],
     beteiligte: &[Projektbeteiligter],
 ) -> CoreResult<Vec<WeitererBeteiligter>> {
-    let mut liste: Vec<(WeitereRolle, Uuid, Beteiligter)> = Vec::new();
-    let mut aufnehmen = |rolle, b: Beteiligter| {
-        if !liste.iter().any(|(r, id, _)| *r == rolle && *id == b.id()) {
-            liste.push((rolle, b.id(), b));
+    let mut liste: Vec<(WeitereRolle, Uuid, Beteiligter, String)> = Vec::new();
+    let mut aufnehmen = |rolle, b: Beteiligter, fachrichtung: &str| {
+        if !liste
+            .iter()
+            .any(|(r, id, _, _)| *r == rolle && *id == b.id())
+        {
+            liste.push((rolle, b.id(), b, fachrichtung.trim().to_string()));
         }
     };
     for b in beteiligte
         .iter()
         .filter(|b| b.rolle == Beteiligtenrolle::Bevollmaechtigter)
     {
-        aufnehmen(WeitereRolle::Bevollmaechtigter, b.kunde.als_beteiligter());
+        aufnehmen(
+            WeitereRolle::Bevollmaechtigter,
+            b.kunde.als_beteiligter(),
+            &b.fachrichtung,
+        );
     }
     let infos = crate::grundstuecksinformationen::informationen(&projekt.planungsrecht);
     for (f, k) in infos.vorhabeneigentuemer() {
         let b = beteiligte
             .iter()
             .find(|b| b.kunde.id == k)
-            .map(|b| b.kunde.als_beteiligter())
-            .or_else(|| bauherren.iter().find(|b| b.id() == k.0).cloned())
+            .map(|b| (b.kunde.als_beteiligter(), b.fachrichtung.as_str()))
+            .or_else(|| {
+                bauherren
+                    .iter()
+                    .find(|b| b.id() == k.0)
+                    .map(|b| (b.clone(), ""))
+            })
             .ok_or_else(|| {
                 CoreError::InvalidInput(format!(
                     "Eigentümer von Flurstück {} ist weder Bauherr noch Projektbeteiligter. Unter Beteiligte oder Flurstücke die Zuordnung prüfen.",
                     f.bezeichnung()
                 ))
             })?;
-        aufnehmen(WeitereRolle::Grundstueckseigentuemer, b);
+        aufnehmen(WeitereRolle::Grundstueckseigentuemer, b.0, b.1);
     }
     for b in beteiligte {
         let rolle = match b.rolle {
@@ -507,11 +527,17 @@ pub fn antragsbeteiligte(
             Beteiligtenrolle::Fachplaner => WeitereRolle::Fachplaner,
             Beteiligtenrolle::Bevollmaechtigter => continue,
         };
-        aufnehmen(rolle, b.kunde.als_beteiligter());
+        aufnehmen(rolle, b.kunde.als_beteiligter(), &b.fachrichtung);
     }
     Ok(liste
         .into_iter()
-        .map(|(rolle, _, beteiligter)| WeitererBeteiligter { rolle, beteiligter })
+        .map(
+            |(rolle, _, beteiligter, fachrichtung)| WeitererBeteiligter {
+                rolle,
+                beteiligter,
+                fachrichtung,
+            },
+        )
         .collect())
 }
 
@@ -621,14 +647,17 @@ mod tests {
             Projektbeteiligter {
                 rolle: Beteiligtenrolle::Fachplaner,
                 kunde: planer.clone(),
+                fachrichtung: String::new(),
             },
             Projektbeteiligter {
                 rolle: Beteiligtenrolle::Grundstueckseigentuemer,
                 kunde: eigen.clone(),
+                fachrichtung: String::new(),
             },
             Projektbeteiligter {
                 rolle: Beteiligtenrolle::Bevollmaechtigter,
                 kunde: vollmacht.clone(),
+                fachrichtung: String::new(),
             },
         ];
         let bauherren = vec![bauherr.als_beteiligter()];

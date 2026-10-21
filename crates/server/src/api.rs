@@ -766,7 +766,7 @@ async fn buero_speichern(
 }
 
 async fn codelisten(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<Codeliste>> {
-    Ok(Json(core.codelisten.alle().cloned().collect()))
+    Ok(Json(core.codelisten.aktuell().alle().cloned().collect()))
 }
 
 /// Prozentkodierung für `filename*` (RFC 5987).

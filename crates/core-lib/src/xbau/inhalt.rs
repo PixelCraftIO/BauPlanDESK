@@ -32,6 +32,8 @@ pub enum WeitereRolle {
 pub struct WeitererBeteiligter {
     pub rolle: WeitereRolle,
     pub beteiligter: Beteiligter,
+    /// Fachrichtung im Projekt; leer = nicht angegeben.
+    pub fachrichtung: String,
 }
 
 /// Flächen und Maßzahlen nach BauNVO (XBau `FlaechenBauNVO`) eines einzigen
@@ -286,6 +288,35 @@ fn anzeigename(b: &Beteiligter) -> String {
     .to_string()
 }
 
+/// Fachrichtungen von Projektbeteiligten (XBau-Codeliste
+/// `beteiligterfachrichtung`, Version 3.0, im Schema als Aufzählung festgelegt;
+/// ohne „99 keine Fachrichtung“).
+pub const FACHRICHTUNGEN: [(&str, &str); 6] = [
+    ("1", "Tragwerksplanung/Standsicherheit"),
+    ("2", "Schallschutz"),
+    ("3", "Brandschutz"),
+    ("4", "Lüftung"),
+    ("5", "Sicherheit"),
+    ("6", "Wärmeschutz"),
+];
+
+/// Code einer erfassten Fachrichtung: gleich Code, Bezeichnung oder einem
+/// Teil der Bezeichnung („Tragwerksplanung“), ohne Groß-/Kleinschreibung.
+pub fn fachrichtungscode(text: &str) -> Option<&'static str> {
+    let text = text.trim().to_lowercase();
+    if text.is_empty() {
+        return None;
+    }
+    FACHRICHTUNGEN
+        .iter()
+        .find(|(code, name)| {
+            *code == text
+                || name.to_lowercase() == text
+                || name.split('/').any(|t| t.to_lowercase() == text)
+        })
+        .map(|(code, _)| *code)
+}
+
 /// `weitereBeteiligte` (alle außer dem ersten Bevollmächtigten).
 pub(super) fn weitere_beteiligte(
     x: &mut XmlSchreiber,
@@ -330,12 +361,21 @@ pub(super) fn weitere_beteiligte(
             }
         }
         x.zu().auf("xbau:fachrichtung", &[]);
-        match b.rolle {
-            // Die Fachrichtung des Fachplaners ist nicht erfasst.
-            WeitereRolle::Fachplaner => {
+        // Erfasste Fachrichtung: als Code, wenn sie in der Schemaliste steht,
+        // sonst als Freitext.
+        let text = b.fachrichtung.trim();
+        match (fachrichtungscode(text), b.rolle) {
+            (Some(code), _) => {
+                x.auf("xbau:code", &fachrichtungen).text("code", code).zu();
+            }
+            (None, _) if !text.is_empty() => {
+                x.text("xbau:nichtGelisteterWert", text);
+            }
+            // Fachplaner ohne erfasste Fachrichtung.
+            (None, WeitereRolle::Fachplaner) => {
                 x.text("xbau:nichtGelisteterWert", "nicht angegeben");
             }
-            _ => {
+            (None, _) => {
                 x.auf("xbau:code", &fachrichtungen).text("code", "99").zu();
             }
         }

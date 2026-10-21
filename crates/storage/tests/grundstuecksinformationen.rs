@@ -621,10 +621,12 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
                 Beteiligtenzuordnung {
                     rolle: Beteiligtenrolle::Grundstueckseigentuemer,
                     kunde: eigentuemer.id,
+                    fachrichtung: String::new(),
                 },
                 Beteiligtenzuordnung {
                     rolle: Beteiligtenrolle::Fachplaner,
                     kunde: planer.id,
+                    fachrichtung: String::new(),
                 },
             ],
             p.version,
