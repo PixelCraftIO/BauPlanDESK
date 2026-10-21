@@ -1090,6 +1090,8 @@ export interface DokumentVergleich {
   aktuell: DocumentVersion;
   zuletzt_eingereicht: DocumentVersion | null;
   paket_id: string | null;
+  /** Verfahrensakte, wenn der Stand aus einem versendeten Abgabestand oder einer externen Einreichung stammt. */
+  verfahren?: string | null;
   eingereicht_am: string | null;
   status:
     | "neu"

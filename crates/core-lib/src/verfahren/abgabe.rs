@@ -147,6 +147,22 @@ pub fn letztes_versandereignis(b: &Abgabestand) -> Option<&Versandereignis> {
         .max_by_key(|(datum, index, _)| (*datum, *index))
         .map(|(_, _, ereignis)| ereignis)
 }
+/// Datum einer XBau-Anlage (`datum`: Erstellung bzw. letzte Bearbeitung der
+/// Bauvorlage): das Plandatum der Dokumentdaten, wenn sie genau diese Version
+/// beschreiben; sonst der Ablagetag der Version im DMS.
+pub(crate) fn anlagedatum(
+    d: &DocumentVersion,
+    plandaten: &std::collections::HashMap<
+        crate::domain::DocumentId,
+        crate::plattform::objekte::Dokumentdaten,
+    >,
+) -> chrono::NaiveDate {
+    plandaten
+        .get(&d.document_id)
+        .filter(|m| m.dokument.version == d.version)
+        .and_then(|m| m.datum)
+        .unwrap_or_else(|| crate::kalender::datum_deutsch(d.created_at))
+}
 impl CoreServices {
     /// Hinweise, wenn die Landes-Verfahrensart des Bauantrags der Akte widerspricht.
     pub(crate) fn verfahrensart_abgleichen(
@@ -155,6 +171,8 @@ impl CoreServices {
         antrag: &Bauantrag,
         akte: &Verfahrensakte,
     ) -> Vec<String> {
+        use super::abgleich::Landesverfahrensart;
+        let uri = crate::xbau::codeliste::verfahrensart_uri(projekt.bundesland);
         let beschreibung = match self
             .codelisten
             .verfahrensart(projekt.bundesland, &antrag.verfahrensart)
@@ -168,11 +186,33 @@ impl CoreServices {
             // Fehlende oder ungültige Codeliste meldet der Bauantrag selbst.
             Err(_) => return vec![],
         };
-        super::abgleich::verfahrensart_hinweise(
-            &akte.art,
-            akte.pruefverfahren.as_ref(),
-            beschreibung.as_deref(),
-        )
+        let landesart = match &beschreibung {
+            Some(b) => Landesverfahrensart::Gewaehlt(b),
+            None if self.codelisten.liste(&uri).is_none() => Landesverfahrensart::KeineListe(&uri),
+            None => Landesverfahrensart::NichtGewaehlt,
+        };
+        super::abgleich::verfahrensart_hinweise(&akte.art, akte.pruefverfahren.as_ref(), landesart)
+    }
+    /// Dokumentdaten (Plannummer, Index, Plandatum) je Dokument des Projekts.
+    /// Unlesbare Einträge bleiben unberücksichtigt.
+    async fn plandaten(
+        &self,
+        p: ProjectId,
+    ) -> CoreResult<
+        std::collections::HashMap<
+            crate::domain::DocumentId,
+            crate::plattform::objekte::Dokumentdaten,
+        >,
+    > {
+        Ok(self
+            .fachobjekte(p, crate::plattform::ObjektArt::Dokumentdaten)
+            .await?
+            .into_iter()
+            .filter_map(|f| {
+                serde_json::from_value::<crate::plattform::objekte::Dokumentdaten>(f.daten).ok()
+            })
+            .map(|d| (d.dokument.dokument_id, d))
+            .collect())
     }
     pub async fn verfahren_abgabe_festhalten(
         &self,
@@ -395,6 +435,7 @@ impl CoreServices {
         if let Some(art) = xbau_art {
             let namen =
                 crate::xbau::paket::eindeutige_namen(docs.iter().map(|d| d.file_name.as_str()));
+            let plandaten = self.plandaten(p).await?;
             let anlagen = docs
                 .iter()
                 .zip(&namen)
@@ -414,7 +455,7 @@ impl CoreServices {
                             .unwrap_or(&d.file_name)
                             .to_string(),
                         versionsnummer: d.version,
-                        datum: crate::kalender::datum_deutsch(d.created_at),
+                        datum: anlagedatum(d, &plandaten),
                         anlageart: wahl.map(|a| a.anlageart.clone()).unwrap_or_default(),
                         dateiname: name.clone(),
                     }
@@ -666,4 +707,51 @@ fn zip(stand: &Abgabestand, docs: &[DocumentVersion], bytes: &[Bytes]) -> CoreRe
         z.write_all(b).map_err(|e| fehler(e.to_string()))?;
     }
     Ok(z.finish().map_err(|e| fehler(e.to_string()))?.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plattform::objekte::Dokumentdaten;
+
+    #[test]
+    fn anlagedatum_ist_plandatum_der_version() {
+        let d = DocumentVersion {
+            document_id: crate::domain::DocumentId(Uuid::new_v4()),
+            project_id: ProjectId(Uuid::new_v4()),
+            version: 2,
+            file_name: "Grundrisse.pdf".into(),
+            storage_key: String::new(),
+            sha256: ContentHash::of(b"x"),
+            size_bytes: 1,
+            created_by: String::new(),
+            created_at: "2026-10-21T08:00:00Z".parse().unwrap(),
+        };
+        let ablage = chrono::NaiveDate::from_ymd_opt(2026, 10, 21).unwrap();
+        let plan = chrono::NaiveDate::from_ymd_opt(2026, 9, 8).unwrap();
+        let mut m = std::collections::HashMap::new();
+        assert_eq!(anlagedatum(&d, &m), ablage, "ohne Dokumentdaten: Ablagetag");
+        let mut daten = Dokumentdaten {
+            dokument: Dokumentbezug {
+                dokument_id: d.document_id,
+                version: 2,
+            },
+            dokumentart: "Grundriss".into(),
+            plannummer: "A-101".into(),
+            revisionsindex: "a".into(),
+            massstab: "1:100".into(),
+            verfasser: String::new(),
+            datum: Some(plan),
+        };
+        m.insert(d.document_id, daten.clone());
+        assert_eq!(anlagedatum(&d, &m), plan);
+        // Dokumentdaten einer anderen Version gelten nicht für diese.
+        daten.dokument.version = 1;
+        m.insert(d.document_id, daten.clone());
+        assert_eq!(anlagedatum(&d, &m), ablage);
+        daten.dokument.version = 2;
+        daten.datum = None;
+        m.insert(d.document_id, daten);
+        assert_eq!(anlagedatum(&d, &m), ablage);
+    }
 }

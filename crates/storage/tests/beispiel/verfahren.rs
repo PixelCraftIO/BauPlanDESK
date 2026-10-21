@@ -945,13 +945,23 @@ async fn bauantrag(b: &mut Beispiel, anlagen: &[(&DocumentVersion, &str, &str)],
     if bewerten && neu.verfahrensarten.is_none() {
         b.befund("Bauantrag: Für NRW ist keine Codeliste der Verfahrensarten (urn:xoev-de:xbau:nw:codeliste:verfahrensart) geladen; codelisten/ liefert keine Landesliste mit. Das vereinfachte Verfahren (§ 64 BauO NRW) kann daher nicht als xbau:verfahrensart übermittelt werden, und jeder Code wird mit „Codeliste fehlt“ abgelehnt.");
     }
-    if bewerten
-        && neu
-            .hinweise
-            .iter()
-            .any(|h| h.contains("Landes-Verfahrensart im Bauantrag ergänzen"))
-    {
-        b.befund("Bauantrag-Hinweis „Landes-Verfahrensart im Bauantrag ergänzen“ ist ohne geladene NRW-Codeliste nicht befolgbar (verfahren/abgleich.rs verfahrensart_hinweise prüft nicht, ob eine Liste verfügbar ist); der Hinweis bleibt dauerhaft stehen.");
+    // Ohne geladene NRW-Codeliste nur ein informativer Hinweis, keine
+    // unerfüllbare Aufforderung.
+    if bewerten && neu.verfahrensarten.is_none() {
+        assert!(
+            !neu.hinweise
+                .iter()
+                .any(|h| h.contains("Landes-Verfahrensart im Bauantrag ergänzen")),
+            "{:?}",
+            neu.hinweise
+        );
+        assert!(
+            neu.hinweise
+                .iter()
+                .any(|h| h.contains("Zur Information") && h.contains("verfahrensart")),
+            "{:?}",
+            neu.hinweise
+        );
     }
     assert!(neu.flurstuecke_zentral && neu.gebaeude_zentral);
     assert_eq!(neu.antrag.anzahl_gebaeude, 2);
@@ -1548,7 +1558,7 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             }
             Err(e) => b.befund(format!("Portalbereitstellung abgelehnt: {e}")),
         }
-        b.info("Die Portalabgabe kann nicht mit der bereits am 15.09. erfolgten Portaleinreichung (externe Einreichung) verknüpft werden; Portalereignisse dürfen nicht vor dem Festhalten liegen.");
+        b.info("Portalereignisse dürfen nicht vor dem Festhalten liegen; die nachträglich festgehaltene Portalabgabe gilt durch die externe Einreichung vom 15.09. (Portalquittung, gleiche Dateiversionen) als belegt.");
     } else {
         b.befund("Kein Portalprofil für NRW vorhanden.");
     }
@@ -1603,11 +1613,18 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         })
         .filter(|v| v.status == core_lib::einreichung::VergleichsStatus::Neu)
         .count();
-    if neu > 0 {
-        b.befund(format!(
-            "Einreichungsvergleich ({BEHOERDE}): {neu} am 15.09. extern eingereichte Bauvorlagen gelten als „Neu“; einreichungs_vergleich (einreichung/service.rs) wertet nur bestätigte Altpakete aus, nicht die Einreichungen der Verfahrensakte."
-        ));
-    }
+    assert_eq!(
+        neu, 0,
+        "Einreichungsvergleich ({BEHOERDE}): extern eingereichte Bauvorlagen gelten als „Neu“"
+    );
+    assert!(
+        vergleich
+            .iter()
+            .filter(|v| dokumente
+                .iter()
+                .any(|x| x.dokument_id == v.aktuell.document_id))
+            .all(|v| v.verfahren == Some(vid) && v.eingereicht_am == Some(tag("2026-09-15")))
+    );
 
     // 16. Planindex und Fristen/Kalender.
     let plaene = b.c.verfahren_planunterlagen(b.p.id, vid).await.unwrap();
@@ -1618,11 +1635,16 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
                 && dokumente.iter().any(|x| x.dokument_id == u.dokument_id)
         })
         .count();
-    if entwurf > 0 {
-        b.befund(format!(
-            "Planunterlagen: {entwurf} extern eingereichte Bauvorlagen stehen weiter als „Entwurf“ ohne Planindex; planindex::ableiten berücksichtigt nur versendete Abgabestände, keine externe Einreichung (der Verfahrensstatus zählt sie dagegen als eingereicht)."
-        ));
-    }
+    assert_eq!(
+        entwurf, 0,
+        "Planunterlagen: extern eingereichte Bauvorlagen stehen weiter als „Entwurf“"
+    );
+    assert!(
+        plaene
+            .iter()
+            .filter(|u| dokumente.iter().any(|x| x.dokument_id == u.dokument_id))
+            .all(|u| u.planindex.as_deref() == Some("A") && !u.name.is_empty())
+    );
     let termine = b.c.verfahren_termine(b.p.id, stichtag()).await.unwrap();
     for t in &termine {
         b.info(format!("Termin {}: {} ({:?})", t.datum, t.titel, t.art));
@@ -1686,8 +1708,28 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             a.titel, a.status, a.datum, a.dokumente
         ));
     }
-    if !s.empfaenger.iter().any(|e| e.empfaenger.contains(BEHOERDE)) {
-        b.befund("Projektübersicht: Empfängerstand der Bauaufsicht fehlt, obwohl die Bauvorlagen am 15.09. nachweislich (externe Einreichung mit Dokumentversionen) eingereicht wurden; projektuebersicht.rs füllt „empfangene“ nur aus versendeten Abgabeständen.");
+    let empfang = s
+        .empfaenger
+        .iter()
+        .find(|e| e.empfaenger.contains(BEHOERDE))
+        .expect("Empfängerstand der Bauaufsicht aus der externen Einreichung");
+    assert_eq!(empfang.dokumente.len(), dokumente.len());
+    assert!(
+        empfang
+            .dokumente
+            .iter()
+            .all(|d| d.eingereicht_am == tag("2026-09-15"))
+    );
+    // Nachträglich festgehaltener Abgabestand und Portalabgabe sind durch die
+    // externe Einreichung mit Portalquittung belegt.
+    for p in &s.punkte {
+        assert!(
+            !p.hinweis.contains("Versand unbestätigt")
+                && !p.titel.contains("Portalabgabe und Dateistand prüfen"),
+            "{} – {}",
+            p.titel,
+            p.hinweis
+        );
     }
 
     Verfahrensergebnis {
@@ -1770,10 +1812,13 @@ fn xbau_plausibel(b: &mut Beispiel, xml: &str, d: &Dokumente) {
             ));
         }
     }
-    if !enthaelt("<xbau:anzahlVollgeschosse>") && !enthaelt("<xbau:zulaessigeAnzahlVollgeschosse>")
-    {
-        b.befund("XBau-Antrag: anzahlVollgeschosse (Formular: 1) und zulaessigeAnzahlVollgeschosse (B-Plan: II) fehlen. Bei mehreren Gebäuden (Wohnhaus + Garage) erzeugt festsetzungen.rs je Gebäude einen Nachweis „vollgeschosse“; FlaechenBauNvo::aus_pruefung (xbau/inhalt.rs) übernimmt nur einen eindeutigen Nachweis und lässt sonst beide Angaben still weg – ohne Hinweis, während das Formular gebaeude.vollgeschosse = 1 aus der Aufstellung liefert.");
-    }
+    // Wohnhaus (I) + Garage (0): größte Zahl je Gebäude, Festsetzung II.
+    assert!(enthaelt(
+        "<xbau:anzahlVollgeschosse>1</xbau:anzahlVollgeschosse>"
+    ));
+    assert!(enthaelt(
+        "<xbau:zulaessigeAnzahlVollgeschosse>2</xbau:zulaessigeAnzahlVollgeschosse>"
+    ));
     if enthaelt("<code>02</code>\n")
         || xml.contains("beteiligterrolle\" listVersionID=\"2.0\"><code>02</code>")
     {
@@ -1791,13 +1836,8 @@ fn xbau_plausibel(b: &mut Beispiel, xml: &str, d: &Dokumente) {
     if enthaelt("<xbau:nichtGelisteterWert>nicht angegeben</xbau:nichtGelisteterWert>") {
         b.befund("XBau-Antrag: Fachrichtung des Tragwerksplaners wird als „nicht angegeben“ übermittelt; Projektbeteiligte (kunden::Projektbeteiligter) haben kein Feld für die Fachrichtung, obwohl die XBau-Codeliste beteiligterfachrichtung sie vorsieht (xbau/inhalt.rs weitere_beteiligte).");
     }
-    // Planstand: Anlagendatum ist das Ablagedatum im DMS, nicht das Plandatum der Dokumentdaten.
-    let heute = core_lib::kalender::heute().to_string();
-    if enthaelt(&format!("<datum>{heute}</datum>")) && !enthaelt("<datum>2026-09-08</datum>") {
-        b.befund(format!(
-            "XBau-Antrag: Anlagen tragen als <datum> den Ablagetag ({heute}) statt des Plandatums aus den Dokumentdaten (z. B. Grundrisse 08.09.2026, Lageplan 02.09.2026); Plannummer/Index der Dokumentdaten fließen nicht in die Bezeichnung (verfahren/abgabe.rs: datum = datum_deutsch(created_at))."
-        ));
-    }
+    // Anlagendatum: Plandatum der Dokumentdaten (Grundrisse 08.09., Lageplan 02.09.).
+    assert!(enthaelt("<datum>2026-09-08</datum>") && enthaelt("<datum>2026-09-02</datum>"));
     let _ = d;
     eprintln!(
         "--- XBau-Nachricht ---\n{}\n--- Ende XBau ---",

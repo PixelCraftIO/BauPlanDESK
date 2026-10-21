@@ -596,6 +596,13 @@ impl CoreServices {
                 Druckquelle::Baugrundstueck => {
                     b.baugrundstueck.get_or_insert(nr);
                 }
+                Druckquelle::Dokument {
+                    dokument_id,
+                    version,
+                    ..
+                } => {
+                    b.dokumente.entry((*dokument_id, *version)).or_insert(nr);
+                }
                 _ => {}
             }
         }

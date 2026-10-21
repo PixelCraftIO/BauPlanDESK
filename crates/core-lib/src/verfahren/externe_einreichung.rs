@@ -114,6 +114,81 @@ pub fn eingereichte_dokumente(a: &Verfahrensakte, heute: NaiveDate) -> Vec<&Doku
         .chain(gueltige_externe(a, heute).flat_map(|e| &e.dokumente))
         .collect()
 }
+/// Maßgebende externe Einreichung mit Einreichungsbeleg, die alle genannten
+/// Dokumentversionen enthält. Damit ist ein nachträglich (nach der
+/// tatsächlichen Einreichung) festgehaltener Abgabestand bzw. eine Portalabgabe
+/// mit genau diesen Unterlagen belegt: Ein Versandereignis vor dem Festhalten
+/// lässt der Core nicht zu, die Einreichung ist stattdessen als externe
+/// Einreichung erfasst. Ohne Unterlagen gibt es keinen Beleg.
+pub fn extern_belegt<'a>(
+    a: &'a Verfahrensakte,
+    dokumente: &[&Dokumentbezug],
+    heute: NaiveDate,
+) -> Option<&'a ExterneEinreichung> {
+    if dokumente.is_empty() {
+        return None;
+    }
+    gueltige_externe(a, heute)
+        .filter(|e| e.beleg.is_some())
+        .find(|e| dokumente.iter().all(|d| e.dokumente.contains(d)))
+}
+/// Herkunft einer tatsächlichen Einreichung der Akte.
+#[derive(Debug, Clone, Copy)]
+pub enum Einreichungsquelle<'a> {
+    /// Versendeter oder eingegangener Abgabestand.
+    Abgabe(&'a abgabe::Abgabestand),
+    /// Nachgetragene externe Einreichung.
+    Extern(&'a ExterneEinreichung),
+}
+/// Eine tatsächliche Einreichung der Akte bei der Behörde der Akte.
+#[derive(Debug, Clone, Copy)]
+pub struct Einreichungsereignis<'a> {
+    /// Kennung des Abgabestands bzw. der externen Einreichung.
+    pub id: Uuid,
+    /// Maßgebendes Einreichungsdatum (Versandereignis bzw. Einreichungstag).
+    pub datum: NaiveDate,
+    /// Erstellung des Abgabestands bzw. Erfassung der externen Einreichung;
+    /// ordnet Einreichungen desselben Tages.
+    pub erfasst_am: DateTime<Utc>,
+    pub quelle: Einreichungsquelle<'a>,
+}
+impl<'a> Einreichungsereignis<'a> {
+    /// Eingereichte Dokumentversionen.
+    pub fn dokumente(&self) -> Vec<&'a Dokumentbezug> {
+        match self.quelle {
+            Einreichungsquelle::Abgabe(b) => b.dokumente.iter().map(|d| &d.dokument).collect(),
+            Einreichungsquelle::Extern(e) => e.dokumente.iter().collect(),
+        }
+    }
+}
+/// Tatsächliche Einreichungen der Akte bis `heute` in Einreichungsfolge
+/// (Datum, Erfassung, Kennung): versendete Abgabestände (siehe
+/// [`abgabe_eingereicht`]) und maßgebende externe Einreichungen (siehe
+/// [`gueltige_externe`]). Gemeinsame Grundlage für Planindex,
+/// Empfängerstand und Einreichungsvergleich.
+pub fn einreichungsfolge(a: &Verfahrensakte, heute: NaiveDate) -> Vec<Einreichungsereignis<'_>> {
+    let mut v: Vec<_> = a
+        .abgaben
+        .iter()
+        .filter(|b| abgabe_eingereicht(b, heute))
+        .filter_map(|b| {
+            abgabe::letztes_versandereignis(b).map(|e| Einreichungsereignis {
+                id: b.id,
+                datum: e.datum,
+                erfasst_am: b.erstellt_am,
+                quelle: Einreichungsquelle::Abgabe(b),
+            })
+        })
+        .chain(gueltige_externe(a, heute).map(|e| Einreichungsereignis {
+            id: e.id,
+            datum: e.datum,
+            erfasst_am: e.erfasst_am,
+            quelle: Einreichungsquelle::Extern(e),
+        }))
+        .collect();
+    v.sort_by_key(|e| (e.datum, e.erfasst_am, e.id));
+    v
+}
 /// Prüfregeln der externen Einreichungen einer Akte; Dokumentbezüge sammelt
 /// der Aufrufer zur Projektprüfung ein.
 pub(super) fn pruefen(

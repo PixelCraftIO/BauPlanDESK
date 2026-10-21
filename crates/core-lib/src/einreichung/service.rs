@@ -18,7 +18,11 @@ impl CoreServices {
         let chronik = self.einreichungen(projekt).await?;
         let docs = crate::projektablage::versionen(self.list_documents(projekt).await?, false);
         let kategorien = self.kategoriesnapshots(projekt).await?;
-        let mut vergleich = vergleichen(projekt, empfaenger, docs, &chronik);
+        let verfahren = self
+            .verfahrenseinreichungen(projekt, empfaenger, crate::kalender::heute())
+            .await?;
+        let mut vergleich =
+            vergleichen_mit_verfahren(projekt, empfaenger, docs, &chronik, &verfahren);
         for v in &mut vergleich {
             v.kategorie = kategorien
                 .get(&v.aktuell.document_id.0.to_string())
@@ -26,6 +30,75 @@ impl CoreServices {
                 .flatten();
         }
         Ok(vergleich)
+    }
+    /// Tatsächliche Einreichungen der Verfahrensakten bei der Behörde
+    /// `empfaenger` (Name der Behörde, ohne Groß-/Kleinschreibung): versendete
+    /// Abgabestände und externe Einreichungen bis `heute`. Gelöschte oder
+    /// fremde Dokumentversionen bleiben unberücksichtigt.
+    pub(crate) async fn verfahrenseinreichungen(
+        &self,
+        projekt: ProjectId,
+        empfaenger: &str,
+        heute: NaiveDate,
+    ) -> CoreResult<Vec<Verfahrenseinreichung>> {
+        use crate::verfahren::externe_einreichung::{Einreichungsquelle, einreichungsfolge};
+        let mut r = Vec::new();
+        let mut historie: std::collections::HashMap<DocumentId, Vec<DocumentVersion>> =
+            Default::default();
+        for f in self
+            .fachobjekte(projekt, crate::plattform::ObjektArt::Verfahren)
+            .await?
+        {
+            let Ok(a) = serde_json::from_value::<crate::verfahren::Verfahrensakte>(f.daten) else {
+                continue;
+            };
+            if !a
+                .behoerde
+                .name
+                .trim()
+                .eq_ignore_ascii_case(empfaenger.trim())
+            {
+                continue;
+            }
+            let vid = Uuid::parse_str(&f.objekt).unwrap_or_default();
+            for e in einreichungsfolge(&a, heute) {
+                let mut dokumente = Vec::new();
+                for d in e.dokumente() {
+                    if let std::collections::hash_map::Entry::Vacant(e) =
+                        historie.entry(d.dokument_id)
+                    {
+                        e.insert(
+                            self.document_history(d.dokument_id)
+                                .await
+                                .unwrap_or_default(),
+                        );
+                    }
+                    let Some(v) = historie[&d.dokument_id]
+                        .iter()
+                        .find(|v| v.version == d.version && v.project_id == projekt)
+                    else {
+                        continue;
+                    };
+                    let kategorie = match e.quelle {
+                        Einreichungsquelle::Abgabe(b) => b
+                            .dokumente
+                            .iter()
+                            .find(|x| x.dokument == *d)
+                            .map(|x| x.kategorie.clone()),
+                        Einreichungsquelle::Extern(_) => None,
+                    };
+                    dokumente.push((v.clone(), kategorie));
+                }
+                r.push(Verfahrenseinreichung {
+                    verfahren: vid,
+                    id: e.id,
+                    datum: e.datum,
+                    erfasst_am: e.erfasst_am,
+                    dokumente,
+                });
+            }
+        }
+        Ok(r)
     }
     /// Neue Einreichungspakete entstehen nur noch für Testdaten. Einreichen
     /// und Nachreichen laufen über die Abgabestände der Verfahrensakte;
