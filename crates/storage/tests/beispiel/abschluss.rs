@@ -9,11 +9,10 @@ use std::path::Path;
 /// Offene Punkte der Projektübersicht am Stichtag; erwartete Punkte werden
 /// als Information, alle übrigen als Befund gemeldet.
 pub async fn uebersicht(b: &mut Beispiel, erwartet: &[&str]) {
-    let u = b
-        .c
-        .projektuebersicht_am(b.p.id, stichtag(), &b.u)
-        .await
-        .unwrap();
+    let u =
+        b.c.projektuebersicht_am(b.p.id, stichtag(), &b.u)
+            .await
+            .unwrap();
     for p in &u.punkte {
         let text = format!("{} – {}", p.titel, p.hinweis);
         if erwartet.iter().any(|e| text.contains(e)) {
@@ -24,7 +23,10 @@ pub async fn uebersicht(b: &mut Beispiel, erwartet: &[&str]) {
     }
     for n in b.c.nachweise(b.p.id).await.unwrap() {
         if !n.aktuell {
-            b.befund(format!("Nachweis „{}“ ist nicht aktuell", n.stand.bezeichnung));
+            b.befund(format!(
+                "Nachweis „{}“ ist nicht aktuell",
+                n.stand.bezeichnung
+            ));
         }
     }
 }
@@ -38,12 +40,23 @@ pub async fn bauvorlagenpaket(b: &mut Beispiel) -> Vec<u8> {
     let katalog = b.c.druckkatalog(b.p.id).await.unwrap();
     let mut quellen = vec![];
     for e in &katalog.eintraege {
-        let berechnung = matches!(e.quelle, Druckquelle::Nachweis { .. } | Druckquelle::Baugrundstueck | Druckquelle::Raumbuch { .. });
+        let berechnung = matches!(
+            e.quelle,
+            Druckquelle::Nachweis { .. }
+                | Druckquelle::Baugrundstueck
+                | Druckquelle::Raumbuch { .. }
+        );
         if !e.verfuegbar {
             // Nicht druckbare Dateiarten (z. B. DXF) sind erwartet; veraltete Berechnungen nicht.
             match (&e.hinweis, berechnung) {
-                (Some(h), true) => b.befund(format!("Druckkatalog: „{}“ nicht verfügbar: {h}", e.titel)),
-                (h, _) => b.info(format!("Druckkatalog: „{}“ nicht verfügbar: {}", e.titel, h.clone().unwrap_or_default())),
+                (Some(h), true) => {
+                    b.befund(format!("Druckkatalog: „{}“ nicht verfügbar: {h}", e.titel))
+                }
+                (h, _) => b.info(format!(
+                    "Druckkatalog: „{}“ nicht verfügbar: {}",
+                    e.titel,
+                    h.clone().unwrap_or_default()
+                )),
             }
             continue;
         }
@@ -71,7 +84,10 @@ pub async fn bauvorlagenpaket(b: &mut Beispiel) -> Vec<u8> {
     if katalog.aufgestellt_von.is_empty() {
         b.befund("Druckkatalog schlägt keine aufstellende Person vor (Entwurfsverfasserin im Bauantrag/Büro)");
     }
-    let out = b.c.druckausgabe(b.p.id, auftrag).await.unwrap_or_else(|e| panic!("Bauvorlagenpaket: {e}"));
+    let out =
+        b.c.druckausgabe(b.p.id, auftrag)
+            .await
+            .unwrap_or_else(|e| panic!("Bauvorlagenpaket: {e}"));
     b.c.druckpdf_ablegen(
         b.p.id,
         "Bauvorlagen Neubau EFH Mustermann.pdf",
@@ -81,7 +97,11 @@ pub async fn bauvorlagenpaket(b: &mut Beispiel) -> Vec<u8> {
     )
     .await
     .unwrap();
-    b.info(format!("Bauvorlagenpaket: {} Seiten, {} Anlagen", out.seiten, out.positionen.len()));
+    b.info(format!(
+        "Bauvorlagenpaket: {} Seiten, {} Anlagen",
+        out.seiten,
+        out.positionen.len()
+    ));
     out.pdf
 }
 
@@ -129,7 +149,11 @@ pub async fn gegenprobe(archiv: &Path, projektname: &str) {
         .unwrap();
     let (c, db) = profil_oeffnen(&profil).await;
     let ich = c.anmelden("anwender", "Neue Anwenderin").await.unwrap();
-    assert_eq!(ich.rolle, Rolle::Administrator, "Wiederhergestelltes Profil muss bearbeitbar sein");
+    assert_eq!(
+        ich.rolle,
+        Rolle::Administrator,
+        "Wiederhergestelltes Profil muss bearbeitbar sein"
+    );
     let p = c
         .list_projects()
         .await

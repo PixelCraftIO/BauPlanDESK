@@ -250,6 +250,19 @@ Bestehende Pläne behalten ihr eingebettetes Paket. Das NRW-Skript der einfachen
 Tiefenvorprüfung (`lbo-rules/nw.rhai`, Version `2026.2`) rechnet im Kerngebiet
 jetzt mit 0,25 H; ältere Tiefenvorprüfungen werden dadurch als veraltet
 erkannt und bleiben mit ihrem archivierten Skript wiederholbar.
+
+**Version 3 des Rechenkerns (`abstand-projekt-3`, Regeländerung):**
+Eine Abstandsfläche, die die maßgebliche Grenze von innen genau berührt (Restfläche
+jenseits der Grenze höchstens 1 mm² Rechentoleranz), gilt als eingehalten statt
+als Grenzfall; jede messbare Überschreitung bleibt Konflikt. Bei Grenzgaragen und
+anderen Grenzanlagen zählen nur Wände mit Grenzkennung zur Längensumme; Wände
+derselben Anlage ohne Grenzkennung (z. B. die Stirnseite zur Straße) sind als Teil
+der privilegierten Anlage abstandsfrei, werden also weder doppelt gezählt noch
+einzeln als Konflikt geführt. Nachweise mit `abstand-projekt-1` und `-2`
+wiederholt `berechnen_stand` unverändert; sie werden durch den neuen Stand als
+veraltet erkannt und können neu berechnet werden. Vertrag und gespeicherte Pläne
+ändern sich nicht.
+
 Die Planskizzen- und Abwicklungsblätter verwenden WinAnsi-kodierten Text
 (Umlaute statt Umschreibungen).
 

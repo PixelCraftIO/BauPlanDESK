@@ -12,7 +12,10 @@ pub use umriss::{UmrissAbgleich, umrisse_abgleichen, umrisse_einbinden};
 use uuid::Uuid;
 /// Ab Version 2: Höhenprofile, Wandteile und Wandhöhenansatz des Regelpakets.
 /// Pläne ohne diese Angaben rechnen wie Version 1.
-pub const RECHENSTAND: &str = "abstand-projekt-2";
+/// 3: Abstandsfläche, die die maßgebliche Grenze von innen nur berührt, ist
+/// eingehalten; Grenzanlagen zählen nur ihre Wandlängen an der Grenze, übrige
+/// Wände derselben Anlage haben keine eigene Abstandsfläche.
+pub const RECHENSTAND: &str = "abstand-projekt-3";
 /// Ältere Rechenstände, die der aktuelle Kern für Altpläne unverändert reproduziert.
 pub const RECHENSTAENDE_KOMPATIBEL: &[&str] = &["abstand-projekt-1"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -742,9 +745,10 @@ pub fn berechnen(plan: &AbstandsPlan) -> CoreResult<AbstandsErgebnis> {
 /// den Endwerten, Texte und Felder von Version 1).
 pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsErgebnis> {
     plan.validate()?;
-    let v1 = match stand {
-        RECHENSTAND => false,
-        "abstand-projekt-1" => true,
+    let (v1, v3) = match stand {
+        RECHENSTAND => (false, true),
+        "abstand-projekt-2" => (false, false),
+        "abstand-projekt-1" => (true, false),
         _ => return Err(err("Unbekannter Rechenstand der Abstandsberechnung")),
     };
     let ansatz = plan.regeln.wandhoehe.unwrap_or_default();
@@ -1033,8 +1037,21 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                                 a.fall,
                                 Wandfall::Garage | Wandfall::Carport | Wandfall::Nebengebaeude
                             )
+                            // Ab Rechenstand 3 zählen nur Wände an der Grenze.
+                            && (!v3 || !a.grenzkennung.trim().is_empty())
                     })
                     .collect::<Vec<_>>();
+                // Ab Rechenstand 3: Wand derselben Anlage, die selbst nicht an der
+                // Grenze steht, wenn die Anlage mit einer Wand an der Grenze steht.
+                let gleiche_anlage = |a: &&AbstandsWand| match (a.gebaeude_id, w.gebaeude_id) {
+                    (Some(x), Some(y)) => x == y,
+                    _ => !w.gebaeude.trim().is_empty() && a.gebaeude.trim() == w.gebaeude.trim(),
+                };
+                let teil_der_anlage = v3
+                    && w.grenzkennung.trim().is_empty()
+                    && anlagen.iter().any(|a| {
+                        a.id != w.id && a.fall == w.fall && a.nutzung_geprueft && gleiche_anlage(a)
+                    });
                 let sum = |grenze: bool| {
                     anlagen
                         .iter()
@@ -1044,14 +1061,18 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
                 };
                 if r.typen.iter().any(|s| s == typ)
                     && w.nutzung_geprueft
-                    && !w.grenzkennung.trim().is_empty()
+                    && (!w.grenzkennung.trim().is_empty() || teil_der_anlage)
                     && e.h_m.is_some_and(|h| h <= r.hoehe_m)
                     && sum(true) <= r.laenge_je_grenze_m
                     && sum(false) <= r.laenge_gesamt_m
                 {
                     e.tiefe_m = Some(0.);
                     verlauf = vec![(0., 0.), (laenge, 0.)];
-                    e.herleitung.push(format!("Grenzanlage: Höhe ≤ {}, Grenzlänge {} ≤ {}, Gesamtlänge {} ≤ {}; Nutzung/Bedingungen bestätigt; {}",r.hoehe_m,sum(true),r.laenge_je_grenze_m,sum(false),r.laenge_gesamt_m,r.quelle));
+                    if teil_der_anlage {
+                        e.herleitung.push(format!("Wand einer Grenzanlage, die an der Grenze steht: ohne eigene Abstandsfläche; Höhe ≤ {}, Grenzlänge gesamt {} ≤ {}; {}", hoehen::zahl(r.hoehe_m), hoehen::zahl(sum(false)), hoehen::zahl(r.laenge_gesamt_m), r.quelle));
+                    } else {
+                        e.herleitung.push(format!("Grenzanlage: Höhe ≤ {}, Grenzlänge {} ≤ {}, Gesamtlänge {} ≤ {}; Nutzung/Bedingungen bestätigt; {}",r.hoehe_m,sum(true),r.laenge_je_grenze_m,sum(false),r.laenge_gesamt_m,r.quelle));
+                    }
                 } else {
                     e.offen.push("Grenzanlagenprivileg nicht vollständig belegt oder Höchstmaße/Summen überschritten; Regelabstand bleibt angesetzt".into());
                 }
@@ -1083,7 +1104,7 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
             }
         }
         if !verlauf.is_empty() && laenge >= 0.001 {
-            geometrie::wand(plan, w, &mut e, &verlauf)?;
+            geometrie::wand(plan, w, &mut e, &verlauf, v3)?;
         }
         if !e.offen.is_empty() {
             e.status = AbstandsStatus::Offen;
