@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from "@tauri-apps/plugin-dialog";
   import {
     api,
     fehlertext,
@@ -9,18 +10,24 @@
   let {
     zuletzt,
     darfAnlegen,
+    darfLoeschen,
     onneu,
     onoeffnen,
+    ongeloescht,
   }: {
     zuletzt: ZuletztEintrag[];
     darfAnlegen: boolean;
+    darfLoeschen: boolean;
     onneu: () => void;
     onoeffnen: (id: string) => void;
+    ongeloescht: (id: string) => void;
   } = $props();
   let projekte = $state<Project[]>([]),
     suche = $state(""),
     fehler = $state<string | null>(null),
-    laedt = $state(false);
+    hinweis = $state<string | null>(null),
+    laedt = $state(false),
+    loescht = $state<string | null>(null);
   let sortierung = $state<"name" | "updated_at">("updated_at");
   const liste = $derived(
     projekte
@@ -44,6 +51,36 @@
       fehler = fehlertext(e);
     } finally {
       laedt = false;
+    }
+  }
+  async function loeschen(p: Project) {
+    if (
+      !(await ask(
+        `„${p.name}“ endgültig löschen?
+
+Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten und Einreichungen wird entfernt. Das lässt sich nicht rückgängig machen. Der Löschvermerk bleibt im Protokoll; lesbare Projektordner auf dem Datenträger bleiben unverändert.`,
+        {
+          title: "Projekt löschen",
+          kind: "warning",
+          okLabel: "Endgültig löschen",
+          cancelLabel: "Abbrechen",
+        },
+      ))
+    )
+      return;
+    loescht = p.id;
+    fehler = null;
+    hinweis = null;
+    try {
+      const ergebnis = await api.projektLoeschen(p.id, p.version);
+      if (ergebnis.dateien_verblieben.length)
+        hinweis = `„${p.name}“ wurde gelöscht. ${ergebnis.dateien_verblieben.length} Datei(en) konnten nicht aus der Ablage entfernt werden: ${ergebnis.dateien_verblieben.join(", ")}`;
+      ongeloescht(p.id);
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      loescht = null;
+      await laden();
     }
   }
   $effect(() => {
@@ -77,6 +114,7 @@
   ><span class="meta">{liste.length} Projekte</span>
 </div>
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
+{#if hinweis}<p class="meta" role="status">{hinweis}</p>{/if}
 <div class="tabellen-scroll">
   <table class="projekttabelle">
     <thead
@@ -104,7 +142,14 @@
           ><td>{new Date(p.updated_at).toLocaleDateString("de-DE")}</td><td
             ><button class="sekundaer" onclick={() => onoeffnen(p.id)}
               >Öffnen</button
-            ></td
+            >{#if darfLoeschen}
+              <button
+                class="sekundaer"
+                aria-label={`${p.name} löschen`}
+                disabled={loescht !== null}
+                onclick={() => loeschen(p)}
+                >{loescht === p.id ? "Löscht …" : "Löschen"}</button
+              >{/if}</td
           ></tr
         >{:else}<tr
           ><td colspan="5"

@@ -160,6 +160,7 @@ export const AKTIONEN: Record<string, string> = {
   projekt_angelegt: "Projekt angelegt",
   ausgabeauftrag_geaendert: "Ordnerausgabe aktualisiert",
   projekt_geaendert: "Projektdaten geändert",
+  projekt_geloescht: "Projekt gelöscht",
   dokument_abgelegt: "Dokument abgelegt",
   dokument_gesperrt: "Dokument gesperrt",
   dokument_entsperrt: "Sperre aufgehoben",
@@ -190,6 +191,13 @@ export const AKTIONEN: Record<string, string> = {
   verfahren_ausfuehrung: "Bauausführung erfasst",
   verfahren_berichtigt: "Verfahrensangabe berichtigt",
 };
+
+/** Ergebnis von `projekt_loeschen` (core_lib::service::Projektloeschung). */
+export interface Projektloeschung {
+  dateien_geloescht: number;
+  /** Ablagedateien, die nicht entfernt werden konnten. */
+  dateien_verblieben: string[];
+}
 
 // --- XBau ------------------------------------------------------------------
 
@@ -1324,6 +1332,9 @@ export const api = {
   projektAnlegen: (projekt: Projektwerte) =>
     invoke<Project>("projekt_anlegen", { projekt }),
   projektOeffnen: (id: string) => invoke<Project>("projekt_laden", { id }),
+  /** Löscht das Projekt endgültig; Prüfung von Rechten und Sperren im Core. */
+  projektLoeschen: (id: string, version: number) =>
+    invoke<Projektloeschung>("projekt_loeschen", { id, version }),
   /** Eigenes wirksames Projektrecht nach der Core-Regel (zugriff.rs). */
   projektRecht: (id: string) => invoke<ProjektRecht>("projekt_recht", { id }),
   projektAktivieren: (id: string) => invoke<Project>("projekt_oeffnen", { id }),

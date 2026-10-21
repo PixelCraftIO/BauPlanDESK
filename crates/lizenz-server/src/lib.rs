@@ -1,4 +1,4 @@
-//! Lizenzserver von BauProjektIO (läuft beim Hersteller, z. B. auf Coolify).
+//! Lizenzserver von BauPlanIO (läuft beim Hersteller, z. B. auf Coolify).
 //!
 //! | Route                                   | Wer              | Zweck |
 //! |-----------------------------------------|------------------|-------|
@@ -267,7 +267,7 @@ async fn kauf_erfolg(
         Html(format!(
             "<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\">\
              <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">{kopf}\
-             <title>BauProjektIO – Lizenz</title>\
+             <title>BauPlanIO – Lizenz</title>\
              <style>body{{font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;line-height:1.5}}\
              code{{font-size:1.3rem;padding:.4rem .6rem;background:#eee;border-radius:4px;user-select:all}}</style>\
              </head><body>{inhalt}</body></html>"
@@ -278,7 +278,7 @@ async fn kauf_erfolg(
             "",
             format!(
                 "<h1>Vielen Dank!</h1><p>Ihr Lizenzschlüssel für {}:</p><p><code>{}</code></p>\
-                 <p>In BauProjektIO unter <em>Hilfe → Lizenz …</em> eingeben (als Administrator). \
+                 <p>In BauPlanIO unter <em>Hilfe → Lizenz …</em> eingeben (als Administrator). \
                  Alle Rechner an derselben Datenbank werden danach automatisch freigeschaltet, \
                  bis zu {} Arbeitsplätze.</p><p>Bitte bewahren Sie den Schlüssel auf.</p>",
                 html(&l.lizenznehmer),
@@ -386,7 +386,7 @@ async fn admin_aktivierung_loeschen(
 
 // --- Updates ------------------------------------------------------------------
 
-/// Nur einfache relative Pfade: `latest.json`, `0.2.0/BauProjektIO_0.2.0_x64-setup.exe`.
+/// Nur einfache relative Pfade: `latest.json`, `0.2.0/BauPlanIO_0.2.0_x64-setup.exe`.
 fn update_pfad(basis: &FsPath, pfad: &str) -> Option<PathBuf> {
     let teile: Vec<&str> = pfad.split('/').collect();
     let erlaubt = |t: &&str| {
@@ -456,8 +456,8 @@ mod tests {
             b.join("latest.json")
         );
         assert_eq!(
-            update_pfad(b, "0.2.0/BauProjektIO_0.2.0_x64-setup.exe").unwrap(),
-            b.join("0.2.0/BauProjektIO_0.2.0_x64-setup.exe")
+            update_pfad(b, "0.2.0/BauPlanIO_0.2.0_x64-setup.exe").unwrap(),
+            b.join("0.2.0/BauPlanIO_0.2.0_x64-setup.exe")
         );
         for boese in [
             "../etc/passwd",

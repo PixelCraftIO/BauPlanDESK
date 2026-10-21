@@ -50,7 +50,7 @@ impl HttpLizenzdienst {
             // (höchstens einmal am Tag), ohne Internet scheitert sie sofort.
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
-            .user_agent(concat!("BauProjektIO/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("BauPlanIO/", env!("CARGO_PKG_VERSION")))
             .build()?;
         Ok(Self { client, url })
     }

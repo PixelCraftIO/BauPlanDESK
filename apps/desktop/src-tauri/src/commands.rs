@@ -16,7 +16,7 @@ use core_lib::formular::Feldwert;
 use core_lib::kunden::{Beteiligtenzuordnung, Kunde, KundeId, Kundendaten, Projektbeteiligter};
 use core_lib::lbo::{AbstandsflaecheErgebnis, AbstandsflaecheInput, Berechnung, RulePackInfo};
 use core_lib::license::Lizenzstatus;
-use core_lib::service::{CadPlan, FormularAnalyse};
+use core_lib::service::{CadPlan, FormularAnalyse, Projektloeschung};
 use core_lib::xbau::{Bauantrag, Buero, Codeliste, GespeicherterBauantrag};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -153,6 +153,24 @@ pub async fn projekt_aktualisieren(
         .await?)
 }
 
+/// Löscht ein Projekt endgültig (Prüfung im Core) und entfernt es aus
+/// „Zuletzt geöffnet“.
+#[tauri::command]
+pub async fn projekt_loeschen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    menu: State<'_, MenuState>,
+    id: ProjectId,
+    version: i64,
+) -> CmdResult<Projektloeschung> {
+    let ergebnis = state
+        .core
+        .delete_project(id, version, &state.benutzer())
+        .await?;
+    menu.vergiss_projekt(&app, &id.to_string());
+    Ok(ergebnis)
+}
+
 /// Liest eine Projektakte ohne den aktiven Fenster-/Menükontext zu ändern.
 #[tauri::command]
 pub async fn projekt_laden(state: State<'_, AppState>, id: ProjectId) -> CmdResult<Project> {
@@ -239,8 +257,8 @@ pub async fn zuletzt_geoeffnet(
 
 fn set_titel(app: &AppHandle, projekt: Option<&str>) {
     let titel = match projekt {
-        Some(name) => format!("{name} – BauProjektIO"),
-        None => "BauProjektIO".to_owned(),
+        Some(name) => format!("{name} – BauPlanIO"),
+        None => "BauPlanIO".to_owned(),
     };
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&titel);

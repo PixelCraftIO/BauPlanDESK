@@ -452,6 +452,8 @@ pub enum Aktion {
     ProjektAngelegt,
     AusgabeauftragGeaendert,
     ProjektGeaendert,
+    /// Projekt mit Akte und Dateien entfernt; der Eintrag bleibt im Protokoll.
+    ProjektGeloescht,
     DokumentAbgelegt,
     DokumentKategorieGeaendert,
     DokumentGesperrt,
@@ -490,10 +492,11 @@ pub enum Aktion {
 }
 
 impl Aktion {
-    const ALLE: [Aktion; 33] = [
+    const ALLE: [Aktion; 34] = [
         Self::ProjektAngelegt,
         Self::AusgabeauftragGeaendert,
         Self::ProjektGeaendert,
+        Self::ProjektGeloescht,
         Self::DokumentAbgelegt,
         Self::DokumentKategorieGeaendert,
         Self::DokumentGesperrt,
@@ -531,6 +534,7 @@ impl Aktion {
             Self::AusgabeauftragGeaendert => "ausgabeauftrag_geaendert",
             Self::ProjektAngelegt => "projekt_angelegt",
             Self::ProjektGeaendert => "projekt_geaendert",
+            Self::ProjektGeloescht => "projekt_geloescht",
             Self::DokumentKategorieGeaendert => "dokument_kategorie_geaendert",
             Self::DokumentAbgelegt => "dokument_abgelegt",
             Self::DokumentGesperrt => "dokument_gesperrt",

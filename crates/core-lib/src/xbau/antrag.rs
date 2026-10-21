@@ -332,7 +332,7 @@ pub(super) fn wurzel_auf(x: &mut XmlSchreiber, wurzel: &'static str, kern: bool)
             &[
                 ("xmlns:k", super::austausch::KERN),
                 ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
-                ("produkt", "BauProjektIO"),
+                ("produkt", "BauPlanIO"),
                 ("produkthersteller", "PixelCraft"),
                 ("produktversion", env!("CARGO_PKG_VERSION")),
                 ("standard", "XBau-Kernmodul"),
@@ -345,7 +345,7 @@ pub(super) fn wurzel_auf(x: &mut XmlSchreiber, wurzel: &'static str, kern: bool)
             &[
                 ("xmlns:xbau", NAMENSRAUM),
                 ("xmlns:bn", "http://xoev.de/schemata/basisnachricht/g2g/1_1"),
-                ("produkt", "BauProjektIO"),
+                ("produkt", "BauPlanIO"),
                 ("produkthersteller", "PixelCraft"),
                 ("produktversion", env!("CARGO_PKG_VERSION")),
                 ("standard", "XBau-Hochbau"),

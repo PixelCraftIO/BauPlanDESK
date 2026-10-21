@@ -1,6 +1,6 @@
 [package]
 name = "lizenz-werkzeug"
-description = "Hersteller-Werkzeug: Schlüsselpaar erzeugen und Lizenzdateien für BauProjektIO ausstellen."
+description = "Hersteller-Werkzeug: Schlüsselpaar erzeugen und Lizenzdateien für BauPlanIO ausstellen."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,4 +1,4 @@
-# BauProjektIO
+# BauPlanIO
 
 Projektmanagement- und Bauantrags-Software für Architekten: Berechnungen nach
 BauGB/BauNVO und Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
@@ -273,8 +273,17 @@ Desktop-App und Server gleich.
   Datenbank-Zugangsdaten aus der `config.json` direkt verwendet.
 - **Rollen** (aufsteigend): *Lesen* (ansehen, rechnen), *Bearbeitung*
   (Projektdaten ändern, Dokumente ablegen und sperren), *Projektleitung*
-  (Projekte anlegen, Sperren anderer aufheben), *Administrator* (Benutzer
-  verwalten). Der letzte aktive Administrator kann sich nicht herabstufen.
+  (Projekte anlegen und löschen, Sperren anderer aufheben), *Administrator*
+  (Benutzer verwalten). Der letzte aktive Administrator kann sich nicht herabstufen.
+- **Projekte löschen** (*Projektverzeichnis → Löschen*, Desktop-Befehl
+  `projekt_loeschen`, Server `DELETE /api/projekte/{id}?version=…`): verlangt die
+  Rolle *Projektleitung* und das Projektrecht *Leitung*. Entfernt die Projektakte
+  mit Dokumenten und Versionen, Fachständen, Verfahrensdaten und Einreichungen
+  sowie alle Ablagedateien unter `projekte/{id}/`. Solange andere Benutzer
+  Dokumente des Projekts gesperrt haben, wird abgelehnt; eine veraltete
+  Projektversion führt wie beim Ändern zum Konflikt. Der Löschvermerk bleibt im
+  Protokoll; lesbare Projektordner auf dem Datenträger bleiben unverändert.
+  Nicht entfernbare Ablagedateien werden gemeldet.
 - **Versionen**: Jedes Ablegen erzeugt eine neue Version, alte bleiben
   erhalten. In der *Historie* lassen sich ältere Versionen exportieren oder als
   neue Version wiederherstellen.
@@ -297,7 +306,7 @@ nicht erzeugen. Ein Administrator spielt die Datei unter *Hilfe → Lizenz …*
 ein. Sie liegt danach in der Datenbank und gilt für alle Arbeitsplätze, die
 diese Datenbank nutzen.
 
-- **Testversion:** Ohne Lizenz läuft BauProjektIO 30 Tage mit bis zu 3
+- **Testversion:** Ohne Lizenz läuft BauPlanIO 30 Tage mit bis zu 3
   Arbeitsplätzen.
 - **Arbeitsplätze:** Jeder Rechner belegt beim Start einen Platz und meldet
   sich alle 5 Minuten. Beim Beenden wird der Platz frei, nach einem Absturz

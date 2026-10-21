@@ -719,10 +719,7 @@ async fn mitgliedschaft_aus_neuerer_version_sperrt_aeltere_arbeitsplaetze_nicht_
         )
         .await
         .unwrap_err();
-    assert!(
-        e.to_string().contains("neueren BauProjektIO-Version"),
-        "{e}"
-    );
+    assert!(e.to_string().contains("neueren BauPlanIO-Version"), "{e}");
     // Unbekanntes Recht gewährt nichts, die Projektliste bleibt benutzbar.
     core.repos
         .commit
@@ -741,10 +738,7 @@ async fn mitgliedschaft_aus_neuerer_version_sperrt_aeltere_arbeitsplaetze_nicht_
         .await
         .unwrap_err();
     assert!(matches!(e, core_lib::CoreError::Forbidden(_)), "{e}");
-    assert!(
-        e.to_string().contains("neueren BauProjektIO-Version"),
-        "{e}"
-    );
+    assert!(e.to_string().contains("neueren BauPlanIO-Version"), "{e}");
     assert!(
         core.projekte_fuer_benutzer(&leser)
             .await

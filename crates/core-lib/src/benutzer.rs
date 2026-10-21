@@ -96,6 +96,7 @@ impl std::str::FromStr for Rolle {
 pub enum Recht {
     ProjektAnlegen,
     ProjektBearbeiten,
+    ProjektLoeschen,
     DokumentAblegen,
     DokumentSperren,
     FremdeSperreAufheben,
@@ -114,6 +115,7 @@ impl Recht {
             | Self::DokumentSperren
             | Self::KundenBearbeiten => Rolle::Bearbeitung,
             Self::ProjektAnlegen
+            | Self::ProjektLoeschen
             | Self::FremdeSperreAufheben
             | Self::BueroangabenAendern
             | Self::KundenLoeschen => Rolle::Projektleitung,
@@ -125,6 +127,7 @@ impl Recht {
         match self {
             Self::ProjektAnlegen => "Projekte anlegen",
             Self::ProjektBearbeiten => "Projektdaten ändern",
+            Self::ProjektLoeschen => "Projekte löschen",
             Self::DokumentAblegen => "Dokumente ablegen",
             Self::DokumentSperren => "Dokumente sperren",
             Self::FremdeSperreAufheben => "Sperren anderer aufheben",

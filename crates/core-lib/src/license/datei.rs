@@ -106,14 +106,14 @@ pub(super) fn signatur_pruefen(
         Dateiart::Ticket => "Lizenzbestätigung",
     };
     let datei: Lizenzdatei = serde_json::from_slice(inhalt)
-        .map_err(|_| fehler(&format!("Die Datei ist keine BauProjektIO-{name}.")))?;
+        .map_err(|_| fehler(&format!("Die Datei ist keine BauPlanIO-{name}.")))?;
     if datei.format != FORMAT {
         return Err(fehler(&format!(
-            "Die {name} hat ein neueres Format. Bitte aktualisieren Sie BauProjektIO."
+            "Die {name} hat ein neueres Format. Bitte aktualisieren Sie BauPlanIO."
         )));
     }
     if datei.art != art {
-        return Err(fehler(&format!("Die Datei ist keine BauProjektIO-{name}.")));
+        return Err(fehler(&format!("Die Datei ist keine BauPlanIO-{name}.")));
     }
     let beschaedigt = || fehler(&format!("Die {name} ist beschädigt."));
     let daten = B64.decode(&datei.daten).map_err(|_| beschaedigt())?;

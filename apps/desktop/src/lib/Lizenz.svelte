@@ -33,7 +33,7 @@
     const pfad = await open({
       title: "Lizenzdatei einspielen",
       filters: [
-        { name: "BauProjektIO-Lizenz", extensions: ["bplizenz"] },
+        { name: "BauPlanIO-Lizenz", extensions: ["bplizenz"] },
         { name: "Alle Dateien", extensions: ["*"] },
       ],
     });
@@ -111,7 +111,7 @@
     <dt>Zuletzt bestätigt</dt><dd>{status.abo.bestaetigt_um ? zeit(status.abo.bestaetigt_um) : "noch nie (dieser Rechner)"}</dd>
     <dt>Ohne Internet bis</dt><dd>{status.abo.offline_gueltig_bis ? zeit(status.abo.offline_gueltig_bis) : "–"}</dd>
   </dl>
-  <p class="meta">BauProjektIO bestätigt die Lizenz automatisch im Hintergrund, sobald eine Internetverbindung besteht.</p>
+  <p class="meta">BauPlanIO bestätigt die Lizenz automatisch im Hintergrund, sobald eine Internetverbindung besteht.</p>
   <div class="knoepfe links">
     <button class="sekundaer" onclick={() => ausfuehren(api.lizenzBestaetigen, "Die Lizenz wurde bestätigt.")} disabled={laeuft}>Jetzt bestätigen</button>
     {#if istAdmin && status.abo.bestaetigt_um}
@@ -131,7 +131,7 @@
     <li class="meta">Keiner</li>
   {/each}
 </ul>
-<p class="meta">Ein Arbeitsplatz wird beim Beenden von BauProjektIO frei, nach einem Absturz spätestens nach 15 Minuten.</p>
+<p class="meta">Ein Arbeitsplatz wird beim Beenden von BauPlanIO frei, nach einem Absturz spätestens nach 15 Minuten.</p>
 
 {#if istAdmin}
   <form class="knoepfe links" onsubmit={aktivieren}>

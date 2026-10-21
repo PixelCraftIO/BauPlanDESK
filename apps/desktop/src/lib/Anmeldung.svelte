@@ -38,7 +38,7 @@
 
 <main class="anmeldeseite">
   <section class="anmeldekarte" aria-labelledby="anmeldung-titel">
-    <h1 id="anmeldung-titel">BauProjektIO</h1>
+    <h1 id="anmeldung-titel">BauPlanIO</h1>
     {#if status.kennwort_aendern}
       <h2>Eigenes Kennwort festlegen</h2>
       <p class="meta">

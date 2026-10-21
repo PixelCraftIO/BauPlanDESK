@@ -165,6 +165,7 @@ fn main() {
             commands::projekte_auflisten,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
+            commands::projekt_loeschen,
             commands::projekt_bereich_speichern,
             commands::grundstueckskontext,
             commands::projekt_oeffnen,
@@ -258,7 +259,7 @@ fn main() {
             updater::update_installieren,
         ])
         .build(tauri::generate_context!())
-        .expect("BauProjektIO konnte nicht gestartet werden")
+        .expect("BauPlanIO konnte nicht gestartet werden")
         .run(|app, event| {
             // Arbeitsplatz sofort freigeben, damit ein Kollege ihn nutzen kann.
             if let RunEvent::Exit = event

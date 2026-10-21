@@ -48,6 +48,14 @@ pub struct CoreServices {
 const BUERO: &str = "xbau.buero";
 
 /// Ein CAD-Plan aus dem DMS.
+/// Ergebnis von [`CoreServices::delete_project`]. Das Projekt ist gelöscht;
+/// `dateien_verblieben` nennt Ablagedateien, die nicht entfernt werden konnten.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct Projektloeschung {
+    pub dateien_geloescht: usize,
+    pub dateien_verblieben: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CadPlan {
     pub dokument: DocumentVersion,
@@ -478,6 +486,80 @@ impl CoreServices {
             .commit
             .projekt(p, Some(update.expected_version), audit)
             .await
+    }
+
+    /// Löscht ein Projekt endgültig: Projektdaten, Fachstände, Dokumenthistorie
+    /// und Einreichungen (Datenbank, kaskadierend) sowie alle Dateien unter
+    /// `projekte/{id}/`. Das Protokoll hat keinen Fremdschlüssel und behält
+    /// den Löschvermerk. Lesbare Projektordner sind eine Ausgabe außerhalb des
+    /// DMS und bleiben unberührt.
+    ///
+    /// Verlangt Projektleitung (Rolle und Projektrecht). Dokumente, die andere
+    /// Benutzer gesperrt haben, verhindern das Löschen. Dateien, die nach dem
+    /// Löschen der Datenbankeinträge nicht entfernt werden konnten, werden im
+    /// Ergebnis benannt statt verschwiegen.
+    pub async fn delete_project(
+        &self,
+        id: ProjectId,
+        expected_version: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<Projektloeschung> {
+        self.pruefe(wer, Recht::ProjektLoeschen).await?;
+        self.projekt_zugriff(id, wer, crate::zugriff::ProjektRecht::Leitung)
+            .await?;
+        let p = self.repos.projects.get(id).await?;
+        let fremde: Vec<_> = self
+            .repos
+            .documents
+            .locks_for_project(id)
+            .await?
+            .into_iter()
+            .filter(|l| l.benutzer_id != wer.id)
+            .map(|l| l.benutzer_name)
+            .collect();
+        if !fremde.is_empty() {
+            return Err(CoreError::InvalidInput(format!(
+                "„{}“ kann nicht gelöscht werden, solange Dokumente gesperrt sind (gesperrt von {}).",
+                p.name,
+                fremde.join(", ")
+            )));
+        }
+        self.repos.projects.delete(id, expected_version).await?;
+
+        let ordner = format!("projekte/{id}/");
+        let prefix = StorageKey::new(format!("projekte/{id}"))?;
+        let mut ergebnis = Projektloeschung::default();
+        match self.storage.list(Some(&prefix)).await {
+            Ok(objekte) => {
+                for o in objekte
+                    .into_iter()
+                    .filter(|o| o.key.as_str().starts_with(&ordner))
+                {
+                    match self.storage.delete(&o.key).await {
+                        Ok(()) => ergebnis.dateien_geloescht += 1,
+                        Err(e) => {
+                            tracing::warn!(datei = %o.key, fehler = %e, "Projektdatei nicht gelöscht");
+                            ergebnis.dateien_verblieben.push(o.key.to_string());
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(projekt = %id, fehler = %e, "Projektdateien nicht aufgelistet");
+                ergebnis.dateien_verblieben.push(ordner);
+            }
+        }
+        let mut details = format!(
+            "{} ({} Dateien entfernt",
+            p.name, ergebnis.dateien_geloescht
+        );
+        if !ergebnis.dateien_verblieben.is_empty() {
+            details += &format!(", {} nicht entfernt", ergebnis.dateien_verblieben.len());
+        }
+        details.push(')');
+        self.protokollieren(wer, Aktion::ProjektGeloescht, Some(id), None, details)
+            .await?;
+        Ok(ergebnis)
     }
 
     /// Protokoll eines Projekts, neueste Einträge zuerst.

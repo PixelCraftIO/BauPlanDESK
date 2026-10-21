@@ -1,4 +1,4 @@
-# BauProjektIO: Analyse und Entwicklungsstrategie
+# BauPlanIO: Analyse und Entwicklungsstrategie
 
 Stand: 14. Oktober 2026. Analysierter Anwendungsstand: **`31a1957`** auf
 `codex/klare-projektstruktur`. Der beim Prüfen abgerufene Main steht auf
@@ -7,7 +7,7 @@ enthalten. Die fachliche Bewertung bezieht sich auf den neueren Arbeitsstand. De
 Analysebranch enthält ausschließlich Dokumentation und Belege; er übernimmt die
 UI-Änderungen nicht.
 
-**Empfehlung:** BauProjektIO zu einer modularen Fachplattform für Planung und
+**Empfehlung:** BauPlanIO zu einer modularen Fachplattform für Planung und
 Genehmigung entwickeln. Die vorhandene Rust-Basis eignet sich dafür. Als Nächstes
 sollten die Herkunft und Aktualität fachlicher Daten sowie die Übergaben zwischen
 Modulen abgesichert werden. Anschließend folgen Büro-Zusammenarbeit und gezielte

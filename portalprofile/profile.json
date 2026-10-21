@@ -2,7 +2,7 @@
   {
     "id": "allgemein-manuell", "version": "1", "titel": "Allgemeine Portalunterstützung",
     "bundesland": null, "verfahren": [], "freigabe": "allgemein",
-    "quelle": "BauProjektIO: allgemeine Dateibereitstellung, kein amtliches Annahmeprofil", "stand": "2026-10-16",
+    "quelle": "BauPlanIO: allgemeine Dateibereitstellung, kein amtliches Annahmeprofil", "stand": "2026-10-16",
     "portal_url": null, "max_datei_bytes": null, "max_gesamt_bytes": null,
     "erlaubte_endungen": [], "unterlagenarten": [],
     "hinweise": ["Dateiformate, Größen und Unterlagenarten anhand des tatsächlich zuständigen Portals prüfen.", "Die Bereitstellungs-ZIP dient der lokalen Dateiübergabe. Eine ZIP- oder XBau-Importfunktion des Portals ist damit nicht bestätigt."]

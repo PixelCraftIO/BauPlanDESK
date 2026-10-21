@@ -431,7 +431,7 @@ pub fn ics(kalendername: &str, termine: &[Termin], erzeugt: DateTime<Utc>) -> St
     for z in [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//BauProjektIO//Verfahrenstermine//DE",
+        "PRODID:-//BauPlanIO//Verfahrenstermine//DE",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
     ] {

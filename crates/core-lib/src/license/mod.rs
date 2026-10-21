@@ -7,7 +7,7 @@
 //!   Arbeitsplätze liegen in der gemeinsamen Datenbank. Der Administrator
 //!   spielt die Lizenz einmal ein, alle Arbeitsplätze sehen sie.
 //!
-//! Ohne Lizenz läuft BauProjektIO als Testversion. Ist die Testversion oder
+//! Ohne Lizenz läuft BauPlanIO als Testversion. Ist die Testversion oder
 //! Lizenz abgelaufen, bleibt alles lesbar und exportierbar; nur Änderungen
 //! sind gesperrt. Die Prüfung dafür sitzt in [`crate::CoreServices`].
 
@@ -87,7 +87,7 @@ pub struct AboStatus {
     pub lizenzschluessel: String,
     /// Wann der Lizenzserver diesen Rechner zuletzt bestätigt hat.
     pub bestaetigt_um: Option<DateTime<Utc>>,
-    /// Bis dahin läuft BauProjektIO ohne Internet weiter.
+    /// Bis dahin läuft BauPlanIO ohne Internet weiter.
     pub offline_gueltig_bis: Option<DateTime<Utc>>,
 }
 

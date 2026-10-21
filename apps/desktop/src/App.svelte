@@ -268,6 +268,16 @@
     }
     schliessZiel = null;
   }
+  /** Gelöschtes Projekt: offene Akte ohne Rückfrage schließen. */
+  async function projektGeloescht(id: string) {
+    if (sitzungen.some((s) => s.projekt.id === id)) entfernen(id);
+    globalAnsicht = "projekte";
+    try {
+      zuletzt = await api.zuletzt();
+    } catch (e) {
+      melde(e);
+    }
+  }
   async function speichernUndSchliessen() {
     const id = schliessZiel;
     const s = sitzungen.find((s) => s.projekt.id === id);
@@ -450,7 +460,7 @@
       update = await api.updatePruefen();
       updateMeldung = update
         ? `Version ${update.version} steht bereit.`
-        : "BauProjektIO ist auf dem neuesten Stand.";
+        : "BauPlanIO ist auf dem neuesten Stand.";
     } catch (e) {
       updateMeldung = fehlertext(e);
     } finally {
@@ -819,8 +829,10 @@
       <ProjektVerzeichnis
         {zuletzt}
         darfAnlegen={darf("projektleitung")}
+        darfLoeschen={darf("projektleitung")}
         onneu={neuesProjekt}
         onoeffnen={oeffnen}
+        ongeloescht={projektGeloescht}
       />
     </div>
     {#if kundenBesucht && ich}<div
@@ -1016,7 +1028,7 @@
       >
     {/if}
     <span>Ablage: {info.storage}</span>
-    <span class="rechts">BauProjektIO {info.version}</span>
+    <span class="rechts">BauPlanIO {info.version}</span>
   {/if}
 </footer>
 

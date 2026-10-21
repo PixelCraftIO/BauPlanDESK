@@ -301,7 +301,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     if !cfg!(target_os = "macos") {
         hilfe = hilfe
             .separator()
-            .about_with_text("Über BauProjektIO", Some(about.clone()));
+            .about_with_text("Über BauPlanIO", Some(about.clone()));
     }
     let hilfe = hilfe.build()?;
 
@@ -319,7 +319,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             .separator()
             .item(&item(
                 id::BEENDEN,
-                "BauProjektIO beenden",
+                "BauPlanIO beenden",
                 Some("CmdOrCtrl+Q"),
                 true,
             )?)

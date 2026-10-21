@@ -1,6 +1,6 @@
 # Einreichen über Landesportale
 
-BauProjektIO unterstützt die **manuelle Einreichung über das jeweils zuständige
+BauPlanIO unterstützt die **manuelle Einreichung über das jeweils zuständige
 Portal**. Projekt → Unterlagen → **Einreichen / Portal** führt durch Zielwahl,
 Unterlagen, Übergabe/Beleg und Rückmeldungen. Es gibt keinen automatischen
 NRW-, FIT-Connect-, OSCI- oder XTA-Versand und keine automatische Postfachabholung.

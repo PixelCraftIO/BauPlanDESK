@@ -8,8 +8,8 @@ JSON-Dateien für automatische Feldzuordnungen getrennt.
 
 - Als Administrator unter **Einstellungen → Speicherorte → PDF-Formularvorlagen**
   **Formularordner auswählen …** verwenden, beispielsweise
-  `C:\BauProjektIO\Formulare` oder eine eingebundene Freigabe
-  `\\Firmenserver\BauProjektIO\Formulare`.
+  `C:\BauPlanIO\Formulare` oder eine eingebundene Freigabe
+  `\\Firmenserver\BauPlanIO\Formulare`.
 - Ohne eigene Auswahl werden im Einzelplatzmodus `Formularvorlagen` im
   App-Datenordner und bei einer NAS-/Dateisystem-Netzwerkkonfiguration `Formulare`
   unter deren Ablageroot verwendet. Bei S3 bleibt die Bibliothek ein separat

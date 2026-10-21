@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
-    tracing::info!(%bind, "BauProjektIO-Server gestartet");
+    tracing::info!(%bind, "BauPlanIO-Server gestartet");
     axum::serve(
         listener,
         api::zugang::gesichert(core, api::zugang::ZugangQuelle::Datei(zugangspfad)),

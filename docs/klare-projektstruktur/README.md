@@ -84,8 +84,8 @@ Administratoren können unter Speicherorte drei getrennte Orte konfigurieren:
 
 | Ort | Aufgabe |
 | --- | --- |
-| Formularbibliothek, z. B. `C:\BauProjektIO\Formulare` | Gemeinsame leere PDF-Vorlagen |
-| Projektordner, z. B. `C:\BauProjektIO\Projekte` | Automatische lesbare Ausgabe gespeicherter Dateien |
+| Formularbibliothek, z. B. `C:\BauPlanIO\Formulare` | Gemeinsame leere PDF-Vorlagen |
+| Projektordner, z. B. `C:\BauPlanIO\Projekte` | Automatische lesbare Ausgabe gespeicherter Dateien |
 | Verwaltete Dateiablage | Verbindliche DMS-Dateiversionen mit Prüfsummen |
 
 Die lesbare Ausgabe verwendet folgende Struktur:

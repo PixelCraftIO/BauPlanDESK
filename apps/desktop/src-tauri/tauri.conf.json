@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "BauProjektIO",
+  "productName": "BauPlanIO",
   "version": "0.1.0",
   "identifier": "io.pixelcraft.bauprojektio",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "BauProjektIO",
+        "title": "BauPlanIO",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,

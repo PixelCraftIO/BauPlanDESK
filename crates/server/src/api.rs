@@ -268,7 +268,10 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
         .route("/projekte", get(list_projects).post(create_project))
-        .route("/projekte/{id}", get(get_project).put(update_project))
+        .route(
+            "/projekte/{id}",
+            get(get_project).put(update_project).delete(delete_project),
+        )
         .route(
             "/dokumente/{id}/formular",
             get(formular_analysieren).post(formular_ausfuellen),
@@ -430,6 +433,18 @@ async fn update_project(
     body.id = ProjectId(id);
     let project = core.update_project(body, &akteur).await?;
     Ok(Json(project))
+}
+
+async fn delete_project(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<VersionQuery>,
+) -> ApiResult<core_lib::service::Projektloeschung> {
+    let ergebnis = core
+        .delete_project(ProjectId(id), q.version, &akteur)
+        .await?;
+    Ok(Json(ergebnis))
 }
 
 #[derive(Deserialize)]
@@ -1100,7 +1115,7 @@ async fn bereitschaft(
                 "system/gesundheit/{}",
                 Uuid::new_v4()
             ))?;
-            let data = axum::body::Bytes::from_static(b"BauProjektIO Speicherpruefung");
+            let data = axum::body::Bytes::from_static(b"BauPlanIO Speicherpruefung");
             let hash = core_lib::storage::ContentHash::of(&data);
             core.storage.save(&key, data).await?;
             let pruefung = core.storage.load_verified(&key, &hash).await;

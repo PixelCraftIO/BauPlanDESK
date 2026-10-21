@@ -19,7 +19,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  switch(cmd){
  case 'dokumente_auflisten':return args.projektId===wf.projekt.id?window.serverDocs:[];
  case 'arbeitskopien':return window.copies.map(c=>({...c,geaendert:window.changed}));
- case 'dokument_extern_oeffnen':{const doc=window.serverDocs.find(d=>d.document_id===args.dokumentId);const c={stand:{id:'07d8bc45-7bd4-4234-bbe7-2a8f477c21dd',dokument:doc},pfad:'C:\\\\BauProjektIO\\\\Arbeitskopien\\\\Berechnung.xlsx',geaendert:false};window.copies.push(c);return c;}
+ case 'dokument_extern_oeffnen':{const doc=window.serverDocs.find(d=>d.document_id===args.dokumentId);const c={stand:{id:'07d8bc45-7bd4-4234-bbe7-2a8f477c21dd',dokument:doc},pfad:'C:\\\\BauPlanIO\\\\Arbeitskopien\\\\Berechnung.xlsx',geaendert:false};window.copies.push(c);return c;}
  case 'arbeitskopie_oeffnen':return;
  case 'arbeitskopie_uebernehmen':if(window.failCommit)throw {art:'konflikt',meldung:'Arbeitskopie bleibt erhalten: inzwischen neuere Version'};window.changed=false;{const next={...window.copies[0].stand.dokument,version:2};window.copies[0].stand.dokument=next;window.serverDocs=window.serverDocs.map(d=>d.document_id===next.document_id?next:d);return next;}
  case 'einreichungen':return structuredClone(window.submissionHistory);
@@ -31,7 +31,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    return row;
  });
  case 'einreichung_exportieren':if(window.failExport)throw {art:'datei',meldung:'ZIP konnte nicht geschrieben werden; Paket bleibt gespeichert'};return;
- case 'plugin:dialog|save':return window.cancelSave?null:'C:\\\\BauProjektIO\\\\Bauantrag.zip';
+ case 'plugin:dialog|save':return window.cancelSave?null:'C:\\\\BauPlanIO\\\\Bauantrag.zip';
  case 'plugin:dialog|message':return args.buttons?.OkCancelCustom?.[0]??'Yes';
  }
 };

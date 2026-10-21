@@ -94,7 +94,7 @@ window.__TAURI_INTERNALS__ = {
     if (cmd === "ablage_status")
       return {
         modus: "Einzelplatz",
-        root: "/tmp/BauProjektIO",
+        root: "/tmp/BauPlanIO",
         datenbank: "/tmp/bauprojekt.db",
         wechsel_erlaubt: window.testUser.rolle === "administrator",
         hinweis: "Testablage",

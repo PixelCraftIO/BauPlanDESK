@@ -1,4 +1,4 @@
-# UI-Analyse und Zielbild für BauProjektIO
+# UI-Analyse und Zielbild für BauPlanIO
 
 **Empfehlung:** Die Anwendung sollte ein einheitliches Verwaltungsgerüst mit
 Projektliste, dauerhafter Navigation, übersichtlichen Datentabellen und

@@ -27,7 +27,7 @@ Stelle und Verfahrensart, nicht nur das Bundesland.
 
 | Aussage | Prüfung | Konsequenz |
 | --- | --- | --- |
-| BauProjektIO besitzt eingefrorene Abgabestände, Originalversionen und Versandereignisse | Im Repository geprüft | Diese Verträge wiederverwenden |
+| BauPlanIO besitzt eingefrorene Abgabestände, Originalversionen und Versandereignisse | Im Repository geprüft | Diese Verträge wiederverwenden |
 | Der XBau-Arbeitsbranch besitzt Prüfung, Journal und Erstellung 0200/0202 | Im Repository geprüft | Wiederverwendbar, aber noch keine Portalverbindung |
 | Portalbelege und Abgabestände sind durchgängig automatisch verknüpft | Im Code nicht vorhanden | Fachliche Brücke vor automatischem Upload implementieren |
 | NRW bietet eine für externe Planungssoftware freigegebene Upload-/Rückkanal-API | Nicht bestätigt | Keinen API-Adapter, Endpoint oder Zugang erfinden |

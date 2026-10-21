@@ -123,8 +123,8 @@ Im Büro aktualisiert sich jeder Arbeitsplatz einzeln. Der erste Arbeitsplatz
 bzw. Server mit einer neuen Version führt deren Datenbankmigrationen beim Start
 aus. Startet danach eine **ältere** Version gegen diese Datenbank, erkennt sie
 den ihr unbekannten Datenbankstand, verändert nichts und bricht mit der Meldung
-„Diese Datenbank wurde mit einer neueren BauProjektIO-Version aktualisiert
-(Datenbankstand …). Bitte BauProjektIO auf diesem Arbeitsplatz bzw. Server
+„Diese Datenbank wurde mit einer neueren BauPlanIO-Version aktualisiert
+(Datenbankstand …). Bitte BauPlanIO auf diesem Arbeitsplatz bzw. Server
 aktualisieren. Die Datenbank wurde nicht verändert.“ ab (SQLite und
 PostgreSQL gleich, `CoreError::datenbank_neuer`). Eine inhaltlich abweichende,
 bereits angewendete Migration meldet `datenbankstand_abweichend`. Neuere

@@ -30,7 +30,7 @@
     try {
       const ziel = await save({
         title: "Vollständige Einzelplatzsicherung",
-        defaultPath: `BauProjektIO-Sicherung-${new Date().toISOString().replaceAll(":", "-")}.zip`,
+        defaultPath: `BauPlanIO-Sicherung-${new Date().toISOString().replaceAll(":", "-")}.zip`,
         filters: [{ name: "Sicherungsarchiv", extensions: ["zip"] }],
       });
       if (!ziel) return;
@@ -44,7 +44,7 @@
   }
   async function auswahl(): Promise<string | null> {
     const p = await open({
-      title: "BauProjektIO-Sicherungsarchiv wählen",
+      title: "BauPlanIO-Sicherungsarchiv wählen",
       multiple: false,
       filters: [{ name: "Sicherungsarchiv", extensions: ["zip"] }],
     });
@@ -76,7 +76,7 @@
         multiple: false,
       });
       if (typeof parent !== "string") return;
-      const ziel = parent + `/BauProjektIO-Wiederhergestellt-${Date.now()}`;
+      const ziel = parent + `/BauPlanIO-Wiederhergestellt-${Date.now()}`;
       wiederhergestellt = await api.sicherungWiederherstellen(p, ziel);
       meldung = `Wiederhergestellt und geprüft: ${wiederhergestellt}. Das aktuelle Profil bleibt geöffnet.`;
     } catch (e) {

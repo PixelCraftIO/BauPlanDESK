@@ -1,4 +1,4 @@
-# Arbeitsregeln für BauProjektIO
+# Arbeitsregeln für BauPlanIO
 
 Vor fachlichen oder strukturellen Änderungen
 [docs/entwicklungsregeln.md](docs/entwicklungsregeln.md) lesen und anwenden.
