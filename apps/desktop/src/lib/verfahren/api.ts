@@ -33,7 +33,34 @@ import type {
   Schreibenergebnis,
   Verfahrenslage,
   Folgeverfahrenswunsch,
+  Phasencheckliste,
+  Phase,
+  Faelligkeit,
+  Nachweisart,
+  Pruefart,
 } from "../generated/plattform";
+/** Bezeichnungen wie `Faelligkeit::bezeichnung` im Core. */
+export const FAELLIGKEIT: Record<Faelligkeit, string> = {
+  mit_antrag: "Mit dem Antrag",
+  vor_baubeginn: "Vor Baubeginn",
+  waehrend_bauausfuehrung: "Während der Bauausführung",
+  vor_nutzungsaufnahme: "Vor Nutzungsaufnahme",
+  dauerhaft: "Dauerhaft",
+};
+/** Bezeichnungen wie `Nachweisart::bezeichnung` im Core. */
+export const NACHWEISART: Record<Nachweisart, string> = {
+  standsicherheit: "Standsicherheit",
+  brandschutz: "Brandschutz",
+  waermeschutz: "Wärmeschutz / GEG",
+  schallschutz: "Schallschutz",
+  sonstiges: "Sonstiger Nachweis",
+};
+export const PRUEFART: Record<Pruefart, string> = {
+  keine: "Keine Prüfung vorgeschrieben",
+  bauaufsicht: "Bauaufsicht",
+  pruefingenieur: "Prüfingenieur/in",
+  sachverstaendiger: "Staatlich anerkannte/r Sachverständige/r",
+};
 /** Bezeichnungen wie `Unterschriftsrolle::bezeichnung` im Core. */
 export const UNTERSCHRIFTSROLLE: Record<Unterschriftsrolle, string> = {
   bauherrschaft: "Bauherrschaft",
@@ -178,6 +205,8 @@ export const verfahrenApi = {
       wunsch,
       ziel,
     }),
+  checkliste: (projektId: string, id: string, phase: Phase) =>
+    invoke<Phasencheckliste>("verfahren_checkliste", { projektId, id, phase }),
   optionen: (projektId: string, id: string) =>
     invoke<Verfahrenslage>("verfahren_optionen", { projektId, id }),
   folgeverfahren: (

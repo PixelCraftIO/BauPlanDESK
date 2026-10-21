@@ -401,6 +401,8 @@ impl CoreServices {
             unterschriften: vec![],
             ablehnungsgruende: vec![],
             nachbarbekanntgaben: vec![],
+            bautechnische_nachweise: vec![],
+            bauvorbereitung: None,
             ereignisse: vec![],
         };
         let f = self.verfahren_commit(p, w.id, 0, neu, wer, false).await?;

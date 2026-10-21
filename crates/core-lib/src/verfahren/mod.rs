@@ -3,6 +3,7 @@
 pub mod abgabe;
 pub mod abgleich;
 pub mod abweichungen;
+pub mod ausfuehrung;
 pub mod chronik;
 pub mod eingang;
 pub mod externe_einreichung;
@@ -318,6 +319,11 @@ pub struct Auflage {
     pub frist: Option<Frist>,
     pub erledigt: bool,
     pub nachweise: Vec<Dokumentbezug>,
+    /// Wann die Pflicht erfüllt sein muss (vor Baubeginn …); ältere Einträge
+    /// lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub faelligkeit: Option<ausfuehrung::Faelligkeit>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -609,6 +615,14 @@ pub struct Verfahrensakte {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<Nachbarbekanntgabe>>", optional)]
     pub nachbarbekanntgaben: Vec<Nachbarbekanntgabe>,
+    /// Bautechnische Nachweise mit Vorlage und Prüfung.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<ausfuehrung::BautechnischerNachweis>>", optional)]
+    pub bautechnische_nachweise: Vec<ausfuehrung::BautechnischerNachweis>,
+    /// Bauleitung, Absteckung und Anzeigen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bauvorbereitung: Option<ausfuehrung::Bauvorbereitung>,
     pub ereignisse: Vec<Aktenereignis>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]

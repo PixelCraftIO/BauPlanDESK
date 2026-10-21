@@ -778,6 +778,8 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         unterschriften: vec![],
         ablehnungsgruende: vec![],
         nachbarbekanntgaben: vec![],
+        bautechnische_nachweise: vec![],
+        bauvorbereitung: None,
         ereignisse: vec![],
     };
     core.fachobjekt_speichern(

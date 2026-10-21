@@ -275,4 +275,37 @@ async fn ablehnung_folgeverfahren_und_nachbarn() {
             && t.datum == tag("2026-09-21")),
         "{t:?}"
     );
+
+    // Baubeginn: Checkliste aus der Akte; eine neue Planversion nach der
+    // Genehmigung ergibt den Hinweis auf einen Änderungsantrag (Tektur).
+    use core_lib::verfahren::ausfuehrung::Phase;
+    let c = core
+        .verfahren_checkliste(p, neu, Phase::Baubeginn)
+        .await
+        .unwrap();
+    assert!(!c.bereit);
+    assert!(
+        c.voraussetzungen
+            .iter()
+            .any(|v| v.titel == "Bauleitung benannt" && v.erfuellt == Some(false))
+    );
+    core.store_document(
+        p,
+        Some(pdf.document_id),
+        Some(pdf.version),
+        "Plan.pdf",
+        Bytes::from(core_lib::formular::testdaten::musterformular()),
+        &u,
+    )
+    .await
+    .unwrap();
+    let c = core
+        .verfahren_checkliste(p, neu, Phase::Baubeginn)
+        .await
+        .unwrap();
+    assert!(
+        c.hinweise.iter().any(|h| h.contains("Tektur")),
+        "{:?}",
+        c.hinweise
+    );
 }

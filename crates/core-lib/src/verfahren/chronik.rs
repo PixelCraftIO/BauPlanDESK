@@ -284,7 +284,12 @@ pub fn arten(alt: Option<&Verfahrensakte>, a: &Verfahrensakte) -> Vec<Ereignisar
     wenn(alt.status != a.status, Status);
     wenn(alt.vollstaendigkeit != a.vollstaendigkeit, Vollstaendigkeit);
     wenn(alt.ruecknahme != a.ruecknahme, Ruecknahme);
-    wenn(alt.ausfuehrung != a.ausfuehrung, Ausfuehrung);
+    wenn(
+        alt.ausfuehrung != a.ausfuehrung
+            || alt.bautechnische_nachweise != a.bautechnische_nachweise
+            || alt.bauvorbereitung != a.bauvorbereitung,
+        Ausfuehrung,
+    );
     let neue_kommunikation = a
         .kommunikation
         .iter()

@@ -20,6 +20,7 @@
     verfahrenApi,
     NEBENBESTIMMUNG,
     PFLICHT,
+    FAELLIGKEIT,
     baugenehmigung,
   } from "./api";
   let {
@@ -408,7 +409,18 @@
               readonly={auflagenAlt.includes(p.id)}
               bind:value={p.ausloeser}
             /></label
-          ><Zustaendigkeit {benutzer} bind:wert={p.verantwortlich} />
+          ><Zustaendigkeit {benutzer} bind:wert={p.verantwortlich} />{#if PFLICHT.includes(p.art ?? "auflage")}<label
+              >Fällig<select
+                value={p.faelligkeit ?? ""}
+                onchange={(e) =>
+                  (p.faelligkeit = (e.currentTarget.value ||
+                    undefined) as typeof p.faelligkeit)}
+                ><option value="">Nicht zugeordnet</option
+                >{#each Object.entries(FAELLIGKEIT) as [w, t]}<option value={w}
+                    >{t}</option
+                  >{/each}</select
+              ></label
+            >{/if}
         </div>
         {#if auflagenAlt.includes(p.id)}<p class="meta">
             Wortlaut aus dem Bescheid, nach dem Speichern unveränderlich.

@@ -190,6 +190,22 @@ pub async fn verfahren_folgeverfahren(
         .await?)
 }
 #[tauri::command]
+pub async fn verfahren_checkliste(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    phase: core_lib::verfahren::ausfuehrung::Phase,
+) -> Result<core_lib::verfahren::ausfuehrung::Phasencheckliste, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .verfahren_checkliste(projekt_id, id, phase)
+        .await?)
+}
+#[tauri::command]
 pub async fn verfahren_erinnerungen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

@@ -91,6 +91,10 @@ pub struct Abgabegrundlagen {
     /// (ohne entfallene); fehlen in älteren Abgabeständen.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub abweichungen: Vec<super::abweichungen::Abweichung>,
+    /// Folgenachricht dieses Stands (Baubeginnsanzeige …); fehlt bei
+    /// Anträgen, Nachreichungen und älteren Abgabeständen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folge: Option<Folgewunsch>,
 }
 /// Größte Summe der Unterlagen eines Abgabestands. Dieselbe Grenze gilt für
 /// den entpackten Inhalt eines XBau-Pakets, damit eine Abgabe mit XBau nicht
@@ -478,6 +482,7 @@ impl CoreServices {
                 .filter(|e| e.aktiv())
                 .cloned()
                 .collect(),
+            folge: w.xbau_folge.clone(),
         };
         // Jede Unterschreitung im aktuellen Planungsstand ist beantragt oder
         // begründet nicht erforderlich; sonst wird nicht festgehalten.
@@ -542,6 +547,29 @@ impl CoreServices {
             );
         }
         hinweise.extend(super::optionen::vorgaenger_hinweise(self, p, &a).await?);
+        let phase = match &w.xbau_folge {
+            Some(Folgewunsch::Baubeginn { .. }) => Some(super::ausfuehrung::Phase::Baubeginn),
+            Some(Folgewunsch::Nutzungsaufnahme { .. }) => {
+                Some(super::ausfuehrung::Phase::Nutzungsaufnahme)
+            }
+            _ => None,
+        };
+        if let Some(phase) = phase {
+            let c = super::ausfuehrung::checkliste(
+                &a,
+                projekt.bundesland,
+                crate::kalender::heute(),
+                phase,
+                &self.verfahren_planunterlagen(p, vid).await?,
+            );
+            hinweise.extend(
+                c.voraussetzungen
+                    .iter()
+                    .filter(|v| v.erfuellt != Some(true) && !v.titel.ends_with("angezeigt"))
+                    .map(|v| format!("Voraussetzung offen: {} ({})", v.titel, v.hinweis)),
+            );
+            hinweise.extend(c.hinweise);
+        }
         // Nachweise, deren Grundlagen sich seit dem letzten Stand geändert
         // haben (etwa durch eine Planänderung), gehören nicht ungeprüft in
         // eine Abgabe.

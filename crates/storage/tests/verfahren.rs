@@ -47,6 +47,8 @@ fn leer() -> Verfahrensakte {
         unterschriften: vec![],
         ablehnungsgruende: vec![],
         nachbarbekanntgaben: vec![],
+        bautechnische_nachweise: vec![],
+        bauvorbereitung: None,
         ereignisse: vec![],
     }
 }
@@ -461,6 +463,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
             }),
             erledigt: false,
             nachweise: vec![],
+            faelligkeit: None,
         }],
         ersetzt: None,
         verlaengerung: None,
@@ -1687,6 +1690,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         frist: None,
         erledigt: false,
         nachweise: vec![],
+        faelligkeit: None,
     });
     v.bescheide.push(abgelehnt);
     v.status = Verfahrensstatus::Entschieden;
@@ -1785,6 +1789,7 @@ async fn berliner_fristen_berichtigung_baubeginn_und_entscheidungsregeln() {
         }),
         erledigt: true,
         nachweise: vec![dok.clone()],
+        faelligkeit: None,
     };
     let mut vorbehalt = befristung.clone();
     vorbehalt.id = Uuid::new_v4();
@@ -2135,6 +2140,7 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
             frist: None,
             erledigt: false,
             nachweise: vec![],
+            faelligkeit: None,
         }],
         ersetzt: None,
         verlaengerung: None,

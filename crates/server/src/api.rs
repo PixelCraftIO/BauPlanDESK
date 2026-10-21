@@ -251,6 +251,10 @@ fn routen(core: CoreServices) -> Router {
             get(verfahren_optionen),
         )
         .route(
+            "/projekte/{id}/verfahren/{verfahren}/checkliste",
+            get(verfahren_checkliste),
+        )
+        .route(
             "/projekte/{id}/verfahren/{verfahren}/folgeverfahren",
             post(verfahren_folgeverfahren),
         )
@@ -1428,6 +1432,23 @@ async fn verfahren_optionen(
     core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
         .await?;
     Ok(Json(core.verfahren_optionen(ProjectId(p), id).await?))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Checklistenfrage {
+    phase: core_lib::verfahren::ausfuehrung::Phase,
+}
+async fn verfahren_checkliste(
+    State(ApiState { core }): State<ApiState>,
+    Extension(wer): Extension<Benutzer>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<Checklistenfrage>,
+) -> ApiResult<core_lib::verfahren::ausfuehrung::Phasencheckliste> {
+    core.projekt_zugriff(ProjectId(p), &wer, core_lib::zugriff::ProjektRecht::Lesen)
+        .await?;
+    Ok(Json(
+        core.verfahren_checkliste(ProjectId(p), id, q.phase).await?,
+    ))
 }
 async fn verfahren_folgeverfahren(
     State(ApiState { core }): State<ApiState>,

@@ -93,6 +93,7 @@ pub(super) async fn pruefen(
         .chain(a.unterschriften.iter().map(|v| v.id))
         .chain(a.ablehnungsgruende.iter().map(|v| v.id))
         .chain(a.nachbarbekanntgaben.iter().map(|v| v.id))
+        .chain(a.bautechnische_nachweise.iter().map(|v| v.id))
         .chain(a.schritte.iter().flat_map(|s| &s.gruende).map(|v| v.id))
     {
         add(id)?;
@@ -294,6 +295,7 @@ pub(super) async fn pruefen(
     }
     abweichungen::eintraege_pruefen(a, alt, &mut dokumente)?;
     landesrecht::unterschriften_pruefen(a, &mut dokumente)?;
+    ausfuehrung::pruefen(a, &mut dokumente)?;
     for g in &a.ablehnungsgruende {
         let b = a
             .bescheide

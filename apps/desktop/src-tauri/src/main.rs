@@ -101,6 +101,7 @@ fn main() {
             verfahren::verfahren_abweichungen,
             verfahren::verfahren_schreiben,
             verfahren::verfahren_optionen,
+            verfahren::verfahren_checkliste,
             verfahren::verfahren_folgeverfahren,
             verfahren::verfahren_bescheidfristen,
             verfahren::verfahren_termine_ics,

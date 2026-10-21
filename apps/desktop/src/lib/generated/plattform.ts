@@ -377,7 +377,12 @@ export type Auflage = { id: string,
 /**
  * Ältere Akten ohne diese Angabe lesen sie als Auflage.
  */
-art: Nebenbestimmungsart, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>, };
+art: Nebenbestimmungsart, titel: string, ausloeser: string, verantwortlich: string | null, frist: Frist | null, erledigt: boolean, nachweise: Array<Dokumentbezug>,
+/**
+ * Wann die Pflicht erfüllt sein muss (vor Baubeginn …); ältere Einträge
+ * lesen die Angabe leer.
+ */
+faelligkeit?: Faelligkeit, };
 export type Verlaengerung = {
 /**
  * Bescheid, dessen Geltungsdauer verlängert wird (Genehmigung oder
@@ -735,6 +740,50 @@ export type Verfahrenslage = {
  */
 lage: string, optionen: Array<Handlungsoption>, };
 export type Folgeverfahrenswunsch = { id: string, art: Verfahrensart, bezeichnung: string, };
+export type Faelligkeit = "mit_antrag" | "vor_baubeginn" | "waehrend_bauausfuehrung" | "vor_nutzungsaufnahme" | "dauerhaft";
+export type Nachweisart = "standsicherheit" | "brandschutz" | "waermeschutz" | "schallschutz" | "sonstiges";
+export type Pruefart = "keine" | "bauaufsicht" | "pruefingenieur" | "sachverstaendiger";
+export type BautechnischerNachweis = { id: string, art: Nachweisart, bezeichnung: string, pruefung: Pruefart,
+/**
+ * Prüfende Person oder Stelle.
+ */
+pruefer: string, faellig: Faelligkeit,
+/**
+ * Bei der Behörde vorgelegt am.
+ */
+vorgelegt: string | null,
+/**
+ * Geprüft bzw. bescheinigt am (Prüfbericht, Bescheinigung).
+ */
+bescheinigt: string | null, dokumente?: Array<Dokumentbezug>, };
+export type Bauvorbereitung = {
+/**
+ * Bauleiterin oder Bauleiter.
+ */
+bauleitung: string,
+/**
+ * Der Behörde benannt am.
+ */
+bauleitung_benannt: string | null,
+/**
+ * Grundrissfläche und Höhenlage abgesteckt am.
+ */
+absteckung: string | null,
+/**
+ * Baubeginn angezeigt am.
+ */
+baubeginnanzeige: string | null,
+/**
+ * Fertigstellung bzw. Nutzungsaufnahme angezeigt am.
+ */
+nutzungsanzeige: string | null, belege?: Array<Dokumentbezug>, };
+export type Phase = "baubeginn" | "nutzungsaufnahme";
+export type Voraussetzung = { titel: string, erfuellt: boolean | null, hinweis: string, quelle: string, };
+export type Phasencheckliste = { phase: Phase, voraussetzungen: Array<Voraussetzung>,
+/**
+ * Alle belegt.
+ */
+bereit: boolean, hinweise: Array<string>, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -788,7 +837,15 @@ ablehnungsgruende?: Array<Ablehnungsgrund>,
 /**
  * Bekanntgaben der Genehmigung an Nachbarn.
  */
-nachbarbekanntgaben?: Array<Nachbarbekanntgabe>, ereignisse: Array<Aktenereignis>, };
+nachbarbekanntgaben?: Array<Nachbarbekanntgabe>,
+/**
+ * Bautechnische Nachweise mit Vorlage und Prüfung.
+ */
+bautechnische_nachweise?: Array<BautechnischerNachweis>,
+/**
+ * Bauleitung, Absteckung und Anzeigen.
+ */
+bauvorbereitung?: Bauvorbereitung, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null,
 /**

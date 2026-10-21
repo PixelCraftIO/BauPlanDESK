@@ -43,6 +43,7 @@
   import Unterschriften from "./Unterschriften.svelte";
   import Schreiben from "./Schreiben.svelte";
   import Lage from "./Lage.svelte";
+  import Bauausfuehrung from "./Bauausfuehrung.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -229,6 +230,7 @@
     ["schreiben", "Schreiben"],
     ["abgaben", "Abgabestände"],
     ["bescheide", "Bescheide / Auflagen"],
+    ["ausfuehrung", "Bauausführung"],
     ["beziehungen", "Korrekturen"],
     ["chronik", "Verfahrenschronik"],
   ];
@@ -414,6 +416,20 @@
             {dateien}
             {benutzer}
             {darfFreigeben}
+          />
+        </fieldset>
+      {:else if tab === "ausfuehrung"}<fieldset disabled={!darf}>
+          <Bauausfuehrung
+            bind:nachweise={
+              () => a.bautechnische_nachweise ?? [],
+              (w) => (a.bautechnische_nachweise = w)
+            }
+            bind:vorbereitung={a.bauvorbereitung}
+            bescheide={a.bescheide}
+            {dateien}
+            projektId={projekt.id}
+            verfahrenId={s.id}
+            revision={s.revision}
           />
         </fieldset>
       {:else if tab === "schreiben"}<Schreiben
