@@ -15,6 +15,7 @@ mod antrag;
 pub mod austausch;
 pub mod codeliste;
 pub mod din91379;
+pub mod eingang;
 mod inhalt;
 pub mod paket;
 pub mod postfach;

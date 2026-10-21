@@ -8,6 +8,8 @@ import type {
   Nachrichtenstand,
   Nachrichtenaufnahme,
   Nachrichtenbeleg,
+  Nachrichtenauswertung,
+  Uebernahmewunsch,
 } from "../generated/plattform";
 export const xbau = {
   anlage: (projektId: string, id: string, dateiname: string) =>
@@ -29,6 +31,19 @@ export const xbau = {
     basis: number,
     beleg: Nachrichtenbeleg,
   ) => invoke<Nachrichtenstand>("xbau_beleg", { projektId, id, basis, beleg }),
+  /** Fachlicher Inhalt einer Behördennachricht und Wirkung in der gewählten Akte. */
+  auswertung: (projektId: string, id: string, verfahren: string | null) =>
+    invoke<Nachrichtenauswertung>("xbau_auswertung", {
+      projektId,
+      id,
+      verfahren,
+    }),
+  uebernehmen: (projektId: string, id: string, wunsch: Uebernahmewunsch) =>
+    invoke<Fachstand>("xbau_auswertung_uebernehmen", {
+      projektId,
+      id,
+      wunsch,
+    }),
   verfahren: (
     projektId: string,
     id: string,

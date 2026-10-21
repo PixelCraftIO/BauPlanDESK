@@ -211,6 +211,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
         abgaben: vec![],
         externe_einreichungen: vec![],
         bescheide: vec![],
+        gebuehren: vec![],
         ereignisse: vec![],
     };
     let af = c

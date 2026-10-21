@@ -89,6 +89,8 @@ pub(super) async fn pruefen(
         .chain(a.ereignisse.iter().map(|v| v.id))
         .chain(a.antragsangaben.vorbescheidfragen.iter().map(|v| v.id))
         .chain(a.abweichungen.iter().map(|v| v.id))
+        .chain(a.gebuehren.iter().map(|v| v.id))
+        .chain(a.schritte.iter().flat_map(|s| &s.gruende).map(|v| v.id))
     {
         add(id)?;
     }
@@ -241,8 +243,28 @@ pub(super) async fn pruefen(
         }
         benutzer.extend(v.verantwortlich);
         frist(&v.frist, &mut dokumente)?;
+        beanstandungen(&v.gruende, a)?;
     }
     frist(&a.bearbeitungsfrist, &mut dokumente)?;
+    for g in &a.gebuehren {
+        if !a
+            .kommunikation
+            .iter()
+            .any(|c| c.id == g.kommunikation && c.eingehend)
+        {
+            return Err(fehler(
+                "Gebührenbescheid benötigt das eingegangene Schreiben der Behörde in dieser Akte",
+            ));
+        }
+        if g.betrag_cent.is_some_and(|b| b < 0) || g.verwendungszweck.chars().count() > 500 {
+            return Err(fehler("Ungültige Angaben zum Gebührenbescheid"));
+        }
+        if g.bezahlt.is_some_and(|d| d > crate::kalender::heute()) {
+            return Err(fehler("Zahlungsdatum darf nicht in der Zukunft liegen"));
+        }
+        benutzer.extend(g.verantwortlich);
+        frist(&g.frist, &mut dokumente)?;
+    }
     for r in &a.anforderungen {
         text(&r.titel, 500)?;
         if r.quelle.len() > 4000 || r.grund.len() > 4000 {
@@ -468,6 +490,20 @@ pub(super) async fn pruefen(
         behalten(&alt.anforderungen, &a.anforderungen, |v| v.id)?;
         behalten(&alt.bescheide, &a.bescheide, |v| v.id)?;
         behalten(&alt.schritte, &a.schritte, |v| v.id)?;
+        behalten(&alt.gebuehren, &a.gebuehren, |v| v.id)?;
+        for v in alt.schritte.iter().flat_map(|s| &s.gruende) {
+            let n = a
+                .schritte
+                .iter()
+                .flat_map(|s| &s.gruende)
+                .find(|n| n.id == v.id)
+                .ok_or_else(|| fehler("Beanstandungen werden nicht gelöscht"))?;
+            if n.text != v.text || n.grundlage != v.grundlage {
+                return Err(fehler(
+                    "Wortlaut und Grundlage einer gespeicherten Beanstandung bleiben unverändert",
+                ));
+            }
+        }
         for v in &alt.schritte {
             let n = a.schritte.iter().find(|n| n.id == v.id).expect("geprüft");
             if n.art != v.art || n.kommunikation != v.kommunikation {
@@ -680,6 +716,25 @@ fn status_bedingung(a: &Verfahrensakte, eingereicht: bool) -> CoreResult<()> {
             ));
         }
         _ => {}
+    }
+    Ok(())
+}
+pub(super) fn beanstandungen(g: &[Beanstandung], a: &Verfahrensakte) -> CoreResult<()> {
+    if g.len() > 200 {
+        return Err(fehler("Höchstens 200 Beanstandungen je Eintrag"));
+    }
+    for b in g {
+        text(&b.text, 4000)?;
+        if b.grundlage.chars().count() > 4000 || b.reaktion.chars().count() > 16000 {
+            return Err(fehler("Beanstandung zu umfangreich"));
+        }
+        if let Some(id) = b.abweichung
+            && !a.abweichungen.iter().any(|e| e.id == id)
+        {
+            return Err(fehler(
+                "Beanstandung verweist auf eine unbekannte Abweichung",
+            ));
+        }
     }
     Ok(())
 }

@@ -1404,6 +1404,7 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         stellungnahme: None,
         verantwortlich: None,
         folgeschreiben: None,
+        gruende: vec![],
     });
     a.status = Verfahrensstatus::Vollstaendig;
     akte_speichern(b, vid, &a, "Vollständigkeit").await;

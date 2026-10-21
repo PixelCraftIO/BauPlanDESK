@@ -43,6 +43,7 @@ fn leer() -> Verfahrensakte {
         abgaben: vec![],
         externe_einreichungen: vec![],
         bescheide: vec![],
+        gebuehren: vec![],
         ereignisse: vec![],
     }
 }
@@ -1308,6 +1309,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         frist: Some(frist(heute + chrono::Duration::days(10))),
         stellungnahme: None,
         folgeschreiben: None,
+        gruende: vec![],
         verantwortlich: Some(user.id.0),
     };
     a.schritte.push(schritt.clone());
@@ -1361,6 +1363,7 @@ async fn anhoerung_und_zurueckstellung_mit_schreiben_frist_und_stellungnahme() {
         frist: None,
         stellungnahme: None,
         folgeschreiben: None,
+        gruende: vec![],
         verantwortlich: None,
     };
     a.schritte.push(zurueck.clone());
@@ -2249,6 +2252,7 @@ async fn teilbaugenehmigung_beteiligungen_bearbeitungsfrist_und_widerspruch() {
         frist: Some(frist(20, 30)),
         stellungnahme: None,
         folgeschreiben: None,
+        gruende: vec![],
         verantwortlich: None,
     };
     a.schritte.push(einvernehmen.clone());

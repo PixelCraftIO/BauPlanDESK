@@ -102,6 +102,8 @@ export const EREIGNISART: Record<Ereignisart, string> = {
   berichtigung: "Berichtigung",
   notiz: "Notiz",
   angaben: "Verfahrensangaben",
+  abweichung: "Abweichungen",
+  gebuehr: "Gebühren",
 };
 /** Nebenbestimmungsarten mit erfüllbarer Pflicht (`Nebenbestimmungsart::pflicht`). */
 export const PFLICHT: Nebenbestimmungsart[] = ["auflage", "bedingung"];

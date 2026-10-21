@@ -44,6 +44,8 @@ pub enum Terminart {
     /// Bearbeitungsfrist oder Genehmigungsfiktion laut Behörde; endet mit der
     /// Entscheidung und wird danach überfällig.
     Bearbeitungsfrist,
+    /// Zahlungsfrist eines Gebührenbescheids; endet mit der erfassten Zahlung.
+    Zahlung,
 }
 impl Terminart {
     pub fn bezeichnung(&self) -> &'static str {
@@ -58,6 +60,7 @@ impl Terminart {
             Self::Fertigstellung => "Fertigstellungsfrist",
             Self::Beteiligung => "Beteiligung",
             Self::Bearbeitungsfrist => "Bearbeitungsfrist",
+            Self::Zahlung => "Zahlungsfrist",
         }
     }
 }
@@ -270,6 +273,26 @@ pub fn termine(a: &Verfahrensakte, verfahren: Uuid, land: Bundesland) -> Vec<Ter
                      Landesbauordnung prüfen und bescheinigen lassen.",
                     f.grund
                 ),
+            );
+        }
+    }
+    for g in a.gebuehren.iter().filter(|g| g.bezahlt.is_none()) {
+        if let Some(f) = &g.frist {
+            neu(
+                g.id,
+                Terminart::Zahlung,
+                format!(
+                    "{} bezahlen",
+                    if g.vorauszahlung {
+                        "Gebührenvorauszahlung"
+                    } else {
+                        "Gebühren"
+                    }
+                ),
+                f.datum,
+                f.erinnerung_tage,
+                g.verantwortlich,
+                f.grund.clone(),
             );
         }
     }

@@ -72,6 +72,32 @@ pub async fn xbau_in_verfahren(
         .await?)
 }
 
+/// Fachlicher Inhalt einer Behördennachricht und seine Wirkung in der Akte.
+#[tauri::command]
+pub async fn xbau_auswertung(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    verfahren: Option<Uuid>,
+) -> Result<core_lib::verfahren::eingang::Nachrichtenauswertung, CmdError> {
+    Ok(state
+        .core
+        .xbau_auswertung(projekt_id, id, verfahren, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn xbau_auswertung_uebernehmen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    wunsch: core_lib::verfahren::eingang::Uebernahmewunsch,
+) -> Result<Fachstand, CmdError> {
+    Ok(state
+        .core
+        .xbau_auswertung_uebernehmen(projekt_id, id, wunsch, &state.benutzer())
+        .await?)
+}
+
 #[tauri::command]
 pub async fn xbau_anlage_ablegen(
     state: State<'_, AppState>,

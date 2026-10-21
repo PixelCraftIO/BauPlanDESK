@@ -85,6 +85,8 @@ fn main() {
             xbau::xbau_beleg,
             xbau::xbau_anlage_ablegen,
             xbau::xbau_in_verfahren,
+            xbau::xbau_auswertung,
+            xbau::xbau_auswertung_uebernehmen,
             verfahren::verfahrensprofil,
             verfahren::verfahren_profil_anwenden,
             verfahren::verfahren_abgabe,

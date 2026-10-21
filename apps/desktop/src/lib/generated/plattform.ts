@@ -420,12 +420,17 @@ stellungnahme: string | null, verantwortlich: string | null,
  * Zurückstellung: eingegangenes Folgeschreiben der Behörde, das sie vor
  * ihrem Fristende beendet. Ältere Akten lesen die Angabe leer.
  */
-folgeschreiben?: string, };
+folgeschreiben?: string,
+/**
+ * Anhörung: Beanstandungen der Behörde, auf die die Stellungnahme
+ * eingeht. Ältere Akten lesen die Angabe leer.
+ */
+gruende?: Array<Beanstandung>, };
 export type Pruefverfahren = "regulaer" | "vereinfacht";
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
-export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben";
+export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben" | "abweichung" | "gebuehr";
 export type Berichtigungsgegenstand = { "art": "zustellung", bescheid: string, } | { "art": "vollstaendigkeit" } | { "art": "ruecknahme" } | { "art": "baubeginn" } | { "art": "fertigstellung" };
 export type Wertberichtigung = { gegenstand: Berichtigungsgegenstand, grund: string, vorher: string, nachher: string, };
 export type Aktenereignis = { id: string, datum: string, erfasst_am: string, erfasst_von: string, text: string, beleg: Dokumentbezug | null, berichtigt: string | null,
@@ -479,7 +484,7 @@ staende: Array<Planstand>,
  * Abweichungen, z. B. ein im Anlagenverzeichnis anders ausgewiesener Index.
  */
 hinweise: Array<string>, };
-export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung" | "beteiligung" | "bearbeitungsfrist";
+export type Terminart = "forderungspunkt" | "nebenbestimmung" | "ablauf" | "anhoerung" | "zurueckstellung" | "rechtsbehelfsfrist" | "geltungsdauer" | "fertigstellung" | "beteiligung" | "bearbeitungsfrist" | "zahlung";
 export type Termin = { verfahren: string, verfahrensbezeichnung: string,
 /**
  * Akteneintrag, zu dem der Termin gehört (Punkt, Nebenbestimmung, Schritt
@@ -584,6 +589,73 @@ geaendert: Array<string>,
  * Nicht ermittelbare Bereiche und weitere Hinweise.
  */
 hinweise: Array<string>, };
+export type Beanstandung = { id: string, text: string, grundlage: string,
+/**
+ * Wie der Antrag reagiert: Stellungnahme, Planänderung, Abweichungsantrag.
+ */
+reaktion: string,
+/**
+ * Abweichung dieser Akte, mit der die Beanstandung ausgeräumt werden soll.
+ */
+abweichung?: string, };
+export type FormellerBefund = {
+/**
+ * Code der Befundart laut Nachricht.
+ */
+art: string, text: string, };
+export type MateriellerBefund = { rechtsbereich: string, regelverstoss: string, begruendung: string, };
+export type BescheidNebenbestimmung = { art: Nebenbestimmungsart,
+/**
+ * Code der XBau-Liste „Nebenbestimmung Art“ (1 Bedingung … 6
+ * aufschiebende Bedingung).
+ */
+xbau_code: string, text: string, };
+export type BescheidAbweichung = {
+/**
+ * Kennung der beantragten Abweichung (aus dem eigenen Antrag).
+ */
+id: string, zugelassen: boolean, vorschrift: string, begruendung: string, nebenbestimmung: string, };
+export type Auswertung = { "art": "eingangsbestaetigung", information: string, } | { "art": "aktenzeichen", aktenzeichen: string, } | { "art": "befundliste", vollstaendig: boolean, befunde: Array<FormellerBefund>, frist: string | null, anschreiben: string, } | { "art": "anhoerung", aufforderung: string, befunde: Array<MateriellerBefund>, frist: string | null, } | { "art": "bescheid", genehmigung: boolean, nebenbestimmungen: Array<BescheidNebenbestimmung>, abweichungen: Array<BescheidAbweichung>, begruendung: string, rechtsbehelfsbelehrung: string, hinweise: string, } | { "art": "gebuehrenbescheid", vorauszahlung: boolean,
+/**
+ * Summe in Eurocent, wenn die Kostenberechnung sie nennt.
+ */
+summe_cent: number | null, begruendung: string, verwendungszweck: string, frist: string | null, rechtsbehelfsbelehrung: string, } | { "art": "sonstige" };
+export type Gebuehrenbescheid = { id: string,
+/**
+ * Eingegangenes Schreiben dieser Akte.
+ */
+kommunikation: string, datum: string,
+/**
+ * Betrag in Eurocent, wenn bekannt.
+ */
+betrag_cent: number | null, vorauszahlung: boolean, verwendungszweck: string, frist: Frist | null,
+/**
+ * Tag der Zahlung; beendet die Wiedervorlage.
+ */
+bezahlt: string | null, verantwortlich: string | null, };
+export type Nachrichtenauswertung = { nachricht: string, element: string, titel: string, auswertung: Auswertung,
+/**
+ * Was die Übernahme in der gewählten Akte bewirkt; leer ohne Akte.
+ */
+wirkung: Array<string>,
+/**
+ * Bescheid: vorgeschlagene genehmigte Unterlagen aus den versendeten
+ * Abgabeständen des Antrags.
+ */
+genehmigte_unterlagen: Array<Dokumentbezug>,
+/**
+ * Bereits fachlich in die gewählte Akte übernommen.
+ */
+uebernommen: boolean, };
+export type Uebernahmewunsch = { verfahren: string, basis: number,
+/**
+ * Bestätigtes Zugangsdatum; ohne Angabe der Tag der Erfassung im Journal.
+ */
+zugang: string | null,
+/**
+ * Bescheid: ausdrücklich genehmigte Unterlagen.
+ */
+genehmigte_unterlagen: Array<Dokumentbezug>, };
 export type Verfahrensakte = { portal?: Portalakte, bezeichnung: string, art: Verfahrensart,
 /**
  * Ältere Akten ohne diese Angaben lesen sie leer.
@@ -620,7 +692,11 @@ abweichungen?: Array<Abweichung>, dokumentbeziehungen: Array<Dokumentbeziehung>,
  * Außerhalb der App erfolgte Einreichungen. Ältere Akten ohne diese
  * Angabe lesen sie leer; leer wird sie nicht geschrieben.
  */
-externe_einreichungen?: Array<ExterneEinreichung>, bescheide: Array<Bescheid>, ereignisse: Array<Aktenereignis>, };
+externe_einreichungen?: Array<ExterneEinreichung>, bescheide: Array<Bescheid>,
+/**
+ * Gebührenbescheide mit Zahlungsfrist; ältere Akten lesen die Angabe leer.
+ */
+gebuehren?: Array<Gebuehrenbescheid>, ereignisse: Array<Aktenereignis>, };
 export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };

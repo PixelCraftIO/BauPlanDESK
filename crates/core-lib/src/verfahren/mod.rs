@@ -4,6 +4,7 @@ pub mod abgabe;
 pub mod abgleich;
 pub mod abweichungen;
 pub mod chronik;
+pub mod eingang;
 pub mod externe_einreichung;
 pub mod fristen;
 pub mod planindex;
@@ -423,6 +424,28 @@ pub struct Verfahrensschritt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub folgeschreiben: Option<Uuid>,
+    /// Anhörung: Beanstandungen der Behörde, auf die die Stellungnahme
+    /// eingeht. Ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<Beanstandung>>", optional)]
+    pub gruende: Vec<Beanstandung>,
+}
+/// Beanstandung der Behörde (Anhörung, Ablehnung) und die Reaktion darauf.
+/// Wortlaut und Grundlage bleiben nach dem Speichern unverändert.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Beanstandung {
+    pub id: Uuid,
+    pub text: String,
+    #[serde(default)]
+    pub grundlage: String,
+    /// Wie der Antrag reagiert: Stellungnahme, Planänderung, Abweichungsantrag.
+    #[serde(default)]
+    pub reaktion: String,
+    /// Abweichung dieser Akte, mit der die Beanstandung ausgeräumt werden soll.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub abweichung: Option<Uuid>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
@@ -530,6 +553,10 @@ pub struct Verfahrensakte {
     #[ts(as = "Option<Vec<externe_einreichung::ExterneEinreichung>>", optional)]
     pub externe_einreichungen: Vec<externe_einreichung::ExterneEinreichung>,
     pub bescheide: Vec<Bescheid>,
+    /// Gebührenbescheide mit Zahlungsfrist; ältere Akten lesen die Angabe leer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<eingang::Gebuehrenbescheid>>", optional)]
+    pub gebuehren: Vec<eingang::Gebuehrenbescheid>,
     pub ereignisse: Vec<Aktenereignis>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]

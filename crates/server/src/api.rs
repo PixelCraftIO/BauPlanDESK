@@ -308,6 +308,10 @@ fn routen(core: CoreServices) -> Router {
             post(xbau_beleg),
         )
         .route(
+            "/projekte/{p}/xbau/nachrichten/{id}/auswertung",
+            get(xbau_auswertung).post(xbau_auswertung_uebernehmen),
+        )
+        .route(
             "/projekte/{p}/xbau/nachrichten/{id}/verfahren",
             post(xbau_verfahren),
         )
@@ -1646,6 +1650,34 @@ struct XbauVerfahrenswunsch {
     /// Bestätigtes Zugangs- bzw. Versanddatum; fehlt es, gilt der Erfassungstag.
     #[serde(default)]
     zugang: Option<chrono::NaiveDate>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XbauAuswertungsfrage {
+    #[serde(default)]
+    verfahren: Option<Uuid>,
+}
+async fn xbau_auswertung(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<XbauAuswertungsfrage>,
+) -> ApiResult<core_lib::verfahren::eingang::Nachrichtenauswertung> {
+    Ok(Json(
+        core.xbau_auswertung(ProjectId(p), id, q.verfahren, &wer)
+            .await?,
+    ))
+}
+async fn xbau_auswertung_uebernehmen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id)): Path<(Uuid, Uuid)>,
+    Json(w): Json<core_lib::verfahren::eingang::Uebernahmewunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.xbau_auswertung_uebernehmen(ProjectId(p), id, w, &wer)
+            .await?,
+    ))
 }
 async fn xbau_verfahren(
     Extension(wer): Extension<Benutzer>,

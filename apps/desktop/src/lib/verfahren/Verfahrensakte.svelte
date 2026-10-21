@@ -37,6 +37,7 @@
   import Nachforderungen from "./Nachforderungen.svelte";
   import Bescheide from "./Bescheide.svelte";
   import Abweichungsantraege from "./Abweichungsantraege.svelte";
+  import Gebuehren from "./Gebuehren.svelte";
   import Anforderungen from "./Anforderungen.svelte";
   import Abgaben from "./Abgaben.svelte";
   import ExterneEinreichungen from "./ExterneEinreichungen.svelte";
@@ -403,6 +404,10 @@
           <Schritte
             bind:eintraege={a.schritte}
             kommunikation={a.kommunikation}
+            abweichungen={a.abweichungen ?? []}
+            gruendeAlt={s.original?.schritte?.flatMap((v) =>
+              (v.gruende ?? []).map((g) => g.id),
+            ) ?? []}
             {dateien}
             {benutzer}
             alt={s.original?.schritte?.map((v) => v.id) ?? []}
@@ -457,6 +462,13 @@
               .filter((v) => !v.zugestellt)
               .map((v) => v.id) ?? []}
             onberichtigen={(g, grund) => berichtigen(a, g, grund)}
+          />
+          <Gebuehren
+            bind:eintraege={() => a.gebuehren ?? [], (w) => (a.gebuehren = w)}
+            kommunikation={a.kommunikation}
+            {dateien}
+            {benutzer}
+            alt={s.original?.gebuehren?.map((v) => v.id) ?? []}
           />
         </fieldset>
       {:else if tab === "beziehungen"}<h3>Korrektur- und Ersatzbeziehungen</h3>

@@ -19,6 +19,7 @@
     Richtung,
     Belegart,
     Nachrichtenbeleg,
+    Nachrichtenauswertung,
   } from "../generated/plattform";
   import { editorAnmelden } from "../editoren";
   import { xbau } from "./api";
@@ -58,6 +59,56 @@
   $effect(() => {
     zugang = aktiv ? ortsdatum(aktiv.nachricht.erfasst_am) : "";
   });
+  /** Fachlicher Inhalt der gewählten Eingangsnachricht für die gewählte Akte. */
+  let auswertung = $state<Nachrichtenauswertung | null>(null);
+  let genehmigt = $state<string[]>([]);
+  $effect(() => {
+    const n = aktiv;
+    const v = verfahrensId;
+    auswertung = null;
+    if (!n || n.nachricht.richtung !== "eingang") return;
+    let aktuell = true;
+    xbau.auswertung(projekt.id, n.id, v || null).then(
+      (r) => {
+        if (!aktuell) return;
+        auswertung = r;
+        genehmigt = r.genehmigte_unterlagen.map(
+          (d) => `${d.dokument_id}:${d.version}`,
+        );
+      },
+      () => aktuell && (auswertung = null),
+    );
+    return () => (aktuell = false);
+  });
+  async function fachlichUebernehmen() {
+    const n = aktiv;
+    const v = verfahren.find((v) => v.objekt === verfahrensId);
+    if (!n || !v) return;
+    laeuft = true;
+    fehler = "";
+    try {
+      await xbau.uebernehmen(projekt.id, n.id, {
+        verfahren: v.objekt,
+        basis: v.revision,
+        zugang: zugang || null,
+        genehmigte_unterlagen: genehmigt.map((k) => {
+          const [dokument_id, version] = k.split(":");
+          return { dokument_id, version: Number(version) };
+        }),
+      });
+      await laden();
+      hinweis =
+        "In die Verfahrensakte übernommen. Fristen, Punkte und Bescheid dort prüfen.";
+      auswertung = await xbau.auswertung(projekt.id, n.id, v.objekt);
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
+    }
+  }
+  const dateiname = (k: string) =>
+    dokumente.find((d) => `${d.document_id}:${d.version}` === k)?.file_name ??
+    k;
   const zielakte = $derived(
     verfahren.find((v) => v.objekt === verfahrensId)?.daten as
       | { aktenzeichen?: string }
@@ -503,6 +554,74 @@
             Akte ({zielakte.aktenzeichen.trim()}) ab. Maßgebend bleibt die Akte;
             Zuordnung prüfen.{:else}Aktenzeichen stimmt mit der Akte überein.{/if}
         </p>{/if}
+      {#if auswertung && auswertung.auswertung.art !== "sonstige"}{@const x =
+          auswertung.auswertung}<section
+          class="auswertung"
+          aria-label="Fachlicher Inhalt"
+        >
+          <h4>Fachlicher Inhalt</h4>
+          {#if x.art === "befundliste"}<p>
+              {x.vollstaendig
+                ? "Unterlagen vollständig."
+                : `${x.befunde.length} Befunde${x.frist ? `, Frist bis ${x.frist}` : ""}.`}
+            </p>
+            <ul>
+              {#each x.befunde as b}<li>{b.text}</li>{/each}
+            </ul>{:else if x.art === "anhoerung"}<p>
+              {x.aufforderung}{x.frist ? ` Frist zur Stellungnahme bis ${x.frist}.` : ""}
+            </p>
+            <ul>
+              {#each x.befunde as b}<li>
+                  {b.regelverstoss}{b.begruendung ? ` – ${b.begruendung}` : ""}
+                </li>{/each}
+            </ul>{:else if x.art === "bescheid"}<p>
+              {x.genehmigung ? "Genehmigung" : "Ablehnung"} mit {x.nebenbestimmungen
+                .length} Nebenbestimmungen.
+            </p>
+            <ul>
+              {#each x.nebenbestimmungen as nb}<li>{nb.text}</li>{/each}
+            </ul>
+            {#if x.genehmigung}<fieldset>
+                <legend>Ausdrücklich genehmigte Unterlagen</legend>
+                {#each auswertung.genehmigte_unterlagen as d}{@const k = `${d.dokument_id}:${d.version}`}<label
+                    class="haken"
+                    ><input
+                      type="checkbox"
+                      checked={genehmigt.includes(k)}
+                      onchange={(e) =>
+                        (genehmigt = e.currentTarget.checked
+                          ? [...genehmigt, k]
+                          : genehmigt.filter((g) => g !== k))}
+                    />{dateiname(k)} · Version {d.version}</label
+                  >{:else}<p class="hinweis">
+                    Kein versendeter Abgabestand in dieser Akte.
+                  </p>{/each}
+              </fieldset>{/if}{:else if x.art === "gebuehrenbescheid"}<p>
+              {x.vorauszahlung ? "Vorauszahlung" : "Gebühren"}{x.summe_cent !==
+              null
+                ? `: ${(x.summe_cent / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`
+                : ""}{x.frist ? `, zahlbar bis ${x.frist}` : ""}
+            </p>{:else if x.art === "aktenzeichen"}<p>
+              Aktenzeichen {x.aktenzeichen}
+            </p>{:else if x.art === "eingangsbestaetigung"}<p>
+              Eingangsbestätigung{x.information ? `: ${x.information}` : ""}
+            </p>{/if}
+          {#if verfahrensId}<h5>Wirkung in der Akte</h5>
+            <ul>
+              {#each auswertung.wirkung as w}<li>{w}</li>{:else}<li>
+                  Keine weitere Änderung.
+                </li>{/each}
+            </ul>
+            <button
+              onclick={fachlichUebernehmen}
+              disabled={!darf || laeuft || auswertung.uebernommen}
+              >{auswertung.uebernommen
+                ? "Bereits übernommen"
+                : "Fachlich in die Akte übernehmen"}</button
+            >{:else}<p class="meta">
+              Akte auswählen, um die Wirkung zu sehen und zu übernehmen.
+            </p>{/if}
+        </section>{/if}
       <h4>Anlagen</h4>
       <div class="tabelle">
         <table class="ergebnistabelle">
