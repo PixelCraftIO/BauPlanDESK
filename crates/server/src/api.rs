@@ -307,6 +307,10 @@ fn routen(core: CoreServices) -> Router {
             "/projekte/{p}/xbau/nachrichten/{id}/verfahren",
             post(xbau_verfahren),
         )
+        .route(
+            "/projekte/{p}/dokumente/{id}/email/{version}/verfahren",
+            post(email_verfahren),
+        )
         .route("/lbo/regelpakete", get(rule_packs))
         .route("/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/projekte/{id}/abstandsregeln", get(abstandsregeln))
@@ -1194,6 +1198,39 @@ async fn email_anhang_ablegen(
         s.core
             .email_anhang_ablegen(DocumentId(id), version, index, &wer)
             .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmailVerfahrenswunsch {
+    verfahren: Uuid,
+    basis: i64,
+    eingehend: bool,
+    /// Bestätigter Zugang bzw. Versand; fehlt es, gilt das Sendedatum.
+    #[serde(default)]
+    datum: Option<chrono::NaiveDate>,
+}
+async fn email_verfahren(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((p, id, version)): Path<(Uuid, Uuid, i64)>,
+    Json(w): Json<EmailVerfahrenswunsch>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.email_in_verfahren(
+            ProjectId(p),
+            core_lib::plattform::objekte::Dokumentbezug {
+                dokument_id: DocumentId(id),
+                version,
+            },
+            w.verfahren,
+            w.basis,
+            w.eingehend,
+            w.datum,
+            &wer,
+        )
+        .await?,
     ))
 }
 

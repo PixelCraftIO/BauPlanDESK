@@ -1134,6 +1134,26 @@ const ablage = (cmd: string, args: Record<string, unknown>) =>
 export const api = {
   emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
   emailAnhangAblegen: (dokumentId: string, version: number, index: number) => ablage("email_anhang_ablegen", { dokumentId, version, index }),
+  /** Archivierte E-Mail als Kommunikation in eine Verfahrensakte übernehmen. */
+  emailInVerfahren: (
+    projektId: string,
+    dokumentId: string,
+    version: number,
+    verfahren: string,
+    basis: number,
+    eingehend: boolean,
+    /** Bestätigter Zugang bzw. Versand; ohne Angabe das Sendedatum. */
+    datum: string | null = null,
+  ) =>
+    invoke<import("./generated/plattform").Fachstand>("email_in_verfahren", {
+      projektId,
+      dokumentId,
+      version,
+      verfahren,
+      basis,
+      eingehend,
+      datum,
+    }),
   kategorienkatalog: () =>
     invoke<import("./generated/plattform").KategorienKatalog>("kategorienkatalog"),
   kategorienkatalogSpeichern: (

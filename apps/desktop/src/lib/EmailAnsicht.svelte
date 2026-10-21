@@ -6,7 +6,8 @@
     type DocumentVersion,
     type ArchivierteEmail,
   } from "./api";
-  import type { MailAdresse } from "./generated/plattform";
+  import type { MailAdresse, Verfahrensakte } from "./generated/plattform";
+  import { plattformApi, type Datensatz } from "./plattformApi";
   let {
     dokument,
     onschliessen,
@@ -31,6 +32,47 @@
       );
       importiert = [...importiert, `${d.file_name} im Projekt gespeichert.`];
       onimport();
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      importBusy = false;
+    }
+  }
+  // Übernahme als Kommunikation in eine Verfahrensakte.
+  let akten = $state<Datensatz<Verfahrensakte>[]>([]),
+    akteId = $state(""),
+    eingehend = $state(true),
+    zugang = $state(""),
+    aktenhinweis = $state("");
+  async function aktenLaden() {
+    try {
+      akten = await plattformApi.liste<Verfahrensakte>(
+        dokument.project_id,
+        "verfahren",
+      );
+      if (!akteId && akten.length === 1) akteId = akten[0].objekt;
+    } catch (e) {
+      fehler = fehlertext(e);
+    }
+  }
+  async function inAkteUebernehmen() {
+    const a = akten.find((x) => x.objekt === akteId);
+    if (!a) return;
+    importBusy = true;
+    fehler = "";
+    aktenhinweis = "";
+    try {
+      await api.emailInVerfahren(
+        dokument.project_id,
+        dokument.document_id,
+        version,
+        a.objekt,
+        a.revision,
+        eingehend,
+        zugang || null,
+      );
+      aktenhinweis = `Als Kommunikation in „${a.daten.bezeichnung}“ erfasst. Fristen und Nachforderungen dort anhand des Originals bearbeiten.`;
+      await aktenLaden();
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -68,6 +110,7 @@
   }
   onMount(() => {
     void laden(dokument.version);
+    void aktenLaden();
     void api
       .historie(dokument.document_id)
       .then((v) => {
@@ -174,6 +217,44 @@
       Übernommene Anhänge erhalten eine eigene Dokumentidentität mit Bezug zur
       Nachrichtenversion. Erneutes Übernehmen erzeugt kein Duplikat.
     </p>{:else}<p class="meta">Keine Anhänge erfasst.</p>{/if}
+{/if}
+{#if mail && darf}
+  <section aria-label="In Verfahrensakte übernehmen">
+    <h3>In Verfahrensakte übernehmen</h3>
+    {#if akten.length}
+      <div class="knoepfe links">
+        <label
+          >Verfahrensakte<select aria-label="Verfahrensakte" bind:value={akteId}
+            ><option value="">– wählen –</option>{#each akten as a (a.objekt)}<option
+                value={a.objekt}>{a.daten.bezeichnung}</option
+              >{/each}</select
+          ></label
+        ><label
+          >Richtung<select bind:value={eingehend}
+            ><option value={true}>Eingehend</option><option value={false}
+              >Ausgehend</option
+            ></select
+          ></label
+        ><label
+          >{eingehend ? "Zugang am" : "Versendet am"}<input
+            aria-label="Zugangsdatum"
+            type="date"
+            bind:value={zugang}
+          /></label
+        ><button
+          disabled={importBusy || !akteId}
+          onclick={inAkteUebernehmen}>Als Kommunikation übernehmen</button
+        >
+      </div>
+      <p class="meta">
+        Betreff, Absender, Empfänger, Text und Original werden übernommen;
+        bereits abgelegte Anhänge werden verknüpft. Ohne Datum gilt das
+        Sendedatum der E-Mail. Dieselbe Nachrichtenversion steht projektweit nur
+        in einer Akte.
+      </p>
+    {:else}<p class="meta">Im Projekt gibt es noch keine Verfahrensakte.</p>{/if}
+    {#if aktenhinweis}<p role="status">{aktenhinweis}</p>{/if}
+  </section>
 {/if}
 {#each importiert as text}<p role="status">{text}</p>{/each}
 
