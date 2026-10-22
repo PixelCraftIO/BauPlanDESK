@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Arbeitscheck from "./arbeitsplatz/Arbeitscheck.svelte";
+  import Statushilfe from "./arbeitsplatz/Statushilfe.svelte";
+  import { abonnieren } from "./projektEreignisse";
   import { onDestroy, untrack } from "svelte";
   import { plattformApi } from "./plattformApi";
   import { fehlertext } from "./api";
@@ -14,11 +17,13 @@
     sichtbar,
     onoeffnen,
     entwuerfe = false,
+    benutzerId = "",
   }: {
     projektId: string;
     version: number;
     sichtbar: boolean;
     entwuerfe?: boolean;
+    benutzerId?: string;
     onoeffnen: (z: UebersichtsZiel) => void;
   } = $props();
   let daten = $state<Projektuebersicht | null>(null),
@@ -27,6 +32,7 @@
     thema = $state(""),
     dringlichkeit = $state(""),
     suche = $state(""),
+    zustaendigkeit = $state(""),
     registerFilter = $state(""),
     anzahl = $state(20);
   let anfrage = 0;
@@ -96,9 +102,11 @@
     }
   });
   onDestroy(() => anfrage++);
+  $effect(() => abonnieren(projektId, ["dokumente", "fachobjekte", "nachweise"], () => { if (sichtbar) void laden(); }));
   const gefiltert = $derived(
     (daten?.punkte ?? []).filter(
       (p) =>
+        (!zustaendigkeit || (zustaendigkeit === "ich" ? p.verantwortlich === benutzerId : !p.verantwortlich)) &&
         (!thema || p.thema === thema) &&
         (!registerFilter || p.ziel.register === registerFilter) &&
         (!dringlichkeit || p.dringlichkeit === dringlichkeit) &&
@@ -188,10 +196,12 @@
           >Verfahrensakte öffnen</button
         >{/if}
     </div>
+    <Arbeitscheck {daten} {entwuerfe} {onoeffnen} kompakt/>
     <div class="arbeitsraster">
       <section class="arbeitsbedarf" aria-label="Handlungsbedarf">
         <h3>Handlungsbedarf</h3>
         <div class="filter">
+          <label>Zuständigkeit<select aria-label="Zuständigkeit" bind:value={zustaendigkeit} onchange={()=>anzahl=20}><option value="">Alle Zuständigkeiten</option><option value="ich" disabled={!benutzerId}>Mir zugewiesen</option><option value="offen">Ohne Zuweisung</option></select></label>
           <label
             >Bereich<select
               aria-label="Bereich"
@@ -227,6 +237,7 @@
             /></label
           >
         </div>
+        {#if thema || dringlichkeit || registerFilter || suche || zustaendigkeit}<button type="button" class="link" onclick={()=>{filtern("");suche="";zustaendigkeit="";}}>Alle Filter zurücksetzen</button>{/if}
         {#if registerFilter}<p class="meta">
             Nur {registerFilter === "bescheide"
               ? "Auflagen"
@@ -260,6 +271,7 @@
               <div>
                 <strong>{p.titel}</strong>
                 <p>{p.hinweis}</p>
+                <p class="meta">Zuständigkeit: {p.verantwortlich === benutzerId ? "Mir zugewiesen" : p.verantwortlich ? "Zugewiesen – Person im Eintrag anzeigen" : "Noch nicht zugewiesen"}</p>
               </div>
               <button
                 type="button"
@@ -391,7 +403,7 @@
               ></thead
             ><tbody
               >{#each emp.dokumente as d (d.dokument_id)}<tr
-                  ><td>{d.dateiname}</td><td>{d.eingereichte_version}</td><td
+                  ><td><button type="button" class="link" onclick={()=>onoeffnen({...ziel("dokumente"),objekt:d.dokument_id,register:"historie",eintrag:String(d.eingereichte_version)})}>{d.dateiname}</button></td><td>{d.eingereichte_version}</td><td
                     >{d.aktuelle_version ?? "—"}</td
                   ><td>{datum(d.eingereicht_am)}</td><td>{d.status}</td></tr
                 >{/each}</tbody
@@ -405,6 +417,7 @@
           vorhanden.
         </p>{/each}
     </section>
+    <Statushilfe/>
     <footer>
       <p class="meta">
         Stand {new Date(daten.ermittelt_am).toLocaleString("de-DE")} · Projektversion

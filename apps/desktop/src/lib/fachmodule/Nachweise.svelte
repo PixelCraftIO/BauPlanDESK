@@ -1,7 +1,11 @@
 <script lang="ts">
+  import Statusanzeige from "../arbeitsplatz/Statusanzeige.svelte";
+  import Statushilfe from "../arbeitsplatz/Statushilfe.svelte";
+  import { nachweisZiel } from "../arbeitsplatz/arbeitscheck";
+  import { abonnieren } from "../projektEreignisse";
   import Druckknopf from "../Druckknopf.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
-  import { onMount, tick } from "svelte";
+  import { onMount, onDestroy, tick, untrack } from "svelte";
   import type { BaugrundstuecksPruefung, Project } from "../api";
   import { fehlertext } from "../api";
   import type { NachweisAnsicht, JsonValue } from "../generated/plattform";
@@ -19,18 +23,35 @@
   let liste = $state<NachweisAnsicht[]>([]),
     fehler = $state<string | null>(null),
     meldung = $state<string | null>(null),
-    laeuft = $state(false);
+    laedt = $state(false),
+    aktion = $state(false);
+  const laeuft = $derived(laedt || aktion);
+  let ladeNr = 0;
+  onDestroy(()=>ladeNr++);
   async function laden() {
-    laeuft = true;
+    const nr = ++ladeNr, id = projekt.id;
+    laedt = true;
+    fehler = null;
     try {
-      liste = await plattformApi.nachweise(projekt.id);
+      const neu = await plattformApi.nachweise(id);
+      if (nr === ladeNr && id === projekt.id) liste = neu;
     } catch (e) {
-      fehler = fehlertext(e);
+      if (nr === ladeNr) fehler = fehlertext(e);
     } finally {
-      laeuft = false;
+      if (nr === ladeNr) laedt = false;
     }
   }
+  // Änderungen an Projektgrundlagen melden keine Fachobjekt-Ereignisse.
+  let beobachteteVersion = untrack(()=>projekt.version);
+  $effect(()=>{
+    const version = projekt.version;
+    if (version !== beobachteteVersion) {
+      beobachteteVersion = version;
+      untrack(()=>void laden());
+    }
+  });
   const navigation = projektNavigation();
+  $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente","nachweise"],()=>void laden()));
   let letzterSprung = 0;
   $effect(() => {
     const a = navigation?.auftrag;
@@ -56,7 +77,7 @@
     if (navigation?.auftrag?.ziel.bereich !== "nachweise") void laden();
   });
   async function freigeben(n: NachweisAnsicht) {
-    laeuft = true;
+    aktion = true;
     try {
       await plattformApi.freigeben(
         projekt.id,
@@ -67,11 +88,11 @@
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
-      laeuft = false;
+      aktion = false;
     }
   }
   async function wiederholen(n: NachweisAnsicht) {
-    laeuft = true;
+    aktion = true;
     try {
       const neu = await plattformApi.wiederholen(projekt.id, n.stand.id);
       meldung =
@@ -81,7 +102,7 @@
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
-      laeuft = false;
+      aktion = false;
     }
   }
   function nutzung(wert: JsonValue): BaugrundstuecksPruefung | null {
@@ -152,7 +173,8 @@
   >
     {meldung}
   </p>{/if}
-<table class="ergebnistabelle">
+<Statushilfe/>
+<div class="tabellen-scroll"><table class="ergebnistabelle">
   <thead
     ><tr
       ><th>Nachweis</th><th>Erstellt</th><th>Vollständigkeit</th><th
@@ -165,7 +187,7 @@
           >{new Date(n.stand.erstellt_am).toLocaleString("de-DE")}</td
         ><td
           >{n.stand.vollstaendig ? "Vollständig" : "Eingaben unvollständig"}</td
-        ><td>{n.aktuell ? "Aktuell" : "Grundlagen geändert – neu prüfen"}</td
+        ><td><Statusanzeige status={n.aktuell ? "archiviert" : "veraltet"}/><span class="meta">{n.aktuell ? " · Grundlagen aktuell" : " · Neu berechnen"}</span></td
         ><td
           >{n.freigabe
             ? n.aktuell
@@ -173,7 +195,7 @@
               : "Freigabe des früheren Stands"
             : "Offen"}</td
         ><td
-          >{#if !n.freigabe}<button
+          ><button type="button" class="link" onclick={()=>navigation?.springen(nachweisZiel(n.stand.eingabe))}>{n.aktuell ? "Berechnung öffnen" : "Grundlagen prüfen / neu berechnen"}</button>{#if !n.freigabe}<button
               class="link"
               disabled={!darfFreigeben ||
                 !n.aktuell ||
@@ -241,4 +263,4 @@
         ><td colspan="6">Noch keine Nachweisstände gespeichert.</td></tr
       >{/each}</tbody
   >
-</table>
+</table></div>

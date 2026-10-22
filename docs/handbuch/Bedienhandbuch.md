@@ -160,6 +160,12 @@ Innerhalb einer Projektakte wechseln Sie über die Register „Übersicht“, �
 
 Meldet die Anwendung einen Versionskonflikt, den Entwurf zunächst erhalten und die Änderungen mit dem Kollegen abstimmen. Den aktuellen Stand erst nach Sicherung der eigenen Angaben laden. Ein erneuter Speicherversuch ist kein bewusster Zusammenführungsentscheid.
 
+### Einheitliche Bearbeitungsstände
+
+Statusanzeigen enthalten Text und ein Symbol. „Gespeichert“, „Berechnet“, „Archiviert“, „Fachlich freigegeben“, „Exportiert“ und „Eingang belegt“ beschreiben unterschiedliche Arbeitsschritte. Die aufklappbare Statushilfe erläutert diese in Übersicht, Nachweisen und Einreichung.
+
+Beim Bearbeiten eines Fachobjekts lässt sich die Eintragsliste über dem Formular ein- und ausklappen. Ungespeicherte Änderungen bleiben geschützt. Ein Eingabefehler öffnet den betroffenen Formularabschnitt und setzt den Fokus auf das Feld.
+
 Weiterlesen: [Benutzer und Projektmitglieder](#04-benutzer-und-projektmitglieder) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
 ## 03. Arbeitsplatz und Büro einrichten
@@ -650,6 +656,12 @@ Unveränderliche Nachweise von bearbeitbaren Berechnungen unterscheiden.
 
 Ein archivierter Nachweis allein belegt weder, dass er dem Bauamt vorliegt, noch dass das Bauamt ihn genehmigt hat. Dafür Abgabe und später Bescheid separat dokumentieren.
 
+### Nach geänderten Grundlagen weiterarbeiten
+
+1. „Grundlagen prüfen / neu berechnen“ am Nachweis öffnet den zugehörigen Berechnungsbereich beziehungsweise den konkreten Fachplan.
+2. Quellen und Eingaben prüfen, Änderungen speichern und neu berechnen. Einen neuen Nachweisstand archivieren; der frühere bleibt erhalten.
+3. Den neuen Stand fachlich prüfen und freigeben. Unterlagen und geplante Abgaben anschließend bewusst auf die passende Dokumentversion umstellen.
+
 Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
 ## 27. Projektdateien und Versionen verwalten
@@ -801,6 +813,14 @@ Die Übersicht ist eine Auswertung der erfassten Daten. Nicht erfasste Anforderu
 
 Die Projektchronik dokumentiert gespeicherte Aktionen und Änderungen. Sie ergänzt die fachliche Verfahrenschronik, ersetzt aber weder einen Originalbeleg noch einen Versandnachweis. Für Vorgang und Zeitpunkt stets den passenden fachlichen Bereich verwenden.
 
+### Arbeitscheck und Zuständigkeit
+
+1. Unter Handlungsbedarf nach „Mir zugewiesen“ oder „Ohne Zuweisung“ filtern. Mit „Alle Filter zurücksetzen“ wieder alle Arbeitspunkte anzeigen.
+2. Den eingeklappten „Arbeitscheck vor der Abgabe“ öffnen. Die Gruppen führen direkt zu offenen Grundlagen, Nachweisen, Unterlagen und Verfahrenspunkten.
+3. Im dokumentierten Behördenstand auf den Dateinamen klicken: Die Historie hebt die damals eingereichte Version hervor; neuere Projektversionen bleiben davon unterscheidbar.
+
+> Der Arbeitscheck verwendet gespeicherte Daten. Ungespeicherte Entwürfe, fehlende Anforderungen und nicht erreichbare Prüfungen ergeben keine bestätigte Abgabereife.
+
 Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#36-unterlagenbedarf-und-freigaben-organisieren) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen)
 
 ## 34. Aktensuche, OCR und Wiedervorlagen
@@ -935,6 +955,12 @@ Die vollständige Abgabe vom Entwurf bis zum dokumentierten Zugang durchführen.
 - Planmaßstäbe, Lesbarkeit, Vollständigkeit und Dateiformate kontrolliert?
 - Unterschriften, Vollmachten und separate Fachnachweise geklärt?
 - Einreichungsbeleg heruntergeladen und der eigenen Abgabe zuordenbar?
+
+### Arbeitscheck vor der Portalübergabe
+
+1. In „Einreichen / Nachreichen“ die Verfahrensakte wählen und den Arbeitscheck aktualisieren. Verfahrensbezogene Meldungen werden auf diese Akte eingegrenzt; gemeinsame Projektgrundlagen bleiben sichtbar.
+2. Jeden offenen Prüfpunkt über den Direktlink bearbeiten. Eine leere Gruppe bedeutet lediglich, dass dazu keine offenen Meldungen erfasst sind.
+3. Über die Schrittauswahl zu Anforderungen, Antragsdaten, Unterlagen, Abgabe oder Eingangsbeleg springen. Abschließende Paketprüfung und tatsächlichen Eingang im zuständigen Bereich dokumentieren.
 
 Weiterlesen: [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung)
 

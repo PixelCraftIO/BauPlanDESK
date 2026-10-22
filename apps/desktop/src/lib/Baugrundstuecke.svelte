@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Statusanzeige from "./arbeitsplatz/Statusanzeige.svelte";
   import Druckknopf from "./Druckknopf.svelte";
   import { berechnungsplan, berechnungsansaetze } from "./grundstuecksdaten";
   import type { Gebaeude } from "./generated/plattform";
@@ -776,10 +777,10 @@
 {#each nachweis?.hinweise ?? [] as h}<p class="hinweisbox" role="status">
     {h}
   </p>{/each}
-{#if relevanteNachweise.length}<table class="ergebnistabelle">
+{#if relevanteNachweise.length}<div class="tabellen-scroll"><table class="ergebnistabelle berechnungswerte">
     <thead
       ><tr
-        ><th>Nachweis</th><th>Ist</th><th>Vorgabe</th><th>Grundlage</th><th
+        ><th>Nachweis</th><th>Ermittelt</th><th>Zulässig / Vorgabe</th><th>Grundlage</th><th
           >Abweichung</th
         ></tr
       ></thead
@@ -794,12 +795,13 @@
           ><td class:verstoss={n.eingehalten === false}
             >{n.art === "baufenster_lage" && n.ist == null
               ? "Nicht geprüft"
-              : z(n.abweichung ?? n.ueberschreitung)}</td
+              : z(n.abweichung ?? n.ueberschreitung)}<br/><span>{n.eingehalten === null ? "Nicht abschließend prüfbar" : n.eingehalten ? "✓ Vorgabe eingehalten" : "! Abweichung prüfen"}</span></td
           ></tr
         >{/each}</tbody
     >
-  </table>{/if}
-{#if ergebnis && !aktuell}<p class="meta">
+  </table></div>{/if}
+{#if ergebnis}<Statusanzeige status={aktuell ? "berechnet" : "veraltet"}/>{/if}
+{#if ergebnis && !aktuell}<p class="hinweisbox" role="status">
     Eingaben geändert. Ergebnisse bitte neu berechnen.
   </p>{/if}
 <div class="knoepfe links">

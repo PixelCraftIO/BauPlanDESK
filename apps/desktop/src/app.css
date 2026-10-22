@@ -1891,3 +1891,38 @@ label:has(> .pflicht) > textarea {grid-column:1 / -1; width:100%;}
     grid-row: auto;
   }
 }
+
+/* Arbeitsplätze: lesbarer Rhythmus auch bei Betriebssystem-Skalierung.
+   Druckvorlagen behalten ihre eigene, unabhängige Seitengestaltung. */
+@media screen {
+  .aktenrumpf > main { scroll-padding-block: 6rem 2rem; }
+  .aktenrumpf > main > *, .globale-seite > * { min-width: 0; }
+  .aktenrumpf :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+  .globale-seite :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    min-height: 34px;
+    padding: .4rem .6rem;
+    box-sizing: border-box;
+  }
+  .aktenrumpf textarea, .globale-seite textarea { min-height: 5.5rem; resize: vertical; }
+  .aktenrumpf button, .globale-seite button { min-height: 32px; }
+  .aktennavigation button { padding-block: .5rem; line-height: 1.4; }
+  .aktenrumpf .raster, .aktenrumpf .formularfelder { gap: 1rem; }
+  .aktenrumpf fieldset { margin-block: 1rem; padding-block: .8rem; }
+  .aktenrumpf .ergebnistabelle :is(th, td) { padding: .6rem .75rem; vertical-align: top; }
+  .aktenrumpf .ergebnistabelle td { font-variant-numeric: tabular-nums; }
+  .aktenrumpf :is(button, input, select, textarea, summary, a):focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  .aktenrumpf :is(input, textarea)[readonly] { background: var(--readonly-bg); border-style: dashed; }
+  .aktenrumpf .knoepfe { gap: .6rem; flex-wrap: wrap; }
+  .aktenrumpf .hinweisbox { line-height: 1.55; padding: .8rem 1rem; }
+  .aktenrumpf summary { min-height: 28px; line-height: 1.5; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; }
+  }
+}
+
+@media screen {
+  .berechnungswerte :is(th,td):nth-child(2), .berechnungswerte :is(th,td):nth-child(3) { text-align:right; white-space:nowrap; }
+  .aktenrumpf label:has(> input:is([type="checkbox"], [type="radio"])) { min-height:28px; }
+}

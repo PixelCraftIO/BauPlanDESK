@@ -4,7 +4,9 @@
   import Dokumentfeld from "./Dokumentfeld.svelte";
   import { heute } from "./api";
   let {
-    wert = $bindable(null),
+    // Optionale Fristen können im Core-JSON fehlen. Kein bindbarer Fallback:
+    // Svelte verbietet sonst bind:wert={undefined} beim Öffnen solcher Akten.
+    wert = $bindable(),
     dateien,
   }: { wert?: Frist | null; dateien: DocumentVersion[] } = $props();
 </script>
