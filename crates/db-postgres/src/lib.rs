@@ -3,6 +3,7 @@
 mod commit;
 mod einreichungen;
 
+use std::borrow::Cow;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -26,6 +27,8 @@ use core_lib::repository::{
 use core_lib::storage::ContentHash;
 use core_lib::xbau::Anschrift;
 use core_lib::{CoreError, CoreResult};
+use sha2::{Digest, Sha384};
+use sqlx::migrate::{Migration, Migrator};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
 
@@ -42,10 +45,9 @@ impl PostgresDatabase {
             .connect(url)
             .await
             .map_err(db_err)?;
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .map_err(migrationsfehler)?;
+        let migrationen = migrationen();
+        pruefsummen_angleichen(&pool, &migrationen).await?;
+        migrationen.run(&pool).await.map_err(migrationsfehler)?;
         Ok(Self { pool })
     }
 
@@ -73,6 +75,57 @@ impl PostgresDatabase {
             Err(e) => e,
         }
     }
+}
+
+/// Migrationen in der LF-Fassung des Repositorys. `migrate!` bettet die
+/// Dateien so ein, wie sie ausgecheckt sind, unter Windows mit
+/// `core.autocrlf` also mit CRLF und damit einer anderen Prüfsumme. Ohne
+/// Normalisierung passte die gemeinsame Datenbank nicht zugleich zu Windows-
+/// und Linux-/macOS-Builds.
+fn migrationen() -> Migrator {
+    let mut m = sqlx::migrate!("./migrations");
+    m.migrations = Cow::Owned(
+        m.migrations
+            .iter()
+            .map(|x| {
+                Migration::new(
+                    x.version,
+                    x.description.clone(),
+                    x.migration_type,
+                    Cow::Owned(x.sql.replace("\r\n", "\n")),
+                    x.no_tx,
+                )
+            })
+            .collect(),
+    );
+    m
+}
+
+/// Datenbanken, die ein Windows-Build vor der Normalisierung angelegt hat,
+/// tragen die Prüfsumme der CRLF-Fassung. Der Inhalt ist identisch; nur
+/// genau diese Prüfsumme wird auf die LF-Fassung umgestellt, jede andere
+/// Abweichung meldet weiterhin [`CoreError::datenbankstand_abweichend`].
+async fn pruefsummen_angleichen(pool: &PgPool, migrationen: &Migrator) -> CoreResult<()> {
+    let vorhanden: bool = sqlx::query_scalar("SELECT to_regclass('_sqlx_migrations') IS NOT NULL")
+        .fetch_one(pool)
+        .await
+        .map_err(db_err)?;
+    if !vorhanden {
+        return Ok(());
+    }
+    for m in migrationen.iter() {
+        let crlf = Sha384::digest(m.sql.replace('\n', "\r\n").as_bytes());
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET checksum = $1 WHERE version = $2 AND checksum = $3",
+        )
+        .bind(m.checksum.as_ref())
+        .bind(m.version)
+        .bind(crlf.as_slice())
+        .execute(pool)
+        .await
+        .map_err(db_err)?;
+    }
+    Ok(())
 }
 
 /// Ältere Programmversion an einer bereits weiter migrierten gemeinsamen

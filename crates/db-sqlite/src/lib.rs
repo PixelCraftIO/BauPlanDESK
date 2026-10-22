@@ -3,6 +3,7 @@
 mod commit;
 mod einreichungen;
 
+use std::borrow::Cow;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -27,6 +28,8 @@ use core_lib::repository::{
 use core_lib::storage::ContentHash;
 use core_lib::xbau::Anschrift;
 use core_lib::{CoreError, CoreResult};
+use sha2::{Digest, Sha384};
+use sqlx::migrate::{Migration, Migrator};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow};
 use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
@@ -81,7 +84,7 @@ impl SqliteDatabase {
                 .fetch_one(&db.pool)
                 .await
                 .map_err(db_err)?;
-        let migrationen = sqlx::migrate!("./migrations");
+        let migrationen = migrationen();
         if version.is_none() || version.is_some_and(|v| migrationen.iter().all(|m| m.version < v)) {
             return Err(CoreError::InvalidInput(
                 "Profil verwendet eine unbekannte Datenbankversion".into(),
@@ -116,10 +119,9 @@ impl SqliteDatabase {
             .connect_with(options)
             .await
             .map_err(db_err)?;
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .map_err(migrationsfehler)?;
+        let migrationen = migrationen();
+        pruefsummen_angleichen(&pool, &migrationen).await?;
+        migrationen.run(&pool).await.map_err(migrationsfehler)?;
         Ok(Self { pool })
     }
 
@@ -141,6 +143,57 @@ impl SqliteDatabase {
             kunden: this,
         }
     }
+}
+
+/// Migrationen in der LF-Fassung des Repositorys. `migrate!` bettet die
+/// Dateien so ein, wie sie ausgecheckt sind, unter Windows mit
+/// `core.autocrlf` also mit CRLF und damit einer anderen Prüfsumme. Ohne
+/// Normalisierung passten Datenbanken (Beispielprojekt, Sicherungen, Server)
+/// nicht zu einem Windows-Build und umgekehrt.
+fn migrationen() -> Migrator {
+    let mut m = sqlx::migrate!("./migrations");
+    m.migrations = Cow::Owned(
+        m.migrations
+            .iter()
+            .map(|x| {
+                Migration::new(
+                    x.version,
+                    x.description.clone(),
+                    x.migration_type,
+                    Cow::Owned(x.sql.replace("\r\n", "\n")),
+                    x.no_tx,
+                )
+            })
+            .collect(),
+    );
+    m
+}
+
+/// Datenbanken, die ein Windows-Build vor der Normalisierung angelegt hat,
+/// tragen die Prüfsumme der CRLF-Fassung. Der Inhalt ist identisch; nur
+/// genau diese Prüfsumme wird auf die LF-Fassung umgestellt, jede andere
+/// Abweichung meldet weiterhin [`CoreError::datenbankstand_abweichend`].
+async fn pruefsummen_angleichen(pool: &SqlitePool, migrationen: &Migrator) -> CoreResult<()> {
+    let vorhanden: Option<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(db_err)?;
+    if vorhanden.is_none() {
+        return Ok(());
+    }
+    for m in migrationen.iter() {
+        let crlf = Sha384::digest(m.sql.replace('\n', "\r\n").as_bytes());
+        sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ? AND checksum = ?")
+            .bind(m.checksum.as_ref())
+            .bind(m.version)
+            .bind(crlf.as_slice())
+            .execute(pool)
+            .await
+            .map_err(db_err)?;
+    }
+    Ok(())
 }
 
 /// Ältere Programmversion an einer bereits weiter migrierten Datenbank: klare
@@ -1339,6 +1392,57 @@ mod tests {
         assert_eq!(p.grundstuecksflaeche_m2, Some(800.0));
         assert_eq!(p.version, 1);
         assert_eq!(p.planungsrecht, Default::default());
+    }
+
+    #[tokio::test]
+    async fn crlf_pruefsummen_eines_windows_builds_werden_angeglichen() {
+        let dir = tempfile::tempdir().unwrap();
+        let pfad = dir.path().join("windows.db");
+        // Stand, wie ihn ein Windows-Build mit CRLF-Migrationen angelegt hat.
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&pfad)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+        let mut windows = migrationen();
+        windows.migrations = Cow::Owned(
+            windows
+                .iter()
+                .map(|m| {
+                    Migration::new(
+                        m.version,
+                        m.description.clone(),
+                        m.migration_type,
+                        Cow::Owned(m.sql.replace('\n', "\r\n")),
+                        m.no_tx,
+                    )
+                })
+                .collect(),
+        );
+        windows.run(&pool).await.unwrap();
+        pool.close().await;
+
+        let db = SqliteDatabase::open(&pfad).await.unwrap();
+        let summen: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations ORDER BY version")
+                .fetch_all(&db.pool)
+                .await
+                .unwrap();
+        let erwartet: Vec<Vec<u8>> = migrationen().iter().map(|m| m.checksum.to_vec()).collect();
+        assert_eq!(summen, erwartet);
+
+        // Jede andere Abweichung bleibt ein Fehler.
+        sqlx::query("UPDATE _sqlx_migrations SET checksum = x'00' WHERE version = 1")
+            .execute(&db.pool)
+            .await
+            .unwrap();
+        db.schliessen().await;
+        let fehler = SqliteDatabase::open(&pfad).await.err().unwrap().to_string();
+        assert!(fehler.contains("Datenbankstand 1"), "{fehler}");
     }
 
     #[tokio::test]

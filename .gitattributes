@@ -1,0 +1,3 @@
+# Migrationen gehen mit SHA-384 über den Dateiinhalt in die Datenbank ein;
+# Zeilenenden müssen auf allen Plattformen gleich sein.
+*.sql text eol=lf
