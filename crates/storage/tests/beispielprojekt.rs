@@ -6,8 +6,8 @@
 //! BAUPROJEKT_BEISPIEL_ZIEL=beispiele cargo test -p storage --test beispielprojekt
 //! ```
 //!
-//! Laden: Einstellungen → Sicherung und Wiederherstellung → „Wiederherstellen“,
-//! dann „Profil aktivieren“ und die App neu starten.
+//! Die App liefert das Archiv aus und öffnet es über „Hilfe → Beispielprojekt
+//! öffnen“ als eigene Kopie; `tests/beispielarchiv.rs` prüft das ausgelieferte Archiv.
 mod beispiel;
 use beispiel::*;
 

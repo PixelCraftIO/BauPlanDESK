@@ -131,47 +131,50 @@ pub async fn sicherung_wiederherstellen(
         .await
         .map_err(|e| CoreError::Storage(e.to_string()))??;
     // Erst nach Integritätsprüfung werden absolute Pfade auf das neue Profil gesetzt.
-    let result = async {
-        db_sqlite::SqliteDatabase::datei_pruefen(&ziel.join("bauprojekt.db")).await?;
-        // Das wiederhergestellte Profil startet als Einzelplatz mit Anmeldung
-        // über das Rechnerkonto; wer wiederherstellt, verwaltet es auch dort.
-        let db = db_sqlite::SqliteDatabase::open(&ziel.join("bauprojekt.db")).await?;
-        let uebernahme = core_lib::anmeldung::verwaltung_nach_wiederherstellung(
-            &db.repositories(),
-            &whoami::username(),
-            &whoami::realname(),
-        )
-        .await;
-        db.schliessen().await;
-        uebernahme?;
-        let config = ziel.join("einstellungen");
-        tokio::fs::create_dir_all(&config)
-            .await
-            .map_err(|e| CoreError::Storage(e.to_string()))?;
-        for (datei, ordner) in [
-            ("dateiablage.json", "dateien"),
-            ("formularbibliothek.json", "Formularvorlagen"),
-            ("projektordner.json", "Projektordner"),
-        ] {
-            tokio::fs::create_dir_all(ziel.join(ordner))
-                .await
-                .map_err(|e| CoreError::Storage(e.to_string()))?;
-            DateiablageConfig {
-                root: ziel.join(ordner),
-            }
-            .save_named(&config, datei)
-            .map_err(CoreError::Storage)?;
-        }
-        tokio::fs::write(config.join("config.json"), b"{\"modus\":\"einzelplatz\"}")
-            .await
-            .map_err(|e| CoreError::Storage(e.to_string()))?;
-        Ok::<_, CoreError>(())
-    }
-    .await;
+    let result = profil_einrichten(&ziel).await;
     if let Err(e) = result {
         return Err(CoreError::Storage(format!("Daten wurden in {} entpackt, das Profil wurde wegen eines Prüffehlers nicht aktiviert: {e}",ziel.display())).into());
     }
     Ok(ziel)
+}
+/// Richtet ein frisch entpacktes Sicherungsverzeichnis als Einzelplatzprofil
+/// ein: Datenbank prüfen, Rechnerkonto als Verwaltung übernehmen und Ablagen
+/// auf das neue Verzeichnis setzen.
+pub(crate) async fn profil_einrichten(ziel: &Path) -> Result<(), CoreError> {
+    db_sqlite::SqliteDatabase::datei_pruefen(&ziel.join("bauprojekt.db")).await?;
+    // Das wiederhergestellte Profil startet als Einzelplatz mit Anmeldung
+    // über das Rechnerkonto; wer wiederherstellt, verwaltet es auch dort.
+    let db = db_sqlite::SqliteDatabase::open(&ziel.join("bauprojekt.db")).await?;
+    let uebernahme = core_lib::anmeldung::verwaltung_nach_wiederherstellung(
+        &db.repositories(),
+        &whoami::username(),
+        &whoami::realname(),
+    )
+    .await;
+    db.schliessen().await;
+    uebernahme?;
+    let config = ziel.join("einstellungen");
+    tokio::fs::create_dir_all(&config)
+        .await
+        .map_err(|e| CoreError::Storage(e.to_string()))?;
+    for (datei, ordner) in [
+        ("dateiablage.json", "dateien"),
+        ("formularbibliothek.json", "Formularvorlagen"),
+        ("projektordner.json", "Projektordner"),
+    ] {
+        tokio::fs::create_dir_all(ziel.join(ordner))
+            .await
+            .map_err(|e| CoreError::Storage(e.to_string()))?;
+        DateiablageConfig {
+            root: ziel.join(ordner),
+        }
+        .save_named(&config, datei)
+        .map_err(CoreError::Storage)?;
+    }
+    tokio::fs::write(config.join("config.json"), b"{\"modus\":\"einzelplatz\"}")
+        .await
+        .map_err(|e| CoreError::Storage(e.to_string()))?;
+    Ok(())
 }
 #[tauri::command]
 pub async fn profil_aktivieren(
