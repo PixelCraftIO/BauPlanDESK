@@ -74,7 +74,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --experimental-strip-types --test apps/desktop/tests/release-check.test.mjs apps/desktop/tests/feld-darstellung.test.mjs
+      - run: node --experimental-strip-types --test apps/desktop/tests/release-check.test.mjs apps/desktop/tests/feld-darstellung.test.mjs apps/desktop/tests/handbuch.test.mjs
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
 
@@ -151,6 +151,7 @@ jobs:
           python apps/desktop/tests/portale.py
           python apps/desktop/tests/updater.py
           python apps/desktop/tests/ui-felder-navigation.py
+          python apps/desktop/tests/handbuch-ui.py
           python apps/desktop/tests/beispielprojekt.py
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -175,4 +176,5 @@ jobs:
             docs/projektuebersicht/screenshots
             /tmp/bauprojekt-uebersicht
             /tmp/bauprojekt-ui-felder
+            /tmp/bauplan-handbuch-ui
             /tmp/bauprojekt-ui.log

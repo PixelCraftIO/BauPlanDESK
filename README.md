@@ -5,6 +5,14 @@ BauGB/BauNVO und Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
 XBau-Export und DMS. Läuft als native Desktop-App (Einzelplatz), als
 NAS-/Büro-Server und optional in der Cloud.
 
+## Bedienhandbuch und Hilfe
+
+Das [Bedienhandbuch für Architekten und Planer](docs/handbuch/Bedienhandbuch.md)
+führt durch Projektanlage, Grundlagen, Berechnungen, Dokumente, Formulare,
+Einreichung und Verfahrensdokumentation bis zur Genehmigung und Bauausführung.
+In der Anwendung: **Hilfe / Handbuch**, **Hilfe → Bedienhandbuch (F1)** oder
+**Hilfe zu diesem Bereich** im Aktenkopf. [Offline-Ausgaben und Pflege](docs/handbuch/README.md).
+
 ## Aktuelle Bedienoberfläche
 
 [Hierarchische Projektakte, Formulare im Projekt und Speicherorte](docs/klare-projektstruktur/README.md)

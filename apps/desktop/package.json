@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "handbuch:export": "node --experimental-strip-types scripts/handbuch.mjs",
+    "handbuch:check": "node --experimental-strip-types scripts/handbuch.mjs --check",
     "tauri": "tauri",
     "version:app": "node scripts/app-version.mjs",
     "licenses": "node scripts/check-licenses.mjs",
