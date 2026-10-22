@@ -63,6 +63,7 @@
     importAusloeser,
     onprojekt,
     ondialog,
+    onhilfe,
   }: {
     projekt: Project;
     ansicht?: Ansicht;
@@ -75,6 +76,7 @@
     darfMitglieder?: boolean;
     importAusloeser: number;
     onprojekt: (p: Project) => void;
+    onhilfe?: () => void;
     ondialog: (
       art: "projektdaten" | "bauherren" | "beteiligte" | "buero" | "mitglieder",
     ) => void;
@@ -223,7 +225,9 @@
     >
   </div>{/if}
 <header class="projektkopf" aria-label="Aktenkopf">
-  <h1>{projekt.name}</h1>
+  <div class="aktenkopf-titel"><h1>{projekt.name}</h1>
+    {#if onhilfe}<button type="button" class="link" onclick={onhilfe}>Hilfe zu diesem Bereich</button>{/if}
+  </div>
   <dl class="aktendaten">
     <div>
       <dt>Bundesland</dt>
@@ -542,3 +546,7 @@
   </section>
 </main>
 </div>
+
+<style>
+  .aktenkopf-titel { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap; }
+</style>

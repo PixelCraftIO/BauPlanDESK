@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { art }: { art: "projekte" | "kunden" | "formulare" | "einstellungen" } =
+  let { art }: { art: "projekte" | "kunden" | "formulare" | "einstellungen" | "hilfe" } =
     $props();
 </script>
 
@@ -14,7 +14,8 @@
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  {#if art === "projekte"}<path d="M3 7h7l2-3h9v16H3z" /><path
+  {#if art === "hilfe"}<circle cx="12" cy="12" r="9" /><path d="M9.5 8.5a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16h.01" />
+  {:else if art === "projekte"}<path d="M3 7h7l2-3h9v16H3z" /><path
       d="M3 8h18"
     />{:else if art === "kunden"}<circle cx="9" cy="8" r="3" /><path
       d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"
