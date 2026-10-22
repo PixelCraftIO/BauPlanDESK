@@ -3,7 +3,7 @@
   "titel": "BauPlanIO – Bedienhandbuch",
   "untertitel": "Für Architekten, Entwurfsverfasser und Planer",
   "stand": "22.10.2026",
-  "basis": "0689a2b",
+  "basis": "c1e1e80",
   "kapitel": [
     {
       "id": "start",
@@ -80,6 +80,13 @@
           "titel": "Bei gleichzeitiger Bearbeitung",
           "text": [
             "Meldet die Anwendung einen Versionskonflikt, den Entwurf zunächst erhalten und die Änderungen mit dem Kollegen abstimmen. Den aktuellen Stand erst nach Sicherung der eigenen Angaben laden. Ein erneuter Speicherversuch ist kein bewusster Zusammenführungsentscheid."
+          ]
+        },
+        {
+          "titel": "Einheitliche Bearbeitungsstände",
+          "text": [
+            "Statusanzeigen enthalten Text und ein Symbol. „Gespeichert“, „Berechnet“, „Archiviert“, „Fachlich freigegeben“, „Exportiert“ und „Eingang belegt“ beschreiben unterschiedliche Arbeitsschritte. Die aufklappbare Statushilfe erläutert diese in Übersicht, Nachweisen und Einreichung.",
+            "Beim Bearbeiten eines Fachobjekts lässt sich die Eintragsliste über dem Formular ein- und ausklappen. Ungespeicherte Änderungen bleiben geschützt. Ein Eingabefehler öffnet den betroffenen Formularabschnitt und setzt den Fokus auf das Feld."
           ]
         }
       ],
@@ -994,6 +1001,14 @@
             "Ändert sich eine abhängige Grundlage, bleibt der archivierte Inhalt erhalten, wird aber als veraltet bzw. neu zu prüfen markiert. Den alten Stand nicht als aktuellen Nachweis ausgeben, ohne den Hinweis zu bewerten. Nach Aktualisierung einen neuen Nachweisstand erstellen und dessen PDF gegebenenfalls als Folgeversion übernehmen.",
             "Ein archivierter Nachweis allein belegt weder, dass er dem Bauamt vorliegt, noch dass das Bauamt ihn genehmigt hat. Dafür Abgabe und später Bescheid separat dokumentieren."
           ]
+        },
+        {
+          "titel": "Nach geänderten Grundlagen weiterarbeiten",
+          "schritte": [
+            "„Grundlagen prüfen / neu berechnen“ am Nachweis öffnet den zugehörigen Berechnungsbereich beziehungsweise den konkreten Fachplan.",
+            "Quellen und Eingaben prüfen, Änderungen speichern und neu berechnen. Einen neuen Nachweisstand archivieren; der frühere bleibt erhalten.",
+            "Den neuen Stand fachlich prüfen und freigeben. Unterlagen und geplante Abgaben anschließend bewusst auf die passende Dokumentversion umstellen."
+          ]
         }
       ],
       "siehe": [
@@ -1259,6 +1274,15 @@
           "text": [
             "Die Projektchronik dokumentiert gespeicherte Aktionen und Änderungen. Sie ergänzt die fachliche Verfahrenschronik, ersetzt aber weder einen Originalbeleg noch einen Versandnachweis. Für Vorgang und Zeitpunkt stets den passenden fachlichen Bereich verwenden."
           ]
+        },
+        {
+          "titel": "Arbeitscheck und Zuständigkeit",
+          "schritte": [
+            "Unter Handlungsbedarf nach „Mir zugewiesen“ oder „Ohne Zuweisung“ filtern. Mit „Alle Filter zurücksetzen“ wieder alle Arbeitspunkte anzeigen.",
+            "Den eingeklappten „Arbeitscheck vor der Abgabe“ öffnen. Die Gruppen führen direkt zu offenen Grundlagen, Nachweisen, Unterlagen und Verfahrenspunkten.",
+            "Im dokumentierten Behördenstand auf den Dateinamen klicken: Die Historie hebt die damals eingereichte Version hervor; neuere Projektversionen bleiben davon unterscheidbar."
+          ],
+          "hinweis": "Der Arbeitscheck verwendet gespeicherte Daten. Ungespeicherte Entwürfe, fehlende Anforderungen und nicht erreichbare Prüfungen ergeben keine bestätigte Abgabereife."
         }
       ],
       "siehe": [
@@ -1507,6 +1531,14 @@
             "Planmaßstäbe, Lesbarkeit, Vollständigkeit und Dateiformate kontrolliert?",
             "Unterschriften, Vollmachten und separate Fachnachweise geklärt?",
             "Einreichungsbeleg heruntergeladen und der eigenen Abgabe zuordenbar?"
+          ]
+        },
+        {
+          "titel": "Arbeitscheck vor der Portalübergabe",
+          "schritte": [
+            "In „Einreichen / Nachreichen“ die Verfahrensakte wählen und den Arbeitscheck aktualisieren. Verfahrensbezogene Meldungen werden auf diese Akte eingegrenzt; gemeinsame Projektgrundlagen bleiben sichtbar.",
+            "Jeden offenen Prüfpunkt über den Direktlink bearbeiten. Eine leere Gruppe bedeutet lediglich, dass dazu keine offenen Meldungen erfasst sind.",
+            "Über die Schrittauswahl zu Anforderungen, Antragsdaten, Unterlagen, Abgabe oder Eingangsbeleg springen. Abschließende Paketprüfung und tatsächlichen Eingang im zuständigen Bereich dokumentieren."
           ]
         }
       ],

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Quellenweg from "./arbeitsplatz/Quellenweg.svelte";
   import EinreichenStart from "./EinreichenStart.svelte";
   import Projektorganisation from "./Projektorganisation.svelte";
   import Projektuebersicht from "./Projektuebersicht.svelte";
@@ -272,7 +273,8 @@
 <div class="aktenrumpf">
 <Sidebar {projekt} {ansicht} onbereich={bereich} />
 <main>
-  {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><EinreichenStart projektId={projekt.id} aktiv={aktiv && ansicht === "einreichen"} /></section>{/if}
+  {#if ["grundstueck","grz","gfz","geschosse","volumen","abstand","ueberbaubarkeit","stellplaetze","wohnflaechen","din277","vollgeschosse","hoehen","freiflaechen","entwaesserung","dokumente","formulare","druck","unterlagen"].includes(ansicht)}<Quellenweg bereich={ansicht}/>{/if}
+  {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><EinreichenStart projektId={projekt.id} version={projekt.version} entwuerfe={editoren.hatAenderungen()} aktiv={aktiv && ansicht === "einreichen"} /></section>{/if}
   {#each FACHMODULE as modul (modul.id)}
     {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}>
         <modul.komponente
@@ -287,6 +289,7 @@
       projektId={projekt.id}
       version={projekt.version}
       sichtbar={aktiv}
+      benutzerId={ich?.id ?? ""}
       entwuerfe={editoren.hatAenderungen()}
       onoeffnen={oeffnen}
     />{/if}

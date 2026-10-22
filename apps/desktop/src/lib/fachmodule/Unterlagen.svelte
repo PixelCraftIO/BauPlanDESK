@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { projektNavigation } from "../projektNavigation.svelte";
+  import { ziel } from "../arbeitsplatz/arbeitscheck";
+  import { abonnieren } from "../projektEreignisse";
   import { onMount, untrack } from "svelte";
   import { api, fehlertext, type Project, type DocumentVersion } from "../api";
   import type { Checkliste, Unterlage } from "../generated/plattform";
@@ -29,13 +32,13 @@
       ),
   );
   let dateien = $state<DocumentVersion[]>([]);
-  onMount(async () => {
-    try {
-      dateien = await api.dokumente(projekt.id);
-    } catch (e) {
-      s.fehler = fehlertext(e);
-    }
-  });
+  const navigation = projektNavigation();
+  async function dateienLaden() {
+    try { dateien = await api.dokumente(projekt.id); }
+    catch(e) { s.fehler = fehlertext(e); }
+  }
+  onMount(dateienLaden);
+  $effect(()=>abonnieren(projekt.id,["dokumente"],()=>void dateienLaden()));
   let vorlage = $state<Checkliste | null>(null);
   async function standard() {
     try {
@@ -141,6 +144,11 @@
         ></label
       >
     </div>
+    {#if u.dokument}
+      {@const neueste = Math.max(...dateien.filter(d=>d.document_id === u.dokument!.dokument_id).map(d=>d.version))}
+      {#if neueste > u.dokument.version}<p class="hinweisbox">Zugeordnet ist Version {u.dokument.version}; im Projekt liegt Version {neueste} vor. Neue Version fachlich prüfen und bei Bedarf bewusst neu zuordnen und freigeben.</p>{/if}
+      <button type="button" class="link" onclick={()=>navigation?.springen(ziel("dokumente",u.dokument!.dokument_id,"historie",String(u.dokument!.version)))}>Zugeordnete Dokumentversion ansehen</button>
+    {:else}<button type="button" class="link" onclick={()=>navigation?.springen(ziel("formulare"))}>Formular im Projekt erstellen</button>{/if}
     <label
       >Hinweis / begründete Abweichung<textarea
         bind:value={u.bemerkung}

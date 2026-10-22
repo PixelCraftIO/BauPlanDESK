@@ -7,7 +7,7 @@ Für Architekten, Entwurfsverfasser und Planer:
 - [PDF-Ausgabe](Bedienhandbuch.pdf): mit verlinktem Inhaltsverzeichnis,
   Lesezeichen, strukturierten Texten und Seitenzählung.
 
-Die Inhalte wurden gegen Main `0689a2b` vom 22.10.2026 und die dortigen
+Die Inhalte wurden gegen Main `c1e1e80` einschließlich der anschließenden Arbeitsplatzverbesserungen vom 22.10.2026 und die dortigen
 Bedienmasken, Modulregister und dokumentierten Datenwege abgeglichen. Sie
 beschreiben auch die in diesem Branch ergänzten Hilfezugänge. Fachliche Grenzen,
 ungeprüfte Regelbeispiele und der manuelle Portaltransport sind ausdrücklich
@@ -61,7 +61,7 @@ unverändert; deren Rechtsanwendung wird durch diesen Hilfe-Test nicht geprüft.
 ## Geprüfter Stand dieses Ausbaus
 
 - 52 Kapitel; alle registrierten Projektbereiche mit Kontexthilfe abgedeckt.
-- 60-seitige PDF auf Kapitelvollständigkeit, leere Seiten, Briefkopf und
+- 63-seitige PDF auf Kapitelvollständigkeit, leere Seiten, Briefkopf und
   Seitenzählung geprüft; Stichproben der Darstellung einschließlich GRZ-Kapitel.
 - Typprüfung ohne Fehler/Warnungen und Produktionsbuild erfolgreich.
 - Zehn Node-Tests einschließlich vorhandener Release-/Feldtests unter Node 22

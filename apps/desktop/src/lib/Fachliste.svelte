@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+  import Statusanzeige from "./arbeitsplatz/Statusanzeige.svelte";
   import { plattformApi, type Datensatz } from "./plattformApi";
   import { fehlertext } from "./api";
   import { projektNavigation } from "./projektNavigation.svelte";
@@ -38,6 +39,12 @@
     void s.id;
     untrack(() => (feldfehler = []));
   });
+  function feldZeigen(element: HTMLElement) {
+    for (let p = element.parentElement; p; p = p.parentElement)
+      if (p instanceof HTMLDetailsElement) p.open = true;
+    element.focus();
+    element.scrollIntoView({block:"center"});
+  }
   function validieren() {
     const fachlich = pruefen?.() ?? true;
     const controls = [
@@ -70,7 +77,7 @@
     feldfehler.forEach((f, i) =>
       f.element.setAttribute("aria-errormessage", `${formularId}-fehler-${i}`),
     );
-    if (feldfehler.length) feldfehler[0].element.focus();
+    if (feldfehler.length) feldZeigen(feldfehler[0].element);
     return fachlich && feldfehler.length === 0;
   }
   $effect(() => {
@@ -174,7 +181,8 @@
     >Liste aktualisieren</button
   >
 </div>
-{#if !s.eingabe || s.liste.length || listeOffen}
+{#if s.eingabe && s.liste.length}<button type="button" class="link" aria-expanded={listeOffen} onclick={()=>listeOffen=!listeOffen}>{listeOffen ? "Eintragsliste einklappen" : `Eintragsliste anzeigen (${s.liste.length})`}</button>{/if}
+{#if !s.eingabe || listeOffen}
   <table class="ergebnistabelle">
     <thead
       ><tr
@@ -203,7 +211,7 @@
         >{/each}</tbody
     >
   </table>
-{:else}<button type="button" class="link" onclick={() => (listeOffen = true)}
+{:else if !s.liste.length}<button type="button" class="link" onclick={() => (listeOffen = true)}
     >Eintragsliste anzeigen</button
   >{/if}
 {#if s.eingabe}<form
@@ -247,23 +255,13 @@
               <button
                 type="button"
                 class="link"
-                onclick={() => {
-                  f.element.closest("details")?.setAttribute("open", "");
-                  f.element.focus();
-                  f.element.scrollIntoView({ block: "center" });
-                }}>{f.name}: {f.meldung}</button
+                onclick={() => feldZeigen(f.element)}>{f.name}: {f.meldung}</button
               >
             </li>{/each}
         </ul>
       </div>{/if}
     <div class="knoepfe links speicherleiste">
-      <span class="meta" aria-label="Speicherstatus"
-        >{s.laeuft
-          ? "Wird gespeichert …"
-          : s.hatAenderungen()
-            ? "Ungespeicherte Änderungen"
-            : "Gespeicherter Stand"}</span
-      >
+      <span aria-label="Speicherstatus" role="status">{#if s.laeuft}Wird gespeichert …{:else}<Statusanzeige status={s.hatAenderungen() ? "entwurf" : "gespeichert"}/>{/if}</span>
       <button
         disabled={!darf || gesperrt || !(s.hatAenderungen() || s.gerettet)}
         >Speichern</button
@@ -303,8 +301,7 @@
     z-index: 3;
     background: var(--panel);
     padding: 1rem 0.5rem;
-    border-top: 1px solid var(--border);
-    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
   .fachformular :global(input),
   .fachformular :global(select),

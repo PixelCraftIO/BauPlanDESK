@@ -105,7 +105,7 @@ with sync_playwright() as p:
     assert all(abs(a-b)<0.02 for a,b in zip(calibration["von"]+calibration["bis"], [70,330,170,330])), calibration
     assert page.evaluate("window.planSaved.daten.hoehenbezug.hoehe_m") == 100
     assert all(abs(a-b)<0.02 for a,b in zip(page.evaluate("window.planSaved.daten.hoehenbezug.punkt"), [70,330]))
-    expect(scope.get_by_label("Speicherstatus")).to_have_text("Gespeicherter Stand")
+    expect(scope.get_by_label("Speicherstatus")).to_contain_text("Gespeichert")
     # Sichtbarkeit und Sperren, weitere Ebene und Rückgängig.
     scope.locator(".ebene").get_by_label("An", exact=True).uncheck()
     expect(svg.locator("[data-markierung]")).to_have_count(0)

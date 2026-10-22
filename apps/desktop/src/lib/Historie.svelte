@@ -4,12 +4,14 @@
 
   let {
     dokument,
+    bezugsVersion = null,
     darfWiederherstellen,
     onwiederhergestellt,
     onfehler,
     onschliessen,
   }: {
     dokument: DocumentVersion;
+    bezugsVersion?: number | null;
     darfWiederherstellen: boolean;
     onwiederhergestellt: (v: DocumentVersion) => void;
     onfehler: (e: unknown) => void;
@@ -56,9 +58,10 @@
 
 {#if fehler}<p class="fehlertext">{fehler}</p>{/if}
 
+{#if bezugsVersion !== null}<p class="hinweisbox">Verknüpfter Dokumentstand: Version {bezugsVersion}. Neuere Versionen ersetzen einen bereits dokumentierten Abgabestand nicht automatisch.</p>{/if}
 <ul class="auswahlliste">
   {#each versionen as v (v.version)}
-    <li>
+    <li class:aktiv={v.version === bezugsVersion}>
       <strong>Version {v.version}{v.version === neueste ? " (aktuell)" : ""}</strong>
       <span class="meta">{new Date(v.created_at).toLocaleString("de-DE")} · {v.created_by} · {v.file_name}</span>
       <span class="aktionen">

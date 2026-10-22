@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { projektNavigation } from "./projektNavigation.svelte";
   import Druckknopf from "./Druckknopf.svelte";
   import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
@@ -462,6 +463,33 @@
     warSichtbar = sichtbar;
   });
 
+  const navigation = projektNavigation();
+  let letzterSprung = 0;
+  let bezugsVersion = $state<number | null>(null);
+  $effect(() => {
+    const a = navigation?.auftrag;
+    if (!aktiv || !a || a.nummer === letzterSprung || a.ziel.bereich !== "dokumente" || !a.ziel.objekt) return;
+    untrack(() => {
+      letzterSprung = a.nummer;
+      if (metaDirty || pdfDirty || historie || metadaten || formular) {
+        hinweis = "Zuerst die offene Dokumentbearbeitung schließen, danach den Dokumentverweis erneut öffnen.";
+        return;
+      }
+      const id = a.ziel.objekt;
+      void api.historie(id!).then(v => {
+        if (!aktiv || navigation?.auftrag?.nummer !== a.nummer) return;
+        if (metaDirty || pdfDirty || historie || metadaten || formular) {
+          hinweis = "Dokumentverweis erneut öffnen, sobald die laufende Dokumentbearbeitung geschlossen ist."; return;
+        }
+        const version = a.ziel.eintrag ? Number(a.ziel.eintrag) : null;
+        const d = version === null ? [...v].sort((x,y)=>y.version-x.version)[0] : v.find(d=>d.version === version);
+        if (!d || d.project_id !== projektId) { onfehler("Die verknüpfte Dokumentversion ist in diesem Projekt nicht verfügbar."); return; }
+        bezugsVersion = version;
+        historie = d;
+      }).catch(e=>{ if (navigation?.auftrag?.nummer === a.nummer) onfehler(fehlertext(e)); });
+    });
+  });
+
   // Menü "Datei → Dokument importieren" zählt diesen Wert hoch.
   let letzterAusloeser = untrack(() => importAusloeser);
   $effect(() => {
@@ -730,7 +758,7 @@
                     metadaten = doc;
                   }}>Dokumentangaben …</button
                 >
-                <button class="link" onclick={() => (historie = doc)}
+                <button class="link" onclick={() => { bezugsVersion = null; historie = doc; }}
                   >Historie …</button
                 >
                 {#if istPdf(doc) && darfAblegen}<button
@@ -830,6 +858,7 @@
   >
     <Historie
       dokument={historie}
+      {bezugsVersion}
       darfWiederherstellen={darfAblegen && !fremdGesperrt(historie.document_id)}
       onwiederhergestellt={async (v) => {
         historie = null;

@@ -1,31 +1,51 @@
 <script lang="ts">
+  import Arbeitscheck from "./arbeitsplatz/Arbeitscheck.svelte";
+  import Statushilfe from "./arbeitsplatz/Statushilfe.svelte";
+  import { abonnieren } from "./projektEreignisse";
+  import type { Projektuebersicht } from "./generated/plattform";
   import { untrack } from "svelte";
   import { plattformApi, type Datensatz } from "./plattformApi";
   import { projektNavigation } from "./projektNavigation.svelte";
   import { fehlertext } from "./api";
   import type { Verfahrensakte } from "./generated/plattform";
-  let { projektId, aktiv = true }: { projektId: string; aktiv?: boolean } =
+  let { projektId, aktiv = true, version = 0, entwuerfe = false }: { projektId: string; aktiv?: boolean; version?: number; entwuerfe?: boolean } =
     $props();
   const navigation = projektNavigation();
+  let schritteElement = $state<HTMLOListElement>();
+  function schrittOeffnen(index: number) {
+    const h = schritteElement?.querySelectorAll<HTMLHeadingElement>("h3")[index];
+    h?.setAttribute("tabindex", "-1"); h?.focus(); h?.scrollIntoView({block:"start"});
+  }
   let akten = $state<Datensatz<Verfahrensakte>[]>([]),
     vid = $state(""),
     fehler = $state(""),
     laeuft = $state(false);
+  let pruefstand = $state<Projektuebersicht | null>(null);
+  let anfrage = 0;
   async function laden() {
+    const nr = ++anfrage, id = projektId;
     laeuft = true;
+    fehler = "";
+    pruefstand = null;
     try {
-      akten = await plattformApi.liste(projektId, "verfahren");
+      const [aktenNeu, stand] = await Promise.all([plattformApi.liste<Verfahrensakte>(id, "verfahren"), plattformApi.uebersicht(id)]);
+      if (nr !== anfrage || id !== projektId) return;
+      if (stand.projekt_id !== id) throw Error("Prüfstand gehört zu einem anderen Projekt");
+      akten = aktenNeu;
+      pruefstand = stand;
       if (!akten.some((a) => a.objekt === vid)) vid = akten[0]?.objekt ?? "";
-      fehler = "";
     } catch (e) {
-      fehler = fehlertext(e);
+      if (nr === anfrage) fehler = fehlertext(e);
     } finally {
-      laeuft = false;
+      if (nr === anfrage) laeuft = false;
     }
   }
   $effect(() => {
+    void projektId; void version;
     if (aktiv) untrack(laden);
+    return () => { anfrage++; laeuft = false; };
   });
+  $effect(() => abonnieren(projektId, ["dokumente", "fachobjekte", "nachweise"], () => { if (aktiv) void laden(); }));
   function oeffnen(bereich: string, register: string | null = null) {
     navigation?.springen({
       bereich,
@@ -60,7 +80,11 @@
       und Projektdateien können unabhängig davon vorbereitet werden.
     </p>{/if}
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
-  <ol class="einreichschritte">
+  {#if laeuft}<p role="status">Arbeitscheck wird aktualisiert …</p>{:else if pruefstand}<Arbeitscheck daten={pruefstand} {entwuerfe} verfahren={vid} onoeffnen={z=>navigation?.springen(z)}/>{:else}<p class="hinweisbox">Arbeitscheck nicht verfügbar. Die Vollständigkeit ist derzeit nicht auswertbar.</p>{/if}
+  <nav class="schrittauswahl" aria-label="Abgabeschritte">
+    {#each ["Anforderungen", "Antragsdaten", "Unterlagen", "Abgabe", "Eingangsbeleg"] as titel, i}<button type="button" class="sekundaer" onclick={()=>schrittOeffnen(i)}>{i+1} · {titel}</button>{/each}
+  </nav>
+  <ol class="einreichschritte" bind:this={schritteElement}>
     <li>
       <div>
         <h3>1 · Zuständigkeit und Anforderungen klären</h3>
@@ -149,6 +173,7 @@
       </div>
     </li>
   </ol>
+  <Statushilfe/>
   <p class="hinweisbox">
     Export und Datei-Upload bestätigen keinen Eingang. Erst Beleg und
     Dateiabgleich dokumentieren die tatsächliche Abgabe.
@@ -156,6 +181,8 @@
 </section>
 
 <style>
+  .schrittauswahl { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
+  .einreichschritte h3 { scroll-margin-block:2rem; }
   .einreichen-start {
     max-width: 85rem;
   }

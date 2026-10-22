@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Statusanzeige from "../arbeitsplatz/Statusanzeige.svelte";
+  import { ziel as navigationsziel } from "../arbeitsplatz/arbeitscheck";
   import { feldSichtbar, feldFehler } from "./feldDarstellung";
   import Planquellen from "../planaufmass/Planquellen.svelte";
   import { onMount, untrack, tick } from "svelte";
@@ -499,6 +501,7 @@
         {#each [["daten", "Eingaben"], ["regeln", "Regeln / Grundlagen"], ["quellen", "Quellen / Übernahmen"], ["bericht", "Prüfbericht"]] as [id, t]}<button
             type="button"
             class:aktiv={bereich === id}
+            aria-pressed={bereich === id}
             onclick={() => (bereich = id)}>{t}</button
           >{/each}
       </nav>
@@ -745,7 +748,9 @@
                       .ergebnis as unknown as FachErgebnis
                   )?.kennzahlen ?? []
                 ).find((k) => k.id === u.kennzahl)?.bezeichnung ??
-                  "Übernommener Fachwert"}<button
+                  "Übernommener Fachwert"}
+                <span>{nachweise.find(n=>n.stand.id===u.nachweis_id)?.aktuell === true ? "Quelle aktuell" : "Quelle nicht aktuell bestätigt – prüfen"}</span>
+                <button type="button" class="link" onclick={()=>navigation?.springen(navigationsziel("nachweise",null,null,u.nachweis_id))}>Quellnachweis ansehen</button><button
                   type="button"
                   class="link"
                   onclick={() =>
@@ -769,10 +774,13 @@
       </div>
       {#if result}<section aria-label="Berechnungsergebnis">
           <h3>Prüfbericht</h3>
+          <Statusanzeige status={!aktuelleVorschau ? "veraltet" : result.vollstaendig ? "berechnet" : "offen"}/>
+          <div class="knoepfe links"><button type="button" class="link" onclick={()=>bereich="quellen"}>Verwendete Quellen prüfen</button><button type="button" class="link" onclick={()=>navigation?.springen(navigationsziel("nachweise"))}>Archiv und Freigaben öffnen</button></div>
           {#if !aktuelleVorschau}<p class="hinweisbox">
               {eingabenGleich
                 ? "Verknüpfte Gebäude-, Raumbuch- oder Grundstücksdaten haben sich geändert."
                 : "Eingaben geändert."} Vorschau erneut berechnen.
+              <button type="button" class="link" disabled={busy} onclick={pruefen}>Jetzt neu berechnen</button>
             </p>{/if}
           <p class:fehlertext={!result.vollstaendig}>
             {result.vollstaendig
@@ -793,6 +801,7 @@
                 >{/each}</tbody
             >
           </table>
+          {#if bereich !== "bericht" && result.tabellen.length}<button type="button" class="link" onclick={()=>bereich="bericht"}>Vollständigen Rechenweg anzeigen ({result.tabellen.length} Tabellen)</button>{/if}
           {#if bereich === "bericht"}{#each result.tabellen as t}<h4>
                 {t.titel}
               </h4>
