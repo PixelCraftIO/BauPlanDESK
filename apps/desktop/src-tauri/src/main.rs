@@ -3,6 +3,7 @@
 
 mod abstandsflaechen;
 mod anmeldung;
+mod beispielprojekt;
 mod berechnungen;
 mod bibliothek;
 mod bootstrap;
@@ -138,6 +139,9 @@ fn main() {
             sicherungen::sicherung_wiederherstellen,
             sicherungen::profil_aktivieren,
             sicherungen::standardprofil_aktivieren,
+            beispielprojekt::beispielprojekt_status,
+            beispielprojekt::beispielprojekt_oeffnen,
+            beispielprojekt::beispielprojekt_verlassen,
             projektordner::ausgabeauftraege,
             projektordner::ausgabe_wiederholen,
             projektordner::projektordner_waehlen,

@@ -23,6 +23,7 @@ pub mod id {
     pub const ZOOM_MINUS: &str = "ansicht.zoom_minus";
     pub const ZOOM_RESET: &str = "ansicht.zoom_reset";
     pub const UPDATES: &str = "hilfe.updates";
+    pub const BEISPIELPROJEKT: &str = "hilfe.beispielprojekt";
     pub const BEENDEN: &str = "datei.beenden";
     /// Nur im Netzwerkbetrieb (Anmeldung mit Kennwort).
     pub const ABMELDEN: &str = "anwendung.abmelden";
@@ -292,12 +293,15 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .copyright(Some("© PixelCraftIO"))
         .comments(Some("Bauanträge erstellen, berechnen und einreichen"))
         .build();
-    let mut hilfe = SubmenuBuilder::new(app, "&Hilfe").item(&item(
-        id::UPDATES,
-        "Nach Updates suchen …",
-        None,
-        true,
-    )?);
+    let mut hilfe = SubmenuBuilder::new(app, "&Hilfe")
+        .item(&item(
+            id::BEISPIELPROJEKT,
+            "Beispielprojekt öffnen …",
+            None,
+            true,
+        )?)
+        .separator()
+        .item(&item(id::UPDATES, "Nach Updates suchen …", None, true)?);
     if !cfg!(target_os = "macos") {
         hilfe = hilfe
             .separator()

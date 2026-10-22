@@ -151,6 +151,7 @@ jobs:
           python apps/desktop/tests/portale.py
           python apps/desktop/tests/updater.py
           python apps/desktop/tests/ui-felder-navigation.py
+          python apps/desktop/tests/beispielprojekt.py
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
