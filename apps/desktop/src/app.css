@@ -1926,3 +1926,22 @@ label:has(> .pflicht) > textarea {grid-column:1 / -1; width:100%;}
   .berechnungswerte :is(th,td):nth-child(2), .berechnungswerte :is(th,td):nth-child(3) { text-align:right; white-space:nowrap; }
   .aktenrumpf label:has(> input:is([type="checkbox"], [type="radio"])) { min-height:28px; }
 }
+
+/* Fachmasken: Bezeichnungen und große Eingaben behalten eine eigene Zeile. */
+.fachformular fieldset > label:has(> textarea),
+.fachformular fieldset > label:has(> select),
+.fachformular fieldset > label:has(> input:not([type="checkbox"]):not([type="radio"])) {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  margin-block: .75rem;
+  min-width: 0;
+}
+.fachformular fieldset > label > textarea,
+.fachformular fieldset > label > input:not([type="checkbox"]):not([type="radio"]),
+.fachformular fieldset > label > select { width: 100%; max-width: 100%; }
+.fachformular fieldset > label:has(> input:is([type="checkbox"], [type="radio"])) {
+  display: flex; align-items: baseline; gap: .5rem; margin-block: .65rem;
+}
+
+.ergebnistabelle td > button + button { margin-inline-start: .6rem; }

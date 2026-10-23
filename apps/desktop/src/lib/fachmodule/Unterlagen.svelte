@@ -34,8 +34,11 @@
   let dateien = $state<DocumentVersion[]>([]);
   const navigation = projektNavigation();
   async function dateienLaden() {
-    try { dateien = await api.dokumente(projekt.id); }
-    catch(e) { s.fehler = fehlertext(e); }
+    try {
+      dateien = await api.dokumente(projekt.id);
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    }
   }
   ansichtsAbfrage(() => projekt.id, ["dokumente"], dateienLaden);
   let vorlage = $state<Checkliste | null>(null);
@@ -102,13 +105,28 @@
 
 <Fachliste titel="Unterlagenregister" {s} bereich="unterlagen" {darf}>
   {#snippet children(u)}
+    {#if navigation?.unterlagenauftrag?.ziel.bereich === "unterlagen" && navigation.unterlagenauftrag.ziel.objekt === s.id && navigation.unterlagenauftrag.dokument}<aside
+        class="hinweisbox"
+      >
+        <button
+          type="button"
+          onclick={() => {
+            if (navigation?.unterlagenauftrag?.dokument) {
+              u.dokument = { ...navigation.unterlagenauftrag.dokument };
+              u.status = "pruefung";
+              navigation.unterlagenauftrag = null;
+            }
+          }}>Vorbereitete Dokumentversion zuordnen</button
+        >
+      </aside>{/if}
     {#if u.vorlage}<p class="meta">
         Checkliste {u.vorlage.id} · Ausgabe {u.vorlage.version} · Punkt {u
           .vorlage.punkt}
       </p>{/if}
     <div class="raster">
       <label
-        >Unterlage<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Unterlage"
+        >Unterlage<span class="pflicht" aria-hidden="true"> *</span><input
+          aria-label="Unterlage"
           bind:value={u.bezeichnung}
           required
           maxlength="500"
@@ -144,10 +162,38 @@
       >
     </div>
     {#if u.dokument}
-      {@const neueste = Math.max(...dateien.filter(d=>d.document_id === u.dokument!.dokument_id).map(d=>d.version))}
-      {#if neueste > u.dokument.version}<p class="hinweisbox">Zugeordnet ist Version {u.dokument.version}; im Projekt liegt Version {neueste} vor. Neue Version fachlich prüfen und bei Bedarf bewusst neu zuordnen und freigeben.</p>{/if}
-      <button type="button" class="link" onclick={()=>navigation?.springen(ziel("dokumente",u.dokument!.dokument_id,"historie",String(u.dokument!.version)))}>Zugeordnete Dokumentversion ansehen</button>
-    {:else}<button type="button" class="link" onclick={()=>navigation?.springen(ziel("formulare"))}>Formular im Projekt erstellen</button>{/if}
+      {@const neueste = Math.max(
+        ...dateien
+          .filter((d) => d.document_id === u.dokument!.dokument_id)
+          .map((d) => d.version),
+      )}
+      {#if neueste > u.dokument.version}<p class="hinweisbox">
+          Zugeordnet ist Version {u.dokument.version}; im Projekt liegt Version {neueste}
+          vor. Neue Version fachlich prüfen und bei Bedarf bewusst neu zuordnen und
+          freigeben.
+        </p>{/if}
+      <button
+        type="button"
+        class="link"
+        onclick={() =>
+          navigation?.springen(
+            ziel(
+              "dokumente",
+              u.dokument!.dokument_id,
+              "historie",
+              String(u.dokument!.version),
+            ),
+          )}>Zugeordnete Dokumentversion ansehen</button
+      >
+    {:else}<button
+        type="button"
+        class="link"
+        onclick={() =>
+          navigation?.unterlageErstellen(
+            ziel("unterlagen", s.id),
+            u.bezeichnung,
+          )}>Formular im Projekt erstellen</button
+      >{/if}
     <label
       >Hinweis / begründete Abweichung<textarea
         bind:value={u.bemerkung}

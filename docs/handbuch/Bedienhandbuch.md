@@ -2,7 +2,7 @@
 
 Für Architekten, Entwurfsverfasser und Planer
 
-Stand: 22.10.2026
+Stand: 23.10.2026
 
 ## Inhaltsverzeichnis
 
@@ -116,7 +116,7 @@ Vom ersten Projekt bis zur nachvollziehbaren Behördenakte.
 
 BauPlanIO unterstützt die Erfassung von Bauvorhaben, Berechnungen, Formularen und Projektdateien sowie die Dokumentation des Genehmigungsverfahrens. Dieses Handbuch richtet sich an Architekten, Entwurfsverfasser, Fachplaner und die Projektorganisation im Büro.
 
-Die Anleitung beschreibt den Main-Stand vom 22.10.2026. Die Bezeichnungen folgen der Oberfläche; kurze Seitentitel wie „Flurstücke“ können neben ausführlichen Namen wie „Flurstücke und Grundbuch“ stehen.
+Die Anleitung beschreibt den Stand mit den Workflow-Verbesserungen vom 23.10.2026. Die Bezeichnungen folgen der Oberfläche; kurze Seitentitel wie „Flurstücke“ können neben ausführlichen Namen wie „Flurstücke und Grundbuch“ stehen.
 
 ### Empfohlene Reihenfolge
 
@@ -146,7 +146,7 @@ Orientierung, parallele Projekte und sichere Entwurfsbearbeitung.
 
 Oben wechseln Sie zwischen „Projekte“, „Kunden / Bauherren“, „Formularbibliothek“, „Einstellungen“ und der Hilfe. Die darunter geöffneten Projekttabs bleiben unabhängig davon erhalten.
 
-Innerhalb einer Projektakte wechseln Sie über die Register „Übersicht“, „Grundlagen“, „Berechnungen“, „Unterlagen“ und „Verfahren“. Links erscheint jeweils die Gliederung des gewählten Registers. Ein deaktivierter Bereich nennt beim Darüberfahren seine Voraussetzung. Planfestsetzungen erscheinen bei vorhandenem Bebauungsplan.
+Innerhalb einer Projektakte wechseln Sie über die Register „Übersicht“, „Grundlagen“, „Berechnungen“, „Unterlagen“ und „Verfahren“. Links erscheint jeweils die Gliederung des gewählten Registers. Ein gesperrter Bereich nennt beim Darüberfahren konkret die fehlenden Schritte. Über das Informationssymbol ist die Erklärung mit Tastatur erreichbar und mit Escape schließbar. Nutzungsmodule können über „Entwurf öffnen“ vorbereitet werden; für Berechnung und Nachweise bleiben die fachlichen Voraussetzungen erforderlich.
 
 ### Eingaben richtig behandeln
 
@@ -165,6 +165,12 @@ Meldet die Anwendung einen Versionskonflikt, den Entwurf zunächst erhalten und 
 Statusanzeigen enthalten Text und ein Symbol. „Gespeichert“, „Berechnet“, „Archiviert“, „Fachlich freigegeben“, „Exportiert“ und „Eingang belegt“ beschreiben unterschiedliche Arbeitsschritte. Die aufklappbare Statushilfe erläutert diese in Übersicht, Nachweisen und Einreichung.
 
 Beim Bearbeiten eines Fachobjekts lässt sich die Eintragsliste über dem Formular ein- und ausklappen. Ungespeicherte Änderungen bleiben geschützt. Ein Eingabefehler öffnet den betroffenen Formularabschnitt und setzt den Fokus auf das Feld.
+
+### Kürzere Arbeitswege
+
+Die Gliederung bietet eine Bereichs-/Aktionssuche (Strg+K), Favoriten und zuletzt geöffnete Bereiche. Projektdetails lassen sich im Aktenkopf einklappen.
+
+„Datenherkunft und nächste Schritte“ zeigt ungespeicherte Quellentwürfe. „Nur diese Quelle speichern“ speichert gezielt deren registrierte Editoren. Über den Rückweg gelangen Sie zur aufrufenden Berechnung; Übernahmen anschließend bewusst prüfen.
 
 Weiterlesen: [Benutzer und Projektmitglieder](#04-benutzer-und-projektmitglieder) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
@@ -386,6 +392,12 @@ Vollständige und eindeutig zugeordnete Gebäude fließen in GRZ sowie mit ihren
 
 Für die Vollgeschosseinstufung kann ein eigener Vollgeschossnachweis verknüpft werden. Gebäudemaße allein entscheiden nicht automatisch über die rechtliche Einstufung. Die BMZ benötigt weiterhin einen eigenen Volumenansatz.
 
+### Vollgeschossstatus aus dem Geschoss klären
+
+„Vollgeschossstatus dieses Geschosses prüfen …“ speichert den Gebäudeentwurf und öffnet einen Prüfauftrag für das Gebäude. Dort die neue Prüfung ausdrücklich anlegen; vorhandene Entwürfe werden nicht überschrieben.
+
+Nach der Prüfung und Archivierung über den Rückweg zum Geschoss zurückkehren. Den passenden aktuellen Nachweis unter „Aus Vollgeschossnachweis übernehmen“ bewusst auswählen und das Gebäude speichern.
+
 Weiterlesen: [PDF-Aufmaß erstellen und übernehmen](#25-pdf-aufmaß-erstellen-und-übernehmen) · [Vollgeschosse, Gebäudehöhen und Dachneigung](#18-vollgeschosse-gebäudehöhen-und-dachneigung) · [GRZ und GRZ I / II](#14-grz-und-grz-i--ii) · [GFZ und Geschossigkeit](#15-gfz-und-geschossigkeit)
 
 ## 13. Berechnungen bearbeiten und prüfen
@@ -406,6 +418,14 @@ Eingaben, Regelgrundlagen, Quellen und Nachweisstände zusammenführen.
 Eine Änderung kann eine Bestätigung zurücksetzen und verknüpfte Nachweise veralten lassen. Gespeicherte Berechnungen und archivierte Nachweise aktualisieren sich nicht unbemerkt. Bei einer Quellenänderung den angebotenen aktuellen Stand übernehmen und erneut prüfen.
 
 Ein Regelpaket-Import ersetzt Regeln des ausgewählten Moduls, keine vollständige Projektakte. Nur Pakete mit passendem Modul und nachvollziehbarem Regelstand verwenden.
+
+### Entwurf, Grundlagenbestätigung und Nachweis
+
+„Nachweis erstellen …“ führt zur Archivierung und PDF-Ausgabe. Ein archivierter Stand bleibt auch erhalten, wenn die spätere PDF-Ausgabe fehlschlägt. Die fachliche Freigabe erfolgt weiterhin gesondert.
+
+Nach Änderungen „Gespeicherte Grundlagen bestätigen …“ verwenden. Die Aktion speichert zunächst den Entwurf und bestätigt anschließend mit Berechtigung die gespeicherte Revision. Das ist keine automatische Nachweisfreigabe.
+
+„Positionen als Tabelle bearbeiten“ wechselt zwischen Tabellen- und Detailerfassung. Gebundene Quellwerte bleiben schreibgeschützt.
 
 Weiterlesen: [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen)
 
@@ -429,6 +449,12 @@ Bei BauNVO 1990/2017 werden GRZ I und GRZ II getrennt ausgewiesen. Die erweitert
 ### Plausibilität
 
 Prüfen Sie Bezugsfläche, Gebäudegrundflächen und ergänzende Bauteile auf doppelte oder fehlende Ansätze. Eine rechnerische Überschreitung kann einen Abweichungs-/Befreiungsbedarf anzeigen; sie ist keine erteilte Ausnahme.
+
+### Erfassung bei ungeklärtem Berechnungsmaßstab
+
+Bei fehlenden Rechtsgrundlagen oder BauNVO können die Flächen über „GRZ: Entwurf öffnen“ vorbereitet werden. Die Anrechnung bleibt offen; keine beliebige BauNVO auswählen, um eine Sperre zu umgehen.
+
+„Entwurf auf diesem Gerät sichern“ speichert benutzer- und projektbezogen lokal. Nach erneutem Öffnen „Lokalen Entwurf wiederherstellen“ verwenden und die aktuellen Quellen neu prüfen. Diese lokale Sicherung ist noch kein bestätigter Projektstand, nicht zwischen Arbeitsplätzen geteilt und kein Ersatz für eine Datensicherung.
 
 Weiterlesen: [Baugrundstücke ermitteln](#11-baugrundstücke-ermitteln) · [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Abweichungen, Ausnahmen und Befreiungen](#37-abweichungen-ausnahmen-und-befreiungen)
 
@@ -515,9 +541,17 @@ Wände, Gelände, Grundstück und Konflikte gemeinsam dokumentieren.
 3. Gelände- und Wandabschlussprofile, Dachanteile und relevante Bauteile je Wand ergänzen. Gebäude- oder PDF-Übernahmen bewusst verknüpfen.
 4. Grundstücksgrenzen und weitere Konfliktgeometrien im selben Koordinatenbezug erfassen. Abweichende Ansätze, Sicherungen und Entscheidungen mit Belegen dokumentieren.
 5. Abstandsflächen berechnen. Wandtiefen, Flächen, Richtungen und geometrische Konflikte in Tabelle und Plandarstellung prüfen.
-6. Den geprüften Umfang bestätigen, speichern und „Nachweis archivieren und PDF ausgeben …“ nutzen. Tabellarischen Nachweis und Vektorplanskizze vor der Abgabe gemeinsam ansehen.
+6. Den geprüften Umfang bestätigen, speichern und „Nachweis erstellen …“ nutzen. Tabellarischen Nachweis und Vektorplanskizze vor der Abgabe gemeinsam ansehen.
 
 > Die „Einfache Tiefenvorprüfung“ ersetzt keinen vollständig dokumentierten Abstandsplan. Ein rechnerisch konfliktfreier Plan beweist keine fehlenden oder falsch eingegebenen Nachbar-/Grundstücksgeometrien. Auch örtliche Satzungen, Sonderfälle und rechtliche Sicherungen sind zu prüfen.
+
+### Geführte Geometriebearbeitung
+
+„Vorheriger Schritt“ und „Nächster Schritt“ führen durch Grundlagen, Gebäudeumrisse, Wände, Grenzen, Sonderfälle und Prüfbericht. Sonderfälle nur bei tatsächlicher Anwendbarkeit erfassen.
+
+Unter „Wände / Bauteile“ steht die Planskizze neben der Bearbeitung. Eine Wand durch Anklicken oder Tastatur auswählen; die aktive Wand wird hervorgehoben. Bei kleinen Fenstern stehen Plan und Felder untereinander.
+
+„Dachansatz einer anderen Wand verwenden“ kopiert nur die angezeigten Dachparameter. Geometrie, Gelände, Sicherungen, Belege und Freigaben werden nicht kopiert. Dachgrundlage und Rechtsanwendung erneut prüfen. Ein ungeklärtes Baugebiet wird nicht als WA vorbelegt.
 
 Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [PDF-Aufmaß erstellen und übernehmen](#25-pdf-aufmaß-erstellen-und-übernehmen) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe)
 
@@ -534,6 +568,12 @@ Kommunale Faktoren für Kfz und Fahrräder richtig zuordnen.
 5. Bedarf und Angebot einschließlich barrierefreier Teilmengen prüfen, offene/mehrdeutige Regelzuordnungen klären und den Nachweis archivieren.
 
 > Gelieferte Faktoren sind Konfigurationsbeispiele und kein geprüfter Katalog kommunaler Satzungen. „1,5 je WE“ ist eine andere Regel als „1 je 100 m²“. Vor Anwendung klären, welche Fläche gemeint ist und auf welcher Stufe gerundet werden muss.
+
+### Kommunale Regelpakete wiederverwenden
+
+Unter „Regeln / Grundlagen“ lassen sich bestätigte Regelversionen auf diesem Gerät merken und als JSON für andere Büroarbeitsplätze exportieren. Die persönliche Sammlung ist keine zentrale Serverbibliothek.
+
+Bei Wiederverwendung wird die Bestätigung nicht übertragen. Kommune, Fassung, Gültigkeit und Anwendbarkeit im neuen Projekt prüfen. Für geänderte Regeln eine neue Regelversion verwenden; ungeprüfte Beispielsätze sind keine Gemeindesatzung.
 
 Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Durchgängiges Beispiel: Einfamilienhaus](#50-durchgängiges-beispiel-einfamilienhaus)
 
@@ -554,6 +594,12 @@ Raumfakten erfassen, anschließend die Wohnflächenanrechnung prüfen.
 Zuerst das PDF-Aufmaß und dann das Raumbuch aktualisieren. Die erneute Übernahme in Wohnfläche/DIN 277 gleicht über die Raumidentität ab; eigene Klassifikationen bleiben im vorgesehenen Umfang erhalten. Die Meldung zu neuen, aktualisierten oder entfallenen Räumen prüfen.
 
 Eine Raumfläche ist noch keine anrechenbare Wohnfläche. Eine Wohnungsanzahl wird nur mit entsprechend bestätigter vollständiger Zuordnung ausgegeben. Fachberechnungsergebnisse wie Wohnflächen werden derzeit nicht automatisch in jedes PDF-Formular übertragen; die konkreten Formularfelder prüfen.
+
+### Raumänderungen vergleichen
+
+Vor der Übernahme von Raumfakten zeigt ein Vergleich neue, aktualisierte, entfallene und erhaltene manuelle Positionen. Erst „Vergleich bestätigen und Entwurf übernehmen“ ändert den Entwurf.
+
+Die letzte Raumübernahme kann bis zur nächsten Speicherung und solange keine weiteren Änderungen vorgenommen wurden rückgängig gemacht werden. Archivierte Nachweise bleiben unverändert.
 
 Weiterlesen: [PDF-Aufmaß erstellen und übernehmen](#25-pdf-aufmaß-erstellen-und-übernehmen) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen)
 
@@ -645,7 +691,7 @@ Unveränderliche Nachweise von bearbeitbaren Berechnungen unterscheiden.
 
 ### Nachweisführung
 
-1. Die Berechnung vollständig prüfen und ihre aktuellen Eingaben speichern. Gegebenenfalls speichert „Nachweisstand speichern“ bzw. „Nachweis archivieren und PDF ausgeben …“ die offenen Eingaben zuerst und berechnet neu.
+1. Die Berechnung vollständig prüfen und ihre aktuellen Eingaben speichern. Gegebenenfalls speichert „Nachweisstand speichern“ bzw. „Nachweis erstellen …“ die offenen Eingaben zuerst und berechnet neu.
 2. Den erzeugten Stand unter „Berechnungen → Nachweisstände“ kontrollieren. Grundlagen, Ergebnis, Hinweise und Quellen müssen zum beabsichtigten Planungsstand passen.
 3. Erforderliche Bürofreigaben durch die berechtigte Leitung erfassen. Archivieren und Freigeben sind unterschiedliche Handlungen.
 4. PDF ausgeben und bei Bedarf mit „Als Projektunterlage ablegen“ in die Projektdateien übernehmen. Für einen Abgabestand konkrete Dokumentversionen auswählen.
@@ -684,6 +730,12 @@ Nach externer Bearbeitung unter „Externe Arbeitskopien“ die Änderungen prü
 ### Kategorie ist kein Dateiformat
 
 „Baubeschreibung“, „Lageplan“ oder „E-Mail“ beschreiben den fachlichen Zweck. Eine DWG wird durch die Kategorie Lageplan nicht zu einer druckbaren PDF. Eine Kategorieänderung erzeugt keine neue Dateiversion. Ein eingefrorener Abgabestand behält seine damalige Kategorie und Version.
+
+### Neue Datei oder neue Version
+
+Beim Import einer einzelnen gleichnamigen Datei bietet die Anwendung an, das vorhandene Dokument als neue Version fortzuschreiben oder eine separate Datei anzulegen. Der Dateiname allein entscheidet keine Dokumentidentität.
+
+Aus einer Anforderung heraus eine Datei importieren oder die genaue Version auswählen. Zurück im Ausgangsbereich die Zuordnung ausdrücklich bestätigen.
 
 Weiterlesen: [E-Mails und Anhänge dokumentieren](#29-e-mails-und-anhänge-dokumentieren) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen) · [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
@@ -744,6 +796,12 @@ Die Vorschau zeigt die befüllte Originalvorlage. „Aktuelle Eingaben drucken �
 
 Nicht alle Fachberechnungsergebnisse stehen automatisch als Formularquelle bereit. Insbesondere Wohnfläche, DIN-277-Ergebnisse und weitere Fachwerte am konkreten Formular prüfen und gegebenenfalls mit ihrem Nachweis manuell eintragen.
 
+### Aus einer Anforderung heraus arbeiten
+
+Unter „Anforderungen“ mit „Formular für diese Anforderung erstellen …“ beginnen. Nach dem Speichern „Diese Version zur Zuordnung übernehmen“ wählen und im Ausgangsbereich die genaue Version ausdrücklich zuordnen. Die Zuordnung setzt die fachliche Freigabe zurück.
+
+„Vorlagen hinzufügen / Eingabefelder einrichten …“ öffnet die globale Bibliothek. Dort führt „Zurück zu Formularen im Projekt“ zurück; die Bibliothek wird beim Wiederöffnen aktualisiert.
+
 Weiterlesen: [Formularbibliothek und eigene PDF-Vorlagen](#31-formularbibliothek-und-eigene-pdf-vorlagen) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe) · [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten)
 
 ## 31. Formularbibliothek und eigene PDF-Vorlagen
@@ -790,6 +848,12 @@ Erzeugte Berichte verwenden die Druckgestaltung. Original-PDF-Formulare bleiben 
 Nicht druckbare Fachdateien wie DWG oder Excel müssen zunächst mit der zugehörigen Fachsoftware in ein akzeptiertes Ausgabeformat gebracht und als PDF verwaltet werden. Ein PDF-Stapel ersetzt nicht die vom Portal geforderte Einzeldateistruktur.
 
 > Ein Druck-PDF ist eine Ausgabe, keine Übermittlungsbestätigung. Bevor Sie es einer Abgabe zuordnen, den tatsächlich zu verwendenden Stand als Projektunterlage sichern. Bei maßstäblichen Plänen Skalierung im Systemdruck prüfen.
+
+### Mit dem Abgabestand vergleichen
+
+Im verfahrensbezogenen Arbeitsplatz einen eingefrorenen Abgabestand wählen und dessen Dokumentversionen zur Druckausgabe übernehmen. Dort „Versionen aus Abgabestand auswählen“ ausdrücklich auslösen.
+
+Nicht verfügbare oder nicht druckbare Versionen werden gemeldet. DWG und andere Originaldateien separat über das Abgabepaket berücksichtigen. Eine andere Druckauswahl verändert den eingefrorenen Stand nicht. Originalformulare erhalten weiterhin keinen zusätzlichen Briefbogen.
 
 Weiterlesen: [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen)
 
@@ -864,6 +928,12 @@ Die Lageanzeige benennt den dokumentierten Stand und mögliche nächste Schritte
 
 Bei Projekt-/Bauantragsdaten und Akte auf abweichende Behörden, Verfahrensarten oder Prüfverfahren achten. Die für eine Abgabe eingefrorenen Empfängerangaben stammen aus der Verfahrensakte.
 
+### Phasen und gemeinsamer Arbeitsplatz
+
+Die Bereiche sind in „Vorbereitung“, „Laufendes Verfahren“ und „Entscheidung und Ausführung“ gegliedert. Behörde und Aktenzeichen der aktiven Akte bleiben im Verfahrenskopf sichtbar.
+
+„Unterlagen und Arbeitsaufträge“ bündelt Anforderungen, konkrete Dokumentstände, Nachforderungspunkte und Pflichten aus Bescheiden. Die Ansicht besitzt keinen zweiten Erledigungsstatus; Änderungen führen zum Originaleintrag. Hinweise ohne Pflicht werden nicht als Aufgabe gezählt.
+
 Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#36-unterlagenbedarf-und-freigaben-organisieren) · [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
 ## 36. Unterlagenbedarf und Freigaben organisieren
@@ -881,6 +951,12 @@ Erforderlichkeit entscheiden und konkrete Dokumentstände zuordnen.
 ### Vollständigkeit
 
 Eine passende Kategorie kann die Zuordnung erleichtern; sie bestätigt weder Inhalt noch Erforderlichkeit automatisch. Anforderungen aus einem Katalog auf den örtlichen und konkreten Verfahrensumfang abgleichen. Zusätzliche Fachgutachten, Erklärungen und Unterschriften nicht allein wegen fehlendem Katalogeintrag weglassen.
+
+### Durchsuchbare Dokumentversionen
+
+Die Dokumentauswahl lässt sich nach Dateiname, Kategorie und Dateityp filtern. Standardmäßig werden aktuelle Versionen angeboten; historische Stände können ausdrücklich eingeblendet werden. Eine bereits zugeordnete ältere Version bleibt trotz Filter sichtbar.
+
+„Genau diese Version ansehen“ öffnet die referenzierte Historie. Fehlende Metadaten werden als nicht auflösbar angezeigt; die Referenz wird nicht still gelöscht. Kategorie allein erfüllt keine Anforderung.
 
 Weiterlesen: [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Unterschriften und Freigaben dokumentieren](#38-unterschriften-und-freigaben-dokumentieren) · [Workflow: Unterlagen für die Erstabgabe vorbereiten](#40-workflow-unterlagen-für-die-erstabgabe-vorbereiten)
 

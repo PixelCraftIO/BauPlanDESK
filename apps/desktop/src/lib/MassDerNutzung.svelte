@@ -4,12 +4,14 @@
   import type { BerechnungsBereich } from "./projektSitzung";
   let {
     projekt,
+    benutzerId,
     darf,
     onprojekt,
     bereich = "grundstueck",
     bezugsflaechenAktuell = false,
   }: {
     projekt: Project;
+    benutzerId: string;
     darf: boolean;
     onprojekt: (p: Project) => void;
     bereich?: BerechnungsBereich;
@@ -30,6 +32,7 @@
 <Baugrundstuecke
   bind:this={editor}
   {projekt}
+  {benutzerId}
   {darf}
   {onprojekt}
   {bereich}

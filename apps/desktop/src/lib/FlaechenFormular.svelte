@@ -6,6 +6,7 @@
     Anrechnung,
   } from "./api";
   let {
+    regelOffen = false,
     aufstellung = $bindable(),
     gebaeude = [],
     projektId,
@@ -16,6 +17,7 @@
     einzigesGrundstueck = false,
     flurstueckIds = [],
   }: {
+    regelOffen?: boolean;
     projektId: string;
     grundstueckId?: string;
     bereich?: "alle" | "grz" | "gfz";
@@ -58,43 +60,107 @@
   // Angebot zur erneuten Verknüpfung: Gebäude mit einem Flurstück dieses
   // Grundstücks (Altbestand: frühere Zuordnung); ob die Lage eindeutig ist,
   // prüft der Core beim Prüfen und Speichern.
-  const importGebaeude = $derived(gebaeude.filter((g) => {
-    const f = g.daten.flurstueck_ids ?? [];
-    if (f.length) return f.some((id) => flurstueckIds.includes(id));
-    if (grundstueckId && g.daten.grundstueck_ids.includes(grundstueckId)) return true;
-    return einzigesGrundstueck;
-  }));
+  const importGebaeude = $derived(
+    gebaeude.filter((g) => {
+      const f = g.daten.flurstueck_ids ?? [];
+      if (f.length) return f.some((id) => flurstueckIds.includes(id));
+      if (grundstueckId && g.daten.grundstueck_ids.includes(grundstueckId))
+        return true;
+      return einzigesGrundstueck;
+    }),
+  );
   async function uebernehmen() {
     const haus = importGebaeude.find((g) => g.objekt === importId);
     if (!haus || importLaeuft) return;
     // Die Antwort bleibt an die ursprünglich bearbeitete Aufstellung gebunden.
     const ziel = aufstellung;
     const istGrz = bereich !== "gfz";
-    importLaeuft = true; importFehler = ""; importHinweis = "";
+    importLaeuft = true;
+    importFehler = "";
+    importHinweis = "";
     try {
-      const basis: GebaeudeGrundlagen = await plattformApi.gebaeudeAuswerten(projektId, haus.objekt, JSON.parse(JSON.stringify(haus.daten)));
+      const basis: GebaeudeGrundlagen = await plattformApi.gebaeudeAuswerten(
+        projektId,
+        haus.objekt,
+        JSON.parse(JSON.stringify(haus.daten)),
+      );
       if (ziel !== aufstellung) return;
       if (istGrz) {
-        if (basis.grundflaeche_m2 === null || basis.typ === null) throw Error("Grundfläche und Gebäudetyp zuerst in Gebäude/Geschosse ergänzen.");
-        if (ziel.bauteile.some((b) => b.gebaeude_id === haus.objekt)) throw Error("Die Grundfläche dieses Gebäudes ist bereits verknüpft.");
-        ziel.bauteile.push({gebaeude_id:haus.objekt,bezeichnung:basis.bezeichnung,typ:basis.typ,flaeche_m2:basis.grundflaeche_m2,abweichende_anrechnung:null,begruendung:""});
-        importHinweis = "Gebäudegrundfläche verknüpft. Überlagerungen mit anderen Bauteilen vor der Berechnung prüfen.";
+        if (basis.grundflaeche_m2 === null || basis.typ === null)
+          throw Error(
+            "Grundfläche und Gebäudetyp zuerst in Gebäude/Geschosse ergänzen.",
+          );
+        if (ziel.bauteile.some((b) => b.gebaeude_id === haus.objekt))
+          throw Error("Die Grundfläche dieses Gebäudes ist bereits verknüpft.");
+        ziel.bauteile.push({
+          gebaeude_id: haus.objekt,
+          bezeichnung: basis.bezeichnung,
+          typ: basis.typ,
+          flaeche_m2: basis.grundflaeche_m2,
+          abweichende_anrechnung: null,
+          begruendung: "",
+        });
+        importHinweis =
+          "Gebäudegrundfläche verknüpft. Überlagerungen mit anderen Bauteilen vor der Berechnung prüfen.";
       } else {
-        const vorhanden = ziel.geschosse.filter((g) => g.gebaeude_id === haus.objekt);
-        if (vorhanden.some((g) => !g.geschoss_id)) throw Error("Für dieses Gebäude ist bereits ein Einzelgeschoss oder eine manuelle Ebene erfasst. Zuordnung vor der Übernahme prüfen.");
-        const neu = basis.geschosse.filter((g) => !vorhanden.some((v) => v.geschoss_id === g.id));
-        if (!neu.length) throw Error("Alle Geschosse dieses Gebäudes sind bereits erfasst.");
-        if (neu.some((g) => g.flaeche_m2 === null)) throw Error("Die Flächen aller zu übernehmenden Geschosse zuerst in den Grundlagen ergänzen.");
+        const vorhanden = ziel.geschosse.filter(
+          (g) => g.gebaeude_id === haus.objekt,
+        );
+        if (vorhanden.some((g) => !g.geschoss_id))
+          throw Error(
+            "Für dieses Gebäude ist bereits ein Einzelgeschoss oder eine manuelle Ebene erfasst. Zuordnung vor der Übernahme prüfen.",
+          );
+        const neu = basis.geschosse.filter(
+          (g) => !vorhanden.some((v) => v.geschoss_id === g.id),
+        );
+        if (!neu.length)
+          throw Error("Alle Geschosse dieses Gebäudes sind bereits erfasst.");
+        if (neu.some((g) => g.flaeche_m2 === null))
+          throw Error(
+            "Die Flächen aller zu übernehmenden Geschosse zuerst in den Grundlagen ergänzen.",
+          );
         // Eine im Gebäude festgelegte Einstufung des Einzelgeschosses ist maßgebend.
-        const einstufung = (g: (typeof neu)[number]) => (g.implizit ? (g.vollgeschoss ?? einzelEinstufung) : g.vollgeschoss);
-        if (neu.some((g) => g.implizit && g.vollgeschoss !== null && einzelEinstufung !== null && g.vollgeschoss !== einzelEinstufung)) throw Error("Die gewählte Einstufung widerspricht der Einstufung in Gebäude/Geschosse. Dort ändern.");
-        if (neu.some((g) => einstufung(g) === null)) throw Error("Vollgeschosseinstufung zuerst prüfen und festlegen, am besten unter Gebäude/Geschosse.");
-        if (ziel.geschosse.some((g) => !g.gebaeude_id)) throw Error("Vorhandene Geschosse zuerst ihren Gebäuden zuordnen.");
-        for (const g of neu) ziel.geschosse.push({gebaeude_id:haus.objekt,geschoss_id:g.implizit ? null : g.id,flaeche_aus_grundlagen:true,teilflaechen_geprueft:false,bezeichnung:g.bezeichnung,vollgeschoss:einstufung(g)!,aussenmass_m2:g.flaeche_m2!,aufenthalt_m2:0,waende_m2:0,erschliessung_m2:0});
-        importHinweis = "Geschossflächen verknüpft. Bei anzurechnenden Nichtvollgeschossen Aufenthaltsräume, Wände und Erschließung gesondert ergänzen.";
+        const einstufung = (g: (typeof neu)[number]) =>
+          g.implizit ? (g.vollgeschoss ?? einzelEinstufung) : g.vollgeschoss;
+        if (
+          neu.some(
+            (g) =>
+              g.implizit &&
+              g.vollgeschoss !== null &&
+              einzelEinstufung !== null &&
+              g.vollgeschoss !== einzelEinstufung,
+          )
+        )
+          throw Error(
+            "Die gewählte Einstufung widerspricht der Einstufung in Gebäude/Geschosse. Dort ändern.",
+          );
+        if (neu.some((g) => einstufung(g) === null))
+          throw Error(
+            "Vollgeschosseinstufung zuerst prüfen und festlegen, am besten unter Gebäude/Geschosse.",
+          );
+        if (ziel.geschosse.some((g) => !g.gebaeude_id))
+          throw Error("Vorhandene Geschosse zuerst ihren Gebäuden zuordnen.");
+        for (const g of neu)
+          ziel.geschosse.push({
+            gebaeude_id: haus.objekt,
+            geschoss_id: g.implizit ? null : g.id,
+            flaeche_aus_grundlagen: true,
+            teilflaechen_geprueft: false,
+            bezeichnung: g.bezeichnung,
+            vollgeschoss: einstufung(g)!,
+            aussenmass_m2: g.flaeche_m2!,
+            aufenthalt_m2: 0,
+            waende_m2: 0,
+            erschliessung_m2: 0,
+          });
+        importHinweis =
+          "Geschossflächen verknüpft. Bei anzurechnenden Nichtvollgeschossen Aufenthaltsräume, Wände und Erschließung gesondert ergänzen.";
       }
-    } catch (e) { if (ziel === aufstellung) importFehler = fehlertext(e); }
-    finally { importLaeuft = false; }
+    } catch (e) {
+      if (ziel === aufstellung) importFehler = fehlertext(e);
+    } finally {
+      importLaeuft = false;
+    }
   }
   const z = (v: number) =>
     v.toLocaleString("de-DE", { maximumFractionDigits: 3 });
@@ -102,22 +168,75 @@
 
 <section class="flaechenformular">
   {#if gebaeude.length}<fieldset>
-    <legend>Bekannte Flächen aus Gebäude/Geschosse</legend>
-    <p class="meta">Gebäude, die diesem Baugrundstück zugeordnet sind, werden mit vollständigen Grundlagen automatisch übernommen und beim Prüfen und Speichern aktualisiert. Hier lässt sich ein Gebäude erneut verknüpfen, etwa nach „Verknüpfung lösen“ oder um die Einstufung eines Einzelgeschosses festzulegen. Bereits manuell erfasste Flächen auf Doppelungen prüfen.</p>
-    <label>Gebäude<select bind:value={importId} onchange={() => { einzelEinstufung = null; importFehler = ""; importHinweis = ""; }}><option value="">Gebäude auswählen</option>{#each importGebaeude as haus}<option value={haus.objekt}>{haus.daten.bezeichnung}</option>{/each}</select></label>
-    {#if bereich === "gfz" && importGebaeude.find((g) => g.objekt === importId)?.daten.geschosse.length === 0}
-      {@const imGebaeude = importGebaeude.find((g) => g.objekt === importId)?.daten.geometrie?.einzelgeschoss_vollgeschoss}
-      {#if imGebaeude === undefined}<label>Geprüfte Einstufung des Einzelgeschosses<select bind:value={einzelEinstufung}><option value={null}>Noch zu prüfen</option><option value={true}>Vollgeschoss</option><option value={false}>Nichtvollgeschoss</option></select></label>
-        <p class="meta">Besser unter Gebäude/Geschosse festlegen; dann gilt sie für alle Berechnungen.</p>
-      {:else}<p class="meta">Einstufung des Einzelgeschosses laut Gebäude/Geschosse: {imGebaeude ? "Vollgeschoss" : "Nichtvollgeschoss"}.</p>{/if}
-    {/if}
-    <button type="button" class="sekundaer" disabled={!importId || importLaeuft} onclick={uebernehmen}>{bereich === "gfz" ? "Geschossflächen verknüpfen" : "Gebäudegrundfläche verknüpfen"}</button>
-    {#if !importGebaeude.length}<p class="meta">Für eine Übernahme dem Gebäude unter Gebäude/Geschosse die Flurstücke zuordnen, auf denen es steht. Bei Gebäuden auf mehreren Baugrundstücken die Flächen getrennt aufteilen.</p>{/if}
-    {#if importFehler}<p class="fehlertext" role="alert">{importFehler}</p>{/if}
-    {#if importHinweis}<p class="meta" role="status">{importHinweis}</p>{/if}
-  </fieldset>{/if}
+      <legend>Bekannte Flächen aus Gebäude/Geschosse</legend>
+      <p class="meta">
+        Gebäude, die diesem Baugrundstück zugeordnet sind, werden mit
+        vollständigen Grundlagen automatisch übernommen und beim Prüfen und
+        Speichern aktualisiert. Hier lässt sich ein Gebäude erneut verknüpfen,
+        etwa nach „Verknüpfung lösen“ oder um die Einstufung eines
+        Einzelgeschosses festzulegen. Bereits manuell erfasste Flächen auf
+        Doppelungen prüfen.
+      </p>
+      <label
+        >Gebäude<select
+          bind:value={importId}
+          onchange={() => {
+            einzelEinstufung = null;
+            importFehler = "";
+            importHinweis = "";
+          }}
+          ><option value="">Gebäude auswählen</option
+          >{#each importGebaeude as haus}<option value={haus.objekt}
+              >{haus.daten.bezeichnung}</option
+            >{/each}</select
+        ></label
+      >
+      {#if bereich === "gfz" && importGebaeude.find((g) => g.objekt === importId)?.daten.geschosse.length === 0}
+        {@const imGebaeude = importGebaeude.find((g) => g.objekt === importId)
+          ?.daten.geometrie?.einzelgeschoss_vollgeschoss}
+        {#if imGebaeude === undefined}<label
+            >Geprüfte Einstufung des Einzelgeschosses<select
+              bind:value={einzelEinstufung}
+              ><option value={null}>Noch zu prüfen</option><option value={true}
+                >Vollgeschoss</option
+              ><option value={false}>Nichtvollgeschoss</option></select
+            ></label
+          >
+          <p class="meta">
+            Besser unter Gebäude/Geschosse festlegen; dann gilt sie für alle
+            Berechnungen.
+          </p>
+        {:else}<p class="meta">
+            Einstufung des Einzelgeschosses laut Gebäude/Geschosse: {imGebaeude
+              ? "Vollgeschoss"
+              : "Nichtvollgeschoss"}.
+          </p>{/if}
+      {/if}
+      <button
+        type="button"
+        class="sekundaer"
+        disabled={!importId || importLaeuft}
+        onclick={uebernehmen}
+        >{bereich === "gfz"
+          ? "Geschossflächen verknüpfen"
+          : "Gebäudegrundfläche verknüpfen"}</button
+      >
+      {#if !importGebaeude.length}<p class="meta">
+          Für eine Übernahme dem Gebäude unter Gebäude/Geschosse die Flurstücke
+          zuordnen, auf denen es steht. Bei Gebäuden auf mehreren
+          Baugrundstücken die Flächen getrennt aufteilen.
+        </p>{/if}
+      {#if importFehler}<p class="fehlertext" role="alert">
+          {importFehler}
+        </p>{/if}
+      {#if importHinweis}<p class="meta" role="status">{importHinweis}</p>{/if}
+    </fieldset>{/if}
   {#if bereich !== "gfz"}<h3>
-      Bauteile für {modern ? "GRZ I und GRZ II" : "GRZ"}
+      Bauteile für {regelOffen
+        ? "die vorbereitende Flächenerfassung"
+        : modern
+          ? "GRZ I und GRZ II"
+          : "GRZ"}
     </h3>
     <p class="meta">
       Grundflächen in horizontaler Projektion. Überlagerte Flächen nur einmal
@@ -125,7 +244,7 @@
       dem zusätzlichen Umgriff. Terrassen nach ihrer Zugehörigkeit zur Haupt-
       oder Nebenanlage einordnen.
     </p>
-    {#if !modern}<p class="hinweisbox">
+    {#if !regelOffen && !modern}<p class="hinweisbox">
         Diese Fassung kennt keine GRZ II und keine pauschale 50-%-Überschreitung
         nach heutigem § 19 Abs. 4. Garagen werden grundsätzlich angesetzt;
         Sonderregelungen, etwa nach § 21a, benötigen einen gesondert geprüften
@@ -136,7 +255,8 @@
         <legend>Bauteil {i + 1}</legend>
         <div class="raster">
           <label
-            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung"
+            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input
+              aria-label="Bezeichnung"
               bind:value={b.bezeichnung}
               required
               maxlength="500"
@@ -144,14 +264,16 @@
             /></label
           >
           <label
-            >Bauteiltyp<select bind:value={b.typ}
-              disabled={!!b.gebaeude_id}
+            >Bauteiltyp<select bind:value={b.typ} disabled={!!b.gebaeude_id}
               >{#each typen as t}<option value={t.code}>{t.text}</option
                 >{/each}</select
             ></label
           >
           <label
-            >Grundfläche (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Grundfläche (m²)"
+            >Grundfläche (m²)<span class="pflicht" aria-hidden="true">
+              *</span
+            ><input
+              aria-label="Grundfläche (m²)"
               type="number"
               min="0"
               step="any"
@@ -163,9 +285,11 @@
           <div>
             <span class="meta">Automatische Anrechnung</span>
             <p>
-              {namen[
-                b.abweichende_anrechnung ?? regel.bauteile[b.typ].anrechnung
-              ]}
+              {regelOffen
+                ? "Noch nicht bestimmt – Rechtsgrundlagen klären"
+                : namen[
+                    b.abweichende_anrechnung ?? regel.bauteile[b.typ].anrechnung
+                  ]}
             </p>
           </div>
           {#if b.abweichende_anrechnung !== null}<details>
@@ -181,7 +305,15 @@
               >
             </details>{/if}
         </div>
-        {#if b.gebaeude_id}<p class="meta">Fläche und Typ aus Gebäude/Geschosse. <button type="button" class="link" onclick={() => { b.gebaeude_id = undefined; }}>Verknüpfung lösen</button></p>{/if}
+        {#if b.gebaeude_id}<p class="meta">
+            Fläche und Typ aus Gebäude/Geschosse. <button
+              type="button"
+              class="link"
+              onclick={() => {
+                b.gebaeude_id = undefined;
+              }}>Verknüpfung lösen</button
+            >
+          </p>{/if}
         {#if ergebnis?.bauteile[i]}<p class="meta">
             Angesetzt: {z(ergebnis.bauteile[i].flaeche_m2)} m² · {namen[
               ergebnis.bauteile[i].anrechnung
@@ -234,7 +366,10 @@
           {#if gebaeude.length}<label
               >Gebäude<select
                 bind:value={g.gebaeude_id}
-                onchange={() => { g.geschoss_id = null; g.flaeche_aus_grundlagen = undefined; }}
+                onchange={() => {
+                  g.geschoss_id = null;
+                  g.flaeche_aus_grundlagen = undefined;
+                }}
                 ><option value={null}>Noch nicht zugeordnet</option
                 >{#each gebaeude as haus (haus.objekt)}<option
                     value={haus.objekt}>{haus.daten.bezeichnung}</option
@@ -267,7 +402,8 @@
               >{/if}
           {/if}
           <label
-            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung"
+            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input
+              aria-label="Bezeichnung"
               bind:value={g.bezeichnung}
               readonly={!!g.geschoss_id}
               required
@@ -285,7 +421,13 @@
             ></label
           >
           {#if g.vollgeschoss || faktor !== 0}<label
-              >Geschossfläche nach Außenmaßen (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Geschossfläche nach Außenmaßen (m²)"
+              >Geschossfläche nach Außenmaßen (m²)<span
+                class="pflicht"
+                aria-hidden="true"
+              >
+                *</span
+              ><input
+                aria-label="Geschossfläche nach Außenmaßen (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -296,7 +438,10 @@
             >{/if}
           {#if !g.vollgeschoss && faktor !== 0}
             <label
-              >Aufenthaltsräume (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Aufenthaltsräume (m²)"
+              >Aufenthaltsräume (m²)<span class="pflicht" aria-hidden="true">
+                *</span
+              ><input
+                aria-label="Aufenthaltsräume (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -305,7 +450,13 @@
               /></label
             >
             <label
-              >Zugehörige Umfassungswände (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Zugehörige Umfassungswände (m²)"
+              >Zugehörige Umfassungswände (m²)<span
+                class="pflicht"
+                aria-hidden="true"
+              >
+                *</span
+              ><input
+                aria-label="Zugehörige Umfassungswände (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -314,7 +465,13 @@
               /></label
             >
             <label
-              >Zugehörige Erschließung / Treppenräume (m²)<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Zugehörige Erschließung / Treppenräume (m²)"
+              >Zugehörige Erschließung / Treppenräume (m²)<span
+                class="pflicht"
+                aria-hidden="true"
+              >
+                *</span
+              ><input
+                aria-label="Zugehörige Erschließung / Treppenräume (m²)"
                 type="number"
                 min="0"
                 step="any"
@@ -323,9 +480,22 @@
               /></label
             >
           {/if}
-          {#if !g.vollgeschoss && faktor !== 0 && g.teilflaechen_geprueft !== undefined}<label><input type="checkbox" bind:checked={g.teilflaechen_geprueft} />Aufenthaltsräume, Wände und Erschließung vollständig geprüft</label>{/if}
+          {#if !g.vollgeschoss && faktor !== 0 && g.teilflaechen_geprueft !== undefined}<label
+              ><input
+                type="checkbox"
+                bind:checked={g.teilflaechen_geprueft}
+              />Aufenthaltsräume, Wände und Erschließung vollständig geprüft</label
+            >{/if}
         </div>
-        {#if g.flaeche_aus_grundlagen}<p class="meta">Geschossfläche aus Gebäude/Geschosse. <button type="button" class="link" onclick={() => { g.flaeche_aus_grundlagen = undefined; }}>Flächenverknüpfung lösen</button></p>{/if}
+        {#if g.flaeche_aus_grundlagen}<p class="meta">
+            Geschossfläche aus Gebäude/Geschosse. <button
+              type="button"
+              class="link"
+              onclick={() => {
+                g.flaeche_aus_grundlagen = undefined;
+              }}>Flächenverknüpfung lösen</button
+            >
+          </p>{/if}
         {#if ergebnis && ergebnis.geschosse[i] !== undefined}<p class="meta">
             Angesetzte Geschossfläche: {z(ergebnis.geschosse[i])} m²
           </p>{/if}

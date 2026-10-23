@@ -1,0 +1,1 @@
+Verdeckte Bereiche pausieren; beim Aktivieren wird der vorgemerkte Stand einmal geladen.

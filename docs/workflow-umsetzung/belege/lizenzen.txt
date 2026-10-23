@@ -1,0 +1,5 @@
+
+> bauprojektio-desktop@0.1.0 licenses
+> node scripts/check-licenses.mjs
+
+55 Pakete geprüft, 0 Verstöße.

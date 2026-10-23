@@ -13,7 +13,11 @@ export interface FachModul {
   voraussetzung?: "flaechen" | "plan";
 }
 const BASIS_MODULE = [
-  {id:"einreichen",titel:"Einreichen / Nachreichen",gruppe:"Organisation"},
+  {
+    id: "einreichen",
+    titel: "Einreichen / Nachreichen",
+    gruppe: "Organisation",
+  },
   { id: "projektuebersicht", titel: "Projektübersicht", gruppe: "Grundlagen" },
   { id: "uebersicht", titel: "Stammdaten", gruppe: "Grundlagen" },
   { id: "rechtsgrundlagen", titel: "Rechtsgrundlagen", gruppe: "Grundlagen" },
@@ -73,6 +77,17 @@ export const MODULGRUPPEN = [
 ] as const;
 export const MODULE = [...BASIS_MODULE, ...FACHMODULE] as const;
 export type ModulId = (typeof MODULE)[number]["id"];
+/** Erfassung bleibt möglich; dieser Hinweis sperrt nur fachliche Auswertung. */
+export function berechnungsvoraussetzung(projekt: Project): string | null {
+  const fehlt: string[] = [];
+  if (!projekt.planungsrecht.rechtsgrundlage)
+    fehlt.push("die Rechtsgrundlage (§ 30, § 34 oder § 35 BauGB)");
+  if (!projekt.planungsrecht.bau_nvo)
+    fehlt.push("den für diesen Nachweis maßgebenden BauNVO-Stand");
+  return fehlt.length
+    ? `Unter Grundlagen → Rechtsgrundlagen ${fehlt.join(" und ")} klären und speichern. Bei § 34 keine beliebige BauNVO auswählen; den Berechnungsmaßstab fachlich klären. Bis dahin sind nur Entwürfe möglich.`
+    : null;
+}
 export function voraussetzung(
   projekt: Project,
   modul: FachModul,
@@ -82,11 +97,20 @@ export function voraussetzung(
     (projekt.planungsrecht.rechtsgrundlage !== "par30" ||
       ["kein", "ungeklaert"].includes(projekt.planungsrecht.bebauungsplan_art))
   )
-    return "Nur bei vorhandenem Bebauungsplan";
+    return "Unter Grundlagen → Rechtsgrundlagen § 30 BauGB und die vorhandene Bebauungsplanart festlegen und speichern. Ohne Bebauungsplan sind Planfestsetzungen nicht anwendbar.";
   if (
     modul.voraussetzung === "flaechen" &&
     (!projekt.planungsrecht.rechtsgrundlage || !projekt.planungsrecht.bau_nvo)
   )
-    return "Zuerst Rechtsgrundlage und BauNVO festlegen";
+    return berechnungsvoraussetzung(projekt);
+  if (
+    modul.voraussetzung === "flaechen" &&
+    !(
+      projekt.planungsrecht.grundstuecksinformationen?.flurstuecke ??
+      projekt.planungsrecht.baugrundstuecke?.flurstuecke ??
+      []
+    ).length
+  )
+    return "Unter Grundlagen → Flurstücke mindestens ein Vorhabenflurstück erfassen und speichern. Anschließend unter Berechnungen → Baugrundstück die Zuordnung und Bezugsflächen prüfen und speichern. Danach können die Nutzungswerte ermittelt werden.";
   return null;
 }

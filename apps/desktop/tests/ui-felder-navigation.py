@@ -66,7 +66,7 @@ with sync_playwright() as pw:
  assert page.evaluate('window.calls.filter(c=>c.cmd==="fachobjekt_speichern").length')==0
  wc().get_by_role('button',name='Berechnung prüfen',exact=True).click()
  assert page.evaluate('window.calls.filter(c=>c.cmd==="fachberechnung_pruefen").length')==0
- wc().get_by_role('button',name='Nachweis archivieren und PDF ausgeben …',exact=True).click()
+ wc().get_by_role('button',name='Nachweis erstellen …',exact=True).click()
  expect(page.get_by_role('dialog',name='Druckausgabe',exact=True)).to_have_count(0)
  assert page.evaluate('window.calls.filter(c=>["nachweis_erstellen","fachobjekt_speichern"].includes(c.cmd)).length')==0
  # Bereichswechsel und Entwurfswiederherstellung behalten die geleerte Zahl.

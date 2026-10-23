@@ -36,6 +36,15 @@ export class EditorRegister {
       e.istBeschaeftigt(),
     );
   }
+  async speichernIn(id: Ansicht): Promise<boolean> {
+    for (const e of this.editoren.values()) {
+      if (e.id !== id || !e.editor.hatAenderungen()) continue;
+      if (e.editor.istBeschaeftigt() || !(await e.editor.speichern()))
+        return false;
+      await tick();
+    }
+    return !this.hatAenderungenIn(id);
+  }
   async speichern(): Promise<{ bereich: Ansicht; hinweis?: string } | null> {
     for (const { id: bereich, editor: e } of this.editoren.values()) {
       if (e.hatAenderungen()) {

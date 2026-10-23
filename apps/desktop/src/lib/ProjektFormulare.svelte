@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { projektNavigation } from "./projektNavigation.svelte";
+  import { untrack } from "svelte";
   import { editorAnmelden } from "./editoren";
-  import { onMount } from "svelte";
+
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
     api,
@@ -22,12 +24,25 @@
     darf,
     ongespeichert,
     ondateien,
+    onbibliothek,
+    aktiv = true,
   }: {
+    aktiv?: boolean;
+    onbibliothek?: () => void;
     projekt: Project;
     darf: boolean;
     ongespeichert: () => Promise<void>;
     ondateien: () => void;
   } = $props();
+  const navigation = projektNavigation();
+  $effect(() => {
+    if (aktiv) untrack(() => void laden());
+    return () => {
+      ladeGeneration++;
+      laeuft = false;
+    };
+  });
+  let ladeGeneration = 0;
   let vorlagen = $state<BibliotheksVorlage[]>([]),
     gewaehlt = $state<BibliotheksVorlage | null>(null),
     suche = $state(""),
@@ -54,6 +69,7 @@
     return laeuft || !!gewaehlt;
   }
   async function laden() {
+    const generation = ++ladeGeneration;
     laeuft = true;
     try {
       const [b, k] = await Promise.all([
@@ -65,16 +81,18 @@
           async (hash) => [hash, await api.vorlagenkategorie(hash)] as const,
         ),
       );
+      if (generation !== ladeGeneration) return;
+      fehler = null;
       vorlagen = b.vorlagen;
       kategorien = k.kategorien;
       zuordnungen = Object.fromEntries(z);
     } catch (e) {
-      fehler = fehlertext(e);
+      if (generation === ladeGeneration) fehler = fehlertext(e);
     } finally {
-      laeuft = false;
+      if (generation === ladeGeneration) laeuft = false;
     }
   }
-  onMount(laden);
+
   async function schliessenErlaubt() {
     return (
       !pdfBusy &&
@@ -100,7 +118,11 @@
     gespeichert = d;
     gewaehlt = null;
     dirty = false;
-    await ongespeichert();
+    try {
+      await ongespeichert();
+    } catch (e) {
+      fehler = `Formular gespeichert. Die Projektansicht konnte nicht aktualisiert werden: ${fehlertext(e)}`;
+    }
   }
   editorAnmelden("formulare", {
     hatAenderungen: () => false,
@@ -112,6 +134,28 @@
 </script>
 
 <h2>Formulare</h2>
+{#if navigation?.unterlagenauftrag}<aside class="hinweisbox">
+    <strong>Unterlage für: {navigation.unterlagenauftrag.titel}</strong>
+    <p>
+      Vorlage ausfüllen. Nach dem Speichern die konkrete Version im
+      Ausgangsbereich zuordnen.
+    </p>
+    <button
+      type="button"
+      class="link"
+      onclick={() => {
+        if (navigation?.unterlagenauftrag)
+          navigation.springen(navigation.unterlagenauftrag.ziel);
+      }}>Zurück zur Anforderung →</button
+    >
+  </aside>{/if}
+{#if onbibliothek}<button
+    type="button"
+    class="sekundaer"
+    disabled={laeuft || !!gewaehlt}
+    onclick={onbibliothek}
+    >Vorlagen hinzufügen / Eingabefelder einrichten …</button
+  >{/if}
 <p class="meta">
   Vorlage auswählen, ausfüllen und im Projekt „{projekt.name}“ speichern.
 </p>
@@ -120,6 +164,18 @@
     <strong>{gespeichert.file_name}</strong> wurde im Projekt gespeichert. {gespeichert.projektordner_pfad ??
       ""}
     {gespeichert.ablage_hinweis ?? ""}
+    {#if navigation?.unterlagenauftrag}<button
+        type="button"
+        onclick={() => {
+          if (navigation?.unterlagenauftrag && gespeichert) {
+            navigation.unterlagenauftrag.dokument = {
+              dokument_id: gespeichert.document_id,
+              version: gespeichert.version,
+            };
+            navigation.springen(navigation.unterlagenauftrag.ziel);
+          }
+        }}>Diese Version zur Zuordnung übernehmen →</button
+      >{/if}
     <button class="link" onclick={ondateien}>Zu den Projektdateien</button>
   </div>{/if}
 <div class="formular-auswahlkopf">

@@ -9,7 +9,7 @@ wf=json.loads((pdfroot/'workflow.json').read_text())
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='Wohnhaus Lindenweg'
 fixture['planungsrecht'].update({'bau_nvo':None,'rechtsgrundlage':None,'bebauungsplan_art':'ungeklaert','baugrundstuecke':None,'berechnung':None})
 pdf=base64.b64encode((pdfroot/'vorlage.pdf').read_bytes()).decode()
-out=root.parents[2]/'docs/klare-projektstruktur';out.mkdir(exist_ok=True)
+out=Path(os.environ.get('BAUPROJEKT_KLARE_UI_ARTEFAKTE',str(root.parents[2]/'docs/klare-projektstruktur')));out.mkdir(parents=True,exist_ok=True)
 custom='''
 const original=window.__TAURI_INTERNALS__.invoke;
 const fields=[{name:'Vorname',beschriftung:'Vorname',art:'text',wert:null,optionen:[],schreibgeschuetzt:false,max_laenge:null},{name:'Zustimmung',beschriftung:'Zustimmung',art:'ankreuzfeld',wert:null,optionen:['Yes'],schreibgeschuetzt:false,max_laenge:null}];
@@ -52,7 +52,7 @@ with sync_playwright() as p:
  assert page.get_by_role('navigation',name='Projektbereiche').count()==0
  assert page.get_by_role('navigation',name='Werkzeugleiste').count()==0
  register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled()
- register(page,'Grundlagen');expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_have_count(0)
+ register(page,'Grundlagen');expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_be_disabled();expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen: Voraussetzungen anzeigen',exact=True)).to_be_visible()
  checks.append('Eine Sidebar, keine doppelte Projekt- oder Werkzeugnavigation')
  view('Rechtsgrundlagen')
  section().get_by_label('Bebauungsplan',exact=True).select_option('qualifiziert')
@@ -60,12 +60,12 @@ with sync_playwright() as p:
  section().get_by_label('Planbezeichnung',exact=True).fill('Lindenweg Nord')
  section().get_by_role('button',name='Speichern',exact=True).click()
  expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_be_visible()
- register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_enabled()
+ register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled();expect(nav.get_by_role('button',name='GRZ: Entwurf öffnen',exact=True)).to_be_visible()
  assert not section().get_by_label('GFZ',exact=True).count()
  view('Bebauungsplanfestsetzungen')
  section().get_by_label('GFZ',exact=True).fill('0.8')
  section().get_by_role('button',name='Speichern',exact=True).click()
- checks.append('Rechtsgrundlagen schalten Bereiche frei; Festsetzungen separat')
+ checks.append('Planfestsetzungen nach Rechtsklärung; Nutzungsrechnung erst mit Flurstücken, Entwurf vorher zugänglich')
  view('Flurstücke und Grundbuch')
  section().get_by_role('button',name='Flurstück hinzufügen',exact=True).click()
  for label,value in [('Gemarkung','Linden'),('Flur','2'),('Zähler','123'),('Nenner','4'),('Flurstücksfläche','900')]:section().get_by_label(label,exact=True).fill(value)
@@ -76,6 +76,7 @@ with sync_playwright() as p:
  page.evaluate('window.failSave=false')
  section().get_by_role('button',name='Grundstücksinformationen speichern',exact=True).click()
  expect(section().get_by_text('Ungespeicherte Änderungen',exact=True)).not_to_be_visible()
+ register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_enabled();view('Flurstücke und Grundbuch')
  assert page.evaluate('window.testProjects[0].planungsrecht.grundstuecksinformationen.flurstuecke[0].laufende_nummer') is None
  assert not page.evaluate('window.testProjects[0].planungsrecht.baugrundstuecksermittlung')
  for width in [1024,768,600]:
