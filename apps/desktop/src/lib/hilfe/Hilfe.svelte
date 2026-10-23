@@ -41,7 +41,7 @@
   }
   function drucken() {
     fehler = "";
-    try { aufraeumen?.(); aufraeumen = handbuchDrucken(); }
+    try { aufraeumen?.(); aufraeumen = handbuchDrucken((e) => { fehler = e.message; }); }
     catch (e) { fehler = e instanceof Error ? e.message : "Handbuch konnte nicht gedruckt werden."; }
   }
   function herunterladen() {
@@ -94,6 +94,7 @@
               {#if a.liste}<ul>{#each a.liste as p}<li>{p}</li>{/each}</ul>{/if}
               {#if a.tabelle}<div class="hilfe-tabelle"><table><thead><tr>{#each a.tabelle.spalten as spalte}<th scope="col">{spalte}</th>{/each}</tr></thead><tbody>{#each a.tabelle.zeilen as zeile}<tr>{#each zeile as zelle}<td>{zelle}</td>{/each}</tr>{/each}</tbody></table></div>{/if}
               {#if a.hinweis}<aside class="hilfe-hinweis">{a.hinweis}</aside>{/if}
+              {#if a.abbildung}<figure><img src={`/handbuch/${a.abbildung.datei}`} alt={a.abbildung.alt} loading="lazy" /><figcaption>{a.abbildung.beschreibung}</figcaption></figure>{/if}
             </section>
           {/each}
           {#if kapitel.bereiche.length && projektOffen}
@@ -144,6 +145,9 @@
   article li { display:list-item; border:0; padding:0 0 0 .3rem; margin-bottom:.8rem; }
   .hilfe-hinweis { padding:1rem 1.2rem; border-left:3px solid var(--accent); background:var(--panel); margin:1.4rem 0; }
   .hilfe-tabelle { max-width:100%; overflow:auto; margin:1rem 0; }
+  figure { margin:1.5rem 0; }
+  figure img { display:block; max-width:100%; height:auto; border:1px solid var(--border); }
+  figcaption { margin-top:.6rem; font-size:.9rem; line-height:1.5; color:var(--muted); }
   table { border-collapse:collapse; width:100%; line-height:1.5; }
   th,td { padding:.85rem; border:1px solid var(--border); text-align:left; vertical-align:top; min-width:150px; }
   th { background:var(--panel); }

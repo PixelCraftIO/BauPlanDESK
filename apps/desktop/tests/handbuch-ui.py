@@ -72,8 +72,11 @@ with sync_playwright() as p:
     # Der Gesamtdruck enthält trotz aktiver Suche alle Kapitel und keine Projektdaten.
     page.evaluate("window.print = () => { window.handbuchPrint = true; }")
     help.get_by_role("button", name="Gesamtes Handbuch drucken", exact=True).click()
-    assert page.evaluate("window.handbuchPrint")
+    page.wait_for_function("window.handbuchPrint === true")
     druck = page.locator("#bau-handbuch-druck")
+    bilder = sum(1 for k in inhalt["kapitel"] for a in k["abschnitte"] if "abbildung" in a)
+    expect(druck.locator("figure img")).to_have_count(bilder)
+    assert druck.locator("figure img").evaluate_all("imgs=>imgs.every(i=>i.complete&&i.naturalWidth>0)")
     expect(druck.locator("section.kapitel")).to_have_count(len(inhalt["kapitel"]))
     expect(druck).not_to_contain_text(fixture["name"])
     page.emulate_media(media="print")
@@ -84,6 +87,13 @@ with sync_playwright() as p:
     page.evaluate("window.dispatchEvent(new Event('afterprint'))")
     expect(druck).to_have_count(0)
     expect(page.locator(".app-werkzeuge")).to_be_visible()
+    # Ein fehlgeschlagenes Bild darf keinen unvollständigen Druck starten.
+    page.evaluate("() => { window.handbuchPrint=false;window.originalDecode=HTMLImageElement.prototype.decode;HTMLImageElement.prototype.decode=()=>Promise.reject(Error('Abbildung konnte nicht geladen werden')); }")
+    help.get_by_role("button", name="Gesamtes Handbuch drucken", exact=True).click()
+    expect(help.get_by_role("alert")).to_contain_text("Abbildung konnte nicht geladen werden")
+    expect(druck).to_have_count(0)
+    assert not page.evaluate("window.handbuchPrint")
+    page.evaluate("() => { HTMLImageElement.prototype.decode=window.originalDecode; }")
     assert not page.evaluate("window.calls.some(c => /speichern|loeschen|importieren|ablegen/.test(c.cmd))")
     assert not errors, errors
     browser.close()

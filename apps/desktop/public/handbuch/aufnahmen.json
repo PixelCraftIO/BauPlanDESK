@@ -1,0 +1,252 @@
+{
+  "basis": "e564fb1",
+  "datum": "2026-10-23",
+  "herkunft": "Produktionsoberfläche mit kontrollierten IPC-Testadaptern und fiktiven Testdaten. Keine realen Behördenverbindungen.",
+  "aufnahmen": [
+    {
+      "kapitel": "arbeitsplatz",
+      "datei": "sperrgrund.png",
+      "sha256": "7214a76d2474c40c6b99227dbf098df325c21ba481f83c6408a248652f456784",
+      "quelle": "apps/desktop/tests/workflow-ux.py · 00-sperrgrund-light.png",
+      "alt": "Gesperrter Berechnungsbereich mit Erklärung"
+    },
+    {
+      "kapitel": "einrichtung",
+      "datei": "einstellungen.png",
+      "sha256": "89029483fcb367251ca6d85cd82904f0a0d318596a503fb198d29b98937f7ad0",
+      "quelle": "apps/desktop/tests/klare-projektstruktur.py · 03-einstellungen.png",
+      "alt": "Darstellung und Speicherorte in den Einstellungen"
+    },
+    {
+      "kapitel": "einrichtung",
+      "datei": "dark.png",
+      "sha256": "51a8ba58d25441d55143badbc5eb63dd6a4fd8ed8a998a26f6543ba90dc77054",
+      "quelle": "apps/desktop/tests/arbeitsplatz-ui.py · uebersicht-dark-1.png",
+      "alt": "Projektübersicht im dunklen Farbschema"
+    },
+    {
+      "kapitel": "projekt",
+      "datei": "projekte.png",
+      "sha256": "d9707cd55e9ce4513a63257ac39083caa7f415cb93b520a1d3594b5a2a8854ed",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Projektverzeichnis mit Beispielprojekten"
+    },
+    {
+      "kapitel": "projekt",
+      "datei": "stammdaten.png",
+      "sha256": "33ab5dc0a5ed7dd98e0f7f60f41afec4a20e16449b74aa449bcef404df8a101b",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Stammdaten des Beispielprojekts"
+    },
+    {
+      "kapitel": "rechtsgrundlagen",
+      "datei": "rechtsgrundlagen.png",
+      "sha256": "49b446d8b9a80677e2705230c951590a159654a2f4d12a67411fc4287a7295cf",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Maske der Rechtsgrundlagen"
+    },
+    {
+      "kapitel": "festsetzungen",
+      "datei": "festsetzungen.png",
+      "sha256": "b8e824545b18a12e9f2206aef26fca70a40bc057a34df804bfffe3a7271e1c69",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Eingabe der Bebauungsplanfestsetzungen"
+    },
+    {
+      "kapitel": "flurstuecke",
+      "datei": "flurstuecke.png",
+      "sha256": "8d5df2ddef599496874ecb804fbbefefdcd06d41fd45e3f41b93b03292cb6d7e",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Flurstücks- und Grundbuchinformationen"
+    },
+    {
+      "kapitel": "baugrundstueck",
+      "datei": "baugrundstueck.png",
+      "sha256": "6e2511338bf836c65c759974532a69fe9f07d15d70292761a1b24168096040ca",
+      "quelle": "apps/desktop/tests/klare-projektstruktur.py · 01-baugrundstueck.png",
+      "alt": "Baugrundstücksermittlung ohne Grundbuchdaten"
+    },
+    {
+      "kapitel": "gebaeude",
+      "datei": "gebaeude.png",
+      "sha256": "9219f56db2a8b60619d1c502715ddf48610c5405b5fa170d8604ae72194c1ed9",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Gebäude und Geschosse in der Projektakte"
+    },
+    {
+      "kapitel": "grz",
+      "datei": "grz-entwurf.png",
+      "sha256": "91f3e6c63cafe5b385ca23c4ae7cd34d676c89fcc757010a65235e6cc37583a4",
+      "quelle": "apps/desktop/tests/workflow-ux.py · 01-grz-entwurf.png",
+      "alt": "GRZ als vorbereitender lokaler Entwurf"
+    },
+    {
+      "kapitel": "baugrenze",
+      "datei": "ueberbaubarkeit.png",
+      "sha256": "96b93eb798ecf55a57277cfe52824449b9760b344800e3173e11004e976d5201",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Prüfbericht der überbaubaren Grundstücksfläche"
+    },
+    {
+      "kapitel": "vollgeschosse",
+      "datei": "vollgeschosse.png",
+      "sha256": "8966bb3798096a9b2cb9fe578027c25477336e162a9e24f5d0093cb90b04748a",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Prüfbericht der Vollgeschossprüfung"
+    },
+    {
+      "kapitel": "abstand",
+      "datei": "abstand-grundlagen.png",
+      "sha256": "32519583b06facfb143e9ac22cebf01e018c698c18c2957497f95243a3c04b29",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Schritt Grundlagen der Abstandsflächen"
+    },
+    {
+      "kapitel": "abstand",
+      "datei": "abstand-waende.png",
+      "sha256": "0e20301a2cf64db4fa6a078c913a62b52aa29f6a822c6074ef0f63d22a7b0bec",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Wandbearbeitung mit geometrischem Planbezug"
+    },
+    {
+      "kapitel": "abstand",
+      "datei": "abstand-ergebnis.png",
+      "sha256": "b3c2485f8d171fe611ac945b13002d9d64658fb5fab0825573d063143b4c8e42",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Tabellarisches Ergebnis eines Abstandsplans"
+    },
+    {
+      "kapitel": "stellplaetze",
+      "datei": "stellplaetze-eingaben.png",
+      "sha256": "1565049afdac9ffda1641b1667e8a7b8e26d19d2d1c6cfa93aa3ad0b3c711f5f",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Bearbeitbarer Stellplatznachweis"
+    },
+    {
+      "kapitel": "stellplaetze",
+      "datei": "stellplaetze.png",
+      "sha256": "59253512a57bf7850de377e5b815f8d997c04098e07a08e2a34e7c2b181e0f4d",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Stellplatzbedarf und tatsächliches Angebot"
+    },
+    {
+      "kapitel": "wohnflaechen",
+      "datei": "wohnflaechen-eingaben.png",
+      "sha256": "27e44665ea84006b498b370da290aba0f341cb31cf3b2562a6a03c95f38eba66",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Positionen der Wohnflächenberechnung"
+    },
+    {
+      "kapitel": "wohnflaechen",
+      "datei": "wohnflaechen.png",
+      "sha256": "a9bf352a3eae200e133467d80e476da8120205afea882a53aa63ec1f485689ea",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Prüfbericht der Wohnflächenberechnung"
+    },
+    {
+      "kapitel": "din277",
+      "datei": "din277.png",
+      "sha256": "f8f86a922095f1ec1c9d1f14caeb40a703f5ab58440208bc2432ff75f0d5d0da",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Prüfbericht der DIN-277-Ermittlung"
+    },
+    {
+      "kapitel": "freiflaechen",
+      "datei": "freiflaechen.png",
+      "sha256": "0e180d6672ce7fcb7982ccc43dc4aea0b673b618b4f533482c4fec3e6a7f94ff",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Auswertung von Versiegelung und Freiflächen"
+    },
+    {
+      "kapitel": "freiflaechen",
+      "datei": "entwaesserung.png",
+      "sha256": "ff44895d1e595aaf4b4b4a43970c7c4c6098dd9669af3b4249d80a7a21aaa537",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Auswertung der Regenwasser- und Rückhalteansätze"
+    },
+    {
+      "kapitel": "dateien",
+      "datei": "dateien.png",
+      "sha256": "89d136416e258ba016a7e68d113e82399ada612c8f5bcd678ada67801671cbbc",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Dateiverwaltung in der Projektakte"
+    },
+    {
+      "kapitel": "formulare",
+      "datei": "formular-live.png",
+      "sha256": "c52d89f167a8a946489e3fb90eebfa46ea32f633671e3d85c449cfad851bc97f",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Mehrzeilige Eingabe mit aktualisierter PDF-Vorschau"
+    },
+    {
+      "kapitel": "bibliothek",
+      "datei": "formularbibliothek.png",
+      "sha256": "3433653a37f2cfb46c52e94c78492edacce7f8fa1161d98967bd11a124f0854c",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Projektunabhängige Formularbibliothek"
+    },
+    {
+      "kapitel": "druck",
+      "datei": "druckauswahl.png",
+      "sha256": "4a647d3053139c7a98b2e136b61e6bb265bc48908de47ac6c8fbdf2637a7368c",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Zusammenstellung der Druckausgabe"
+    },
+    {
+      "kapitel": "druck",
+      "datei": "druckvorschau.png",
+      "sha256": "05ad3142bf02eb8d8d8fb66dc765f14ab38096126506a47c997092f7b0c5ad4a",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Vorschau eines erzeugten Druckartefakts"
+    },
+    {
+      "kapitel": "uebersicht",
+      "datei": "uebersicht.png",
+      "sha256": "160a7404ad6b9c10f6044485bc83eef890eabb8676ffcb008e6ce855147e52cf",
+      "quelle": "apps/desktop/tests/arbeitsplatz-ui.py · uebersicht-light-1.png",
+      "alt": "Zentrale Projektübersicht mit Handlungsbedarf"
+    },
+    {
+      "kapitel": "verfahren",
+      "datei": "arbeitsauftraege.png",
+      "sha256": "2e5981ed6bac0beca06cac3c7f0c92a5e69ea3b6bf409e7326e210db04e0121c",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Unterlagen und Arbeitsaufträge einer Verfahrensakte"
+    },
+    {
+      "kapitel": "abgabe",
+      "datei": "abgabestaende.png",
+      "sha256": "ec0a26153349e340f442d0061724dd403460eb4888b92221a572fd184c7c1e88",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Festgehaltene Abgabestände"
+    },
+    {
+      "kapitel": "kommunikation",
+      "datei": "kommunikation.png",
+      "sha256": "bcd0eb1cf793d355710f774030c0c479d7a12a296441c53c186d7fd85a25ec6e",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Kommunikation innerhalb des ausgewählten Verfahrens"
+    },
+    {
+      "kapitel": "nachforderungen",
+      "datei": "nachforderungen.png",
+      "sha256": "d433be8c331d65bb01227458e02c9a670e5544743f2f409056a0663d27e03636",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Einzelne Nachforderungspunkte in der Akte"
+    },
+    {
+      "kapitel": "bescheide",
+      "datei": "bescheide.png",
+      "sha256": "3b8245d1aaa502233065ca25239287878ccf62442a79da1c897f2e0e6ddf4d7d",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Bescheide und ausdrücklich genehmigte Unterlagen"
+    },
+    {
+      "kapitel": "ausfuehrung",
+      "datei": "chronik.png",
+      "sha256": "74faa83b58da9c7100e3922ebfad0e502a3ee958a22c441026a7ba6cf60dd73e",
+      "quelle": "scripts/handbuch-screenshots.py",
+      "alt": "Nachvollziehbare Verfahrenschronik"
+    }
+  ]
+}

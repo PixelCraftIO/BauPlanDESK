@@ -1,7 +1,7 @@
 import { handbuchDruckCss, handbuchInhaltHtml } from "./export";
 
 /** Isolierter Handbuchdruck; übernimmt niemals Projektinhalte oder offene Formulare. */
-export function handbuchDrucken(): () => void {
+export function handbuchDrucken(onFehler?: (fehler: Error) => void): () => void {
   if (document.getElementById("bau-druckbereich"))
     throw new Error("Bitte die andere Druckausgabe zuerst abschließen.");
   const root = document.createElement("div");
@@ -16,12 +16,21 @@ export function handbuchDrucken(): () => void {
     body > :not(#bau-handbuch-druck) { display:none!important; }
     #bau-handbuch-druck { display:block!important; }
   }`;
+  let aktiv = true;
   const clean = () => {
+    aktiv = false;
     root.remove(); css.remove(); window.removeEventListener("afterprint", clean);
   };
   document.head.append(css);
   document.body.append(root);
   window.addEventListener("afterprint", clean);
-  try { window.print(); } catch (e) { clean(); throw e; }
+  // Vor dem Druck müssen auch noch nicht in der Hilfe geöffnete Abbildungen geladen sein.
+  void Promise.all([...root.querySelectorAll("img")].map((img) => img.decode()))
+    .then(() => { if (aktiv) window.print(); })
+    .catch((e) => {
+      if (!aktiv) return;
+      clean();
+      onFehler?.(e instanceof Error ? e : new Error("Handbuchabbildungen konnten nicht geladen werden."));
+    });
   return clean;
 }

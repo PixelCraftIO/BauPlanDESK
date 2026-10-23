@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { handbuch, sucheKapitel, kapitelFuerBereich } from "../src/lib/hilfe/handbuch.ts";
 import { handbuchMarkdown, handbuchHtml } from "../src/lib/hilfe/export.ts";
 
+import { handbuchBildData } from "../scripts/handbuch-bilder.mjs";
+
 test("Alle Kapitel, Querverweise und Tabellen sind vollständig und eindeutig", () => {
   const ids = handbuch.kapitel.map(k => k.id);
   assert.equal(new Set(ids).size, ids.length);
@@ -34,7 +36,7 @@ test("Suche findet Arbeitsabläufe auch in Schritten, Hinweisen und Tabellen", (
   assert.deepEqual(sucheKapitel("xyz-keine-treffer-123"), []);
 });
 test("Offline-Ausgaben enthalten alle Kapitel und sichere interne Links", () => {
-  const html = handbuchHtml(), md = handbuchMarkdown();
+  const html = handbuchHtml(handbuchBildData), md = handbuchMarkdown();
   assert.ok(html.startsWith('<!doctype html><html lang="de">'));
   for (const k of handbuch.kapitel) {
     assert.ok(html.includes(`id="${k.id}"`), k.id);
@@ -54,5 +56,25 @@ test("Die mitgelieferte PDF gehört zum aktuellen Handbuchstand", () => {
   assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
   assert.equal(stand.stand, handbuch.stand);
   assert.equal(stand.pdf_sha256, createHash("sha256").update(pdf).digest("hex"));
-  assert.equal(stand.html_sha256, createHash("sha256").update(handbuchHtml()).digest("hex"), "PDF nach Inhaltsänderung neu erzeugen");
+  assert.equal(stand.html_sha256, createHash("sha256").update(handbuchHtml(handbuchBildData)).digest("hex"), "PDF nach Inhaltsänderung neu erzeugen");
+});
+
+test("Abbildungen sind vollständig mitgeliefert, beschriftet und offline eingebettet", () => {
+  const bilder = handbuch.kapitel.flatMap(k => k.abschnitte.flatMap(a => a.abbildung ? [a.abbildung] : []));
+  assert.ok(bilder.length >= 30);
+  const manifest = JSON.parse(readFileSync(new URL("../public/handbuch/aufnahmen.json", import.meta.url), "utf8"));
+  assert.equal(manifest.aufnahmen.length, bilder.length);
+  const output = handbuchHtml(handbuchBildData);
+  assert.equal([...output.matchAll(/<figure>/g)].length, bilder.length);
+  for (const bild of bilder) {
+    assert.match(bild.datei, /^[a-z0-9-]+\.png$/);
+    assert.ok(bild.alt.length > 15 && bild.beschreibung.length > 60, bild.datei);
+    const daten = readFileSync(new URL(`../public/handbuch/${bild.datei}`, import.meta.url));
+    assert.equal(daten.subarray(1,4).toString(), "PNG");
+    const eintrag = manifest.aufnahmen.find(b => b.datei === bild.datei);
+    assert.equal(eintrag.sha256, createHash("sha256").update(daten).digest("hex"));
+    assert.ok(output.includes(handbuchBildData(bild.datei)), bild.datei);
+  }
+  assert.throws(() => handbuchBildData("../secret.png"));
+  assert.equal([...output.matchAll(/src="data:image\/png;base64,/g)].length, bilder.length);
 });

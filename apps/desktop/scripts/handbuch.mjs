@@ -1,11 +1,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { handbuchMarkdown, handbuchHtml } from "../src/lib/hilfe/export.ts";
 
+import { handbuchBildData } from "./handbuch-bilder.mjs";
+
 const ziel = new URL("../../../docs/handbuch/", import.meta.url);
 const pruefen = process.argv.includes("--check");
 if (!pruefen) mkdirSync(ziel, { recursive: true });
 let fehler = false;
-for (const [name, text] of [["Bedienhandbuch.md", handbuchMarkdown()], ["Bedienhandbuch.html", handbuchHtml()]]) {
+for (const [name, text] of [["Bedienhandbuch.md", handbuchMarkdown()], ["Bedienhandbuch.html", handbuchHtml(handbuchBildData)]]) {
   const datei = new URL(name, ziel);
   if (pruefen) {
     let vorhanden;

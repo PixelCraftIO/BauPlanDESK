@@ -7,6 +7,7 @@ export interface Abschnitt {
   liste?: string[];
   tabelle?: { spalten: string[]; zeilen: string[][] };
   hinweis?: string;
+  abbildung?: { datei: string; alt: string; beschreibung: string };
 }
 export interface Kapitel {
   id: string;
@@ -40,7 +41,7 @@ export function sucheKapitel(suche: string): Kapitel[] {
   return handbuch.kapitel.filter((k) => {
     const text = normalisieren([k.titel, k.kurztext, ...k.stichworte,
       ...k.abschnitte.flatMap((a) => [a.titel ?? "", ...(a.text ?? []), ...(a.schritte ?? []),
-        ...(a.liste ?? []), a.hinweis ?? "", ...(a.tabelle?.spalten ?? []),
+        ...(a.liste ?? []), a.hinweis ?? "", a.abbildung?.alt ?? "", a.abbildung?.beschreibung ?? "", ...(a.tabelle?.spalten ?? []),
         ...(a.tabelle?.zeilen.flat() ?? [])])].join(" "));
     return woerter.every((w) => text.includes(w));
   });
