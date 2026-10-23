@@ -76,4 +76,85 @@ pub trait CommitRepository: Send + Sync {
         objekt: &str,
     ) -> CoreResult<Vec<Fachstand>>;
     async fn fachstaende(&self, projekt: ProjectId, modul: &str) -> CoreResult<Vec<Fachstand>>;
+    /// Deterministische Seite nach Objektkennung; höchstens 100 Nutzdaten pro Abruf.
+    async fn fachseite(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+        nach: Option<&str>,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        let mut daten = self.fachstaende(projekt, modul).await?;
+        daten.sort_by(|a, b| a.objekt.cmp(&b.objekt));
+        Ok(daten
+            .into_iter()
+            .filter(|f| nach.is_none_or(|n| f.objekt.as_str() > n))
+            .take(limit.clamp(1, 100) as usize)
+            .collect())
+    }
+    /// Neueste Revisionen zuerst, exklusiver Revisionscursor.
+    async fn fachverlaufsseite(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+        objekt: &str,
+        vor: Option<i64>,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        let mut daten = self.fachverlauf(projekt, modul, objekt).await?;
+        daten.sort_by_key(|f| std::cmp::Reverse(f.revision));
+        Ok(daten
+            .into_iter()
+            .filter(|f| vor.is_none_or(|v| f.revision < v))
+            .take(limit.clamp(1, 100) as usize)
+            .collect())
+    }
+    async fn fachobjekt(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+        objekt: &str,
+    ) -> CoreResult<Option<Fachstand>> {
+        Ok(self
+            .fachstaende(projekt, modul)
+            .await?
+            .into_iter()
+            .find(|f| f.objekt == objekt))
+    }
+    /// Suchkandidaten mit normalisiertem Text; ältere Datensätze ohne Projektion
+    /// bleiben Kandidaten und werden im Core vollständig geprüft.
+    async fn suchtextseite(
+        &self,
+        projekt: ProjectId,
+        nach: Option<&str>,
+        suche: &str,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        let mut daten = self.fachstaende(projekt, "suchtexte").await?;
+        daten.sort_by(|a, b| a.objekt.cmp(&b.objekt));
+        Ok(daten
+            .into_iter()
+            .filter(|f| nach.is_none_or(|n| f.objekt.as_str() > n))
+            .filter(|f| {
+                f.daten
+                    .get("_suchtext_norm")
+                    .and_then(|v| v.as_str())
+                    .is_none_or(|s| s.contains(suche))
+            })
+            .take(limit.clamp(1, 100) as usize)
+            .collect())
+    }
+    /// Schlanke Änderungsprüfung ohne erneute Übertragung der Nutzdaten.
+    async fn fachrevisionen(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+    ) -> CoreResult<Vec<(String, i64)>> {
+        Ok(self
+            .fachstaende(projekt, modul)
+            .await?
+            .into_iter()
+            .map(|f| (f.objekt, f.revision))
+            .collect())
+    }
 }

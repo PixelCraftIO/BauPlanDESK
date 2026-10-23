@@ -259,3 +259,38 @@ pub async fn buero_sicherung_wiederherstellen(
     .map_err(|e| CoreError::Storage(e.to_string()))?
     .map_err(Into::into)
 }
+
+async fn ablagewurzel(state: &AppState) -> Result<PathBuf, CmdError> {
+    verwalten(state).await?;
+    if let Some(a) = &state.lokale_ablage {
+        return Ok(a.root().await);
+    }
+    match &state.config {
+        AppConfig::Netzwerk {
+            storage: storage::StorageConfig::Nas { root } | storage::StorageConfig::Local { root },
+            ..
+        } => Ok(root.clone()),
+        _ => Err(CoreError::InvalidInput(
+            "Diese Prüfung benötigt eine lokale oder eingebundene NAS-Ablage".into(),
+        )
+        .into()),
+    }
+}
+#[tauri::command]
+pub async fn ablage_konsistenz(
+    state: State<'_, AppState>,
+) -> Result<storage::konsistenz::Bericht, CmdError> {
+    let root = ablagewurzel(&state).await?;
+    let refs = storage::sicherung::dms_referenzen(&state.core.repos).await?;
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || storage::konsistenz::pruefen(&root, &refs))
+            .await
+            .map_err(|e| CoreError::Storage(e.to_string()))??,
+    )
+}
+#[tauri::command]
+pub async fn ablage_metadaten_ergaenzen(state: State<'_, AppState>) -> Result<usize, CmdError> {
+    let root = ablagewurzel(&state).await?;
+    let refs = storage::sicherung::dms_referenzen(&state.core.repos).await?;
+    Ok(storage::konsistenz::metadaten_ergaenzen(root, refs).await?)
+}

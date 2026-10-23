@@ -199,7 +199,7 @@ impl CoreServices {
     ) -> CoreResult<Projektuebersicht> {
         self.projekt_zugriff(p, wer, ProjektRecht::Lesen).await?;
         let projekt = self.get_project(p).await?;
-        let docs = self.list_documents(p).await?;
+        let docs = self.repos.documents.latest_for_project(p).await?;
         let mut aktuell = BTreeMap::new();
         for d in docs {
             let e = aktuell.entry(d.document_id.0).or_insert_with(|| d.clone());
@@ -472,7 +472,11 @@ impl CoreServices {
             }
         }
         for n in neueste.values() {
-            let grund = if !n.aktuell {
+            let grund = if n.prueffehler.is_some() {
+                Some(
+                    "Aktualität technisch nicht prüfbar; Fehlermeldung bei den Nachweisständen prüfen",
+                )
+            } else if !n.aktuell {
                 Some("Grundlagen oder Eingaben wurden geändert; neuen Nachweis erstellen")
             } else if !n.stand.vollstaendig {
                 Some("Berechnung enthält offene Prüfpunkte")

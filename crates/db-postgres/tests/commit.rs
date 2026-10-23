@@ -117,4 +117,86 @@ async fn fachrevisionen_und_dokumentkontexte_sind_atomare_vertraege() {
     kaputt.zusaetze.push(zusatz);
     assert!(repos.commit.dokument(kaputt, audit()).await.is_err());
     assert!(repos.documents.history(id).await.unwrap().is_empty());
+    // Dieselben begrenzten Leseverträge wie SQLite, tatsächlich gegen PostgreSQL.
+    let seite = repos
+        .commit
+        .fachseite(p.id, "gebaeude", None, 1)
+        .await
+        .unwrap();
+    assert_eq!(seite.len(), 1);
+    assert!(
+        repos
+            .commit
+            .fachseite(p.id, "gebaeude", Some(&seite[0].objekt), 1)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        repos
+            .commit
+            .fachobjekt(p.id, "gebaeude", &f.objekt)
+            .await
+            .unwrap()
+            .unwrap()
+            .revision,
+        2
+    );
+    assert_eq!(
+        repos
+            .commit
+            .fachverlaufsseite(p.id, "gebaeude", &f.objekt, Some(2), 1)
+            .await
+            .unwrap()[0]
+            .revision,
+        1
+    );
+    assert_eq!(
+        repos.commit.fachrevisionen(p.id, "gebaeude").await.unwrap(),
+        vec![(f.objekt.clone(), 2)]
+    );
+    let index = Fachstand {
+        projekt_id: p.id,
+        modul: "suchtexte".into(),
+        objekt: "suche".into(),
+        schema_version: 1,
+        revision: 0,
+        daten: serde_json::json!({"_suchtext_norm":"änderung straße grundstück"}),
+    };
+    repos.commit.fachstand(index, 0, audit()).await.unwrap();
+    assert_eq!(
+        repos
+            .commit
+            .suchtextseite(p.id, None, "straße", 16)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        repos
+            .commit
+            .suchtextseite(p.id, None, "fremd", 16)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    repos
+        .documents
+        .add_version(d.clone(), Some(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        repos.documents.latest_for_project(p.id).await.unwrap()[0].version,
+        2
+    );
+    assert_eq!(
+        repos
+            .documents
+            .history_page(d.document_id, Some(2), 1)
+            .await
+            .unwrap()[0]
+            .version,
+        1
+    );
 }

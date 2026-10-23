@@ -56,3 +56,9 @@ pub fn build(config: &StorageConfig) -> CoreResult<Arc<dyn Storage>> {
 pub mod buero_sicherung;
 
 pub mod xbau;
+
+pub mod atomare_datei;
+
+pub mod druckartefakte;
+
+pub mod konsistenz;

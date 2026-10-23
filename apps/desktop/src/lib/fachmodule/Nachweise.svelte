@@ -2,10 +2,10 @@
   import Statusanzeige from "../arbeitsplatz/Statusanzeige.svelte";
   import Statushilfe from "../arbeitsplatz/Statushilfe.svelte";
   import { nachweisZiel } from "../arbeitsplatz/arbeitscheck";
-  import { abonnieren } from "../projektEreignisse";
+  import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import Druckknopf from "../Druckknopf.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
-  import { onMount, onDestroy, tick, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import type { BaugrundstuecksPruefung, Project } from "../api";
   import { fehlertext } from "../api";
   import type { NachweisAnsicht, JsonValue } from "../generated/plattform";
@@ -47,11 +47,11 @@
     const version = projekt.version;
     if (version !== beobachteteVersion) {
       beobachteteVersion = version;
-      untrack(()=>void laden());
+      untrack(vormerken);
     }
   });
   const navigation = projektNavigation();
-  $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente","nachweise"],()=>void laden()));
+  const vormerken = ansichtsAbfrage(() => projekt.id, ["fachobjekte", "dokumente", "nachweise"], laden);
   let letzterSprung = 0;
   $effect(() => {
     const a = navigation?.auftrag;
@@ -73,9 +73,7 @@
           ?.scrollIntoView({ block: "center" }),
       );
   });
-  onMount(() => {
-    if (navigation?.auftrag?.ziel.bereich !== "nachweise") void laden();
-  });
+
   async function freigeben(n: NachweisAnsicht) {
     aktion = true;
     try {
@@ -187,7 +185,7 @@
           >{new Date(n.stand.erstellt_am).toLocaleString("de-DE")}</td
         ><td
           >{n.stand.vollstaendig ? "Vollständig" : "Eingaben unvollständig"}</td
-        ><td><Statusanzeige status={n.aktuell ? "archiviert" : "veraltet"}/><span class="meta">{n.aktuell ? " · Grundlagen aktuell" : " · Neu berechnen"}</span></td
+        ><td><Statusanzeige status={n.prueffehler ? "offen" : n.aktuell ? "archiviert" : "veraltet"}/><span class="meta">{n.prueffehler ? " · Aktualität technisch nicht prüfbar" : n.aktuell ? " · Grundlagen aktuell" : " · Neu berechnen"}</span>{#if n.prueffehler}<p class="fehlertext" role="alert">{n.prueffehler}</p>{/if}</td
         ><td
           >{n.freigabe
             ? n.aktuell

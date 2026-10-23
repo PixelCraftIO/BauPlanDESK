@@ -974,11 +974,40 @@ async fn bereich_speichern(
             .await?,
     ))
 }
+#[derive(Deserialize, Default)]
+struct FachseitenQuery {
+    nach: Option<String>,
+    limit: Option<u32>,
+    objekt: Option<Uuid>,
+    vor: Option<i64>,
+}
 async fn fachobjekte(
     State(ApiState { core, .. }): State<ApiState>,
     Path((id, art)): Path<(Uuid, core_lib::plattform::ObjektArt)>,
+    Query(q): Query<FachseitenQuery>,
 ) -> ApiResult<Vec<core_lib::commit::Fachstand>> {
-    Ok(Json(core.fachobjekte(ProjectId(id), art).await?))
+    let p = ProjectId(id);
+    if let Some(objekt) = q.objekt {
+        if q.vor.is_some() || q.limit.is_some() {
+            return Ok(Json(
+                core.fachverlaufsseite(p, art, objekt, q.vor, q.limit.unwrap_or(50))
+                    .await?,
+            ));
+        }
+        return Ok(Json(
+            core.fachobjekt_lesen(p, art, objekt)
+                .await?
+                .into_iter()
+                .collect(),
+        ));
+    }
+    if q.limit.is_some() || q.nach.is_some() {
+        return Ok(Json(
+            core.fachobjektseite(p, art, q.nach.as_deref(), q.limit.unwrap_or(100))
+                .await?,
+        ));
+    }
+    Ok(Json(core.fachobjekte(p, art).await?))
 }
 #[derive(Deserialize)]
 struct FlurstueckeRequest {

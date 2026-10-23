@@ -13,6 +13,7 @@ const original=window.__TAURI_INTERNALS__.invoke,clone=v=>JSON.parse(JSON.string
 window.druckFail=false;window.druckDialoge=[];window.druckMode='stapel';window.saveTarget=null;
 window.print=()=>{window.druckDialoge.push([...document.querySelectorAll('#bau-druckbereich .druckseite')].map(s=>({breite:s.style.width,hoehe:s.style.height,bild:s.querySelector('img')?.complete})));};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(!['druckkatalog','druckausgabe_erstellen','druckausgabe_exportieren','druckausgabe_ablegen','plugin:dialog|save'].includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:clone(args)});
  if(cmd==='druckausgabe_ablegen')return {file_name:'Berechnungen.pdf'};

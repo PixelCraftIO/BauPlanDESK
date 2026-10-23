@@ -6,6 +6,7 @@
  * Auswahllisten derselben Akte neu. Das Ereignis trägt nur die Projekt-ID und
  * den Datenbereich; maßgebend bleibt der neu geladene Stand aus dem Core.
  */
+import { leseAbfragenVerwerfen } from "./leseAbfrage";
 export type Datenbereich = "dokumente" | "fachobjekte" | "nachweise";
 export interface Projektereignis {
   projektId: string;
@@ -17,6 +18,7 @@ export interface Projektereignis {
 const ziel = new EventTarget();
 
 export function melden(e: Projektereignis) {
+  leseAbfragenVerwerfen();
   ziel.dispatchEvent(new CustomEvent<Projektereignis>("projekt", { detail: e }));
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+  import { bereichAktiv } from "./ansichtsAbfrage.svelte";
   import Statusanzeige from "./arbeitsplatz/Statusanzeige.svelte";
   import { plattformApi, type Datensatz } from "./plattformApi";
   import { fehlertext } from "./api";
@@ -29,6 +30,8 @@
     children: Snippet<[T]>;
     zusatz?: Snippet<[T]>;
   } = $props();
+  const aktiv = bereichAktiv();
+  $effect(() => { if (!aktiv()) untrack(() => void s.entwurfFlush()); });
   const formularId = $props.id();
   let formular = $state<HTMLFormElement>();
   let feldfehler = $state<
@@ -89,9 +92,13 @@
   $effect(()=>{if(s.hatAenderungen() && s.meldung === "Gespeichert.")s.meldung=null;});
   const gesperrt = $derived(s.laeuft || (zusatzBeschaeftigt?.() ?? false));
   let verlauf = $state<Datensatz<T>[]>([]);
-  async function historie(id: string) {
+  let verlaufId = $state(""), mehrVerlauf = $state(false);
+  async function historie(id: string, weitere = false) {
     try {
-      verlauf = await plattformApi.verlauf<T>(s.projektId, s.art, id);
+      const seite = await plattformApi.verlaufsseite<T>(s.projektId, s.art, id, weitere ? verlauf.at(-1)?.revision ?? null : null);
+      verlaufId = id;
+      mehrVerlauf = seite.length === 50;
+      verlauf = weitere ? [...verlauf, ...seite] : seite;
     } catch (e) {
       s.fehler = fehlertext(e);
     }
@@ -117,20 +124,31 @@
             "Ein anderer Entwurf ist noch offen. Bitte zuerst speichern oder verwerfen; anschließend den Eintrag erneut aus der Projektübersicht öffnen.";
         return;
       }
-      void s.laden().then((ok) => {
+      void s.laden().then(async (ok) => {
         if (!ok || navigation?.auftrag?.nummer !== a.nummer) return;
         if (s.hatAenderungen() || s.gerettet) return;
-        const f = s.liste.find((f) => f.objekt === a.ziel.objekt);
+        const f = s.liste.find((f) => f.objekt === a.ziel.objekt) ?? await plattformApi.lesen<T>(s.projektId, s.art, a.ziel.objekt!);
+        if (navigation?.auftrag?.nummer !== a.nummer || s.hatAenderungen() || s.gerettet) return;
         if (f) {
           s.meldung = null;
           s.bearbeiten(f);
         } else
           s.fehler =
             "Der verknüpfte Eintrag ist nicht mehr in dieser Projektliste vorhanden. Liste aktualisieren.";
-      });
+      }).catch(e => { s.fehler = fehlertext(e); });
     });
   });
-  onMount(() => s.laden());
+  onMount(() => {
+    void s.laden();
+    const flush = () => { void s.entwurfFlush(); };
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flush);
+      s.beenden();
+    };
+  });
   $effect(() => s.entwurfSichern());
   // Komponenten besitzen eine feste Route innerhalb ihrer Projektakte.
   // svelte-ignore state_referenced_locally
@@ -158,7 +176,7 @@
       ))
     )
       return;
-    s.verwerfen();
+    await s.verwerfen();
   }
 </script>
 
@@ -211,6 +229,7 @@
         >{/each}</tbody
     >
   </table>
+  {#if s.mehrVorhanden}<button class="sekundaer" disabled={gesperrt} onclick={() => s.laden(true)}>Weitere Einträge laden</button>{/if}
 {:else if !s.liste.length}<button type="button" class="link" onclick={() => (listeOffen = true)}
     >Eintragsliste anzeigen</button
   >{/if}
@@ -289,7 +308,7 @@
           >{/each}</tbody
       >
     </table>
-    <button class="link" onclick={() => (verlauf = [])}
+    <button class="link" onclick={() => { verlauf = []; mehrVerlauf = false; }}
       >Verlauf schließen</button
     >
   </details>{/if}
@@ -330,3 +349,5 @@
     margin-left: 0.75rem;
   }
 </style>
+
+{#if mehrVerlauf}<button class="sekundaer" onclick={() => historie(verlaufId, true)}>Ältere Revisionen laden</button>{/if}

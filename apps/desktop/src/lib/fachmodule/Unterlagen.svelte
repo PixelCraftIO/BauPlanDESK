@@ -1,8 +1,8 @@
 <script lang="ts">
   import { projektNavigation } from "../projektNavigation.svelte";
   import { ziel } from "../arbeitsplatz/arbeitscheck";
-  import { abonnieren } from "../projektEreignisse";
-  import { onMount, untrack } from "svelte";
+  import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
+  import { untrack } from "svelte";
   import { api, fehlertext, type Project, type DocumentVersion } from "../api";
   import type { Checkliste, Unterlage } from "../generated/plattform";
   import { plattformApi } from "../plattformApi";
@@ -37,8 +37,7 @@
     try { dateien = await api.dokumente(projekt.id); }
     catch(e) { s.fehler = fehlertext(e); }
   }
-  onMount(dateienLaden);
-  $effect(()=>abonnieren(projekt.id,["dokumente"],()=>void dateienLaden()));
+  ansichtsAbfrage(() => projekt.id, ["dokumente"], dateienLaden);
   let vorlage = $state<Checkliste | null>(null);
   async function standard() {
     try {

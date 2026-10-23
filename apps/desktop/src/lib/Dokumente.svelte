@@ -269,7 +269,7 @@
       if (!bisher || v.version > bisher.doc.version) {
         neueste.set(v.document_id, {
           doc: v,
-          anzahl: (bisher?.anzahl ?? 0) + 1,
+          anzahl: v.version,
         });
       } else {
         bisher.anzahl++;
@@ -319,7 +319,7 @@
   async function laden(meldenNachAenderung = true) {
     try {
       const [v, s, k, z] = await Promise.all([
-        api.dokumente(projektId),
+        api.dokumenteNeueste(projektId),
         api.sperrenAuflisten(projektId),
         api.kategorienkatalog(),
         api.dokumentkategorien(projektId),

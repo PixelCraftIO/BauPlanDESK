@@ -11,6 +11,7 @@ const base=window.__TAURI_INTERNALS__.invoke;
 window.failOverview=false;
 const doc={document_id:'11111111-1111-4111-8111-111111111111',project_id:window.fixture.id,file_name:'Lageplan.pdf',version:1,created_at:window.fixture.created_at,created_by:'Test',size_bytes:12,mime_type:'application/pdf'};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='projektuebersicht'){
   if(window.failOverview)throw Error('Test: Übersicht nicht erreichbar');
   const d=await base(cmd,args);

@@ -11,6 +11,7 @@ custom=r'''
 const base=window.__TAURI_INTERNALS__.invoke, clone=x=>JSON.parse(JSON.stringify(x));
 window.testUser=clone(window.xbauData.benutzer);window.xbauFail=false;window.savedXbau=clone(window.xbauData.nachrichten);
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='xbau_nachrichtentypen')return clone(window.xbauData.typen);
  if(cmd==='xbau_nachrichten')return args.projektId===window.fixture.id?clone(window.savedXbau):[];
  if(cmd==='dokumente_auflisten'&&args.projektId===window.fixture.id)return clone(window.xbauData.dateien);

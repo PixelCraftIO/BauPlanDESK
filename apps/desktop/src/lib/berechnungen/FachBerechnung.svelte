@@ -17,7 +17,7 @@
   import Druckknopf from "../Druckknopf.svelte";
   import { plattformApi, type Datensatz } from "../plattformApi";
   import { berechnungsApi } from "./api";
-  import { abonnieren } from "../projektEreignisse";
+  import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import type {
     BerechnungsArt,
@@ -312,20 +312,11 @@
       grundFehler = fehlertext(e);
     }
   }
-  onMount(() => void quellenLaden());
-  // Baugrundstücke hängen am Projektstand.
-  $effect(() => {
-    void projekt.version;
-    untrack(() => void grundLaden());
+  const vormerken = ansichtsAbfrage(() => projekt.id, ["dokumente", "fachobjekte", "nachweise"], async () => {
+    planQuellenStand++;
+    await Promise.all([quellenLaden(), grundLaden(), raumbuecherLaden()]);
   });
-  // Gebäude, Nachweise oder Dokumente anderer Bereiche dieser Akte geändert.
-  $effect(() =>
-    abonnieren(projekt.id, ["dokumente", "fachobjekte", "nachweise"], (e) => {
-      planQuellenStand++;
-      void quellenLaden();
-      if (e.bereich === "fachobjekte") void raumbuecherLaden();
-    }),
-  );
+  $effect(() => { void projekt.version; untrack(vormerken); });
   async function pruefen() {
     if (!s.eingabe || busy || !formatPruefen()) return;
     busy = true;
@@ -354,7 +345,7 @@
       }
     }
   }
-  onMount(raumbuecherLaden);
+
   async function raumimport() {
     if (!s.eingabe || !raumbuchId) return;
     busy = true;

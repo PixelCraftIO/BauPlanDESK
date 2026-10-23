@@ -7,7 +7,7 @@
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
   import { planApi } from "../planaufmass/api";
-  import { abonnieren } from "../projektEreignisse";
+  import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import type { Planaufmass } from "../generated/plattform";
   let {
@@ -24,8 +24,12 @@
     try { const liste = await plattformApi.liste<Planaufmass>(s.projektId, "planaufmass"); if(n===listenGeneration)aufmasse=liste; }
     catch(e) { if(n===listenGeneration)s.fehler = fehlertext(e); }
   }
-  onMount(()=>{void plaeneLaden();return()=>{listenGeneration++}});
-  $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente"],()=>{summen=null;void plaeneLaden()}));
+  onMount(()=>()=>{listenGeneration++});
+  ansichtsAbfrage(() => projekt.id,["fachobjekte","dokumente"],async()=>{
+    summen=null;
+    await plaeneLaden();
+    try { gebaeude=await plattformApi.liste<Gebaeude>(projekt.id,"gebaeude"); } catch(e) { s.fehler=fehlertext(e); }
+  });
   async function planraeume() {
     const a=aufmasse.find(a=>a.objekt===aufmassId);
     if(!a||!s.eingabe)return;
@@ -60,13 +64,6 @@
     void s.id;
     void s.revision;
     if (s.hatAenderungen()) summen = null;
-  });
-  onMount(async () => {
-    try {
-      gebaeude = await plattformApi.liste<Gebaeude>(projekt.id, "gebaeude");
-    } catch (e) {
-      s.fehler = fehlertext(e);
-    }
   });
   async function berechnen() {
     if (!s.id) return;

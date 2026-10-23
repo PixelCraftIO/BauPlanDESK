@@ -6,6 +6,7 @@ pub mod brief;
 mod layout;
 mod pdf;
 mod vorlage;
+static DRUCKJOBS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 use crate::{
     CoreError, CoreResult, CoreServices,
     domain::{DocumentId, ProjectId},
@@ -15,6 +16,26 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 pub use vorlage::Druckgestaltung;
 
+/// Kooperativer Abbruch zwischen Quellen und vor der Paketbildung. Bereits
+/// laufende Parserarbeit bleibt bis zum Ende begrenzt im Hintergrundjob.
+#[derive(Clone, Default)]
+pub struct Drucksteuerung {
+    abbruch: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub fortschritt: Option<std::sync::Arc<dyn Fn(usize, usize) + Send + Sync>>,
+}
+impl Drucksteuerung {
+    pub fn abbrechen(&self) {
+        self.abbruch
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub fn pruefen(&self) -> CoreResult<()> {
+        if self.abbruch.load(std::sync::atomic::Ordering::Relaxed) {
+            Err(fehler("Druckauftrag abgebrochen"))
+        } else {
+            Ok(())
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Druckquelle {
@@ -299,9 +320,21 @@ impl CoreServices {
     pub(crate) async fn druckausgabe_mit_planindex(
         &self,
         p: ProjectId,
-        mut a: Druckauftrag,
+        a: Druckauftrag,
         planindizes: &std::collections::HashMap<(DocumentId, i64), String>,
     ) -> CoreResult<Druckergebnis> {
+        self.druckausgabe_gesteuert(p, a, planindizes, Drucksteuerung::default())
+            .await
+    }
+    pub async fn druckausgabe_gesteuert(
+        &self,
+        p: ProjectId,
+        mut a: Druckauftrag,
+        planindizes: &std::collections::HashMap<(DocumentId, i64), String>,
+        steuerung: Drucksteuerung,
+    ) -> CoreResult<Druckergebnis> {
+        let _platz = DRUCKJOBS.acquire().await.map_err(fehler)?;
+        steuerung.pruefen()?;
         if a.quellen.is_empty()
             || a.quellen.len() > 100
             || a.titel.trim().is_empty()
@@ -336,6 +369,10 @@ impl CoreServices {
         let mut bytes = 0usize;
         let mut druckdaten = 0usize;
         for (index, q) in a.quellen.iter().enumerate() {
+            steuerung.pruefen()?;
+            if let Some(f) = &steuerung.fortschritt {
+                f(index, a.quellen.len());
+            }
             let anlage = (index + 1).to_string();
             let kopf = |gegenstand: &str, stand: String, zusatzblaetter: usize| layout::Blattkopf {
                 bauvorhaben: projekt.name.clone(),
@@ -376,23 +413,28 @@ impl CoreServices {
                     let name = meta.file_name.to_ascii_lowercase();
                     let mut original = true;
                     let doc = if name.ends_with(".pdf") {
-                        pdf::auswahl(&daten, seiten)?
+                        let seiten = seiten.clone();
+                        crate::rechenjob::ausfuehren("pdf-auswahl", move || {
+                            pdf::auswahl(&daten, &seiten)
+                        })
+                        .await?
                     } else if [".png", ".jpg", ".jpeg"].iter().any(|e| name.ends_with(e)) {
                         if !seiten.is_empty() {
                             return Err(fehler("Seitenauswahl nur bei PDF-Dateien"));
                         }
-                        pdf::bild(&daten)?
+                        crate::rechenjob::ausfuehren("druckbild", move || pdf::bild(&daten)).await?
                     } else {
                         if !seiten.is_empty() {
                             return Err(fehler("Seitenauswahl nur bei PDF-Dateien"));
                         }
                         original = false;
-                        let mail = crate::email::lesen(&meta.file_name, &daten)?;
-                        pdf::bericht(
-                            &meta.file_name,
-                            Some(&kopf(&meta.file_name, format!("Version {version}"), 0)),
-                            &berichte::email(&mail),
-                        )?
+                        let dateiname = meta.file_name.clone();
+                        let blattkopf = kopf(&meta.file_name, format!("Version {version}"), 0);
+                        crate::rechenjob::ausfuehren("email-druck", move || {
+                            let mail = crate::email::lesen(&dateiname, &daten)?;
+                            pdf::bericht(&dateiname, Some(&blattkopf), &berichte::email(&mail))
+                        })
+                        .await?
                     };
                     let kategorie = kategorien
                         .get(&dokument_id.0.to_string())
@@ -456,26 +498,34 @@ impl CoreServices {
                             )
                         })
                         .unwrap_or_default();
-                    let mut doc = pdf::bericht(
-                        &bericht.titel,
-                        Some(&kopf(
-                            &titel,
-                            bericht.stand.clone(),
-                            abwicklungen + usize::from(skizze),
-                        )),
-                        &bericht.zeilen,
-                    )?;
-                    if let Some((plan, r)) = &abstand {
-                        let n = doc.get_pages().len();
-                        let m = n + abwicklungen + usize::from(skizze);
-                        let kennung = |k: usize| {
-                            format!("Anlage {anlage} - Blatt {k} von {m} - {}", projekt.name)
-                        };
-                        abstandsblatt::abwicklungsseiten(&mut doc, plan, r, |k| kennung(n + k))?;
-                        if skizze {
-                            abstandsblatt::planseite(&mut doc, plan, r, Some(&kennung(m)))?;
+                    let blattkopf = kopf(
+                        &titel,
+                        bericht.stand.clone(),
+                        abwicklungen + usize::from(skizze),
+                    );
+                    let drucktitel = bericht.titel.clone();
+                    let zeilen = bericht.zeilen.clone();
+                    let abstand = abstand.map(|(plan, r)| ((*plan).clone(), r));
+                    let projektname = projekt.name.clone();
+                    let anlagenname = anlage.clone();
+                    let doc = crate::rechenjob::ausfuehren("fachbericht", move || {
+                        let mut doc = pdf::bericht(&drucktitel, Some(&blattkopf), &zeilen)?;
+                        if let Some((plan, r)) = &abstand {
+                            let n = doc.get_pages().len();
+                            let m = n + abwicklungen + usize::from(skizze);
+                            let kennung = |k: usize| {
+                                format!("Anlage {anlagenname} - Blatt {k} von {m} - {projektname}")
+                            };
+                            abstandsblatt::abwicklungsseiten(&mut doc, plan, r, |k| {
+                                kennung(n + k)
+                            })?;
+                            if skizze {
+                                abstandsblatt::planseite(&mut doc, plan, r, Some(&kennung(m)))?;
+                            }
                         }
-                    }
+                        Ok(doc)
+                    })
+                    .await?;
                     let version = match q {
                         Druckquelle::Nachweis { id } => nachweise
                             .iter()
@@ -540,7 +590,11 @@ impl CoreServices {
             if doc.get_pages().is_empty() {
                 return Err(fehler("PDF enthält keine Seiten"));
             }
-            pdf::formulare_einfrieren(&mut doc)?;
+            doc = crate::rechenjob::ausfuehren("pdf-formulare", move || {
+                pdf::formulare_einfrieren(&mut doc)?;
+                Ok(doc)
+            })
+            .await?;
             druckdaten = druckdaten.saturating_add(
                 doc.objects
                     .values()
@@ -561,7 +615,15 @@ impl CoreServices {
                 "Projekt während der Ausgabe geändert. Erneut erstellen.",
             ));
         }
-        pdf::paket(&projekt.name, a, quellen, jetzt, Some(deck))
+        steuerung.pruefen()?;
+        if let Some(f) = &steuerung.fortschritt {
+            f(a.quellen.len(), a.quellen.len());
+        }
+        crate::rechenjob::ausfuehren("druckpaket", move || {
+            steuerung.pruefen()?;
+            pdf::paket(&projekt.name, a, quellen, jetzt, Some(deck))
+        })
+        .await
     }
     /// Entwurfsverfasser/in laut Bauantrag (oder die einzige des Büros) mit
     /// Berufsbezeichnung und Kammernummer, ergänzt um das Büro.
@@ -694,10 +756,15 @@ impl CoreServices {
         if pdf.len() > MAX_DRUCKPDF || !pdf.starts_with(b"%PDF-") || name.len() > 400 {
             return Err(fehler("Ungültige PDF-Ausgabe"));
         }
-        let d = lopdf::Document::load_mem(&pdf).map_err(fehler)?;
-        if d.get_pages().is_empty() {
-            return Err(fehler("PDF-Ausgabe enthält keine Seiten"));
-        }
+        let pruefkopie = pdf.clone();
+        crate::rechenjob::ausfuehren("druckpdf-pruefen", move || {
+            let d = lopdf::Document::load_mem(&pruefkopie).map_err(fehler)?;
+            if d.get_pages().is_empty() || d.get_pages().len() > 300 {
+                return Err(fehler("PDF-Ausgabe muss 1 bis 300 Seiten enthalten"));
+            }
+            Ok(())
+        })
+        .await?;
         let k = self
             .kategorienkatalog()
             .await?

@@ -12,6 +12,7 @@ custom=r'''
 const base=window.__TAURI_INTERNALS__.invoke,clone=x=>JSON.parse(JSON.stringify(x));
 window.testUser=clone(window.dashboard.benutzer);window.overview=clone(window.dashboard.uebersicht);window.overviewFail=false;window.overviewDelay=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='projektuebersicht'&&args.projektId===window.fixture.id){
   window.calls.push({cmd,args:clone(args)});
   if(window.overviewFail)throw {art:'datenbank',meldung:'Die Übersicht ist vorübergehend nicht erreichbar.'};

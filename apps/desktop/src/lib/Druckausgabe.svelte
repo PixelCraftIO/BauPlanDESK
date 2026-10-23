@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { listen } from "@tauri-apps/api/event";
   import { heuteDeutsch } from "./kalender";
-  import { onMount, untrack } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { editorAnmelden } from "./editoren";
   import { save } from "@tauri-apps/plugin-dialog";
   import { fehlertext } from "./api";
@@ -18,8 +19,10 @@
     vorauswahl,
     darfAblegen = false,
     onbusy,
+    aktiv = true,
   }: {
     projektId: string;
+    aktiv?: boolean;
     vorauswahl?: Druckquelle;
     darfAblegen?: boolean;
     onbusy?: (b: boolean) => void;
@@ -51,6 +54,19 @@
     pdf = $state<Druckvorschau | null>(null),
     seite = $state(1),
     fortschritt = $state("");
+  let daten = $state<Uint8Array>();
+  let beendet = false;
+  let druckVorgang = $state<string | null>(null);
+  let abgebrochen = false;
+  function freigeben() {
+    if (pdf?.artefakt) void druckApi.entfernen(projektId, pdf.artefakt).catch(() => {});
+    pdf = null; daten = undefined;
+  }
+  onDestroy(() => {
+    beendet = true;
+    if (druckVorgang) void druckApi.abbrechen(projektId,druckVorgang).catch(() => {});
+    freigeben();
+  });
   let signatur = $state("");
   let initialisiert = false;
   let ablageVorgang = crypto.randomUUID();
@@ -123,7 +139,7 @@
   async function laden() {
     busy = true;
     fehler = "";
-    pdf = null;
+    freigeben();
     try {
       katalog = await druckApi.katalog(projektId);
       if (!initialisiert) {
@@ -192,11 +208,29 @@
     busy = true;
     fehler = "";
     meldung = "";
-    pdf = null;
+    freigeben();
     try {
       const a = auftrag();
-      const p = await druckApi.erstellen(projektId, a);
-      pdf = p;
+      const vorgang = crypto.randomUUID();
+      druckVorgang = vorgang; abgebrochen = false;
+      fortschritt = "Druckauftrag wartet auf Verarbeitung …";
+      const abmelden = await listen<{vorgang: string; fertig: number; gesamt: number}>("druckfortschritt", e => {
+        if (e.payload.vorgang === druckVorgang) fortschritt = e.payload.fertig === e.payload.gesamt
+          ? "Druckpaket wird zusammengeführt …" : `Unterlage ${e.payload.fertig + 1} von ${e.payload.gesamt} vorbereiten …`;
+      });
+      let p: Druckvorschau;
+      try { p = await druckApi.erstellen(projektId, a, vorgang); } finally { abmelden(); }
+      if (abgebrochen) { if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt); return; }
+      if (beendet) { if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt); return; }
+      let neu: Uint8Array | undefined;
+      try {
+        if (p.artefakt) neu = new Uint8Array(await druckApi.daten(projektId,p.artefakt));
+      } catch(e) {
+        if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt).catch(() => {});
+        throw e;
+      }
+      if (beendet || abgebrochen) { if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt); return; }
+      pdf = p; daten = neu;
       ablageVorgang = crypto.randomUUID();
       signatur = JSON.stringify(a);
       seite = 1;
@@ -204,20 +238,23 @@
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
-      busy = false;
+      busy = false; druckVorgang = null; fortschritt = "";
     }
   }
+  async function abbrechen() {
+    if (!druckVorgang) return;
+    abgebrochen = true;
+    try { await druckApi.abbrechen(projektId,druckVorgang); meldung = "Abbruch angefordert. Die laufende PDF-Verarbeitung wird noch abgeschlossen."; }
+    catch(e) { fehler = fehlertext(e); }
+  }
+
   async function ablegen() {
     if (!pdf || geaendert) return;
     busy = true;
     fehler = "";
     try {
-      const d = await druckApi.ablegen(
-        projektId,
-        titel,
-        pdf.pdf_base64,
-        ablageVorgang,
-      );
+      const d = pdf.artefakt ? await druckApi.artefaktAblegen(projektId,pdf.artefakt,titel,ablageVorgang)
+        : await druckApi.ablegen(projektId,titel,pdf.pdf_base64!,ablageVorgang);
       meldung = `Im Projekt abgelegt: ${d.file_name}. In der Verfahrensakte können Sie diese Version dem Abgabestand zuordnen.`;
     } catch (e) {
       fehler = fehlertext(e);
@@ -236,7 +273,8 @@
         filters: [{ name: "PDF", extensions: ["pdf"] }],
       });
       if (ziel) {
-        await druckApi.exportieren(pdf.pdf_base64, ziel);
+        if (pdf.artefakt) await druckApi.artefaktExportieren(projektId,pdf.artefakt,ziel);
+        else await druckApi.exportieren(pdf.pdf_base64!, ziel);
         meldung = "PDF gespeichert.";
       }
     } catch (e) {
@@ -251,7 +289,7 @@
     fehler = "";
     try {
       await druckPdf(
-        pdf.pdf_base64,
+        daten ?? pdf.pdf_base64!,
         (n, gesamt) =>
           (fortschritt = `Druckseite ${n} von ${gesamt} vorbereiten …`),
       );
@@ -279,6 +317,7 @@
 >
 {#if fehler}<p role="alert" class="fehlertext">{fehler}</p>{/if}
 {#if meldung}<p role="status">{meldung}</p>{/if}
+{#if druckVorgang}<p role="status">{fortschritt}</p><button class="sekundaer" onclick={abbrechen}>Druckauftrag abbrechen</button>{/if}
 {#if katalog}
   <fieldset disabled={busy}>
     <legend>Unterlagen zusammenstellen</legend>
@@ -458,6 +497,8 @@
     </div>
     {#if fortschritt}<p role="status">{fortschritt}</p>{/if}<PdfVorschau
       pdfBase64={pdf.pdf_base64}
+      pdfDaten={daten}
+      {aktiv}
       {seite}
       onfehler={(e) => (fehler = e)}
     />

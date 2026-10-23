@@ -256,6 +256,124 @@ impl CommitRepository for PostgresDatabase {
         tx.commit().await.map_err(db_err)?;
         Ok(p)
     }
+    async fn suchtextseite(
+        &self,
+        projekt: ProjectId,
+        nach: Option<&str>,
+        suche: &str,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        let modul = "suchtexte";
+        let rows=sqlx::query("SELECT objekt,schema_version,revision,payload FROM fachstaende WHERE project_id=$1 AND modul='suchtexte' AND ($2::text IS NULL OR objekt>$3) AND (payload::jsonb->>'_suchtext_norm' IS NULL OR strpos(payload::jsonb->>'_suchtext_norm',$4)>0) ORDER BY objekt LIMIT $5").bind(uid(projekt.0)).bind(nach).bind(nach).bind(suche).bind(i64::from(limit.clamp(1,100))).fetch_all(&self.pool).await.map_err(db_err)?;
+        rows.into_iter()
+            .map(|r| {
+                Ok(Fachstand {
+                    projekt_id: projekt,
+                    modul: modul.into(),
+                    objekt: r.try_get("objekt").map_err(db_err)?,
+                    schema_version: u32::try_from(
+                        r.try_get::<i64, _>("schema_version").map_err(db_err)?,
+                    )
+                    .map_err(|e| CoreError::Database(e.to_string()))?,
+                    revision: r.try_get("revision").map_err(db_err)?,
+                    daten: serde_json::from_str(
+                        &r.try_get::<String, _>("payload").map_err(db_err)?,
+                    )
+                    .map_err(json_err)?,
+                })
+            })
+            .collect()
+    }
+    async fn fachseite(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+        nach: Option<&str>,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        let rows = sqlx::query("SELECT objekt,schema_version,revision,payload FROM fachstaende WHERE project_id=$1 AND modul=$2 AND ($3::text IS NULL OR objekt > $4) ORDER BY objekt LIMIT $5").bind(uid(projekt.0)).bind(modul).bind(nach).bind(nach).bind(i64::from(limit.clamp(1,100))).fetch_all(&self.pool).await.map_err(db_err)?;
+        rows.into_iter()
+            .map(|r| {
+                Ok(Fachstand {
+                    projekt_id: projekt,
+                    modul: modul.into(),
+                    objekt: r.try_get("objekt").map_err(db_err)?,
+                    schema_version: u32::try_from(
+                        r.try_get::<i64, _>("schema_version").map_err(db_err)?,
+                    )
+                    .map_err(|e| CoreError::Database(e.to_string()))?,
+                    revision: r.try_get("revision").map_err(db_err)?,
+                    daten: serde_json::from_str(
+                        &r.try_get::<String, _>("payload").map_err(db_err)?,
+                    )
+                    .map_err(json_err)?,
+                })
+            })
+            .collect()
+    }
+    async fn fachverlaufsseite(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+        objekt: &str,
+        vor: Option<i64>,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        let rows = sqlx::query("SELECT objekt,schema_version,revision,payload FROM fachhistorie WHERE project_id=$1 AND modul=$2 AND objekt=$3 AND ($4::bigint IS NULL OR revision < $5) ORDER BY revision DESC LIMIT $6").bind(uid(projekt.0)).bind(modul).bind(objekt).bind(vor).bind(vor).bind(i64::from(limit.clamp(1,100))).fetch_all(&self.pool).await.map_err(db_err)?;
+        rows.into_iter()
+            .map(|r| {
+                Ok(Fachstand {
+                    projekt_id: projekt,
+                    modul: modul.into(),
+                    objekt: r.try_get("objekt").map_err(db_err)?,
+                    schema_version: u32::try_from(
+                        r.try_get::<i64, _>("schema_version").map_err(db_err)?,
+                    )
+                    .map_err(|e| CoreError::Database(e.to_string()))?,
+                    revision: r.try_get("revision").map_err(db_err)?,
+                    daten: serde_json::from_str(
+                        &r.try_get::<String, _>("payload").map_err(db_err)?,
+                    )
+                    .map_err(json_err)?,
+                })
+            })
+            .collect()
+    }
+    async fn fachobjekt(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+        objekt: &str,
+    ) -> CoreResult<Option<Fachstand>> {
+        let rows = sqlx::query("SELECT objekt,schema_version,revision,payload FROM fachstaende WHERE project_id=$1 AND modul=$2 AND objekt=$3").bind(uid(projekt.0)).bind(modul).bind(objekt).fetch_all(&self.pool).await.map_err(db_err)?;
+        let mut daten = rows
+            .into_iter()
+            .map(|r| {
+                Ok(Fachstand {
+                    projekt_id: projekt,
+                    modul: modul.into(),
+                    objekt: r.try_get("objekt").map_err(db_err)?,
+                    schema_version: u32::try_from(
+                        r.try_get::<i64, _>("schema_version").map_err(db_err)?,
+                    )
+                    .map_err(|e| CoreError::Database(e.to_string()))?,
+                    revision: r.try_get("revision").map_err(db_err)?,
+                    daten: serde_json::from_str(
+                        &r.try_get::<String, _>("payload").map_err(db_err)?,
+                    )
+                    .map_err(json_err)?,
+                })
+            })
+            .collect::<CoreResult<Vec<_>>>()?;
+        Ok(daten.pop())
+    }
+    async fn fachrevisionen(
+        &self,
+        projekt: ProjectId,
+        modul: &str,
+    ) -> CoreResult<Vec<(String, i64)>> {
+        sqlx::query("SELECT objekt,revision FROM fachstaende WHERE project_id=$1 AND modul=$2 ORDER BY objekt").bind(uid(projekt.0)).bind(modul).fetch_all(&self.pool).await.map_err(db_err)?.into_iter().map(|r|Ok((r.try_get("objekt").map_err(db_err)?,r.try_get("revision").map_err(db_err)?))).collect()
+    }
     async fn fachstaende(&self, projekt: ProjectId, modul: &str) -> CoreResult<Vec<Fachstand>> {
         let rows=sqlx::query("SELECT objekt,schema_version,revision,payload FROM fachstaende WHERE project_id=$1 AND modul=$2 ORDER BY objekt").bind(uid(projekt.0)).bind(modul).fetch_all(&self.pool).await.map_err(db_err)?;
         rows.into_iter()

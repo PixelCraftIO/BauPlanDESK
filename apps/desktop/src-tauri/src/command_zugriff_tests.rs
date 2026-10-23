@@ -66,6 +66,7 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
         formularordner: tokio::sync::RwLock::new(root.path().join("Formulare")),
         projektordner: tokio::sync::RwLock::new(root.path().join("Projekte")),
     });
+    app.manage(storage::druckartefakte::Druckartefakte::default());
     let liste = c::projekte_auflisten(app.state()).await.unwrap();
     assert_eq!(
         liste.iter().map(|p| p.id).collect::<Vec<_>>(),
@@ -81,13 +82,31 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
     }
     verboten!(c::projekt_laden(app.state(), fremd.id));
     verboten!(c::projekt_recht(app.state(), fremd.id));
-    verboten!(c::dokumente_auflisten(app.state(), fremd.id));
+    verboten!(crate::plattform::fachobjektseite(
+        app.state(),
+        fremd.id,
+        core_lib::plattform::ObjektArt::Aufgaben,
+        None,
+        100
+    ));
+    verboten!(crate::druckausgabe::druckartefakt_lesen(
+        app.state(),
+        app.state(),
+        fremd.id,
+        uuid::Uuid::new_v4()
+    ));
+    verboten!(c::dokumente_auflisten(app.state(), fremd.id, None));
     verboten!(c::bauherren(app.state(), fremd.id));
     verboten!(c::beteiligte(app.state(), fremd.id));
     verboten!(c::bauantrag(app.state(), fremd.id));
     verboten!(c::grundstueckskontext(app.state(), fremd.id));
     verboten!(c::pdf_vorschau(app.state(), dokument.document_id, None));
-    verboten!(c::dokument_historie(app.state(), dokument.document_id));
+    verboten!(c::dokument_historie(
+        app.state(),
+        dokument.document_id,
+        None,
+        None
+    ));
     verboten!(c::dokument_sperren(app.state(), dokument.document_id));
     let ziel = root.path().join("export.pdf");
     verboten!(c::dokument_exportieren(
@@ -148,7 +167,7 @@ async fn desktop_filtert_projekte_und_schuetzt_stammdaten_dokumente_und_exporte(
         ProjektRecht::Lesen
     );
     assert_eq!(
-        c::dokumente_auflisten(app.state(), fremd.id)
+        c::dokumente_auflisten(app.state(), fremd.id, None)
             .await
             .unwrap()
             .len(),

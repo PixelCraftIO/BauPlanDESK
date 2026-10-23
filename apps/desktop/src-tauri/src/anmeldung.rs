@@ -154,8 +154,14 @@ pub async fn kennwort_aendern(
 /// Abmelden bzw. Benutzer wechseln (nur Netzwerkbetrieb). Die Oberfläche
 /// prüft vorher offene Eingaben und lädt danach neu.
 #[tauri::command]
-pub async fn abmelden(state: State<'_, AppState>) -> CmdResult<Anmeldestatus> {
+pub async fn abmelden(
+    state: State<'_, AppState>,
+    artefakte: State<'_, storage::druckartefakte::Druckartefakte>,
+    jobs: State<'_, crate::druckjobs::Druckjobs>,
+) -> CmdResult<Anmeldestatus> {
     nur_netzwerk(&state)?;
+    jobs.benutzer_abbrechen(state.benutzer().id.0)?;
+    artefakte.benutzer_schliessen(state.benutzer().id.0)?;
     setzen(&state, Benutzer::nicht_angemeldet(), None);
     arbeitsplatz_melden(&state, &Benutzer::nicht_angemeldet()).await;
     status(&state).await

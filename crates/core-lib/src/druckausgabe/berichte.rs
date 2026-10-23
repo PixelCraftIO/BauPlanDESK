@@ -210,7 +210,9 @@ pub(super) fn optional(n: Option<f64>) -> String {
 pub(super) fn nachweisstatus(n: &NachweisAnsicht) -> String {
     format!(
         "{} · {} · {}",
-        if n.aktuell {
+        if n.prueffehler.is_some() {
+            "AKTUALITÄT TECHNISCH NICHT PRÜFBAR"
+        } else if n.aktuell {
             "Aktuell"
         } else {
             "VERALTET – Grundlagen geändert"
@@ -282,7 +284,9 @@ pub(super) async fn erstellen(
             let datum = crate::kalender::datum_deutsch(n.stand.erstellt_am).format("%d.%m.%Y");
             stand = format!("Nachweis vom {datum} · {}", nachweisstatus(n));
             let mut warnung = Vec::new();
-            if !n.aktuell {
+            if n.prueffehler.is_some() {
+                warnung.push("AKTUALITÄT NICHT PRÜFBAR: Die aktuellen Quellen konnten technisch nicht vollständig geprüft werden. Vor einer Einreichung die Aktualitätsprüfung erneut durchführen. Der Ausdruck dokumentiert den archivierten Stand.");
+            } else if !n.aktuell {
                 warnung.push("VERALTET: Die zugrunde liegenden Angaben wurden nach der Berechnung geändert. Vor einer Einreichung neu berechnen.");
             }
             if !n.stand.vollstaendig {

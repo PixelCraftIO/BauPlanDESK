@@ -5,7 +5,6 @@ use bytes::Bytes;
 use core_lib::storage::{ContentHash, ObjectMeta, Storage, StorageKey};
 use core_lib::{CoreError, CoreResult};
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 
 /// Dateisystem-Backend für lokale Verzeichnisse und NAS-Freigaben.
 ///
@@ -60,24 +59,16 @@ impl LocalStorage {
                 .await
                 .map_err(|e| io_err(parent, e))?;
         }
-        let tmp = self.root.join("tmp").join(uuid::Uuid::new_v4().to_string());
-        let mut file = tokio::fs::File::create(&tmp)
-            .await
-            .map_err(|e| io_err(&tmp, e))?;
-        file.write_all(data).await.map_err(|e| io_err(&tmp, e))?;
-        file.sync_all().await.map_err(|e| io_err(&tmp, e))?;
-        drop(file);
-        if let Err(e) = tokio::fs::rename(&tmp, target).await {
-            let _ = tokio::fs::remove_file(&tmp).await;
-            return Err(io_err(target, e));
-        }
-        Ok(())
+        super::atomare_datei::ersetzen(target.to_path_buf(), Bytes::copy_from_slice(data)).await
     }
 
     fn collect_keys(dir: &Path, prefix: &str, out: &mut Vec<String>) -> std::io::Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
+            if super::atomare_datei::ist_temporaer(&name) {
+                continue;
+            }
             let key = if prefix.is_empty() {
                 name
             } else {
@@ -116,8 +107,22 @@ impl Storage for LocalStorage {
             sha256: meta.sha256.clone(),
         })
         .map_err(|e| CoreError::Storage(e.to_string()))?;
-        self.write_atomic(&self.data_path(key), &data).await?;
-        self.write_atomic(&self.meta_path(key), &sidecar).await?;
+        // DMS-Schlüssel sind unveränderliche Versionen. Die Auflistung enumeriert
+        // data/: Metadaten zuerst veröffentlichen, damit ein neuer Inhalt nie ohne
+        // Sidecar in einer parallelen Auflistung erscheint. Ein Abbruch davor
+        // hinterlässt höchstens einen erkennbaren Sidecar ohne Nutzdatei.
+        if tokio::fs::try_exists(self.data_path(key))
+            .await
+            .map_err(|e| io_err(&self.data_path(key), e))?
+        {
+            // Kompatibler allgemeiner Storage-Aufruf: scheitert der Austausch
+            // eines vorhandenen Inhalts, bleiben auch dessen Metadaten erhalten.
+            self.write_atomic(&self.data_path(key), &data).await?;
+            self.write_atomic(&self.meta_path(key), &sidecar).await?;
+        } else {
+            self.write_atomic(&self.meta_path(key), &sidecar).await?;
+            self.write_atomic(&self.data_path(key), &data).await?;
+        }
         Ok(meta)
     }
 
@@ -180,6 +185,20 @@ impl Storage for LocalStorage {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn laufende_temporare_schreibdatei_ist_kein_dms_objekt() {
+        let dir = tempfile::tempdir().unwrap();
+        let storage = LocalStorage::new(dir.path().into(), "test").unwrap();
+        std::fs::write(dir.path().join("data/.bauplan-write-test.tmp"), b"halb").unwrap();
+        assert!(storage.list(None).await.unwrap().is_empty());
+        assert!(
+            crate::sicherung::dateiablage(dir.path(), "dateien", Default::default())
+                .unwrap()
+                .is_empty()
+        );
+        let bericht = crate::konsistenz::pruefen(dir.path(), &Default::default()).unwrap();
+        assert!(bericht.befunde.iter().any(|b| b.art == "temporaer"));
+    }
     #[tokio::test]
     async fn save_load_head_list_delete() {
         let dir = tempfile::tempdir().unwrap();

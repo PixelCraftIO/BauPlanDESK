@@ -57,6 +57,31 @@ pub trait DocumentRepository: Send + Sync {
 
     async fn list_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>>;
 
+    /// Nur neueste Dokumentstände für eine Übersicht; keine Historienübertragung.
+    async fn latest_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        let mut neueste = std::collections::BTreeMap::new();
+        for d in self.list_for_project(project).await? {
+            let e = neueste.entry(d.document_id.0).or_insert_with(|| d.clone());
+            if e.version < d.version {
+                *e = d;
+            }
+        }
+        Ok(neueste.into_values().collect())
+    }
+    /// Neueste zuerst; der Versionscursor ist exklusiv.
+    async fn history_page(
+        &self,
+        id: DocumentId,
+        vor: Option<i64>,
+        limit: u32,
+    ) -> CoreResult<Vec<DocumentVersion>> {
+        let mut d = self.history(id).await?;
+        d.sort_by_key(|d| std::cmp::Reverse(d.version));
+        Ok(d.into_iter()
+            .filter(|d| vor.is_none_or(|v| d.version < v))
+            .take(limit.clamp(1, 100) as usize)
+            .collect())
+    }
     /// Sperrt das Dokument für `wer`. Atomar: Hält bereits ein anderer
     /// Benutzer die Sperre, [`crate::CoreError::Gesperrt`]. Sperrt `wer`
     /// erneut, bleibt die bestehende Sperre unverändert.

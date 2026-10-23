@@ -15,6 +15,7 @@ window.testUser=window.wf.benutzer;
 const original=window.__TAURI_INTERNALS__.invoke,copy=v=>JSON.parse(JSON.stringify(v));
 window.procedures=[copy(window.wf.verfahren)];window.procedureFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='fachobjekte'&&args.art!=='verfahren')return original(cmd,args);
  if(cmd==='fachobjekt_speichern'&&args.art!=='verfahren')return original(cmd,args);
  if(!['fachobjekte','fachobjekt_speichern','verfahren_erinnerungen','verfahren_bescheidfristen','verfahren_planunterlagen','verfahren_suche','dokumente_auflisten','dokument_historie','benutzer_auflisten','verfahrensprofil','suchtext_speichern','pdf_vorschau','verfahren_aktenexport','verfahren_export','verfahren_termine_ics','plugin:dialog|save'].includes(cmd))return original(cmd,args);

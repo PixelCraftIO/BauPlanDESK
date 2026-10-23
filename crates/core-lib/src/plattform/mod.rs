@@ -65,6 +65,47 @@ impl CoreServices {
     /// Verfahrensakte) ergänzt sind. So vergleichen Verbraucher Original und
     /// Eingabe in derselben Form, wie sie eine Speicherung ablegen würde. Die
     /// Normalisierung schreibt nichts zurück und ändert keine Revision.
+    /// Begrenzte Liste für Editoren; vollständige Bestände bleiben für fachliche
+    /// Auswertungen über `fachobjekte` verfügbar.
+    pub async fn fachobjektseite(
+        &self,
+        p: ProjectId,
+        art: ObjektArt,
+        nach: Option<&str>,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        self.get_project(p).await?;
+        self.repos
+            .commit
+            .fachseite(p, art.modul(), nach, limit)
+            .await
+    }
+    pub async fn fachobjekt_lesen(
+        &self,
+        p: ProjectId,
+        art: ObjektArt,
+        id: Uuid,
+    ) -> CoreResult<Option<Fachstand>> {
+        self.get_project(p).await?;
+        self.repos
+            .commit
+            .fachobjekt(p, art.modul(), &id.to_string())
+            .await
+    }
+    pub async fn fachverlaufsseite(
+        &self,
+        p: ProjectId,
+        art: ObjektArt,
+        id: Uuid,
+        vor: Option<i64>,
+        limit: u32,
+    ) -> CoreResult<Vec<Fachstand>> {
+        self.get_project(p).await?;
+        self.repos
+            .commit
+            .fachverlaufsseite(p, art.modul(), &id.to_string(), vor, limit)
+            .await
+    }
     pub async fn fachobjekte(&self, p: ProjectId, art: ObjektArt) -> CoreResult<Vec<Fachstand>> {
         self.repos.projects.get(p).await?;
         Ok(self

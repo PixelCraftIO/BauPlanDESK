@@ -30,7 +30,8 @@ transport = r'''
  const original = window.__TAURI_INTERNALS__.invoke, kopie = v => JSON.parse(JSON.stringify(v));
  window.gebaeude = []; window.gespeichert = [];
  window.__TAURI_INTERNALS__.invoke = async (cmd, args = {}) => {
-  if (cmd === 'fachobjekte' && args.art === 'gebaeude') return kopie(window.gebaeude);
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
+  if (cmd==='fachobjekte' && args.art === 'gebaeude') return kopie(window.gebaeude);
   if (cmd === 'gebaeude_auswerten') return {rechenstand: 'test', gebaeude_id: args.id, bezeichnung: args.gebaeude.bezeichnung, typ: null, grundflaeche_m2: null, geschossflaechensumme_m2: null, geschosse: [], offen: [], hoehen_nhn: {gelaende_m: null, traufe_m: null, first_m: null}};
   if (cmd === 'fachobjekt_speichern' && args.art === 'gebaeude') {
    window.gespeichert.push(kopie(args.daten));

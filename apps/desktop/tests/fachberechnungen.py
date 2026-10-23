@@ -13,6 +13,7 @@ custom=r'''
  window.testUser=clone(window.fach.benutzer);window.fachFail=false;
  window.fachDaten=Object.fromEntries(Object.entries(window.fach.staende).map(([k,v])=>[k,clone(v.fachstand)]));
  window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
   const list=['berechnungsvorlagen','fachberechnung_pruefen','fachobjekte','fachobjekt_speichern','grundstueckskontext','nachweise','nachweis_erstellen','dokumente_auflisten','druckkatalog','druckausgabe_erstellen'];
   if(!list.includes(cmd))return original(cmd,args);
   if(['fachobjekte','fachobjekt_speichern'].includes(cmd)&&!window.fach.staende[args.art]){

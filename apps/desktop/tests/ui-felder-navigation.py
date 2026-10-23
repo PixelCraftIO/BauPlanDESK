@@ -17,6 +17,7 @@ for (const p of window.testProjects)localStorage.removeItem(`bauprojekt.navigati
 const base=window.__TAURI_INTERNALS__.invoke;
 window.savedFach={};window.fachSaveFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='berechnungsvorlagen')return window.vorlagen;
  if(cmd==='formularbibliothek')return {root:'/tmp/Formulare',vorlagen:[]};
  if(cmd==='projektordner_status')return '/tmp/Projekte';

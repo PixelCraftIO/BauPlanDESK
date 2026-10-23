@@ -1,0 +1,41 @@
+{
+  "commit": "74a9be6bf4ce8af0036eeac7c825ffc1fa207984",
+  "context": "Vite development build; Chromium; synthetic data; mocked IPC; fault-injected localStorage cleanup",
+  "results": {
+    "race": {
+      "busyWhileFirstPending": false,
+      "finalRevision": 1,
+      "expectedLatestRevision": 2
+    },
+    "save": {
+      "remoteWrites": 1,
+      "reportedSuccess": false,
+      "revision": 1,
+      "error": "SecurityError: Simulierter lokaler Speicherfehler",
+      "stillDirty": false
+    },
+    "serialization": [
+      {
+        "rows": 100,
+        "inputBytes": 25088,
+        "dirtyMs": 1.075,
+        "saveMs": 1.880000001192093,
+        "warning": null
+      },
+      {
+        "rows": 1000,
+        "inputBytes": 252788,
+        "dirtyMs": 10.084999999403953,
+        "saveMs": 19.039999997615816,
+        "warning": null
+      },
+      {
+        "rows": 10000,
+        "inputBytes": 2547788,
+        "dirtyMs": 104.07999999821186,
+        "saveMs": 226.65,
+        "warning": null
+      }
+    ]
+  }
+}

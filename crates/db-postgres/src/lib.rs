@@ -361,6 +361,17 @@ impl DocumentRepository for PostgresDatabase {
         .collect()
     }
 
+    async fn latest_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        sqlx::query("SELECT d.* FROM document_versions d WHERE d.project_id=$1 AND NOT EXISTS (SELECT 1 FROM document_versions n WHERE n.document_id=d.document_id AND n.version>d.version) ORDER BY d.document_id").bind(project.0).fetch_all(&self.pool).await.map_err(db_err)?.iter().map(document_from_row).collect()
+    }
+    async fn history_page(
+        &self,
+        id: DocumentId,
+        vor: Option<i64>,
+        limit: u32,
+    ) -> CoreResult<Vec<DocumentVersion>> {
+        sqlx::query("SELECT * FROM document_versions WHERE document_id=$1 AND ($2::bigint IS NULL OR version < $3) ORDER BY version DESC LIMIT $4").bind(id.0).bind(vor).bind(vor).bind(i64::from(limit.clamp(1,100))).fetch_all(&self.pool).await.map_err(db_err)?.iter().map(document_from_row).collect()
+    }
     async fn lock(
         &self,
         id: DocumentId,

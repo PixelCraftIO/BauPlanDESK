@@ -366,10 +366,10 @@ impl CoreServices {
             None => None,
         };
         let geb = if let Some(id) = plan.gebaeude_id {
-            self.fachobjekte(pid, ObjektArt::Gebaeude)
+            self.repos
+                .commit
+                .fachobjekt(pid, ObjektArt::Gebaeude.modul(), &id.to_string())
                 .await?
-                .into_iter()
-                .find(|g| g.objekt == id.to_string())
                 .map(|g| {
                     let mut d = g.daten;
                     if let Some(geschosse) = d.get_mut("geschosse").and_then(|v| v.as_array_mut()) {
@@ -413,19 +413,21 @@ impl CoreServices {
         // Fingerprint berücksichtigt sowohl Zeichenmaske als auch die neueste PDF-Version.
         for b in &plan.planbindungen {
             let f = self
-                .fachobjekte(pid, ObjektArt::Planaufmass)
-                .await?
-                .into_iter()
-                .find(|f| f.objekt == b.aufmass_id.to_string());
+                .repos
+                .commit
+                .fachobjekt(
+                    pid,
+                    ObjektArt::Planaufmass.modul(),
+                    &b.aufmass_id.to_string(),
+                )
+                .await?;
             if let Some(f) = &f {
                 let a: crate::planaufmass::Planaufmass = decode(&f.daten)?;
-                let version = self
-                    .document_history(a.dokument.dokument_id)
-                    .await?
-                    .into_iter()
-                    .filter(|d| d.project_id == pid)
-                    .map(|d| d.version)
-                    .max();
+                let version = match self.repos.documents.latest(a.dokument.dokument_id).await {
+                    Ok(d) if d.project_id == pid => Some(d.version),
+                    Ok(_) | Err(CoreError::NotFound(_)) => None,
+                    Err(e) => return Err(e),
+                };
                 fachquellen.push(Some((
                     format!("pdf:{}", a.dokument.dokument_id.0),
                     version.unwrap_or(0),
@@ -450,10 +452,10 @@ impl CoreServices {
         for q in &plan.fachquellen {
             if q.art == ObjektArt::Raumbuch {
                 let f = self
-                    .fachobjekte(pid, q.art)
+                    .repos
+                    .commit
+                    .fachobjekt(pid, q.art.modul(), &q.objekt.to_string())
                     .await?
-                    .into_iter()
-                    .find(|f| f.objekt == q.objekt.to_string())
                     .ok_or_else(|| err("Raumbuch fehlt"))?;
                 let r: crate::plattform::objekte::Raumbuch = decode(&f.daten)?;
                 self.raumbuch_planquellen_pruefen(pid, &r).await?;
@@ -466,25 +468,20 @@ impl CoreServices {
                 }
             }
             fachquellen.push(
-                self.fachobjekte(pid, q.art)
+                self.repos
+                    .commit
+                    .fachobjekt(pid, q.art.modul(), &q.objekt.to_string())
                     .await?
-                    .into_iter()
-                    .find(|f| f.objekt == q.objekt.to_string())
                     .map(|f| (f.objekt, f.revision, f.daten)),
             );
         }
-        let f = self.fachobjekte(pid, plan.modul.objekt()).await?;
-        let daten = f
-            .iter()
-            .filter(|f| f.objekt == objekt.to_string())
-            .filter_map(|f| {
-                decode::<FachPlan>(&f.daten)
-                    .ok()
-                    .filter(|p| p == plan)
-                    .map(|_| f.daten.clone())
-            })
-            .collect::<Vec<_>>();
-        Ok(ContentHash::of(&serde_json::to_vec(&serde_json::json!({"plan":plan,"gespeichert":!daten.is_empty(),"fachquellen":fachquellen,"land":p.bundesland,"grund":g,"gebaeude":geb,"planrecht":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft)})).map_err(|e|err(e.to_string()))?))
+        let gespeichert = self
+            .repos
+            .commit
+            .fachobjekt(pid, plan.modul.objekt().modul(), &objekt.to_string())
+            .await?
+            .is_some_and(|f| decode::<FachPlan>(&f.daten).is_ok_and(|p| p == *plan));
+        Ok(ContentHash::of(&serde_json::to_vec(&serde_json::json!({"plan":plan,"gespeichert":gespeichert,"fachquellen":fachquellen,"land":p.bundesland,"grund":g,"gebaeude":geb,"planrecht":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft)})).map_err(|e|err(e.to_string()))?))
     }
 }
 /// Traufe und First aus Gebäude/Geschosse als Höhenpunkte (m ü. NHN), bezogen
