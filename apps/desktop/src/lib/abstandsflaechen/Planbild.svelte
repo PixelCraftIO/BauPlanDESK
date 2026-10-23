@@ -90,6 +90,17 @@
           vector-effect="non-scaling-stroke"
         />{/each}{/each}
     {#each plan.waende as w, i}<line
+        role="button"
+        tabindex="0"
+        aria-label={`W${i + 1}: ${w.bezeichnung} auswählen`}
+        aria-pressed={auswahl === w.id}
+        onclick={() => (auswahl = w.id)}
+        onkeydown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            auswahl = w.id;
+          }
+        }}
         x1={w.von.x}
         y1={-w.von.y}
         x2={w.bis.x}
@@ -112,8 +123,8 @@
   <figcaption>
     Planskizze in gemeinsamem Meterbezug; kein vermessener Lageplan. Blau:
     Abstandsfläche · Rot: Konflikt · Violett: Überdeckung (hell: nach
-    Winkelregel zulässig) · Grau: Gebäudeumriss. Die Wandwahl hebt
-    denselben Abschnitt hervor.
+    Winkelregel zulässig) · Grau: Gebäudeumriss. Die Wandwahl hebt denselben
+    Abschnitt hervor.
   </figcaption>
 </figure>
 
@@ -127,6 +138,15 @@
     max-width: 100%;
     background: var(--panel, #f8fafc);
     border: 1px solid var(--border, #ccd5df);
+  }
+  line[role="button"] {
+    cursor: pointer;
+    pointer-events: stroke;
+  }
+  line[role="button"]:focus {
+    outline: none;
+    stroke: var(--focus, #c17b20);
+    stroke-width: 4;
   }
   figcaption {
     font-size: 0.85rem;

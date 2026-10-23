@@ -1,4 +1,7 @@
 <script lang="ts">
+  import RegelpaketAuswahl from "./RegelpaketAuswahl.svelte";
+  import { quellenstand } from "./quellenstand";
+  import Dialog from "../Dialog.svelte";
   import Statusanzeige from "../arbeitsplatz/Statusanzeige.svelte";
   import { ziel as navigationsziel } from "../arbeitsplatz/arbeitscheck";
   import { feldSichtbar, feldFehler } from "./feldDarstellung";
@@ -65,8 +68,14 @@
   $effect(() => {
     const a = navigation?.auftrag;
     const r = a?.ziel.register;
-    if (a?.ziel.bereich === modul && r && ["daten", "regeln", "quellen", "bericht"].includes(r))
-      untrack(() => { bereich = r; });
+    if (
+      a?.ziel.bereich === modul &&
+      r &&
+      ["daten", "regeln", "quellen", "bericht"].includes(r)
+    )
+      untrack(() => {
+        bereich = r;
+      });
   });
   const s = untrack(
     () =>
@@ -79,7 +88,11 @@
           // Eindeutige Grundlagen vorbelegen, statt sie erneut abzufragen.
           if (plan.grundstueck_id === null && grund.length === 1)
             plan.grundstueck_id = grund[0].id;
-          if (plan.gebaeude_id === null && gebaeude.length === 1 && ["vollgeschosse", "hoehen"].includes(modul)) {
+          if (
+            plan.gebaeude_id === null &&
+            gebaeude.length === 1 &&
+            ["vollgeschosse", "hoehen"].includes(modul)
+          ) {
             plan.gebaeude_id = gebaeude[0].objekt;
             plan.gebaeudedaten_uebernehmen = true;
           }
@@ -93,16 +106,22 @@
    * Revisionen der Gebäude und Raumbücher. Ändert er sich, gilt der Prüfbericht
    * als veraltet, auch wenn die eigenen Eingaben gleich geblieben sind.
    */
+  /** Ladefehler der Auswahllisten; nicht still als leere Liste anzeigen. */
+  let quellenFehler = $state<string | null>(null),
+    grundFehler = $state<string | null>(null);
   const quellenStand = $derived(
-    JSON.stringify([
-      projekt.version,
-      gebaeude.map((g) => [g.objekt, g.revision]),
-      raumbuecher.map((r) => [r.objekt, r.revision]),
+    quellenstand(
+      projekt,
+      s.eingabe,
+      gebaeude,
+      raumbuecher,
+      grund,
+      nachweise,
       planQuellenStand,
-    ]),
+      [quellenFehler, grundFehler],
+    ),
   );
-  const signatur = (plan: unknown) =>
-    JSON.stringify(plan) + "|" + quellenStand;
+  const signatur = (plan: unknown) => JSON.stringify(plan) + "|" + quellenStand;
   const aktuelleVorschau = $derived(
     !!result && !!s.eingabe && signatur(s.eingabe) === resultSignatur,
   );
@@ -149,7 +168,14 @@
     if (f.referenz === "$gebaeudegeschosse") {
       const g = gebaeude.find((g) => g.objekt === s.eingabe?.gebaeude_id);
       if (!g) return [];
-      return g.daten.geschosse.length ? g.daten.geschosse.map((s) => ({wert:s.id,titel:s.bezeichnung})) : [{wert:g.objekt,titel:"Einzelgeschoss (aus Gebäudegrundfläche)"}];
+      return g.daten.geschosse.length
+        ? g.daten.geschosse.map((s) => ({ wert: s.id, titel: s.bezeichnung }))
+        : [
+            {
+              wert: g.objekt,
+              titel: "Einzelgeschoss (aus Gebäudegrundfläche)",
+            },
+          ];
     }
     const [path, wertfeld] = f.referenz.split(":");
     const a = lesen(s.eingabe?.eingaben, path);
@@ -181,7 +207,12 @@
     if (!s.eingabe || !vorlage) return true;
     pruefversuch = true;
     const fehler: { titel: string; gruppe: string; pfad: string }[] = [];
-    if (!s.eingabe.bezeichnung.trim()) fehler.push({titel:'Bezeichnung',gruppe:'daten',pfad:'$bezeichnung'});
+    if (!s.eingabe.bezeichnung.trim())
+      fehler.push({
+        titel: "Bezeichnung",
+        gruppe: "daten",
+        pfad: "$bezeichnung",
+      });
     for (const f of vorlage.felder)
       if (feldFehler(f, lesen(s.eingabe.eingaben, f.name)))
         fehler.push({ titel: f.titel, gruppe: f.gruppe, pfad: f.name });
@@ -227,7 +258,9 @@
       );
     zeilen(t).splice(index, 1);
     if (s.eingabe?.planbindungen)
-      s.eingabe.planbindungen = s.eingabe.planbindungen.filter(b=>!b.ziel.startsWith(`${t.pfad}.${String(row.id)}.`));
+      s.eingabe.planbindungen = s.eingabe.planbindungen.filter(
+        (b) => !b.ziel.startsWith(`${t.pfad}.${String(row.id)}.`),
+      );
   }
   function ziel(t: FormTabelle | null, row: Obj | null, f: Feld) {
     return t ? `${t.pfad}.${String(row?.id)}.${f.name}` : f.name;
@@ -236,7 +269,7 @@
     return s.eingabe?.uebernahmen.find((u) => u.ziel === path);
   }
   function planquelleFuer(path: string) {
-    return s.eingabe?.planbindungen?.find(b=>b.ziel===path);
+    return s.eingabe?.planbindungen?.find((b) => b.ziel === path);
   }
   function quellenFuer(f: Feld) {
     return nachweise.flatMap((n) => {
@@ -278,9 +311,6 @@
       setzen(src.k.wert);
     }
   }
-  /** Ladefehler der Auswahllisten; nicht still als leere Liste anzeigen. */
-  let quellenFehler = $state<string | null>(null),
-    grundFehler = $state<string | null>(null);
   onMount(async () => {
     try {
       const v = await berechnungsApi.vorlagen();
@@ -312,11 +342,18 @@
       grundFehler = fehlertext(e);
     }
   }
-  const vormerken = ansichtsAbfrage(() => projekt.id, ["dokumente", "fachobjekte", "nachweise"], async () => {
-    planQuellenStand++;
-    await Promise.all([quellenLaden(), grundLaden(), raumbuecherLaden()]);
+  const vormerken = ansichtsAbfrage(
+    () => projekt.id,
+    ["dokumente", "fachobjekte", "nachweise"],
+    async () => {
+      planQuellenStand++;
+      await Promise.all([quellenLaden(), grundLaden(), raumbuecherLaden()]);
+    },
+  );
+  $effect(() => {
+    void projekt.version;
+    untrack(vormerken);
   });
-  $effect(() => { void projekt.version; untrack(vormerken); });
   async function pruefen() {
     if (!s.eingabe || busy || !formatPruefen()) return;
     busy = true;
@@ -336,6 +373,48 @@
     }
   }
   let raumbuchId = $state("");
+  let importVorschau = $state<{
+    plan: FachPlan;
+    vorher: FachPlan;
+    basis: string;
+    meldung: string;
+    zeilen: { id: string; status: string }[];
+  } | null>(null);
+  let importUndo = $state<{
+    plan: FachPlan;
+    nachher: string;
+    revision: number;
+  } | null>(null);
+  async function grundlagenBestaetigen() {
+    if (!darfFreigeben || !s.eingabe || busy) return;
+    busy = true;
+    s.fehler = null;
+    try {
+      if (s.hatAenderungen() && !(await s.speichern())) return;
+      if (!s.eingabe) return;
+      s.eingabe.regelkontext.anwendbarkeit_bestaetigt = true;
+      if (await s.speichern())
+        s.meldung =
+          "Anwendbarkeit der gespeicherten Revision bestätigt. Berechnung erneut prüfen; Nachweisfreigabe bleibt gesondert.";
+    } finally {
+      busy = false;
+    }
+  }
+  function importAnwenden() {
+    const v = importVorschau;
+    if (!v || !s.eingabe || v.basis !== signatur(s.eingabe)) return;
+    s.eingabe = v.plan;
+    importUndo = {
+      plan: v.vorher,
+      nachher: JSON.stringify(v.plan),
+      revision: s.revision,
+    };
+    s.meldung = v.meldung;
+    result = null;
+    importVorschau = null;
+  }
+  let tabellenmodus = $state(false);
+
   async function raumbuecherLaden() {
     if (["wohnflaechen", "din277"].includes(modul)) {
       try {
@@ -348,56 +427,104 @@
 
   async function raumimport() {
     if (!s.eingabe || !raumbuchId) return;
+    const basis = signatur(s.eingabe),
+      vorher = JSON.parse(JSON.stringify(s.eingabe)) as FachPlan;
+    const kandidat = JSON.parse(JSON.stringify(s.eingabe)) as FachPlan;
     busy = true;
     try {
       const r = await berechnungsApi.ausRaumbuch(projekt.id, raumbuchId, modul);
-      s.eingabe.gebaeude_id = r.gebaeude_id;
-      s.eingabe.fachquellen = r.fachquellen;
-      s.eingabe.uebernahmen = [];
+      kandidat.gebaeude_id = r.gebaeude_id;
+      kandidat.fachquellen = r.fachquellen;
+      kandidat.uebernahmen = [];
       // Abgleich über die stabile Raum-ID: Flächen und Höhen stammen aus dem
       // Raumbuch, bereits erfasste Zuordnungen bleiben erhalten. Manuelle
       // Positionen ohne Raumbuchquelle bleiben stehen; entfallene Räume entfallen.
-      const alt = (lesen(s.eingabe.eingaben, "positionen") as Obj[] | undefined) ?? [];
+      const alt =
+        (lesen(kandidat.eingaben, "positionen") as Obj[] | undefined) ?? [];
       const neu = (lesen(r.eingaben, "positionen") as Obj[] | undefined) ?? [];
-      const ausRaumbuch = (x: Obj) => String(x.quelle ?? "").startsWith("Raumbuch");
-      const eigene = modul === "wohnflaechen" ? ["wohnung", "typ", "sonderfaktor", "begruendung"] : ["geschoss", "art", "bereich"];
+      const ausRaumbuch = (x: Obj) =>
+        String(x.quelle ?? "").startsWith("Raumbuch");
+      const eigene =
+        modul === "wohnflaechen"
+          ? ["wohnung", "typ", "sonderfaktor", "begruendung"]
+          : ["geschoss", "art", "bereich"];
       let erhalten = 0;
       const abgeglichen = neu.map((n) => {
         const a = alt.find((x) => x.id === n.id);
         // Höhenzone („Raum_Zone“) neu: Raumart und Wohnung vom selben Raum
         // übernehmen, nicht dessen Höhe.
         const raum = String(n.id).split("_")[0];
-        const verwandt = !a && String(n.id).includes("_")
-          ? alt.find((x) => x.id === raum || String(x.id).startsWith(`${raum}_`))
-          : undefined;
+        const verwandt =
+          !a && String(n.id).includes("_")
+            ? alt.find(
+                (x) => x.id === raum || String(x.id).startsWith(`${raum}_`),
+              )
+            : undefined;
         const quelle = a ?? verwandt;
         if (!quelle) return n;
         if (a) erhalten++;
         const z = { ...n };
-        for (const k of eigene) if (k !== "begruendung" || a) if (quelle[k] !== undefined && quelle[k] !== "" && quelle[k] !== null) z[k] = quelle[k];
-        if (a && z.lichte_hoehe_m == null && a.lichte_hoehe_m != null) z.lichte_hoehe_m = a.lichte_hoehe_m;
+        for (const k of eigene)
+          if (k !== "begruendung" || a)
+            if (
+              quelle[k] !== undefined &&
+              quelle[k] !== "" &&
+              quelle[k] !== null
+            )
+              z[k] = quelle[k];
+        if (a && z.lichte_hoehe_m == null && a.lichte_hoehe_m != null)
+          z.lichte_hoehe_m = a.lichte_hoehe_m;
         return z;
       });
-      const manuell = alt.filter((a) => !neu.some((n) => n.id === a.id) && !ausRaumbuch(a));
-      const entfallen = alt.filter((a) => !neu.some((n) => n.id === a.id) && ausRaumbuch(a)).length;
+      const manuell = alt.filter(
+        (a) => !neu.some((n) => n.id === a.id) && !ausRaumbuch(a),
+      );
+      const entfallen = alt.filter(
+        (a) => !neu.some((n) => n.id === a.id) && ausRaumbuch(a),
+      ).length;
       // PDF-Verknüpfungen bleiben nur an manuellen Positionen; Raumbuchzeilen
       // erhalten ihre Fläche aus dem Raumbuch.
       const manuelleIds = new Set(manuell.map((x) => String(x.id)));
-      if (s.eingabe.planbindungen)
-        s.eingabe.planbindungen = s.eingabe.planbindungen.filter((b) => !b.ziel.startsWith("positionen.") || manuelleIds.has(b.ziel.split(".")[1]));
-      schreiben(s.eingabe.eingaben, "positionen", [...abgeglichen, ...manuell]);
+      if (kandidat.planbindungen)
+        kandidat.planbindungen = kandidat.planbindungen.filter(
+          (b) =>
+            !b.ziel.startsWith("positionen.") ||
+            manuelleIds.has(b.ziel.split(".")[1]),
+        );
+      schreiben(kandidat.eingaben, "positionen", [...abgeglichen, ...manuell]);
       for (const f of [
         "aufmass_vollstaendig",
         "wohneinheiten_bestaetigt",
         "klassifikation_geprueft",
         "kgf_vollstaendig",
       ]) {
-        if (f in (s.eingabe.eingaben as Obj))
-          schreiben(s.eingabe.eingaben, f, false);
+        if (f in (kandidat.eingaben as Obj))
+          schreiben(kandidat.eingaben, f, false);
       }
-      s.eingabe.regelkontext.anwendbarkeit_bestaetigt = false;
-      s.meldung =
-        `Raumfakten übernommen: ${neu.length - erhalten} neu, ${erhalten} aktualisiert (Zuordnungen erhalten)${entfallen ? `, ${entfallen} nicht mehr im Raumbuch und entfernt` : ""}${manuell.length ? `, ${manuell.length} manuelle Positionen beibehalten` : ""}. Raumarten, Wohnungs-/Geschosszuordnung, Höhenzonen und Maßbezug prüfen.`;
+      kandidat.regelkontext.anwendbarkeit_bestaetigt = false;
+      const meldung = `Raumfakten übernommen: ${neu.length - erhalten} neu, ${erhalten} aktualisiert (Zuordnungen erhalten)${entfallen ? `, ${entfallen} nicht mehr im Raumbuch und entfernt` : ""}${manuell.length ? `, ${manuell.length} manuelle Positionen beibehalten` : ""}. Raumarten, Wohnungs-/Geschosszuordnung, Höhenzonen und Maßbezug prüfen.`;
+      if (!s.eingabe || basis !== signatur(s.eingabe))
+        throw Error(
+          "Die Eingaben oder Quellen wurden zwischenzeitlich geändert. Vergleich erneut öffnen.",
+        );
+      importVorschau = {
+        plan: kandidat,
+        vorher,
+        basis,
+        meldung,
+        zeilen: [
+          ...neu.map((n) => ({
+            id: String(n.raum ?? n.bezeichnung ?? "Raum"),
+            status: alt.some((a) => a.id === n.id) ? "Aktualisiert" : "Neu",
+          })),
+          ...alt
+            .filter((a) => !neu.some((n) => n.id === a.id))
+            .map((a) => ({
+              id: String(a.raum ?? a.bezeichnung ?? "Position"),
+              status: ausRaumbuch(a) ? "Entfällt" : "Manuell beibehalten",
+            })),
+        ],
+      };
     } catch (e) {
       s.fehler = fehlertext(e);
     } finally {
@@ -445,7 +572,13 @@
           plan: JSON.parse(JSON.stringify(s.eingabe)),
         },
       );
-      nachweise = await plattformApi.nachweise(projekt.id);
+      s.meldung =
+        "Nachweisstand archiviert. PDF-Ausgabe und fachliche Freigabe sind weitere Schritte.";
+      try {
+        nachweise = await plattformApi.nachweise(projekt.id);
+      } catch (e) {
+        s.meldung += ` Archivliste konnte nicht aktualisiert werden: ${fehlertext(e)}`;
+      }
       return { art: "nachweis" as const, id: n.id };
     } catch (e) {
       s.fehler = fehlertext(e);
@@ -474,364 +607,661 @@
 </script>
 
 <div bind:this={bereichElement} data-berechnungsmodul={modul}>
-{#if vorlage}
-  <Fachliste
-    titel={vorlage.titel}
-    {s}
-    bereich={modul}
-    {darf}
-    lesendBedienbar
-    zusatzBeschaeftigt={() => busy}
-    pruefen={formatPruefen}
-  >
-    {#snippet children(p)}
-      <p class="meta">{vorlage!.hinweis}</p>
-      <p class="meta">* Erforderliche Zahl. Leere optionale Angaben bleiben unbekannt; 0 ist ein bewusst erfasster Wert.</p>
-      {#if eingabefehler.length}<div class="fehlerzusammenfassung" role="alert"><strong>Bitte die Eingaben prüfen.</strong><ul>{#each eingabefehler as f}<li><button type="button" class="link" onclick={()=>fehlerOeffnen(f)}>{f.titel}: Eingabe prüfen.</button></li>{/each}</ul></div>{/if}
-      <nav class="fach-tabs" aria-label="Berechnungsbereiche">
-        {#each [["daten", "Eingaben"], ["regeln", "Regeln / Grundlagen"], ["quellen", "Quellen / Übernahmen"], ["bericht", "Prüfbericht"]] as [id, t]}<button
+  {#if vorlage}
+    {#if modul === "vollgeschosse" && navigation?.vollgeschossauftrag}<aside
+        class="hinweisbox"
+      >
+        <strong
+          >Geschossstatus für {navigation.vollgeschossauftrag
+            .bezeichnung}</strong
+        >
+        <p>
+          Geometrie aus dem gespeicherten Gebäude verwenden. Nach Prüfung und
+          Archivierung zur Quelle zurückkehren und die Einstufung bewusst
+          auswählen.
+        </p>
+        <button
+          type="button"
+          disabled={!darf || busy || s.hatAenderungen() || s.gerettet}
+          onclick={() => {
+            s.neu();
+            if (s.eingabe && navigation?.vollgeschossauftrag) {
+              s.eingabe.gebaeude_id = navigation.vollgeschossauftrag.gebaeude;
+              s.eingabe.gebaeudedaten_uebernehmen = true;
+            }
+          }}>Prüfung für dieses Gebäude anlegen</button
+        >{#if navigation.rueckweg}<button
             type="button"
-            class:aktiv={bereich === id}
-            aria-pressed={bereich === id}
-            onclick={() => (bereich = id)}>{t}</button
-          >{/each}
-      </nav>
-      <fieldset disabled={!darf || busy}>
-        {#if bereich === "daten"}
-          <div class="fachraster">
-            <label
-              data-feldpfad="$bezeichnung">Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input
-                aria-label="Bezeichnung"
-                required
-                aria-invalid={pruefversuch && !p.bezeichnung.trim() ? 'true' : undefined}
-                bind:value={p.bezeichnung}
-                maxlength="500"
-              /></label
-            ><label
-              >Baugrundstück<select bind:value={p.grundstueck_id}
-                ><option value={null}>Noch nicht zugeordnet</option
-                >{#each grund as g}<option value={g.id}>{g.bezeichnung}</option
-                  >{/each}</select
-              ></label
-            ><label
-              >Gebäude<select bind:value={p.gebaeude_id}
-                ><option value={null}>Kein einzelnes Gebäude</option
-                >{#each gebaeude as g}<option value={g.objekt}
-                    >{g.daten.bezeichnung}</option
-                  >{/each}</select
-              ></label
-            >
-          </div>
-          {#if modul === "vollgeschosse"}<section class="positionszeile">
-            <h3>Bekannte Gebäudeangaben verwenden</h3>
-            <label><input type="checkbox" checked={p.gebaeudedaten_uebernehmen === true} onchange={(e) => { p.gebaeudedaten_uebernehmen = e.currentTarget.checked; result = null; }} />Geschosse, Flächen und bekannte Höhen aus Gebäude/Geschosse übernehmen</label>
-            <p class="meta">Beim Prüfen und Speichern werden die Geschoss- und Höhenzonenlisten aus dem ausgewählten Gebäude befüllt und aktualisiert. Eine Höhenzone über die gesamte Fläche entsteht nur bei bestätigter einheitlicher Raumhöhe. Für eigene Höhenzonen diese Übernahme lösen. Änderungen an den Grundlagen setzen die Aufmaßprüfung zurück.</p>
-            {#if p.gebaeudedaten_uebernehmen}<button type="button" class="sekundaer" disabled={!p.gebaeude_id} onclick={pruefen}>Gebäudeangaben laden und prüfen</button>{/if}
-          </section>{:else if modul === "hoehen"}<section class="positionszeile">
-            <h3>Bekannte Gebäudeangaben verwenden</h3>
-            <label><input type="checkbox" checked={p.gebaeudedaten_uebernehmen === true} onchange={(e) => { p.gebaeudedaten_uebernehmen = e.currentTarget.checked; result = null; }} />Trauf- und Firsthöhe aus Gebäude/Geschosse übernehmen</label>
-            <p class="meta">Beim Prüfen und Speichern entstehen aus Gebäudenullpunkt (m ü. NHN), Traufe und First des ausgewählten Gebäudes Höhenpunkte mit der mittleren Geländehöhe als Bezug. Eigene Punkte bleiben erhalten. Weicht der maßgebende Bezugspunkt der Festsetzung ab, eigene Punkte erfassen. Geänderte Grundlagen setzen die Bezugsprüfung zurück.</p>
-            {#if p.gebaeudedaten_uebernehmen}<button type="button" class="sekundaer" disabled={!p.gebaeude_id} onclick={pruefen}>Gebäudehöhen laden und prüfen</button>{/if}
-          </section>{/if}
-          {#if ["wohnflaechen", "din277"].includes(modul)}<details>
-              <summary>Raumfakten aus dem Raumbuch übernehmen</summary>
-              <p class="meta">
-                Gleicht die Teilflächen über die Raum-ID ab: Flächen und Höhen
-                kommen aus dem Raumbuch, bereits gewählte Raumart und
-                Wohnungs-/Geschosszuordnung bleiben erhalten. Neue Räume sind
-                noch zuzuordnen; manuelle Positionen bleiben stehen.
-              </p>
-              <label
-                >Raumbuch<select bind:value={raumbuchId}
-                  ><option value="">Auswählen</option
-                  >{#each raumbuecher as r}<option value={r.objekt}
-                      >{r.daten.bezeichnung} · Revision {r.revision}</option
-                    >{/each}</select
-                ></label
-              ><button
-                type="button"
-                class="sekundaer"
-                disabled={!raumbuchId}
-                onclick={raumimport}
-                >Raumfakten übernehmen / aktualisieren</button
-              >
-            </details>{/if}
-          {#if quellenFehler}<p class="fehlertext" role="alert">
-              Gebäude, Dokumente oder Nachweise konnten nicht geladen werden: {quellenFehler}
-            </p>{/if}
-          {#if grundFehler}<p class="fehlertext" role="alert">
-              Baugrundstücke konnten nicht geladen werden: {grundFehler}
-            </p>
-          {:else if !grund.length}<p class="hinweisbox">
-              Für einen vollständigen Nachweis zuerst die
-              Baugrundstücksermittlung prüfen und speichern. Eingaben können
-              bereits erfasst werden.
-            </p>{/if}
-        {:else if bereich === "regeln"}
-          <div class="fachraster">
-            <label
-              >Regel-/Satzungsbezeichnung<input
-                bind:value={p.regelkontext.bezeichnung}
-              /></label
-            ><label
-              >Regelversion<input bind:value={p.regelkontext.version} /></label
-            ><label
-              >Geltungsbereich / Kommune<textarea
-                bind:value={p.regelkontext.geltungsbereich}
-              ></textarea></label
-            ><label
-              >Fundstelle / Rechtsfassung<textarea
-                bind:value={p.regelkontext.quelle}
-              ></textarea></label
-            ><label
-              >Gültig ab<input
-                type="date"
-                bind:value={p.regelkontext.gueltig_ab}
-              /></label
-            ><label
-              >Gültig bis<input
-                type="date"
-                bind:value={p.regelkontext.gueltig_bis}
-              /></label
-            >
-          </div>
-          <p class="meta">
-            Geänderte Regelwerte benötigen eine neue Regelversion. Nach
-            Änderungen an Eingaben/Grundlagen wird die Bestätigung
-            zurückgesetzt: zuerst speichern, danach die Anwendbarkeit
-            bestätigen.
-          </p>
-          <label
-            >Prüfvermerk<textarea
-              rows="3"
-              bind:value={p.regelkontext.pruefvermerk}
-            ></textarea></label
-          ><label
-            ><input
-              type="checkbox"
-              bind:checked={p.regelkontext.anwendbarkeit_bestaetigt}
-              disabled={!darfFreigeben}
-            />Anwendbarkeit und Vollständigkeit der Regelgrundlagen durch
-            Projektleitung bestätigt</label
+            class="link"
+            onclick={() => {
+              if (navigation.rueckweg) navigation.springen(navigation.rueckweg);
+            }}>Zum Geschoss und zur Einstufungsübernahme →</button
+          >{/if}
+      </aside>{/if}
+    <Fachliste
+      titel={vorlage.titel}
+      {s}
+      bereich={modul}
+      {darf}
+      lesendBedienbar
+      zusatzBeschaeftigt={() => busy}
+      pruefen={formatPruefen}
+    >
+      {#snippet children(p)}
+        <p class="meta">{vorlage!.hinweis}</p>
+        <p class="meta">
+          * Erforderliche Zahl. Leere optionale Angaben bleiben unbekannt; 0 ist
+          ein bewusst erfasster Wert.
+        </p>
+        {#if eingabefehler.length}<div
+            class="fehlerzusammenfassung"
+            role="alert"
           >
-          {#if lesen(p.eingaben, "regeln") && !Array.isArray(lesen(p.eingaben, "regeln"))}<button
-              type="button"
-              class="sekundaer"
-              onclick={() => (importOffen = !importOffen)}
-              >Eigenes Regelpaket importieren …</button
-            >{#if importOffen}<label
-                >Regelpaket als JSON<textarea rows="8" bind:value={importText}
-                ></textarea></label
-              ><button type="button" onclick={regelimport}
-                >Regelpaket übernehmen</button
-              >{/if}{/if}
-        {/if}
-        {#if bereich === "daten" || bereich === "regeln"}
-          <div class="fachraster">
-            {#each vorlage!.felder.filter((f) => f.gruppe === bereich) as f (f.name)}<div
-              >
-                <Fachfeld
-                  feld={f}
-                  {pruefversuch}
-                  quelle={quelleFuer(f.name) ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen" : ""}
-                  wert={lesen(p.eingaben, f.name)}
-                  optionen={optionen(f)}
-                  disabled={!!quelleFuer(f.name)}
-                  onwert={(v) => schreiben(p.eingaben, f.name, v)}
-                />{#if f.groesse}{@render uebernahme(f.name, f, (v) =>
-                    schreiben(p.eingaben, f.name, v),
-                  )}{/if}
-              </div>{/each}
-          </div>
-          {#if ["wohnflaechen","din277"].includes(modul) && bereich === 'daten'}<label class="checkboxzeile"><input type="checkbox" bind:checked={alleFelder} />Auch derzeit nicht verwendete Geometriewerte anzeigen</label><p class="meta">Beim Wechsel der Aufmaßform bleiben vorhandene Werte erhalten. Verwendet werden die zur Aufmaßform gehörenden Werte.</p>{/if}
-          {#each vorlage!.tabellen.filter((t) => t.gruppe === bereich) as t}<section
-              class="positionsliste"
-              aria-label={t.titel}
-            >
-              <header>
-                <h3>{t.titel}</h3>
-                <button type="button" class="sekundaer" disabled={modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten"} onclick={() => neu(t)}
-                  >Position hinzufügen</button
-                >
-              </header>
-              {#each zeilen(t) as row, i (row.id ?? i)}<details class="positionszeile">
-                  <summary>{i + 1} · {name(row)}</summary>
-                  <div class="fachraster">
-                    {#each t.felder.filter((f) => f.typ !== "hidden" && (alleFelder || feldSichtbar(modul,t.pfad,f,row))) as f (f.name)}<div>
-                        <Fachfeld
-                          feld={f}
-                          pfad={`${t.pfad}[${i}].${f.name}`}
-                          {pruefversuch}
-                          quelle={planquelleFuer(ziel(t,row,f)) ? "Aus PDF-Aufmaß verknüpft · Herkunft unter Quellen / Übernahmen" : quelleFuer(ziel(t,row,f)) ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen" : ""}
-                          wert={row[f.name]}
-                          optionen={optionen(f)}
-                          disabled={!!planquelleFuer(ziel(t,row,f)) || !!quelleFuer(ziel(t, row, f)) || (modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten" && !["sonderentscheidung", "sondergrundlage"].includes(f.name))}
-                          onwert={(v) => (row[f.name] = v)}
-                        />{#if f.groesse}{@render uebernahme(
-                            ziel(t, row, f),
-                            f,
-                            (v) => (row[f.name] = v),
-                          )}{/if}
-                      </div>{/each}
-                  </div>
+            <strong>Bitte die Eingaben prüfen.</strong>
+            <ul>
+              {#each eingabefehler as f}<li>
                   <button
                     type="button"
                     class="link"
-                    disabled={modul === "vollgeschosse" && p.gebaeudedaten_uebernehmen === true && t.gruppe === "daten"} onclick={() => entfernen(t, i)}>Position entfernen</button
+                    onclick={() => fehlerOeffnen(f)}
+                    >{f.titel}: Eingabe prüfen.</button
                   >
-                </details>{:else}<p class="meta">
-                  Noch keine Positionen.
-                </p>{/each}
-            </section>{/each}
-        {:else if bereich === "quellen"}
-          <Planquellen projektId={projekt.id} plan={p} onplan={neu=>s.eingabe=neu as FachPlan} onbusy={b=>busy=b} />
+                </li>{/each}
+            </ul>
+          </div>{/if}
+        <aside class="nachweisweg" aria-label="Nächster Schritt zum Nachweis">
+          <strong>Entwurf → Berechnen und prüfen → Nachweis → Freigabe</strong>
           <p>
-            Verwendete Pläne, Aufmaße und Rechts-/Satzungsbelege mit ihrer
-            konkreten Version zuordnen.
+            {s.hatAenderungen()
+              ? "Eingaben geändert: zunächst speichern und Grundlagen prüfen."
+              : !p.regelkontext.anwendbarkeit_bestaetigt
+                ? "Gespeicherte Eingaben: Anwendbarkeit der Grundlagen ist noch zu bestätigen."
+                : "Grundlagen bestätigt: Berechnung prüfen und anschließend Nachweis erstellen."}
           </p>
-          <label
-            >Projektunterlage<select bind:value={quellId}
-              ><option value="">Unterlage auswählen</option
-              >{#each dateien as d}<option
-                  value={`${d.document_id}|${d.version}`}
-                  >{d.file_name} · Version {d.version}</option
-                >{/each}</select
-            ></label
-          ><button
+          {#if !p.regelkontext.anwendbarkeit_bestaetigt}<button
+              type="button"
+              class="link"
+              onclick={() => (bereich = "regeln")}>Grundlagen prüfen →</button
+            ><button
+              type="button"
+              class="sekundaer"
+              disabled={!darfFreigeben || busy}
+              onclick={grundlagenBestaetigen}
+              >Gespeicherte Grundlagen bestätigen …</button
+            >{#if !darfFreigeben}<span
+                >Bestätigung durch die Projektleitung erforderlich.</span
+              >{/if}{/if}
+        </aside>
+        {#if importUndo && s.revision === importUndo.revision && JSON.stringify(p) === importUndo.nachher}<button
             type="button"
-            class="sekundaer"
-            disabled={!quellId}
+            class="link"
             onclick={() => {
-              const [d, v] = quellId.split("|");
-              if (
-                !p.quellen.some(
-                  (q) => q.dokument_id === d && q.version === Number(v),
+              if (importUndo) {
+                s.eingabe = importUndo.plan;
+                importUndo = null;
+                result = null;
+              }
+            }}>Letzte Raumübernahme rückgängig machen</button
+          >{/if}
+        <nav class="fach-tabs" aria-label="Berechnungsbereiche">
+          {#each [["daten", "Eingaben"], ["regeln", "Regeln / Grundlagen"], ["quellen", "Quellen / Übernahmen"], ["bericht", "Prüfbericht"]] as [id, t]}<button
+              type="button"
+              class:aktiv={bereich === id}
+              aria-pressed={bereich === id}
+              onclick={() => (bereich = id)}>{t}</button
+            >{/each}
+        </nav>
+        <fieldset disabled={!darf || busy}>
+          {#if bereich === "daten"}
+            <div class="fachraster">
+              <label data-feldpfad="$bezeichnung"
+                >Bezeichnung<span class="pflicht" aria-hidden="true">
+                  *</span
+                ><input
+                  aria-label="Bezeichnung"
+                  required
+                  aria-invalid={pruefversuch && !p.bezeichnung.trim()
+                    ? "true"
+                    : undefined}
+                  bind:value={p.bezeichnung}
+                  maxlength="500"
+                /></label
+              ><label
+                >Baugrundstück<select bind:value={p.grundstueck_id}
+                  ><option value={null}>Noch nicht zugeordnet</option
+                  >{#each grund as g}<option value={g.id}
+                      >{g.bezeichnung}</option
+                    >{/each}</select
+                ></label
+              ><label
+                >Gebäude<select bind:value={p.gebaeude_id}
+                  ><option value={null}>Kein einzelnes Gebäude</option
+                  >{#each gebaeude as g}<option value={g.objekt}
+                      >{g.daten.bezeichnung}</option
+                    >{/each}</select
+                ></label
+              >
+            </div>
+            {#if modul === "vollgeschosse"}<section class="positionszeile">
+                <h3>Bekannte Gebäudeangaben verwenden</h3>
+                <label
+                  ><input
+                    type="checkbox"
+                    checked={p.gebaeudedaten_uebernehmen === true}
+                    onchange={(e) => {
+                      p.gebaeudedaten_uebernehmen = e.currentTarget.checked;
+                      result = null;
+                    }}
+                  />Geschosse, Flächen und bekannte Höhen aus Gebäude/Geschosse
+                  übernehmen</label
+                >
+                <p class="meta">
+                  Beim Prüfen und Speichern werden die Geschoss- und
+                  Höhenzonenlisten aus dem ausgewählten Gebäude befüllt und
+                  aktualisiert. Eine Höhenzone über die gesamte Fläche entsteht
+                  nur bei bestätigter einheitlicher Raumhöhe. Für eigene
+                  Höhenzonen diese Übernahme lösen. Änderungen an den Grundlagen
+                  setzen die Aufmaßprüfung zurück.
+                </p>
+                {#if p.gebaeudedaten_uebernehmen}<button
+                    type="button"
+                    class="sekundaer"
+                    disabled={!p.gebaeude_id}
+                    onclick={pruefen}>Gebäudeangaben laden und prüfen</button
+                  >{/if}
+              </section>{:else if modul === "hoehen"}<section
+                class="positionszeile"
+              >
+                <h3>Bekannte Gebäudeangaben verwenden</h3>
+                <label
+                  ><input
+                    type="checkbox"
+                    checked={p.gebaeudedaten_uebernehmen === true}
+                    onchange={(e) => {
+                      p.gebaeudedaten_uebernehmen = e.currentTarget.checked;
+                      result = null;
+                    }}
+                  />Trauf- und Firsthöhe aus Gebäude/Geschosse übernehmen</label
+                >
+                <p class="meta">
+                  Beim Prüfen und Speichern entstehen aus Gebäudenullpunkt (m ü.
+                  NHN), Traufe und First des ausgewählten Gebäudes Höhenpunkte
+                  mit der mittleren Geländehöhe als Bezug. Eigene Punkte bleiben
+                  erhalten. Weicht der maßgebende Bezugspunkt der Festsetzung
+                  ab, eigene Punkte erfassen. Geänderte Grundlagen setzen die
+                  Bezugsprüfung zurück.
+                </p>
+                {#if p.gebaeudedaten_uebernehmen}<button
+                    type="button"
+                    class="sekundaer"
+                    disabled={!p.gebaeude_id}
+                    onclick={pruefen}>Gebäudehöhen laden und prüfen</button
+                  >{/if}
+              </section>{/if}
+            {#if ["wohnflaechen", "din277"].includes(modul)}<details>
+                <summary>Raumfakten aus dem Raumbuch übernehmen</summary>
+                <p class="meta">
+                  Gleicht die Teilflächen über die Raum-ID ab: Flächen und Höhen
+                  kommen aus dem Raumbuch, bereits gewählte Raumart und
+                  Wohnungs-/Geschosszuordnung bleiben erhalten. Neue Räume sind
+                  noch zuzuordnen; manuelle Positionen bleiben stehen.
+                </p>
+                <label
+                  >Raumbuch<select aria-label="Raumbuch" bind:value={raumbuchId}
+                    ><option value="">Auswählen</option
+                    >{#each raumbuecher as r}<option value={r.objekt}
+                        >{r.daten.bezeichnung} · Revision {r.revision}</option
+                      >{/each}</select
+                  ></label
+                ><button
+                  type="button"
+                  class="sekundaer"
+                  disabled={!raumbuchId}
+                  onclick={raumimport}
+                  >Raumfakten übernehmen / aktualisieren</button
+                >
+              </details>{/if}
+            {#if quellenFehler}<p class="fehlertext" role="alert">
+                Gebäude, Dokumente oder Nachweise konnten nicht geladen werden: {quellenFehler}
+              </p>{/if}
+            {#if grundFehler}<p class="fehlertext" role="alert">
+                Baugrundstücke konnten nicht geladen werden: {grundFehler}
+              </p>
+            {:else if !grund.length}<p class="hinweisbox">
+                Für einen vollständigen Nachweis zuerst die
+                Baugrundstücksermittlung prüfen und speichern. Eingaben können
+                bereits erfasst werden.
+              </p>{/if}
+          {:else if bereich === "regeln"}
+            <RegelpaketAuswahl
+              plan={p}
+              darf={darf && darfFreigeben}
+              onplan={(neu) => (s.eingabe = neu)}
+            />
+            <div class="fachraster">
+              <label
+                >Regel-/Satzungsbezeichnung<input
+                  bind:value={p.regelkontext.bezeichnung}
+                /></label
+              ><label
+                >Regelversion<input
+                  bind:value={p.regelkontext.version}
+                /></label
+              ><label
+                >Geltungsbereich / Kommune<textarea
+                  bind:value={p.regelkontext.geltungsbereich}
+                ></textarea></label
+              ><label
+                >Fundstelle / Rechtsfassung<textarea
+                  bind:value={p.regelkontext.quelle}
+                ></textarea></label
+              ><label
+                >Gültig ab<input
+                  type="date"
+                  bind:value={p.regelkontext.gueltig_ab}
+                /></label
+              ><label
+                >Gültig bis<input
+                  type="date"
+                  bind:value={p.regelkontext.gueltig_bis}
+                /></label
+              >
+            </div>
+            <p class="meta">
+              Geänderte Regelwerte benötigen eine neue Regelversion. Nach
+              Änderungen an Eingaben/Grundlagen wird die Bestätigung
+              zurückgesetzt: zuerst speichern, danach die Anwendbarkeit
+              bestätigen.
+            </p>
+            <label
+              >Prüfvermerk<textarea
+                rows="3"
+                bind:value={p.regelkontext.pruefvermerk}
+              ></textarea></label
+            ><label
+              ><input
+                type="checkbox"
+                bind:checked={p.regelkontext.anwendbarkeit_bestaetigt}
+                disabled={!darfFreigeben}
+              />Anwendbarkeit und Vollständigkeit der Regelgrundlagen durch
+              Projektleitung bestätigt</label
+            >
+            {#if lesen(p.eingaben, "regeln") && !Array.isArray(lesen(p.eingaben, "regeln"))}<button
+                type="button"
+                class="sekundaer"
+                onclick={() => (importOffen = !importOffen)}
+                >Eigenes Regelpaket importieren …</button
+              >{#if importOffen}<label
+                  >Regelpaket als JSON<textarea rows="8" bind:value={importText}
+                  ></textarea></label
+                ><button type="button" onclick={regelimport}
+                  >Regelpaket übernehmen</button
+                >{/if}{/if}
+          {/if}
+          {#if bereich === "regeln"}<p class="hinweisbox">
+              Regelwerte nur für eine geprüfte, versionierte Satzung ändern.
+              Änderungen brauchen eine neue Regelversion. Für normale Projekte
+              vorhandenes Regelpaket verwenden.
+            </p>{/if}
+          {#if bereich === "daten" || bereich === "regeln"}
+            <div class="fachraster">
+              {#each vorlage!.felder.filter((f) => f.gruppe === bereich) as f (f.name)}<div
+                >
+                  <Fachfeld
+                    feld={f}
+                    {pruefversuch}
+                    quelle={quelleFuer(f.name)
+                      ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen"
+                      : ""}
+                    wert={lesen(p.eingaben, f.name)}
+                    optionen={optionen(f)}
+                    disabled={!!quelleFuer(f.name)}
+                    onwert={(v) => schreiben(p.eingaben, f.name, v)}
+                  />{#if f.groesse}{@render uebernahme(f.name, f, (v) =>
+                      schreiben(p.eingaben, f.name, v),
+                    )}{/if}
+                </div>{/each}
+            </div>
+            {#if ["wohnflaechen", "din277"].includes(modul) && bereich === "daten"}<label
+                class="checkboxzeile"
+                ><input type="checkbox" bind:checked={alleFelder} />Auch derzeit
+                nicht verwendete Geometriewerte anzeigen</label
+              >
+              <p class="meta">
+                Beim Wechsel der Aufmaßform bleiben vorhandene Werte erhalten.
+                Verwendet werden die zur Aufmaßform gehörenden Werte.
+              </p>{/if}
+            <label
+              ><input type="checkbox" bind:checked={tabellenmodus} />Positionen
+              als Tabelle bearbeiten</label
+            >
+            {#each vorlage!.tabellen.filter((t) => t.gruppe === bereich) as t}<section
+                class="positionsliste"
+                aria-label={t.titel}
+              >
+                <header>
+                  <h3>{t.titel}</h3>
+                  <button
+                    type="button"
+                    class="sekundaer"
+                    disabled={modul === "vollgeschosse" &&
+                      p.gebaeudedaten_uebernehmen === true &&
+                      t.gruppe === "daten"}
+                    onclick={() => neu(t)}>Position hinzufügen</button
+                  >
+                </header>
+                {#if tabellenmodus}<div class="tabellen-scroll">
+                    <table class="ergebnistabelle">
+                      <thead
+                        ><tr
+                          ><th>Position</th
+                          >{#each t.felder.filter((f) => f.typ !== "hidden") as f}<th
+                              >{f.titel}</th
+                            >{/each}</tr
+                        ></thead
+                      ><tbody
+                        >{#each zeilen(t) as row, i (row.id ?? i)}<tr
+                            ><td>{i + 1}</td
+                            >{#each t.felder.filter((f) => f.typ !== "hidden") as f}<td
+                                >{#if alleFelder || feldSichtbar(modul, t.pfad, f, row)}<Fachfeld
+                                    feld={f}
+                                    pfad={`${t.pfad}[${i}].${f.name}`}
+                                    {pruefversuch}
+                                    wert={row[f.name]}
+                                    optionen={optionen(f)}
+                                    disabled={!!planquelleFuer(
+                                      ziel(t, row, f),
+                                    ) ||
+                                      !!quelleFuer(ziel(t, row, f)) ||
+                                      (modul === "vollgeschosse" &&
+                                        p.gebaeudedaten_uebernehmen === true &&
+                                        t.gruppe === "daten" &&
+                                        ![
+                                          "sonderentscheidung",
+                                          "sondergrundlage",
+                                        ].includes(f.name))}
+                                    onwert={(v) => (row[f.name] = v)}
+                                  />{:else}<span class="meta"
+                                    >Für diesen Ansatz nicht benötigt</span
+                                  >{/if}</td
+                              >{/each}</tr
+                          >{/each}</tbody
+                      >
+                    </table>
+                  </div>{:else}
+                  {#each zeilen(t) as row, i (row.id ?? i)}<details
+                      class="positionszeile"
+                    >
+                      <summary>{i + 1} · {name(row)}</summary>
+                      <div class="fachraster">
+                        {#each t.felder.filter((f) => f.typ !== "hidden" && (alleFelder || feldSichtbar(modul, t.pfad, f, row))) as f (f.name)}<div
+                          >
+                            <Fachfeld
+                              feld={f}
+                              pfad={`${t.pfad}[${i}].${f.name}`}
+                              {pruefversuch}
+                              quelle={planquelleFuer(ziel(t, row, f))
+                                ? "Aus PDF-Aufmaß verknüpft · Herkunft unter Quellen / Übernahmen"
+                                : quelleFuer(ziel(t, row, f))
+                                  ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen"
+                                  : ""}
+                              wert={row[f.name]}
+                              optionen={optionen(f)}
+                              disabled={!!planquelleFuer(ziel(t, row, f)) ||
+                                !!quelleFuer(ziel(t, row, f)) ||
+                                (modul === "vollgeschosse" &&
+                                  p.gebaeudedaten_uebernehmen === true &&
+                                  t.gruppe === "daten" &&
+                                  ![
+                                    "sonderentscheidung",
+                                    "sondergrundlage",
+                                  ].includes(f.name))}
+                              onwert={(v) => (row[f.name] = v)}
+                            />{#if f.groesse}{@render uebernahme(
+                                ziel(t, row, f),
+                                f,
+                                (v) => (row[f.name] = v),
+                              )}{/if}
+                          </div>{/each}
+                      </div>
+                      <button
+                        type="button"
+                        class="link"
+                        disabled={modul === "vollgeschosse" &&
+                          p.gebaeudedaten_uebernehmen === true &&
+                          t.gruppe === "daten"}
+                        onclick={() => entfernen(t, i)}
+                        >Position entfernen</button
+                      >
+                    </details>{:else}<p class="meta">
+                      Noch keine Positionen.
+                    </p>{/each}{/if}
+              </section>{/each}
+          {:else if bereich === "quellen"}
+            <Planquellen
+              projektId={projekt.id}
+              plan={p}
+              onplan={(neu) => (s.eingabe = neu as FachPlan)}
+              onbusy={(b) => (busy = b)}
+            />
+            <p>
+              Verwendete Pläne, Aufmaße und Rechts-/Satzungsbelege mit ihrer
+              konkreten Version zuordnen.
+            </p>
+            <label
+              >Projektunterlage<select bind:value={quellId}
+                ><option value="">Unterlage auswählen</option
+                >{#each dateien as d}<option
+                    value={`${d.document_id}|${d.version}`}
+                    >{d.file_name} · Version {d.version}</option
+                  >{/each}</select
+              ></label
+            ><button
+              type="button"
+              class="sekundaer"
+              disabled={!quellId}
+              onclick={() => {
+                const [d, v] = quellId.split("|");
+                if (
+                  !p.quellen.some(
+                    (q) => q.dokument_id === d && q.version === Number(v),
+                  )
                 )
-              )
-                p.quellen.push({ dokument_id: d, version: Number(v) });
-            }}>Quelle hinzufügen</button
-          >
-          <ul>
-            {#each p.quellen as q, i}<li>
-                {dateien.find(
-                  (d) =>
-                    d.document_id === q.dokument_id && d.version === q.version,
-                )?.file_name ?? "Archivierte Unterlage"} · Version {q.version}
+                  p.quellen.push({ dokument_id: d, version: Number(v) });
+              }}>Quelle hinzufügen</button
+            >
+            <ul>
+              {#each p.quellen as q, i}<li>
+                  {dateien.find(
+                    (d) =>
+                      d.document_id === q.dokument_id &&
+                      d.version === q.version,
+                  )?.file_name ?? "Archivierte Unterlage"} · Version {q.version}
+                  <button
+                    type="button"
+                    class="link"
+                    onclick={() => p.quellen.splice(i, 1)}>Entfernen</button
+                  >
+                </li>{/each}
+            </ul>
+            <p class="meta">
+              Übernahmen werden direkt am passenden Zahlenfeld ausgewählt. Es
+              werden nur aktuelle vollständige Fachnachweise derselben
+              Grundstückseinheit angeboten. Einheiten und fachliche
+              Flächenbegriffe prüft der Rechenkern.
+            </p>
+            <ul>
+              {#each p.uebernahmen as u}<li>
+                  {nachweise.find((n) => n.stand.id === u.nachweis_id)?.stand
+                    .bezeichnung ?? "Quellnachweis"} → {(
+                    (
+                      nachweise.find((n) => n.stand.id === u.nachweis_id)?.stand
+                        .ergebnis as unknown as FachErgebnis
+                    )?.kennzahlen ?? []
+                  ).find((k) => k.id === u.kennzahl)?.bezeichnung ??
+                    "Übernommener Fachwert"}
+                  <span
+                    >{nachweise.find((n) => n.stand.id === u.nachweis_id)
+                      ?.aktuell === true
+                      ? "Quelle aktuell"
+                      : "Quelle nicht aktuell bestätigt – prüfen"}</span
+                  >
+                  <button
+                    type="button"
+                    class="link"
+                    onclick={() =>
+                      navigation?.springen(
+                        navigationsziel("nachweise", null, null, u.nachweis_id),
+                      )}>Quellnachweis ansehen</button
+                  ><button
+                    type="button"
+                    class="link"
+                    onclick={() =>
+                      (p.uebernahmen = p.uebernahmen.filter((x) => x !== u))}
+                    >Übernahme lösen</button
+                  >
+                </li>{/each}
+            </ul>
+          {/if}
+        </fieldset>
+        <div class="knoepfe links">
+          <button type="button" disabled={busy} onclick={pruefen}
+            >Berechnung prüfen</button
+          ><Druckknopf
+            projektId={projekt.id}
+            darfAblegen={darf}
+            disabled={!darf || busy}
+            text="Nachweis erstellen …"
+            vorbereiten={archivieren}
+          />
+        </div>
+        {#if result}<section aria-label="Berechnungsergebnis">
+            <h3>Prüfbericht</h3>
+            <Statusanzeige
+              status={!aktuelleVorschau
+                ? "veraltet"
+                : result.vollstaendig
+                  ? "berechnet"
+                  : "offen"}
+            />
+            <div class="knoepfe links">
+              <button
+                type="button"
+                class="link"
+                onclick={() => (bereich = "quellen")}
+                >Verwendete Quellen prüfen</button
+              ><button
+                type="button"
+                class="link"
+                onclick={() =>
+                  navigation?.springen(navigationsziel("nachweise"))}
+                >Archiv und Freigaben öffnen</button
+              >
+            </div>
+            {#if !aktuelleVorschau}<p class="hinweisbox">
+                {eingabenGleich
+                  ? "Verknüpfte Gebäude-, Raumbuch- oder Grundstücksdaten haben sich geändert."
+                  : "Eingaben geändert."} Vorschau erneut berechnen.
                 <button
                   type="button"
                   class="link"
-                  onclick={() => p.quellen.splice(i, 1)}>Entfernen</button
+                  disabled={busy}
+                  onclick={pruefen}>Jetzt neu berechnen</button
                 >
-              </li>{/each}
-          </ul>
-          <p class="meta">
-            Übernahmen werden direkt am passenden Zahlenfeld ausgewählt. Es
-            werden nur aktuelle vollständige Fachnachweise derselben
-            Grundstückseinheit angeboten. Einheiten und fachliche
-            Flächenbegriffe prüft der Rechenkern.
-          </p>
-          <ul>
-            {#each p.uebernahmen as u}<li>
-                {nachweise.find((n) => n.stand.id === u.nachweis_id)?.stand
-                  .bezeichnung ?? "Quellnachweis"} → {(
-                  (
-                    nachweise.find((n) => n.stand.id === u.nachweis_id)?.stand
-                      .ergebnis as unknown as FachErgebnis
-                  )?.kennzahlen ?? []
-                ).find((k) => k.id === u.kennzahl)?.bezeichnung ??
-                  "Übernommener Fachwert"}
-                <span>{nachweise.find(n=>n.stand.id===u.nachweis_id)?.aktuell === true ? "Quelle aktuell" : "Quelle nicht aktuell bestätigt – prüfen"}</span>
-                <button type="button" class="link" onclick={()=>navigation?.springen(navigationsziel("nachweise",null,null,u.nachweis_id))}>Quellnachweis ansehen</button><button
-                  type="button"
-                  class="link"
-                  onclick={() =>
-                    (p.uebernahmen = p.uebernahmen.filter((x) => x !== u))}
-                  >Übernahme lösen</button
-                >
-              </li>{/each}
-          </ul>
-        {/if}
-      </fieldset>
-      <div class="knoepfe links">
-        <button type="button" disabled={busy} onclick={pruefen}
-          >Berechnung prüfen</button
-        ><Druckknopf
-          projektId={projekt.id}
-          darfAblegen={darf}
-          disabled={!darf || busy}
-          text="Nachweis archivieren und PDF ausgeben …"
-          vorbereiten={archivieren}
-        />
-      </div>
-      {#if result}<section aria-label="Berechnungsergebnis">
-          <h3>Prüfbericht</h3>
-          <Statusanzeige status={!aktuelleVorschau ? "veraltet" : result.vollstaendig ? "berechnet" : "offen"}/>
-          <div class="knoepfe links"><button type="button" class="link" onclick={()=>bereich="quellen"}>Verwendete Quellen prüfen</button><button type="button" class="link" onclick={()=>navigation?.springen(navigationsziel("nachweise"))}>Archiv und Freigaben öffnen</button></div>
-          {#if !aktuelleVorschau}<p class="hinweisbox">
-              {eingabenGleich
-                ? "Verknüpfte Gebäude-, Raumbuch- oder Grundstücksdaten haben sich geändert."
-                : "Eingaben geändert."} Vorschau erneut berechnen.
-              <button type="button" class="link" disabled={busy} onclick={pruefen}>Jetzt neu berechnen</button>
-            </p>{/if}
-          <p class:fehlertext={!result.vollstaendig}>
-            {result.vollstaendig
-              ? "Vollständig ermittelt – fachliche Bürofreigabe erfolgt in den Nachweisständen."
-              : "Offene Punkte – noch kein vollständiger Nachweis."}
-          </p>
-          <ul>
-            {#each result.offen as o}<li>{o}</li>{/each}
-          </ul>
-          <table class="ergebnistabelle">
-            <thead
-              ><tr><th>Kennzahl</th><th>Wert</th><th>Einheit</th></tr></thead
-            ><tbody
-              >{#each result.kennzahlen as k}<tr
-                  ><td>{k.bezeichnung}</td><td>{z(k.wert)}</td><td
-                    >{einheitText(k.einheit)}</td
-                  ></tr
-                >{/each}</tbody
-            >
-          </table>
-          {#if bereich !== "bericht" && result.tabellen.length}<button type="button" class="link" onclick={()=>bereich="bericht"}>Vollständigen Rechenweg anzeigen ({result.tabellen.length} Tabellen)</button>{/if}
-          {#if bereich === "bericht"}{#each result.tabellen as t}<h4>
-                {t.titel}
-              </h4>
-              <div class="tabellen-scroll">
-                <table class="ergebnistabelle">
-                  <thead
-                    ><tr
-                      >{#each t.spalten as sp}<th>{sp}</th>{/each}</tr
-                    ></thead
-                  ><tbody
-                    >{#each t.zeilen as row}<tr
-                        >{#each row as cell}<td>{cell}</td>{/each}</tr
-                      >{/each}</tbody
-                  >
-                </table>
-              </div>{/each}{/if}{#each result.hinweise as h}<p class="meta">
-              {h}
-            </p>{/each}
-        </section>{/if}
-    {/snippet}
-  </Fachliste>
-{:else}<p>Berechnungsmodul wird geladen …</p>
-  {#if s.fehler}<p role="alert" class="fehlertext">{s.fehler}</p>{/if}{/if}
-{#snippet uebernahme(path: string, f: Feld, setzen: (v: unknown) => void)}
-  <label class="uebernahme"
-    >Wert aus Nachweis übernehmen<select
-      disabled={!darf || busy}
-      value={quelleFuer(path)
-        ? `${quelleFuer(path)!.nachweis_id}|${quelleFuer(path)!.kennzahl}`
-        : ""}
-      onchange={(e) => binden(path, e.currentTarget.value, f, setzen)}
-      ><option value="">Manuelle Eingabe</option
-      >{#each quellenFuer(f) as q}<option value={q.value}>{q.titel}</option
-        >{/each}</select
-    ></label
-  >
-{/snippet}
-
+              </p>{/if}
+            <p class:fehlertext={!result.vollstaendig}>
+              {result.vollstaendig
+                ? "Vollständig ermittelt – fachliche Bürofreigabe erfolgt in den Nachweisständen."
+                : "Offene Punkte – noch kein vollständiger Nachweis."}
+            </p>
+            <ul>
+              {#each result.offen as o}<li>{o}</li>{/each}
+            </ul>
+            <table class="ergebnistabelle">
+              <thead
+                ><tr><th>Kennzahl</th><th>Wert</th><th>Einheit</th></tr></thead
+              ><tbody
+                >{#each result.kennzahlen as k}<tr
+                    ><td>{k.bezeichnung}</td><td>{z(k.wert)}</td><td
+                      >{einheitText(k.einheit)}</td
+                    ></tr
+                  >{/each}</tbody
+              >
+            </table>
+            {#if bereich !== "bericht" && result.tabellen.length}<button
+                type="button"
+                class="link"
+                onclick={() => (bereich = "bericht")}
+                >Vollständigen Rechenweg anzeigen ({result.tabellen.length} Tabellen)</button
+              >{/if}
+            {#if bereich === "bericht"}{#each result.tabellen as t}<h4>
+                  {t.titel}
+                </h4>
+                <div class="tabellen-scroll">
+                  <table class="ergebnistabelle">
+                    <thead
+                      ><tr
+                        >{#each t.spalten as sp}<th>{sp}</th>{/each}</tr
+                      ></thead
+                    ><tbody
+                      >{#each t.zeilen as row}<tr
+                          >{#each row as cell}<td>{cell}</td>{/each}</tr
+                        >{/each}</tbody
+                    >
+                  </table>
+                </div>{/each}{/if}{#each result.hinweise as h}<p class="meta">
+                {h}
+              </p>{/each}
+          </section>{/if}
+      {/snippet}
+    </Fachliste>
+  {:else}<p>Berechnungsmodul wird geladen …</p>
+    {#if s.fehler}<p role="alert" class="fehlertext">{s.fehler}</p>{/if}{/if}
+  {#snippet uebernahme(path: string, f: Feld, setzen: (v: unknown) => void)}
+    <label class="uebernahme"
+      >Wert aus Nachweis übernehmen<select
+        disabled={!darf || busy}
+        value={quelleFuer(path)
+          ? `${quelleFuer(path)!.nachweis_id}|${quelleFuer(path)!.kennzahl}`
+          : ""}
+        onchange={(e) => binden(path, e.currentTarget.value, f, setzen)}
+        ><option value="">Manuelle Eingabe</option
+        >{#each quellenFuer(f) as q}<option value={q.value}>{q.titel}</option
+          >{/each}</select
+      ></label
+    >
+  {/snippet}
 </div>
+
+{#if importVorschau}<Dialog
+    titel="Raumfakten vor Übernahme vergleichen"
+    onclose={() => (importVorschau = null)}
+  >
+    <p>{importVorschau.meldung}</p>
+    <table class="ergebnistabelle">
+      <thead><tr><th>Raum-/Positionskennung</th><th>Änderung</th></tr></thead
+      ><tbody
+        >{#each importVorschau.zeilen as z}<tr
+            ><td>{z.id}</td><td>{z.status}</td></tr
+          >{/each}</tbody
+      >
+    </table>
+    <p>
+      Die Übernahme ändert nur den Entwurf. Entfallene Quellpositionen werden
+      entfernt; manuelle Positionen bleiben erhalten. Bestehende archivierte
+      Nachweise bleiben unverändert.
+    </p>
+    <button
+      type="button"
+      disabled={!s.eingabe || importVorschau.basis !== signatur(s.eingabe)}
+      onclick={importAnwenden}
+      >Vergleich bestätigen und Entwurf übernehmen</button
+    ><button
+      type="button"
+      class="sekundaer"
+      onclick={() => (importVorschau = null)}>Abbrechen</button
+    >
+  </Dialog>{/if}
 
 <style>
   fieldset {
@@ -839,6 +1269,11 @@
     padding: 0;
     margin: 0;
     min-width: 0;
+  }
+  .nachweisweg {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    margin: 0.75rem 0;
   }
   .fach-tabs {
     display: flex;

@@ -1,0 +1,84 @@
+{
+  "datum": "2026-10-23",
+  "main_basis": "9d2aee9",
+  "frontend_pruefung": {
+    "fehler": 0,
+    "warnungen": 0
+  },
+  "produktionsbuild": "bestanden; bestehender Hinweis auf Hauptchunk über 500 kB",
+  "node22_tests": {
+    "bestanden": 17,
+    "fehlgeschlagen": 0
+  },
+  "npm_lizenzen": {
+    "pakete": 55,
+    "verstoesse": 0
+  },
+  "browserlaeufe": [
+    {
+      "suite": "workflow-ux",
+      "ergebnis": "bestanden",
+      "protokoll": "workflow-ux.txt"
+    },
+    {
+      "suite": "verfahren",
+      "ergebnis": "bestanden",
+      "protokoll": "verfahren.txt"
+    },
+    {
+      "suite": "fachberechnungen",
+      "ergebnis": "bestanden",
+      "protokoll": "fachberechnungen.txt"
+    },
+    {
+      "suite": "arbeitsplatz-ui",
+      "ergebnis": "bestanden",
+      "protokoll": "arbeitsplatz-ui.txt"
+    },
+    {
+      "suite": "ui-felder-navigation",
+      "ergebnis": "bestanden",
+      "protokoll": "ui-felder-navigation.txt"
+    },
+    {
+      "suite": "projekttabs",
+      "ergebnis": "bestanden",
+      "protokoll": "projekttabs.txt"
+    },
+    {
+      "suite": "abstandsflaechen",
+      "ergebnis": "bestanden",
+      "protokoll": "abstandsflaechen.txt"
+    },
+    {
+      "suite": "druckartefakt",
+      "ergebnis": "bestanden",
+      "protokoll": "druckartefakt.txt"
+    },
+    {
+      "suite": "handbuch-ui",
+      "ergebnis": "bestanden",
+      "protokoll": "handbuch-ui.txt"
+    },
+    {
+      "suite": "gebaeude-flurstuecke",
+      "ergebnis": "bestanden",
+      "protokoll": "gebaeude-flurstuecke.txt"
+    },
+    {
+      "suite": "ansichtsabfragen",
+      "ergebnis": "bestanden",
+      "protokoll": "ansichtsabfragen.txt"
+    },
+    {
+      "suite": "klare-projektstruktur",
+      "ergebnis": "bestanden",
+      "protokoll": "klare-projektstruktur.txt"
+    }
+  ],
+  "grenzen": [
+    "Browser mit Test-IPC und vorhandenen Core-PDF-Fixtures, keine neue fachliche Rechtsprüfung",
+    "Keine realen Portalabgaben, Office-/CAD-Starts oder nativen Screenreaderläufe",
+    "Keine Änderungen an Core-Verträgen oder Datenbankschemata"
+  ]
+}

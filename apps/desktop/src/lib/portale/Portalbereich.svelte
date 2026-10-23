@@ -307,7 +307,10 @@
       for (const f of a) {
         if (!entwuerfe[f.objekt]) entwuerfe[f.objekt] = neu(f.daten);
       }
-      if (!vid || !a.some((a) => a.objekt === vid)) vid = a[0]?.objekt ?? "";
+      if (a.some((a) => a.objekt === navigation?.verfahren))
+        vid = navigation!.verfahren!;
+      else if (!vid || !a.some((a) => a.objekt === vid))
+        vid = a[0]?.objekt ?? "";
       geladen = true;
       if (pendingNavigation) sprung(pendingNavigation);
     } catch (e) {
@@ -717,6 +720,9 @@
       <label
         >Verfahrensakte<select
           aria-label="Verfahrensakte"
+          onchange={() => {
+            if (navigation) navigation.verfahren = vid || null;
+          }}
           bind:value={vid}
           disabled={laeuft}
           >{#each akten as a}<option value={a.objekt}

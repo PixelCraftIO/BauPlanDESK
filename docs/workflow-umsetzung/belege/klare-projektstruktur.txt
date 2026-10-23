@@ -1,0 +1,8 @@
+[
+  "Eine Sidebar, keine doppelte Projekt- oder Werkzeugnavigation",
+  "Rechtsgrundlagen schalten Bereiche frei; Festsetzungen separat",
+  "Flurstücksfakten ohne Grundbuch speichern; getrennte Ermittlung ohne Grundbuchpflicht; gemeinsame Eingaben für GRZ/GFZ",
+  "Projektvorlage ohne leere Zwischenkopie; erneutes Ausfüllen erhält Dokumentidentität; kein Exportdialog",
+  "Neu hinzugefügte Projektdateien erscheinen beim erneuten Öffnen der Auszugswahl; Bezug speichert die konkrete Version",
+  "Hell/Dunkel/System und Ordnerauswahl mit Abbruch in Einstellungen"
+]

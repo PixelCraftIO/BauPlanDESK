@@ -57,7 +57,7 @@ with sync_playwright() as p:
  expect(result.get_by_role('img',name='Abstandsflächenplan mit Grundstücksgrenzen und Konflikten')).to_be_visible()
  page.screenshot(path=str(out/'pruefbericht.png'))
  # Archivieren und der tatsächliche PDF-Bericht mit Vektorplan.
- page.get_by_role('button',name='Nachweis archivieren und PDF ausgeben …',exact=True).click()
+ page.get_by_role('button',name='Nachweis erstellen …',exact=True).click()
  dialog=page.get_by_role('dialog',name='Druckausgabe',exact=True)
  dialog.get_by_role('button',name='Druckausgabe erstellen',exact=False).click()
  expect(dialog.get_by_role('heading',name=f'Druckvorschau · {wf["druckseiten"]} Seiten')).to_be_visible(timeout=30000)

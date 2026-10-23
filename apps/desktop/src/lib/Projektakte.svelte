@@ -67,6 +67,7 @@
     onprojekt,
     ondialog,
     onhilfe,
+    onbibliothek,
   }: {
     projekt: Project;
     ansicht?: Ansicht;
@@ -80,18 +81,25 @@
     importAusloeser: number;
     onprojekt: (p: Project) => void;
     onhilfe?: () => void;
+    onbibliothek?: () => void;
     ondialog: (
       art: "projektdaten" | "bauherren" | "beteiligte" | "buero" | "mitglieder",
     ) => void;
   } = $props();
   const editoren = projektEditoren();
   const navigation = projektNavigationAnlegen();
+  $effect(() => {
+    navigation.benutzerId = ich?.id ?? null;
+    navigation.projektId = projekt.id;
+  });
+  let kopfKompakt = $state(false);
   let navigationsNummer = 0;
   $effect(() => {
     const a = navigation.auftrag;
     if (!a || a.nummer === navigationsNummer) return;
     navigationsNummer = a.nummer;
-    if (MODULE.some(m => m.id === a.ziel.bereich)) ansicht = a.ziel.bereich as Ansicht;
+    if (MODULE.some((m) => m.id === a.ziel.bereich))
+      ansicht = a.ziel.bereich as Ansicht;
   });
   function oeffnen(ziel: UebersichtsZiel) {
     if (!MODULE.some((m) => m.id === ziel.bereich)) return;
@@ -113,7 +121,9 @@
   let festsetzungsEditor = $state<Rechtsgrundlagen>();
   let stammdatenEditor = $state<Rechtsgrundlagen>();
   let einreichenBesucht = $state(false);
-  $effect(()=>{if(ansicht==="einreichen")einreichenBesucht=true;});
+  $effect(() => {
+    if (ansicht === "einreichen") einreichenBesucht = true;
+  });
   let druckBesucht = $state(false);
   $effect(() => {
     if (ansicht === "druck") druckBesucht = true;
@@ -200,7 +210,9 @@
   function bereich(id: Ansicht) {
     const modul = MODULE.find((m) => m.id === id);
     ansicht =
-      modul && voraussetzung(projekt, modul) ? "rechtsgrundlagen" : id;
+      modul?.id === "festsetzungen" && voraussetzung(projekt, modul)
+        ? "rechtsgrundlagen"
+        : id;
   }
   function registerOeffnen(r: NavZweig) {
     const ziel =
@@ -228,10 +240,22 @@
     >
   </div>{/if}
 <header class="projektkopf" aria-label="Aktenkopf">
-  <div class="aktenkopf-titel"><h1>{projekt.name}</h1>
-    {#if onhilfe}<button type="button" class="link" onclick={onhilfe}>Hilfe zu diesem Bereich</button>{/if}
+  <div class="aktenkopf-titel">
+    <h1>{projekt.name}</h1>
+    <button
+      type="button"
+      class="link"
+      aria-expanded={!kopfKompakt}
+      onclick={() => (kopfKompakt = !kopfKompakt)}
+      >{kopfKompakt
+        ? "Projektdetails anzeigen"
+        : "Projektdetails einklappen"}</button
+    >
+    {#if onhilfe}<button type="button" class="link" onclick={onhilfe}
+        >Hilfe zu diesem Bereich</button
+      >{/if}
   </div>
-  <dl class="aktendaten">
+  <dl class="aktendaten" hidden={kopfKompakt}>
     <div>
       <dt>Bundesland</dt>
       <dd>{landName(projekt.bundesland)}</dd>
@@ -273,287 +297,356 @@
 </div>
 
 <div class="aktenrumpf">
-<Sidebar {projekt} {ansicht} onbereich={bereich} />
-<main>
-  {#if ["grundstueck","grz","gfz","geschosse","volumen","abstand","ueberbaubarkeit","stellplaetze","wohnflaechen","din277","vollgeschosse","hoehen","freiflaechen","entwaesserung","dokumente","formulare","druck","unterlagen"].includes(ansicht)}<Quellenweg bereich={ansicht}/>{/if}
-  {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "einreichen")}><EinreichenStart projektId={projekt.id} version={projekt.version} entwuerfe={editoren.hatAenderungen()} aktiv={aktiv && ansicht === "einreichen"} /></Arbeitsbereich></section>{/if}
-  {#each FACHMODULE as modul (modul.id)}
-    {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}><Arbeitsbereich aktiv={aktiv && !(ansicht !== modul.id)}>
-        <Fachbereich
-          laden={modul.laden}
-          aktiv={aktiv && ansicht === modul.id}
-          {projekt}
+  <Sidebar {projekt} {aktiv} {ansicht} onbereich={bereich} />
+  <main>
+    {#if navigation.rueckweg && navigation.rueckweg.bereich !== ansicht}<button
+        class="link"
+        onclick={() => {
+          const z = navigation.rueckweg;
+          navigation.rueckweg = null;
+          if (z) navigation.springen(z);
+        }}>Zurück zum vorherigen Arbeitsbereich →</button
+      >{/if}
+    {#if ["grundstueck", "grz", "gfz", "geschosse", "volumen", "abstand", "ueberbaubarkeit", "stellplaetze", "wohnflaechen", "din277", "vollgeschosse", "hoehen", "freiflaechen", "entwaesserung", "dokumente", "formulare", "druck", "unterlagen"].includes(ansicht)}<Quellenweg
+        bereich={ansicht}
+      />{/if}
+    {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}>
+        <Arbeitsbereich aktiv={aktiv && !(ansicht !== "einreichen")}
+          ><EinreichenStart
+            projektId={projekt.id}
+            version={projekt.version}
+            entwuerfe={editoren.hatAenderungen()}
+            aktiv={aktiv && ansicht === "einreichen"}
+          /></Arbeitsbereich
+        >
+      </section>{/if}
+    {#each FACHMODULE as modul (modul.id)}
+      {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}>
+          <Arbeitsbereich aktiv={aktiv && !(ansicht !== modul.id)}>
+            <Fachbereich
+              laden={modul.laden}
+              aktiv={aktiv && ansicht === modul.id}
+              {projekt}
+              benutzerId={ich?.id ?? ""}
+              darf={darf("bearbeitung")}
+              darfFreigeben={darf("projektleitung")}
+            />
+          </Arbeitsbereich>
+        </section>{/if}
+    {/each}
+    {#if ansicht === "projektuebersicht"}<Projektuebersicht
+        projektId={projekt.id}
+        version={projekt.version}
+        sichtbar={aktiv}
+        benutzerId={ich?.id ?? ""}
+        entwuerfe={editoren.hatAenderungen()}
+        onoeffnen={oeffnen}
+      />{/if}
+    <section hidden={ansicht !== "uebersicht"}>
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "uebersicht")}>
+        <h2>Stammdaten</h2>
+        <dl class="daten">
+          <dt>Name</dt>
+          <dd>{projekt.name}</dd>
+          <dt>Bundesland</dt>
+          <dd>{landName(projekt.bundesland)}</dd>
+          <dt>Grundstücksfläche</dt>
+          <dd>
+            {#each grundstuecke as g (g.schluessel)}<div>
+                {g.bezeichnung}: {g.bezugsflaeche_m2?.toLocaleString("de-DE") ??
+                  "noch zu prüfen"}
+                {g.bezugsflaeche_m2 === null ? "" : "m²"}<span class="meta">
+                  · {g.quelle}</span
+                >
+              </div>{:else}{flaechenFehler ??
+                "Noch keine Grundstücksfläche ermittelt"}{/each}
+          </dd>
+          <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
+          <dd>
+            {#each bauherren as k (k.id)}
+              <div>
+                {kundenname(k)}
+                <span class="meta"
+                  >({kategorieName(k.kategorie)}{k.telefon
+                    ? `, ${k.telefon}`
+                    : ""}{k.email ? `, ${k.email}` : ""})</span
+                >
+              </div>
+            {:else}–{/each}
+          </dd>
+          <dt>Rechtsgrundlage</dt>
+          <dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
+          <dt>Bebauungsplan</dt>
+          <dd>
+            {bebauungsplanName(projekt.planungsrecht.bebauungsplan_art)}{![
+              "kein",
+              "ungeklaert",
+            ].includes(projekt.planungsrecht.bebauungsplan_art) &&
+            projekt.planungsrecht.plan_bezeichnung
+              ? ` · ${projekt.planungsrecht.plan_bezeichnung}`
+              : ""}
+          </dd>
+          <dt>Angelegt</dt>
+          <dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
+          <dt>Zuletzt geändert</dt>
+          <dd>
+            {new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})
+          </dd>
+        </dl>
+        <div class="knoepfe links">
+          <button
+            class="sekundaer"
+            onclick={() => ondialog("projektdaten")}
+            disabled={!darf("bearbeitung")}>Bearbeiten …</button
+          >
+          <button class="sekundaer" onclick={() => ondialog("bauherren")}
+            >Bauherren …</button
+          >
+          <button class="sekundaer" onclick={() => ondialog("beteiligte")}
+            >Weitere Beteiligte …</button
+          >
+          {#if darfMitglieder}
+            <button class="sekundaer" onclick={() => ondialog("mitglieder")}
+              >Projektmitglieder …</button
+            >
+          {/if}
+          <button
+            class="sekundaer"
+            onclick={() => (ansicht = "rechtsgrundlagen")}
+            >Rechtsgrundlagen …</button
+          >
+        </div>
+        <Projektorganisation
+          projektId={projekt.id}
           benutzerId={ich?.id ?? ""}
           darf={darf("bearbeitung")}
-          darfFreigeben={darf("projektleitung")}
         />
-      </Arbeitsbereich></section>{/if}
-  {/each}
-  {#if ansicht === "projektuebersicht"}<Projektuebersicht
-      projektId={projekt.id}
-      version={projekt.version}
-      sichtbar={aktiv}
-      benutzerId={ich?.id ?? ""}
-      entwuerfe={editoren.hatAenderungen()}
-      onoeffnen={oeffnen}
-    />{/if}
-  <section hidden={ansicht !== "uebersicht"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "uebersicht")}>
-    <h2>Stammdaten</h2>
-    <dl class="daten">
-      <dt>Name</dt>
-      <dd>{projekt.name}</dd>
-      <dt>Bundesland</dt>
-      <dd>{landName(projekt.bundesland)}</dd>
-      <dt>Grundstücksfläche</dt>
-      <dd>
-        {#each grundstuecke as g (g.schluessel)}<div>
-            {g.bezeichnung}: {g.bezugsflaeche_m2?.toLocaleString("de-DE") ??
-              "noch zu prüfen"}
-            {g.bezugsflaeche_m2 === null ? "" : "m²"}<span class="meta">
-              · {g.quelle}</span
-            >
-          </div>{:else}{flaechenFehler ??
-            "Noch keine Grundstücksfläche ermittelt"}{/each}
-      </dd>
-      <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
-      <dd>
-        {#each bauherren as k (k.id)}
-          <div>
-            {kundenname(k)}
-            <span class="meta"
-              >({kategorieName(k.kategorie)}{k.telefon
-                ? `, ${k.telefon}`
-                : ""}{k.email ? `, ${k.email}` : ""})</span
-            >
-          </div>
-        {:else}–{/each}
-      </dd>
-      <dt>Rechtsgrundlage</dt>
-      <dd>{rechtsgrundlageName(projekt.planungsrecht.rechtsgrundlage)}</dd>
-      <dt>Bebauungsplan</dt>
-      <dd>
-        {bebauungsplanName(projekt.planungsrecht.bebauungsplan_art)}{![
-          "kein",
-          "ungeklaert",
-        ].includes(projekt.planungsrecht.bebauungsplan_art) &&
-        projekt.planungsrecht.plan_bezeichnung
-          ? ` · ${projekt.planungsrecht.plan_bezeichnung}`
-          : ""}
-      </dd>
-      <dt>Angelegt</dt>
-      <dd>{new Date(projekt.created_at).toLocaleString("de-DE")}</dd>
-      <dt>Zuletzt geändert</dt>
-      <dd>
-        {new Date(projekt.updated_at).toLocaleString("de-DE")} (Version {projekt.version})
-      </dd>
-    </dl>
-    <div class="knoepfe links">
-      <button
-        class="sekundaer"
-        onclick={() => ondialog("projektdaten")}
-        disabled={!darf("bearbeitung")}>Bearbeiten …</button
-      >
-      <button class="sekundaer" onclick={() => ondialog("bauherren")}
-        >Bauherren …</button
-      >
-      <button class="sekundaer" onclick={() => ondialog("beteiligte")}
-        >Weitere Beteiligte …</button
-      >
-      {#if darfMitglieder}
-        <button class="sekundaer" onclick={() => ondialog("mitglieder")}>Projektmitglieder …</button>
-      {/if}
-      <button class="sekundaer" onclick={() => (ansicht = "rechtsgrundlagen")}
-        >Rechtsgrundlagen …</button
-      >
-    </div>
-    <Projektorganisation
-      projektId={projekt.id}
-      benutzerId={ich?.id ?? ""}
-      darf={darf("bearbeitung")}
-    />
-    <Rechtsgrundlagen
-      bind:this={stammdatenEditor}
-      {projekt}
-      darf={darf("bearbeitung")}
-      {onprojekt}
-      bereich="stammdaten"
-    />
-  </Arbeitsbereich></section>
-  <section hidden={ansicht !== "abstand"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "abstand")}>
-    <h2>Abstandsflächen</h2>
-    {#key projekt.id}
-      <AbstandsProjekt
-        {projekt}
-        benutzerId={ich?.id ?? ""}
-        darf={darf("bearbeitung")}
-        darfFreigeben={darf("projektleitung")}
-      />
-      <details>
-        <summary>Einfache Tiefenvorprüfung (bisheriger Rechner)</summary
-        ><Abstandsflaeche
-          startLand={projekt.bundesland}
-          projektId={projekt.id}
-          darfSpeichern={darf("bearbeitung")}
-          regelpakete={info?.regelpakete ?? []}
-          onfehler={melde}
-        />
-      </details>
-    {/key}
-  </Arbeitsbereich></section>
-  <section hidden={ansicht !== "plaene"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "plaene")}>
-    <h2>Pläne</h2>
-    {#key projekt.id}
-      <Plaene
-        bind:this={planEditor}
-        {projekt}
-        aktiv={aktiv && ansicht === "plaene"}
-        darf={darf("bearbeitung")}
-        {onprojekt}
-        bind:dokumentId={planDokument}
-        onflaeche={grundstuecksflaecheUebernehmen}
-        onfehler={melde}
-      />
-    {/key}
-  </Arbeitsbereich></section>
-  <section
-    hidden={ansicht !== "flurstuecke"}
-    aria-label="Grundstücksinformationen"
-  ><Arbeitsbereich aktiv={aktiv && !(ansicht !== "flurstuecke")}>
-    <h2>Flurstücke und Grundbuch</h2>
-    {#key projekt.id}<Grundstuecksinformationen
-        aktiv={aktiv && ansicht === "flurstuecke"}
-        {projekt}
-        darf={darf("bearbeitung")}
-        {onprojekt}
-      />{/key}
-  </Arbeitsbereich></section>
-  <section hidden={!berechnungsAnsichten.includes(ansicht)}><Arbeitsbereich aktiv={aktiv && !(!berechnungsAnsichten.includes(ansicht))}>
-    <div class="maskenkopf">
-      <h2>
-        {berechnungsTitel[
-          (ansicht === "mass" ? "grundstueck" : ansicht) as BerechnungsBereich
-        ] ?? "Berechnungen"}
-      </h2>
-      <Druckknopf
-        projektId={projekt.id}
-        quelle={ansicht === "grundstueck"
-          ? { art: "baugrundstueck" }
-          : undefined}
-        disabled={!!nutzungsEditor?.hatAenderungen()}
-        text="Druckausgabe zusammenstellen"
-      />
-    </div>
-    {#key projekt.id}
-      <MassDerNutzung
-        bind:this={nutzungsEditor}
-        bezugsflaechenAktuell={grundstuecke.length > 0 && !flaechenFehler}
-        {projekt}
-        darf={darf("bearbeitung")}
-        {onprojekt}
-        bereich={(berechnungsAnsichten.includes(ansicht) && ansicht !== "mass"
-          ? ansicht
-          : "grundstueck") as BerechnungsBereich}
-      />
-    {/key}
-  </Arbeitsbereich></section>
-  <section
-    aria-label="Rechtsgrundlagen"
-    hidden={ansicht !== "rechtsgrundlagen"}
-  ><Arbeitsbereich aktiv={aktiv && !(ansicht !== "rechtsgrundlagen")}>
-    <h2>Rechtsgrundlagen</h2>
-    {#key projekt.id}
-      <Rechtsgrundlagen
-        bind:this={rechtsEditor}
-        {projekt}
-        darf={darf("bearbeitung")}
-        {onprojekt}
-      />
-    {/key}
-  </Arbeitsbereich></section>
-  <section hidden={ansicht !== "festsetzungen"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "festsetzungen")}>
-    <h2>Bebauungsplanfestsetzungen</h2>
-    <Rechtsgrundlagen
-      bind:this={festsetzungsEditor}
-      {projekt}
-      darf={darf("bearbeitung")}
-      {onprojekt}
-      bereich="festsetzungen"
-    />
-  </Arbeitsbereich></section>
-  {#if druckBesucht}<section hidden={ansicht !== "druck"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "druck")}>
-      <Druckausgabe projektId={projekt.id} darfAblegen={darf("bearbeitung")} />
-    </Arbeitsbereich></section>{/if}
-  {#if formulareBesucht}<section hidden={ansicht !== "formulare"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "formulare")}>
-      <ProjektFormulare
-        bind:this={formularEditor}
-        {projekt}
-        darf={darf("bearbeitung")}
-        ongespeichert={dokumenteAktualisieren}
-        ondateien={() => (ansicht = "dokumente")}
-      />
-    </Arbeitsbereich></section>{/if}
-  {#if fachBesucht.portale && ich}<section hidden={ansicht !== "portale"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "portale")}>
-      <h2>Einreichen / Portal</h2>
-      <Portalbereich {projekt} benutzer={ich} />
-    </Arbeitsbereich></section>{/if}
-  {#if fachBesucht.xbau && ich}<section hidden={ansicht !== "xbau"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "xbau")}>
-      <h2>XBau-Nachrichten</h2>
-      <XbauPostfach {projekt} benutzer={ich} />
-    </Arbeitsbereich></section>{/if}
-  <!-- Bleibt eingehängt, damit ungespeicherte Antragsänderungen beim Bereichswechsel erhalten bleiben. -->
-  <section hidden={ansicht !== "bauantrag"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "bauantrag")}>
-    <h2>Bauantrag (XBau)</h2>
-    {#if ich}
-      {#key projekt.id}
-        <Bauantrag
-          bind:this={antragEditor}
+        <Rechtsgrundlagen
+          bind:this={stammdatenEditor}
           {projekt}
-          benutzer={ich}
-          onbuero={() => ondialog("buero")}
-          onbauherren={() => ondialog("bauherren")}
-          onbeteiligte={() => ondialog("beteiligte")}
-          onfehler={melde}
+          darf={darf("bearbeitung")}
+          {onprojekt}
+          bereich="stammdaten"
         />
-      {/key}
-    {/if}
-  </Arbeitsbereich></section>
-  {#if ansicht === "protokoll"}
-    <section>
-      <h2>Protokoll</h2>
-      <p class="meta">
-        Wer hat wann was im Projekt geändert. Die neuesten Einträge stehen oben.
-      </p>
-      <!-- Wird bei jedem Wechsel auf den Reiter neu eingehängt und lädt dabei frisch. -->
-      <Protokoll projektId={projekt.id} />
+      </Arbeitsbereich>
     </section>
-  {/if}
-  {#if einreichungenBesucht}<section hidden={ansicht !== "einreichungen"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "einreichungen")}>
-      <Einreichungen
-        bind:this={einreichungsEditor}
-        projektId={projekt.id}
-        darfAblegen={darf("bearbeitung")}
-        onfehler={melde}
-      />
-    </Arbeitsbereich></section>{/if}
-  <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
-  <section hidden={ansicht !== "dokumente"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "dokumente")}>
-    <h2>Projektdateien</h2>
-    {#if ich}<Dokumente
-        bind:this={dokumentEditor}
-        projektId={projekt.id}
-        benutzer={ich}
-        aktiv={aktiv && ansicht === "dokumente"}
-        {importAusloeser}
-        onplan={(id) => {
-          planDokument = id;
-          ansicht = "plaene";
-        }}
-        onfehler={melde}
-      />{/if}
-  </Arbeitsbereich></section>
-</main>
+    <section hidden={ansicht !== "abstand"}>
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "abstand")}>
+        <h2>Abstandsflächen</h2>
+        {#key projekt.id}
+          <AbstandsProjekt
+            {projekt}
+            benutzerId={ich?.id ?? ""}
+            darf={darf("bearbeitung")}
+            darfFreigeben={darf("projektleitung")}
+          />
+          <details>
+            <summary>Einfache Tiefenvorprüfung (bisheriger Rechner)</summary
+            ><Abstandsflaeche
+              startLand={projekt.bundesland}
+              projektId={projekt.id}
+              darfSpeichern={darf("bearbeitung")}
+              regelpakete={info?.regelpakete ?? []}
+              onfehler={melde}
+            />
+          </details>
+        {/key}
+      </Arbeitsbereich>
+    </section>
+    <section hidden={ansicht !== "plaene"}>
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "plaene")}>
+        <h2>Pläne</h2>
+        {#key projekt.id}
+          <Plaene
+            bind:this={planEditor}
+            {projekt}
+            aktiv={aktiv && ansicht === "plaene"}
+            darf={darf("bearbeitung")}
+            {onprojekt}
+            bind:dokumentId={planDokument}
+            onflaeche={grundstuecksflaecheUebernehmen}
+            onfehler={melde}
+          />
+        {/key}
+      </Arbeitsbereich>
+    </section>
+    <section
+      hidden={ansicht !== "flurstuecke"}
+      aria-label="Grundstücksinformationen"
+    >
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "flurstuecke")}>
+        <h2>Flurstücke und Grundbuch</h2>
+        {#key projekt.id}<Grundstuecksinformationen
+            aktiv={aktiv && ansicht === "flurstuecke"}
+            {projekt}
+            darf={darf("bearbeitung")}
+            {onprojekt}
+          />{/key}
+      </Arbeitsbereich>
+    </section>
+    <section hidden={!berechnungsAnsichten.includes(ansicht)}>
+      <Arbeitsbereich aktiv={aktiv && !!berechnungsAnsichten.includes(ansicht)}>
+        <div class="maskenkopf">
+          <h2>
+            {berechnungsTitel[
+              (ansicht === "mass"
+                ? "grundstueck"
+                : ansicht) as BerechnungsBereich
+            ] ?? "Berechnungen"}
+          </h2>
+          <Druckknopf
+            projektId={projekt.id}
+            quelle={ansicht === "grundstueck"
+              ? { art: "baugrundstueck" }
+              : undefined}
+            disabled={!!nutzungsEditor?.hatAenderungen()}
+            text="Druckausgabe zusammenstellen"
+          />
+        </div>
+        {#key projekt.id}
+          <MassDerNutzung
+            benutzerId={ich?.id ?? ""}
+            bind:this={nutzungsEditor}
+            bezugsflaechenAktuell={grundstuecke.length > 0 && !flaechenFehler}
+            {projekt}
+            darf={darf("bearbeitung")}
+            {onprojekt}
+            bereich={(berechnungsAnsichten.includes(ansicht) &&
+            ansicht !== "mass"
+              ? ansicht
+              : "grundstueck") as BerechnungsBereich}
+          />
+        {/key}
+      </Arbeitsbereich>
+    </section>
+    <section
+      aria-label="Rechtsgrundlagen"
+      hidden={ansicht !== "rechtsgrundlagen"}
+    >
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "rechtsgrundlagen")}>
+        <h2>Rechtsgrundlagen</h2>
+        {#key projekt.id}
+          <Rechtsgrundlagen
+            bind:this={rechtsEditor}
+            {projekt}
+            darf={darf("bearbeitung")}
+            {onprojekt}
+          />
+        {/key}
+      </Arbeitsbereich>
+    </section>
+    <section hidden={ansicht !== "festsetzungen"}>
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "festsetzungen")}>
+        <h2>Bebauungsplanfestsetzungen</h2>
+        <Rechtsgrundlagen
+          bind:this={festsetzungsEditor}
+          {projekt}
+          darf={darf("bearbeitung")}
+          {onprojekt}
+          bereich="festsetzungen"
+        />
+      </Arbeitsbereich>
+    </section>
+    {#if druckBesucht}<section hidden={ansicht !== "druck"}>
+        <Arbeitsbereich aktiv={aktiv && !(ansicht !== "druck")}>
+          <Druckausgabe
+            projektId={projekt.id}
+            darfAblegen={darf("bearbeitung")}
+          />
+        </Arbeitsbereich>
+      </section>{/if}
+    {#if formulareBesucht}<section hidden={ansicht !== "formulare"}>
+        <Arbeitsbereich aktiv={aktiv && !(ansicht !== "formulare")}>
+          <ProjektFormulare
+            bind:this={formularEditor}
+            {projekt}
+            darf={darf("bearbeitung")}
+            {onbibliothek}
+            aktiv={aktiv && ansicht === "formulare"}
+            ongespeichert={dokumenteAktualisieren}
+            ondateien={() => (ansicht = "dokumente")}
+          />
+        </Arbeitsbereich>
+      </section>{/if}
+    {#if fachBesucht.portale && ich}<section hidden={ansicht !== "portale"}>
+        <Arbeitsbereich aktiv={aktiv && !(ansicht !== "portale")}>
+          <h2>Einreichen / Portal</h2>
+          <Portalbereich {projekt} benutzer={ich} />
+        </Arbeitsbereich>
+      </section>{/if}
+    {#if fachBesucht.xbau && ich}<section hidden={ansicht !== "xbau"}>
+        <Arbeitsbereich aktiv={aktiv && !(ansicht !== "xbau")}>
+          <h2>XBau-Nachrichten</h2>
+          <XbauPostfach {projekt} benutzer={ich} />
+        </Arbeitsbereich>
+      </section>{/if}
+    <!-- Bleibt eingehängt, damit ungespeicherte Antragsänderungen beim Bereichswechsel erhalten bleiben. -->
+    <section hidden={ansicht !== "bauantrag"}>
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "bauantrag")}>
+        <h2>Bauantrag (XBau)</h2>
+        {#if ich}
+          {#key projekt.id}
+            <Bauantrag
+              bind:this={antragEditor}
+              {projekt}
+              benutzer={ich}
+              onbuero={() => ondialog("buero")}
+              onbauherren={() => ondialog("bauherren")}
+              onbeteiligte={() => ondialog("beteiligte")}
+              onfehler={melde}
+            />
+          {/key}
+        {/if}
+      </Arbeitsbereich>
+    </section>
+    {#if ansicht === "protokoll"}
+      <section>
+        <h2>Protokoll</h2>
+        <p class="meta">
+          Wer hat wann was im Projekt geändert. Die neuesten Einträge stehen
+          oben.
+        </p>
+        <!-- Wird bei jedem Wechsel auf den Reiter neu eingehängt und lädt dabei frisch. -->
+        <Protokoll projektId={projekt.id} />
+      </section>
+    {/if}
+    {#if einreichungenBesucht}<section hidden={ansicht !== "einreichungen"}>
+        <Arbeitsbereich aktiv={aktiv && !(ansicht !== "einreichungen")}>
+          <Einreichungen
+            bind:this={einreichungsEditor}
+            projektId={projekt.id}
+            darfAblegen={darf("bearbeitung")}
+            onfehler={melde}
+          />
+        </Arbeitsbereich>
+      </section>{/if}
+    <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
+    <section hidden={ansicht !== "dokumente"}>
+      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "dokumente")}>
+        <h2>Projektdateien</h2>
+        {#if ich}<Dokumente
+            bind:this={dokumentEditor}
+            projektId={projekt.id}
+            benutzer={ich}
+            aktiv={aktiv && ansicht === "dokumente"}
+            {importAusloeser}
+            onplan={(id) => {
+              planDokument = id;
+              ansicht = "plaene";
+            }}
+            onfehler={melde}
+          />{/if}
+      </Arbeitsbereich>
+    </section>
+  </main>
 </div>
 
 <style>
-  .aktenkopf-titel { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap; }
+  .aktenkopf-titel {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
 </style>

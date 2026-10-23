@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { projektNavigation } from "./projektNavigation.svelte";
   import { listen } from "@tauri-apps/api/event";
   import { heuteDeutsch } from "./kalender";
   import { onMount, onDestroy, untrack } from "svelte";
@@ -27,6 +28,24 @@
     darfAblegen?: boolean;
     onbusy?: (b: boolean) => void;
   } = $props();
+  const navigation = projektNavigation();
+  let auswahlHinweis = $state("");
+  function abgabestandUebernehmen() {
+    if (!katalog || !navigation?.druckauswahl) return;
+    const w = navigation.druckauswahl;
+    const indices = w.dokumente.map((d) =>
+      katalog!.eintraege.findIndex(
+        (e) =>
+          e.quelle.art === "dokument" &&
+          e.quelle.dokument_id === d.dokument_id &&
+          e.quelle.version === d.version &&
+          e.verfuegbar,
+      ),
+    );
+    auswahl = indices.filter((i) => i >= 0);
+    auswahlHinweis = `${auswahl.length} von ${w.dokumente.length} exakten Dokumentversionen aus „${w.titel}“ ausgewählt. ${indices.some((i) => i < 0) ? "Nicht verfügbare oder nicht druckbare Versionen fehlen: Einzeldateien/Originale im Abgabestand prüfen." : "Auswahl und Seiten vor Ausgabe kontrollieren."}`;
+    titel = w.titel;
+  }
   let gestaltung = $state<Druckgestaltung>({
     kopfzeile: "{Projekt}",
     fusszeile: "Stand: {Datum}",
@@ -59,12 +78,15 @@
   let druckVorgang = $state<string | null>(null);
   let abgebrochen = false;
   function freigeben() {
-    if (pdf?.artefakt) void druckApi.entfernen(projektId, pdf.artefakt).catch(() => {});
-    pdf = null; daten = undefined;
+    if (pdf?.artefakt)
+      void druckApi.entfernen(projektId, pdf.artefakt).catch(() => {});
+    pdf = null;
+    daten = undefined;
   }
   onDestroy(() => {
     beendet = true;
-    if (druckVorgang) void druckApi.abbrechen(projektId,druckVorgang).catch(() => {});
+    if (druckVorgang)
+      void druckApi.abbrechen(projektId, druckVorgang).catch(() => {});
     freigeben();
   });
   let signatur = $state("");
@@ -212,25 +234,49 @@
     try {
       const a = auftrag();
       const vorgang = crypto.randomUUID();
-      druckVorgang = vorgang; abgebrochen = false;
+      druckVorgang = vorgang;
+      abgebrochen = false;
       fortschritt = "Druckauftrag wartet auf Verarbeitung …";
-      const abmelden = await listen<{vorgang: string; fertig: number; gesamt: number}>("druckfortschritt", e => {
-        if (e.payload.vorgang === druckVorgang) fortschritt = e.payload.fertig === e.payload.gesamt
-          ? "Druckpaket wird zusammengeführt …" : `Unterlage ${e.payload.fertig + 1} von ${e.payload.gesamt} vorbereiten …`;
+      const abmelden = await listen<{
+        vorgang: string;
+        fertig: number;
+        gesamt: number;
+      }>("druckfortschritt", (e) => {
+        if (e.payload.vorgang === druckVorgang)
+          fortschritt =
+            e.payload.fertig === e.payload.gesamt
+              ? "Druckpaket wird zusammengeführt …"
+              : `Unterlage ${e.payload.fertig + 1} von ${e.payload.gesamt} vorbereiten …`;
       });
       let p: Druckvorschau;
-      try { p = await druckApi.erstellen(projektId, a, vorgang); } finally { abmelden(); }
-      if (abgebrochen) { if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt); return; }
-      if (beendet) { if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt); return; }
+      try {
+        p = await druckApi.erstellen(projektId, a, vorgang);
+      } finally {
+        abmelden();
+      }
+      if (abgebrochen) {
+        if (p.artefakt) await druckApi.entfernen(projektId, p.artefakt);
+        return;
+      }
+      if (beendet) {
+        if (p.artefakt) await druckApi.entfernen(projektId, p.artefakt);
+        return;
+      }
       let neu: Uint8Array | undefined;
       try {
-        if (p.artefakt) neu = new Uint8Array(await druckApi.daten(projektId,p.artefakt));
-      } catch(e) {
-        if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt).catch(() => {});
+        if (p.artefakt)
+          neu = new Uint8Array(await druckApi.daten(projektId, p.artefakt));
+      } catch (e) {
+        if (p.artefakt)
+          await druckApi.entfernen(projektId, p.artefakt).catch(() => {});
         throw e;
       }
-      if (beendet || abgebrochen) { if (p.artefakt) await druckApi.entfernen(projektId,p.artefakt); return; }
-      pdf = p; daten = neu;
+      if (beendet || abgebrochen) {
+        if (p.artefakt) await druckApi.entfernen(projektId, p.artefakt);
+        return;
+      }
+      pdf = p;
+      daten = neu;
       ablageVorgang = crypto.randomUUID();
       signatur = JSON.stringify(a);
       seite = 1;
@@ -238,14 +284,21 @@
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
-      busy = false; druckVorgang = null; fortschritt = "";
+      busy = false;
+      druckVorgang = null;
+      fortschritt = "";
     }
   }
   async function abbrechen() {
     if (!druckVorgang) return;
     abgebrochen = true;
-    try { await druckApi.abbrechen(projektId,druckVorgang); meldung = "Abbruch angefordert. Die laufende PDF-Verarbeitung wird noch abgeschlossen."; }
-    catch(e) { fehler = fehlertext(e); }
+    try {
+      await druckApi.abbrechen(projektId, druckVorgang);
+      meldung =
+        "Abbruch angefordert. Die laufende PDF-Verarbeitung wird noch abgeschlossen.";
+    } catch (e) {
+      fehler = fehlertext(e);
+    }
   }
 
   async function ablegen() {
@@ -253,8 +306,19 @@
     busy = true;
     fehler = "";
     try {
-      const d = pdf.artefakt ? await druckApi.artefaktAblegen(projektId,pdf.artefakt,titel,ablageVorgang)
-        : await druckApi.ablegen(projektId,titel,pdf.pdf_base64!,ablageVorgang);
+      const d = pdf.artefakt
+        ? await druckApi.artefaktAblegen(
+            projektId,
+            pdf.artefakt,
+            titel,
+            ablageVorgang,
+          )
+        : await druckApi.ablegen(
+            projektId,
+            titel,
+            pdf.pdf_base64!,
+            ablageVorgang,
+          );
       meldung = `Im Projekt abgelegt: ${d.file_name}. In der Verfahrensakte können Sie diese Version dem Abgabestand zuordnen.`;
     } catch (e) {
       fehler = fehlertext(e);
@@ -273,7 +337,8 @@
         filters: [{ name: "PDF", extensions: ["pdf"] }],
       });
       if (ziel) {
-        if (pdf.artefakt) await druckApi.artefaktExportieren(projektId,pdf.artefakt,ziel);
+        if (pdf.artefakt)
+          await druckApi.artefaktExportieren(projektId, pdf.artefakt, ziel);
         else await druckApi.exportieren(pdf.pdf_base64!, ziel);
         meldung = "PDF gespeichert.";
       }
@@ -306,6 +371,26 @@
 </script>
 
 <h2>Drucken und PDF-Ausgabe</h2>
+{#if navigation?.druckauswahl}<aside class="hinweisbox">
+    <strong>Ausgangsstand: {navigation.druckauswahl.titel}</strong>
+    <p>
+      Nur exakt zugeordnete Versionen übernehmen. Eine abweichende Druckauswahl
+      ändert den eingefrorenen Abgabestand nicht.
+    </p>
+    <button
+      type="button"
+      disabled={busy || !katalog}
+      onclick={abgabestandUebernehmen}
+      >Versionen aus Abgabestand auswählen</button
+    ><button
+      type="button"
+      class="link"
+      onclick={() => {
+        if (navigation) navigation.druckauswahl = null;
+        auswahlHinweis = "";
+      }}>Abgabebezug lösen</button
+    >
+  </aside>{/if}{#if auswahlHinweis}<p role="status">{auswahlHinweis}</p>{/if}
 <p class="meta">
   Gespeicherte Formulare, Dateien und Berechnungsstände auswählen. Die
   Reihenfolge der Auswahl bestimmt die Reihenfolge im Paket. Ungespeicherte
@@ -317,7 +402,9 @@
 >
 {#if fehler}<p role="alert" class="fehlertext">{fehler}</p>{/if}
 {#if meldung}<p role="status">{meldung}</p>{/if}
-{#if druckVorgang}<p role="status">{fortschritt}</p><button class="sekundaer" onclick={abbrechen}>Druckauftrag abbrechen</button>{/if}
+{#if druckVorgang}<p role="status">{fortschritt}</p>
+  <button class="sekundaer" onclick={abbrechen}>Druckauftrag abbrechen</button
+  >{/if}
 {#if katalog}
   <fieldset disabled={busy}>
     <legend>Unterlagen zusammenstellen</legend>
@@ -355,7 +442,11 @@
                   disabled={!e.verfuegbar}
                   onchange={() => waehlen(i)}
                 /></td
-              ><td>{e.titel}</td><td>{e.empfohlen ? "Für das Berechnungsheft empfohlen · " : ""}{e.hinweis ?? ""}</td></tr
+              ><td>{e.titel}</td><td
+                >{e.empfohlen
+                  ? "Für das Berechnungsheft empfohlen · "
+                  : ""}{e.hinweis ?? ""}</td
+              ></tr
             >{/each}
         </tbody>
       </table>
@@ -424,8 +515,8 @@
         ><input type="checkbox" bind:checked={mitInhalt} /> Anlagenverzeichnis mit
         Seitenzahlen und Bezügen</label
       ><label
-        ><input type="checkbox" bind:checked={mitDeckblatt} /> Deckblatt mit Angaben zum
-        Bauvorhaben und Unterschriftsfeldern</label
+        ><input type="checkbox" bind:checked={mitDeckblatt} /> Deckblatt mit Angaben
+        zum Bauvorhaben und Unterschriftsfeldern</label
       ><label
         ><input type="checkbox" bind:checked={mitTrennblaettern} /> Trennblatt mit
         Anlagennummer vor Originalunterlagen</label

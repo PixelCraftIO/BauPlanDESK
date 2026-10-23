@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Arbeitsliste from "./Arbeitsliste.svelte";
+  import { bereichAktiv } from "../ansichtsAbfrage.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import { onMount, untrack, tick } from "svelte";
   import {
@@ -129,6 +131,56 @@
     );
   }
   const navigation = projektNavigation();
+  const sichtbar = bereichAktiv();
+  $effect(() => {
+    if (sichtbar() && s.id && navigation) navigation.verfahren = s.id;
+  });
+  let phase = $state("vorbereitung");
+  const phasen = [
+    {
+      id: "vorbereitung",
+      titel: "Vorbereitung",
+      tabs: [
+        "arbeitsliste",
+        "stamm",
+        "profil",
+        "anforderungen",
+        "abweichungen",
+        "unterschriften",
+      ],
+    },
+    {
+      id: "laufend",
+      titel: "Laufendes Verfahren",
+      tabs: [
+        "kommunikation",
+        "nachforderungen",
+        "schritte",
+        "schreiben",
+        "abgaben",
+      ],
+    },
+    {
+      id: "entscheidung",
+      titel: "Entscheidung und Ausführung",
+      tabs: ["bescheide", "ausfuehrung", "beziehungen", "chronik"],
+    },
+  ];
+  $effect(() => {
+    const p = phasen.find((p) => p.tabs.includes(tab));
+    if (p) phase = p.id;
+  });
+  function registerOeffnen(r: string, eintrag?: string) {
+    tab = r;
+    if (eintrag && s.id)
+      navigation?.springen({
+        bereich: "verfahren",
+        objekt: s.id,
+        register: r,
+        eintrag,
+      });
+  }
+
   let letzterSprung = 0;
   $effect(() => {
     const a = navigation?.auftrag;
@@ -219,6 +271,7 @@
   const profil = (p: Vorhabenprofil, k: Anforderungskatalog) =>
     aktion((b) => verfahrenApi.profilAnwenden(projekt.id, s.id!, b, p, k));
   const tabs = [
+    ["arbeitsliste", "Unterlagen und Arbeitsaufträge"],
     ["stamm", "Verfahren"],
     ["profil", "Vorhabenprofil"],
     ["anforderungen", "Anforderungen"],
@@ -260,9 +313,31 @@
 >
   {#snippet children(a)}
     {#key s.id}
+      <aside class="hinweisbox" aria-label="Aktives Verfahren">
+        <strong>{a.bezeichnung || "Neues Verfahren"}</strong> · {a.behoerde
+          .name || "Behörde noch offen"} · {a.aktenzeichen ||
+          "Aktenzeichen noch nicht vergeben"}<button
+          type="button"
+          class="link"
+          onclick={() => (tab = "arbeitsliste")}
+          >Unterlagen und Arbeitsaufträge öffnen →</button
+        >
+      </aside>
+      <nav class="verfahren-phasen" aria-label="Verfahrensphasen">
+        {#each phasen as p}<button
+            type="button"
+            class="sekundaer"
+            aria-pressed={phase === p.id}
+            onclick={() => {
+              phase = p.id;
+              tab = p.tabs[0];
+            }}>{p.titel}</button
+          >{/each}
+      </nav>
       <nav class="verfahren-tabs" aria-label="Verfahrensbereiche">
         {#each tabs as [id, titel]}<button
             type="button"
+            hidden={!phasen.find((p) => p.id === phase)?.tabs.includes(id)}
             class="sekundaer"
             class:aktiv={tab === id}
             aria-pressed={tab === id}
@@ -280,10 +355,20 @@
         onregister={(r) => (tab = r)}
         onfolgeverfahren={folgeverfahren}
       />
-      {#if tab === "stamm"}<fieldset disabled={!darf}>
+      {#if tab === "arbeitsliste"}<Arbeitsliste
+          akte={a}
+          {dateien}
+          {benutzer}
+          {benutzerId}
+          onregister={registerOeffnen}
+        />
+      {:else if tab === "stamm"}<fieldset disabled={!darf}>
           <div class="raster">
             <label
-              >Verfahrensbezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Verfahrensbezeichnung"
+              >Verfahrensbezeichnung<span class="pflicht" aria-hidden="true">
+                *</span
+              ><input
+                aria-label="Verfahrensbezeichnung"
                 required
                 maxlength="500"
                 bind:value={a.bezeichnung}
@@ -300,8 +385,8 @@
                   onchange={(e) =>
                     (a.pruefverfahren = (e.currentTarget.value ||
                       undefined) as Verfahrensakte["pruefverfahren"])}
-                  ><option value="">Noch nicht festgelegt</option
-                  ><option value="regulaer">Reguläres Verfahren</option
+                  ><option value="">Noch nicht festgelegt</option><option
+                    value="regulaer">Reguläres Verfahren</option
                   ><option value="vereinfacht">Vereinfachtes Verfahren</option
                   ></select
                 ></label
@@ -317,7 +402,8 @@
                 bind:value={a.aktenzeichen}
               /></label
             ><label
-              >Behörde<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Behörde"
+              >Behörde<span class="pflicht" aria-hidden="true"> *</span><input
+                aria-label="Behörde"
                 required
                 maxlength="500"
                 bind:value={a.behoerde.name}
@@ -329,7 +415,8 @@
                 class="sekundaer"
                 onclick={() => bauaufsichtUebernehmen(a)}
                 >Behörde aus dem Bauantrag übernehmen</button
-              >{/if}<label>Kontakt<input bind:value={a.behoerde.kontakt} /></label
+              >{/if}<label
+              >Kontakt<input bind:value={a.behoerde.kontakt} /></label
             ><Zustaendigkeit {benutzer} bind:wert={a.verantwortlich} /><label
               >Vorgängerverfahren<select bind:value={a.vorgaenger}
                 ><option value={null}>Keines</option
@@ -401,7 +488,7 @@
                 }}
               />Vorhabenprofil fachlich bestätigt</label
             >{/if}
-        <Verfahrenswahl
+          <Verfahrenswahl
             projektId={projekt.id}
             verfahrenId={s.id}
             onuebernehmen={(art, pruef) => {
@@ -412,6 +499,7 @@
         </fieldset>
       {:else if tab === "anforderungen"}<fieldset disabled={!darf}>
           <Anforderungen
+            verfahrenId={s.id}
             bind:eintraege={a.anforderungen}
             {dateien}
             {benutzer}
@@ -535,8 +623,7 @@
             art={a.art}
             abweichungen={a.abweichungen ?? []}
             bind:ablehnungsgruende={
-              () => a.ablehnungsgruende ?? [],
-              (w) => (a.ablehnungsgruende = w)
+              () => a.ablehnungsgruende ?? [], (w) => (a.ablehnungsgruende = w)
             }
             bind:nachbarbekanntgaben={
               () => a.nachbarbekanntgaben ?? [],

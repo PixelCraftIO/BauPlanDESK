@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: Verfahrensfilter erhält projektweite Prüfungen und trennt andere Akten
+ok 1 - Verfahrensfilter erhält projektweite Prüfungen und trennt andere Akten
+  ---
+  duration_ms: 2.639367
+  type: 'test'
+  ...
+# Subtest: Nachweissprünge verwenden die Identität des Produzenten
+ok 2 - Nachweissprünge verwenden die Identität des Produzenten
+  ---
+  duration_ms: 0.307353
+  type: 'test'
+  ...
+# Subtest: Fehlende Pflichtzahl wird nicht mit ausdrücklicher Null verwechselt
+ok 3 - Fehlende Pflichtzahl wird nicht mit ausdrücklicher Null verwechselt
+  ---
+  duration_ms: 1.09513
+  type: 'test'
+  ...
+# Subtest: Aufmaßsichtbarkeit erhält Daten und lässt unbekannte Formen prüfbar
+ok 4 - Aufmaßsichtbarkeit erhält Daten und lässt unbekannte Formen prüfbar
+  ---
+  duration_ms: 0.963312
+  type: 'test'
+  ...
+# Subtest: Darstellungskonfiguration passt zu den tatsächlichen Formularverträgen
+ok 5 - Darstellungskonfiguration passt zu den tatsächlichen Formularverträgen
+  ---
+  duration_ms: 1.404547
+  type: 'test'
+  ...
+# Subtest: Neue Module werden automatisch in die passende Navigation aufgenommen
+ok 6 - Neue Module werden automatisch in die passende Navigation aufgenommen
+  ---
+  duration_ms: 2.477494
+  type: 'test'
+  ...
+# Subtest: Alle Kapitel, Querverweise und Tabellen sind vollständig und eindeutig
+ok 7 - Alle Kapitel, Querverweise und Tabellen sind vollständig und eindeutig
+  ---
+  duration_ms: 2.446657
+  type: 'test'
+  ...
+# Subtest: Alle registrierten Projektbereiche besitzen eine kontextbezogene Anleitung
+ok 8 - Alle registrierten Projektbereiche besitzen eine kontextbezogene Anleitung
+  ---
+  duration_ms: 0.729559
+  type: 'test'
+  ...
+# Subtest: Suche findet Arbeitsabläufe auch in Schritten, Hinweisen und Tabellen
+ok 9 - Suche findet Arbeitsabläufe auch in Schritten, Hinweisen und Tabellen
+  ---
+  duration_ms: 11.775577
+  type: 'test'
+  ...
+# Subtest: Offline-Ausgaben enthalten alle Kapitel und sichere interne Links
+ok 10 - Offline-Ausgaben enthalten alle Kapitel und sichere interne Links
+  ---
+  duration_ms: 13.185202
+  type: 'test'
+  ...
+# Subtest: Die mitgelieferte PDF gehört zum aktuellen Handbuchstand
+ok 11 - Die mitgelieferte PDF gehört zum aktuellen Handbuchstand
+  ---
+  duration_ms: 2.639708
+  type: 'test'
+  ...
+# Subtest: Release verlangt passende Version, Tag, Schlüssel und HTTPS
+ok 12 - Release verlangt passende Version, Tag, Schlüssel und HTTPS
+  ---
+  duration_ms: 1.477837
+  type: 'test'
+  ...
+# Subtest: Projekttitel und technische Projektversion verändern keine Fachvorschau
+ok 13 - Projekttitel und technische Projektversion verändern keine Fachvorschau
+  ---
+  duration_ms: 1.331727
+  type: 'test'
+  ...
+# Subtest: Nur ausgewählte Gebäude invalidieren die Vorschau
+ok 14 - Nur ausgewählte Gebäude invalidieren die Vorschau
+  ---
+  duration_ms: 0.189445
+  type: 'test'
+  ...
+# Subtest: Rechtsänderung und fehlgeschlagene Quellenprüfung bleiben relevant
+ok 15 - Rechtsänderung und fehlgeschlagene Quellenprüfung bleiben relevant
+  ---
+  duration_ms: 0.342306
+  type: 'test'
+  ...
+# Subtest: Dokumentereignisse ohne Planbindung sind keine neue Geometrie
+ok 16 - Dokumentereignisse ohne Planbindung sind keine neue Geometrie
+  ---
+  duration_ms: 0.253692
+  type: 'test'
+  ...
+# Subtest: Eine referenzierte Raumbuchrevision wird auch ohne Gebäude verfolgt
+ok 17 - Eine referenzierte Raumbuchrevision wird auch ohne Gebäude verfolgt
+  ---
+  duration_ms: 0.463178
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 225.781087

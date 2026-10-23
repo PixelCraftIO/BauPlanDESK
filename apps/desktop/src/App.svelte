@@ -73,24 +73,39 @@
   >("projekte");
   let hilfeBesucht = $state(false);
   let hilfeAnfrage = $state({ id: "start", nummer: 0 });
-  $effect(() => { if (globalAnsicht === "hilfe") hilfeBesucht = true; });
+  $effect(() => {
+    if (globalAnsicht === "hilfe") hilfeBesucht = true;
+  });
   async function hilfeOeffnen(bereich?: string) {
     const kontext = bereich ?? (!globalAnsicht ? aktiv?.ansicht : undefined);
-    const standard = globalAnsicht === "verwaltung" ? "einrichtung" : globalAnsicht === "kunden" ? "kunden" : globalAnsicht === "formulare" ? "bibliothek" : "start";
+    const standard =
+      globalAnsicht === "verwaltung"
+        ? "einrichtung"
+        : globalAnsicht === "kunden"
+          ? "kunden"
+          : globalAnsicht === "formulare"
+            ? "bibliothek"
+            : "start";
     const nummer = hilfeAnfrage.nummer + 1;
     hilfeAnfrage = { id: standard, nummer };
     globalAnsicht = "hilfe";
     try {
       const { kapitelFuerBereich } = await import("./lib/hilfe/handbuch");
-      if (hilfeAnfrage.nummer === nummer) hilfeAnfrage = { id: kontext ? kapitelFuerBereich(kontext) : standard, nummer: nummer + 1 };
-    } catch(e) { fehler = fehlertext(e); }
+      if (hilfeAnfrage.nummer === nummer)
+        hilfeAnfrage = {
+          id: kontext ? kapitelFuerBereich(kontext) : standard,
+          nummer: nummer + 1,
+        };
+    } catch (e) {
+      fehler = fehlertext(e);
+    }
   }
   const aktiv = $derived(sitzungen.find((s) => s.projekt.id === aktiveId));
   const projekt = $derived(aktiv?.projekt ?? null);
   $effect(() => {
     if (aktiv) {
       const modul = MODULE.find((m) => m.id === aktiv.ansicht);
-      if (modul && voraussetzung(aktiv.projekt, modul))
+      if (modul?.id === "festsetzungen" && voraussetzung(aktiv.projekt, modul))
         aktiv.ansicht = "rechtsgrundlagen";
     }
   });
@@ -126,7 +141,8 @@
   function bereich(id: Ansicht) {
     if (aktiv) {
       const modul = MODULE.find((m) => m.id === id);
-      if (modul && voraussetzung(aktiv.projekt, modul)) id = "rechtsgrundlagen";
+      if (modul?.id === "festsetzungen" && voraussetzung(aktiv.projekt, modul))
+        id = "rechtsgrundlagen";
       aktiv.ansicht = id;
       globalAnsicht = null;
     }
@@ -325,7 +341,8 @@
             "Bitte prüfen Sie die Angaben in der Projektakte. Die Eingaben bleiben erhalten.";
       } else if (globalAnsicht === "kunden" && kundenEditor) {
         if (!kundenEditor.hatAenderungen())
-          hinweis = "Die Kundendaten enthalten keine ungespeicherten Änderungen.";
+          hinweis =
+            "Die Kundendaten enthalten keine ungespeicherten Änderungen.";
         else if (!(await kundenEditor.speichernBeimSchliessen()))
           hinweis =
             "Kundendaten konnten nicht gespeichert werden. Ihre Eingaben bleiben erhalten.";
@@ -822,43 +839,46 @@
       </p>
     </div>
     <div class="knoepfe">
-    {#if beispiel?.aktiv}
-      <button
-        disabled={beispielLaeuft}
-        onclick={() => beispielWechseln(api.beispielprojektVerlassen)}
-        >Zu meinen Projekten zurückkehren</button
-      >
+      {#if beispiel?.aktiv}
+        <button
+          disabled={beispielLaeuft}
+          onclick={() => beispielWechseln(api.beispielprojektVerlassen)}
+          >Zu meinen Projekten zurückkehren</button
+        >
+        <button
+          class="sekundaer"
+          disabled={beispielLaeuft}
+          onclick={() =>
+            beispielWechseln(() => api.beispielprojektOeffnen(true))}
+          >Unveränderte Kopie wiederherstellen</button
+        >
+      {:else if beispiel?.kopie_vorhanden}
+        <button
+          disabled={beispielLaeuft}
+          onclick={() =>
+            beispielWechseln(() => api.beispielprojektOeffnen(false))}
+          >Bearbeitete Kopie öffnen</button
+        >
+        <button
+          class="sekundaer"
+          disabled={beispielLaeuft}
+          onclick={() =>
+            beispielWechseln(() => api.beispielprojektOeffnen(true))}
+          >Neue unveränderte Kopie öffnen</button
+        >
+      {:else}
+        <button
+          disabled={beispielLaeuft}
+          onclick={() =>
+            beispielWechseln(() => api.beispielprojektOeffnen(true))}
+          >Beispielprojekt öffnen</button
+        >
+      {/if}
       <button
         class="sekundaer"
         disabled={beispielLaeuft}
-        onclick={() => beispielWechseln(() => api.beispielprojektOeffnen(true))}
-        >Unveränderte Kopie wiederherstellen</button
+        onclick={() => (beispielFrage = false)}>Abbrechen</button
       >
-    {:else if beispiel?.kopie_vorhanden}
-      <button
-        disabled={beispielLaeuft}
-        onclick={() =>
-          beispielWechseln(() => api.beispielprojektOeffnen(false))}
-        >Bearbeitete Kopie öffnen</button
-      >
-      <button
-        class="sekundaer"
-        disabled={beispielLaeuft}
-        onclick={() => beispielWechseln(() => api.beispielprojektOeffnen(true))}
-        >Neue unveränderte Kopie öffnen</button
-      >
-    {:else}
-      <button
-        disabled={beispielLaeuft}
-        onclick={() => beispielWechseln(() => api.beispielprojektOeffnen(true))}
-        >Beispielprojekt öffnen</button
-      >
-    {/if}
-    <button
-      class="sekundaer"
-      disabled={beispielLaeuft}
-      onclick={() => (beispielFrage = false)}>Abbrechen</button
-    >
     </div>
   </div>
 {:else if beispiel?.aktiv}
@@ -955,11 +975,21 @@
         ongeloescht={projektGeloescht}
       />
     </div>
-    {#if hilfeBesucht}<div class="globale-seite" hidden={globalAnsicht !== "hilfe"}>
-      {#await import("./lib/hilfe/Hilfe.svelte")}<p role="status">Handbuch wird geladen …</p>{:then modul}<modul.default anfrage={hilfeAnfrage} projektOffen={!!aktiv}
-        onbereich={(id) => bereich(id as Ansicht)}
-        onzurueck={() => (globalAnsicht = aktiv ? null : "projekte")} />{:catch}<p role="alert">Das Handbuch konnte nicht geladen werden. Anwendung erneut öffnen.</p>{/await}
-    </div>{/if}
+    {#if hilfeBesucht}<div
+        class="globale-seite"
+        hidden={globalAnsicht !== "hilfe"}
+      >
+        {#await import("./lib/hilfe/Hilfe.svelte")}<p role="status">
+            Handbuch wird geladen …
+          </p>{:then modul}<modul.default
+            anfrage={hilfeAnfrage}
+            projektOffen={!!aktiv}
+            onbereich={(id) => bereich(id as Ansicht)}
+            onzurueck={() => (globalAnsicht = aktiv ? null : "projekte")}
+          />{:catch}<p role="alert">
+            Das Handbuch konnte nicht geladen werden. Anwendung erneut öffnen.
+          </p>{/await}
+      </div>{/if}
     {#if kundenBesucht && ich}<div
         class="globale-seite"
         hidden={globalAnsicht !== "kunden"}
@@ -976,6 +1006,14 @@
         class="globale-seite"
         hidden={globalAnsicht !== "formulare"}
       >
+        {#if aktiv}<button
+            type="button"
+            class="link"
+            onclick={() => {
+              globalAnsicht = null;
+              bereich("formulare");
+            }}>Zurück zu Formularen im Projekt →</button
+          >{/if}
         <Formularbibliothek bind:this={bibliothekEditor} {ich} />
       </div>{/if}
     {#if verwaltungBesucht}<div
@@ -1059,6 +1097,10 @@
           importAusloeser={s.importAusloeser}
           onprojekt={projektSetzen}
           onhilfe={() => hilfeOeffnen(s.ansicht)}
+          onbibliothek={() => {
+            aktiveId = s.projekt.id;
+            globalAnsicht = "formulare";
+          }}
           ondialog={(art) => {
             aktiveId = s.projekt.id;
             dialog = art;
@@ -1251,7 +1293,7 @@
         grundstuecksflaeche_m2: null,
       }}
       kunden={kundenAuswahl}
-      kundenLadefehler={kundenLadefehler}
+      {kundenLadefehler}
       knopf="Anlegen"
       absenden={anlegen}
       onabbrechen={() => (dialog = null)}

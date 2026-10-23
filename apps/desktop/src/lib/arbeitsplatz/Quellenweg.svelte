@@ -1,8 +1,29 @@
 <script lang="ts">
+  import { editorRegister } from "../editoren";
+  import type { Ansicht } from "../projektSitzung";
   import { projektNavigation } from "../projektNavigation.svelte";
   import { ziel } from "./arbeitscheck";
   let { bereich }: { bereich: string } = $props();
   const navigation = projektNavigation();
+  const editoren = editorRegister();
+  let busy = $state(false),
+    meldung = $state("");
+  async function quelleSpeichern(id: string) {
+    if (busy) return;
+    busy = true;
+    meldung = "";
+    try {
+      const ok = await editoren?.speichernIn(id as Ansicht);
+      meldung = ok
+        ? "Quelle gespeichert. Werte bewusst übernehmen und neu prüfen."
+        : "Quelle konnte nicht vollständig gespeichert werden. Den Entwurf an der Quelle prüfen.";
+    } catch {
+      meldung =
+        "Speichern fehlgeschlagen; der Entwurf bleibt an der Quelle erhalten.";
+    } finally {
+      busy = false;
+    }
+  }
   const wege: Record<
     string,
     { titel: string; text: string; links: [string, string][] }
@@ -75,9 +96,22 @@
     {#each weg.links.filter(([id]) => id !== bereich) as [id, titel]}<button
         type="button"
         class="link"
-        onclick={() => navigation?.springen(ziel(id))}>{titel} öffnen →</button
-      >{/each}
+        onclick={() => {
+          if (navigation) navigation.rueckweg = ziel(bereich);
+          navigation?.springen(ziel(id));
+        }}>{titel} öffnen →</button
+      >
+      {#if editoren?.hatAenderungenIn(id as Ansicht)}<span class="hinweisbox"
+          >Quelle hat ungespeicherte Änderungen. <button
+            type="button"
+            class="link"
+            disabled={busy}
+            onclick={() => quelleSpeichern(id)}
+            >Nur diese Quelle speichern</button
+          ></span
+        >{/if}{/each}
   </div>
+  {#if meldung}<p role="status">{meldung}</p>{/if}
 </details>
 
 <style>

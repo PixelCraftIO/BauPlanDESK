@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dokumentwahl from "./Dokumentwahl.svelte";
   import type { DocumentVersion } from "../api";
   import type { Dokumentbezug } from "../generated/plattform";
   let {
@@ -10,9 +11,13 @@
     werte: Dokumentbezug[];
     label?: string;
   } = $props();
-  let auswahl = $state("");
+  let auswahl = $state<Dokumentbezug | null>(null);
   function add() {
-    const d = dateien.find((d) => `${d.document_id}:${d.version}` === auswahl);
+    const d = dateien.find(
+      (d) =>
+        d.document_id === auswahl?.dokument_id &&
+        d.version === auswahl?.version,
+    );
     if (
       d &&
       !werte.some(
@@ -20,22 +25,17 @@
       )
     )
       werte = [...werte, { dokument_id: d.document_id, version: d.version }];
-    auswahl = "";
+    auswahl = null;
   }
   const name = (w: Dokumentbezug) =>
-    `${dateien.find((d) => d.document_id === w.dokument_id && d.version === w.version)?.file_name ?? w.dokument_id} · Version ${w.version}`;
+    `${dateien.find((d) => d.document_id === w.dokument_id && d.version === w.version)?.file_name ?? "Dokument nicht auflösbar"} · Version ${w.version}`;
 </script>
 
-<label
-  >{label}<select bind:value={auswahl}
-    ><option value="">Dokumentversion wählen</option
-    >{#each dateien as d (`${d.document_id}:${d.version}`)}<option
-        value={`${d.document_id}:${d.version}`}
-        >{d.file_name} · Version {d.version}</option
-      >{/each}</select
-  ></label
-><button type="button" class="sekundaer" disabled={!auswahl} onclick={add}
-  >Unterlage zuordnen</button
+<Dokumentwahl {dateien} bind:wert={auswahl} {label} /><button
+  type="button"
+  class="sekundaer"
+  disabled={!auswahl}
+  onclick={add}>Unterlage zuordnen</button
 >
 <ul>
   {#each werte as w, i (`${w.dokument_id}:${w.version}`)}<li>

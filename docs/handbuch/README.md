@@ -7,7 +7,7 @@ Für Architekten, Entwurfsverfasser und Planer:
 - [PDF-Ausgabe](Bedienhandbuch.pdf): mit verlinktem Inhaltsverzeichnis,
   Lesezeichen, strukturierten Texten und Seitenzählung.
 
-Die Inhalte wurden gegen Main `c1e1e80` einschließlich der anschließenden Arbeitsplatzverbesserungen vom 22.10.2026 und die dortigen
+Die Inhalte wurden gegen Main `9d2aee9` einschließlich der Workflowverbesserungen vom 23.10.2026 und die dortigen
 Bedienmasken, Modulregister und dokumentierten Datenwege abgeglichen. Sie
 beschreiben auch die in diesem Branch ergänzten Hilfezugänge. Fachliche Grenzen,
 ungeprüfte Regelbeispiele und der manuelle Portaltransport sind ausdrücklich

@@ -35,3 +35,16 @@ def bereich(scope, name):
             except Exception:
                 continue
     knopf.click()
+
+
+def verfahrensbereich(scope, name):
+    groups = {
+        "Vorbereitung": ["Verfahren", "Vorhabenprofil", "Anforderungen", "Abweichungen / Befreiungen", "Unterschriften", "Unterlagen und Arbeitsaufträge"],
+        "Laufendes Verfahren": ["Kommunikation", "Nachforderungen", "Behördliche Schritte", "Schreiben", "Abgabestände"],
+        "Entscheidung und Ausführung": ["Bescheide / Auflagen", "Bauausführung", "Korrekturen", "Verfahrenschronik"],
+    }
+    for phase, names in groups.items():
+        if name in names:
+            akte(scope).get_by_role("navigation", name="Verfahrensphasen", exact=True).get_by_role("button",name=phase,exact=True).click()
+            break
+    akte(scope).get_by_role("navigation", name="Verfahrensbereiche", exact=True).get_by_role("button",name=name,exact=True).click()

@@ -2,7 +2,7 @@
 from pathlib import Path
 import os,json,base64,zipfile
 from playwright.sync_api import sync_playwright,expect
-from navigation_hilfe import bereich, register, gliederung
+from navigation_hilfe import bereich, register, gliederung, verfahrensbereich
 root=Path(__file__).resolve().parent
 art=Path(os.environ.get('BAUPROJEKT_VERFAHREN_ARTEFAKTE','/tmp/bauprojekt-verfahren'))
 wf=json.loads((art/'workflow.json').read_text())
@@ -50,7 +50,7 @@ with sync_playwright() as p:
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1444'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
  def view(name):bereich(page,name)
- def tab(name):page.get_by_role('navigation',name='Verfahrensbereiche').get_by_role('button',name=name,exact=True).click()
+ def tab(name):verfahrensbereich(page,name)
  view('Verfahrensakte');page.get_by_role('button',name='Öffnen',exact=True).click()
  expect(page.get_by_role('textbox',name='Aktenzeichen',exact=True)).to_have_value('BA-2026-42')
  # Status und behördliche Vollständigkeitsbestätigung stammen aus der Akte, nicht aus freien Texten.

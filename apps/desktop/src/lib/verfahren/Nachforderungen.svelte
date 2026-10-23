@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { projektNavigation } from "../projektNavigation.svelte";
   import type { Nachforderung, Verfahrensakte } from "../generated/plattform";
   import type { DocumentVersion, Benutzer } from "../api";
   import Dokumentliste from "./Dokumentliste.svelte";
@@ -18,6 +19,7 @@
     /** Gespeicherte Forderungspunkte; ihr Wortlaut bleibt laut Core unverändert. */
     alt?: string[];
   } = $props();
+  const navigation = projektNavigation();
   let original = $state("");
   function neu() {
     if (!original) return;
@@ -53,11 +55,31 @@
 ><button type="button" class="sekundaer" disabled={!original} onclick={neu}
   >Nachforderung anlegen</button
 >
-{#each eintraege as n (n.id)}<section>
+{#each eintraege as n (n.id)}{@const kommunikation = akte.kommunikation.find(
+    (c) => c.id === n.kommunikation,
+  )}
+  <section>
     <h4>
       {akte.kommunikation.find((c) => c.id === n.kommunikation)?.betreff ??
         "Nachforderung"}
     </h4>
+    {#if kommunikation}<p class="meta">
+        Originaleingang: {kommunikation.datum} · {kommunikation.betreff}
+      </p>
+      {#if kommunikation.original}<button
+          type="button"
+          class="link"
+          onclick={() => {
+            const d = kommunikation.original;
+            if (d)
+              navigation?.springen({
+                bereich: "dokumente",
+                objekt: d.dokument_id,
+                register: "historie",
+                eintrag: String(d.version),
+              });
+          }}>Originalschreiben in genau dieser Version ansehen →</button
+        >{/if}{/if}
     <p>
       {n.punkte.filter((p) => ["bestaetigt", "entfallen"].includes(p.status))
         .length} von {n.punkte.length} Punkten abgeschlossen
@@ -77,7 +99,8 @@
           </p>{/if}
         <div class="raster">
           <label
-            >Forderung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Forderung"
+            >Forderung<span class="pflicht" aria-hidden="true"> *</span><input
+              aria-label="Forderung"
               required
               maxlength="500"
               readonly={alt.includes(p.id)}

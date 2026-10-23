@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dokumentwahl from "./Dokumentwahl.svelte";
   import type { DocumentVersion } from "../api";
   import type { Dokumentbezug } from "../generated/plattform";
   let {
@@ -14,20 +15,4 @@
   } = $props();
 </script>
 
-<label
-  >{label}<select
-    {required}
-    value={wert ? `${wert.dokument_id}:${wert.version}` : ""}
-    onchange={(e) => {
-      const d = dateien.find(
-        (d) => `${d.document_id}:${d.version}` === e.currentTarget.value,
-      );
-      wert = d ? { dokument_id: d.document_id, version: d.version } : null;
-    }}
-    ><option value="">Kein Dokument zugeordnet</option
-    >{#each dateien as d (`${d.document_id}:${d.version}`)}<option
-        value={`${d.document_id}:${d.version}`}
-        >{d.file_name} · Version {d.version}</option
-      >{/each}</select
-  ></label
->
+<Dokumentwahl {dateien} bind:wert {label} {required} />

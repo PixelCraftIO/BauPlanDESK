@@ -47,9 +47,16 @@
   let nachweise = $state<NachweisAnsicht[]>([]);
   let vorschau = $state<GebaeudeGrundlagen | null>(null);
   let vorschauFehler = $state("");
-  let planBusy = $state(false), quellenGeneration = $state(0);
+  let planBusy = $state(false),
+    quellenGeneration = $state(0);
   const sichtbar = bereichAktiv();
-  ansichtsAbfrage(() => projekt.id,["fachobjekte","dokumente"],async()=>{quellenGeneration++});
+  ansichtsAbfrage(
+    () => projekt.id,
+    ["fachobjekte", "dokumente"],
+    async () => {
+      quellenGeneration++;
+    },
+  );
   // Gespeicherte Aufmaße für die direkte Flächenübernahme; neu geladen, sobald
   // ein Aufmaß oder eine PDF gespeichert wird.
   let aufmasse = $state<Aufmassquelle[]>([]);
@@ -57,25 +64,48 @@
     if (!sichtbar()) return;
     void quellenGeneration;
     let aktuell = true;
-    aufmasseLaden(projekt.id).then((a) => { if (aktuell) aufmasse = a; }).catch(() => { /* Planquellen zeigt Ladefehler */ });
-    return () => { aktuell = false; };
+    aufmasseLaden(projekt.id)
+      .then((a) => {
+        if (aktuell) aufmasse = a;
+      })
+      .catch(() => {
+        /* Planquellen zeigt Ladefehler */
+      });
+    return () => {
+      aktuell = false;
+    };
   });
   // Sprung aus der Projektübersicht zu veralteten Planquellen öffnet den Abschnitt.
   const navigation = projektNavigation();
   let planOffen = $state(false);
   $effect(() => {
     const a = navigation?.auftrag;
-    if (a?.ziel.bereich === "gebaeude" && a.ziel.register === "planaufmass") planOffen = true;
+    if (a?.ziel.bereich === "gebaeude" && a.ziel.register === "planaufmass")
+      planOffen = true;
   });
   async function geschossEntfernen(g: Gebaeude, id: string) {
     // Markierungen mit diesem Geschoss könnten danach nicht mehr gespeichert werden.
-    const marken = aufmasse.flatMap((a) => a.stand.daten.markierungen.filter((m) => m.geschoss_id === id).map((m) => `„${a.stand.daten.bezeichnung} · ${m.bezeichnung}“`));
-    if (marken.length && !(await ask(`Im PDF-Aufmaß sind diesem Geschoss zugeordnet: ${marken.join(", ")}. Nach dem Entfernen dort ein anderes Geschoss wählen, sonst lässt sich das Aufmaß nicht speichern. Geschoss trotzdem entfernen?`, { title: "Geschoss entfernen", kind: "warning" }))) return;
-    g.planbindungen = g.planbindungen?.filter((b) => !b.ziel.startsWith(`geschosse.${id}.`));
+    const marken = aufmasse.flatMap((a) =>
+      a.stand.daten.markierungen
+        .filter((m) => m.geschoss_id === id)
+        .map((m) => `„${a.stand.daten.bezeichnung} · ${m.bezeichnung}“`),
+    );
+    if (
+      marken.length &&
+      !(await ask(
+        `Im PDF-Aufmaß sind diesem Geschoss zugeordnet: ${marken.join(", ")}. Nach dem Entfernen dort ein anderes Geschoss wählen, sonst lässt sich das Aufmaß nicht speichern. Geschoss trotzdem entfernen?`,
+        { title: "Geschoss entfernen", kind: "warning" },
+      ))
+    )
+      return;
+    g.planbindungen = g.planbindungen?.filter(
+      (b) => !b.ziel.startsWith(`geschosse.${id}.`),
+    );
     const i = g.geschosse.findIndex((x) => x.id === id);
     if (i >= 0) g.geschosse.splice(i, 1);
   }
-  const geschossGespeichert = (id: string) => !!s.original?.geschosse.some((x) => x.id === id);
+  const geschossGespeichert = (id: string) =>
+    !!s.original?.geschosse.some((x) => x.id === id);
   const DACHFORMEN: [Dachform, string][] = [
     ["flachdach", "Flachdach"],
     ["satteldach", "Satteldach"],
@@ -90,7 +120,10 @@
     ["traufe_m", "Traufhöhe zu ±0,00 (m)"],
     ["first_m", "Firsthöhe zu ±0,00 (m)"],
   ] as const;
-  const z = (n: number | null) => n === null ? "Noch unbekannt" : n.toLocaleString("de-DE", {maximumFractionDigits: 3});
+  const z = (n: number | null) =>
+    n === null
+      ? "Noch unbekannt"
+      : n.toLocaleString("de-DE", { maximumFractionDigits: 3 });
   $effect(() => {
     if (!sichtbar()) return;
     void quellenGeneration;
@@ -102,11 +135,20 @@
     let abgebrochen = false;
     const timer = setTimeout(async () => {
       try {
-        const r = await plattformApi.gebaeudeAuswerten(s.projektId, id, JSON.parse(daten));
+        const r = await plattformApi.gebaeudeAuswerten(
+          s.projektId,
+          id,
+          JSON.parse(daten),
+        );
         if (!abgebrochen) vorschau = r;
-      } catch (e) { if (!abgebrochen) vorschauFehler = fehlertext(e); }
+      } catch (e) {
+        if (!abgebrochen) vorschauFehler = fehlertext(e);
+      }
     }, 300);
-    return () => { abgebrochen = true; clearTimeout(timer); };
+    return () => {
+      abgebrochen = true;
+      clearTimeout(timer);
+    };
   });
   async function quellstaende() {
     try {
@@ -151,7 +193,8 @@
   // Gebäude stehen auf Flurstücken; das Baugrundstück ergibt sich erst aus der
   // Baugrundstücksermittlung und wird hier nur zur Information angezeigt.
   const flurstuecke = $derived(
-    grundstuecksinformationen($state.snapshot(projekt.planungsrecht)).flurstuecke,
+    grundstuecksinformationen($state.snapshot(projekt.planungsrecht))
+      .flurstuecke,
   );
   const vorhaben = $derived(
     flurstuecke.filter((f) => (f.rolle ?? "vorhaben") === "vorhaben"),
@@ -169,12 +212,20 @@
   $effect(() => {
     void projekt.version;
     let aktuell = true;
-    api.grundstueckskontext(projekt.id).then((g) => {
-      if (aktuell) { grund = g; grundGeladen = true; }
-    }).catch(() => {
-      // Ohne bestätigte Ermittlung entfällt nur die Anzeige des Baugrundstücks.
-    });
-    return () => { aktuell = false; };
+    api
+      .grundstueckskontext(projekt.id)
+      .then((g) => {
+        if (aktuell) {
+          grund = g;
+          grundGeladen = true;
+        }
+      })
+      .catch(() => {
+        // Ohne bestätigte Ermittlung entfällt nur die Anzeige des Baugrundstücks.
+      });
+    return () => {
+      aktuell = false;
+    };
   });
   /** Baugrundstücke, zu denen die gewählten Flurstücke derzeit gehören. */
   const einheiten = (g: Gebaeude) =>
@@ -195,100 +246,286 @@
   }
 </script>
 
-<Fachliste titel="Gebäude und Geschosse" {s} bereich="gebaeude" {darf} zusatzBeschaeftigt={()=>planBusy}>
-  {#snippet zusatz(g)}<span>{z(g.geometrie?.grundflaeche_m2 ?? null)}{g.geometrie?.grundflaeche_m2 !== undefined ? " m² Grundfläche" : ""}</span><br /><span class="meta">{g.geschosse.length ? `${g.geschosse.length} Geschosse erfasst` : "Einzelgeschoss aus Grundfläche"}</span>{/snippet}
+<Fachliste
+  titel="Gebäude und Geschosse"
+  {s}
+  bereich="gebaeude"
+  {darf}
+  zusatzBeschaeftigt={() => planBusy}
+>
+  {#snippet zusatz(g)}<span
+      >{z(g.geometrie?.grundflaeche_m2 ?? null)}{g.geometrie
+        ?.grundflaeche_m2 !== undefined
+        ? " m² Grundfläche"
+        : ""}</span
+    ><br /><span class="meta"
+      >{g.geschosse.length
+        ? `${g.geschosse.length} Geschosse erfasst`
+        : "Einzelgeschoss aus Grundfläche"}</span
+    >{/snippet}
   {#snippet children(g)}
     <label
-      >Gebäudebezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Gebäudebezeichnung"
+      >Gebäudebezeichnung<span class="pflicht" aria-hidden="true">
+        *</span
+      ><input
+        aria-label="Gebäudebezeichnung"
         bind:value={g.bezeichnung}
         required
         maxlength="500"
       /></label
     >
-    <p class="meta">Erfassen Sie zunächst, was bereits bekannt ist. Flächen und Höhen können später ergänzt werden; leere Felder bleiben unbekannt.</p>
+    <p class="meta">
+      Erfassen Sie zunächst, was bereits bekannt ist. Flächen und Höhen können
+      später ergänzt werden; leere Felder bleiben unbekannt.
+    </p>
     <section class="grundlagen-block" aria-label="Gebäudegrundfläche">
       <h3>Gebäudegrundfläche</h3>
       <div class="raster">
-        <label>Gebäudetyp für GRZ<select value={g.geometrie?.typ ?? ""} onchange={(e) => { (g.geometrie ??= {}).typ = (e.currentTarget.value || undefined) as NonNullable<Gebaeude["geometrie"]>["typ"]; }}>
-          <option value="">Noch nicht zugeordnet</option><option value="hauptanlage">Hauptgebäude / Wohnhaus</option><option value="garage">Garage</option><option value="nebenanlage14">Nebenanlage (§ 14)</option><option value="unterirdisch">Unterirdische Anlage</option>
-        </select></label>
-        <GrundlagenZahl titel="Gebäudegrundfläche, horizontale Projektion (m²)" min={0} wert={g.geometrie?.grundflaeche_m2} readonly={g.planbindungen?.some(b=>b.ziel==="geometrie.grundflaeche_m2")} onwert={(v) => { (g.geometrie ??= {}).grundflaeche_m2 = v; }} />
+        <label
+          >Gebäudetyp für GRZ<select
+            value={g.geometrie?.typ ?? ""}
+            onchange={(e) => {
+              (g.geometrie ??= {}).typ = (e.currentTarget.value ||
+                undefined) as NonNullable<Gebaeude["geometrie"]>["typ"];
+            }}
+          >
+            <option value="">Noch nicht zugeordnet</option><option
+              value="hauptanlage">Hauptgebäude / Wohnhaus</option
+            ><option value="garage">Garage</option><option value="nebenanlage14"
+              >Nebenanlage (§ 14)</option
+            ><option value="unterirdisch">Unterirdische Anlage</option>
+          </select></label
+        >
+        <GrundlagenZahl
+          titel="Gebäudegrundfläche, horizontale Projektion (m²)"
+          min={0}
+          wert={g.geometrie?.grundflaeche_m2}
+          readonly={g.planbindungen?.some(
+            (b) => b.ziel === "geometrie.grundflaeche_m2",
+          )}
+          onwert={(v) => {
+            (g.geometrie ??= {}).grundflaeche_m2 = v;
+          }}
+        />
       </div>
-      {#if s.id}<PlanFlaeche projektId={projekt.id} gebaeudeId={s.id} {g} {aufmasse} gespeichert={s.original !== null} onplan={(neu) => (s.eingabe = neu)} onbusy={(b) => (planBusy = b)} />{/if}
-      <p class="meta">Ohne einzeln erfasste Geschosse wird diese Grundfläche zugleich als Fläche eines vorläufigen Einzelgeschosses verwendet. Bei mehreren Geschossen bleibt sie der einmalige Gebäudeumgriff für die GRZ.</p>
+      {#if s.id}<PlanFlaeche
+          projektId={projekt.id}
+          gebaeudeId={s.id}
+          {g}
+          {aufmasse}
+          gespeichert={s.original !== null}
+          onplan={(neu) => (s.eingabe = neu)}
+          onbusy={(b) => (planBusy = b)}
+        />{/if}
+      <p class="meta">
+        Ohne einzeln erfasste Geschosse wird diese Grundfläche zugleich als
+        Fläche eines vorläufigen Einzelgeschosses verwendet. Bei mehreren
+        Geschossen bleibt sie der einmalige Gebäudeumgriff für die GRZ.
+      </p>
     </section>
-    <details class="grundlagen-block"><summary>Höhen und Bezugspunkt ergänzen</summary>
-      <div class="raster">{#each hoehenfelder as [key, titel]}<GrundlagenZahl {titel} wert={g.geometrie?.[key]} readonly={g.planbindungen?.some(b=>b.ziel===`geometrie.${key}`)} onwert={(v) => { (g.geometrie ??= {})[key] = v; }} />{/each}
-        <label>Dachform<select value={g.geometrie?.dachform ?? ""} onchange={(e) => { const v = e.currentTarget.value as Dachform | ""; if (v) (g.geometrie ??= {}).dachform = v; else if (g.geometrie) delete g.geometrie.dachform; }}>
-          <option value="">Nicht erfasst</option>{#each DACHFORMEN as [code, name]}<option value={code}>{name}</option>{/each}
-        </select></label>
-        <GrundlagenZahl titel="Dachneigung (Grad)" wert={g.geometrie?.dachneigung_grad} onwert={(v) => { (g.geometrie ??= {}).dachneigung_grad = v; }} />
+    <details class="grundlagen-block">
+      <summary>Höhen und Bezugspunkt ergänzen</summary>
+      <div class="raster">
+        {#each hoehenfelder as [key, titel]}<GrundlagenZahl
+            {titel}
+            wert={g.geometrie?.[key]}
+            readonly={g.planbindungen?.some(
+              (b) => b.ziel === `geometrie.${key}`,
+            )}
+            onwert={(v) => {
+              (g.geometrie ??= {})[key] = v;
+            }}
+          />{/each}
+        <label
+          >Dachform<select
+            value={g.geometrie?.dachform ?? ""}
+            onchange={(e) => {
+              const v = e.currentTarget.value as Dachform | "";
+              if (v) (g.geometrie ??= {}).dachform = v;
+              else if (g.geometrie) delete g.geometrie.dachform;
+            }}
+          >
+            <option value="">Nicht erfasst</option
+            >{#each DACHFORMEN as [code, name]}<option value={code}
+                >{name}</option
+              >{/each}
+          </select></label
+        >
+        <GrundlagenZahl
+          titel="Dachneigung (Grad)"
+          wert={g.geometrie?.dachneigung_grad}
+          onwert={(v) => {
+            (g.geometrie ??= {}).dachneigung_grad = v;
+          }}
+        />
       </div>
-      {#if vorschau?.dach}<p class="meta">Dach: {vorschau.dach.herleitung}. Der Abstandsflächennachweis übernimmt Dachhöhe und Neigung mit „Höhen übernehmen“ für Giebel und Dachflächen.</p>{/if}
-      <label>Herkunft der Flächen und Höhen<textarea maxlength="4000" value={g.geometrie?.herkunft ?? ""} placeholder="z. B. Vorentwurf, Aufmaß oder Vermessung mit Datum" oninput={(e) => { (g.geometrie ??= {}).herkunft = e.currentTarget.value; }}></textarea></label>
-      <p class="meta">Fundamentsohle und Fußbodenhöhe sind unterschiedliche Angaben. Welches Gelände und welche Deckenlage für eine Vollgeschossprüfung maßgebend sind, wird im Nachweis anhand der geltenden Vorschrift geprüft.</p>
+      {#if vorschau?.dach}<p class="meta">
+          Dach: {vorschau.dach.herleitung}. Der Abstandsflächennachweis
+          übernimmt Dachhöhe und Neigung mit „Höhen übernehmen“ für Giebel und
+          Dachflächen.
+        </p>{/if}
+      <label
+        >Herkunft der Flächen und Höhen<textarea
+          maxlength="4000"
+          value={g.geometrie?.herkunft ?? ""}
+          placeholder="z. B. Vorentwurf, Aufmaß oder Vermessung mit Datum"
+          oninput={(e) => {
+            (g.geometrie ??= {}).herkunft = e.currentTarget.value;
+          }}
+        ></textarea></label
+      >
+      <p class="meta">
+        Fundamentsohle und Fußbodenhöhe sind unterschiedliche Angaben. Welches
+        Gelände und welche Deckenlage für eine Vollgeschossprüfung maßgebend
+        sind, wird im Nachweis anhand der geltenden Vorschrift geprüft.
+      </p>
     </details>
     <fieldset>
       <legend>Lage auf Flurstücken</legend>
-      {#if flurstueckEntwurf}<p class="hinweisbox" role="status">Unter Grundstücksinformationen → Flurstücke und Grundbuch gibt es ungespeicherte Änderungen. Neue Flurstücke erscheinen hier erst nach dem Speichern.</p>{/if}
-      <p class="meta">Flurstücke wählen, auf denen das Gebäude steht. Bei einem Gebäude über mehrere Flurstücke (z. B. mit Vereinigungsbaulast) alle betroffenen Flurstücke wählen.</p>
-      {#each flurstuecke as f (f.id)}<label class:nebenflurstueck={(f.rolle ?? "vorhaben") !== "vorhaben"}
+      {#if flurstueckEntwurf}<p class="hinweisbox" role="status">
+          Unter Grundstücksinformationen → Flurstücke und Grundbuch gibt es
+          ungespeicherte Änderungen. Neue Flurstücke erscheinen hier erst nach
+          dem Speichern.
+        </p>{/if}
+      <p class="meta">
+        Flurstücke wählen, auf denen das Gebäude steht. Bei einem Gebäude über
+        mehrere Flurstücke (z. B. mit Vereinigungsbaulast) alle betroffenen
+        Flurstücke wählen.
+      </p>
+      {#each flurstuecke as f (f.id)}<label
+          class:nebenflurstueck={(f.rolle ?? "vorhaben") !== "vorhaben"}
           ><input
             type="checkbox"
             checked={(g.flurstueck_ids ?? []).includes(f.id)}
             onchange={(e) => flurstueckSetzen(g, f.id, e.currentTarget.checked)}
-          />{flurName(f)}{(f.rolle ?? "vorhaben") !== "vorhaben" ? " (außerhalb des Vorhabengrundstücks)" : ""}</label
+          />{flurName(f)}{(f.rolle ?? "vorhaben") !== "vorhaben"
+            ? " (außerhalb des Vorhabengrundstücks)"
+            : ""}</label
         >{:else}<p class="meta">
           Noch keine Flurstücke erfasst. Unter Grundstücksinformationen →
           Flurstücke und Grundbuch ergänzen; die Zuordnung kann anschließend
           erfolgen.
         </p>{/each}
-      {#each (g.flurstueck_ids ?? []).filter((id) => !flurstuecke.some((f) => f.id === id)) as id (id)}<label class="veraltet"
-          ><input type="checkbox" checked onchange={() => flurstueckSetzen(g, id, false)} />Nicht mehr erfasstes Flurstück – Haken entfernen</label
+      {#each (g.flurstueck_ids ?? []).filter((id) => !flurstuecke.some((f) => f.id === id)) as id (id)}<label
+          class="veraltet"
+          ><input
+            type="checkbox"
+            checked
+            onchange={() => flurstueckSetzen(g, id, false)}
+          />Nicht mehr erfasstes Flurstück – Haken entfernen</label
         >{/each}
-      {#if !g.flurstueck_ids?.length && g.grundstueck_ids.length}<div class="hinweisbox" role="status">
-          {#if altEinheiten(g).length}Bisher dem Baugrundstück „{altEinheiten(g).map((k) => k.bezeichnung).join("“, „")}“ zugeordnet.
-            <button type="button" class="link" onclick={() => { g.flurstueck_ids = altEinheiten(g).flatMap((k) => k.flurstueck_ids); g.grundstueck_ids = []; g.flurstuecke_zu_pruefen = true; }}>Dessen Flurstücke übernehmen</button> und auf die tatsächlich bebauten Flurstücke reduzieren.
-          {:else}Die frühere Baugrundstückszuordnung besteht nicht mehr. Bitte die Flurstücke wählen.{/if}
+      {#if !g.flurstueck_ids?.length && g.grundstueck_ids.length}<div
+          class="hinweisbox"
+          role="status"
+        >
+          {#if altEinheiten(g).length}Bisher dem Baugrundstück „{altEinheiten(g)
+              .map((k) => k.bezeichnung)
+              .join("“, „")}“ zugeordnet.
+            <button
+              type="button"
+              class="link"
+              onclick={() => {
+                g.flurstueck_ids = altEinheiten(g).flatMap(
+                  (k) => k.flurstueck_ids,
+                );
+                g.grundstueck_ids = [];
+                g.flurstuecke_zu_pruefen = true;
+              }}>Dessen Flurstücke übernehmen</button
+            > und auf die tatsächlich bebauten Flurstücke reduzieren.
+          {:else}Die frühere Baugrundstückszuordnung besteht nicht mehr. Bitte
+            die Flurstücke wählen.{/if}
         </div>{/if}
       {#if g.flurstuecke_zu_pruefen}<div class="hinweisbox" role="status">
-          Die Flurstücke wurden aus der früheren Baugrundstückszuordnung übernommen.
-          Bitte auf die tatsächlich bebauten Flurstücke reduzieren.
-          <button type="button" class="link" onclick={() => { g.flurstuecke_zu_pruefen = undefined; }}>Zuordnung ist geprüft</button>
+          Die Flurstücke wurden aus der früheren Baugrundstückszuordnung
+          übernommen. Bitte auf die tatsächlich bebauten Flurstücke reduzieren.
+          <button
+            type="button"
+            class="link"
+            onclick={() => {
+              g.flurstuecke_zu_pruefen = undefined;
+            }}>Zuordnung ist geprüft</button
+          >
         </div>{/if}
-      {#if grundGeladen && einheiten(g).length === 1}<p class="meta">Baugrundstück laut Ermittlung: {einheiten(g)[0].bezeichnung}. Grundfläche und Geschosse gehen automatisch in dessen GRZ, GFZ und Geschossigkeit ein.</p>
-      {:else if grundGeladen && einheiten(g).length > 1}<p class="hinweisbox" role="status">Die gewählten Flurstücke gehören derzeit zu mehreren Baugrundstücken. Bei einer Vereinigungsbaulast die Flurstücke unter Berechnungen → Baugrundstücke gemeinsam zuordnen (abweichende Zuordnung mit Grundlage); sonst die Flächen dort je Grundstück getrennt erfassen.</p>
-      {:else if !g.flurstueck_ids?.length && !g.grundstueck_ids.length && vorhaben.length > 1}<p class="meta">Ohne Flurstückszuordnung geht das Gebäude nur bei genau einem Baugrundstück in die Berechnungen ein.</p>{/if}
+      {#if grundGeladen && einheiten(g).length === 1}<p class="meta">
+          Baugrundstück laut Ermittlung: {einheiten(g)[0].bezeichnung}.
+          Grundfläche und Geschosse gehen automatisch in dessen GRZ, GFZ und
+          Geschossigkeit ein.
+        </p>
+      {:else if grundGeladen && einheiten(g).length > 1}<p
+          class="hinweisbox"
+          role="status"
+        >
+          Die gewählten Flurstücke gehören derzeit zu mehreren Baugrundstücken.
+          Bei einer Vereinigungsbaulast die Flurstücke unter Berechnungen →
+          Baugrundstücke gemeinsam zuordnen (abweichende Zuordnung mit
+          Grundlage); sonst die Flächen dort je Grundstück getrennt erfassen.
+        </p>
+      {:else if !g.flurstueck_ids?.length && !g.grundstueck_ids.length && vorhaben.length > 1}<p
+          class="meta"
+        >
+          Ohne Flurstückszuordnung geht das Gebäude nur bei genau einem
+          Baugrundstück in die Berechnungen ein.
+        </p>{/if}
     </fieldset>
     <h3>Geschosse</h3>
     <button type="button" class="sekundaer" onclick={quellstaende}
       >Vollgeschossnachweise aktualisieren</button
     >
     {#if !g.geschosse.length}<section class="einzelgeschoss">
-      <h4>Einzelgeschoss · aus Gebäudegrundfläche</h4>
-      <p class="meta">Für eine eingeschossige Garage ist kein zusätzliches EG erforderlich. Mit geprüfter Einstufung geht das Einzelgeschoss automatisch in GFZ und Geschossigkeit ein.</p>
-      <div class="raster">
-        <label>Einstufung<select
-            aria-label="Einstufung des Einzelgeschosses"
-            value={g.geometrie?.einzelgeschoss_vollgeschoss === undefined ? "" : String(g.geometrie.einzelgeschoss_vollgeschoss)}
-            onchange={(e) => { const v = e.currentTarget.value; (g.geometrie ??= {}).einzelgeschoss_vollgeschoss = v === "" ? undefined : v === "true"; }}
-            ><option value="">Noch zu prüfen</option><option value="true">Vollgeschoss</option><option value="false">Nichtvollgeschoss</option></select
-          ></label>
-        <label>Grundlage der Einstufung<input
-            value={g.geometrie?.einzelgeschoss_grundlage ?? ""}
-            required={g.geometrie?.einzelgeschoss_vollgeschoss !== undefined}
-            maxlength="4000"
-            placeholder="Anwendbare Vorschrift und Herleitung"
-            oninput={(e) => { (g.geometrie ??= {}).einzelgeschoss_grundlage = e.currentTarget.value || undefined; }}
-          /></label>
-      </div>
-      <details><summary>Bekannte Höhen des Einzelgeschosses</summary><GeschossMasse einzelgeschoss masse={g.geometrie?.einzelgeschoss} onmasse={(m) => { (g.geometrie ??= {}).einzelgeschoss = m; }} /></details>
-    </section>{/if}
-    {#each g.geschosse as geschoss, i (geschoss.id)}<fieldset>
+        <h4>Einzelgeschoss · aus Gebäudegrundfläche</h4>
+        <p class="meta">
+          Für eine eingeschossige Garage ist kein zusätzliches EG erforderlich.
+          Mit geprüfter Einstufung geht das Einzelgeschoss automatisch in GFZ
+          und Geschossigkeit ein.
+        </p>
+        <div class="raster">
+          <label
+            >Einstufung<select
+              aria-label="Einstufung des Einzelgeschosses"
+              value={g.geometrie?.einzelgeschoss_vollgeschoss === undefined
+                ? ""
+                : String(g.geometrie.einzelgeschoss_vollgeschoss)}
+              onchange={(e) => {
+                const v = e.currentTarget.value;
+                (g.geometrie ??= {}).einzelgeschoss_vollgeschoss =
+                  v === "" ? undefined : v === "true";
+              }}
+              ><option value="">Noch zu prüfen</option><option value="true"
+                >Vollgeschoss</option
+              ><option value="false">Nichtvollgeschoss</option></select
+            ></label
+          >
+          <label
+            >Grundlage der Einstufung<input
+              value={g.geometrie?.einzelgeschoss_grundlage ?? ""}
+              required={g.geometrie?.einzelgeschoss_vollgeschoss !== undefined}
+              maxlength="4000"
+              placeholder="Anwendbare Vorschrift und Herleitung"
+              oninput={(e) => {
+                (g.geometrie ??= {}).einzelgeschoss_grundlage =
+                  e.currentTarget.value || undefined;
+              }}
+            /></label
+          >
+        </div>
+        <details>
+          <summary>Bekannte Höhen des Einzelgeschosses</summary><GeschossMasse
+            einzelgeschoss
+            masse={g.geometrie?.einzelgeschoss}
+            onmasse={(m) => {
+              (g.geometrie ??= {}).einzelgeschoss = m;
+            }}
+          />
+        </details>
+      </section>{/if}
+    {#each g.geschosse as geschoss, i (geschoss.id)}<fieldset
+        data-uebersicht-eintrag={geschoss.id}
+      >
         <legend>Geschoss {i + 1}</legend>
         <div class="raster">
           <label
-            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input aria-label="Bezeichnung"
+            >Bezeichnung<span class="pflicht" aria-hidden="true"> *</span><input
+              aria-label="Bezeichnung"
               bind:value={geschoss.bezeichnung}
               required
             /></label
@@ -309,8 +546,55 @@
             /></label
           >
         </div>
-        <GeschossMasse masse={geschoss.geometrie} onmasse={(m) => { geschoss.geometrie = m; }} geschosse={g.geschosse} id={geschoss.id} gebundeneFelder={g.planbindungen?.filter(b=>b.ziel.startsWith(`geschosse.${geschoss.id}.`)).map(b=>b.ziel.split(".")[2])??[]} />
-        {#if s.id}<PlanFlaeche projektId={projekt.id} gebaeudeId={s.id} {g} {aufmasse} geschossId={geschoss.id} geschossName={geschoss.bezeichnung || `Geschoss ${i + 1}`} gespeichert={geschossGespeichert(geschoss.id)} onplan={(neu) => (s.eingabe = neu)} onbusy={(b) => (planBusy = b)} />{/if}
+        <GeschossMasse
+          masse={geschoss.geometrie}
+          onmasse={(m) => {
+            geschoss.geometrie = m;
+          }}
+          geschosse={g.geschosse}
+          id={geschoss.id}
+          gebundeneFelder={g.planbindungen
+            ?.filter((b) => b.ziel.startsWith(`geschosse.${geschoss.id}.`))
+            .map((b) => b.ziel.split(".")[2]) ?? []}
+        />
+        {#if s.id}<PlanFlaeche
+            projektId={projekt.id}
+            gebaeudeId={s.id}
+            {g}
+            {aufmasse}
+            geschossId={geschoss.id}
+            geschossName={geschoss.bezeichnung || `Geschoss ${i + 1}`}
+            gespeichert={geschossGespeichert(geschoss.id)}
+            onplan={(neu) => (s.eingabe = neu)}
+            onbusy={(b) => (planBusy = b)}
+          />{/if}
+        <button
+          type="button"
+          class="sekundaer"
+          disabled={!s.id || planBusy || s.laeuft}
+          onclick={async () => {
+            if (s.hatAenderungen() && !(await s.speichern())) return;
+            if (navigation && s.id) {
+              navigation.vollgeschossauftrag = {
+                gebaeude: s.id,
+                geschoss: geschoss.id,
+                bezeichnung: geschoss.bezeichnung,
+              };
+              navigation.rueckweg = {
+                bereich: "gebaeude",
+                objekt: s.id,
+                register: null,
+                eintrag: geschoss.id,
+              };
+              navigation.springen({
+                bereich: "vollgeschosse",
+                objekt: null,
+                register: null,
+                eintrag: null,
+              });
+            }
+          }}>Vollgeschossstatus dieses Geschosses prüfen …</button
+        >
         <label
           >Aus Vollgeschossnachweis übernehmen<select
             value={geschoss.einstufungsquelle
@@ -338,7 +622,8 @@
         <button
           type="button"
           class="link"
-          onclick={() => void geschossEntfernen(g, geschoss.id)}>Geschoss entfernen</button
+          onclick={() => void geschossEntfernen(g, geschoss.id)}
+          >Geschoss entfernen</button
         >
       </fieldset>{/each}
     <button
@@ -352,21 +637,78 @@
           grundlage: "",
         })}>Geschoss hinzufügen</button
     >
-    {#if s.id}<details bind:open={planOffen}><summary>Höhen und alle Verknüpfungen aus PDF-Aufmaß</summary>
-      <p class="meta">Flächen lassen sich direkt an den Feldern Gebäudegrundfläche und Geschossfläche übernehmen. Hier werden zusätzlich Höhen verknüpft und alle Verknüpfungen aufgelistet. Gebäude und Geschosse zuerst speichern, dann Markierungen im PDF-Aufmaß zuordnen. Absolute Höhen in NHN werden auf den Gebäudenullpunkt umgerechnet.</p>
-      <Planquellen projektId={projekt.id} objektId={s.id} plan={g} onplan={neu=>s.eingabe=neu as Gebaeude} onbusy={b=>planBusy=b}/>
-    </details>{/if}
-    {#if vorschauFehler}<p role="alert" class="fehlertext">{vorschauFehler}</p>{/if}
-    {#if vorschau}<section class="grundlagen-auswertung" aria-label="Abgeleitete Gebäudegrundlagen">
-      <h3>Aus den bekannten Angaben</h3>
-      <p>Gebäudegrundfläche: <strong>{z(vorschau.grundflaeche_m2)}{vorschau.grundflaeche_m2 !== null ? " m²" : ""}</strong> · Summe der Geschossflächen: <strong>{z(vorschau.geschossflaechensumme_m2)}{vorschau.geschossflaechensumme_m2 !== null ? " m²" : ""}</strong></p>
-      <p class="meta">Die Geschossflächensumme ist noch keine anrechenbare GFZ-Fläche. Hierfür werden Vollgeschosseinstufung und Planungsrecht im Berechnungsbereich geprüft.</p>
-      <div class="tabellen-scroll"><table class="ergebnistabelle"><thead><tr><th>Ebene</th><th>Fläche (m²)</th><th>OK Decke zu ±0,00 (m)</th><th>Decke über Gelände (m)</th></tr></thead><tbody>
-      {#each vorschau.geschosse as s}<tr><th scope="row">{s.bezeichnung}{s.implizit ? " (vorläufig)" : ""}</th><td>{z(s.flaeche_m2)}</td><td>{z(s.decke_oberkante_m)}</td><td>{z(s.decke_ueber_gelaende_m)}</td></tr>{/each}
-      </tbody></table></div>
-      {#each vorschau.geschosse.filter((s) => s.decke_oberkante_m !== null) as s}<p class="meta">{s.bezeichnung}: {s.herleitung}.</p>{/each}
-      {#if vorschau.offen.length}<details><summary>Noch offene Grundlagen ({vorschau.offen.length})</summary><ul>{#each vorschau.offen as o}<li>{o}</li>{/each}</ul></details>{/if}
-    </section>{/if}
+    {#if s.id}<details bind:open={planOffen}>
+        <summary>Höhen und alle Verknüpfungen aus PDF-Aufmaß</summary>
+        <p class="meta">
+          Flächen lassen sich direkt an den Feldern Gebäudegrundfläche und
+          Geschossfläche übernehmen. Hier werden zusätzlich Höhen verknüpft und
+          alle Verknüpfungen aufgelistet. Gebäude und Geschosse zuerst
+          speichern, dann Markierungen im PDF-Aufmaß zuordnen. Absolute Höhen in
+          NHN werden auf den Gebäudenullpunkt umgerechnet.
+        </p>
+        <Planquellen
+          projektId={projekt.id}
+          objektId={s.id}
+          plan={g}
+          onplan={(neu) => (s.eingabe = neu as Gebaeude)}
+          onbusy={(b) => (planBusy = b)}
+        />
+      </details>{/if}
+    {#if vorschauFehler}<p role="alert" class="fehlertext">
+        {vorschauFehler}
+      </p>{/if}
+    {#if vorschau}<section
+        class="grundlagen-auswertung"
+        aria-label="Abgeleitete Gebäudegrundlagen"
+      >
+        <h3>Aus den bekannten Angaben</h3>
+        <p>
+          Gebäudegrundfläche: <strong
+            >{z(vorschau.grundflaeche_m2)}{vorschau.grundflaeche_m2 !== null
+              ? " m²"
+              : ""}</strong
+          >
+          · Summe der Geschossflächen:
+          <strong
+            >{z(
+              vorschau.geschossflaechensumme_m2,
+            )}{vorschau.geschossflaechensumme_m2 !== null ? " m²" : ""}</strong
+          >
+        </p>
+        <p class="meta">
+          Die Geschossflächensumme ist noch keine anrechenbare GFZ-Fläche.
+          Hierfür werden Vollgeschosseinstufung und Planungsrecht im
+          Berechnungsbereich geprüft.
+        </p>
+        <div class="tabellen-scroll">
+          <table class="ergebnistabelle">
+            <thead
+              ><tr
+                ><th>Ebene</th><th>Fläche (m²)</th><th>OK Decke zu ±0,00 (m)</th
+                ><th>Decke über Gelände (m)</th></tr
+              ></thead
+            ><tbody>
+              {#each vorschau.geschosse as s}<tr
+                  ><th scope="row"
+                    >{s.bezeichnung}{s.implizit ? " (vorläufig)" : ""}</th
+                  ><td>{z(s.flaeche_m2)}</td><td>{z(s.decke_oberkante_m)}</td
+                  ><td>{z(s.decke_ueber_gelaende_m)}</td></tr
+                >{/each}
+            </tbody>
+          </table>
+        </div>
+        {#each vorschau.geschosse.filter((s) => s.decke_oberkante_m !== null) as s}<p
+            class="meta"
+          >
+            {s.bezeichnung}: {s.herleitung}.
+          </p>{/each}
+        {#if vorschau.offen.length}<details>
+            <summary>Noch offene Grundlagen ({vorschau.offen.length})</summary>
+            <ul>
+              {#each vorschau.offen as o}<li>{o}</li>{/each}
+            </ul>
+          </details>{/if}
+      </section>{/if}
     <p class="meta">
       Gebäude und Geschosse besitzen feste Identitäten. Die
       Vollgeschosseinstufung wird mit ihrer fachlichen Grundlage erfasst.
@@ -375,12 +717,38 @@
 </Fachliste>
 
 <style>
-  .grundlagen-block { margin-block: 1.3rem; padding-block: 1rem; border-block-start: 1px solid var(--border); }
-  summary { cursor: pointer; font-weight: 600; }
-  .einzelgeschoss { margin-block: 1rem; padding: 1rem; border-inline-start: 3px solid var(--accent); background: var(--accent-soft); }
-  .einzelgeschoss h4 { margin-top: 0; }
-  .veraltet { color: var(--warning-text); font-style: italic; }
-  .nebenflurstueck { color: var(--muted); }
-  .grundlagen-auswertung { margin-block: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--border); font-variant-numeric: tabular-nums; }
-  .tabellen-scroll { overflow-x: auto; }
+  .grundlagen-block {
+    margin-block: 1.3rem;
+    padding-block: 1rem;
+    border-block-start: 1px solid var(--border);
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .einzelgeschoss {
+    margin-block: 1rem;
+    padding: 1rem;
+    border-inline-start: 3px solid var(--accent);
+    background: var(--accent-soft);
+  }
+  .einzelgeschoss h4 {
+    margin-top: 0;
+  }
+  .veraltet {
+    color: var(--warning-text);
+    font-style: italic;
+  }
+  .nebenflurstueck {
+    color: var(--muted);
+  }
+  .grundlagen-auswertung {
+    margin-block: 1.5rem;
+    padding-block: 1rem;
+    border-block: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+  .tabellen-scroll {
+    overflow-x: auto;
+  }
 </style>

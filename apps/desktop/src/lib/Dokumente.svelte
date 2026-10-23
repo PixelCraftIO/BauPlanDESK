@@ -2,7 +2,7 @@
   import { projektNavigation } from "./projektNavigation.svelte";
   import Druckknopf from "./Druckknopf.svelte";
   import { editorAnmelden } from "./editoren";
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { ask, open, save } from "@tauri-apps/plugin-dialog";
   import {
     api,
@@ -31,6 +31,17 @@
   import Historie from "./Historie.svelte";
   import Dokumentdaten from "./Dokumentdaten.svelte";
   import { abonnieren, melden } from "./projektEreignisse";
+  let importVorschlag = $state<{
+    name: string;
+    version: number;
+    antwort: (wahl: "version" | "neu" | null) => void;
+  } | null>(null);
+  function importWahl(wahl: "version" | "neu" | null) {
+    const v = importVorschlag;
+    importVorschlag = null;
+    v?.antwort(wahl);
+  }
+  onDestroy(() => importWahl(null));
   let metadaten = $state<DocumentVersion | null>(null),
     metaDirty = $state(false),
     metaBusy = $state(false);
@@ -324,7 +335,10 @@
         api.kategorienkatalog(),
         api.dokumentkategorien(projektId),
       ]);
-      const stand = v.map((d) => `${d.document_id}:${d.version}`).sort().join();
+      const stand = v
+        .map((d) => `${d.document_id}:${d.version}`)
+        .sort()
+        .join();
       if (meldenNachAenderung && listenStand && stand !== listenStand)
         melden({ projektId, bereich: "dokumente", quelle: "dokumente" });
       listenStand = stand;
@@ -418,6 +432,20 @@
     });
     if (!auswahl) return;
     const pfade = Array.isArray(auswahl) ? auswahl : [auswahl];
+    if (dokumentId === null && pfade.length === 1) {
+      const name = pfade[0].split(/[\\/]/).at(-1) ?? "";
+      const treffer = versionen.filter(
+        (d) =>
+          d.file_name.toLocaleLowerCase("de") === name.toLocaleLowerCase("de"),
+      );
+      if (treffer.length === 1) {
+        const wahl = await new Promise<"version" | "neu" | null>((antwort) => {
+          importVorschlag = { name, version: treffer[0].version, antwort };
+        });
+        if (!wahl) return;
+        if (wahl === "version") dokumentId = treffer[0].document_id;
+      }
+    }
     // Neue Version: auf der Version aufbauen, die hier angezeigt wird.
     // Hat jemand anderes inzwischen abgelegt, meldet core-lib einen Konflikt.
     const bisher = dokumentId
@@ -436,6 +464,11 @@
         hinweis =
           v.ablage_hinweis ??
           `${v.file_name} wurde als Version ${v.version} abgelegt.`;
+        if (navigation?.unterlagenauftrag && pfade.length === 1)
+          navigation.unterlagenauftrag.dokument = {
+            dokument_id: v.document_id,
+            version: v.version,
+          };
       }
     } catch (e) {
       ablegeFehler(e, bisher?.file_name ?? "Dokument");
@@ -468,25 +501,48 @@
   let bezugsVersion = $state<number | null>(null);
   $effect(() => {
     const a = navigation?.auftrag;
-    if (!aktiv || !a || a.nummer === letzterSprung || a.ziel.bereich !== "dokumente" || !a.ziel.objekt) return;
+    if (
+      !aktiv ||
+      !a ||
+      a.nummer === letzterSprung ||
+      a.ziel.bereich !== "dokumente" ||
+      !a.ziel.objekt
+    )
+      return;
     untrack(() => {
       letzterSprung = a.nummer;
       if (metaDirty || pdfDirty || historie || metadaten || formular) {
-        hinweis = "Zuerst die offene Dokumentbearbeitung schließen, danach den Dokumentverweis erneut öffnen.";
+        hinweis =
+          "Zuerst die offene Dokumentbearbeitung schließen, danach den Dokumentverweis erneut öffnen.";
         return;
       }
       const id = a.ziel.objekt;
-      void api.historie(id!).then(v => {
-        if (!aktiv || navigation?.auftrag?.nummer !== a.nummer) return;
-        if (metaDirty || pdfDirty || historie || metadaten || formular) {
-          hinweis = "Dokumentverweis erneut öffnen, sobald die laufende Dokumentbearbeitung geschlossen ist."; return;
-        }
-        const version = a.ziel.eintrag ? Number(a.ziel.eintrag) : null;
-        const d = version === null ? [...v].sort((x,y)=>y.version-x.version)[0] : v.find(d=>d.version === version);
-        if (!d || d.project_id !== projektId) { onfehler("Die verknüpfte Dokumentversion ist in diesem Projekt nicht verfügbar."); return; }
-        bezugsVersion = version;
-        historie = d;
-      }).catch(e=>{ if (navigation?.auftrag?.nummer === a.nummer) onfehler(fehlertext(e)); });
+      void api
+        .historie(id!)
+        .then((v) => {
+          if (!aktiv || navigation?.auftrag?.nummer !== a.nummer) return;
+          if (metaDirty || pdfDirty || historie || metadaten || formular) {
+            hinweis =
+              "Dokumentverweis erneut öffnen, sobald die laufende Dokumentbearbeitung geschlossen ist.";
+            return;
+          }
+          const version = a.ziel.eintrag ? Number(a.ziel.eintrag) : null;
+          const d =
+            version === null
+              ? [...v].sort((x, y) => y.version - x.version)[0]
+              : v.find((d) => d.version === version);
+          if (!d || d.project_id !== projektId) {
+            onfehler(
+              "Die verknüpfte Dokumentversion ist in diesem Projekt nicht verfügbar.",
+            );
+            return;
+          }
+          bezugsVersion = version;
+          historie = d;
+        })
+        .catch((e) => {
+          if (navigation?.auftrag?.nummer === a.nummer) onfehler(fehlertext(e));
+        });
     });
   });
 
@@ -508,6 +564,7 @@
       arbeitsEditor?.istBeschaeftigt() ||
       laeuft ||
       ordnerLaeuft ||
+      !!importVorschlag ||
       !!formular ||
       !!email ||
       !!historie ||
@@ -528,6 +585,22 @@
   <button class="sekundaer" disabled={laeuft} onclick={() => laden()}
     >Dateiliste aktualisieren</button
   >
+  {#if navigation?.unterlagenauftrag}<aside class="hinweisbox">
+      <strong>Unterlage für: {navigation.unterlagenauftrag.titel}</strong>
+      <p>
+        Datei importieren oder unten eine konkrete Version wählen. Ein neuer
+        Dokumentstand ersetzt eine bestehende Zuordnung erst nach Ihrer
+        Bestätigung.
+      </p>
+      <button
+        type="button"
+        class="link"
+        onclick={() => {
+          if (navigation?.unterlagenauftrag)
+            navigation.springen(navigation.unterlagenauftrag.ziel);
+        }}>Zurück zum Ausgangsbereich →</button
+      >
+    </aside>{/if}
   <KategorieAuswahl
     {kategorien}
     bind:wert={importKategorie}
@@ -560,13 +633,13 @@
 </p>
 
 <div class="dateifilter werkzeugleiste">
-<label class="dateisuche"
-  >Dateien suchen<input
-    type="search"
-    bind:value={suche}
-    placeholder="Dateiname, z. B. Lageplan oder .xlsx"
-  /></label
->
+  <label class="dateisuche"
+    >Dateien suchen<input
+      type="search"
+      bind:value={suche}
+      placeholder="Dateiname, z. B. Lageplan oder .xlsx"
+    /></label
+  >
 
   <label
     >Kategorie filtern<select
@@ -684,7 +757,23 @@
                 >Ändern</button
               >{/if}</td
           >
-          <td>{doc.version}{anzahl > 1 ? ` (${anzahl} Versionen)` : ""}</td>
+          <td
+            >{#if navigation?.unterlagenauftrag}<button
+                type="button"
+                class="link"
+                onclick={() => {
+                  if (navigation?.unterlagenauftrag) {
+                    navigation.unterlagenauftrag.dokument = {
+                      dokument_id: doc.document_id,
+                      version: doc.version,
+                    };
+                    navigation.springen(navigation.unterlagenauftrag.ziel);
+                  }
+                }}>Für Anforderung auswählen</button
+              >{/if}{doc.version}{anzahl > 1
+              ? ` (${anzahl} Versionen)`
+              : ""}</td
+          >
           <td>{groesse(doc.size_bytes)}</td>
           <td
             >{new Date(doc.created_at).toLocaleString("de-DE")} · {doc.created_by}</td
@@ -758,8 +847,12 @@
                     metadaten = doc;
                   }}>Dokumentangaben …</button
                 >
-                <button class="link" onclick={() => { bezugsVersion = null; historie = doc; }}
-                  >Historie …</button
+                <button
+                  class="link"
+                  onclick={() => {
+                    bezugsVersion = null;
+                    historie = doc;
+                  }}>Historie …</button
                 >
                 {#if istPdf(doc) && darfAblegen}<button
                     class="link"
@@ -890,6 +983,21 @@
   </Dialog>
 {/if}
 
+{#if importVorschlag}<Dialog
+    titel="Datei oder neue Version"
+    onclose={() => importWahl(null)}
+    ><p>
+      „{importVorschlag.name}“ ist bereits als Version {importVorschlag.version}
+      vorhanden. Der Dateiname allein legt die Dokumentidentität nicht fest.
+    </p>
+    <button type="button" onclick={() => importWahl("version")}
+      >Als neue Version ablegen</button
+    ><button type="button" class="sekundaer" onclick={() => importWahl("neu")}
+      >Als separate Datei ablegen</button
+    ><button type="button" class="link" onclick={() => importWahl(null)}
+      >Abbrechen</button
+    ></Dialog
+  >{/if}
 <Ausgabeauftraege {projektId} darf={darfAblegen} stand={versionen.length} />
 <Arbeitskopien
   bind:this={arbeitsEditor}

@@ -68,7 +68,7 @@ with sync_playwright() as p:
  # Wiederholtes Archivieren verwendet dieselbe Vorgangskennung; keine doppelten Nachweise.
  s=offen('stellplaetze')
  for _ in range(2):
-  s.get_by_role('button',name='Nachweis archivieren und PDF ausgeben …',exact=True).click()
+  s.get_by_role('button',name='Nachweis erstellen …',exact=True).click()
   dialog=page.get_by_role('dialog',name='Druckausgabe',exact=True)
   expect(dialog).to_be_visible()
   if _==0:
