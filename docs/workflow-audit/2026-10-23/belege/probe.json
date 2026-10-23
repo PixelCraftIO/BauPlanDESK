@@ -1,0 +1,80 @@
+{
+  "basis": "e80717f39fe82f05d21705a0e70a5f94662d26d2",
+  "modus": "Produktions-UI mit Test-IPC, keine native End-to-End-Prüfung",
+  "viewport": {
+    "width": 1366,
+    "height": 900
+  },
+  "seiten": [
+    {
+      "bereich": "§34 ohne BauNVO: gesperrte Nutzungsmodule",
+      "beleg": "01-par34-navigation.png",
+      "sichtbare_eingaben": 2,
+      "sichtbare_schaltflaechen": 29,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    },
+    {
+      "bereich": "Baugrundstück ohne Grundbuch",
+      "beleg": "02-baugrundstueck.png",
+      "sichtbare_eingaben": 2,
+      "sichtbare_schaltflaechen": 29,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    },
+    {
+      "bereich": "Gebäude bearbeiten",
+      "beleg": "03-gebaeude.png",
+      "sichtbare_eingaben": 8,
+      "sichtbare_schaltflaechen": 17,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    },
+    {
+      "bereich": "Abstandsflächen Grundlagen",
+      "beleg": "04-abstand-grundlagen.png",
+      "sichtbare_eingaben": 15,
+      "sichtbare_schaltflaechen": 40,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    },
+    {
+      "bereich": "Abstandsflächen Wände",
+      "beleg": "05-abstand-waende.png",
+      "sichtbare_eingaben": 0,
+      "sichtbare_schaltflaechen": 39,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    },
+    {
+      "bereich": "Leere Formularbibliothek im Projekt",
+      "beleg": "06-formulare-leer.png",
+      "sichtbare_eingaben": 2,
+      "sichtbare_schaltflaechen": 13,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    },
+    {
+      "bereich": "Abgabe ohne Verfahrensakte",
+      "beleg": "07-einreichen.png",
+      "sichtbare_eingaben": 1,
+      "sichtbare_schaltflaechen": 29,
+      "seitenueberlauf": false,
+      "scrollhoehe": 900,
+      "meldungen": []
+    }
+  ],
+  "pruefungen": [
+    "§34 ohne BauNVO sperrt vier Nutzungsmodule; Grund nur als title am deaktivierten Button",
+    "Kein Grundbuch-Pflichtfehler in der UI; Core-Gruppierung hier nicht ausgeführt",
+    "Ohne Verfahrensakte bleibt Formularvorbereitung zugänglich; Portalübergabe gesperrt",
+    "Gebäudeentwurf bleibt nach Wechsel über Abstandsflächen, Formulare und Einreichen erhalten"
+  ],
+  "javascript_fehler": []
+}
