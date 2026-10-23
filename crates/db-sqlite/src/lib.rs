@@ -411,6 +411,19 @@ impl DocumentRepository for SqliteDatabase {
         }
     }
 
+    async fn remove_from_project(&self, id: DocumentId, basis: i64) -> CoreResult<()> {
+        let d = self.latest(id).await?;
+        if d.version != basis {
+            return Err(CoreError::VersionConflict {
+                expected: basis,
+                actual: d.version,
+            });
+        }
+        sqlx::query("INSERT INTO entfernte_dokumente (document_id, project_id) SELECT document_id, project_id FROM document_versions WHERE document_id=? AND version=? AND version=(SELECT MAX(version) FROM document_versions WHERE document_id=?) ON CONFLICT (document_id) DO NOTHING")
+            .bind(id.0.to_string()).bind(basis).bind(id.0.to_string()).execute(&self.pool).await.map_err(db_err)?;
+        Ok(())
+    }
+
     async fn latest(&self, id: DocumentId) -> CoreResult<DocumentVersion> {
         let row = sqlx::query(
             "SELECT * FROM document_versions WHERE document_id = ? ORDER BY version DESC LIMIT 1",
@@ -447,8 +460,21 @@ impl DocumentRepository for SqliteDatabase {
         .collect()
     }
 
+    async fn active_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        sqlx::query(
+            "SELECT * FROM document_versions WHERE project_id = ? AND document_id NOT IN (SELECT document_id FROM entfernte_dokumente) ORDER BY document_id, version",
+        )
+        .bind(project.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(document_from_row)
+        .collect()
+    }
+
     async fn latest_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
-        sqlx::query("SELECT d.* FROM document_versions d WHERE d.project_id=? AND NOT EXISTS (SELECT 1 FROM document_versions n WHERE n.document_id=d.document_id AND n.version>d.version) ORDER BY d.document_id").bind(project.to_string()).fetch_all(&self.pool).await.map_err(db_err)?.iter().map(document_from_row).collect()
+        sqlx::query("SELECT d.* FROM document_versions d WHERE d.project_id=? AND d.document_id NOT IN (SELECT document_id FROM entfernte_dokumente) AND NOT EXISTS (SELECT 1 FROM document_versions n WHERE n.document_id=d.document_id AND n.version>d.version) ORDER BY d.document_id").bind(project.to_string()).fetch_all(&self.pool).await.map_err(db_err)?.iter().map(document_from_row).collect()
     }
     async fn history_page(
         &self,
@@ -1492,5 +1518,72 @@ mod tests {
     async fn konformitaet() {
         let db = SqliteDatabase::in_memory().await.unwrap();
         core_lib::testsuite::repositories(db.repositories()).await;
+    }
+}
+
+#[cfg(test)]
+mod entfernung_tests {
+    use super::*;
+    #[tokio::test]
+    async fn entfernen_erhaelt_versionen_und_prueft_basis() {
+        let db = SqliteDatabase::in_memory().await.unwrap();
+        let p = ProjectRepository::create(
+            &db,
+            NewProject {
+                name: "Test".into(),
+                bundesland: Bundesland::By,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+        )
+        .await
+        .unwrap();
+        let d = db
+            .add_version(
+                DocumentVersion {
+                    document_id: DocumentId(Uuid::new_v4()),
+                    project_id: p.id,
+                    version: 1,
+                    file_name: "Plan.pdf".into(),
+                    storage_key: "test".into(),
+                    sha256: ContentHash::of(b"test"),
+                    size_bytes: 4,
+                    created_by: "Test".into(),
+                    created_at: Utc::now(),
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            db.remove_from_project(d.document_id, 0).await,
+            Err(CoreError::VersionConflict { .. })
+        ));
+        assert_eq!(
+            DocumentRepository::active_for_project(&db, p.id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        db.remove_from_project(d.document_id, d.version)
+            .await
+            .unwrap();
+        assert!(
+            DocumentRepository::active_for_project(&db, p.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(db.latest_for_project(p.id).await.unwrap().is_empty());
+        assert_eq!(
+            DocumentRepository::list_for_project(&db, p.id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(db.history(d.document_id).await.unwrap().len(), 1);
+        assert_eq!(db.latest(d.document_id).await.unwrap().version, d.version);
     }
 }

@@ -5,6 +5,39 @@ use crate::{
     domain::ProjectId,
     plattform::{ObjektArt, objekte::Gebaeude},
 };
+pub(super) struct Pruefkontext {
+    grund: Result<std::collections::BTreeSet<Uuid>, String>,
+    gebaeude: std::collections::BTreeMap<String, Result<Gebaeude, String>>,
+}
+impl Pruefkontext {
+    pub(super) fn zuordnung(&self, m: &Planmarkierung) -> CoreResult<()> {
+        let name = |t: &str| fehler(format!("Markierung „{}“: {t}", m.bezeichnung));
+        if let Some(id) = m.grundstueck_id {
+            let grund = self.grund.as_ref().map_err(|e| name(e))?;
+            if !grund.contains(&id) {
+                return Err(name(
+                    "Baugrundstückszuordnung ist nicht mehr aktuell; Baugrundstück neu wählen",
+                ));
+            }
+        }
+        if let Some(id) = m.gebaeude_id {
+            let g = self
+                .gebaeude
+                .get(&id.to_string())
+                .ok_or_else(|| name("Gebäude ist nicht mehr erfasst; Gebäude neu wählen"))?
+                .as_ref()
+                .map_err(|e| name(e))?;
+            if m.geschoss_id
+                .is_some_and(|id| !g.geschosse.iter().any(|s| s.id == id))
+            {
+                return Err(name(
+                    "Geschoss ist im Gebäude nicht mehr erfasst; Geschoss neu wählen",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Serialize, ts_rs::TS)]
 pub struct Planziel {
@@ -57,7 +90,11 @@ pub(crate) fn bindungsstand(a: &Planaufmass, markierung: Uuid) -> serde_json::Va
             "grundstueck_id": m.grundstueck_id,
             "gebaeude_id": m.gebaeude_id,
             "geschoss_id": m.geschoss_id,
-            "ausschnitt": m.ausschnitt_id.and_then(|id| a.ausschnitte.iter().find(|x| x.id == id)),
+            "ausschnitt": m.ausschnitt_id.and_then(|id| a.ausschnitte.iter().find(|x| x.id == id)).map(|a| {
+                let mut a=serde_json::to_value(a).expect("Ausschnitt serialisierbar");
+                a.as_object_mut().expect("Ausschnitt ist Objekt").remove("ebene_id");
+                a
+            }),
         });
         // Nur wenn gesetzt, damit bestehende Bindungsstände gleich bleiben.
         if let Some(raum) = m.hoehenzone_von {
@@ -161,6 +198,17 @@ impl CoreServices {
         plan: &Planaufmass,
     ) -> CoreResult<Vec<Planmesswert>> {
         let werte = plan.messen()?;
+        let kontext = self.planaufmass_kontext(pid, plan).await?;
+        for m in &plan.markierungen {
+            kontext.zuordnung(m)?;
+        }
+        Ok(werte)
+    }
+    pub(super) async fn planaufmass_kontext(
+        &self,
+        pid: ProjectId,
+        plan: &Planaufmass,
+    ) -> CoreResult<Pruefkontext> {
         let dokument = self
             .document_history(plan.dokument.dokument_id)
             .await?
@@ -172,38 +220,24 @@ impl CoreServices {
         }
         let projekt = self.get_project(pid).await?;
         let grund = if plan.markierungen.iter().any(|m| m.grundstueck_id.is_some()) {
-            crate::grundstueckskontext::ermitteln(&projekt)?
+            crate::grundstueckskontext::ermitteln(&projekt)
+                .map(|g| g.into_iter().map(|g| g.id).collect())
+                .map_err(|e| e.to_string())
         } else {
-            vec![]
+            Ok(std::collections::BTreeSet::new())
         };
-        let gebaeude = self.fachobjekte(pid, ObjektArt::Gebaeude).await?;
-        for m in &plan.markierungen {
-            // Die Meldung nennt die Markierung, damit sie im Editor auffindbar ist.
-            let name = |t: &str| fehler(format!("Markierung „{}“: {t}", m.bezeichnung));
-            if let Some(id) = m.grundstueck_id
-                && !grund.iter().any(|g| g.id == id)
-            {
-                return Err(name(
-                    "Baugrundstückszuordnung ist nicht mehr aktuell; Baugrundstück neu wählen",
-                ));
-            }
-            if let Some(id) = m.gebaeude_id {
-                let g = gebaeude
-                    .iter()
-                    .find(|g| g.objekt == id.to_string())
-                    .ok_or_else(|| name("Gebäude ist nicht mehr erfasst; Gebäude neu wählen"))?;
-                let g: Gebaeude =
-                    serde_json::from_value(g.daten.clone()).map_err(|e| fehler(e.to_string()))?;
-                if let Some(s) = m.geschoss_id
-                    && !g.geschosse.iter().any(|g| g.id == s)
-                {
-                    return Err(name(
-                        "Geschoss ist im Gebäude nicht mehr erfasst; Geschoss neu wählen",
-                    ));
-                }
-            }
-        }
-        Ok(werte)
+        let gebaeude = self
+            .fachobjekte(pid, ObjektArt::Gebaeude)
+            .await?
+            .into_iter()
+            .map(|g| {
+                (
+                    g.objekt,
+                    serde_json::from_value::<Gebaeude>(g.daten).map_err(|e| e.to_string()),
+                )
+            })
+            .collect();
+        Ok(Pruefkontext { grund, gebaeude })
     }
 
     pub(crate) async fn planwerte_einsetzen(

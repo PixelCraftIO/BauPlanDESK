@@ -2,12 +2,18 @@
 //! Öffentlicher Vertrag und Koordinatenkonvention: docs/planaufmass.md.
 mod abstand;
 mod aufgaben;
+mod export;
 mod gebaeude;
+mod geometrie;
+mod pruefung;
 mod raumbuch;
 mod service;
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe};
+pub use export::{Planexportformat, Planexportwunsch};
 pub use gebaeude::gebaeudeziele;
+pub use geometrie::{Flaechenoperation, flaechenoperation};
+pub use pruefung::{Markierungspruefung, Planpruefung};
 pub(crate) use service::bindungsstand;
 pub use service::{Planziel, planziele};
 #[cfg(test)]
@@ -63,16 +69,47 @@ pub struct Planebene {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Plangeometrie {
-    Polygon { punkte: Vec<Planpunkt> },
-    Rechteck { von: Planpunkt, bis: Planpunkt },
-    Kreis { mitte: Planpunkt, rand: Planpunkt },
-    Strecke { von: Planpunkt, bis: Planpunkt },
-    Hoehenpunkt { punkt: Planpunkt },
+    Polygon {
+        punkte: Vec<Planpunkt>,
+    },
+    Rechteck {
+        von: Planpunkt,
+        bis: Planpunkt,
+    },
+    Kreis {
+        mitte: Planpunkt,
+        rand: Planpunkt,
+    },
+    Strecke {
+        von: Planpunkt,
+        bis: Planpunkt,
+    },
+    Hoehenpunkt {
+        punkt: Planpunkt,
+    },
+    /// Zusammengesetzte Fläche mit echten Aussparungen. Bestehende einfache
+    /// Geometrien behalten ihre Serialisierung und Berechnung.
+    Flaeche {
+        polygone: Vec<Planpolygon>,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Planpolygon {
+    pub aussen: Vec<Planpunkt>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Vec<Planpunkt>>>")]
+    pub innen: Vec<Vec<Planpunkt>>,
 }
 impl Plangeometrie {
     /// Stützpunkte der Geometrie in Seitenkoordinaten.
     pub fn punkte(&self) -> Vec<Planpunkt> {
         match self {
+            Self::Flaeche { polygone } => polygone
+                .iter()
+                .flat_map(|p| p.aussen.iter().chain(p.innen.iter().flatten()))
+                .copied()
+                .collect(),
             Self::Polygon { punkte } => punkte.clone(),
             Self::Rechteck { von, bis } | Self::Strecke { von, bis } => vec![*von, *bis],
             Self::Kreis { mitte, rand } => vec![*mitte, *rand],
@@ -133,6 +170,32 @@ pub struct Planmarkierung {
     pub hoehenzone_von: Option<Uuid>,
 }
 impl Planbedeutung {
+    pub fn titel(self) -> &'static str {
+        match self {
+            Self::Unbestimmt => "Noch nicht zugeordnet",
+            Self::Flurstueck => "Flurstück",
+            Self::PrivateGruenflaeche => "Private Grünfläche",
+            Self::Versiegelung => "Versiegelung",
+            Self::GeschossAussenkante => "Geschoss-Außenkante",
+            Self::Gebaeudegrundflaeche => "Gebäudegrundfläche",
+            Self::Raum => "Raum",
+            Self::Aufenthaltsraum => "Aufenthaltsraum",
+            Self::Nuf => "Nutzungsfläche (NUF)",
+            Self::Tf => "Technikfläche (TF)",
+            Self::Vf => "Verkehrsfläche (VF)",
+            Self::Kgf => "Konstruktionsfläche (KGF)",
+            Self::Aussenwand => "Außenwand",
+            Self::Gelaende => "Gelände",
+            Self::Traufe => "Traufe",
+            Self::First => "First",
+            Self::Dach => "Dach",
+            Self::Nullpunkt => "Gebäudenullpunkt",
+            Self::Fussboden => "OK Fertigfußboden",
+            Self::Decke => "OK Decke",
+            Self::Fundamentsohle => "Fundamentsohle",
+            Self::Hoehenmass => "Höhenmaß",
+        }
+    }
     /// Flächen, die das Raumbuch als Raum (oder Höhenzone) übernimmt.
     pub fn raumartig(self) -> bool {
         matches!(
@@ -180,6 +243,10 @@ pub struct Planausschnitt {
     pub art: Ausschnittart,
     pub von: Planpunkt,
     pub bis: Planpunkt,
+    /// Stabile Zeichenebene; Altbestände verwenden weiterhin die Namenszuordnung.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ebene_id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub kalibrierung: Option<Plankalibrierung>,
@@ -355,6 +422,9 @@ impl Planaufmass {
         }
         let mut ausschnitte = std::collections::HashSet::new();
         for a in &self.ausschnitte {
+            if a.ebene_id.is_some_and(|id| !ebenen.contains(&id)) {
+                return Err(fehler("Zeichenebene des Ausschnitts fehlt"));
+            }
             crate::plattform::text(&a.bezeichnung, 200)?;
             punkt(&a.von)?;
             punkt(&a.bis)?;
@@ -456,6 +526,10 @@ impl Planaufmass {
                     offen: vec![],
                 };
                 let (area, length) = match &m.geometrie {
+                    Plangeometrie::Flaeche { polygone } => {
+                        let (a, l) = geometrie::flaechenmasse(polygone)?;
+                        (Some(a), Some(l))
+                    }
                     Plangeometrie::Polygon { punkte } => {
                         let (a, l) = polygon(punkte)?;
                         (Some(a), Some(l))

@@ -1141,6 +1141,8 @@ const ablage = (cmd: string, args: Record<string, unknown>) =>
   });
 
 export const api = {
+  dokumentEntfernen: (dokumentId: string, basis: number) => invoke<void>("dokument_entfernen", { dokumentId, basis }),
+  dokumentImExplorer: (dokumentId: string, version: number) => invoke<void>("dokument_im_explorer", { dokumentId, version }),
   emailLaden: (dokumentId: string, version: number) => invoke<ArchivierteEmail>("email_laden", { dokumentId, version }),
   emailAnhangAblegen: (dokumentId: string, version: number, index: number) => ablage("email_anhang_ablegen", { dokumentId, version, index }),
   /** Archivierte E-Mail als Kommunikation in eine Verfahrensakte übernehmen. */
@@ -1474,19 +1476,24 @@ export const api = {
   projektBaugrundstueckePruefen: (
     projektId: string,
     eingabe: BaugrundstuecksPlan,
+    schluessel: string | null = null,
   ) =>
     invoke<BaugrundstuecksPruefung>("projekt_baugrundstuecke_pruefen", {
       projektId,
       eingabe,
+      schluessel,
     }),
   baugrundstueckeGebaeudeEinbinden: (
     projektId: string,
     eingabe: BaugrundstuecksPlan,
+    schluessel: string | null = null,
   ) =>
     invoke<GebaeudeEinbindung>("projekt_baugrundstuecke_gebaeude_einbinden", {
       projektId,
       eingabe,
+      schluessel,
     }),
+  baugrundstueckEinzelnSpeichern:(projektId:string,version:number,berechnung:BaugrundstueckBerechnung)=>invoke<Project>("baugrundstueck_einzeln_speichern",{projektId,version,berechnung}),
   baugrenzenPruefen: (geometrie: BaugrenzenGeometrie) =>
     invoke<BaugrenzenPruefung>("baugrenzen_pruefen", { geometrie }),
   aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>

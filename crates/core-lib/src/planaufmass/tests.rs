@@ -1,4 +1,59 @@
 use super::*;
+#[test]
+fn flaechenoperationen_behalten_aussparungen_und_teilflaechen() {
+    let a = Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [100., 100.],
+    };
+    let loch = Plangeometrie::Rechteck {
+        von: [20., 20.],
+        bis: [80., 80.],
+    };
+    let g = flaechenoperation(&a, &loch, Flaechenoperation::Abziehen)
+        .unwrap()
+        .remove(0);
+    let p = plan(g.clone());
+    let wert = &p.messen().unwrap()[0];
+    assert!((wert.flaeche_m2.unwrap() - 64.).abs() < 1e-8);
+    assert!((wert.laenge_m.unwrap() - 64.).abs() < 1e-8);
+    let Plangeometrie::Flaeche { polygone } = g else {
+        panic!("Flächenvertrag")
+    };
+    assert_eq!(polygone[0].innen.len(), 1);
+    let b = Plangeometrie::Rechteck {
+        von: [200., 0.],
+        bis: [300., 100.],
+    };
+    let g = flaechenoperation(&a, &b, Flaechenoperation::Vereinen)
+        .unwrap()
+        .remove(0);
+    assert!((plan(g).messen().unwrap()[0].flaeche_m2.unwrap() - 200.).abs() < 1e-8);
+    let teile = flaechenoperation(&a, &loch, Flaechenoperation::Teilen).unwrap();
+    let summe: f64 = teile
+        .into_iter()
+        .map(|g| plan(g).messen().unwrap()[0].flaeche_m2.unwrap())
+        .sum();
+    assert!((summe - 100.).abs() < 1e-8);
+    assert!(flaechenoperation(&a, &b, Flaechenoperation::Schneiden).is_err());
+}
+#[test]
+fn ungueltige_aussparungen_und_fremde_ebenen_werden_abgewiesen() {
+    let p = plan(Plangeometrie::Flaeche {
+        polygone: vec![Planpolygon {
+            aussen: vec![[0., 0.], [100., 0.], [100., 100.], [0., 100.]],
+            innen: vec![vec![[200., 200.], [220., 200.], [220., 220.], [200., 220.]]],
+        }],
+    });
+    assert!(p.messen().is_err());
+    let mut p = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [10., 10.],
+    });
+    let mut a = schnitt(9, [0., 0.], [100., 100.], None);
+    a.ebene_id = Some(Uuid::new_v4());
+    p.ausschnitte.push(a);
+    assert!(p.messen().is_err());
+}
 fn plan(g: Plangeometrie) -> Planaufmass {
     let ebene = Uuid::from_u128(1);
     Planaufmass {
@@ -203,6 +258,7 @@ fn schnitt(
     linie: Option<(Planpunkt, Planpunkt, f64)>,
 ) -> Planausschnitt {
     Planausschnitt {
+        ebene_id: None,
         id: Uuid::from_u128(id),
         bezeichnung: format!("Schnitt {id}"),
         art: Ausschnittart::Schnitt,

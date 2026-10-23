@@ -6,6 +6,8 @@
   // Zeichnet einen Plan auf ein Canvas und nimmt Aufmaßpunkte entgegen.
   // Gemessen wird nicht hier, sondern in core-lib (onaufmass → api.aufmass).
   import { onMount, untrack } from "svelte";
+  import { Fangindex, standardFang, type Fangoptionen } from "./planaufmass/fang";
+  import type { SnapGeometry } from "./planaufmass/pdfGeometry";
   import type {
     Plan,
     Punkt,
@@ -22,6 +24,9 @@
     oncursor,
     baugrenzen = null,
     grenzpruefung = null,
+    punktfang = true,
+    fangoptionen = standardFang,
+    onfanghinweis = () => {},
   }: {
     plan: Plan;
     sichtbar: boolean[];
@@ -33,6 +38,7 @@
     oncursor: (p: Punkt | null) => void;
     baugrenzen?: BaugrenzenGeometrie | null;
     grenzpruefung?: BaugrenzenPruefung | null;
+    punktfang?:boolean;fangoptionen?:Fangoptionen;onfanghinweis?:(text:string)=>void;
   } = $props();
 
   let huelle: HTMLDivElement;
@@ -75,22 +81,19 @@
     return [...m.values()];
   });
 
-  // Rasterindex aller Eckpunkte für den Punktfang.
-  const raster = $derived.by(() => {
-    const g = plan.grenzen;
-    const zelle = g
-      ? Math.max(g.max[0] - g.min[0], g.max[1] - g.min[1], 1e-9) / 256
-      : 1;
-    const zellen = new Map<string, { p: Punkt; ebene: number }[]>();
-    for (const l of plan.linien)
-      for (const p of l.punkte) {
-        const k = `${Math.floor(p[0] / zelle)}|${Math.floor(p[1] / zelle)}`;
-        let z = zellen.get(k);
-        if (!z) zellen.set(k, (z = []));
-        z.push({ p, ebene: l.ebene });
+  const fangGeometrie=$derived.by(()=>{
+    const g:SnapGeometry={points:[],segments:[],limited:false};
+    for(const l of plan.linien){if(!sichtbar[l.ebene])continue;
+      for(let i=0;i<l.punkte.length;i++){
+        if(g.points.length+g.segments.length>=100000){g.limited=true;return g}
+        g.points.push(l.punkte[i]);if(i)g.segments.push([l.punkte[i-1],l.punkte[i]]);
       }
-    return { zelle, zellen };
+      if(l.geschlossen&&l.punkte.length>2)g.segments.push([l.punkte.at(-1)!,l.punkte[0]]);
+    }
+    return g;
   });
+  const fangindex=$derived(new Fangindex(fangGeometrie));
+  $effect(()=>onfanghinweis(fangGeometrie.limited?"Fangumfang begrenzt. Fuer kleinere Bereiche Ebenen ausblenden.":""));
 
   const nachZeichnung = (sx: number, sy: number): Punkt => [
     (sx - ox) / s + basis[0],
@@ -269,25 +272,8 @@
       });
   });
 
-  function fangpunkt(sx: number, sy: number): Punkt | null {
-    const radius = 10 / s; // 10 px
-    const [x, y] = nachZeichnung(sx, sy);
-    const { zelle, zellen } = raster;
-    let best: Punkt | null = null;
-    let bestD = radius;
-    const n = Math.ceil(radius / zelle);
-    const cx = Math.floor(x / zelle);
-    const cy = Math.floor(y / zelle);
-    // Stark herausgezoomt deckt der Fangradius einen großen Teil des Plans ab: kein Fang.
-    if (n > 32) return null;
-    for (let i = -n; i <= n; i++)
-      for (let j = -n; j <= n; j++)
-        for (const { p, ebene } of zellen.get(`${cx + i}|${cy + j}`) ?? []) {
-          if (!sichtbar[ebene]) continue;
-          const d = Math.hypot(p[0] - x, p[1] - y);
-          if (d < bestD) [best, bestD] = [p, d];
-        }
-    return best;
+  function fangpunkt(sx:number,sy:number):Punkt|null {
+    return punktfang?fangindex.suchen(nachZeichnung(sx,sy),8/s,fangoptionen)?.point??null:null;
   }
 
   function innerhalb(p: Punkt, ps: Punkt[]) {
@@ -326,6 +312,7 @@
   }
 
   let ziehen: { x: number; y: number; ox: number; oy: number } | null = null;
+  let leertaste=false;
 
   function lokal(e: MouseEvent): [number, number] {
     const r = canvas.getBoundingClientRect();
@@ -333,10 +320,12 @@
   }
 
   function druecken(e: PointerEvent) {
+    canvas.focus({preventScroll:true});
     canvas.setPointerCapture(e.pointerId);
     if (
       e.button === 1 ||
       e.button === 2 ||
+      leertaste ||
       (e.button === 0 && werkzeug === "verschieben")
     ) {
       ziehen = { x: e.clientX, y: e.clientY, ox, oy };
@@ -394,6 +383,7 @@
   }
 
   function rad(e: WheelEvent) {
+    if(!(e.ctrlKey||e.metaKey))return;
     e.preventDefault();
     const [sx, sy] = lokal(e);
     const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015));
@@ -433,12 +423,21 @@
 </script>
 
 <div class="planflaeche" bind:this={huelle}>
+  <!-- Tastaturbedienbare Zeichenanwendung; Messungen sind zusätzlich als Liste erreichbar. -->
+  <!-- svelte-ignore a11y_no_interactive_element_to_noninteractive_role -->
   <canvas
     bind:this={canvas}
     class:messen={werkzeug !== "verschieben"}
+    role="application"
+    aria-label="DXF-Zeichenfläche. M verschiebt, V wählt Konturen, S misst Strecken, P zeichnet Polygone. Strg+Mausrad zoomt. Enter schließt, Escape bricht ab."
+    tabindex="0"
+    onkeydown={e=>{if(e.code==="Space"){e.preventDefault();leertaste=true}}}
+    onkeyup={e=>{if(e.code==="Space")leertaste=false}}
+    onblur={()=>{leertaste=false;ziehen=null}}
     onpointerdown={druecken}
     onpointermove={bewegen}
     onpointerup={loslassen}
+    onpointercancel={()=>{ziehen=null;leertaste=false}}
     onpointerleave={() => {
       cursor = null;
       fang = null;

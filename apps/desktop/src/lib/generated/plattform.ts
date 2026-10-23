@@ -1,8 +1,17 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
+export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
+export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };
 export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, };
 export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
-export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], };
+export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], } | { "art": "flaeche", polygone: Array<Planpolygon>, };
+export type Planpolygon = { aussen: Array<[number, number]>, innen?: Array<Array<[number, number]>>, };
+export type Flaechenoperation = "vereinen" | "abziehen" | "schneiden" | "teilen";
+export type Markierungspruefung = { id: string, wert: Planmesswert | null, fehler: string | null, };
+export type Planpruefung = { markierungen: Array<Markierungspruefung>, };
+export type Planexportwunsch = { aufmass_id: string, revision: number, format: Planexportformat, nur_sichtbare_ebenen: boolean, };
+export type Planexportformat = "pdf" | "csv";
 export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass";
 export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
 /**
@@ -22,7 +31,11 @@ export type Planhoehenbezug = { punkt: [number, number], hoehe_m: number,
 system: string, };
 export type Ausschnittart = "grundriss" | "lageplan" | "schnitt" | "ansicht" | "detail";
 export type Planbezugslinie = { von: [number, number], bis: [number, number], hoehe_m: number, system: string, };
-export type Planausschnitt = { id: string, bezeichnung: string, art: Ausschnittart, von: [number, number], bis: [number, number], kalibrierung?: Plankalibrierung, bezugslinie?: Planbezugslinie, };
+export type Planausschnitt = { id: string, bezeichnung: string, art: Ausschnittart, von: [number, number], bis: [number, number],
+/**
+ * Stabile Zeichenebene; Altbestände verwenden weiterhin die Namenszuordnung.
+ */
+ebene_id?: string, kalibrierung?: Plankalibrierung, bezugslinie?: Planbezugslinie, };
 export type Planaufmass = { bezeichnung: string, dokument: Dokumentbezug,
 /**
  * Einsbasiert. Mehrere Aufmaße derselben Seite dürfen verschiedene Maßstäbe haben.
@@ -937,7 +950,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };

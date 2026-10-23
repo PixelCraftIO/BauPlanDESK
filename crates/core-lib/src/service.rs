@@ -1495,9 +1495,28 @@ impl CoreServices {
         .await
     }
 
-    /// Alle Versionen aller Dokumente eines Projekts.
+    /// Entfernt ein Dokument aus der aktiven Ablage, ohne historische Bezüge zu zerstören.
+    pub async fn dokument_entfernen(
+        &self,
+        id: DocumentId,
+        basis: i64,
+        wer: &Benutzer,
+    ) -> CoreResult<()> {
+        self.pruefe(wer, Recht::DokumentAblegen).await?;
+        self.dokument_zugriff(id, wer, crate::zugriff::ProjektRecht::Bearbeiten)
+            .await?;
+        if let Some(s) = self.repos.documents.get_lock(id).await? {
+            return Err(CoreError::Gesperrt {
+                von: s.benutzer_name,
+                seit: s.seit,
+            });
+        }
+        self.repos.documents.remove_from_project(id, basis).await
+    }
+
+    /// Alle Versionen aller aktiven Dokumente eines Projekts.
     pub async fn list_documents(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
-        self.repos.documents.list_for_project(project).await
+        self.repos.documents.active_for_project(project).await
     }
 
     /// Sperrt ein Dokument, damit andere keine neuen Versionen ablegen,

@@ -726,6 +726,14 @@ fn stabilisieren(a: &mut Planaufmass, null_id: Uuid) -> usize {
             }
             Plangeometrie::Hoehenpunkt { punkt } => r(punkt),
             Plangeometrie::Polygon { punkte } => punkte.iter_mut().for_each(r),
+            Plangeometrie::Flaeche { polygone } => {
+                for p in polygone {
+                    p.aussen.iter_mut().for_each(r);
+                    for innen in &mut p.innen {
+                        innen.iter_mut().for_each(r);
+                    }
+                }
+            }
         }
     }
     let mut verschoben = 0;
@@ -813,6 +821,7 @@ pub async fn fach(b: &mut Beispiel) {
     );
     let ausschnitt =
         |id, name: &str, art, von: (f64, f64), bis: (f64, f64), linie: bool| Planausschnitt {
+            ebene_id: None,
             id,
             bezeichnung: name.into(),
             art,

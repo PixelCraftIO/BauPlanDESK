@@ -2,6 +2,7 @@
 pub mod ablauf;
 pub mod ausgabe;
 pub mod einbindung;
+mod einheit;
 pub mod gebaeude;
 pub mod nachweise;
 pub mod objekte;
@@ -34,6 +35,7 @@ pub enum ObjektArt {
     Dokumentdaten,
     Raumbuch,
     Planaufmass,
+    Cadaufmass,
 }
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
@@ -55,6 +57,7 @@ impl ObjektArt {
             Self::Dokumentdaten => "dokumentdaten",
             Self::Raumbuch => "raumbuch",
             Self::Planaufmass => "planaufmass",
+            Self::Cadaufmass => "cadaufmass",
         }
     }
 }
@@ -258,6 +261,7 @@ pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
         ObjektArt::Dokumentdaten => rund::<objekte::Dokumentdaten>(&f.daten),
         ObjektArt::Raumbuch => rund::<objekte::Raumbuch>(&f.daten),
         ObjektArt::Planaufmass => rund::<crate::planaufmass::Planaufmass>(&f.daten),
+        ObjektArt::Cadaufmass => rund::<crate::cad::projektaufmass::CadProjektaufmass>(&f.daten),
     };
     if let Some(neu) = neu {
         f.daten = neu;

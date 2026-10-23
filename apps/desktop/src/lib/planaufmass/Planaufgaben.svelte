@@ -4,6 +4,10 @@
   import { plattformApi } from "../plattformApi";
   import { planApi } from "./api";
   import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
+  import { Uebernahme, zielfeld, werttext, type Wertvergleich } from "./Uebernahme.svelte";
+  import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
+  const v=new Uebernahme();
+  const einheit=(a:Planaufgabe)=>a.groesse==="flaeche"?"m²":a.groesse==="neigung"?"°":"m";
   // Was das Projekt aus diesem Aufmaß noch braucht. Die Liste kommt vom Core;
   // „Zeichnen“ belegt Werkzeug und Zuordnung vor, „Übernehmen“ verknüpft die
   // Markierung über die bestehenden Übernahmedienste und speichert den Verbraucher.
@@ -49,6 +53,7 @@
         const neu = structuredClone(stand.daten);
         neu.planbindungen = [...(neu.planbindungen ?? []).filter((b) => b.ziel !== a.ziel), bindung];
         const geprueft = await planApi.gebaeude(projektId, a.objekt, neu);
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
         await plattformApi.speichern(projektId, "gebaeude", a.objekt, stand.revision, geprueft);
       } else {
         const stand = (await plattformApi.liste<AbstandsPlan>(projektId, "abstandsflaechen")).find((g) => g.objekt === a.objekt);
@@ -56,6 +61,7 @@
         const neu = structuredClone(stand.daten);
         neu.planbindungen = [...(neu.planbindungen ?? []).filter((b) => b.ziel !== a.ziel), bindung];
         const geprueft = await planApi.abstand(projektId, neu);
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
         await plattformApi.speichern(projektId, "abstandsflaechen", a.objekt, stand.revision, geprueft);
       }
       const n = name(a.markierung);
@@ -63,10 +69,34 @@
       laden();
     } catch (e) { fehler = fehlertext(e); } finally { busy = ""; }
   }
+  async function gesammeltPruefen(){
+    if(busy||!darf||!gespeichert)return;busy="sammel";fehler="";meldung="";
+    const jobs:{a:Planaufgabe;revision:number;daten:Gebaeude|AbstandsPlan}[]=[],zeilen:Wertvergleich[]=[],probleme:string[]=[];
+    try{
+      const aufmass=await plattformApi.lesen<Planaufmass>(projektId,"planaufmass",aufmassId);if(!aufmass)throw Error("Aufmaß nicht mehr vorhanden.");
+      const gruppen=[...new Map(aufgaben.filter(a=>a.gebunden).map(a=>[`${a.verbraucher}:${a.objekt}`,a])).values()];
+      for(const a of gruppen)try{
+        const art=a.verbraucher==="gebaeude"?"gebaeude":"abstandsflaechen";
+        const stand=await plattformApi.lesen<Gebaeude|AbstandsPlan>(projektId,art,a.objekt);if(!stand)throw Error("Zielobjekt fehlt.");
+        const neu=structuredClone(stand.daten);neu.planbindungen=(neu.planbindungen??[]).map(b=>b.aufmass_id===aufmassId?{...b,revision:aufmass.revision}:b);
+        const geprueft="waende" in neu?await planApi.abstand(projektId,neu):await planApi.gebaeude(projektId,a.objekt,neu);
+        jobs.push({a,revision:stand.revision,daten:geprueft});
+        for(const feld of aufgaben.filter(x=>x.verbraucher===a.verbraucher&&x.objekt===a.objekt&&x.gebunden))zeilen.push({ziel:`${a.objekt_name} · ${feld.titel}`,vorher:werttext(zielfeld(stand.daten,feld.ziel),einheit(feld)),nachher:werttext(zielfeld(geprueft,feld.ziel),einheit(feld)),quelle:`${plan.bezeichnung} · ${name(feld.gebunden)} · R${aufmass.revision}`});
+      }catch(e){probleme.push(`${a.objekt_name}: ${fehlertext(e)}`)}
+      if(!jobs.length){fehler=probleme.join(" · ")||"Keine verknüpften Zielobjekte vorhanden.";return}
+      for(const p of probleme)zeilen.push({ziel:"Nicht aktualisierbar",vorher:"Bleibt unverändert",nachher:"Quelle zuerst klären",quelle:p});
+      if(!(await v.fragen(zeilen,true)))return;
+      let anzahl=0;
+      for(const job of jobs)try{await plattformApi.speichern(projektId,job.a.verbraucher==="gebaeude"?"gebaeude":"abstandsflaechen",job.a.objekt,job.revision,job.daten);anzahl++}catch(e){probleme.push(`${job.a.objekt_name}: ${fehlertext(e)}`)}
+      meldung=`${anzahl} Zielobjekt(e) aktualisiert und gespeichert.`;await laden();fehler=probleme.join(" · ");
+    }catch(e){fehler=fehlertext(e)}finally{busy=""}
+  }
 </script>
+<UebernahmeVorschau {v}/>
 
 <section class="aufgaben" aria-label="Aufmaß-Aufgaben">
   <h3>Aufgaben <span class="meta">({offen} offen)</span></h3>
+  {#if aufgaben.some(a=>a.gebunden)}<button type="button" class="sekundaer" disabled={!darf||!gespeichert||!!busy} onclick={()=>void gesammeltPruefen()}>Verknüpfte Werte gesammelt prüfen …</button>{/if}
   {#if !aufgaben.length}<p class="meta">Keine Zielfelder: zuerst unter Grundlagen → Gebäude / Geschosse ein Gebäude speichern oder im Abstandsflächenplan eine manuelle Wand anlegen.</p>
   {:else}
     <div class="filter">

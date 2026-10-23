@@ -5,12 +5,16 @@
 //! Dies ersetzt keine Datenbanktransaktion über mehrere Repository-Traits.
 use crate::{CoreError, CoreResult, CoreServices, commit::*, domain::*, repository::*};
 use async_trait::async_trait;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 use tokio::sync::Mutex;
 
 pub(crate) struct Lesesitzung {
     projekt: Project,
     dokumente: Vec<DocumentVersion>,
+    aktive_dokumente: BTreeSet<uuid::Uuid>,
     commit: Arc<dyn CommitRepository>,
     quelle: Option<Repositories>,
     fach: Mutex<BTreeMap<String, Vec<Fachstand>>>,
@@ -22,9 +26,18 @@ fn nur_lesen<T>() -> CoreResult<T> {
 }
 impl CoreServices {
     pub(crate) async fn lesesitzung(&self, pid: ProjectId) -> CoreResult<(Self, Arc<Lesesitzung>)> {
+        let aktive_dokumente = self
+            .repos
+            .documents
+            .latest_for_project(pid)
+            .await?
+            .into_iter()
+            .map(|d| d.document_id.0)
+            .collect();
         let sicht = Arc::new(Lesesitzung {
             projekt: self.repos.projects.get(pid).await?,
             dokumente: self.repos.documents.list_for_project(pid).await?,
+            aktive_dokumente,
             commit: self.repos.commit.clone(),
             quelle: Some(self.repos.clone()),
             fach: Mutex::new(BTreeMap::new()),
@@ -47,9 +60,13 @@ impl Lesesitzung {
             )
         };
         if repos.projects.get(self.projekt.id).await?.version != self.projekt.version {
+            tracing::debug!(projekt=%self.projekt.id,quelle="Projektversion","Quellenkonflikt bei lesender Prüfung");
             return Err(geaendert());
         }
-        let aktuell = repos.documents.latest_for_project(self.projekt.id).await?;
+        // Vollständigen Bestand mit vollständigem Bestand vergleichen. Aktive
+        // Listen blenden entfernte Dokumente aus, deren Versionen für bestehende
+        // Nachweise weiterhin Teil der Lesesitzung sind.
+        let aktuell = repos.documents.list_for_project(self.projekt.id).await?;
         let mut bisher = BTreeMap::new();
         for d in &self.dokumente {
             bisher
@@ -57,11 +74,25 @@ impl Lesesitzung {
                 .and_modify(|v: &mut i64| *v = (*v).max(d.version))
                 .or_insert(d.version);
         }
-        let neu = aktuell
-            .iter()
-            .map(|d| (d.document_id.0, d.version))
-            .collect::<BTreeMap<_, _>>();
+        let mut neu = BTreeMap::new();
+        for d in &aktuell {
+            neu.entry(d.document_id.0)
+                .and_modify(|v: &mut i64| *v = (*v).max(d.version))
+                .or_insert(d.version);
+        }
         if neu != bisher {
+            tracing::debug!(projekt=%self.projekt.id,quelle="Dokumentversionen","Quellenkonflikt bei lesender Prüfung");
+            return Err(geaendert());
+        }
+        let aktive_dokumente = repos
+            .documents
+            .latest_for_project(self.projekt.id)
+            .await?
+            .into_iter()
+            .map(|d| d.document_id.0)
+            .collect::<BTreeSet<_>>();
+        if aktive_dokumente != self.aktive_dokumente {
+            tracing::debug!(projekt=%self.projekt.id,quelle="Aktive Projektdateien","Quellenkonflikt bei lesender Prüfung");
             return Err(geaendert());
         }
         let stand = self.fach.lock().await;
@@ -74,6 +105,7 @@ impl Lesesitzung {
             let mut neu = repos.commit.fachrevisionen(self.projekt.id, modul).await?;
             neu.sort();
             if alt != neu {
+                tracing::debug!(projekt=%self.projekt.id,quelle=%modul,"Quellenkonflikt bei lesender Prüfung");
                 return Err(geaendert());
             }
         }
@@ -127,6 +159,14 @@ impl DocumentRepository for Lesesitzung {
             return Err(CoreError::NotFound(p.to_string()));
         }
         Ok(self.dokumente.clone())
+    }
+    async fn active_for_project(&self, p: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        Ok(self
+            .list_for_project(p)
+            .await?
+            .into_iter()
+            .filter(|d| self.aktive_dokumente.contains(&d.document_id.0))
+            .collect())
     }
     async fn add_version(&self, _: DocumentVersion, _: Option<i64>) -> CoreResult<DocumentVersion> {
         nur_lesen()
@@ -342,6 +382,7 @@ mod tests {
                 planungsrecht: Default::default(),
             },
             dokumente: vec![],
+            aktive_dokumente: BTreeSet::new(),
             commit: quelle,
             quelle: None,
             fach: Mutex::new(BTreeMap::new()),

@@ -12,6 +12,36 @@ use lopdf::{
 };
 
 const MAX_SEITEN: usize = 300;
+/// Gemeinsame Zusammenführung bereits ausgewählter, eigenständiger Ausgaben.
+pub(super) fn verbinden(dokumente: Vec<Document>) -> CoreResult<Vec<u8>> {
+    let mut out = Document::with_version("1.7");
+    let root = out.new_object_id();
+    let mut kids = Vec::new();
+    for mut d in dokumente {
+        d.renumber_objects_with(out.max_id + 1);
+        for id in d.get_pages().values() {
+            let mut page = geerbte_seite(&d, *id)?;
+            page.set("Parent", root);
+            page.remove(b"AA");
+            d.objects.insert(*id, Object::Dictionary(page));
+            kids.push(Object::Reference(*id));
+        }
+        out.max_id = d.max_id;
+        out.objects.extend(d.objects);
+    }
+    if kids.len() > MAX_SEITEN {
+        return Err(fehler("Ausgabe überschreitet 300 Seiten"));
+    }
+    let count = kids.len() as i64;
+    out.objects.insert(
+        root,
+        dictionary! {"Type"=>"Pages","Kids"=>kids,"Count"=>count}.into(),
+    );
+    let cat = out.add_object(dictionary! {"Type"=>"Catalog","Pages"=>root});
+    out.trailer.set("Root", cat);
+    out.prune_objects();
+    speichern(out)
+}
 /// Fotos mit begrenztem Decoderspeicher, EXIF-Orientierung und weißem Hintergrund.
 pub(super) fn bild(bytes: &[u8]) -> CoreResult<Document> {
     use image::ImageDecoder;

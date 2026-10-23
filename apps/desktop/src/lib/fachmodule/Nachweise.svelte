@@ -33,7 +33,15 @@
     laedt = true;
     fehler = null;
     try {
-      const neu = await plattformApi.nachweise(id);
+      let neu:NachweisAnsicht[];
+      try { neu=await plattformApi.nachweise(id); }
+      catch(e){
+        if(!fehlertext(e).includes("Quellen während der Nachweisprüfung geändert"))throw e;
+        if(nr!==ladeNr||id!==projekt.id)return;
+        // Ausschließlich die lesende Prüfung einmal wiederholen. Keine
+        // Wiederholung von Speicherung, Freigabe oder fachlichen Fehlern.
+        neu=await plattformApi.nachweise(id);
+      }
       if (nr === ladeNr && id === projekt.id) liste = neu;
     } catch (e) {
       if (nr === ladeNr) fehler = fehlertext(e);

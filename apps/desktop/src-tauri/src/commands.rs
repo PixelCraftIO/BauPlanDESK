@@ -290,6 +290,18 @@ pub async fn dokumente_auflisten(
     Ok(state.core.list_documents(projekt_id).await?)
 }
 
+#[tauri::command]
+pub async fn dokument_entfernen(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    basis: i64,
+) -> CmdResult<()> {
+    Ok(state
+        .core
+        .dokument_entfernen(dokument_id, basis, &state.benutzer())
+        .await?)
+}
+
 /// Importiert eine lokale Datei ins DMS. Für eine neue Version eines
 /// bestehenden Dokuments gibt `basis` die Version an, die der Nutzer
 /// gesehen hat (Optimistic Locking).
@@ -975,6 +987,7 @@ pub async fn projekt_baugrundstuecke_gebaeude_einbinden(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
     eingabe: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+    schluessel: Option<String>,
 ) -> CmdResult<core_lib::plattform::einbindung::GebaeudeEinbindung> {
     state
         .core
@@ -984,6 +997,12 @@ pub async fn projekt_baugrundstuecke_gebaeude_einbinden(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
+    if let Some(s) = schluessel {
+        return Ok(state
+            .core
+            .baugrundstueck_gebaeude_einbinden(projekt_id, &eingabe, &s)
+            .await?);
+    }
     Ok(state
         .core
         .projekt_baugrundstuecke_gebaeude_einbinden(projekt_id, &eingabe)
@@ -995,6 +1014,7 @@ pub async fn projekt_baugrundstuecke_pruefen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
     eingabe: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+    schluessel: Option<String>,
 ) -> CmdResult<core_lib::baugrundstuecke::BaugrundstuecksPruefung> {
     state
         .core
@@ -1004,9 +1024,28 @@ pub async fn projekt_baugrundstuecke_pruefen(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
+    if let Some(s) = schluessel {
+        return Ok(state
+            .core
+            .baugrundstueck_einzeln_pruefen(projekt_id, &eingabe, &s)
+            .await?);
+    }
     Ok(state
         .core
         .projekt_baugrundstuecke_pruefen(projekt_id, &eingabe)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn baugrundstueck_einzeln_speichern(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    version: i64,
+    berechnung: core_lib::baugrundstuecke::BaugrundstueckBerechnung,
+) -> CmdResult<core_lib::domain::Project> {
+    Ok(state
+        .core
+        .baugrundstueck_einzeln_speichern(projekt_id, version, berechnung, &state.benutzer())
         .await?)
 }
 

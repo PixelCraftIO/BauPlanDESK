@@ -2,6 +2,9 @@
   import { fehlertext } from "../api";
   import type { Gebaeude } from "../generated/plattform";
   import { gebaeudeflaechen, gebaeudefeldVerknuepfen, type Aufmassquelle } from "./quellen";
+  import { Uebernahme, zielfeld, werttext } from "./Uebernahme.svelte";
+  import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
+  const v=new Uebernahme();
   // Direkte Flächenübernahme an einem Gebäude- oder Geschossfeld. Die Vorauswahl
   // filtert nur; Prüfung und Messwert stammen aus dem Core (planaufmass_gebaeude).
   let { projektId, gebaeudeId, g, aufmasse, geschossId = null, geschossName = "", gespeichert, onplan, onbusy }: {
@@ -21,6 +24,7 @@
     busy = true; onbusy(true); fehler = ""; meldung = "";
     try {
       const neu = await gebaeudefeldVerknuepfen(projektId, gebaeudeId, JSON.parse(vorher), ziel, q && m ? { a: q.a, m } : null);
+      if(!(await v.fragen([{ziel:geschossId?`Geschossfläche ${geschossName}`:"Gebäudegrundfläche",vorher:werttext(zielfeld(JSON.parse(vorher),ziel),"m²"),nachher:werttext(zielfeld(neu,ziel),"m²"),quelle:q?`${q.a.stand.daten.bezeichnung} · ${m?.bezeichnung}`:"Manuell"}])))return;
       if (JSON.stringify(g) !== vorher) throw Error("Eingaben wurden zwischenzeitlich geändert. Übernahme erneut ausführen.");
       onplan(neu);
       meldung = "Fläche im Entwurf eingesetzt. Bitte prüfen und speichern.";
@@ -31,6 +35,7 @@
     g.planbindungen = g.planbindungen?.filter((b) => b.ziel !== ziel);
   }
 </script>
+<UebernahmeVorschau {v}/>
 
 <div class="planflaeche" aria-label={geschossId ? "Geschossfläche aus PDF-Aufmaß" : "Gebäudegrundfläche aus PDF-Aufmaß"}>
   {#if bindung}

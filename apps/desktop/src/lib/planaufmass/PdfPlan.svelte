@@ -1,24 +1,32 @@
 <script lang="ts">
   import { bereichAktiv } from "../ansichtsAbfrage.svelte";
   const sichtbar = bereichAktiv();
-  import { tick, untrack } from "svelte";
+  import { tick, untrack, onDestroy } from "svelte";
   import type { PDFDocumentProxy, PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from "pdfjs-dist";
   import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
   import type { Plangeometrie, Planmarkierung, Planebene, Planausschnitt, Planmesswert, Plankalibrierung } from "../generated/plattform";
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
+  import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
+  import { punktAendern } from "./bearbeitung";
   // Zeichenfläche: Anzeige, Fang, Zoom, Drehung und Eingabe. Fachwerte (Längen,
   // Flächen, Höhen) stammen vom Core; hier werden nur Vorschauen während des
   // Zeichnens gezeigt. Gespeicherte Koordinaten sind immer Seitenpunkte.
   let { pdfBase64, seite, markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
+    auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
+    onverschieben = () => {}, onpunkt = () => {},
     onfertig, onauswahl, onedit, onfehler, onrahmen = () => {}, onrahmenauswahl = () => {}, onoeffnen = () => {}, onseite = () => {} }:
     {pdfBase64:string;seite:number;markierungen:Planmarkierung[];ebenen:Planebene[];
     auswahl:string;werkzeug:string;darf:boolean;
     ausschnitte?:Planausschnitt[];aktiv?:string;rahmenAuswahl?:string;werte?:Planmesswert[];kalibrierung?:Plankalibrierung|null;masse?:boolean;
-    onfertig:(g:Plangeometrie)=>void;onauswahl:(id:string)=>void;
+    onfertig:(g:Plangeometrie)=>void;onauswahl:(id:string,mehrfach?:boolean)=>void;
+    auswahlIds?:string[];ansichtKey?:string;fehlerIds?:string[];vergleichBase64?:string;vergleichDeckkraft?:number;
+    vergleichAusrichtung?:{dx:number;dy:number;grad:number;faktor:number};
+    onverschieben?:(ids:string[],dx:number,dy:number)=>void;onpunkt?:(index:number)=>void;
     onedit:(id:string,g:Plangeometrie)=>void;onfehler:(s:string)=>void;
     onrahmen?:(id:string,von:Point,bis:Point)=>void;onrahmenauswahl?:(id:string)=>void;onoeffnen?:(id:string)=>void;onseite?:(n:number)=>void}=$props();
   const PAD=8;
+  let ansichtGeneration=0;
   let doc=$state<PDFDocumentProxy|null>(null), page:PDFPageProxy|null=null, svg=$state<SVGSVGElement>(), seitenbild=$state("");
   let scroll=$state<HTMLDivElement>(), breite=$state(600), hoehe=$state(800), zoom=$state(1), drehung=$state(0);
   let bereit=$state(false), fang=$state(true), geometry=$state<SnapGeometry>({points:[],segments:[],limited:false});
@@ -35,18 +43,26 @@
   let rasterScale=0, rasterTask:RenderTask|undefined, rasterTimer:ReturnType<typeof setTimeout>|undefined;
   const zeiger=new Map<number,{x:number;y:number}>();
   let pinch:{abstand:number;mitte:{x:number;y:number}}|null=null;
-  const angezeigt=$derived(markierungen.filter(m=>ebenen.find(e=>e.id===m.ebene_id)?.sichtbar));
+  let fangoptionen=$state<Fangoptionen>({...standardFang}), fangOffen=$state(false);
+  let rahmenVorschau=$state<{id:string;von:Point;bis:Point}|null>(null), touchPunkt:Point|null=null;
+  let vergleichBild=$state("");
+  let vergleichGroesse=$state({breite:0,hoehe:0});
+  const fangindex=$derived(new Fangindex(geometry));
+  const wertMap=$derived(new Map(werte.map(w=>[w.id,w])));
+  const ebenenMap=$derived(new Map(ebenen.map(e=>[e.id,e])));
+  const angezeigt=$derived(markierungen.filter(m=>ebenenMap.get(m.ebene_id)?.sichtbar));
   const gewaehlt=$derived(angezeigt.find(m=>m.id===auswahl));
   const gesperrt=$derived(!darf || !!ebenen.find(e=>e.id===gewaehlt?.ebene_id)?.gesperrt);
   const ausschnitt=$derived(ausschnitte.find(a=>a.id===aktiv));
   // Markierungen anderer Ausschnitte bleiben sichtbar, aber nicht bedienbar.
   const fremd=(m:Planmarkierung)=>!!aktiv&&(m.ausschnitt_id??"")!==aktiv;
   const faktor=$derived(meterProPunkt(ausschnitt?.kalibrierung??kalibrierung));
+  const aktiveKalibrierung=$derived(ausschnitt?.kalibrierung??kalibrierung);
   const gedreht=$derived(drehung%180!==0);
   // Größe des gedrehten Blattes in Seitenpunkten (Box, in der gescrollt wird).
   const boxB=$derived(gedreht?hoehe:breite), boxH=$derived(gedreht?breite:hoehe);
   const z=(n:number,stellen=2)=>n.toLocaleString("de-DE",{maximumFractionDigits:stellen});
-  const rect=(a:{von:Point;bis:Point})=>({x:Math.min(a.von[0],a.bis[0]),y:Math.min(a.von[1],a.bis[1]),w:Math.abs(a.bis[0]-a.von[0]),h:Math.abs(a.bis[1]-a.von[1])});
+  const rect=(a:{id?:string;von:Point;bis:Point})=>{const r=a.id&&rahmenVorschau?.id===a.id?rahmenVorschau:a;return {x:Math.min(r.von[0],r.bis[0]),y:Math.min(r.von[1],r.bis[1]),w:Math.abs(r.bis[0]-r.von[0]),h:Math.abs(r.bis[1]-r.von[1])}};
   // Seitenpunkt → Punkt der gedrehten Box (Seitenpunkte, ohne Zoom).
   function boxPunkt(p:Point):Point{
     if(drehung===90)return [hoehe-p[1],p[0]];
@@ -92,16 +108,23 @@
       const viewport=p.getViewport({scale:1});
       const scale=Math.min(3,2200/Math.max(viewport.width,viewport.height));
       url=await rastern(p,scale);
+      if(gone){URL.revokeObjectURL(url);return}
       const {OPS}=await import("pdfjs-dist");const list=await p.getOperatorList();
-      if(gone)return;
+      if(gone){URL.revokeObjectURL(url);return;}
       seitenbild=url;rasterScale=scale;page=p;
       breite=viewport.width;hoehe=viewport.height;
       geometry=extractGeometry(list,OPS,viewport.transform as Matrix);
       // Beim Öffnen Breite einpassen, höchstens 100 %; „Einpassen“ zeigt das ganze Blatt.
       zoom=Math.min(1,((scroll?.clientWidth??800)-2*PAD)/breite);
       bereit=true;
+      if(ansichtKey)try{
+        const v=JSON.parse(localStorage.getItem(`${ansichtKey}:${nummer}`)??"null");
+        if(v&&v.zoom>=.05&&v.zoom<=12&&[0,90,180,270].includes(v.drehung)){
+          zoom=v.zoom;drehung=v.drehung;await tick();if(scroll){scroll.scrollLeft=Number(v.x)||0;scroll.scrollTop=Number(v.y)||0}
+        }
+      }catch{/* Ansichtssicherung ist optional. */}
     })().catch(e=>{if(!gone&&!String(e).includes("cancelled"))onfehler(`PDF-Seite: ${String(e)}`)});
-    return()=>{gone=true;rasterTask?.cancel();if(url)URL.revokeObjectURL(url)};
+    return()=>{gone=true;rasterTask?.cancel();if(url)URL.revokeObjectURL(url);const bild=untrack(()=>seitenbild);if(bild)URL.revokeObjectURL(bild)};
   });
   // Nach dem Zoomen scharf nachrastern; nie unter die bisherige Auflösung.
   $effect(()=>{
@@ -113,30 +136,32 @@
       const noetig=Math.min(grenze,zielZoom*(window.devicePixelRatio||1));
       if(noetig<=rasterScale*1.05)return;
       const alt=seitenbild;
-      void rastern(p,noetig).then(u=>{if(page!==p)return;seitenbild=u;rasterScale=noetig;if(alt)URL.revokeObjectURL(alt)}).catch(()=>{});
+      void rastern(p,noetig).then(u=>{if(page!==p){URL.revokeObjectURL(u);return}seitenbild=u;rasterScale=noetig;if(alt)URL.revokeObjectURL(alt)}).catch(()=>{});
     },200);
     return()=>clearTimeout(rasterTimer);
   });
-  // Seitenminiaturen erst bei Bedarf rendern.
+  $effect(()=>{void werkzeug;untrack(abbrechen)});
   $effect(()=>{
-    if(!sichtbar())return;
-    const d=doc; if(!miniaturen||!d||untrack(()=>seitenbilder.length))return;
-    let gone=false;
-    void(async()=>{
-      const liste:{nummer:number;url:string}[]=[];
-      for(let n=1;n<=Math.min(d.numPages,60);n++){
-        const p=await d.getPage(n);if(gone)return;
-        const v=p.getViewport({scale:1});
-        const raster=p.getViewport({scale:140/Math.max(v.width,v.height)});
-        const c=document.createElement("canvas");c.width=Math.ceil(raster.width);c.height=Math.ceil(raster.height);
-        await p.render({canvasContext:c.getContext("2d")!,viewport:raster}).promise;
-        liste.push({nummer:n,url:c.toDataURL("image/png")});
-        if(!gone)seitenbilder=[...liste];
-      }
-    })().catch(e=>{if(!gone)onfehler(`Seitenübersicht: ${String(e)}`)});
-    return()=>{gone=true};
+    const b=vergleichBase64,n=seite;if(!b){vergleichBild="";return}
+    let gone=false,url="",loader:PDFDocumentLoadingTask|undefined,task:RenderTask|undefined;
+    void(async()=>{const {getDocument}=await import("pdfjs-dist");loader=getDocument({data:Uint8Array.from(atob(b),c=>c.charCodeAt(0)),isEvalSupported:false});
+      const d=await loader.promise,p=await d.getPage(Math.min(n,d.numPages)),v=p.getViewport({scale:1});
+      vergleichGroesse={breite:v.width,hoehe:v.height};const scale=Math.min(2,2200/Math.max(v.width,v.height)),vp=p.getViewport({scale}),c=document.createElement("canvas");c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+      task=p.render({canvasContext:c.getContext("2d")!,viewport:vp});await task.promise;
+      const blob=await new Promise<Blob|null>(r=>c.toBlob(r));if(!blob)return;url=URL.createObjectURL(blob);if(gone)URL.revokeObjectURL(url);else vergleichBild=url;
+    })().catch(e=>{if(!gone)onfehler(`Planvergleich: ${String(e)}`)});
+    return()=>{gone=true;task?.cancel();void loader?.destroy();if(url)URL.revokeObjectURL(url)};
   });
-  $effect(()=>{void werkzeug;punkte=[];cursor=null;drag=null;edit=null;schieben=null;rahmenDrag=null;masseingabe=null});
+  let ansichtTimer:ReturnType<typeof setTimeout>|undefined,ansichtPending:{key:string;wert:string}|null=null;
+  function ansichtSchreiben(){const p=ansichtPending;ansichtPending=null;if(p)try{localStorage.setItem(p.key,p.wert)}catch{}}
+  function ansichtSichern(){if(!ansichtKey||!bereit||!scroll)return;ansichtPending={key:`${ansichtKey}:${seite}`,wert:JSON.stringify({zoom,drehung,x:scroll.scrollLeft,y:scroll.scrollTop})};clearTimeout(ansichtTimer);ansichtTimer=setTimeout(ansichtSchreiben,120)}
+  onDestroy(()=>{ansichtGeneration++;clearTimeout(ansichtTimer);ansichtSchreiben()});
+  $effect(()=>{void zoom;void drehung;if(bereit)untrack(ansichtSichern)});
+  export function abbrechen(){
+    punkte=[];cursor=null;drag=null;edit=null;schieben=null;rahmenDrag=null;rahmenVorschau=null;pan=null;pinch=null;touchPunkt=null;leertaste=false;masseingabe=null;
+    for(const id of zeiger.keys())if(svg?.hasPointerCapture(id))svg.releasePointerCapture(id);zeiger.clear();
+  }
+  $effect(()=>{window.addEventListener("blur",abbrechen);return()=>window.removeEventListener("blur",abbrechen)});
   $effect(()=>{if(masseingabe!==null)masseingabeFeld?.focus()});
   // Ausschnitt öffnen: Rahmen einpassen.
   $effect(()=>{
@@ -149,13 +174,14 @@
     return Math.max(.05,Math.min(w/boxB,h/boxH));
   }
   async function aufBereich(r:{x:number;y:number;w:number;h:number}){
-    if(!scroll)return;
+    const el=scroll,n=++ansichtGeneration;if(!el)return;
     const b=boxRect(r);
-    const w=scroll.clientWidth-2*PAD, h=scroll.clientHeight-2*PAD;
+    const w=el.clientWidth-2*PAD, h=el.clientHeight-2*PAD;
     zoom=Math.max(.05,Math.min(12,Math.min(w/(b.w+40),h/(b.h+40))));
     await tick();
-    scroll.scrollLeft=(b.x+b.w/2)*zoom+PAD-scroll.clientWidth/2;
-    scroll.scrollTop=(b.y+b.h/2)*zoom+PAD-scroll.clientHeight/2;
+    if(n!==ansichtGeneration||scroll!==el||!el.isConnected)return;
+    el.scrollLeft=(b.x+b.w/2)*zoom+PAD-el.clientWidth/2;
+    el.scrollTop=(b.y+b.h/2)*zoom+PAD-el.clientHeight/2;
   }
   export function einpassen(){
     if(ausschnitt)return void aufBereich(rect(ausschnitt));
@@ -167,15 +193,16 @@
   export function zoomfensterStarten(){zoomfenster=!zoomfenster;zf=null}
   export function drehen(schritt:number){drehung=((drehung+schritt)%360+360)%360;punkte=[];cursor=null}
   async function zoomAn(clientX:number,clientY:number,faktorZoom:number){
-    if(!scroll)return;
-    const r=scroll.getBoundingClientRect();
-    const px=(scroll.scrollLeft+(clientX-r.left)-PAD)/zoom, py=(scroll.scrollTop+(clientY-r.top)-PAD)/zoom;
+    const el=scroll,n=++ansichtGeneration;if(!el)return;
+    const r=el.getBoundingClientRect();
+    const px=(el.scrollLeft+(clientX-r.left)-PAD)/zoom, py=(el.scrollTop+(clientY-r.top)-PAD)/zoom;
     const neu=Math.max(.05,Math.min(12,zoom*faktorZoom));
     if(neu===zoom)return;
     zoom=neu;
     await tick();
-    scroll.scrollLeft=px*neu+PAD-(clientX-r.left);
-    scroll.scrollTop=py*neu+PAD-(clientY-r.top);
+    if(n!==ansichtGeneration||scroll!==el||!el.isConnected)return;
+    el.scrollLeft=px*neu+PAD-(clientX-r.left);
+    el.scrollTop=py*neu+PAD-(clientY-r.top);
   }
   function zoomMitte(faktorZoom:number){
     if(!scroll)return;
@@ -204,12 +231,7 @@
     return()=>{window.removeEventListener("keydown",down);window.removeEventListener("keyup",up)};
   });
   function changed(g:Plangeometrie,index:number,p:Point):Plangeometrie {
-    const copy=structuredClone(g);
-    if(copy.art==="polygon")copy.punkte[index]=p;
-    else if(copy.art==="kreis"){if(index===0)copy.mitte=p;else copy.rand=p}
-    else if(copy.art==="hoehenpunkt")copy.punkt=p;
-    else {if(index===0)copy.von=p;else copy.bis=p}
-    return copy;
+    return punktAendern(g,index,p);
   }
   // Bildschirm → Seitenpunkt; die Matrix enthält Zoom und Drehung der Darstellung.
   function roh(e:{clientX:number;clientY:number}):Point{
@@ -220,20 +242,26 @@
   }
   function position(e:PointerEvent):Point {
     let p=roh(e);
+    const f=fang&&!e.altKey?fangindex.suchen(p,8/zoom,fangoptionen):null;
+    const eigene=fang&&fangoptionen.eigene&&!e.altKey?snap(p,{points:eigenePunkte(),segments:eigeneKanten(),limited:false},8/zoom):null;
+    if(eigene&&(!f||Math.hypot(eigene.point[0]-p[0],eigene.point[1]-p[1])<Math.hypot(f.point[0]-p[0],f.point[1]-p[1]))){p=eigene.point;fangart=`Eigene ${eigene.kind}`}else{p=f?.point??p;fangart=f?.kind??""}
     // Shift rastet auf Waagerechte/Senkrechte/45° zum letzten Punkt.
     if(e.shiftKey&&punkte.length){
       const a=punkte[punkte.length-1], dx=p[0]-a[0], dy=p[1]-a[1];
       const winkel=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4), l=Math.hypot(dx,dy);
       p=[a[0]+Math.cos(winkel)*l,a[1]+Math.sin(winkel)*l];
     }
-    const f=fang&&!e.altKey?snap(p,{points:[...geometry.points,...eigenePunkte()],segments:geometry.segments,limited:geometry.limited},8/zoom):null;
-    fangart=f?.kind??"";
-    return f?.point??p;
+    return p;
   }
+  function eigeneKanten():[Point,Point][]{return angezeigt.filter(m=>!auswahlIds.includes(m.id)&&m.id!==auswahl).flatMap(m=>{
+    const g=m.geometrie,ps=eckpunkte(g);if(g.art==="polygon")return ps.map((p,i)=>[p,ps[(i+1)%ps.length]] as [Point,Point]);
+    if(g.art==="strecke")return [[g.von,g.bis] as [Point,Point]];
+    if(g.art==="rechteck"){const a=g.von,b=g.bis,r:Point[]=[a,[b[0],a[1]],b,[a[0],b[1]]];return r.map((p,i)=>[p,r[(i+1)%4]] as [Point,Point])}return [];
+  })}
   // Fang auch an eigenen Markierungen und Bezugslinien.
   function eigenePunkte():Point[]{
     const ps:Point[]=[];
-    for(const m of angezeigt)if(m.id!==auswahl)ps.push(...eckpunkte(m.geometrie));
+    for(const m of angezeigt)if(m.id!==auswahl&&!auswahlIds.includes(m.id))ps.push(...eckpunkte(m.geometrie));
     for(const a of ausschnitte)if(a.bezugslinie)ps.push(a.bezugslinie.von,a.bezugslinie.bis);
     return ps;
   }
@@ -274,11 +302,12 @@
   }
   function down(e:PointerEvent) {
     if(!bereit)return;
+    svg?.focus({preventScroll:true});
     zeiger.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(zeiger.size===2){
       const [a,b]=[...zeiger.values()];
       pinch={abstand:Math.hypot(a.x-b.x,a.y-b.y),mitte:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
-      punkte=[];drag=null;schieben=null;rahmenDrag=null;pan=null;
+      punkte=[];drag=null;schieben=null;rahmenDrag=null;rahmenVorschau=null;edit=null;pan=null;touchPunkt=null;
       svg?.setPointerCapture(e.pointerId);return;
     }
     if(e.button===1 || werkzeug==="verschieben" || leertaste){
@@ -301,9 +330,11 @@
       if(id){
         const m=angezeigt.find(m=>m.id===id);
         if(m&&fremd(m))return;
-        onauswahl(id);
+        onauswahl(id,e.shiftKey||e.ctrlKey||e.metaKey);
+        if(e.shiftKey||e.ctrlKey||e.metaKey)return;
         if(index!==null && gewaehlt && gewaehlt.id===id && !gesperrt){
           drag={id:gewaehlt.id,index:Number(index),g:structuredClone($state.snapshot(gewaehlt.geometrie))};
+          onpunkt(Number(index));
           svg?.setPointerCapture(e.pointerId);
         } else if(m && darf && !ebenen.find(x=>x.id===m.ebene_id)?.gesperrt){
           schieben={id,start:roh(e),g:structuredClone($state.snapshot(m.geometrie)),bewegt:false};
@@ -327,7 +358,7 @@
       return;
     }
     if(!darf)return;
-    punktSetzen(position(e));
+    if(e.pointerType==="touch"){touchPunkt=position(e);svg?.setPointerCapture(e.pointerId)}else punktSetzen(position(e));
   }
   function move(e:PointerEvent) {
     if(zeiger.has(e.pointerId))zeiger.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -352,7 +383,7 @@
         if(rahmenDrag.ecke===0)von=q;else if(rahmenDrag.ecke===1){von=[von[0],q[1]];bis=[q[0],bis[1]]}
         else if(rahmenDrag.ecke===2)bis=q;else{von=[q[0],von[1]];bis=[bis[0],q[1]]}
       }
-      onrahmen(rahmenDrag.id,von,bis);return;
+      rahmenVorschau={id:rahmenDrag.id,von,bis};return;
     }
     cursor=zoomfenster?roh(e):position(e);
     if(drag)edit=changed(drag.g,drag.index,cursor);
@@ -363,10 +394,16 @@
     }
   }
   function up(e:PointerEvent){
+    if(touchPunkt&&zeiger.size===1&&!pan&&!pinch){punktSetzen(touchPunkt);touchPunkt=null}
     zeiger.delete(e.pointerId);
     if(zeiger.size<2)pinch=null;
     if(drag&&edit)onedit(drag.id,edit);
-    if(schieben?.bewegt&&edit)onedit(schieben.id,edit);
+    if(schieben?.bewegt&&edit){
+      if(auswahlIds.length>1&&auswahlIds.includes(schieben.id)){const a=eckpunkte(schieben.g)[0],b=eckpunkte(edit)[0];onverschieben(auswahlIds,b[0]-a[0],b[1]-a[1])}
+      else onedit(schieben.id,edit);
+    }
+    if(rahmenDrag?.bewegt&&rahmenVorschau)onrahmen(rahmenVorschau.id,rahmenVorschau.von,rahmenVorschau.bis);
+    rahmenVorschau=null;
     drag=null;edit=null;pan=null;schieben=null;rahmenDrag=null;
     if(svg?.hasPointerCapture(e.pointerId))svg.releasePointerCapture(e.pointerId);
   }
@@ -374,7 +411,7 @@
     if((e.target as Element).closest("input,select,textarea,button"))return;
     if(e.key==="Escape"){
       if(zoomfenster){e.stopPropagation();zoomfenster=false;zf=null}
-      else if(punkte.length||drag||schieben){e.stopPropagation();punkte=[];cursor=null;drag=null;edit=null;schieben=null}
+      else if(punkte.length||drag||schieben||rahmenDrag){e.stopPropagation();abbrechen()}
     }
     else if(e.key==="Enter"){e.preventDefault();finish()}
     else if(e.key==="Backspace"){e.preventDefault();punkte=punkte.slice(0,-1)}
@@ -403,7 +440,7 @@
     if(!preview||werkzeug==="ausschnitt")return "";
     const m=vorschauMass(preview,faktor);
     if(preview.art==="strecke"&&cursor&&punkte.length){
-      const dy=Math.abs(cursor[1]-punkte[0][1]), dx=Math.abs(cursor[0]-punkte[0][0]);
+      const achsen=streckenachsen(punkte[0],cursor,ausschnitt?.bezugslinie),dy=achsen.hoehe,dx=achsen.horizontal;
       return faktor===null?"Maßstab fehlt":`${z(m.laenge_m!)} m · Δh ${z(dy*faktor)} m · ⟷ ${z(dx*faktor)} m`;
     }
     if(m.flaeche_m2!==null)return `${z(m.flaeche_m2)} m² · Umfang ${z(m.laenge_m!)} m`;
@@ -412,10 +449,20 @@
   });
   function beschriftung(m:Planmarkierung){
     if(!masse)return "";
-    const w=werte.find(w=>w.id===m.id); if(!w)return "";
+    const w=wertMap.get(m.id); if(!w)return "";
     if(m.geometrie.art==="hoehenpunkt")return w.hoehe_m!==null?`${z(w.hoehe_m)} m`:"";
     if(m.geometrie.art==="strecke")return w.laenge_m!==null?`${z(w.laenge_m)} m${w.hoehe_m?` · Δh ${z(w.hoehe_m)} m`:""}`:"";
     return w.flaeche_m2!==null?`${z(w.flaeche_m2)} m²`:"";
+  }
+  function flaechenpfad(g:Extract<Plangeometrie,{art:"flaeche"}>){return g.polygone.flatMap(p=>[p.aussen,...(p.innen??[])]).map(r=>r.map((p,i)=>`${i?"L":"M"}${p[0]} ${p[1]}`).join(" ")+" Z").join(" ")}
+  function miniatur(node:HTMLElement,n:number){
+    const d=doc;let gone=false,task:RenderTask|undefined;
+    const observer=new IntersectionObserver(entries=>{if(!entries.some(e=>e.isIntersecting)||!d)return;observer.disconnect();
+      void(async()=>{const p=await d.getPage(n);if(gone)return;const v=p.getViewport({scale:1}),vp=p.getViewport({scale:140/Math.max(v.width,v.height)}),c=document.createElement("canvas");c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+        task=p.render({canvasContext:c.getContext("2d")!,viewport:vp});await task.promise;if(!gone)seitenbilder=[...seitenbilder.filter(x=>x.nummer!==n),{nummer:n,url:c.toDataURL("image/png")}];
+      })().catch(e=>{if(!gone)onfehler(`Seitenvorschau: ${String(e)}`)});
+    },{rootMargin:"200px"});observer.observe(node);
+    return {destroy(){gone=true;observer.disconnect();task?.cancel()}};
   }
   const abdunkeln=$derived.by(()=>{
     if(!ausschnitt)return "";
@@ -439,30 +486,40 @@
     <button type="button" class="sekundaer" disabled={!bereit} aria-label="Nach rechts drehen" title="Ansicht 90° nach rechts" onclick={()=>drehen(90)}>↷</button>
     {#if seitenzahl>1}<button type="button" class="sekundaer" aria-pressed={miniaturen} onclick={()=>miniaturen=!miniaturen}>Seiten ({seitenzahl})</button>{/if}
     <label><input type="checkbox" bind:checked={fang}/> Punktfang</label>
+    <button type="button" class="sekundaer" aria-expanded={fangOffen} onclick={()=>fangOffen=!fangOffen}>Fangoptionen</button>
     {#if punkte.length}<button type="button" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer" onclick={()=>punkte=[]}>Abbrechen</button>{/if}
   </div>
+  {#if fangOffen}<div class="fangoptionen" aria-label="Fangoptionen">
+    {#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"],["eigene","Eigene Konturen"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}
+  </div>{/if}
   <div class="plan-koerper">
     {#if miniaturen&&seitenzahl>1}
       <nav class="seitenleiste" aria-label="Seiten der Unterlage">
-        {#each Array.from({length:seitenzahl},(_,i)=>i+1) as n}
+        {#each Array.from({length:seitenzahl},(_,i)=>i+1) as n (`${doc?.fingerprints[0]}:${n}`)}
           {@const bild=seitenbilder.find(s=>s.nummer===n)}
-          <button type="button" class:aktiv={n===seite} onclick={()=>{if(n!==seite)onseite(n)}} aria-label={`Seite ${n}`} aria-current={n===seite?"page":undefined}>
+          <button type="button" use:miniatur={n} class:aktiv={n===seite} onclick={()=>{if(n!==seite)onseite(n)}} aria-label={`Seite ${n}`} aria-current={n===seite?"page":undefined}>
             {#if bild}<img src={bild.url} alt=""/>{:else}<span class="platzhalter">…</span>{/if}
             <span>{n}</span>
           </button>
         {/each}
       </nav>
     {/if}
-    <div class="plan-scroll" bind:this={scroll} class:greifen={cursorKlasse==="greifen"}>
+    <div class="plan-scroll" bind:this={scroll} onscroll={ansichtSichern} class:greifen={cursorKlasse==="greifen"}>
       {#if !bereit}<p role="status">PDF-Seite wird vorbereitet …</p>{/if}
       <div class="papier" style:width={`${boxB*zoom}px`} style:height={`${boxH*zoom}px`} style:visibility={bereit?"visible":"hidden"}>
         <div class="blatt" style:width={`${breite*zoom}px`} style:height={`${hoehe*zoom}px`} style:transform={blattTransform}>
           <img src={seitenbild||undefined} alt="" draggable="false"/>
+          {#if vergleichBild}<img class="vergleich" src={vergleichBild} alt="Vergleichsunterlage" style:opacity={vergleichDeckkraft} style:width={`${vergleichGroesse.breite/breite*100}%`} style:height={`${vergleichGroesse.hoehe/hoehe*100}%`} style:transform={`translate(${vergleichAusrichtung.dx*zoom}px,${vergleichAusrichtung.dy*zoom}px) rotate(${vergleichAusrichtung.grad}deg) scale(${vergleichAusrichtung.faktor})`} draggable="false"/>{/if}
           <!-- Zeicheneditor mit eigener Tastaturbedienung, keine dekorative SVG. -->
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <svg bind:this={svg} viewBox={`0 0 ${breite} ${hoehe}`} role="application" class={cursorKlasse}
             aria-label="PDF-Zeichenfläche. Punkte anklicken, Enter beendet, Escape bricht ab. Strg+Mausrad zoomt, Leertaste oder mittlere Maustaste verschiebt. Ziffern öffnen die Maßeingabe." tabindex="0"
-            onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} onkeydown={key}>
+            onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={abbrechen} onkeydown={key}>
+            {#if aktiveKalibrierung?.art==="strecke"}<g class="referenz" aria-label={`Referenzstrecke ${z(aktiveKalibrierung.meter)} m`}>
+              <line x1={aktiveKalibrierung.von[0]} y1={aktiveKalibrierung.von[1]} x2={aktiveKalibrierung.bis[0]} y2={aktiveKalibrierung.bis[1]}/>
+              {#each [aktiveKalibrierung.von,aktiveKalibrierung.bis] as p}<circle cx={p[0]} cy={p[1]} r={4/zoom}/>{/each}
+              <text x={aktiveKalibrierung.von[0]} y={aktiveKalibrierung.von[1]+16/zoom} font-size={11/zoom}>Referenz {z(aktiveKalibrierung.meter)} m</text>
+            </g>{/if}
             {#if abdunkeln}<path d={abdunkeln} class="abdunkeln" fill-rule="evenodd"/>{/if}
             {#each ausschnitte as a (a.id)}
               {@const r=rect(a)}
@@ -481,7 +538,7 @@
               {/if}
             {/each}
             {#each angezeigt as m (m.id)}
-              <g data-markierung={m.id} class:gewaehlt={m.id===auswahl} class:fremd={fremd(m)}>
+              <g data-markierung={m.id} class:gewaehlt={m.id===auswahl||auswahlIds.includes(m.id)} class:fehler={fehlerIds.includes(m.id)} class:fremd={fremd(m)}>
                 {@render figur(edit&&(drag?.id===m.id||schieben?.id===m.id)?edit:m.geometrie,m.id===auswahl)}
                 <text x={eckpunkte(m.geometrie)[0][0]+5/zoom} y={eckpunkte(m.geometrie)[0][1]-5/zoom} font-size={12/zoom}>{m.bezeichnung}{beschriftung(m)?` · ${beschriftung(m)}`:""}</text>
               </g>
@@ -493,7 +550,7 @@
             {#each punkte as p}<circle cx={p[0]} cy={p[1]} r={4/zoom} class="ecke"/>{/each}
             {#if gewaehlt&&werkzeug==="auswahl"&&!gesperrt&&!fremd(gewaehlt)}
               <g data-markierung={gewaehlt.id}>
-                {#each eckpunkte(edit??gewaehlt.geometrie) as p,i}<circle data-ecke={i} cx={p[0]} cy={p[1]} r={5/zoom} class="ecke"/>{/each}
+                {#each eckpunkte(edit??gewaehlt.geometrie) as p,i}<circle data-ecke={i} cx={p[0]} cy={p[1]} r={7/zoom} class="ecke"/>{/each}
               </g>
             {/if}
             {#if cursor&&fangart}<path d={`M ${cursor[0]-7/zoom} ${cursor[1]} h ${14/zoom} M ${cursor[0]} ${cursor[1]-7/zoom} v ${14/zoom}`} class="fang"/>{/if}
@@ -501,10 +558,10 @@
           </svg>
         </div>
         {#if masseingabe!==null&&eingabePos}
-          <form class="masseingabe" style:left={`${eingabePos[0]*zoom+14}px`} style:top={`${eingabePos[1]*zoom+24}px`} onsubmit={e=>{e.preventDefault();masseUebernehmen()}}>
+          <div class="masseingabe" style:left={`${eingabePos[0]*zoom+14}px`} style:top={`${eingabePos[1]*zoom+24}px`}>
             <input bind:this={masseingabeFeld} bind:value={masseingabe} aria-label="Maßeingabe" placeholder={werkzeug==="rechteck"?"Breite;Höhe in m":"Länge in m[;Winkel°]"}
-              onkeydown={e=>{if(e.key==="Escape"){e.stopPropagation();masseingabe=null;svg?.focus()}}}/>
-          </form>
+              onkeydown={e=>{if(e.key==="Escape"){e.preventDefault();e.stopPropagation();masseingabe=null;svg?.focus()}else if(e.key==="Enter"){e.preventDefault();e.stopPropagation();masseUebernehmen();svg?.focus()}}}/>
+          </div>
         {/if}
       </div>
     </div>
@@ -514,7 +571,8 @@
 </div>
 
 {#snippet figur(g:Plangeometrie,selected:boolean)}
-  {#if g.art==="polygon"}<polygon points={g.punkte.map(p=>p.join(",")).join(" ")} class:aktiv={selected}/>
+  {#if g.art==="flaeche"}<path d={flaechenpfad(g)} fill-rule="evenodd" class:aktiv={selected}/>
+  {:else if g.art==="polygon"}<polygon points={g.punkte.map(p=>p.join(",")).join(" ")} class:aktiv={selected}/>
   {:else if g.art==="rechteck"}<rect x={Math.min(g.von[0],g.bis[0])} y={Math.min(g.von[1],g.bis[1])} width={Math.abs(g.von[0]-g.bis[0])} height={Math.abs(g.von[1]-g.bis[1])} class:aktiv={selected}/>
   {:else if g.art==="kreis"}<circle cx={g.mitte[0]} cy={g.mitte[1]} r={Math.hypot(g.rand[0]-g.mitte[0],g.rand[1]-g.mitte[1])} class:aktiv={selected}/>
   {:else if g.art==="strecke"}<line x1={g.von[0]} y1={g.von[1]} x2={g.bis[0]} y2={g.bis[1]} class:aktiv={selected}/>
@@ -526,6 +584,9 @@
   .plan-kopf{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.4rem .5rem}
   .plan-kopf .zoom{min-width:3.5rem;text-align:center;font-variant-numeric:tabular-nums}
   .plan-kopf label{display:flex;gap:.4rem;align-items:center;margin-left:auto}
+  .fangoptionen{display:flex;flex-wrap:wrap;gap:.7rem;padding:.5rem;background:var(--bg-alt,#eef4f7)}
+  .fangoptionen label{display:flex;gap:.3rem;align-items:center}
+  .vergleich{pointer-events:none;mix-blend-mode:multiply;transform-origin:0 0}
   .plan-koerper{display:flex;flex:1;min-height:0}
   .seitenleiste{width:150px;overflow:auto;background:#cfd8e0;padding:6px;display:grid;gap:6px;align-content:start}
   .seitenleiste button{display:grid;gap:2px;justify-items:center;padding:4px;background:white;border:2px solid transparent;border-radius:4px;cursor:pointer}
@@ -536,7 +597,7 @@
   .plan-scroll.greifen{cursor:grab}
   .papier{position:relative;background:white;box-shadow:0 2px 8px #16324730}
   .blatt{position:absolute;left:0;top:0;transform-origin:0 0}
-  img,svg{position:absolute;inset:0;width:100%;height:100%}
+  .blatt>img,.blatt>svg{position:absolute;inset:0;width:100%;height:100%}
   svg{touch-action:none;outline-offset:2px}
   svg.zeichnen{cursor:crosshair}
   svg.greifen{cursor:grab}
@@ -559,7 +620,13 @@
   svg .rahmenecke{fill:white;stroke:#5a3d8f;stroke-dasharray:none;cursor:nwse-resize}
   svg .bezugslinie line{stroke:#1a7f37;stroke-width:2;stroke-dasharray:10 4 2 4;pointer-events:none}
   svg .bezugslinie text{fill:#1a7f37}
+  svg .referenz{pointer-events:none}
+  svg .referenz line{stroke:#5a3d8f;stroke-dasharray:8 3;fill:none}
+  svg .referenz circle{stroke:#5a3d8f;fill:white}
+  svg .referenz text{fill:#5a3d8f}
   svg .fremd{opacity:.35;pointer-events:none}
+  svg .fehler :is(path,polygon,rect,circle,line){stroke:#b02d25;stroke-dasharray:4 3}
+  svg .gewaehlt :is(path,polygon,rect,circle,line){stroke:#ad530a;stroke-width:2.5}
   .masseingabe{position:absolute;z-index:2;margin:0}
   .masseingabe input{width:11rem;font-size:.85rem;padding:.2rem .4rem;border:1px solid #ad530a;border-radius:3px;background:white}
   .status{padding:.4rem .5rem;margin:0;min-height:2em}

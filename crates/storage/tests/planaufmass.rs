@@ -911,6 +911,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
         markierungen,
         ausschnitte: vec![
             Planausschnitt {
+                ebene_id: None,
                 id: x_grund,
                 bezeichnung: "Grundriss EG".into(),
                 art: Ausschnittart::Grundriss,
@@ -920,6 +921,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
                 bezugslinie: None,
             },
             Planausschnitt {
+                ebene_id: None,
                 id: x_schnitt,
                 bezeichnung: "Schnitt A-A".into(),
                 art: Ausschnittart::Schnitt,

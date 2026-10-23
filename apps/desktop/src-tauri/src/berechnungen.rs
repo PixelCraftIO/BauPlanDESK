@@ -7,6 +7,94 @@ use core_lib::{
 };
 use tauri::State;
 #[tauri::command]
+pub async fn cadaufmass_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    dokument: core_lib::plattform::objekte::Dokumentbezug,
+    revision: i64,
+    ziel: std::path::PathBuf,
+) -> Result<(), CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    let bytes = state
+        .core
+        .cadaufmass_csv(projekt_id, &dokument, revision)
+        .await?;
+    tokio::fs::write(ziel, bytes)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub fn cadaufmass_messwerte(
+    aufmass: core_lib::cad::projektaufmass::CadProjektaufmass,
+) -> Result<Vec<core_lib::cad::Messung>, CmdError> {
+    Ok(aufmass.messen()?)
+}
+#[tauri::command]
+pub async fn cadaufmass_laden(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    dokument: core_lib::plattform::objekte::Dokumentbezug,
+) -> Result<Option<core_lib::commit::Fachstand>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.cadaufmass_laden(projekt_id, &dokument).await?)
+}
+#[tauri::command]
+pub async fn cadaufmass_speichern(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass: core_lib::cad::projektaufmass::CadProjektaufmass,
+    basis: i64,
+) -> Result<core_lib::commit::Fachstand, CmdError> {
+    Ok(state
+        .core
+        .cadaufmass_speichern(projekt_id, aufmass, basis, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planaufmass::Planexportwunsch,
+    ziel: std::path::PathBuf,
+) -> Result<(), CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    let bytes = state.core.planaufmass_export(projekt_id, &wunsch).await?;
+    tokio::fs::write(ziel, bytes)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn planaufmass_diagnose(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    plan: core_lib::planaufmass::Planaufmass,
+) -> Result<core_lib::planaufmass::Planpruefung, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.planaufmass_diagnose(projekt_id, &plan).await?)
+}
+#[tauri::command]
+pub fn planaufmass_flaechenoperation(
+    a: core_lib::planaufmass::Plangeometrie,
+    b: core_lib::planaufmass::Plangeometrie,
+    operation: core_lib::planaufmass::Flaechenoperation,
+) -> Result<Vec<core_lib::planaufmass::Plangeometrie>, CmdError> {
+    Ok(core_lib::planaufmass::flaechenoperation(&a, &b, operation)?)
+}
+#[tauri::command]
 pub async fn planaufmass_pruefen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

@@ -5,11 +5,15 @@ import { planApi } from "./api";
 
 /** Gespeichertes Aufmaß mit vom Core ermittelten Messwerten. */
 export type Aufmassquelle = { stand: Datensatz<Planaufmass>; werte: Planmesswert[]; fehler: string };
+export function hoehensystem(a:Planaufmass,m:Planmarkierung){return m.ausschnitt_id?a.ausschnitte?.find(x=>x.id===m.ausschnitt_id)?.bezugslinie?.system:a.hoehenbezug?.system;}
 
 export async function aufmasseLaden(projektId: string): Promise<Aufmassquelle[]> {
   const liste = await plattformApi.liste<Planaufmass>(projektId, "planaufmass");
   return Promise.all(liste.map(async (stand) => {
-    try { return { stand, werte: await planApi.pruefen(projektId, stand.daten), fehler: "" }; }
+    try {
+      const p=await planApi.diagnose(projektId,stand.daten);
+      return {stand,werte:p.markierungen.flatMap(m=>m.wert?[m.wert]:[]),fehler:p.markierungen.filter(m=>m.fehler).map(m=>`${stand.daten.markierungen.find(x=>x.id===m.id)?.bezeichnung??"Markierung"}: ${m.fehler}`).join(" · ")};
+    }
     catch (e) { return { stand, werte: [], fehler: fehlertext(e) }; }
   }));
 }

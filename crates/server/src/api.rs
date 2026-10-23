@@ -311,6 +311,10 @@ fn routen(core: CoreServices) -> Router {
             get(kunde).put(kunde_aendern).delete(kunde_loeschen),
         )
         .route("/kunden/{id}/projekte", get(kunde_projekte))
+        .route(
+            "/dokumente/{id}/entfernen/{basis}",
+            post(dokument_entfernen),
+        )
         .route("/dokumente/{id}/versionen", get(versionen))
         .route("/dokumente/{id}/sperre", post(sperren).delete(entsperren))
         .route("/dokumente/{id}/plan", get(cad_plan))
@@ -360,7 +364,40 @@ fn routen(core: CoreServices) -> Router {
             get(abstandsexport),
         )
         .route("/berechnung/aufmass", post(aufmass))
+        .route("/projekte/{id}/cadaufmass/laden", post(cadaufmass_laden))
+        .route(
+            "/projekte/{id}/cadaufmass/exportieren",
+            post(cadaufmass_exportieren),
+        )
+        .route(
+            "/projekte/{id}/cadaufmass/speichern",
+            post(cadaufmass_speichern),
+        )
         .route("/projekte/{id}/planaufmass", post(planaufmass_pruefen))
+        .route(
+            "/projekte/{id}/baugrundstueck/einzeln",
+            post(baugrundstueck_einzeln_pruefen),
+        )
+        .route(
+            "/projekte/{id}/baugrundstueck/einbinden",
+            post(baugrundstueck_einzeln_einbinden),
+        )
+        .route(
+            "/projekte/{id}/baugrundstueck/speichern",
+            post(baugrundstueck_einzeln_speichern),
+        )
+        .route(
+            "/projekte/{id}/planaufmass/diagnose",
+            post(planaufmass_diagnose),
+        )
+        .route(
+            "/projekte/{id}/planaufmass/export",
+            post(planaufmass_exportieren),
+        )
+        .route(
+            "/berechnung/planaufmass/flaechenoperation",
+            post(planaufmass_flaechenoperation),
+        )
         .route("/projekte/{id}/planwerte", post(planaufmass_einsetzen))
         .route("/projekte/{id}/planraumbuch", post(planaufmass_raumbuch))
         .route("/projekte/{id}/planabstand", post(planaufmass_abstand))
@@ -2096,4 +2133,134 @@ mod tests {
         assert_eq!(body["fehler"], "Ungültige Eingabe: Name fehlt");
         assert!(body.get("kennung").is_none());
     }
+}
+
+async fn dokument_entfernen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path((id, basis)): Path<(Uuid, i64)>,
+) -> Result<StatusCode, ApiError> {
+    core.dokument_entfernen(DocumentId(id), basis, &akteur)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn planaufmass_diagnose(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(plan): Json<core_lib::planaufmass::Planaufmass>,
+) -> ApiResult<core_lib::planaufmass::Planpruefung> {
+    Ok(Json(core.planaufmass_diagnose(ProjectId(id), &plan).await?))
+}
+#[derive(Deserialize)]
+struct Flaechenwunsch {
+    a: core_lib::planaufmass::Plangeometrie,
+    b: core_lib::planaufmass::Plangeometrie,
+    operation: core_lib::planaufmass::Flaechenoperation,
+}
+async fn planaufmass_flaechenoperation(
+    Json(w): Json<Flaechenwunsch>,
+) -> ApiResult<Vec<core_lib::planaufmass::Plangeometrie>> {
+    Ok(Json(core_lib::planaufmass::flaechenoperation(
+        &w.a,
+        &w.b,
+        w.operation,
+    )?))
+}
+async fn planaufmass_exportieren(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<core_lib::planaufmass::Planexportwunsch>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
+    let bytes = core.planaufmass_export(ProjectId(id), &w).await?;
+    let mime = match w.format {
+        core_lib::planaufmass::Planexportformat::Pdf => "application/pdf",
+        core_lib::planaufmass::Planexportformat::Csv => "text/csv; charset=utf-8",
+    };
+    Ok(([(axum::http::header::CONTENT_TYPE, mime)], bytes).into_response())
+}
+async fn cadaufmass_laden(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(d): Json<core_lib::plattform::objekte::Dokumentbezug>,
+) -> ApiResult<Option<core_lib::commit::Fachstand>> {
+    Ok(Json(core.cadaufmass_laden(ProjectId(id), &d).await?))
+}
+#[derive(Deserialize)]
+struct CadSpeichern {
+    aufmass: core_lib::cad::projektaufmass::CadProjektaufmass,
+    basis: i64,
+}
+#[derive(Deserialize)]
+struct CadExportieren {
+    dokument: core_lib::plattform::objekte::Dokumentbezug,
+    revision: i64,
+}
+async fn cadaufmass_exportieren(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<CadExportieren>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
+    let bytes = core
+        .cadaufmass_csv(ProjectId(id), &w.dokument, w.revision)
+        .await?;
+    Ok((
+        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
+        bytes,
+    )
+        .into_response())
+}
+#[derive(Deserialize)]
+struct EinheitPruefen {
+    eingabe: core_lib::baugrundstuecke::BaugrundstuecksPlan,
+    schluessel: String,
+}
+async fn baugrundstueck_einzeln_pruefen(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<EinheitPruefen>,
+) -> ApiResult<core_lib::baugrundstuecke::BaugrundstuecksPruefung> {
+    Ok(Json(
+        core.baugrundstueck_einzeln_pruefen(ProjectId(id), &w.eingabe, &w.schluessel)
+            .await?,
+    ))
+}
+async fn baugrundstueck_einzeln_einbinden(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<EinheitPruefen>,
+) -> ApiResult<core_lib::plattform::einbindung::GebaeudeEinbindung> {
+    Ok(Json(
+        core.baugrundstueck_gebaeude_einbinden(ProjectId(id), &w.eingabe, &w.schluessel)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct EinheitSpeichern {
+    version: i64,
+    berechnung: core_lib::baugrundstuecke::BaugrundstueckBerechnung,
+}
+async fn baugrundstueck_einzeln_speichern(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<EinheitSpeichern>,
+) -> ApiResult<Project> {
+    Ok(Json(
+        core.baugrundstueck_einzeln_speichern(ProjectId(id), w.version, w.berechnung, &wer)
+            .await?,
+    ))
+}
+async fn cadaufmass_speichern(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<CadSpeichern>,
+) -> ApiResult<core_lib::commit::Fachstand> {
+    Ok(Json(
+        core.cadaufmass_speichern(ProjectId(id), w.aufmass, w.basis, &wer)
+            .await?,
+    ))
 }

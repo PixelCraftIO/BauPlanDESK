@@ -331,6 +331,7 @@
       const r = await api.baugrundstueckeGebaeudeEinbinden(
         projekt.id,
         request(),
+        gruppen.length>1?gruppe?.schluessel??null:null,
       );
       if (stand !== fingerprint) return;
       for (const b of r.plan.berechnungen) {
@@ -508,7 +509,7 @@
       if (!(await ermitteln())) return;
       await gebaeudeEinbinden();
       const stand = fingerprint;
-      const r = await api.projektBaugrundstueckePruefen(projekt.id, request());
+      const r = await api.projektBaugrundstueckePruefen(projekt.id, request(),gruppen.length>1?gruppe?.schluessel??null:null);
       if (stand === fingerprint) {
         ergebnis = r;
         ergebnisStand = stand;
@@ -568,6 +569,17 @@
     } finally {
       laeuft = false;
     }
+  }
+  async function einheitSpeichern(){
+    if(!berechnung||!darf||laeuft||!bezugsflaechenAktuell)return;
+    const schluessel=berechnung.schluessel,entwurf=request();laeuft=true;fehler=null;
+    try{
+      const p=await api.baugrundstueckEinzelnSpeichern(projekt.id,basis,structuredClone($state.snapshot(berechnung)));
+      const neu=berechnungsplan(p.planungsrecht);
+      eingabe={...entwurf,berechnungen:entwurf.berechnungen.map(b=>b.schluessel===schluessel?structuredClone(neu.berechnungen.find(n=>n.schluessel===schluessel)!):b)};
+      gespeichert=structuredClone(neu);basisProjekt=structuredClone(p);basis=p.version;ergebnis=null;onprojekt(p);
+      hinweis="Ausgewähltes Baugrundstück gespeichert. Andere Einheiten wurden nicht neu geprüft; offene Entwürfe bleiben erhalten.";
+    }catch(e){fehler=fehlertext(e)}finally{laeuft=false}
   }
   export function hatAenderungen() {
     return geaendert && !(voraussetzung && lokalGesichert);
@@ -637,6 +649,7 @@
     >
   </aside>{/if}
 {#if lokalHinweis}<p role="status">{lokalHinweis}</p>{/if}
+{#if gruppen.length>1&&bereich!=="grundstueck"&&bereich!=="volumen"}<p class="hinweisbox">„Berechnen“ prüft die ausgewählte Grundstückseinheit unabhängig von Planquellen anderer Einheiten. Die vollständige Prüfung bleibt für die gemeinsame Ausgabe erforderlich. <button type="button" disabled={!darf||laeuft||!bezugsflaechenAktuell} onclick={()=>void einheitSpeichern()}>Nur ausgewähltes Baugrundstück speichern</button></p>{/if}
 {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}{#if hinweis}<p
     role="status"
   >

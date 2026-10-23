@@ -1,7 +1,7 @@
 <script lang="ts">
   import { editorAnmelden } from "./editoren";
-  import { untrack } from "svelte";
-  import { ask } from "@tauri-apps/plugin-dialog";
+  import { untrack, onDestroy } from "svelte";
+  import { ask, save } from "@tauri-apps/plugin-dialog";
   import {
     api,
     EINHEITEN,
@@ -17,6 +17,9 @@
     type Punkt,
   } from "./api";
   import PlanViewer, { type Werkzeug } from "./PlanViewer.svelte";
+  import { planApi } from "./planaufmass/api";
+  import type { CadProjektaufmass } from "./generated/plattform";
+  import { standardFang, type Fangoptionen } from "./planaufmass/fang";
 
   let {
     projekt,
@@ -49,6 +52,8 @@
   let messungen = $state<
     {
       nr: number;
+      id: string;
+      bezeichnung: string;
       art: string;
       ergebnis: Messung;
       punkte: Punkt[];
@@ -57,6 +62,26 @@
   >([]);
   let viewer = $state<PlanViewer>();
   let laufendeNr = 0;
+  let punktfang=$state(true),fangoptionen=$state<Fangoptionen>({...standardFang}),fangHinweis=$state("");
+  let planGeneration=0,listeGeneration=0;
+  onDestroy(()=>{planGeneration++;listeGeneration++;anfrage++});
+  let cadRevision=$state(0),cadGespeichert=$state(""),cadLaeuft=$state(false),cadHinweis=$state("");
+  const cadEingabe=$derived<CadProjektaufmass|null>(geladen?{dokument:{dokument_id:geladen.dokument.document_id,version:geladen.dokument.version},einheit,markierungen:messungen.map(m=>({id:m.id,bezeichnung:m.bezeichnung,punkte:m.punkte,geschlossen:m.geschlossen}))}:null);
+  const cadSignatur=$derived(JSON.stringify(cadEingabe));
+  const cadGeaendert=$derived(!!geladen&&cadGespeichert!==""&&cadSignatur!==cadGespeichert);
+  async function cadSpeichern():Promise<boolean>{
+    if(!cadEingabe||!darf||cadLaeuft)return false;
+    const a=JSON.parse(cadSignatur) as CadProjektaufmass,stand=cadSignatur,generation=planGeneration,pid=projekt.id,basis=cadRevision;
+    cadLaeuft=true;cadHinweis="";
+    try{const f=await planApi.cadSpeichern(pid,a,basis);if(generation!==planGeneration)return false;cadRevision=f.revision;cadGespeichert=stand;cadHinweis=`Projektaufmaß gespeichert · Revision ${f.revision}`;return true}
+    catch(e){onfehler(fehlertext(e));return false}finally{cadLaeuft=false}
+  }
+  async function cadExportieren(){
+    if(!cadEingabe||!geladen)return;
+    if(cadGeaendert&&(!darf||!(await ask("Für die CSV-Ausgabe das Projektaufmaß zuerst speichern?",{title:"CAD-Aufmaß ausgeben",okLabel:"Speichern und ausgeben",cancelLabel:"Abbrechen"}))||!(await cadSpeichern())))return;
+    const d=cadEingabe.dokument,revision=cadRevision,ziel=await save({defaultPath:`${geladen.dokument.file_name.replace(/\.[^.]+$/,"")}-aufmass.csv`,filters:[{name:"Messwerte CSV",extensions:["csv"]}]});if(!ziel)return;
+    try{await planApi.cadExportieren(projekt.id,d,revision,ziel);cadHinweis=`CSV ausgegeben: ${ziel}`}catch(e){onfehler(fehlertext(e))}
+  }
   let baufenster = $state<Punkt[]>([]);
   let vorhaben = $state<Punkt[]>([]);
   // Baugrundstück des Vorhabenumrisses; bei mehreren Einheiten erforderlich.
@@ -108,9 +133,9 @@
 
   export async function verwerfenErlaubt(): Promise<boolean> {
     return (
-      !geoGeaendert ||
+      (!geoGeaendert&&!cadGeaendert) ||
       (await ask(
-        "Die Zuordnung von Baufenster und Vorhaben wurde nicht gespeichert. Verwerfen?",
+        "Projektaufmaß oder Baugrenzenzuordnung wurden noch nicht gespeichert. Änderungen verwerfen?",
         {
           title: "Baugrenzen",
           kind: "warning",
@@ -166,31 +191,35 @@
   let anfrage = 0;
   async function liveMessen(punkte: Punkt[], geschlossen: boolean) {
     const nr = ++anfrage;
+    const generation=planGeneration,unit=einheit;
     if (punkte.length < 2) {
       live = null;
       return;
     }
     try {
-      const m = await api.aufmass(punkte, geschlossen, einheit);
-      if (nr === anfrage) live = m;
+      const m = await api.aufmass(punkte, geschlossen, unit);
+      if (nr === anfrage&&generation===planGeneration&&unit===einheit) live = m;
     } catch {
       if (nr === anfrage) live = null;
     }
   }
 
   async function fertig(punkte: Punkt[], geschlossen: boolean) {
+    if(laedt||cadLaeuft)return;
     anfrage++;
     live = null;
+    const generation=planGeneration,unit=einheit,tool=werkzeug;
     try {
-      const ergebnis = await api.aufmass(punkte, geschlossen, einheit);
+      const ergebnis = await api.aufmass(punkte, geschlossen, unit);
+      if(generation!==planGeneration||unit!==einheit)return;
       const art =
-        werkzeug === "auswahl"
+        tool === "auswahl"
           ? "Fläche (gewählt)"
           : geschlossen
             ? "Fläche"
             : "Länge";
       messungen = [
-        { nr: ++laufendeNr, art, ergebnis, punkte, geschlossen },
+        { nr: ++laufendeNr, id:crypto.randomUUID(),bezeichnung:`Messung ${laufendeNr}`, art, ergebnis, punkte, geschlossen },
         ...messungen,
       ];
     } catch (e) {
@@ -200,21 +229,21 @@
 
   // Einheit geändert: bisherige Messungen neu rechnen.
   async function einheitGeaendert() {
+    anfrage++;const generation=planGeneration,unit=einheit,stand=messungen;
     try {
-      messungen = await Promise.all(
-        messungen.map(async (m) => ({
-          ...m,
-          ergebnis: await api.aufmass(m.punkte, m.geschlossen, einheit),
-        })),
-      );
+      if(!cadEingabe)return;const werte=await planApi.cadMesswerte(JSON.parse(cadSignatur));
+      if(generation!==planGeneration||unit!==einheit||messungen!==stand)return;
+      messungen=stand.map((m,i)=>({...m,ergebnis:werte[i]}));
     } catch (e) {
       onfehler(fehlertext(e));
     }
   }
 
   async function listeLaden() {
+    const generation=++listeGeneration;
     try {
       const alle = await api.dokumente(projektId);
+      if(generation!==listeGeneration)return;
       const neueste = new Map<string, DocumentVersion>();
       for (const v of alle.filter((d) => istPlan(d.file_name)))
         if ((neueste.get(v.document_id)?.version ?? 0) < v.version)
@@ -227,7 +256,7 @@
         ? neueste.get(geladen.dokument.document_id)
         : null;
       if (geladen && aktuell && aktuell.version !== geladen.dokument.version) {
-        if (geoGeaendert)
+        if (geoGeaendert||cadGeaendert)
           geoHinweis =
             "Eine neuere Planversion ist verfügbar. Bitte die aktuelle Zuordnung sichern oder verwerfen und den Plan neu laden.";
         else await planLaden(geladen.dokument.document_id);
@@ -238,13 +267,16 @@
   }
 
   async function planLaden(id: string) {
+    const generation=++planGeneration;anfrage++;
     laedt = true;
     try {
       const p = await api.cadPlan(id);
+      if(generation!==planGeneration||id!==dokumentId)return;
       geladen = p;
       einheit = p.plan.einheit ?? "meter";
       sichtbar = p.plan.ebenen.map((e) => e.sichtbar);
       messungen = [];
+      cadRevision=0;cadGespeichert=JSON.stringify({dokument:{dokument_id:p.dokument.document_id,version:p.dokument.version},einheit,markierungen:[]});cadHinweis="";
       live = null;
       grenzpruefung = null;
       geoHinweis = null;
@@ -274,11 +306,15 @@
         vorhaben,
         grundSchluessel,
       ]);
+      const f=await planApi.cadLaden(projektId,{dokument_id:p.dokument.document_id,version:p.dokument.version});
+      if(generation!==planGeneration)return;
+      if(f){const a=f.daten,werte=await planApi.cadMesswerte(a);if(generation!==planGeneration)return;einheit=a.einheit;cadRevision=f.revision;messungen=a.markierungen.map((m,i)=>({...m,nr:++laufendeNr,art:m.geschlossen?"Fläche":"Strecke",ergebnis:werte[i]}));cadGespeichert=JSON.stringify(a);cadHinweis=`Gespeichertes Projektaufmaß · Revision ${f.revision}`;}
     } catch (e) {
+      if(generation!==planGeneration)return;
       geladen = null;
       onfehler(fehlertext(e));
     } finally {
-      laedt = false;
+      if(generation===planGeneration)laedt = false;
     }
   }
 
@@ -312,25 +348,25 @@
     {
       id: "verschieben",
       text: "Verschieben",
-      taste: "V",
-      tipp: "Ziehen verschiebt, Mausrad zoomt.",
+      taste: "M",
+      tipp: "Ziehen oder Leertaste verschiebt; Strg+Mausrad zoomt.",
     },
     {
       id: "laenge",
-      text: "Länge",
-      taste: "L",
+      text: "Strecke",
+      taste: "S",
       tipp: "Punkte anklicken, Doppelklick oder Enter beendet.",
     },
     {
       id: "flaeche",
-      text: "Fläche",
-      taste: "F",
+      text: "Polygon",
+      taste: "P",
       tipp: "Eckpunkte anklicken, Doppelklick oder Enter schließt die Fläche.",
     },
     {
       id: "auswahl",
-      text: "Fläche wählen",
-      taste: "W",
+      text: "Auswählen",
+      taste: "V",
       tipp: "In eine geschlossene Linie klicken, z. B. die Grundstücksgrenze.",
     },
   ];
@@ -373,14 +409,15 @@
   };
 
   export function hatAenderungen() {
-    return geoGeaendert;
+    return geoGeaendert||cadGeaendert;
   }
   export function istBeschaeftigt() {
-    return geoLaeuft || laedt;
+    return geoLaeuft || laedt||cadLaeuft;
   }
   export async function speichernBeimSchliessen(): Promise<boolean> {
     if (istBeschaeftigt()) return false;
-    await grenzePruefen(true);
+    if(cadGeaendert&&!(await cadSpeichern()))return false;
+    if(geoGeaendert)await grenzePruefen(true);
     return !hatAenderungen();
   }
   editorAnmelden("plaene", {
@@ -402,6 +439,7 @@
     <label class="zeile"
       >Plan
       <select
+        aria-label="Plan"
         value={dokumentId ?? ""}
         disabled={geoLaeuft}
         onchange={(e) => planWechsel(e.currentTarget.value)}
@@ -412,6 +450,8 @@
       </select>
     </label>
     <div class="werkzeuge" role="toolbar" aria-label="Werkzeuge">
+      <label><input type="checkbox" bind:checked={punktfang}/>Punktfang</label>
+      <details><summary>Fangoptionen</summary>{#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}</details>
       {#each WERKZEUGE as w}
         <button
           class:aktiv={werkzeug === w.id}
@@ -437,6 +477,7 @@
     <label class="zeile"
       >Einheit
       <select
+        aria-label="Einheit"
         bind:value={einheit}
         onchange={einheitGeaendert}
         disabled={geoLaeuft}
@@ -451,6 +492,7 @@
       <div class="planspalte">
         <PlanViewer
           bind:this={viewer}
+          {punktfang} {fangoptionen} onfanghinweis={text=>fangHinweis=text}
           plan={geladen.plan}
           {sichtbar}
           {werkzeug}
@@ -555,11 +597,15 @@
             zulässige Bauteilüberschreitungen sind gesondert zu beurteilen.
           </p>
         {/if}
+        {#if fangHinweis}<p class="hinweisbox" role="status">{fangHinweis}</p>{/if}
         <h3>Messungen</h3>
+        <p class="meta" role="status">{cadGeaendert?"Projektaufmaß geändert · noch nicht gespeichert":cadHinweis||"Neue Messungen sind zunächst temporär."}</p>
+        <button type="button" disabled={!darf||cadLaeuft||!cadGeaendert} onclick={()=>void cadSpeichern()}>{cadLaeuft?"Speichere Projektaufmaß …":"Projektaufmaß speichern"}</button>
+        <button type="button" class="sekundaer" disabled={cadLaeuft||(!cadRevision&&!cadGeaendert)} onclick={()=>void cadExportieren()}>Messwerte CSV …</button>
         {#each messungen as m (m.nr)}
           <div class="messung">
             <div>
-              <span class="meta">{m.nr}. {m.art}</span>
+              <span class="meta">{m.nr}. {m.art}</span><label>Bezeichnung<input bind:value={m.bezeichnung} disabled={!darf||cadLaeuft} required/></label>
               {#if m.ergebnis.flaeche_m2 !== null}
                 <strong>{z(m.ergebnis.flaeche_m2)} m²</strong>
                 <span class="meta">Umfang {z(m.ergebnis.laenge_m)} m</span>

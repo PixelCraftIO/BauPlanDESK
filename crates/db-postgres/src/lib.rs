@@ -325,6 +325,19 @@ impl DocumentRepository for PostgresDatabase {
         ))
     }
 
+    async fn remove_from_project(&self, id: DocumentId, basis: i64) -> CoreResult<()> {
+        let d = self.latest(id).await?;
+        if d.version != basis {
+            return Err(CoreError::VersionConflict {
+                expected: basis,
+                actual: d.version,
+            });
+        }
+        sqlx::query("INSERT INTO entfernte_dokumente (document_id, project_id) SELECT document_id, project_id FROM document_versions WHERE document_id=$1 AND version=$2 AND version=(SELECT MAX(version) FROM document_versions WHERE document_id=$1) ON CONFLICT (document_id) DO NOTHING")
+            .bind(id.0).bind(basis).execute(&self.pool).await.map_err(db_err)?;
+        Ok(())
+    }
+
     async fn latest(&self, id: DocumentId) -> CoreResult<DocumentVersion> {
         let row = sqlx::query(
             "SELECT * FROM document_versions WHERE document_id = $1 ORDER BY version DESC LIMIT 1",
@@ -361,8 +374,21 @@ impl DocumentRepository for PostgresDatabase {
         .collect()
     }
 
+    async fn active_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        sqlx::query(
+            "SELECT * FROM document_versions WHERE project_id = $1 AND document_id NOT IN (SELECT document_id FROM entfernte_dokumente) ORDER BY document_id, version",
+        )
+        .bind(project.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?
+        .iter()
+        .map(document_from_row)
+        .collect()
+    }
+
     async fn latest_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
-        sqlx::query("SELECT d.* FROM document_versions d WHERE d.project_id=$1 AND NOT EXISTS (SELECT 1 FROM document_versions n WHERE n.document_id=d.document_id AND n.version>d.version) ORDER BY d.document_id").bind(project.0).fetch_all(&self.pool).await.map_err(db_err)?.iter().map(document_from_row).collect()
+        sqlx::query("SELECT d.* FROM document_versions d WHERE d.project_id=$1 AND d.document_id NOT IN (SELECT document_id FROM entfernte_dokumente) AND NOT EXISTS (SELECT 1 FROM document_versions n WHERE n.document_id=d.document_id AND n.version>d.version) ORDER BY d.document_id").bind(project.0).fetch_all(&self.pool).await.map_err(db_err)?.iter().map(document_from_row).collect()
     }
     async fn history_page(
         &self,

@@ -82,6 +82,32 @@ fn seitenbox(doc: &Document, id: ObjectId) -> CoreResult<[f32; 4]> {
     }
     Ok(b)
 }
+/// Abbildung physischer sichtbarer Seitenpunkte (links oben, y abwärts) in
+/// PDF-Benutzerkoordinaten. Entspricht PDF.js einschließlich CropBox, Rotate
+/// und UserUnit; Parserdetails bleiben im Formular-/PDF-Adapter.
+pub(crate) fn seitenabbildung(doc: &Document, id: ObjectId) -> CoreResult<[f32; 6]> {
+    let b = seitenbox(doc, id)?;
+    let r = geerbt(doc, id, b"Rotate")?
+        .and_then(|o| o.as_i64().ok())
+        .unwrap_or(0)
+        .rem_euclid(360);
+    let u = geerbt(doc, id, b"UserUnit")?
+        .and_then(|o| o.as_float().ok())
+        .unwrap_or(1.);
+    if !u.is_finite() || u <= 0. {
+        return Err(err("Ungültige PDF-Seiteneinheit"));
+    }
+    let s = 1. / u;
+    match r {
+        0 => Ok([s, 0., 0., -s, b[0], b[3]]),
+        90 => Ok([0., s, s, 0., b[0], b[1]]),
+        180 => Ok([-s, 0., 0., s, b[2], b[1]]),
+        270 => Ok([0., -s, -s, 0., b[2], b[3]]),
+        _ => Err(err(
+            "PDF-Seitendrehung muss ein Vielfaches von 90 Grad sein",
+        )),
+    }
+}
 pub fn seiten(pdf: &[u8]) -> CoreResult<Vec<PdfSeite>> {
     let doc = pdf::lade(pdf)?;
     seiten_im_dokument(&doc)
@@ -362,6 +388,27 @@ pub fn felder_hinzufuegen(pdf: &[u8], felder: &[EigenesPdfFeld]) -> CoreResult<V
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn planabbildung_beruecksichtigt_crop_rotation_und_userunit() {
+        let mut d = Document::load_mem(&crate::formular::testdaten::musterformular()).unwrap();
+        let id = *d.get_pages().values().next().unwrap();
+        d.get_dictionary_mut(id).unwrap().set(
+            "CropBox",
+            vec![10.into(), 20.into(), 210.into(), 120.into()],
+        );
+        d.get_dictionary_mut(id).unwrap().set("UserUnit", 2);
+        for (rotation, erwartet) in [
+            (0, [0.5, 0., 0., -0.5, 10., 120.]),
+            (90, [0., 0.5, 0.5, 0., 10., 20.]),
+            (180, [-0.5, 0., 0., 0.5, 210., 20.]),
+            (270, [0., -0.5, -0.5, 0., 210., 120.]),
+        ] {
+            d.get_dictionary_mut(id).unwrap().set("Rotate", rotation);
+            assert_eq!(seitenabbildung(&d, id).unwrap(), erwartet);
+        }
+        d.get_dictionary_mut(id).unwrap().set("UserUnit", 0);
+        assert!(seitenabbildung(&d, id).is_err());
+    }
     use crate::formular::{
         pdf::{Feldwert, befuellen, felder_lesen},
         testdaten::musterformular,

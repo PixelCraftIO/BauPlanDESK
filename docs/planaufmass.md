@@ -286,10 +286,11 @@ zugeordnete GRZ-/GFZ-Nachweise und Berechnungen mit Gebäudeübernahme werden be
 veralteten Gebäudeaufmaßen ungültig. Betroffene Gebäude sind in der Übersicht
 verlinkt. Rein manuelle Gebäude ohne Planbindungen verhalten sich unverändert.
 
-Beim Wechsel der PDF oder Seite bleiben Markierungen und Ausschnittrahmen zur
-manuellen Anpassung erhalten; Maßstab, Höhenbezug sowie Maßstäbe und
-Bezugslinien der Ausschnitte werden entfernt. `ausschnitte` und
-`ausschnitt_id` sind optional und werden ohne Inhalt nicht serialisiert;
+Miniaturen wechseln nur die betrachtete Seite. Eine andere Arbeitsseite oder
+PDF erhält nach bewusster Entscheidung eine eigene Maske. Die Übertragung über
+den bestätigten Planvergleich erzeugt neue IDs und verlangt eine neue
+Kalibrierung; die ursprüngliche Maske und ihre Bindungen bleiben erhalten.
+`ausschnitte`, `ausschnitt_id` und Ausschnitt-Ebenenbezüge sind optional;
 Aufmaße ohne Ausschnitte rechnen unverändert. Der Bindungsstand enthält den
 Ausschnitt der gebundenen Markierung, sodass eine geänderte Bezugslinie nur die
 daraus übernommenen Werte veraltet. Alte Dokumentversionen werden
@@ -304,7 +305,7 @@ Für das beschriebene Gesamtziel fehlen noch eigenständige Verbraucheradapter:
   Baugrundstücksermittlung übernehmen; Identität und rechtliche Flächenabzüge
   ausdrücklich erhalten.
 - Vorschläge für Ausschnitte, Maßstab und Höhenkoten aus dem PDF-Text,
-  erweiterter Fang (Schnittpunkte, Lot) und eine Werkzeugkiste mit Vorlagen;
+  Lotfang und eine Werkzeugkiste mit Vorlagen;
   Aufgaben für Fachberechnungen (Positionen) und Raumbuch; siehe
   [planaufmass-editor-analyse.md](planaufmass-editor-analyse.md).
 - Geschoss-Außenkonturen zusätzlich als transformierte Lagegeometrie für
@@ -313,15 +314,16 @@ Für das beschriebene Gesamtziel fehlen noch eigenständige Verbraucheradapter:
 - Wände in Ansichten mit Lageplanwänden korrespondieren lassen; Gelände- und
   Oberkantenprofile mit Stationsbezug in die Abstandsflächen übernehmen.
   Eine Ansichtslänge darf nicht still eine Lageplankoordinate ersetzen.
-- Höhenbezüge einschließlich gedrehter Ansichten und Transformation zwischen
-  mehreren Plänen; derzeit sind Seitenhorizontalen/-vertikalen maßgebend.
-- Polygonlöcher, Flächenverschneidung und Prüfung überlappender Bilanzflächen.
-- CAD-artige Schnittpunkt-/Tangenten-/Kreiszentrumserkennung, vollständige
+- Fachliche Transformation zwischen mehreren Plänen; gedrehte lokale
+  Höhenbezüge und manueller Versionsvergleich sind vorhanden.
+- Automatische Prüfung überlappender Bilanzflächen; Polygonlöcher und
+  Flächenverschneidung sind vorhanden.
+- CAD-artige Tangenten-/Kreiszentrumserkennung, vollständige
   Auswertung von Clipping und optionalen PDF-Inhaltsebenen. Kurven liefern
   derzeit Endpunkte, keine vorgetäuschten geraden Kanten. Fangziele sind am
   sichtbaren Plan zu kontrollieren; Alt deaktiviert den Fang temporär.
 - Übernahme durch Auswahl einer Bedeutung allein, automatische Positionsanlage
-  außerhalb des Raumbuchs sowie separate Ausgabe der annotierten Pläne.
+  außerhalb des Raumbuchs. Annotierte Plananlagen können als PDF ausgegeben werden.
 
 Die zentrale Übersicht kennt gespeicherte Berechnungen und Anforderungen.
 Sie behauptet keine Vollständigkeit für noch nicht angelegte Nachweise oder

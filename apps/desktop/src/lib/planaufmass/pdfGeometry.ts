@@ -92,12 +92,7 @@ export function snap(point: Point, geometry: SnapGeometry, tolerance: number):
 // Vorschauhilfen für die Zeichenfläche. Maßgebend bleiben die Werte des Cores
 // (planaufmass_pruefen); diese Funktionen zeigen nur während des Zeichnens an.
 type Kalibrierung = { art: "massstab"; nenner: number } | { art: "strecke"; von: Point; bis: Point; meter: number };
-type Geometrie =
-  | { art: "polygon"; punkte: Point[] }
-  | { art: "rechteck"; von: Point; bis: Point }
-  | { art: "kreis"; mitte: Point; rand: Point }
-  | { art: "strecke"; von: Point; bis: Point }
-  | { art: "hoehenpunkt"; punkt: Point };
+type Geometrie = import("../generated/plattform").Plangeometrie;
 export function meterProPunkt(k: Kalibrierung | null | undefined): number | null {
   if (!k) return null;
   if (k.art === "massstab") return k.nenner > 0 ? (k.nenner * 0.0254) / 72 : null;
@@ -107,7 +102,12 @@ export function meterProPunkt(k: Kalibrierung | null | undefined): number | null
 /** Länge/Umfang und Fläche in Seitenpunkten bzw. Metern; nur Vorschau. */
 export function vorschauMass(g: Geometrie, f: number | null): { laenge_m: number | null; flaeche_m2: number | null } {
   let laenge = 0, flaeche = 0;
-  if (g.art === "polygon") {
+  if (g.art === "flaeche") {
+    for(const p of g.polygone){
+      const a=vorschauMass({art:"polygon",punkte:p.aussen},1);flaeche+=a.flaeche_m2??0;laenge+=a.laenge_m??0;
+      for(const r of p.innen??[]){const v=vorschauMass({art:"polygon",punkte:r},1);flaeche-=v.flaeche_m2??0;laenge+=v.laenge_m??0}
+    }
+  } else if (g.art === "polygon") {
     const n = g.punkte.length;
     for (let i = 0; i < n; i++) {
       const a = g.punkte[i], b = g.punkte[(i + 1) % n];
@@ -130,11 +130,13 @@ export function vorschauMass(g: Geometrie, f: number | null): { laenge_m: number
 export function verschieben<G extends Geometrie>(g: G, dx: number, dy: number): G {
   const v = (p: Point): Point => [p[0] + dx, p[1] + dy];
   if (g.art === "polygon") return { ...g, punkte: g.punkte.map(v) };
+  if (g.art === "flaeche") return {...g,polygone:g.polygone.map(p=>({...p,aussen:p.aussen.map(v),innen:p.innen?.map(r=>r.map(v))}))};
   if (g.art === "kreis") return { ...g, mitte: v(g.mitte), rand: v(g.rand) };
   if (g.art === "hoehenpunkt") return { ...g, punkt: v(g.punkt) };
   return { ...g, von: v(g.von), bis: v(g.bis) };
 }
 export function eckpunkte(g: Geometrie): Point[] {
+  if(g.art==="flaeche")return g.polygone.flatMap(p=>[...p.aussen,...(p.innen??[]).flat()]);
   if (g.art === "polygon") return g.punkte;
   if (g.art === "kreis") return [g.mitte, g.rand];
   if (g.art === "hoehenpunkt") return [g.punkt];

@@ -4,7 +4,10 @@
   import type { FachPlan, AbstandsPlan, Gebaeude, Planziel } from "../generated/plattform";
   import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { planApi } from "./api";
-  import { aufmasseLaden, messwert as wert, type Aufmassquelle } from "./quellen";
+  import { aufmasseLaden, messwert as wert, hoehensystem, type Aufmassquelle } from "./quellen";
+  import { Uebernahme, zielfeld, werttext } from "./Uebernahme.svelte";
+  import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
+  const v=new Uebernahme();
   type Zielplan=FachPlan|AbstandsPlan|Gebaeude;
   let {projektId,plan,objektId="",onplan,onbusy}:{projektId:string;plan:Zielplan;objektId?:string;onplan:(p:Zielplan)=>void;onbusy:(b:boolean)=>void}=$props();
   let aufmasse=$state<Aufmassquelle[]>([]);
@@ -19,7 +22,7 @@
       const art=m.geometrie.art;
       if(plan.modul==="hoehen"&&ziel.startsWith("punkte.")){
         const system=(plan.eingaben as {hoehenbezug?:unknown}|null)?.hoehenbezug;
-        if(art!=="hoehenpunkt"||!a.stand.daten.hoehenbezug||a.stand.daten.hoehenbezug.system!==system)return [];
+        if(art!=="hoehenpunkt"||hoehensystem(a.stand.daten,m)!==system)return [];
       }else if(groesse==="hoehe"&&art!=="strecke")return [];
       if(plan.modul==="din277"&&ziel.startsWith("positionen.")&&!["nuf","tf","vf","kgf"].includes(m.bedeutung))return [];
     } else if("waende" in plan) {
@@ -27,7 +30,7 @@
       if(!wand||m.gebaeude_id!==(wand.gebaeude_id??null))return [];
       // Eckhöhen absolut im Höhensystem des Plans, Dachwerte aus Strecken (planaufmass/abstand.rs).
       const absolut=/^(gelaende|abschluss)_[ab]_m$/.test(ziel.split(".")[2]??"");
-      if(absolut?(m.geometrie.art!=="hoehenpunkt"||a.stand.daten.hoehenbezug?.system!==plan.hoehenbezug):m.geometrie.art!=="strecke")return [];
+      if(absolut?(m.geometrie.art!=="hoehenpunkt"||hoehensystem(a.stand.daten,m)!==plan.hoehenbezug):m.geometrie.art!=="strecke")return [];
     } else if(m.gebaeude_id!==objektId || (ziel.startsWith("geschosse.") && m.geschoss_id!==ziel.split(".")[1]))return [];
     // Flächen nur aus passend gekennzeichneten Konturen; der Core weist andere ab.
     else if(groesse==="flaeche" && m.bedeutung!==(ziel.startsWith("geschosse.")?"geschoss_aussenkante":"gebaeudegrundflaeche"))return [];
@@ -76,11 +79,14 @@
     busy=true;onbusy(true);fehler="";meldung="";
     try{
       const neuPlan=await ("modul" in neu?planApi.einsetzen(projektId,neu):"waende" in neu?planApi.abstand(projektId,neu):planApi.gebaeude(projektId,objektId,neu));
+      const zeilen=(neu.planbindungen??[]).filter(b=>aktualisieren||b.ziel===ziel).map(b=>{const z=ziele.find(z=>z.ziel===b.ziel),a=aufmasse.find(a=>a.stand.objekt===b.aufmass_id),einheit=b.groesse==="flaeche"?"m²":b.groesse==="neigung"?"°":"m";return {ziel:z?.titel??b.ziel,vorher:werttext(zielfeld("modul" in plan?plan.eingaben:plan,b.ziel),einheit),nachher:werttext(zielfeld("modul" in neuPlan?neuPlan.eingaben:neuPlan,b.ziel),einheit),quelle:`${a?.stand.daten.bezeichnung??"Aufmaß"} · ${a?.stand.daten.markierungen.find(m=>m.id===b.markierung_id)?.bezeichnung??"Markierung"} · R${b.revision}`}});
+      if(!(await v.fragen(zeilen)))return;
       if(JSON.stringify(plan)!==before)throw Error("Eingaben wurden zwischenzeitlich geändert. Übernahme erneut ausführen.");
       onplan(neuPlan);meldung="Messwerte im Entwurf eingesetzt. Angaben prüfen und speichern.";
     }catch(e){fehler=fehlertext(e)}finally{busy=false;onbusy(false)}
   }
 </script>
+<UebernahmeVorschau {v}/>
 
 <section>
   <h3>PDF-Aufmaß verknüpfen</h3>

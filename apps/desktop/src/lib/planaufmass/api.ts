@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Planaufmass, Planmesswert, FachPlan, Planziel, Planaufgabe } from "../generated/plattform";
 export const planApi = {
+  cadExportieren:(projektId:string,dokument:import("../generated/plattform").Dokumentbezug,revision:number,ziel:string)=>invoke<void>("cadaufmass_exportieren",{projektId,dokument,revision,ziel}),
+  cadMesswerte:(aufmass:import("../generated/plattform").CadProjektaufmass)=>invoke<import("../api").Messung[]>("cadaufmass_messwerte",{aufmass}),
+  cadLaden:(projektId:string,dokument:import("../generated/plattform").Dokumentbezug)=>invoke<import("../plattformApi").Datensatz<import("../generated/plattform").CadProjektaufmass>|null>("cadaufmass_laden",{projektId,dokument}),
+  cadSpeichern:(projektId:string,aufmass:import("../generated/plattform").CadProjektaufmass,basis:number)=>invoke<import("../plattformApi").Datensatz<import("../generated/plattform").CadProjektaufmass>>("cadaufmass_speichern",{projektId,aufmass,basis}),
+  exportieren:(projektId:string,wunsch:import("../generated/plattform").Planexportwunsch,ziel:string)=>invoke<void>("planaufmass_exportieren",{projektId,wunsch,ziel}),
+  diagnose: (projektId: string, plan: Planaufmass) => invoke<import("../generated/plattform").Planpruefung>("planaufmass_diagnose", {projektId,plan}),
+  flaechenoperation: (a:import("../generated/plattform").Plangeometrie,b:import("../generated/plattform").Plangeometrie,operation:import("../generated/plattform").Flaechenoperation) => invoke<import("../generated/plattform").Plangeometrie[]>("planaufmass_flaechenoperation",{a,b,operation}),
   pruefen: (projektId: string, plan: Planaufmass) =>
     invoke<Planmesswert[]>("planaufmass_pruefen", { projektId, plan }),
   aufgaben: (projektId: string, plan: Planaufmass) =>

@@ -50,6 +50,13 @@ pub trait DocumentRepository: Send + Sync {
         basis: Option<i64>,
     ) -> CoreResult<DocumentVersion>;
 
+    /// Entfernt aus Projektlisten; konkrete Versionen bleiben für bestehende Bezüge lesbar.
+    async fn remove_from_project(&self, _id: DocumentId, _basis: i64) -> CoreResult<()> {
+        Err(crate::CoreError::InvalidInput(
+            "Dokumententfernung nicht unterstützt".into(),
+        ))
+    }
+
     async fn latest(&self, id: DocumentId) -> CoreResult<DocumentVersion>;
 
     /// Vollständige Änderungshistorie, älteste zuerst.
@@ -57,10 +64,15 @@ pub trait DocumentRepository: Send + Sync {
 
     async fn list_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>>;
 
+    /// Aktive Projektdateien; entfernte Versionen bleiben im vollstaendigen Bestand.
+    async fn active_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
+        self.list_for_project(project).await
+    }
+
     /// Nur neueste Dokumentstände für eine Übersicht; keine Historienübertragung.
     async fn latest_for_project(&self, project: ProjectId) -> CoreResult<Vec<DocumentVersion>> {
         let mut neueste = std::collections::BTreeMap::new();
-        for d in self.list_for_project(project).await? {
+        for d in self.active_for_project(project).await? {
             let e = neueste.entry(d.document_id.0).or_insert_with(|| d.clone());
             if e.version < d.version {
                 *e = d;

@@ -235,6 +235,21 @@
   const istPdf = (d: DocumentVersion) =>
     d.file_name.toLowerCase().endsWith(".pdf");
 
+  async function dateiAktion(doc: DocumentVersion, entfernen: boolean) {
+    if (entfernen && !(await ask(`„${doc.file_name}“ aus den Projektdateien löschen? Bestehende Versionsbezüge und bereits ausgegebene Dateien bleiben erhalten.`, { title: "Projektdatei löschen", kind: "warning", okLabel: "Löschen", cancelLabel: "Abbrechen" }))) return;
+    laeuft = true;
+    try {
+      if (entfernen) {
+        await api.dokumentEntfernen(doc.document_id, doc.version);
+        auswahl = auswahl.filter(id => id !== doc.document_id);
+        melden({ projektId, bereich: "dokumente", quelle: "dokumente" });
+        await laden();
+        hinweis = "Datei aus den Projektdateien gelöscht.";
+      } else await api.dokumentImExplorer(doc.document_id, doc.version);
+    } catch (e) { onfehler(fehlertext(e)); }
+    finally { laeuft = false; }
+  }
+
   async function externOeffnen(doc: DocumentVersion) {
     laeuft = true;
     try {
@@ -816,6 +831,8 @@
                 >Weitere …</summary
               >
               <div>
+                <button class="link" disabled={laeuft} onclick={() => dateiAktion(doc, false)}>Im Explorer anzeigen</button>
+                {#if darfAblegen}<button class="link" disabled={laeuft || !!sperren.get(doc.document_id)} onclick={() => dateiAktion(doc, true)}>Datei löschen …</button>{/if}
                 <Druckknopf
                   {projektId}
                   quelle={{

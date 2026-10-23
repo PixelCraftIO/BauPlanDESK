@@ -316,6 +316,26 @@ impl BaugrundstuecksPlan {
         version: i64,
         regeln: &[crate::baunvo::Regelwerk],
     ) -> CoreResult<BaugrundstuecksPruefung> {
+        self.pruefe_auswahl(plan, version, regeln, None)
+    }
+    /// Liefert ausschließlich das Ergebnis der gewählten Einheit. Alle
+    /// Grundstücksidentitäten und gemeinschaftlichen Zuordnungen bleiben im
+    /// Kontext des vollständigen Plans erhalten.
+    pub fn pruefe_einheit(
+        &self,
+        plan: &Planungsrecht,
+        version: i64,
+        schluessel: &str,
+    ) -> CoreResult<BaugrundstuecksPruefung> {
+        self.pruefe_auswahl(plan, version, crate::baunvo::regelwerke(), Some(schluessel))
+    }
+    fn pruefe_auswahl(
+        &self,
+        plan: &Planungsrecht,
+        version: i64,
+        regeln: &[crate::baunvo::Regelwerk],
+        auswahl: Option<&str>,
+    ) -> CoreResult<BaugrundstuecksPruefung> {
         let mit_plan = matches!(
             plan.bebauungsplan_art,
             crate::domain::BebauungsplanArt::Qualifiziert
@@ -323,6 +343,11 @@ impl BaugrundstuecksPlan {
                 | crate::domain::BebauungsplanArt::Vorhabenbezogen
         );
         let gruppen = self.gruppen(mit_plan)?;
+        if auswahl.is_some_and(|s| !gruppen.iter().any(|g| g.schluessel == s)) {
+            return Err(CoreError::InvalidInput(
+                "Baugrundstück nicht vorhanden".into(),
+            ));
+        }
         if self.berechnungen.len() != gruppen.len() {
             return Err(CoreError::InvalidInput(
                 "Für jedes Baugrundstück genau eine Berechnung anlegen".into(),
@@ -334,6 +359,9 @@ impl BaugrundstuecksPlan {
         let schluessel: HashSet<String> = gruppen.iter().map(|g| g.schluessel.clone()).collect();
         let s_aktuell = |s: &str| schluessel.contains(s);
         for g in gruppen {
+            if auswahl.is_some_and(|s| g.schluessel != s) {
+                continue;
+            }
             let b = self
                 .berechnungen
                 .iter()

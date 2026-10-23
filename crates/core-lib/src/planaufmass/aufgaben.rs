@@ -125,6 +125,7 @@ fn passt(m: &Planmarkierung, geometrie: Aufgabengeometrie) -> bool {
         (
             Aufgabengeometrie::Flaeche,
             Plangeometrie::Polygon { .. }
+                | Plangeometrie::Flaeche { .. }
                 | Plangeometrie::Rechteck { .. }
                 | Plangeometrie::Kreis { .. }
         ) | (

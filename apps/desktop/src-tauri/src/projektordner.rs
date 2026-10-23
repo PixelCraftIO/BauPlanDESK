@@ -34,6 +34,43 @@ pub async fn ablegen(state: &AppState, d: DocumentVersion) -> ProjektDokument {
         },
     }
 }
+#[tauri::command]
+pub async fn dokument_im_explorer(
+    state: State<'_, AppState>,
+    dokument_id: core_lib::domain::DocumentId,
+    version: i64,
+) -> Result<(), CmdError> {
+    state
+        .core
+        .dokument_zugriff(
+            dokument_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    let (d, _) = state.core.load_version(dokument_id, version).await?;
+    let output = ablegen(&state, d).await;
+    let path = output.projektordner_pfad.ok_or_else(|| {
+        CoreError::Storage(
+            output
+                .ablage_hinweis
+                .unwrap_or_else(|| "Ordnerausgabe nicht verfügbar".into()),
+        )
+    })?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer.exe")
+        .arg(format!("/select,{}", path.replace('/', "\\")))
+        .spawn()
+        .map_err(|e| CoreError::Storage(e.to_string()))?;
+    #[cfg(not(target_os = "windows"))]
+    crate::dateien::starten(
+        std::path::Path::new(&path)
+            .parent()
+            .ok_or_else(|| CoreError::Storage("Ordner fehlt".into()))?,
+    )?;
+    Ok(())
+}
+
 async fn ausgeben(
     state: &AppState,
     d: &DocumentVersion,

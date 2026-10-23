@@ -279,6 +279,12 @@ pub(super) async fn validieren(
     wer: &Benutzer,
 ) -> CoreResult<serde_json::Value> {
     let neu = match art {
+        ObjektArt::Cadaufmass => {
+            let a: crate::cad::projektaufmass::CadProjektaufmass =
+                serde_json::from_value(daten).map_err(json_err)?;
+            core.cadaufmass_pruefen(p.id, &a).await?;
+            serde_json::to_value(a)
+        }
         ObjektArt::Planaufmass => {
             let plan: crate::planaufmass::Planaufmass =
                 serde_json::from_value(daten).map_err(json_err)?;
@@ -507,6 +513,22 @@ impl CoreServices {
         p: ProjectId,
         plan: &crate::baugrundstuecke::BaugrundstuecksPlan,
     ) -> CoreResult<super::einbindung::GebaeudeEinbindung> {
+        self.gebaeude_einbinden_fuer(p, plan, None).await
+    }
+    /// Eine explizit gewählte Einheit unabhängig von fremden Planbindungen
+    /// prüfen. Nicht gewählte Berechnungen werden unverändert zurückgegeben.
+    pub async fn gebaeude_einbinden_fuer(
+        &self,
+        p: ProjectId,
+        plan: &crate::baugrundstuecke::BaugrundstuecksPlan,
+        schluessel: Option<&str>,
+    ) -> CoreResult<super::einbindung::GebaeudeEinbindung> {
+        if schluessel.is_some_and(|s| !plan.berechnungen.iter().any(|b| b.schluessel == s)) {
+            return Err(CoreError::InvalidInput(
+                "Baugrundstück nicht im Berechnungsplan".into(),
+            ));
+        }
+        let original = plan.clone();
         let gebaeude = self.repos.commit.fachstaende(p, "gebaeude").await?;
         let quellen = gebaeude
             .iter()
@@ -521,7 +543,7 @@ impl CoreServices {
             .collect::<CoreResult<Vec<_>>>()?;
         let lage = super::einbindung::Lagebezug::neu(p, plan);
         for (id, g) in &quellen {
-            if lage.irgendwo_eindeutig(g) {
+            if lage.irgendwo_eindeutig(g) && schluessel.is_none_or(|s| lage.moeglich(g, s)) {
                 self.gebaeude_planquellen_pruefen(p, *id, g).await?;
             }
         }
@@ -530,6 +552,9 @@ impl CoreServices {
         let bezug = super::einbindung::Lagebezug::neu(p, &plan);
         let mut neu = plan;
         for b in &mut neu.berechnungen {
+            if schluessel.is_some_and(|s| b.schluessel != s) {
+                continue;
+            }
             if let Some(a) = &mut b.eingabe.aufstellung {
                 let mut bauteil_ids = std::collections::HashSet::new();
                 for teil in &mut a.bauteile {
@@ -677,6 +702,22 @@ impl CoreServices {
                 }
             }
         }
+        if let Some(s) = schluessel {
+            for b in &mut neu.berechnungen {
+                if b.schluessel != s
+                    && let Some(alt) = original
+                        .berechnungen
+                        .iter()
+                        .find(|a| a.schluessel == b.schluessel)
+                {
+                    *b = alt.clone();
+                }
+            }
+        }
+        let hinweise = hinweise
+            .into_iter()
+            .filter(|h| schluessel.is_none_or(|s| h.schluessel == s))
+            .collect();
         Ok(super::einbindung::GebaeudeEinbindung {
             plan: neu,
             hinweise,

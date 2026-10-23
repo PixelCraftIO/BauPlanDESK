@@ -5,6 +5,7 @@ mod berichte;
 pub mod brief;
 mod layout;
 mod pdf;
+pub mod plananlage;
 mod vorlage;
 static DRUCKJOBS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 use crate::{

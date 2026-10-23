@@ -13,6 +13,7 @@
 
 pub mod baugrenzen;
 pub mod dxf;
+pub mod projektaufmass;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;
 
@@ -31,7 +32,7 @@ pub struct Rechteck {
 }
 
 /// Längeneinheit der Zeichnung (DXF-Header `$INSUNITS`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Laengeneinheit {
     Millimeter,

@@ -12,9 +12,18 @@ fn main() {
     );
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
+        core_lib::cad::Laengeneinheit,
+        core_lib::cad::projektaufmass::CadMarkierung,
+        core_lib::cad::projektaufmass::CadProjektaufmass,
         core_lib::planaufmass::Plankalibrierung,
         core_lib::planaufmass::Planebene,
         core_lib::planaufmass::Plangeometrie,
+        core_lib::planaufmass::Planpolygon,
+        core_lib::planaufmass::Flaechenoperation,
+        core_lib::planaufmass::Markierungspruefung,
+        core_lib::planaufmass::Planpruefung,
+        core_lib::planaufmass::Planexportwunsch,
+        core_lib::planaufmass::Planexportformat,
         core_lib::planaufmass::Planbedeutung,
         core_lib::planaufmass::Planmarkierung,
         core_lib::planaufmass::Planhoehenbezug,
