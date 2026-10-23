@@ -1097,4 +1097,8 @@ aufgestellt_von: string,
  */
 aktenzeichen: string, };
 export type Druckposition = { titel: string, erste_seite: number, seiten: number, };
-export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe: Freigabe | null, };
+export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe: Freigabe | null,
+/**
+ * Technischer Fehler: kein Beleg für eine fachliche Quellenänderung.
+ */
+prueffehler?: string, };

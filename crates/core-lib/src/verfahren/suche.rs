@@ -54,14 +54,9 @@ impl CoreServices {
             .find(|v| v.project_id == p && v.version == d.version)
             .ok_or_else(|| fehler("Suchtext gehört nicht zur Projektdatei"))?;
         let key = format!("{}/{}", d.dokument_id.0, d.version);
-        let alt = self
-            .repos
-            .commit
-            .fachstaende(p, "suchtexte")
-            .await?
-            .into_iter()
-            .find(|f| f.objekt == key);
+        let alt = self.repos.commit.fachobjekt(p, "suchtexte", &key).await?;
         let basis = alt.as_ref().map(|f| f.revision).unwrap_or(0);
+        let normalisiert = text.to_lowercase();
         let index = Suchtext {
             dokument: d,
             sha256: meta.sha256.to_string(),
@@ -69,13 +64,15 @@ impl CoreServices {
             text,
             indexiert_am: Utc::now(),
         };
+        let mut daten = serde_json::to_value(index).map_err(|e| fehler(e.to_string()))?;
+        daten["_suchtext_norm"] = serde_json::Value::String(normalisiert);
         let f = Fachstand {
             projekt_id: p,
             modul: "suchtexte".into(),
             objekt: key,
             schema_version: 1,
             revision: basis,
-            daten: serde_json::to_value(index).map_err(|e| fehler(e.to_string()))?,
+            daten,
         };
         self.repos
             .commit
@@ -100,21 +97,23 @@ impl CoreServices {
         }
         let q = suche.to_lowercase();
         let mut r = Vec::new();
+        let anzahl = std::sync::atomic::AtomicUsize::new(0usize);
         let mut add = |titel: String,
                        bereich: &str,
                        text: String,
                        verfahren: Option<Uuid>,
                        dokument: Option<Dokumentbezug>| {
-            if r.len() < 100
-                && (text.to_lowercase().contains(&q) || titel.to_lowercase().contains(&q))
-            {
-                let zeichen: Vec<char> = text.chars().collect();
-                let start = text
-                    .to_lowercase()
+            if r.len() >= 100 {
+                return;
+            }
+            let normalisiert = text.to_lowercase();
+            if normalisiert.contains(&q) || titel.to_lowercase().contains(&q) {
+                let start = normalisiert
                     .find(&q)
-                    .map(|b| text.to_lowercase()[..b].chars().count().saturating_sub(70))
+                    .map(|b| normalisiert[..b].chars().count().saturating_sub(70))
                     .unwrap_or(0);
-                let auszug = zeichen.into_iter().skip(start).take(300).collect();
+                let auszug = text.chars().skip(start).take(300).collect();
+                anzahl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 r.push(Suchtreffer {
                     titel,
                     bereich: bereich.into(),
@@ -195,24 +194,43 @@ impl CoreServices {
                 }),
             );
         }
-        for f in self.repos.commit.fachstaende(p, "suchtexte").await? {
-            let index: Suchtext =
-                serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
-            if let Some(d) = docs.iter().find(|d| {
-                d.document_id == index.dokument.dokument_id
-                    && d.version == index.dokument.version
-                    && d.sha256.to_string() == index.sha256
-            }) {
-                add(
-                    format!(
-                        "{} · Version {} · {:?}",
-                        d.file_name, d.version, index.quelle
-                    ),
-                    "Dokumentinhalt",
-                    index.text,
-                    None,
-                    Some(index.dokument),
-                );
+        let docs_index = docs
+            .iter()
+            .map(|d| ((d.document_id.0, d.version), d))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut nach = None::<String>;
+        loop {
+            let seite = self
+                .repos
+                .commit
+                .suchtextseite(p, nach.as_deref(), &q, 16)
+                .await?;
+            if seite.is_empty() {
+                break;
+            }
+            nach = seite.last().map(|f| f.objekt.clone());
+            for f in seite {
+                let index: Suchtext =
+                    serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
+                if let Some(d) = docs_index
+                    .get(&(index.dokument.dokument_id.0, index.dokument.version))
+                    .filter(|d| d.sha256.to_string() == index.sha256)
+                {
+                    add(
+                        format!(
+                            "{} · Version {} · {:?}",
+                            d.file_name, d.version, index.quelle
+                        ),
+                        "Dokumentinhalt",
+                        index.text,
+                        None,
+                        Some(index.dokument),
+                    );
+                }
+            }
+            // Der Ergebnisdeckel beendet auch weitere Datenbankabrufe.
+            if anzahl.load(std::sync::atomic::Ordering::Relaxed) >= 100 {
+                break;
             }
         }
         Ok(r)

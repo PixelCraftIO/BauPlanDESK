@@ -20,7 +20,7 @@ pub struct Bibliothek {
 }
 #[tauri::command]
 pub async fn formularbibliothek(state: State<'_, AppState>) -> Resultat<Bibliothek> {
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     Ok(Bibliothek {
         root: root.clone(),
         vorlagen: ordner::auflisten(&root).await?,
@@ -60,7 +60,7 @@ pub async fn bibliothek_importieren(
         .ok_or_else(|| CoreError::InvalidInput("PDF-Datei auswählen".into()))?;
     let pdf = ordner::lesen(parent, name, None).await?;
     import_pruefen(&pdf, &state.benutzer())?;
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     Ok(ordner::ablegen(&root, name, &pdf).await?)
 }
 #[tauri::command]
@@ -81,7 +81,7 @@ pub async fn bibliothek_uebernehmen(
         .core
         .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
         .await?;
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     import_pruefen(&pdf, &state.benutzer())?;
     Ok(state
@@ -100,13 +100,18 @@ pub async fn bibliothek_vorschau(
     state: State<'_, AppState>,
     vorlage: BibliotheksVorlage,
 ) -> Resultat<Vorschau> {
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
-    Ok(Vorschau {
-        seiten: core_lib::formular::editor::seiten(&pdf)?,
-        felder: core_lib::formular::pdf::felder_lesen(&pdf)?,
-        pdf_base64: base64::engine::general_purpose::STANDARD.encode(&pdf),
-    })
+    Ok(
+        core_lib::rechenjob::ausfuehren("formular-vorschau", move || {
+            Ok(Vorschau {
+                seiten: core_lib::formular::editor::seiten(&pdf)?,
+                felder: core_lib::formular::pdf::felder_lesen(&pdf)?,
+                pdf_base64: base64::engine::general_purpose::STANDARD.encode(&pdf),
+            })
+        })
+        .await?,
+    )
 }
 #[tauri::command]
 pub async fn bibliothek_veroeffentlichen(
@@ -128,7 +133,7 @@ pub async fn bibliothek_veroeffentlichen(
         .await?;
     let (dokument, pdf) = state.core.load_version(dokument_id, version).await?;
     import_pruefen(&pdf, &state.benutzer())?;
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     let v = ordner::ablegen(&root, &dokument.file_name, &pdf).await?;
     state
         .core
@@ -158,7 +163,7 @@ pub async fn bibliothek_formular(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     Ok(BibliothekMaske {
         schema: state
@@ -186,7 +191,7 @@ pub async fn bibliothek_formular_speichern(
             core_lib::zugriff::ProjektRecht::Bearbeiten,
         )
         .await?;
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
     let d = state
         .core
@@ -214,9 +219,12 @@ pub async fn bibliothek_felder_erstellen(
         .core
         .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
         .await?;
-    let root = state.formularordner.read().await;
+    let root = state.formularordner.read().await.clone();
     let pdf = ordner::lesen(&root, &vorlage.name, Some(&vorlage.sha256)).await?;
-    let neu = core_lib::formular::editor::felder_hinzufuegen(&pdf, &felder)?;
+    let neu = core_lib::rechenjob::ausfuehren("formular-felder", move || {
+        core_lib::formular::editor::felder_hinzufuegen(&pdf, &felder)
+    })
+    .await?;
     let stem = vorlage
         .name
         .get(..vorlage.name.len().saturating_sub(4))

@@ -37,10 +37,11 @@ const GID="7a1c0d4e-1b2c-4d5e-8f90-123456789abc",SID="5b2d1e5f-2c3d-4e6f-9a01-23
 const haus={projekt_id:window.fixture.id,modul:"gebaeude",objekt:GID,revision:3,schema_version:1,daten:{bezeichnung:"Lagerhalle",grundstueck_ids:[],flurstueck_ids:[],geschosse:[{id:SID,bezeichnung:"EG",vollgeschoss:null,grundlage:""}],quelle:null}};
 const doc={document_id:"b316da8b-cbfb-4ae6-931b-8765fb6454b1",project_id:window.fixture.id,version:1,file_name:"Grundrisse.pdf",sha256:"0".repeat(64),size_bytes:1000,created_at:window.fixture.created_at,created_by:"Test",storage_key:"test.pdf"};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==="dokumente_auflisten")return [doc];
  if(cmd==="pdf_vorschau")return {dokument:doc,pdf_base64:window.planPdf,felder:[],seiten:[1,2].map(n=>({nummer:n,breite_mm:211,hoehe_mm:141,rotation:0,platzierbar:true}))};
- if(cmd==="fachobjekte"&&args.art==="planaufmass")return window.planSaved?[structuredClone(window.planSaved)]:[];
- if(cmd==="fachobjekte"&&args.art==="gebaeude")return [structuredClone(haus)];
+ if(cmd==='fachobjekte'&&args.art==="planaufmass")return window.planSaved?[structuredClone(window.planSaved)]:[];
+ if(cmd==='fachobjekte'&&args.art==="gebaeude")return [structuredClone(haus)];
  if(cmd==="planaufmass_aufgaben"){
    const ms=args.plan.markierungen;
    const find=(b,flaeche)=>ms.find(m=>m.bedeutung===b&&m.gebaeude_id===GID&&(flaeche?["polygon","rechteck","kreis"].includes(m.geometrie.art):m.geometrie.art==="hoehenpunkt"))?.id??null;

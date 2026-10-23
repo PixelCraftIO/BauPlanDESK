@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { bereichAktiv } from "./ansichtsAbfrage.svelte";
+  const sichtbar = bereichAktiv();
   import { onMount } from "svelte";
   import type {
     PDFDocumentProxy,
@@ -8,7 +10,9 @@
   import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
   import type { EigenesPdfFeld } from "./api";
   let {
-    pdfBase64,
+    pdfBase64 = "",
+    pdfDaten,
+    aktiv = true,
     seite = 1,
     unrotiert = false,
     felder = [],
@@ -16,7 +20,9 @@
     onbereit,
     onfehler,
   }: {
-    pdfBase64: string;
+    pdfBase64?: string;
+    pdfDaten?: Uint8Array;
+    aktiv?: boolean;
     seite?: number;
     unrotiert?: boolean;
     felder?: EigenesPdfFeld[];
@@ -40,7 +46,8 @@
     return () => ro.disconnect();
   });
   $effect(() => {
-    const quelle = pdfBase64;
+    const quelle = pdfBase64, daten = pdfDaten;
+    if (!aktiv || !sichtbar()) return;
     let gone = false;
     let loader: PDFDocumentLoadingTask | undefined;
     pdf = null;
@@ -50,7 +57,7 @@
       if (gone) return;
       GlobalWorkerOptions.workerSrc = workerUrl;
       loader = getDocument({
-        data: Uint8Array.from(atob(quelle), (c) => c.charCodeAt(0)),
+        data: daten ? daten.slice() : Uint8Array.from(atob(quelle), (c) => c.charCodeAt(0)),
         isEvalSupported: false,
         cMapUrl: new URL("./pdfjs/cmaps/", document.baseURI).href,
         cMapPacked: true,
@@ -82,7 +89,7 @@
       target = canvas,
       width = breite,
       ohneRotation = unrotiert;
-    if (!doc || !target) return;
+    if (!aktiv || !sichtbar() || !doc || !target) return;
     let cancelled = false;
     let task: RenderTask | undefined;
     loading = true;

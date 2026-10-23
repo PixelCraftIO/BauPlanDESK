@@ -143,6 +143,7 @@ jobs:
           python apps/desktop/tests/dokumentkategorien.py
           python apps/desktop/tests/emails.py
           python apps/desktop/tests/druckausgabe.py
+          python apps/desktop/tests/druckartefakt.py
           python apps/desktop/tests/verfahren.py
           python apps/desktop/tests/abstandsflaechen.py
           python apps/desktop/tests/fachberechnungen.py
@@ -152,8 +153,26 @@ jobs:
           python apps/desktop/tests/updater.py
           python apps/desktop/tests/ui-felder-navigation.py
           python apps/desktop/tests/arbeitsplatz-ui.py
+          python apps/desktop/tests/ansichtsabfragen.py
           python apps/desktop/tests/handbuch-ui.py
           python apps/desktop/tests/beispielprojekt.py
+      - name: Editor- und Entwurfssicherung unter Fehlern prüfen
+        run: |
+          npm --prefix apps/desktop run dev -- --host 127.0.0.1 --port 1467 > /tmp/bauplan-stabilitaet-vite.log 2>&1 &
+          vite_pid=$!
+          trap 'kill "$vite_pid"' EXIT
+          python - <<'PYCODE'
+          import time, urllib.request
+          for attempt in range(60):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:1467', timeout=1).close()
+                  break
+              except OSError:
+                  time.sleep(0.1)
+          else:
+              raise RuntimeError('Vite-Testserver nicht erreichbar')
+          PYCODE
+          python apps/desktop/tests/stabilitaet.py
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

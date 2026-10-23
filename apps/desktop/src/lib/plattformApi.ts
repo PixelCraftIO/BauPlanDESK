@@ -1,3 +1,4 @@
+import { leseAbfrage } from "./leseAbfrage";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Fachstand,
@@ -12,6 +13,9 @@ import type {
 import { nachErfolg } from "./projektEreignisse";
 export type Datensatz<T> = Omit<Fachstand, "daten"> & { daten: T };
 export const plattformApi = {
+  seite: <T>(projektId: string, art: ObjektArt, nach: string | null = null) => invoke<Datensatz<T>[]>("fachobjektseite", { projektId, art, nach, limit: 100 }),
+  lesen: <T>(projektId: string, art: ObjektArt, id: string) => invoke<Datensatz<T> | null>("fachobjekt_lesen", { projektId, art, id }),
+  verlaufsseite: <T>(projektId: string, art: ObjektArt, id: string, vor: number | null = null) => invoke<Datensatz<T>[]>("fachverlaufsseite", { projektId, art, id, vor, limit: 50 }),
   mitglieder: (projektId: string) =>
     invoke<Datensatz<import("./generated/plattform").ProjektMitglied>[]>("projektmitglieder", { projektId }),
   mitgliedSetzen: (projektId: string, mitglied: import("./generated/plattform").ProjektMitglied, basis: number) =>
@@ -36,7 +40,7 @@ export const plattformApi = {
   verlauf: <T>(projektId: string, art: ObjektArt, id: string) =>
     invoke<Datensatz<T>[]>("fachverlauf", { projektId, art, id }),
   liste: <T>(projektId: string, art: ObjektArt) =>
-    invoke<Datensatz<T>[]>("fachobjekte", { projektId, art }),
+    leseAbfrage("fachobjekte", [projektId,art], () => invoke<Datensatz<T>[]>("fachobjekte", { projektId, art })),
   speichern: <T>(
     projektId: string,
     art: ObjektArt,
@@ -73,7 +77,7 @@ export const plattformApi = {
       { projektId, bereich: "fachobjekte" },
     ),
   nachweise: (projektId: string) =>
-    invoke<NachweisAnsicht[]>("nachweise", { projektId }),
+    leseAbfrage("nachweise",projektId,() => invoke<NachweisAnsicht[]>("nachweise", { projektId })),
   nachweisErstellen: (
     projektId: string,
     id: string,

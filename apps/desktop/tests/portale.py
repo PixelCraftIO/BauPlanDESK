@@ -13,6 +13,7 @@ const base=window.__TAURI_INTERNALS__.invoke, clone=x=>JSON.parse(JSON.stringify
 window.testUser=clone(window.portalData.benutzer);window.portalAktuell=clone(window.portalData.bereit);
 window.portalFail=false;window.portalEreignisse=0;window.portalDelay=0;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='portalprofile')return clone(window.portalData.profile);
  if(cmd==='xbau_nachrichten')return [];
  if(cmd==='fachobjekte'&&args.art==='verfahren')return args.projektId===window.fixture.id?[clone(window.portalAktuell)]:[];

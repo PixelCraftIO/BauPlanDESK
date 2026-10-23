@@ -13,6 +13,7 @@ mod commands;
 mod config;
 mod dateien;
 mod druckausgabe;
+mod druckjobs;
 mod einreichungen;
 mod emails;
 mod kategorien;
@@ -58,6 +59,8 @@ fn main() {
             let state = tauri::async_runtime::block_on(bootstrap::init(app.handle()))?;
             app.manage(state);
             app.manage(updater::PendingUpdate::default());
+            app.manage(storage::druckartefakte::Druckartefakte::default());
+            app.manage(druckjobs::Druckjobs::default());
             menu::install(app.handle())?;
             updater::check_in_background(app.handle().clone());
             projektordner::hintergrund(app.handle().clone());
@@ -113,8 +116,17 @@ fn main() {
             druckausgabe::druckausgabe_ablegen,
             druckausgabe::druckkatalog,
             druckausgabe::druckausgabe_erstellen,
+            druckausgabe::druckartefakt_erstellen,
+            druckausgabe::druckartefakt_abbrechen,
+            druckausgabe::druckartefakt_lesen,
+            druckausgabe::druckartefakt_entfernen,
+            druckausgabe::druckartefakt_exportieren,
+            druckausgabe::druckartefakt_ablegen,
             druckausgabe::druckausgabe_exportieren,
             plattform::fachobjekte,
+            plattform::fachobjektseite,
+            plattform::fachobjekt_lesen,
+            plattform::fachverlaufsseite,
             plattform::projektstatus,
             plattform::projektuebersicht,
             plattform::standard_checkliste,
@@ -134,6 +146,8 @@ fn main() {
             sicherungen::buero_sicherung_erstellen,
             sicherungen::buero_sicherung_wiederherstellen,
             sicherungen::sicherungsstatus,
+            sicherungen::ablage_konsistenz,
+            sicherungen::ablage_metadaten_ergaenzen,
             sicherungen::sicherung_erstellen,
             sicherungen::sicherung_pruefen,
             sicherungen::sicherung_wiederherstellen,

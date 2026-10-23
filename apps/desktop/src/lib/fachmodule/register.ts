@@ -1,20 +1,4 @@
-import Ueberbaubarkeit from "../berechnungen/Ueberbaubarkeit.svelte";
-import Stellplaetze from "../berechnungen/Stellplaetze.svelte";
-import Wohnflaechen from "../berechnungen/Wohnflaechen.svelte";
-import Din277 from "../berechnungen/Din277.svelte";
-import Vollgeschosse from "../berechnungen/Vollgeschosse.svelte";
-import Hoehen from "../berechnungen/Hoehen.svelte";
-import Freiflaechen from "../berechnungen/Freiflaechen.svelte";
-import Entwaesserung from "../berechnungen/Entwaesserung.svelte";
 import type { Project } from "../api";
-import Gebaeude from "./Gebaeude.svelte";
-import Aufgaben from "./Aufgaben.svelte";
-import Unterlagen from "./Unterlagen.svelte";
-import Raumbuch from "./Raumbuch.svelte";
-import Verfahrensakte from "../verfahren/Verfahrensakte.svelte";
-import AktenSuche from "../verfahren/AktenSuche.svelte";
-import Nachweise from "./Nachweise.svelte";
-import Planaufmass from "../planaufmass/Planaufmass.svelte";
 export interface FachProps {
   projekt: Project;
   benutzerId: string;
@@ -26,96 +10,96 @@ export const FACHMODULE = [
     id: "planaufmass",
     titel: "PDF-Aufmaß",
     gruppe: "Unterlagen",
-    komponente: Planaufmass,
+    laden: () => import("../planaufmass/Planaufmass.svelte"),
   },
   {
     id: "ueberbaubarkeit",
     titel: "Überbaubare Grundstücksfläche",
     gruppe: "Berechnungen",
-    komponente: Ueberbaubarkeit,
+    laden: () => import("../berechnungen/Ueberbaubarkeit.svelte"),
   },
   {
     id: "stellplaetze",
     titel: "Stellplatznachweis",
     gruppe: "Berechnungen",
-    komponente: Stellplaetze,
+    laden: () => import("../berechnungen/Stellplaetze.svelte"),
   },
   {
     id: "wohnflaechen",
     titel: "Wohnflächenberechnung",
     gruppe: "Berechnungen",
-    komponente: Wohnflaechen,
+    laden: () => import("../berechnungen/Wohnflaechen.svelte"),
   },
   {
     id: "din277",
     titel: "DIN-277-Flächen / Rauminhalte",
     gruppe: "Berechnungen",
-    komponente: Din277,
+    laden: () => import("../berechnungen/Din277.svelte"),
   },
   {
     id: "vollgeschosse",
     titel: "Vollgeschossprüfung",
     gruppe: "Berechnungen",
-    komponente: Vollgeschosse,
+    laden: () => import("../berechnungen/Vollgeschosse.svelte"),
   },
   {
     id: "hoehen",
     titel: "Gebäudehöhen / Dachneigung",
     gruppe: "Berechnungen",
-    komponente: Hoehen,
+    laden: () => import("../berechnungen/Hoehen.svelte"),
   },
   {
     id: "freiflaechen",
     titel: "Versiegelung / Freiflächen",
     gruppe: "Berechnungen",
-    komponente: Freiflaechen,
+    laden: () => import("../berechnungen/Freiflaechen.svelte"),
   },
   {
     id: "entwaesserung",
     titel: "Regenwasser / Rückhaltung",
     gruppe: "Berechnungen",
-    komponente: Entwaesserung,
+    laden: () => import("../berechnungen/Entwaesserung.svelte"),
   },
   {
     id: "verfahren",
     titel: "Verfahrensakte",
     gruppe: "Organisation",
-    komponente: Verfahrensakte,
+    laden: () => import("../verfahren/Verfahrensakte.svelte"),
   },
   {
     id: "aktensuche",
     titel: "Suche / Wiedervorlagen",
     gruppe: "Organisation",
-    komponente: AktenSuche,
+    laden: () => import("../verfahren/AktenSuche.svelte"),
   },
   {
     id: "gebaeude",
     titel: "Gebäude / Geschosse",
     gruppe: "Grundlagen",
-    komponente: Gebaeude,
+    laden: () => import("./Gebaeude.svelte"),
   },
   {
     id: "raumbuch",
     titel: "Flächen- und Raumbuch",
     gruppe: "Berechnungen",
-    komponente: Raumbuch,
+    laden: () => import("./Raumbuch.svelte"),
   },
   {
     id: "nachweise",
     titel: "Nachweisstände",
     gruppe: "Berechnungen",
-    komponente: Nachweise,
+    laden: () => import("./Nachweise.svelte"),
   },
   {
     id: "aufgaben",
     titel: "Aufgaben / Fristen",
     gruppe: "Organisation",
-    komponente: Aufgaben,
+    laden: () => import("./Aufgaben.svelte"),
   },
   {
     id: "unterlagen",
     titel: "Unterlagenregister",
     gruppe: "Unterlagen",
-    komponente: Unterlagen,
+    laden: () => import("./Unterlagen.svelte"),
   },
 ] as const;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import BueroSicherung from "./verfahren/BueroSicherung.svelte";
   import { onMount } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
@@ -24,6 +25,17 @@
       fehler = fehlertext(e);
     }
   });
+  let ablagebericht = $state<{ geprueft: number; befunde: { datei: string; art: string; hinweis: string }[] }>();
+  async function ablagePruefen(reparieren = false) {
+    laeuft = true; fehler = null;
+    try {
+      if (reparieren) {
+        const n = await invoke<number>("ablage_metadaten_ergaenzen");
+        meldung = `${n} fehlende Metadatendateien aus geprüften Originalen wiederhergestellt.`;
+      }
+      ablagebericht = await invoke("ablage_konsistenz");
+    } catch(e) { fehler = fehlertext(e); } finally { laeuft = false; }
+  }
   async function erstellen() {
     laeuft = true;
     fehler = null;
@@ -149,3 +161,16 @@
     overflow-wrap: anywhere;
   }
 </style>
+
+<section class="einstellungsabschnitt">
+  <h2>Dateiablage prüfen</h2>
+  <p>Prüft lokale und eingebundene NAS-Dateien, Metadaten und Datenbankbezüge. Währenddessen möglichst keine Dateien speichern oder die Ablage wechseln. Der Bericht ist eine Momentaufnahme; Dateien ohne erkannten Bezug werden nicht gelöscht.</p>
+  <button disabled={!darf || laeuft} onclick={() => ablagePruefen()}>Ablagekonsistenz prüfen</button>
+  {#if ablagebericht}
+    <p role="status">{ablagebericht.geprueft} Dateien geprüft · {ablagebericht.befunde.length} Hinweise</p>
+    {#if ablagebericht.befunde.some(b => b.art === "metadaten_fehlen")}<button class="sekundaer" disabled={!darf || laeuft} onclick={() => ablagePruefen(true)}>Fehlende Metadaten aus geprüften Originalen ergänzen</button>{/if}
+    <table class="ergebnistabelle"><thead><tr><th>Datei</th><th>Hinweis</th></tr></thead><tbody>
+    {#each ablagebericht.befunde as b}<tr><td class="pfad">{b.datei}</td><td>{b.hinweis}</td></tr>{/each}
+    </tbody></table>
+  {/if}
+</section>

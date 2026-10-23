@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { bereichAktiv } from "../ansichtsAbfrage.svelte";
+  const sichtbar = bereichAktiv();
   import { tick, untrack } from "svelte";
   import type { PDFDocumentProxy, PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from "pdfjs-dist";
   import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -57,6 +59,7 @@
   }
   const blattTransform=$derived(drehung===90?"rotate(90deg) translateY(-100%)":drehung===180?"rotate(180deg) translate(-100%,-100%)":drehung===270?"rotate(270deg) translateX(-100%)":"none");
   $effect(()=>{
+    if(!sichtbar())return;
     const source=pdfBase64; let gone=false; let loader:PDFDocumentLoadingTask|undefined;
     doc=null;bereit=false;punkte=[];seitenbilder=[];
     void(async()=>{
@@ -80,6 +83,7 @@
     return URL.createObjectURL(blob);
   }
   $effect(()=>{
+    if(!sichtbar())return;
     const d=doc,nummer=seite; let gone=false,url="";
     bereit=false;geometry={points:[],segments:[],limited:false};punkte=[];edit=null;page=null;rasterScale=0;drehung=0;
     if(!d)return;
@@ -115,6 +119,7 @@
   });
   // Seitenminiaturen erst bei Bedarf rendern.
   $effect(()=>{
+    if(!sichtbar())return;
     const d=doc; if(!miniaturen||!d||untrack(()=>seitenbilder.length))return;
     let gone=false;
     void(async()=>{

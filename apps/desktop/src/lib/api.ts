@@ -1,3 +1,4 @@
+import { leseAbfrage } from "./leseAbfrage";
 import type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
 export type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
 // Typisierte Hülle um die Tauri-Commands. Das Frontend rechnet nichts selbst;
@@ -1356,8 +1357,10 @@ export const api = {
     },
   ) => invoke<Project>("projekt_aktualisieren", { aenderung }),
   zuletzt: () => invoke<ZuletztEintrag[]>("zuletzt_geoeffnet"),
+  dokumenteNeueste: (projektId: string) => invoke<DocumentVersion[]>("dokumente_auflisten", { projektId, neueste: true }),
+  historienseite: (dokumentId: string, vor: number | null = null) => invoke<DocumentVersion[]>("dokument_historie", { dokumentId, vor, limit: 50 }),
   dokumente: (projektId: string) =>
-    invoke<DocumentVersion[]>("dokumente_auflisten", { projektId }),
+    leseAbfrage("dokumente",projektId,()=>invoke<DocumentVersion[]>("dokumente_auflisten", { projektId })),
   dokumentImportieren: (
     projektId: string,
     pfad: string,

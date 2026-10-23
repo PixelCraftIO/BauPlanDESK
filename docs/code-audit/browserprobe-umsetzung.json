@@ -1,0 +1,26 @@
+{
+  "context": "Vite development build; Chromium; synthetic arrays; repeated checks use derived signatures; flush includes cached JSON snapshots and IndexedDB transaction",
+  "results": [
+    {
+      "rows": 100,
+      "inputBytes": 25088,
+      "firstDirtyCheckMs": 3.700000047683716,
+      "repeatedDirtyCheckMs": 0.06999999880790711,
+      "asyncDraftFlushMs": 2.439999997615814
+    },
+    {
+      "rows": 1000,
+      "inputBytes": 252788,
+      "firstDirtyCheckMs": 17.5,
+      "repeatedDirtyCheckMs": 0.16999999880790712,
+      "asyncDraftFlushMs": 1.95
+    },
+    {
+      "rows": 10000,
+      "inputBytes": 2547788,
+      "firstDirtyCheckMs": 152.60000002384186,
+      "repeatedDirtyCheckMs": 1.4099999994039536,
+      "asyncDraftFlushMs": 18.85
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   import type { Planaufgabe, Planaufmass, Gebaeude, AbstandsPlan } from "../generated/plattform";
   import { plattformApi } from "../plattformApi";
   import { planApi } from "./api";
-  import { abonnieren } from "../projektEreignisse";
+  import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   // Was das Projekt aus diesem Aufmaß noch braucht. Die Liste kommt vom Core;
   // „Zeichnen“ belegt Werkzeug und Zuordnung vor, „Übernehmen“ verknüpft die
   // Markierung über die bestehenden Übernahmedienste und speichert den Verbraucher.
@@ -18,16 +18,18 @@
   let generation = 0;
   function laden(snapshot = JSON.stringify(plan)) {
     const n = ++generation;
-    planApi.aufgaben(projektId, JSON.parse(snapshot)).then((a) => { if (n === generation) { aufgaben = a; fehler = ""; } })
+    return planApi.aufgaben(projektId, JSON.parse(snapshot)).then((a) => { if (n === generation) { aufgaben = a; fehler = ""; } })
       .catch((e) => { if (n === generation) fehler = fehlertext(e); });
   }
+  const aktiv=bereichAktiv();
   $effect(() => {
+    if(!aktiv()) return;
     const snapshot = JSON.stringify(plan);
     const timer = setTimeout(() => laden(snapshot), 300);
     return () => clearTimeout(timer);
   });
   // Gebäude oder Abstandspläne wurden anderswo gespeichert: Stand der Ziele neu holen.
-  $effect(() => abonnieren(projektId, ["fachobjekte"], () => laden()));
+  ansichtsAbfrage(()=>projektId,["fachobjekte"],()=>laden());
   const objekte = $derived([...new Map(aufgaben.map((a) => [`${a.verbraucher}:${a.objekt}`, a])).values()]);
   const sichtbar = $derived(aufgaben.filter((a) => (!filter || `${a.verbraucher}:${a.objekt}` === filter) && (!nurOffen || !a.gebunden)));
   const gruppen = $derived([...new Map(sichtbar.map((a) => [a.gruppe, sichtbar.filter((x) => x.gruppe === a.gruppe)])).entries()]);

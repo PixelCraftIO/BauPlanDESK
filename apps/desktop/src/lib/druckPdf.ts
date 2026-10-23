@@ -2,14 +2,14 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 let aufraeumen: (() => void) | null = null;
 /** Vollständige PDF-Seiten im isolierten Druckbereich. Keine Fachberechnung. */
 export async function druckPdf(
-  base64: string,
+  base64: string | Uint8Array,
   onfortschritt: (seite: number, gesamt: number) => void = () => {},
 ) {
   aufraeumen?.();
   const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
   GlobalWorkerOptions.workerSrc = workerUrl;
   const loader = getDocument({
-    data: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
+    data: typeof base64 === "string" ? Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)) : base64.slice(),
     isEvalSupported: false,
     cMapUrl: new URL("./pdfjs/cmaps/", document.baseURI).href,
     cMapPacked: true,

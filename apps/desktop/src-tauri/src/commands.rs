@@ -269,6 +269,7 @@ fn set_titel(app: &AppHandle, projekt: Option<&str>) {
 pub async fn dokumente_auflisten(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
+    neueste: Option<bool>,
 ) -> CmdResult<Vec<DocumentVersion>> {
     state
         .core
@@ -278,6 +279,14 @@ pub async fn dokumente_auflisten(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
+    if neueste == Some(true) {
+        return Ok(state
+            .core
+            .repos
+            .documents
+            .latest_for_project(projekt_id)
+            .await?);
+    }
     Ok(state.core.list_documents(projekt_id).await?)
 }
 
@@ -503,6 +512,8 @@ pub async fn dokument_exportieren(
 pub async fn dokument_historie(
     state: State<'_, AppState>,
     dokument_id: DocumentId,
+    vor: Option<i64>,
+    limit: Option<u32>,
 ) -> CmdResult<Vec<DocumentVersion>> {
     state
         .core
@@ -512,6 +523,14 @@ pub async fn dokument_historie(
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
+    if limit.is_some() || vor.is_some() {
+        return Ok(state
+            .core
+            .repos
+            .documents
+            .history_page(dokument_id, vor, limit.unwrap_or(50))
+            .await?);
+    }
     Ok(state.core.document_history(dokument_id).await?)
 }
 

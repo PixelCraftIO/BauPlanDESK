@@ -11,6 +11,7 @@ const original=window.__TAURI_INTERNALS__.invoke;
 window.failFeature=false;window.cancelBackup=true;
 window.sicherungsManifest={schema_version:1,erstellt_unix:0,dateien:[{name:'bauprojekt.db',sha256:'a'.repeat(64),bytes:100}]};
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(cmd==='formularbibliothek')return {root:'/tmp/Formulare',vorlagen:[]};
  if(cmd==='projektordner_status')return '/tmp/Projekte';
  if(cmd==='plugin:dialog|save'){window.calls.push({cmd,args});return window.cancelBackup?null:'/tmp/sicherung.zip';}
@@ -51,10 +52,18 @@ with sync_playwright() as p:
     section().get_by_label('Einstufung',exact=True).select_option(label='Vollgeschoss')
     section().get_by_label('Grundlage der Einstufung',exact=True).fill('Fachlich geprüftes Vollgeschoss')
     section().get_by_role('button',name='Speichern',exact=True).click()
+    section().get_by_role('button',name='Eintragsliste anzeigen (1)',exact=True).click()
     expect(section().get_by_role('cell',name='Haus A',exact=True)).to_be_visible()
     view('Aufgaben / Fristen');section().get_by_role('button',name='Neu anlegen',exact=True).click()
     section().get_by_label('Aufgabe',exact=True).fill('Unterlagen abstimmen')
-    page.wait_for_function("Object.keys(localStorage).some(k=>k.startsWith('bauprojekt.entwurf.v1.')&&k.endsWith('.aufgaben'))")
+    for _ in range(100):
+        if page.evaluate("""async () => {
+          const db = await new Promise((resolve,reject)=>{const r=indexedDB.open('bauplan-entwuerfe',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+          const keys = await new Promise((resolve,reject)=>{const r=db.transaction('entwuerfe').objectStore('entwuerfe').getAllKeys();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+          db.close();return keys.some(k=>k.endsWith('.aufgaben'));
+        }"""): break
+        page.wait_for_timeout(50)
+    else: raise AssertionError('Aufgabenentwurf wurde nicht gesichert')
     page.reload();open_project();view('Aufgaben / Fristen')
     section().get_by_role('button',name='Entwurf wiederherstellen',exact=True).click()
     expect(section().get_by_label('Aufgabe',exact=True)).to_have_value('Unterlagen abstimmen')
@@ -62,7 +71,7 @@ with sync_playwright() as p:
     expect(section().get_by_role('alert')).to_contain_text('Entwurf bleibt erhalten')
     expect(section().get_by_label('Aufgabe',exact=True)).to_have_value('Unterlagen abstimmen')
     page.evaluate('window.failFeature=false');section().get_by_role('button',name='Speichern',exact=True).click()
-    expect(section().get_by_role('status')).to_have_text('Gespeichert.')
+    expect(section().get_by_role('status').filter(has_text='Gespeichert.')).to_have_text('Gespeichert.')
     view('Flächen- und Raumbuch');section().get_by_role('button',name='Neu anlegen',exact=True).click()
     section().get_by_label('Bezeichnung',exact=True).fill('Raumbuch Haus A')
     section().get_by_role('button',name='Raum hinzufügen',exact=True).click()
@@ -79,7 +88,7 @@ with sync_playwright() as p:
     dialog.get_by_label('Plannummer',exact=True).fill('A-101')
     dialog.get_by_label('Revisionsindex',exact=True).fill('B')
     dialog.get_by_role('button',name='Speichern',exact=True).click()
-    expect(dialog.get_by_role('status')).to_have_text('Gespeichert.')
+    expect(dialog.get_by_role('status').filter(has_text='Gespeichert.')).to_have_text('Gespeichert.')
     dialog.get_by_role('button',name='Schließen',exact=True).click()
     page.wait_for_function("window.calls.some(c=>c.cmd==='fachobjekt_speichern'&&c.args.art==='dokumentdaten'&&c.args.daten.plannummer==='A-101')")
     assert not page.evaluate("window.calls.some(c=>c.cmd==='projekt_aktualisieren')")

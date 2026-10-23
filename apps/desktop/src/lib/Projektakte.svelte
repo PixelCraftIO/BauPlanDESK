@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arbeitsbereich from "./Arbeitsbereich.svelte";
   import Quellenweg from "./arbeitsplatz/Quellenweg.svelte";
   import EinreichenStart from "./EinreichenStart.svelte";
   import Projektorganisation from "./Projektorganisation.svelte";
@@ -13,6 +14,7 @@
   } from "./navigation";
   import Sidebar from "./Sidebar.svelte";
   import type { UebersichtsZiel } from "./generated/plattform";
+  import Fachbereich from "./fachmodule/Fachbereich.svelte";
   import { FACHMODULE } from "./fachmodule/register";
   import { projektEditoren } from "./editoren";
   import { untrack } from "svelte";
@@ -274,16 +276,18 @@
 <Sidebar {projekt} {ansicht} onbereich={bereich} />
 <main>
   {#if ["grundstueck","grz","gfz","geschosse","volumen","abstand","ueberbaubarkeit","stellplaetze","wohnflaechen","din277","vollgeschosse","hoehen","freiflaechen","entwaesserung","dokumente","formulare","druck","unterlagen"].includes(ansicht)}<Quellenweg bereich={ansicht}/>{/if}
-  {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><EinreichenStart projektId={projekt.id} version={projekt.version} entwuerfe={editoren.hatAenderungen()} aktiv={aktiv && ansicht === "einreichen"} /></section>{/if}
+  {#if einreichenBesucht}<section hidden={ansicht !== "einreichen"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "einreichen")}><EinreichenStart projektId={projekt.id} version={projekt.version} entwuerfe={editoren.hatAenderungen()} aktiv={aktiv && ansicht === "einreichen"} /></Arbeitsbereich></section>{/if}
   {#each FACHMODULE as modul (modul.id)}
-    {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}>
-        <modul.komponente
+    {#if fachBesucht[modul.id]}<section hidden={ansicht !== modul.id}><Arbeitsbereich aktiv={aktiv && !(ansicht !== modul.id)}>
+        <Fachbereich
+          laden={modul.laden}
+          aktiv={aktiv && ansicht === modul.id}
           {projekt}
           benutzerId={ich?.id ?? ""}
           darf={darf("bearbeitung")}
           darfFreigeben={darf("projektleitung")}
         />
-      </section>{/if}
+      </Arbeitsbereich></section>{/if}
   {/each}
   {#if ansicht === "projektuebersicht"}<Projektuebersicht
       projektId={projekt.id}
@@ -293,7 +297,7 @@
       entwuerfe={editoren.hatAenderungen()}
       onoeffnen={oeffnen}
     />{/if}
-  <section hidden={ansicht !== "uebersicht"}>
+  <section hidden={ansicht !== "uebersicht"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "uebersicht")}>
     <h2>Stammdaten</h2>
     <dl class="daten">
       <dt>Name</dt>
@@ -374,8 +378,8 @@
       {onprojekt}
       bereich="stammdaten"
     />
-  </section>
-  <section hidden={ansicht !== "abstand"}>
+  </Arbeitsbereich></section>
+  <section hidden={ansicht !== "abstand"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "abstand")}>
     <h2>Abstandsflächen</h2>
     {#key projekt.id}
       <AbstandsProjekt
@@ -395,8 +399,8 @@
         />
       </details>
     {/key}
-  </section>
-  <section hidden={ansicht !== "plaene"}>
+  </Arbeitsbereich></section>
+  <section hidden={ansicht !== "plaene"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "plaene")}>
     <h2>Pläne</h2>
     {#key projekt.id}
       <Plaene
@@ -410,11 +414,11 @@
         onfehler={melde}
       />
     {/key}
-  </section>
+  </Arbeitsbereich></section>
   <section
     hidden={ansicht !== "flurstuecke"}
     aria-label="Grundstücksinformationen"
-  >
+  ><Arbeitsbereich aktiv={aktiv && !(ansicht !== "flurstuecke")}>
     <h2>Flurstücke und Grundbuch</h2>
     {#key projekt.id}<Grundstuecksinformationen
         aktiv={aktiv && ansicht === "flurstuecke"}
@@ -422,8 +426,8 @@
         darf={darf("bearbeitung")}
         {onprojekt}
       />{/key}
-  </section>
-  <section hidden={!berechnungsAnsichten.includes(ansicht)}>
+  </Arbeitsbereich></section>
+  <section hidden={!berechnungsAnsichten.includes(ansicht)}><Arbeitsbereich aktiv={aktiv && !(!berechnungsAnsichten.includes(ansicht))}>
     <div class="maskenkopf">
       <h2>
         {berechnungsTitel[
@@ -451,11 +455,11 @@
           : "grundstueck") as BerechnungsBereich}
       />
     {/key}
-  </section>
+  </Arbeitsbereich></section>
   <section
     aria-label="Rechtsgrundlagen"
     hidden={ansicht !== "rechtsgrundlagen"}
-  >
+  ><Arbeitsbereich aktiv={aktiv && !(ansicht !== "rechtsgrundlagen")}>
     <h2>Rechtsgrundlagen</h2>
     {#key projekt.id}
       <Rechtsgrundlagen
@@ -465,8 +469,8 @@
         {onprojekt}
       />
     {/key}
-  </section>
-  <section hidden={ansicht !== "festsetzungen"}>
+  </Arbeitsbereich></section>
+  <section hidden={ansicht !== "festsetzungen"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "festsetzungen")}>
     <h2>Bebauungsplanfestsetzungen</h2>
     <Rechtsgrundlagen
       bind:this={festsetzungsEditor}
@@ -475,11 +479,11 @@
       {onprojekt}
       bereich="festsetzungen"
     />
-  </section>
-  {#if druckBesucht}<section hidden={ansicht !== "druck"}>
+  </Arbeitsbereich></section>
+  {#if druckBesucht}<section hidden={ansicht !== "druck"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "druck")}>
       <Druckausgabe projektId={projekt.id} darfAblegen={darf("bearbeitung")} />
-    </section>{/if}
-  {#if formulareBesucht}<section hidden={ansicht !== "formulare"}>
+    </Arbeitsbereich></section>{/if}
+  {#if formulareBesucht}<section hidden={ansicht !== "formulare"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "formulare")}>
       <ProjektFormulare
         bind:this={formularEditor}
         {projekt}
@@ -487,17 +491,17 @@
         ongespeichert={dokumenteAktualisieren}
         ondateien={() => (ansicht = "dokumente")}
       />
-    </section>{/if}
-  {#if fachBesucht.portale && ich}<section hidden={ansicht !== "portale"}>
+    </Arbeitsbereich></section>{/if}
+  {#if fachBesucht.portale && ich}<section hidden={ansicht !== "portale"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "portale")}>
       <h2>Einreichen / Portal</h2>
       <Portalbereich {projekt} benutzer={ich} />
-    </section>{/if}
-  {#if fachBesucht.xbau && ich}<section hidden={ansicht !== "xbau"}>
+    </Arbeitsbereich></section>{/if}
+  {#if fachBesucht.xbau && ich}<section hidden={ansicht !== "xbau"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "xbau")}>
       <h2>XBau-Nachrichten</h2>
       <XbauPostfach {projekt} benutzer={ich} />
-    </section>{/if}
+    </Arbeitsbereich></section>{/if}
   <!-- Bleibt eingehängt, damit ungespeicherte Antragsänderungen beim Bereichswechsel erhalten bleiben. -->
-  <section hidden={ansicht !== "bauantrag"}>
+  <section hidden={ansicht !== "bauantrag"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "bauantrag")}>
     <h2>Bauantrag (XBau)</h2>
     {#if ich}
       {#key projekt.id}
@@ -512,7 +516,7 @@
         />
       {/key}
     {/if}
-  </section>
+  </Arbeitsbereich></section>
   {#if ansicht === "protokoll"}
     <section>
       <h2>Protokoll</h2>
@@ -523,16 +527,16 @@
       <Protokoll projektId={projekt.id} />
     </section>
   {/if}
-  {#if einreichungenBesucht}<section hidden={ansicht !== "einreichungen"}>
+  {#if einreichungenBesucht}<section hidden={ansicht !== "einreichungen"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "einreichungen")}>
       <Einreichungen
         bind:this={einreichungsEditor}
         projektId={projekt.id}
         darfAblegen={darf("bearbeitung")}
         onfehler={melde}
       />
-    </section>{/if}
+    </Arbeitsbereich></section>{/if}
   <!-- Dokumente bleiben eingehängt, damit "Datei → Dokument importieren" aus jeder Ansicht funktioniert. -->
-  <section hidden={ansicht !== "dokumente"}>
+  <section hidden={ansicht !== "dokumente"}><Arbeitsbereich aktiv={aktiv && !(ansicht !== "dokumente")}>
     <h2>Projektdateien</h2>
     {#if ich}<Dokumente
         bind:this={dokumentEditor}
@@ -546,7 +550,7 @@
         }}
         onfehler={melde}
       />{/if}
-  </section>
+  </Arbeitsbereich></section>
 </main>
 </div>
 

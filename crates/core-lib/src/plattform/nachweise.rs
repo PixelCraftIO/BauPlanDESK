@@ -84,6 +84,21 @@ pub struct NachweisAnsicht {
     pub stand: Nachweisstand,
     pub aktuell: bool,
     pub freigabe: Option<Freigabe>,
+    /// Technischer Fehler: kein Beleg für eine fachliche Quellenänderung.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub prueffehler: Option<String>,
+}
+/// Fehlende/ungültige Quellen sind fachlich veraltet. Infrastrukturfehler
+/// bleiben explizit erkennbar und sperren weiterhin eine positive Freigabe.
+fn pruefergebnis<T>(r: CoreResult<T>) -> Result<Option<T>, String> {
+    match r {
+        Ok(v) => Ok(Some(v)),
+        Err(
+            CoreError::InvalidInput(_) | CoreError::NotFound(_) | CoreError::RulePackMissing(_),
+        ) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
 }
 fn hash(v: &serde_json::Value) -> CoreResult<ContentHash> {
     Ok(ContentHash::of(&serde_json::to_vec(v).map_err(json_err)?))
@@ -598,6 +613,21 @@ impl CoreServices {
         }
     }
     pub async fn nachweise(&self, pid: ProjectId) -> CoreResult<Vec<NachweisAnsicht>> {
+        let start = std::time::Instant::now();
+        let (sicht, quellen) = self.lesesitzung(pid).await?;
+        let ergebnis = sicht.nachweise_auswerten(pid).await;
+        if ergebnis.is_ok() {
+            quellen.unveraendert().await?;
+        }
+        tracing::debug!(
+            vorgang = "nachweise",
+            dauer_ms = start.elapsed().as_millis() as u64,
+            anzahl = ergebnis.as_ref().map(|n| n.len()).unwrap_or(0),
+            erfolgreich = ergebnis.is_ok()
+        );
+        ergebnis
+    }
+    async fn nachweise_auswerten(&self, pid: ProjectId) -> CoreResult<Vec<NachweisAnsicht>> {
         let p = self.repos.projects.get(pid).await?;
         let freigaben = self.repos.commit.fachstaende(pid, "freigaben").await?;
         let gebaeude = self.repos.commit.fachstaende(pid, "gebaeude").await?;
@@ -608,14 +638,17 @@ impl CoreServices {
             .fachstaende(pid, "abstandsflaechen")
             .await?;
         let staende = self.repos.commit.fachstaende(pid, "nachweise").await?;
+        let mut prueffehler = std::collections::BTreeMap::new();
+        let mut abstandsfehler = std::collections::BTreeMap::new();
         let mut abstandsquellen = std::collections::BTreeMap::new();
         for f in &abstandsplaene {
             let plan: crate::abstandsflaechen::AbstandsPlan =
                 serde_json::from_value(f.daten.clone()).map_err(json_err)?;
-            abstandsquellen.insert(
-                f.objekt.clone(),
-                self.abstands_planquellen_pruefen(pid, &plan).await.is_ok(),
-            );
+            let status = pruefergebnis(self.abstands_planquellen_pruefen(pid, &plan).await);
+            if let Err(e) = &status {
+                abstandsfehler.insert(f.objekt.clone(), e.clone());
+            }
+            abstandsquellen.insert(f.objekt.clone(), status.is_ok_and(|v| v.is_some()));
         }
         let mut fach_fingerprints = std::collections::BTreeMap::new();
         let mut nutzungsquellen = std::collections::BTreeMap::new();
@@ -624,31 +657,56 @@ impl CoreServices {
             if matches!(&n.eingabe, NachweisEingabe::Nutzung { .. }) {
                 nutzungsquellen.insert(
                     n.id,
-                    self.nutzungs_planquellen_pruefen(pid, &n.eingabe, &gebaeude)
-                        .await
-                        .is_ok(),
+                    match pruefergebnis(
+                        self.nutzungs_planquellen_pruefen(pid, &n.eingabe, &gebaeude)
+                            .await,
+                    ) {
+                        Ok(v) => v.is_some(),
+                        Err(e) => {
+                            prueffehler.insert(n.id, e);
+                            false
+                        }
+                    },
                 );
             }
             if let NachweisEingabe::Fach { objekt, plan } = &n.eingabe {
                 fach_fingerprints.insert(
                     n.id,
-                    self.berechnungs_fingerprint(pid, *objekt, plan).await.ok(),
+                    match pruefergebnis(self.berechnungs_fingerprint(pid, *objekt, plan).await) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            prueffehler.insert(n.id, e);
+                            None
+                        }
+                    },
                 );
             }
         }
+        let neueste_dateien = dateien
+            .iter()
+            .fold(std::collections::BTreeMap::new(), |mut m, d| {
+                m.entry(d.document_id.0)
+                    .and_modify(|v: &mut i64| *v = (*v).max(d.version))
+                    .or_insert(d.version);
+                m
+            });
+        let freigaben = freigaben
+            .into_iter()
+            .map(|f| (f.objekt.clone(), f))
+            .collect::<std::collections::BTreeMap<_, _>>();
         let mut ergebnisse = staende
             .into_iter()
             .map(|f| {
                 let stand: Nachweisstand = serde_json::from_value(f.daten).map_err(json_err)?;
-                let aktuell = archiv(self, &p, &stand.eingabe)
-                    .and_then(|r| {
-                        Ok(
-                            grundlagen_fuer(&p, &r, &stand.eingabe)? == stand.grundlagen_hash
-                                || grundlagen_abstand_alt(&p, &r, &stand.eingabe)?
-                                    == Some(stand.grundlagen_hash.clone()),
-                        )
-                    })
-                    .unwrap_or(false)
+                let grundlagen = pruefergebnis(archiv(self, &p, &stand.eingabe).and_then(|r| {
+                    Ok(
+                        grundlagen_fuer(&p, &r, &stand.eingabe)? == stand.grundlagen_hash
+                            || grundlagen_abstand_alt(&p, &r, &stand.eingabe)?
+                                == Some(stand.grundlagen_hash.clone()),
+                    )
+                }));
+                let grundlagenfehler = grundlagen.as_ref().err().cloned();
+                let aktuell = grundlagen.ok().flatten().unwrap_or(false)
                     && match &stand.eingabe {
                         NachweisEingabe::Fach { plan, .. } => {
                             stand.ergebnis["rechenstand"] == plan.modul.rechenstand()
@@ -657,12 +715,7 @@ impl CoreServices {
                                     .and_then(|v| v.as_ref())
                                     .is_some_and(|h| *h == stand.gebaeude_hash)
                                 && plan.quellen.iter().all(|q| {
-                                    dateien
-                                        .iter()
-                                        .filter(|d| d.document_id == q.dokument_id)
-                                        .map(|d| d.version)
-                                        .max()
-                                        == Some(q.version)
+                                    neueste_dateien.get(&q.dokument_id.0) == Some(&q.version)
                                 })
                         }
                         NachweisEingabe::AbstandProjekt { objekt, plan } => {
@@ -682,12 +735,7 @@ impl CoreServices {
                                         hash(&f.daten).is_ok_and(|h| h == stand.gebaeude_hash)
                                     })
                                 && plan.dokumente().iter().all(|d| {
-                                    dateien
-                                        .iter()
-                                        .filter(|v| v.document_id == d.dokument_id)
-                                        .map(|v| v.version)
-                                        .max()
-                                        == Some(d.version)
+                                    neueste_dateien.get(&d.dokument_id.0) == Some(&d.version)
                                 })
                         }
                         _ => {
@@ -697,67 +745,91 @@ impl CoreServices {
                         }
                     };
                 let freigabe = freigaben
-                    .iter()
-                    .find(|f| f.objekt == stand.id.to_string())
+                    .get(&stand.id.to_string())
                     .map(|f| serde_json::from_value::<Freigabe>(f.daten.clone()).map_err(json_err))
                     .transpose()?;
+                let fehler = match &stand.eingabe {
+                    NachweisEingabe::AbstandProjekt { objekt, .. } => {
+                        abstandsfehler.get(&objekt.to_string()).cloned()
+                    }
+                    _ => prueffehler.get(&stand.id).cloned(),
+                }
+                .or(grundlagenfehler);
                 Ok(NachweisAnsicht {
                     stand,
-                    aktuell,
+                    aktuell: aktuell && fehler.is_none(),
                     freigabe,
+                    prueffehler: fehler,
                 })
             })
             .collect::<CoreResult<Vec<_>>>()?;
-        // Abhängigkeiten sind unveränderliche frühere Nachweise. Veraltete Quellen
-        // propagieren transitiv; Freigaben ersetzen diese Aktualitätsprüfung nicht.
-        for _ in 0..ergebnisse.len() {
-            let status = ergebnisse
-                .iter()
-                .map(|n| (n.stand.id, n.aktuell))
-                .collect::<std::collections::BTreeMap<_, _>>();
-            let mut geaendert = false;
-            for n in &mut ergebnisse {
-                let mut quellen = Vec::new();
-                match &n.stand.eingabe {
-                    NachweisEingabe::Fach { plan, .. } => {
-                        quellen.extend(plan.uebernahmen.iter().map(|u| u.nachweis_id))
-                    }
-                    NachweisEingabe::Nutzung { plan, .. } => {
-                        for b in &plan.berechnungen {
-                            if let Some(a) = &b.eingabe.aufstellung {
-                                for s in &a.geschosse {
-                                    if let (Some(gid), Some(sid)) = (&s.gebaeude_id, &s.geschoss_id)
-                                        && let Some(g) = gebaeude.iter().find(|g| g.objekt == *gid)
+        // Rückwärtskanten: jede veraltete/fehlende Quelle wird einmal propagiert.
+        let mut abhaengigkeiten = std::collections::BTreeMap::<Uuid, Vec<usize>>::new();
+        let vorhanden = ergebnisse
+            .iter()
+            .map(|n| n.stand.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut queue = std::collections::VecDeque::new();
+        for (index, n) in ergebnisse.iter().enumerate() {
+            let mut quellen = Vec::new();
+            match &n.stand.eingabe {
+                NachweisEingabe::Fach { plan, .. } => {
+                    quellen.extend(plan.uebernahmen.iter().map(|u| u.nachweis_id))
+                }
+                NachweisEingabe::Nutzung { plan, .. } => {
+                    for b in &plan.berechnungen {
+                        if let Some(a) = &b.eingabe.aufstellung {
+                            for s in &a.geschosse {
+                                if let (Some(gid), Some(sid)) = (&s.gebaeude_id, &s.geschoss_id)
+                                    && let Some(g) = gebaeude.iter().find(|g| g.objekt == *gid)
+                                {
+                                    let g: objekte::Gebaeude =
+                                        serde_json::from_value(g.daten.clone())
+                                            .map_err(json_err)?;
+                                    if let Some(q) = g
+                                        .geschosse
+                                        .iter()
+                                        .find(|s| s.id.to_string() == *sid)
+                                        .and_then(|s| s.einstufungsquelle.as_ref())
                                     {
-                                        let g: objekte::Gebaeude =
-                                            serde_json::from_value(g.daten.clone())
-                                                .map_err(json_err)?;
-                                        if let Some(q) = g
-                                            .geschosse
-                                            .iter()
-                                            .find(|s| s.id.to_string() == *sid)
-                                            .and_then(|s| s.einstufungsquelle.as_ref())
-                                        {
-                                            quellen.push(q.nachweis_id);
-                                        }
+                                        quellen.push(q.nachweis_id);
                                     }
                                 }
                             }
                         }
                     }
-                    _ => {}
                 }
-                if n.aktuell
-                    && quellen
-                        .iter()
-                        .any(|id| !status.get(id).copied().unwrap_or(false))
-                {
-                    n.aktuell = false;
-                    geaendert = true;
+                _ => {}
+            }
+            if !n.aktuell {
+                queue.push_back(n.stand.id);
+            }
+            for q in quellen {
+                abhaengigkeiten.entry(q).or_default().push(index);
+                if !vorhanden.contains(&q) {
+                    queue.push_back(q);
                 }
             }
-            if !geaendert {
-                break;
+        }
+        let mut technische_fehler = ergebnisse
+            .iter()
+            .filter(|n| n.prueffehler.is_some())
+            .map(|n| n.stand.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut besucht = std::collections::BTreeSet::new();
+        while let Some(id) = queue.pop_front() {
+            if !besucht.insert((id, technische_fehler.contains(&id))) {
+                continue;
+            }
+            for &index in abhaengigkeiten.get(&id).into_iter().flatten() {
+                let n = &mut ergebnisse[index];
+                if n.prueffehler.is_none() && technische_fehler.contains(&id) {
+                    technische_fehler.insert(n.stand.id);
+                    n.prueffehler =
+                        Some("Aktualität einer abhängigen Quelle technisch nicht prüfbar".into());
+                }
+                n.aktuell = false;
+                queue.push_back(n.stand.id);
             }
         }
         Ok(ergebnisse)
@@ -1035,4 +1107,31 @@ fn archivierte_baunvo(archiv: &[RegelArchiv]) -> CoreResult<Vec<crate::baunvo::R
         werke.push(r);
     }
     Ok(werke)
+}
+
+#[cfg(test)]
+mod stabilitaets_tests {
+    use super::*;
+    #[test]
+    fn quellenwechsel_und_infrastrukturfehler_werden_unterschieden() {
+        assert_eq!(pruefergebnis(Ok(42)).unwrap(), Some(42));
+        assert!(
+            pruefergebnis::<()>(Err(CoreError::NotFound("Quelle".into())))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            pruefergebnis::<()>(Err(CoreError::InvalidInput("Quelle geändert".into())))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            pruefergebnis::<()>(Err(CoreError::Database("Verbindung unterbrochen".into())))
+                .unwrap_err()
+                .contains("Datenbank")
+        );
+        assert!(
+            pruefergebnis::<()>(Err(CoreError::Storage("NAS nicht erreichbar".into()))).is_err()
+        );
+    }
 }

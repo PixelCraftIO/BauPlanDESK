@@ -21,13 +21,26 @@
   let versionen = $state<DocumentVersion[]>([]);
   let fehler = $state<string | null>(null);
   let laeuft = $state(false);
+  let mehr = $state(false);
 
-  $effect(() => {
-    api
-      .historie(dokument.document_id)
-      .then((v) => (versionen = [...v].sort((a, b) => b.version - a.version)))
-      .catch((e) => (fehler = fehlertext(e)));
-  });
+  let generation = 0;
+  async function laden(weitere = false) {
+    const nr = ++generation, id = dokument.document_id;
+    laeuft = true;
+    try {
+      let v = await api.historienseite(id, weitere ? versionen.at(-1)?.version ?? null : null);
+      if (nr !== generation) return;
+      v = [...v].sort((a,b) => b.version - a.version);
+      // Ein gezielt verknüpfter Altstand bleibt auch außerhalb der ersten Seite erreichbar.
+      if (!weitere && bezugsVersion !== null && !v.some(d => d.version === bezugsVersion)) {
+        fehler = "Der verknüpfte Altstand liegt außerhalb der ersten Seite. Über ‚Ältere Versionen laden‘ ist er erreichbar.";
+      }
+      versionen = weitere ? [...versionen,...v] : v;
+      mehr = v.length === 50;
+    } catch(e) { if (nr === generation) fehler = fehlertext(e); }
+    finally { if(nr===generation) laeuft=false; }
+  }
+  $effect(() => { void dokument.document_id; void bezugsVersion; void laden(); return () => { generation++; }; });
 
   const neueste = $derived(versionen[0]?.version ?? dokument.version);
 
@@ -74,6 +87,7 @@
   {/each}
 </ul>
 
+{#if mehr}<button class="sekundaer" disabled={laeuft} onclick={() => laden(true)}>Ältere Versionen laden</button>{/if}
 <div class="knoepfe">
   <button class="sekundaer" onclick={onschliessen}>Schließen</button>
 </div>

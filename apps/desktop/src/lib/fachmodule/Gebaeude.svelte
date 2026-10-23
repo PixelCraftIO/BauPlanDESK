@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { untrack } from "svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import type { Project, GrundstueckKontext } from "../api";
   import { api, fehlertext } from "../api";
@@ -17,7 +17,7 @@
   import Planquellen from "../planaufmass/Planquellen.svelte";
   import PlanFlaeche from "../planaufmass/PlanFlaeche.svelte";
   import { aufmasseLaden, type Aufmassquelle } from "../planaufmass/quellen";
-  import { abonnieren } from "../projektEreignisse";
+  import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import GrundlagenZahl from "./GrundlagenZahl.svelte";
   import GeschossMasse from "./GeschossMasse.svelte";
@@ -48,11 +48,13 @@
   let vorschau = $state<GebaeudeGrundlagen | null>(null);
   let vorschauFehler = $state("");
   let planBusy = $state(false), quellenGeneration = $state(0);
-  $effect(()=>abonnieren(projekt.id,["fachobjekte","dokumente"],()=>{quellenGeneration++}));
+  const sichtbar = bereichAktiv();
+  ansichtsAbfrage(() => projekt.id,["fachobjekte","dokumente"],async()=>{quellenGeneration++});
   // Gespeicherte Aufmaße für die direkte Flächenübernahme; neu geladen, sobald
   // ein Aufmaß oder eine PDF gespeichert wird.
   let aufmasse = $state<Aufmassquelle[]>([]);
   $effect(() => {
+    if (!sichtbar()) return;
     void quellenGeneration;
     let aktuell = true;
     aufmasseLaden(projekt.id).then((a) => { if (aktuell) aufmasse = a; }).catch(() => { /* Planquellen zeigt Ladefehler */ });
@@ -90,6 +92,7 @@
   ] as const;
   const z = (n: number | null) => n === null ? "Noch unbekannt" : n.toLocaleString("de-DE", {maximumFractionDigits: 3});
   $effect(() => {
+    if (!sichtbar()) return;
     void quellenGeneration;
     const daten = JSON.stringify(s.eingabe);
     const id = s.id;
@@ -112,9 +115,7 @@
       s.fehler = fehlertext(e);
     }
   }
-  onMount(quellstaende);
-  // Neue oder freigegebene Vollgeschossnachweise ohne manuelles Aktualisieren anbieten.
-  $effect(() => abonnieren(projekt.id, ["nachweise"], () => void quellstaende()));
+  ansichtsAbfrage(() => projekt.id, ["nachweise"], quellstaende);
   function quellen(geschossId: string) {
     return nachweise.flatMap((n) => {
       if (

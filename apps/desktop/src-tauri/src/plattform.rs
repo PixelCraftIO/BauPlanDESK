@@ -289,3 +289,64 @@ pub async fn flurstuecksverweise_entfernen(
         .flurstuecksverweise_entfernen(projekt_id, &ids, &state.benutzer())
         .await?)
 }
+
+#[tauri::command]
+pub async fn fachobjektseite(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    art: ObjektArt,
+    nach: Option<String>,
+    limit: u32,
+) -> Result<Vec<Fachstand>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state
+        .core
+        .fachobjektseite(projekt_id, art, nach.as_deref(), limit)
+        .await?)
+}
+#[tauri::command]
+pub async fn fachobjekt_lesen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    art: ObjektArt,
+    id: Uuid,
+) -> Result<Option<Fachstand>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state.core.fachobjekt_lesen(projekt_id, art, id).await?)
+}
+#[tauri::command]
+pub async fn fachverlaufsseite(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    art: ObjektArt,
+    id: Uuid,
+    vor: Option<i64>,
+    limit: u32,
+) -> Result<Vec<Fachstand>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state
+        .core
+        .fachverlaufsseite(projekt_id, art, id, vor, limit)
+        .await?)
+}

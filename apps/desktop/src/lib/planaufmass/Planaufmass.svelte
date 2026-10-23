@@ -6,7 +6,7 @@
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
   import { plattformApi, type Datensatz } from "../plattformApi";
-  import { abonnieren } from "../projektEreignisse";
+  import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import PdfPlan from "./PdfPlan.svelte";
   import Planaufgaben from "./Planaufgaben.svelte";
   import { planApi } from "./api";
@@ -59,10 +59,10 @@
     gebaeude=b.status==="fulfilled"?b.value:[];
     listenFehler=[d,g,b].flatMap(r=>r.status==="rejected"?[fehlertext(r.reason)]:[]).join(" · ");
   }
-  onMount(()=>{void listen();return()=>{listenGeneration++}});
-  $effect(()=>abonnieren(s.projektId,["dokumente","fachobjekte"],()=>void listen()));
+  onMount(()=>()=>{listenGeneration++});
+  const vormerken=ansichtsAbfrage(()=>s.projektId,["dokumente","fachobjekte"],listen);
   $effect(()=>{
-    void projekt.version;untrack(()=>void listen());
+    void projekt.version;untrack(vormerken);
   });
   $effect(()=>{
     const id=s.id;

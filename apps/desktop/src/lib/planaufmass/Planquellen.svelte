@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { fehlertext } from "../api";
   import type { FachPlan, AbstandsPlan, Gebaeude, Planziel } from "../generated/plattform";
-  import { abonnieren } from "../projektEreignisse";
+  import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { planApi } from "./api";
   import { aufmasseLaden, messwert as wert, type Aufmassquelle } from "./quellen";
   type Zielplan=FachPlan|AbstandsPlan|Gebaeude;
@@ -41,9 +41,11 @@
       if(n===generation){aufmasse=daten;fehler=""}
     }catch(e){if(n===generation)fehler=fehlertext(e)}
   }
-  onMount(()=>{void laden();return()=>{generation++}});
-  $effect(()=>abonnieren(projektId,["fachobjekte","dokumente"],()=>void laden()));
+  onMount(()=>()=>{generation++});
+  const sichtbar=bereichAktiv();
+  ansichtsAbfrage(()=>projektId,["fachobjekte","dokumente"],laden);
   $effect(()=>{
+    if(!sichtbar()) return;
     const snapshot=JSON.stringify(plan);let gone=false;
     const anfrage="modul" in plan?planApi.ziele(JSON.parse(snapshot)):"waende" in plan?planApi.abstandsziele(JSON.parse(snapshot)):planApi.gebaeudeziele(JSON.parse(snapshot));
     void anfrage.then(z=>{if(!gone)ziele=z}).catch(e=>{if(!gone)fehler=fehlertext(e)});

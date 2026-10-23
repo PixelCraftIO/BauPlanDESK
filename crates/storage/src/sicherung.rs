@@ -229,6 +229,11 @@ pub fn dateiablage(
             quellen.extend(verzeichnis(&pfad, &format!("{prefix}/{teil}"))?);
         }
     }
+    quellen.retain(|q| {
+        !q.pfad
+            .file_name()
+            .is_some_and(|n| crate::atomare_datei::ist_temporaer(&n.to_string_lossy()))
+    });
     let daten = format!("{prefix}/data/");
     for q in &mut quellen {
         if let Some(schluessel) = q.name.strip_prefix(&daten)

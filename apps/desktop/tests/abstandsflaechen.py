@@ -14,6 +14,7 @@ custom=r'''
 const base=window.__TAURI_INTERNALS__.invoke,clone=v=>JSON.parse(JSON.stringify(v));
 window.testUser=clone(window.abstand.benutzer);window.aPlan=clone(window.abstand.fachstand);window.aFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
+ cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
  if(['fachobjekte','fachobjekt_speichern'].includes(cmd)&&args.art!=='abstandsflaechen')return base(cmd,args);
  if(!['fachobjekte','fachobjekt_speichern','abstandsregeln','abstandsplan_pruefen','nachweis_erstellen','druckkatalog','druckausgabe_erstellen','druckausgabe_ablegen','dokumente_auflisten','abstandsumrisse_einbinden'].includes(cmd))return base(cmd,args);
  window.calls.push({cmd,args:clone(args)});

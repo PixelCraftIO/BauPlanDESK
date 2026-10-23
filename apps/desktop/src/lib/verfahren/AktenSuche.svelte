@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { onMount } from "svelte";
   import { save } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, type Project, type DocumentVersion } from "../api";
@@ -21,15 +22,17 @@
     meldung = $state(""),
     nurEigene = $state(false),
     hinweise = $state<string[]>([]);
-  async function aktualisieren() {
+  const aktiv = bereichAktiv();
+  ansichtsAbfrage(() => projekt.id, ["dokumente"], async () => {
+    try { dateien = await api.dokumente(projekt.id); } catch(e) { fehler = fehlertext(e); }
+  });
+  async function aktualisieren(mitDateien = true) {
     if (busy) return;
     busy = true;
     fehler = "";
     try {
-      [erinnerungen, dateien] = await Promise.all([
-        verfahrenApi.erinnerungen(projekt.id, heute()),
-        api.dokumente(projekt.id),
-      ]);
+      erinnerungen = await verfahrenApi.erinnerungen(projekt.id, heute());
+      if (mitDateien && aktiv()) dateien = await api.dokumente(projekt.id);
       for (const e of erinnerungen) {
         if (
           "Notification" in window &&
@@ -54,7 +57,7 @@
     }
   }
   onMount(() => {
-    void aktualisieren();
+    void aktualisieren(false);
     const timer = setInterval(() => void aktualisieren(), 60_000);
     return () => clearInterval(timer);
   });
@@ -152,7 +155,7 @@
 <section>
   <h3>Fällige und bevorstehende Vorgänge</h3>
   <div class="knoepfe links">
-    <button class="sekundaer" disabled={busy} onclick={aktualisieren}
+    <button class="sekundaer" disabled={busy} onclick={() => aktualisieren()}
       >Wiedervorlagen aktualisieren</button
     ><button class="sekundaer" disabled={busy} onclick={kalenderExport}
       >Termine als Kalender (ICS) exportieren</button

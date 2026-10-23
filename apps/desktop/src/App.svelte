@@ -42,8 +42,6 @@
   import Projektmitglieder from "./lib/Projektmitglieder.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import LizenzDialog from "./lib/Lizenz.svelte";
-  import Hilfe from "./lib/hilfe/Hilfe.svelte";
-  import { kapitelFuerBereich } from "./lib/hilfe/handbuch";
 
   type DialogArt =
     | "neu"
@@ -76,14 +74,16 @@
   let hilfeBesucht = $state(false);
   let hilfeAnfrage = $state({ id: "start", nummer: 0 });
   $effect(() => { if (globalAnsicht === "hilfe") hilfeBesucht = true; });
-  function hilfeOeffnen(bereich?: string) {
-    const id = bereich ? kapitelFuerBereich(bereich)
-      : globalAnsicht === "verwaltung" ? "einrichtung"
-      : globalAnsicht === "kunden" ? "kunden"
-      : globalAnsicht === "formulare" ? "bibliothek"
-      : !globalAnsicht && aktiv ? kapitelFuerBereich(aktiv.ansicht) : "start";
-    hilfeAnfrage = { id, nummer: hilfeAnfrage.nummer + 1 };
+  async function hilfeOeffnen(bereich?: string) {
+    const kontext = bereich ?? (!globalAnsicht ? aktiv?.ansicht : undefined);
+    const standard = globalAnsicht === "verwaltung" ? "einrichtung" : globalAnsicht === "kunden" ? "kunden" : globalAnsicht === "formulare" ? "bibliothek" : "start";
+    const nummer = hilfeAnfrage.nummer + 1;
+    hilfeAnfrage = { id: standard, nummer };
     globalAnsicht = "hilfe";
+    try {
+      const { kapitelFuerBereich } = await import("./lib/hilfe/handbuch");
+      if (hilfeAnfrage.nummer === nummer) hilfeAnfrage = { id: kontext ? kapitelFuerBereich(kontext) : standard, nummer: nummer + 1 };
+    } catch(e) { fehler = fehlertext(e); }
   }
   const aktiv = $derived(sitzungen.find((s) => s.projekt.id === aktiveId));
   const projekt = $derived(aktiv?.projekt ?? null);
@@ -956,9 +956,9 @@
       />
     </div>
     {#if hilfeBesucht}<div class="globale-seite" hidden={globalAnsicht !== "hilfe"}>
-      <Hilfe anfrage={hilfeAnfrage} projektOffen={!!aktiv}
+      {#await import("./lib/hilfe/Hilfe.svelte")}<p role="status">Handbuch wird geladen …</p>{:then modul}<modul.default anfrage={hilfeAnfrage} projektOffen={!!aktiv}
         onbereich={(id) => bereich(id as Ansicht)}
-        onzurueck={() => (globalAnsicht = aktiv ? null : "projekte")} />
+        onzurueck={() => (globalAnsicht = aktiv ? null : "projekte")} />{:catch}<p role="alert">Das Handbuch konnte nicht geladen werden. Anwendung erneut öffnen.</p>{/await}
     </div>{/if}
     {#if kundenBesucht && ich}<div
         class="globale-seite"
