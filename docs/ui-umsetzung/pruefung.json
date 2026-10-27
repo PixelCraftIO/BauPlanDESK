@@ -5,8 +5,8 @@
     "Schließen von Hintergrundakten schützt Bauantrag; fehlgeschlagenes Speichern erhält Entwürfe; Speichern/Verwerfen verändern nur Zielprojekt.",
     "Verzögertes Speichern nach Projektwechsel aktualisiert ausschließlich ursprüngliche Projektakte.",
     "Flurstücke und Abstandsflächen-Eingaben bleiben unabhängig über Bereichs- und Projektwechsel erhalten.",
-    "Beenden berücksichtigt alle offenen Akten; Abbrechen und fehlgeschlagenes Speichern erhalten Fenster und Projektentwürfe.",
-    "Native Import- und Export-Menüs lösen nur im aktiven Projekt genau eine Aktion aus.",
+    "Beenden berücksichtigt alle offenen Akten; verspätete close-Ereignisse geschlossener Dialoge beeinflussen den neuen Dialog nicht; Abbrechen und fehlgeschlagenes Speichern erhalten Fenster und Projektentwürfe.",
+    "Der Import-Adapter löst nur im aktiven Projekt genau eine Aktion aus.",
     "Letzte Projektakte schließen führt zum Verzeichnis; erneutes Öffnen zeigt gespeicherte Daten.",
     "Schmale Fenster und dunkles Theme, keine Seitenüberläufe und keine JavaScript-Fehler.",
     "Leserrolle behält deaktivierte Schreibaktionen und sendet keine Projektänderungen."
