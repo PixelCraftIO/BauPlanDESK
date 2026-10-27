@@ -144,7 +144,8 @@
         if (navigation?.auftrag?.nummer !== a.nummer || s.hatAenderungen() || s.gerettet) return;
         if (f) {
           s.meldung = null;
-          s.bearbeiten(f);
+          if (oeffnen) oeffnen(f);
+          else s.bearbeiten(f);
         } else
           s.fehler =
             "Der verknüpfte Eintrag ist nicht mehr in dieser Projektliste vorhanden. Liste aktualisieren.";

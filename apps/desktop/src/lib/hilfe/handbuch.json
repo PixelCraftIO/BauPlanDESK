@@ -937,7 +937,8 @@
       "gruppe": "Pläne und Unterlagen",
       "kurztext": "Messwerte auf PDF-Blättern und DXF-Zeichnungen mit dokumentierter Dokumentversion und passender Bedeutung verknüpfen.",
       "bereiche": [
-        "planaufmass"
+        "planaufmass",
+        "messwerte"
       ],
       "abschnitte": [
         {

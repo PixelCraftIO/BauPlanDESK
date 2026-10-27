@@ -38,11 +38,13 @@
     tabs = [...tabs, { key, start, titel, geaendert: false }];
     aktiv = key;
   }
-  function status(key: string, st: { titel: string; geaendert: boolean }) {
+  function status(key: string, st: { titel: string; geaendert: boolean; id?: string | null }) {
     const t = tabs.find(t => t.key === key);
     if (!t) return;
     if (st.titel) t.titel = st.titel;
     t.geaendert = st.geaendert;
+    // Nach dem ersten Speichern kennt der Tab sein Aufmaß; erneutes Öffnen springt ihn dann an.
+    if (st.id && t.start.id !== st.id) t.start = { ...t.start, id: st.id };
   }
   function entfernen(key: string) {
     const i = tabs.findIndex(t => t.key === key);
