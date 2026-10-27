@@ -5,6 +5,8 @@
   import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude, Laengeneinheit } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
+  import Symbolknopf from "../Symbolknopf.svelte";
+  import WerkzeugIcon from "./WerkzeugIcon.svelte";
   import { plattformApi, type Datensatz } from "../plattformApi";
   import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import PdfPlan from "./PdfPlan.svelte";
@@ -40,13 +42,24 @@
   const arten: [Ausschnittart,string][]=[["grundriss","Grundriss"],["lageplan","Lageplan"],["schnitt","Schnitt"],["ansicht","Ansicht"],["detail","Detail"]];
   const mitHoehen=(a:Ausschnittart)=>a==="schnitt"||a==="ansicht"||a==="detail";
   // Werkzeug, Beschriftung, Tastaturkürzel.
-  const werkzeuge:[string,string,string][]=[["auswahl","Auswählen","V"],["verschieben","Verschieben","M"],["polygon","Polygon","P"],["rechteck","Rechteck","R"],["kreis","Kreis","K"],["strecke","Strecke / Dach","S"],["hoehenpunkt","Höhenpunkt","H"]];
+  // Werkzeuge der linken Symbolleiste, in Gruppen: Auswahl, Zeichnen, Höhen, Blatt. [id, Titel, Taste]
+  const werkzeuggruppen:[string,string,string][][]=[
+    [["auswahl","Auswählen","V"],["verschieben","Verschieben","M"]],
+    [["polygon","Polygon","P"],["rechteck","Rechteck","R"],["kreis","Kreis","K"],["strecke","Strecke / Dach","S"]],
+    [["hoehenpunkt","Höhenpunkt","H"],["bezugslinie","Bezugslinie setzen","B"]],
+    [["ausschnitt","Ausschnitt anlegen","A"],["kalibrieren","Zwei Punkte kalibrieren","Q"],["kontrolle","Kontrollstrecke messen","T"]],
+  ];
+  const werkzeuge=werkzeuggruppen.flat();
   let werkzeug=$state("auswahl"),auswahl=$state(""),ebene=$state(""),nenner=$state(100),referenz=$state(10),hwert=$state(0),hsystem=$state("m ü. NHN");
   let werte=$state<Planmesswert[]>([]),messFehler=$state(""),messLaeuft=$state(false),messStand=$state("");
   const verlauf=new Bearbeitungsverlauf<Planaufmass>();
   let undo=$state(0),redo=$state(0),verlaufGruppe="";
   let auswahlIds=$state<string[]>([]),punktIndex=$state(0),drehenGrad=$state(0),kanteMeter=$state(1),kanteWinkel=$state(0);
   let suche=$state(""),bedeutungFilter=$state(""),gebaeudeFilter=$state(""),geschossFilter=$state(""),nurFehler=$state(false),panel=$state("aufgaben"),hilfe=$state(false);
+  // Aufgeklappte Paletten rechts; Aufgaben/Objekte/Eigenschaften folgen dem Panelwahl-Zustand.
+  let offen=$state({eigenschaften:false,aufgaben:true,objekte:false,blatt:true,pruefen:false});
+  function panelOeffnen(id:string){panel=id}
+  $effect(()=>{const id=panel;untrack(()=>{offen.aufgaben=id==="aufgaben";offen.objekte=id==="objekte";offen.eigenschaften=id==="eigenschaften"})});
   let markierungsFehler=$state<{id:string;fehler:string}[]>([]);
   let kontrollMeter=$state(10),kontrolle=$state<{gemessen:number;soll:number;stand:string}|null>(null);
   let vergleich=$state(""),vergleichPdf=$state<PdfVorschauDaten|null>(null),vergleichDeckkraft=$state(.5);
@@ -54,7 +67,7 @@
   let standardGebaeude=$state<string|null>(null),standardGeschoss=$state<string|null>(null),standardBedeutung=$state<Planbedeutung>("unbestimmt");
   let exportLaeuft=$state(false),nurSichtbare=$state(true);
   let betrachterSeite=$state<number|null>(null),sichtbarkeit=$state<Record<string,boolean>>({});
-  let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560),einrichtungOffen=$state(true);
+  let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560);
   // Aus den Aufgaben vorbelegte Bedeutung und Zuordnung für die nächste Markierung.
   let vorbelegung=$state<Planaufgabe|null>(null);
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
@@ -117,7 +130,7 @@
     if(vorhanden){s.bearbeiten(vorhanden);return}
     s.neu();if(!s.eingabe)return;
     s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};
-    einrichtungOffen=true;
+    offen.blatt=true;
   }
   async function baugrenzenZuordnen(){
     if(!s.eingabe||!s.id||!darf||baugrenzenLaeuft)return;
@@ -136,7 +149,7 @@
   });
   $effect(()=>{
     const id=s.id;
-    untrack(()=>{auswahl="";auswahlIds=[];betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";einrichtungOffen=!s.eingabe?.kalibrierung;
+    untrack(()=>{auswahl="";auswahlIds=[];betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";offen.blatt=!s.eingabe?.kalibrierung;
       try{const v=JSON.parse(localStorage.getItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`)??"null");if(v){panel=["aufgaben","objekte","eigenschaften"].includes(v.panel)?v.panel:"aufgaben";suche=typeof v.suche==="string"?v.suche.slice(0,500):"";aktiv=v.aktiv??"";auswahl=v.auswahl??"";auswahlIds=auswahl?[auswahl]:[];bedeutungFilter=v.bedeutungFilter??"";gebaeudeFilter=v.gebaeudeFilter??"";geschossFilter=v.geschossFilter??"";nurFehler=v.nurFehler===true}}catch{}
     });
   });
@@ -215,7 +228,7 @@
         return;
       }
       const w=werkzeuge.find(w=>w[2].toLowerCase()===k);
-      if(w&&!(w[0]==="hoehenpunkt"&&!hoehenMoeglich)){e.preventDefault();werkzeug=w[0];vorbelegung=null;return}
+      if(w&&!werkzeugGesperrt(w[0])){e.preventDefault();werkzeugWaehlen(w[0]);return}
       if(k==="z"){e.preventDefault();plan?.zoomfensterStarten();return}
       if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();entfernen()}
       else if(e.key.startsWith("Arrow")&&m&&!objektGesperrt){
@@ -266,6 +279,23 @@
     merken();s.eingabe.markierungen=s.eingabe.markierungen.filter(i=>!ids.includes(i.id));auswahl="";auswahlIds=[];
   }
   function merken(){verlaufGruppe="";verlauf.gruppeBeenden();if(s.eingabe)verlauf.beobachten($state.snapshot(s.eingabe))}
+  // Grund, warum ein Werkzeug gerade nicht wählbar ist; leer = wählbar.
+  function werkzeugGesperrt(id:string):string{
+    if(id==="auswahl"||id==="verschieben")return "";
+    if(!darf)return "Nur mit Schreibrecht";
+    if(id==="hoehenpunkt"&&!hoehenMoeglich)return "Höhen nur in Schnitt, Ansicht oder Detail";
+    if(id==="bezugslinie")return !bearbeiteter?"Zuerst einen Ausschnitt wählen":!mitHoehen(bearbeiteter.art)?"Bezugslinie nur in Schnitt, Ansicht oder Detail":"";
+    if(id==="ausschnitt")return aktiv?"Zuerst den Ausschnitt schließen":!(pdf||dxf)?"Keine Unterlage geladen":"";
+    if(id==="kalibrieren"||id==="kontrolle")return !(pdf||dxf)?"Keine Unterlage geladen":"";
+    return "";
+  }
+  function werkzeugWaehlen(id:string){
+    if(werkzeugGesperrt(id))return;
+    vorbelegung=null;
+    if(id==="ausschnitt")rahmenAuswahl="";
+    if((id==="bezugslinie"||id==="kalibrieren")&&bearbeiteter&&aktiv!==bearbeiteter.id&&id==="bezugslinie")oeffnen(bearbeiteter.id);
+    werkzeug=id;
+  }
   function verlaufStatus(){undo=verlauf.zurueck;redo=verlauf.vor;const ids=new Set(s.eingabe?.markierungen.map(m=>m.id));auswahlIds=auswahlIds.filter(id=>ids.has(id));if(!ids.has(auswahl))auswahl="";if(!s.eingabe?.ausschnitte?.some(a=>a.id===aktiv))aktiv="";plan?.abbrechen()}
   function rueckwaerts(){
     if(!s.eingabe||!darf||s.laeuft)return;
@@ -385,7 +415,7 @@
     if(!(await ask("Ein neues Aufmaß mit neuen Markierungs-IDs auf der ausgerichteten Vergleichsunterlage anlegen? Der alte Stand und alle bisherigen Verknüpfungen bleiben erhalten. Maßstäbe und Höhenbezüge im neuen Entwurf neu festlegen.",{title:"Aufmaß übertragen",okLabel:"Neuen Entwurf anlegen",cancelLabel:"Abbrechen"})))return;
     const kopie=aufmassUebertragen($state.snapshot(s.eingabe),{dokument_id:vergleichPdf.dokument.document_id,version:vergleichPdf.dokument.version},Math.min(s.eingabe.seite,vergleichPdf.seiten.length),$state.snapshot(vergleichAusrichtung));
     if(s.hatAenderungen()&&!(await s.speichern()))return;
-    s.neu();s.eingabe=kopie;vergleich="";vergleichBestaetigt=false;einrichtungOffen=true;s.meldung="Übertragener Entwurf: Konturen prüfen, Maßstäbe kalibrieren und Höhenbezüge neu festlegen. Bestehende Berechnungen verwenden weiterhin das alte Aufmaß.";
+    s.neu();s.eingabe=kopie;vergleich="";vergleichBestaetigt=false;offen.blatt=true;s.meldung="Übertragener Entwurf: Konturen prüfen, Maßstäbe kalibrieren und Höhenbezüge neu festlegen. Bestehende Berechnungen verwenden weiterhin das alte Aufmaß.";
   }
   async function exportieren(format:"pdf"|"csv"){
     if(!s.eingabe||!s.id||exportLaeuft)return;
@@ -420,271 +450,317 @@
   const anzahl=(a:Planausschnitt)=>s.eingabe?.markierungen.filter(m=>m.ausschnitt_id===a.id)??[];
 </script>
 
-<Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt}>
+<Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt} kompakt={true} werkzeuge={vollbild?undefined:editorwerkzeuge}>
   {#snippet children(p)}
-    <p class="meta">PDF-Pläne und DXF-Zeichnungen unter „Projektdateien“ importieren. Je PDF-Blatt bzw. DXF-Zeichnung ein Aufmaß; mehrere Zeichnungen auf einem Blatt (Grundriss, Schnitte, Ansichten) als Ausschnitte mit eigenem Maßstab und eigener Bezugslinie anlegen. Die Originaldatei bleibt erhalten.</p>
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
     {#if !dateien.length}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren.</p>{/if}
-    <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
-      <label>Bezeichnung<input bind:value={p.bezeichnung} required/></label>
-      <label>Unterlage<select aria-label="Unterlage" value={`${p.dokument.dokument_id}|${p.dokument.version}`} onchange={e=>source(e.currentTarget.value)}>
-        <option value="">Unterlage wählen</option>
-        {#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}
-      </select></label>
-      {#if !istDxfUnterlage}<label>Seite<input type="number" min="1" max={pdf?.seiten.length??1} step="1" value={p.seite} onchange={e=>{const n=Number(e.currentTarget.value);e.currentTarget.value=String(p.seite);void seiteWechseln(n)}} required/></label>{/if}
-    </fieldset>
     {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere Version der Unterlage liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.</p>{/if}
-    <details class="einrichtung" bind:open={einrichtungOffen}>
-      <summary>{istDxfUnterlage?"Zeichnungseinheit und Höhenbezug der Zeichnung":"Blattmaßstab und Höhenbezug des Blattes"} <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
-      <fieldset disabled={!darf||s.laeuft}><div class="kalibrierung">
-        {#if istDxfUnterlage}
-          <label>Zeichnungseinheit<select aria-label="Zeichnungseinheit" value={p.kalibrierung?.art==="einheit"?p.kalibrierung.einheit:""} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit|"";if(v)p.kalibrierung={art:"einheit",einheit:v}}}><option value="">Einheit wählen</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
-          <span class="meta">{dxf?.plan.einheit?`Laut DXF-Kopf: ${EINHEITEN.find(e=>e.code===dxf!.plan.einheit)?.name}`:"Die DXF nennt keine Einheit; Zeichnungseinheit wählen und mit einer Kontrollstrecke prüfen."}</span>
-        {:else}
-        <label>Maßstab 1 :<input type="number" min=".001" step="any" bind:value={nenner}/></label>
-        <button type="button" class="sekundaer" onclick={()=>{if(aktueller)aktueller.kalibrierung={art:"massstab",nenner};else p.kalibrierung={art:"massstab",nenner}}}>Maßstab setzen</button>
-        {/if}
-        <label>Referenzstrecke (m)<input type="number" min=".001" step="any" bind:value={referenz}/></label>
-        <button type="button" class:aktiv={werkzeug==="kalibrieren"} onclick={()=>werkzeug="kalibrieren"}>Zwei Punkte kalibrieren</button>
-        <span class="meta">{!p.kalibrierung?"Maßstab fehlt":massstabText(p.kalibrierung)}{aktueller?` · gilt für „${aktueller.bezeichnung}“`:""}</span>
-      </div>
-      <p class="meta">Blattweiter Höhenbezug nur für Blätter ohne Ausschnitte: Höhen werden dann senkrecht zur Seite gemessen. Bei mehreren Schnitten je Blatt die Bezugslinie je Ausschnitt setzen.</p>
-      <div class="kalibrierung"><label>Höhensystem<input bind:value={hsystem}/></label><label>Bezugshöhe (m)<input type="number" step="any" bind:value={hwert}/></label>
-        <button type="button" class="sekundaer" onclick={()=>werkzeug="bezug"}>Bezugspunkt setzen</button>
-        <span>{p.hoehenbezug?`${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:"Noch kein Höhenbezug des Blattes"}</span>
-      </div>
-      <div class="kalibrierung"><label>Kontrollstrecke (m)<input type="number" min=".001" step="any" bind:value={kontrollMeter}/></label><button type="button" class="sekundaer" onclick={()=>werkzeug="kontrolle"}>Kontrollstrecke messen</button>
-        {#if kontrolle}<span role="status">Kontrollvorschau: {z(kontrolle.gemessen)} m · Soll {z(kontrolle.soll)} m · Abweichung {z((kontrolle.gemessen/kontrolle.soll-1)*100)} %{Math.abs(kontrolle.gemessen/kontrolle.soll-1)>.01?" · Maßstab oder Unterlage prüfen":""}</span>{/if}
-      </div></fieldset>
-    </details>
-    {#if dxf}<details class="einrichtung"><summary>Zeichnungsebenen der DXF <span class="meta">· {dxf.plan.ebenen.length} Ebenen · {dxf.plan.linien.length} Linienzüge</span></summary>
-      <div class="dxf-ebenen">{#each dxf.plan.ebenen as e,i}<label><input type="checkbox" checked={dxfSichtbar[i]??true} onchange={ev=>{const an=ev.currentTarget.checked;dxfSichtbar=dxfSichtbar.map((v,j)=>j===i?an:v)}}/><span class="farbe" style:background={e.farbe??"#222"}></span>{e.name}</label>{/each}</div>
-      {#if dxf.plan.hinweise.length}<ul class="meta">{#each dxf.plan.hinweise as h}<li>{h}</li>{/each}</ul>{/if}
-    </details>{/if}
-    <details class="vergleichsbereich"><summary>Lage im Baufenster (§ 23 BauNVO)</summary>
-      <p class="meta">Im Lageplan das Baufenster (Baugrenzen / Baulinien) mit Bedeutung „Baufenster“ und den Gebäudeumriss mit Bedeutung „Vorhabenumriss“ zeichnen, je genau eine Markierung; bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen. Die Zuordnung speichert beide Umrisse in Metern am Projekt; der GRZ-Nachweis bewertet die Lage.</p>
-      <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
-      {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
-      {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
-    </details>
-    {#if !istDxfUnterlage}<details class="vergleichsbereich"><summary>Planstände vergleichen</summary>
-      <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
-      {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
-        <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
-        <label><input type="checkbox" bind:checked={vergleichBestaetigt}/>Blattlage und Konturen anhand der Überlagerung geprüft</label>
-        <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Als neues Aufmaß auf Vergleichsunterlage übertragen …</button>{/if}
-    </details>{/if}
     {#if pdfFehler}<p class="fehlertext" role="alert">{pdfFehler}</p>{/if}
     <div class="editor" class:vollbild bind:this={editor} style:height={vollbild?undefined:`${hoeheEditor}px`} onpointerdowncapture={()=>{verlaufGruppe="";verlauf.gruppeBeenden()}} oninputcapture={e=>{const el=e.target as HTMLElement;verlaufGruppe=`${auswahl}:${el.getAttribute("aria-label")??el.closest("label")?.textContent??el.tagName}`}}>
-      <div class="werkzeuge" role="toolbar" aria-label="PDF-Zeichenwerkzeuge">
-        <span class="pfad" aria-label="Arbeitsbereich">
-          <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{istDxfUnterlage?"Zeichnung":`Blatt ${p.seite}`}</button>
-          {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{/if}
-        </span>
-        {#each werkzeuge as [id,titel,kuerzel]}<button type="button" class:aktiv={werkzeug===id} aria-pressed={werkzeug===id} disabled={(id==="hoehenpunkt"&&!hoehenMoeglich)||(!darf&&id!=="auswahl"&&id!=="verschieben")} title={id==="hoehenpunkt"&&!hoehenMoeglich?"Höhen nur in Schnitt, Ansicht oder Detail":`Taste ${kuerzel}`} onclick={()=>{werkzeug=id;vorbelegung=null}}>{titel}</button>{/each}
-        <button type="button" class="sekundaer" disabled={!darf||!undo} title="Strg+Z" onclick={rueckwaerts}>Rückgängig</button>
-        <button type="button" class="sekundaer" disabled={!darf||!redo} title="Strg+Y / Strg+Umschalt+Z" onclick={vorwaerts}>Wiederholen</button>
-        <label class="umschalter"><input type="checkbox" bind:checked={masse}/>Maße anzeigen</label>
-        <button type="button" class="sekundaer rechts" aria-pressed={vollbild} title="F11" onclick={()=>vollbild=!vollbild}>{vollbild?"Vollbild beenden":"Vollbild"}</button>
-        <button type="button" class="sekundaer" aria-expanded={hilfe} onclick={()=>hilfe=!hilfe}>Kurzbefehle</button>
-        <span class="speicherstatus" role="status">{s.laeuft?"Wird gespeichert …":s.hatAenderungen()?"Entwurf · ungespeichert":"Gespeichert"}</span>
-        <button type="button" disabled={!darf||s.laeuft||!s.hatAenderungen()} onclick={()=>s.speichern()}>Aufmaß speichern</button>
-        <button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}>Aufmaßblatt PDF …</button>
-        <button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}>Messwerte CSV …</button>
-        <label class="umschalter"><input type="checkbox" bind:checked={nurSichtbare}/>Nur sichtbare Ebenen ausgeben</label>
-      </div>
+      {#if vollbild}<div class="vollbildleiste" role="toolbar" aria-label="Aufmaß im Vollbild">
+        <strong>Aufmaß</strong><span class="meta">{s.eingabe?.bezeichnung}</span>
+        <span role="status" class="meta">{s.laeuft?"Wird gespeichert …":s.hatAenderungen()?"Entwurf · ungespeichert":"Gespeichert"}</span>
+        <button type="button" disabled={!darf||s.laeuft||!s.hatAenderungen()} onclick={()=>void s.speichern()}>Aufmaß speichern</button>
+        <span class="editorwerkzeuge">{@render editorwerkzeuge()}</span>
+      </div>{/if}
       {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · Alt setzt Fang aus · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
       {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
-      {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?"Anfang und Ende der bekannten Referenzstrecke anklicken.":werkzeug==="bezug"?"Den Punkt mit der angegebenen Bezugshöhe auf der PDF anklicken.":werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
+      {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"||werkzeug==="kontrolle"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?`Anfang und Ende der bekannten Referenzstrecke (${z(referenz)} m) anklicken.`:werkzeug==="bezug"?`Den Punkt mit der Bezugshöhe ${z(hwert)} ${hsystem} auf der Unterlage anklicken.`:werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:werkzeug==="kontrolle"?`Anfang und Ende einer bekannten Strecke (${z(kontrollMeter)} m) anklicken; die Abweichung erscheint unter „Blatt und Einrichtung“.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
       <div class="arbeitsplatz">
+        <div class="werkzeugleiste" role="toolbar" aria-label="PDF-Zeichenwerkzeuge" aria-orientation="vertical">
+          {#each werkzeuggruppen as gruppe,gi}
+            {#if gi}<span class="gruppentrenner" role="separator" aria-hidden="true"></span>{/if}
+            {#each gruppe as [id,titel,kuerzel]}
+              {@const aus=werkzeugGesperrt(id)}
+              <Symbolknopf {titel} {kuerzel} tip="rechts" aktiv={werkzeug===id} disabled={!!aus} aria-description={aus||undefined} onclick={()=>werkzeugWaehlen(id)}><WerkzeugIcon art={id}/></Symbolknopf>
+            {/each}
+          {/each}
+          <span class="gruppentrenner" role="separator" aria-hidden="true"></span>
+          <Symbolknopf titel="Duplizieren" kuerzel="Strg+D" tip="rechts" disabled={!m||objektGesperrt} onclick={duplizieren}><WerkzeugIcon art="duplizieren"/></Symbolknopf>
+          <Symbolknopf titel="Markierung entfernen" kuerzel="Entf" tip="rechts" disabled={!m||objektGesperrt} onclick={entfernen}><WerkzeugIcon art="entfernen"/></Symbolknopf>
+        </div>
         <div class="flaeche">
-          {#if betrachterSeite!==null}<p class="hinweisbox" role="status">Betrachtung von Seite {betrachterSeite}. Das Aufmaß gehört weiterhin zu Seite {p.seite}. <button type="button" class="link" onclick={()=>betrachterSeite=null}>Zum Aufmaßblatt zurück</button>{#if darf}<button type="button" onclick={()=>void seiteWechseln(betrachterSeite!)}>Eigenes Aufmaß für diese Seite anlegen …</button>{/if}</p>{/if}
+          <div class="pfad" aria-label="Arbeitsbereich">
+            <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{aktuelleDatei?.file_name??"Unterlage"}{istDxfUnterlage?"":` › Blatt ${p.seite}`}</button>
+            {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{#if aktueller.bezugslinie}<span class="meta">· Bezug {z(aktueller.bezugslinie.hoehe_m)} {aktueller.bezugslinie.system}</span>{/if}{/if}
+          </div>
+          {#if betrachterSeite!==null}<p class="hinweisbox betrachtung" role="status">Betrachtung von Seite {betrachterSeite}. Das Aufmaß gehört weiterhin zu Seite {p.seite}. <button type="button" class="link" onclick={()=>betrachterSeite=null}>Zum Aufmaßblatt zurück</button>{#if darf}<button type="button" onclick={()=>void seiteWechseln(betrachterSeite!)}>Eigenes Aufmaß für diese Seite anlegen …</button>{/if}</p>{/if}
           {#if pdf||dxf}
             <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument.dokument_id}.${p.dokument.version}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
-              onfertig={fertig} onauswahl={waehlen} onverschieben={gemeinsamVerschieben} onpunkt={i=>{punktIndex=i;panel="eigenschaften"}} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
+              onfertig={fertig} onauswahl={waehlen} onverschieben={gemeinsamVerschieben} onpunkt={i=>{punktIndex=i;panelOeffnen("eigenschaften")}} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
               onrahmen={(id,von,bis)=>{if(!darf)return;const a=p.ausschnitte?.find(a=>a.id===id);if(a){merken();a.von=von;a.bis=bis}}}
               onrahmenauswahl={id=>rahmenAuswahl=id} onoeffnen={oeffnen} onseite={seiteAnsehen}
               onfehler={e=>pdfFehler=e}/>
-          {:else}<p class="meta">{laedt?"Unterlage wird geladen …":"Eine Unterlage auswählen."}</p>{/if}
+          {:else}<p class="meta leer">{laedt?"Unterlage wird geladen …":"Unter „Blatt und Einrichtung“ eine Unterlage auswählen."}</p>{/if}
           {#if messFehler}<p class="fehlertext" role="alert">Aufmaß prüfen: {messFehler}</p>{/if}
         </div>
         <aside>
-          <nav class="panelwahl" aria-label="Planpanel">{#each [["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as [id,titel]}<button type="button" class="sekundaer" class:aktiv={panel===id} aria-pressed={panel===id} onclick={()=>panel=id}>{titel}</button>{/each}</nav>
-          {#if panel==="aufgaben"&&s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panel="eigenschaften"}}/>{/if}
-          {#if panel==="aufgaben"}<details><summary>Voreinstellung für freie Markierungen</summary><fieldset disabled={!darf}>
-            <label>Bedeutung neuer Markierungen<select aria-label="Bedeutung neuer Markierungen" bind:value={standardBedeutung}>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
-            <label>Gebäude neuer Markierungen<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
-            {#if standardGebaeude}<label>Geschoss neuer Markierungen<select aria-label="Geschoss neuer Markierungen" bind:value={standardGeschoss}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===standardGebaeude)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
-          </fieldset></details>{/if}
-          {#if panel==="objekte"}
-          <h3>Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
-          <p class="meta">Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.</p>
-          <div class="ausschnitte">
-            {#each ausschnitte as a (a.id)}
-              <div class="ausschnitt" class:aktiv={a.id===aktiv} class:gewaehlt={a.id===rahmenAuswahl}>
-                <button type="button" class="link" onclick={()=>{if(aktiv===a.id)return;rahmenAuswahl=a.id}} aria-label={`Ausschnitt ${a.bezeichnung} wählen`}>{a.bezeichnung}
-                  <span>{arten.find(x=>x[0]===a.art)?.[1]} · {a.kalibrierung?massstabText(a.kalibrierung):p.kalibrierung?"Blattmaßstab":"Maßstab fehlt"}{mitHoehen(a.art)?` · ${a.bezugslinie?`Bezug ${z(a.bezugslinie.hoehe_m)} ${a.bezugslinie.system}`:"Bezugslinie fehlt"}`:""} · {anzahl(a).length} Markierungen</span></button>
-                {#if a.id===aktiv}<button type="button" class="sekundaer" onclick={schliessen}>Schließen</button>{:else}<button type="button" class="sekundaer" onclick={()=>oeffnen(a.id)}>Öffnen</button>{/if}
+          <nav class="panelwahl" aria-label="Planpanel">{#each [["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as [id,titel]}<button type="button" class="sekundaer" class:aktiv={panel===id} aria-pressed={panel===id} onclick={()=>panelOeffnen(id)}>{titel}</button>{/each}</nav>
+          <details class="palette" bind:open={offen.eigenschaften}>
+            <summary><h3>Eigenschaften</h3> <span class="meta">{m?`· ${m.bezeichnung}`:auswahlIds.length>1?`· ${auswahlIds.length} ausgewählt`:"· keine Auswahl"}</span></summary>
+            {#if !m}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen.</p>{/if}
+            {#if auswahlIds.length>1}<section class="mehrfach"><h3>{auswahlIds.length} Markierungen ausgewählt</h3><fieldset disabled={!darf||s.laeuft}><div class="aktionen">{#each ["links","rechts","oben","unten"] as art}<button type="button" class="sekundaer" onclick={()=>auswahlAusrichten(art as "links"|"rechts"|"oben"|"unten")}>{art} ausrichten</button>{/each}</div>
+              {#if auswahlIds.length===2}<div class="aktionen">{#each [["vereinen","Vereinen"],["abziehen","Zweite Fläche abziehen"],["schneiden","Schnittfläche"],["teilen","An zweiter Fläche teilen"]] as [op,t]}<button type="button" onclick={()=>void flaechenAktion(op as import("../generated/plattform").Flaechenoperation)}>{t}</button>{/each}</div>{/if}</fieldset></section>{/if}
+            {#if m}
+              <fieldset disabled={objektGesperrt}>
+                <label>Bezeichnung<input bind:value={m.bezeichnung} required/></label>
+                {#if fehlerMap.has(m.id)}<p class="fehlertext" role="alert">{fehlerMap.get(m.id)}</p>{/if}
+                <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung} onchange={()=>{if(m&&m.bedeutung!=="flurstueck"&&!ABZUGSBEDEUTUNGEN.includes(m.bedeutung))delete m.flurstueck_id}}>{#each bedeutungen as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+                {#if m.bedeutung==="flurstueck"||ABZUGSBEDEUTUNGEN.includes(m.bedeutung)}
+                  <label>Flurstück<select aria-label="Flurstück" value={m.flurstueck_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.flurstueck_id=v;else delete m!.flurstueck_id}}><option value="">Nicht zugeordnet</option>{#each flurstuecke as f (f.id)}<option value={f.id}>{f.gemarkung} {f.nummer}{f.flur?` (Flur ${f.flur})`:""}</option>{/each}{#if m.flurstueck_id&&!flurstuecke.some(f=>f.id===m!.flurstueck_id)}<option value={m.flurstueck_id}>Flurstück nicht mehr erfasst</option>{/if}</select></label>
+                  {#if !m.flurstueck_id}<p class="hinweisbox">Für die Übernahme (Flurstücksfläche bzw. Flächenabzug des Flurstücks) das Flurstück zuordnen; ohne Zuordnung dient die Fläche nur zur Kontrolle.{flurstuecke.length?"":" Flurstücke zuerst unter Grundlagen → Flurstücke anlegen und speichern."}</p>{/if}
+                {/if}
+                {#if ["raum","aufenthaltsraum","nuf","tf","vf"].includes(m.bedeutung)}
+                  {@const raeume=p.markierungen.filter(x=>x.id!==m!.id&&!x.hoehenzone_von&&["raum","aufenthaltsraum","nuf","tf","vf"].includes(x.bedeutung)&&x.gebaeude_id===m!.gebaeude_id&&x.geschoss_id===m!.geschoss_id)}
+                  {#if raeume.length||m.hoehenzone_von}<label>Höhenzone von Raum<select aria-label="Höhenzone von Raum" value={m.hoehenzone_von??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.hoehenzone_von=v;else delete m!.hoehenzone_von}}><option value="">Keine – eigener Raum</option>{#each raeume as x (x.id)}<option value={x.id}>{x.bezeichnung}</option>{/each}{#if m.hoehenzone_von&&!raeume.some(x=>x.id===m!.hoehenzone_von)}<option value={m.hoehenzone_von}>Raum nicht mehr passend</option>{/if}</select></label>{/if}
+                {/if}
+                {#if ausschnitte.length}<label>Ausschnitt<select aria-label="Ausschnitt der Markierung" value={m.ausschnitt_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m.ausschnitt_id=v;else delete m.ausschnitt_id}}><option value="">Ganzes Blatt</option>{#each ausschnitte as a}<option value={a.id}>{a.bezeichnung}</option>{/each}</select></label>{/if}
+                <label>Zeichenebene<select aria-label="Zeichenebene" bind:value={m.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
+                <label>Baugrundstück<select aria-label="Baugrundstück" bind:value={m.grundstueck_id}><option value={null}>Nicht zugeordnet</option>{#each grund as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>
+                <label>Gebäude<select aria-label="Gebäude" bind:value={m.gebaeude_id} onchange={()=>{if(m)m.geschoss_id=null}}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
+                {#if m.gebaeude_id}<label>Geschoss<select aria-label="Geschoss" bind:value={m.geschoss_id}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse??[] as g,i}<option value={g.id}>{g.bezeichnung||`Geschoss ${i+1} (ohne Bezeichnung)`}</option>{/each}</select></label>{/if}
+                {#if (m.bedeutung==="gebaeudegrundflaeche"||m.bedeutung==="geschoss_aussenkante")&&!m.gebaeude_id}<p class="hinweisbox">Für die Übernahme ein Gebäude zuordnen.{gebaeude.length?"":" Gebäude zuerst unter Grundlagen → Gebäude / Geschosse anlegen und speichern."}</p>
+                {:else if m.bedeutung==="geschoss_aussenkante"&&!m.geschoss_id}<p class="hinweisbox">Für die Geschossfläche ein Geschoss zuordnen.{gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse.length?"":" Für dieses Gebäude sind noch keine Geschosse gespeichert; ohne einzelne Geschosse dient die Gebäudegrundfläche als Fläche des Einzelgeschosses."}</p>
+                {:else if m.bedeutung==="gebaeudegrundflaeche"&&m.geschoss_id}<p class="hinweisbox">Die Gebäudegrundfläche gilt für das ganze Gebäude; die Geschosszuordnung wird dafür nicht verwendet. Für eine Geschossfläche die Markierung duplizieren und die Kopie als „Geschoss – Außenkante“ kennzeichnen.</p>{/if}
+                <dl class="messwerte">
+                  <dt>Fläche</dt><dd>{z(wert?.flaeche_m2)} m²</dd>
+                  <dt>Länge / Umfang</dt><dd>{z(wert?.laenge_m)} m</dd>
+                  <dt>{m.geometrie.art==="hoehenpunkt"?"Absolute Höhe":"Höhendifferenz"}</dt><dd>{z(wert?.hoehe_m)} m</dd>
+                  <dt>Horizontale</dt><dd>{z(wert?.horizontale_m)} m</dd>
+                  <dt>Neigung zur Horizontalen</dt><dd>{z(wert?.neigung_grad)}°</dd>
+                </dl>
+                {#if messLaeuft}<p class="meta" role="status">Messwerte werden aktualisiert …</p>{/if}
+                {#each wert?.offen??[] as hinweis}<p class="hinweisbox">{hinweis}</p>{/each}
+                <div class="aktionen">
+                  <button type="button" class="sekundaer" title="Strg+D · Kopie derselben Kontur, z. B. als Gebäudegrundfläche und Geschoss-Außenkante" onclick={duplizieren}>Duplizieren</button>
+                  <button type="button" class="sekundaer" title="Entf" onclick={entfernen}>Markierung entfernen</button>
+                </div>
+                <details><summary>Kontur drehen, Stützpunkte und Kanten</summary>
+                  <label>Kontur drehen (°)<input type="number" step="any" bind:value={drehenGrad}/></label><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(drehen($state.snapshot(m!.geometrie),drehenGrad))}>Drehung anwenden</button>
+                  <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {z(p[0])}; {z(p[1])} pt</option>{/each}</select></label>
+                  {#if m}{@const punkt=eckpunkte(m.geometrie)[punktIndex]??eckpunkte(m.geometrie)[0]}
+                  {#if punkt}<label>X (Seitenpunkte)<input type="number" step="any" value={punkt[0]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[Number(e.currentTarget.value),punkt[1]]))}/></label><label>Y (Seitenpunkte)<input type="number" step="any" value={punkt[1]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[punkt[0],Number(e.currentTarget.value)]))}/></label>{/if}
+                  {/if}
+                  {#if m.geometrie.art==="polygon"}<div class="aktionen"><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(punktEinfuegen($state.snapshot(m!.geometrie),punktIndex))}>Punkt nach Auswahl einfügen</button><button type="button" class="sekundaer" disabled={m.geometrie.punkte.length<=3} onclick={()=>{geometrieSetzen(punktEntfernen($state.snapshot(m!.geometrie),punktIndex));punktIndex=0}}>Punkt entfernen</button></div>{/if}
+                  {#if m.geometrie.art==="polygon"||m.geometrie.art==="strecke"}<label>Kantenlänge (m)<input type="number" min=".001" step="any" bind:value={kanteMeter}/></label><label>Kantenwinkel (°)<input type="number" step="any" bind:value={kanteWinkel}/></label><button type="button" disabled={!meterProPunkt(aktueller?.kalibrierung??p.kalibrierung)} onclick={()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);if(f)geometrieSetzen(kantenmass($state.snapshot(m!.geometrie),punktIndex,kanteMeter/f,kanteWinkel))}}>Kantenmaß anwenden</button>{/if}
+                </details>
+              </fieldset>
+              <p class="meta">Nach dem Speichern: {ziel(m.bedeutung)} Eckpunkte lassen sich mit „Auswählen“ ziehen, die ganze Markierung durch Ziehen der Fläche oder mit den Pfeiltasten.</p>
+            {/if}
+          </details>
+          <details class="palette" bind:open={offen.aufgaben}>
+            <summary><h3>Aufgaben</h3></summary>
+            {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
+            <details><summary>Voreinstellung für freie Markierungen</summary><fieldset disabled={!darf}>
+              <label>Bedeutung neuer Markierungen<select aria-label="Bedeutung neuer Markierungen" bind:value={standardBedeutung}>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
+              <label>Gebäude neuer Markierungen<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
+              {#if standardGebaeude}<label>Geschoss neuer Markierungen<select aria-label="Geschoss neuer Markierungen" bind:value={standardGeschoss}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===standardGebaeude)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
+            </fieldset></details>
+          </details>
+          <details class="palette" bind:open={offen.objekte}>
+            <summary><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen</span></summary>
+            <h3>Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
+            <p class="meta">Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.</p>
+            <div class="ausschnitte">
+              {#each ausschnitte as a (a.id)}
+                <div class="ausschnitt" class:aktiv={a.id===aktiv} class:gewaehlt={a.id===rahmenAuswahl}>
+                  <button type="button" class="link" onclick={()=>{if(aktiv===a.id)return;rahmenAuswahl=a.id}} aria-label={`Ausschnitt ${a.bezeichnung} wählen`}>{a.bezeichnung}
+                    <span>{arten.find(x=>x[0]===a.art)?.[1]} · {a.kalibrierung?massstabText(a.kalibrierung):p.kalibrierung?"Blattmaßstab":"Maßstab fehlt"}{mitHoehen(a.art)?` · ${a.bezugslinie?`Bezug ${z(a.bezugslinie.hoehe_m)} ${a.bezugslinie.system}`:"Bezugslinie fehlt"}`:""} · {anzahl(a).length} Markierungen</span></button>
+                  {#if a.id===aktiv}<button type="button" class="sekundaer" onclick={schliessen}>Schließen</button>{:else}<button type="button" class="sekundaer" onclick={()=>oeffnen(a.id)}>Öffnen</button>{/if}
+                </div>
+              {/each}
+            </div>
+            {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
+            {#if bearbeiteter}
+              {@const a=bearbeiteter}
+              <fieldset disabled={!darf||s.laeuft} class="ausschnitt-eigenschaften">
+                <legend>Ausschnitt „{a.bezeichnung}“</legend>
+                <label>Name<input aria-label="Ausschnittname" value={a.bezeichnung} required oninput={e=>umbenennen(a,e.currentTarget.value)}/></label>
+                <label>Art<select aria-label="Ausschnittart" bind:value={a.art} onchange={()=>{if(!mitHoehen(a.art))delete a.bezugslinie}}>{#each arten as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+                <div class="zeile">
+                  <span>Maßstab: {a.kalibrierung?massstabText(a.kalibrierung):p.kalibrierung?`Blatt (${massstabText(p.kalibrierung)})`:"fehlt"}</span>
+                  <button type="button" class="link" onclick={()=>{a.kalibrierung={art:"massstab",nenner}}}>1 : {z(nenner)} setzen</button>
+                  <button type="button" class="link" onclick={()=>{if(aktiv!==a.id)oeffnen(a.id);werkzeug="kalibrieren"}}>Zwei Punkte kalibrieren</button>
+                  {#if a.kalibrierung}<button type="button" class="link" onclick={()=>{delete a.kalibrierung}}>Blattmaßstab verwenden</button>{/if}
+                </div>
+                {#if mitHoehen(a.art)}
+                  <div class="zeile">
+                    <span>Bezugslinie: {a.bezugslinie?`${z(a.bezugslinie.hoehe_m)} ${a.bezugslinie.system}`:"fehlt – ±0,00-Linie des Schnitts anklicken"}</span>
+                    <label>Höhe (m)<input type="number" step="any" bind:value={hwert}/></label>
+                    <label>System<input bind:value={hsystem}/></label>
+                    {#each nullpunkte as n}<button type="button" class="link" onclick={()=>{hwert=n.wert;hsystem="m ü. NHN"}}>Nullpunkt {n.name} ({z(n.wert)} m ü. NHN)</button>{/each}
+                    <button type="button" class:aktiv={werkzeug==="bezugslinie"} onclick={()=>{if(aktiv!==a.id)oeffnen(a.id);werkzeug="bezugslinie"}}>Bezugslinie setzen</button>
+                    {#if a.bezugslinie}<button type="button" class="link" onclick={()=>{delete a.bezugslinie}}>Bezugslinie entfernen</button>{/if}
+                  </div>
+                {:else}<p class="meta">Grundriss und Lageplan messen Flächen und Längen; Höhen stammen aus Schnitten, Ansichten oder Details.</p>{/if}
+                <div class="aktionen">
+                  <button type="button" class="sekundaer" onclick={()=>ausschnittDuplizieren(a)}>Nur Rahmen kopieren</button>
+                  <button type="button" class="sekundaer" onclick={()=>ausschnittDuplizieren(a,true)}>Mit Markierungen kopieren</button>
+                  <button type="button" class="sekundaer" onclick={()=>void ausschnittEntfernen(a)}>Entfernen</button>
+                </div>
+              </fieldset>
+            {/if}
+            <h3>Zeichenebenen</h3>
+            {#each p.ebenen as e (e.id)}
+              <div class="ebene"><input type="radio" aria-label={`Auf Ebene ${e.bezeichnung} zeichnen`} name={`ebene-${s.id}`} value={e.id} bind:group={ebene}/>
+                <input aria-label="Ebenenname" bind:value={e.bezeichnung} disabled={!darf||s.laeuft} required/>
+                <label title="Sichtbar"><input type="checkbox" checked={sichtbarkeit[e.id]??e.sichtbar} onchange={ev=>{if(darf)e.sichtbar=ev.currentTarget.checked;else sichtbarkeit={...sichtbarkeit,[e.id]:ev.currentTarget.checked}}}/>An</label>
+                <label title="Gesperrt"><input type="checkbox" bind:checked={e.gesperrt} disabled={!darf||s.laeuft}/>Sperre</label>
               </div>
             {/each}
-          </div>
-          {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
-          {#if bearbeiteter}
-            {@const a=bearbeiteter}
-            <fieldset disabled={!darf||s.laeuft} class="ausschnitt-eigenschaften">
-              <legend>Ausschnitt „{a.bezeichnung}“</legend>
-              <label>Name<input aria-label="Ausschnittname" value={a.bezeichnung} required oninput={e=>umbenennen(a,e.currentTarget.value)}/></label>
-              <label>Art<select aria-label="Ausschnittart" bind:value={a.art} onchange={()=>{if(!mitHoehen(a.art))delete a.bezugslinie}}>{#each arten as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
-              <div class="zeile">
-                <span>Maßstab: {a.kalibrierung?massstabText(a.kalibrierung):p.kalibrierung?`Blatt (${massstabText(p.kalibrierung)})`:"fehlt"}</span>
-                <button type="button" class="link" onclick={()=>{a.kalibrierung={art:"massstab",nenner}}}>1 : {z(nenner)} setzen</button>
-                <button type="button" class="link" onclick={()=>{if(aktiv!==a.id)oeffnen(a.id);werkzeug="kalibrieren"}}>Zwei Punkte kalibrieren</button>
-                {#if a.kalibrierung}<button type="button" class="link" onclick={()=>{delete a.kalibrierung}}>Blattmaßstab verwenden</button>{/if}
-              </div>
-              {#if mitHoehen(a.art)}
-                <div class="zeile">
-                  <span>Bezugslinie: {a.bezugslinie?`${z(a.bezugslinie.hoehe_m)} ${a.bezugslinie.system}`:"fehlt – ±0,00-Linie des Schnitts anklicken"}</span>
-                  <label>Höhe (m)<input type="number" step="any" bind:value={hwert}/></label>
-                  <label>System<input bind:value={hsystem}/></label>
-                  {#each nullpunkte as n}<button type="button" class="link" onclick={()=>{hwert=n.wert;hsystem="m ü. NHN"}}>Nullpunkt {n.name} ({z(n.wert)} m ü. NHN)</button>{/each}
-                  <button type="button" class:aktiv={werkzeug==="bezugslinie"} onclick={()=>{if(aktiv!==a.id)oeffnen(a.id);werkzeug="bezugslinie"}}>Bezugslinie setzen</button>
-                  {#if a.bezugslinie}<button type="button" class="link" onclick={()=>{delete a.bezugslinie}}>Bezugslinie entfernen</button>{/if}
-                </div>
-              {:else}<p class="meta">Grundriss und Lageplan messen Flächen und Längen; Höhen stammen aus Schnitten, Ansichten oder Details.</p>{/if}
-              <div class="aktionen">
-                <button type="button" class="sekundaer" onclick={()=>ausschnittDuplizieren(a)}>Nur Rahmen kopieren</button>
-                <button type="button" class="sekundaer" onclick={()=>ausschnittDuplizieren(a,true)}>Mit Markierungen kopieren</button>
-                <button type="button" class="sekundaer" onclick={()=>void ausschnittEntfernen(a)}>Entfernen</button>
-              </div>
-            </fieldset>
-          {/if}
-          <h3>Zeichenebenen</h3>
-          {#each p.ebenen as e (e.id)}
-            <div class="ebene"><input type="radio" aria-label={`Auf Ebene ${e.bezeichnung} zeichnen`} name={`ebene-${s.id}`} value={e.id} bind:group={ebene}/>
-              <input aria-label="Ebenenname" bind:value={e.bezeichnung} disabled={!darf||s.laeuft} required/>
-              <label title="Sichtbar"><input type="checkbox" checked={sichtbarkeit[e.id]??e.sichtbar} onchange={ev=>{if(darf)e.sichtbar=ev.currentTarget.checked;else sichtbarkeit={...sichtbarkeit,[e.id]:ev.currentTarget.checked}}}/>An</label>
-              <label title="Gesperrt"><input type="checkbox" bind:checked={e.gesperrt} disabled={!darf||s.laeuft}/>Sperre</label>
+            <button type="button" class="sekundaer" disabled={!darf||s.laeuft} onclick={()=>{const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id}}>Ebene hinzufügen</button>
+            <h3>Markierungen <span class="meta">({aktiv?`${anzahl(aktueller!).length} von `:""}{p.markierungen.length})</span></h3>
+            <label>Suchen<input type="search" aria-label="Markierungen suchen" bind:value={suche}/></label>
+            <label>Bedeutung filtern<select aria-label="Bedeutung filtern" bind:value={bedeutungFilter}><option value="">Alle Bedeutungen</option>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
+            <label>Gebäude filtern<select aria-label="Gebäude filtern" bind:value={gebaeudeFilter} onchange={()=>geschossFilter=""}><option value="">Alle Gebäude</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
+            {#if gebaeudeFilter}<label>Geschoss filtern<select aria-label="Geschoss filtern" bind:value={geschossFilter}><option value="">Alle Geschosse</option>{#each gebaeude.find(g=>g.objekt===gebaeudeFilter)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
+            <label><input type="checkbox" bind:checked={nurFehler}/>Nur fehlerhafte Markierungen</label>
+            <div class="markierungen">
+              {#each gefilterteMarkierungen as item (item.id)}<div class="objektzeile"><input type="checkbox" aria-label={`${item.bezeichnung} zur Auswahl hinzufügen`} checked={auswahlIds.includes(item.id)} onchange={()=>waehlen(item.id,true)}/><button type="button" class:aktiv={item.id===auswahl} onclick={()=>{waehlen(item.id);panelOeffnen("eigenschaften")}}>{item.bezeichnung}<span>{bedeutungen.find(b=>b[0]===item.bedeutung)?.[1]}{fehlerMap.has(item.id)?" · Fehler":""}{!aktiv&&item.ausschnitt_id?` · ${ausschnitte.find(a=>a.id===item.ausschnitt_id)?.bezeichnung??"Ausschnitt fehlt"}`:""}</span></button></div>{/each}
+              {#if !p.markierungen.length}<p class="meta">Ein Zeichenwerkzeug wählen (Tasten P, R, K, S, H) und Punkte auf dem Plan setzen.</p>{/if}
             </div>
-          {/each}
-          <button type="button" class="sekundaer" disabled={!darf||s.laeuft} onclick={()=>{const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id}}>Ebene hinzufügen</button>
-          <h3>Markierungen <span class="meta">({aktiv?`${anzahl(aktueller!).length} von `:""}{p.markierungen.length})</span></h3>
-          <label>Suchen<input type="search" aria-label="Markierungen suchen" bind:value={suche}/></label>
-          <label>Bedeutung filtern<select aria-label="Bedeutung filtern" bind:value={bedeutungFilter}><option value="">Alle Bedeutungen</option>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
-          <label>Gebäude filtern<select aria-label="Gebäude filtern" bind:value={gebaeudeFilter} onchange={()=>geschossFilter=""}><option value="">Alle Gebäude</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
-          {#if gebaeudeFilter}<label>Geschoss filtern<select aria-label="Geschoss filtern" bind:value={geschossFilter}><option value="">Alle Geschosse</option>{#each gebaeude.find(g=>g.objekt===gebaeudeFilter)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
-          <label><input type="checkbox" bind:checked={nurFehler}/>Nur fehlerhafte Markierungen</label>
-          <div class="markierungen">
-            {#each gefilterteMarkierungen as item (item.id)}<div class="objektzeile"><input type="checkbox" aria-label={`${item.bezeichnung} zur Auswahl hinzufügen`} checked={auswahlIds.includes(item.id)} onchange={()=>waehlen(item.id,true)}/><button type="button" class:aktiv={item.id===auswahl} onclick={()=>{waehlen(item.id);panel="eigenschaften"}}>{item.bezeichnung}<span>{bedeutungen.find(b=>b[0]===item.bedeutung)?.[1]}{fehlerMap.has(item.id)?" · Fehler":""}{!aktiv&&item.ausschnitt_id?` · ${ausschnitte.find(a=>a.id===item.ausschnitt_id)?.bezeichnung??"Ausschnitt fehlt"}`:""}</span></button></div>{/each}
-            {#if !p.markierungen.length}<p class="meta">Ein Zeichenwerkzeug wählen (Tasten P, R, K, S, H) und Punkte auf dem Plan setzen.</p>{/if}
-          </div>
-          {/if}
-          {#if panel==="eigenschaften"&&!m}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen.</p>{/if}
-          {#if auswahlIds.length>1}<section class="mehrfach"><h3>{auswahlIds.length} Markierungen ausgewählt</h3><fieldset disabled={!darf||s.laeuft}><div class="aktionen">{#each ["links","rechts","oben","unten"] as art}<button type="button" class="sekundaer" onclick={()=>auswahlAusrichten(art as "links"|"rechts"|"oben"|"unten")}>{art} ausrichten</button>{/each}</div>
-            {#if auswahlIds.length===2}<div class="aktionen">{#each [["vereinen","Vereinen"],["abziehen","Zweite Fläche abziehen"],["schneiden","Schnittfläche"],["teilen","An zweiter Fläche teilen"]] as [op,t]}<button type="button" onclick={()=>void flaechenAktion(op as import("../generated/plattform").Flaechenoperation)}>{t}</button>{/each}</div>{/if}</fieldset></section>{/if}
-          {#if m&&panel==="eigenschaften"}
-            <h3>Eigenschaften</h3>
-            <fieldset disabled={objektGesperrt}>
-              <label>Bezeichnung<input bind:value={m.bezeichnung} required/></label>
-              {#if fehlerMap.has(m.id)}<p class="fehlertext" role="alert">{fehlerMap.get(m.id)}</p>{/if}
-              <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung} onchange={()=>{if(m&&m.bedeutung!=="flurstueck"&&!ABZUGSBEDEUTUNGEN.includes(m.bedeutung))delete m.flurstueck_id}}>{#each bedeutungen as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
-              {#if m.bedeutung==="flurstueck"||ABZUGSBEDEUTUNGEN.includes(m.bedeutung)}
-                <label>Flurstück<select aria-label="Flurstück" value={m.flurstueck_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.flurstueck_id=v;else delete m!.flurstueck_id}}><option value="">Nicht zugeordnet</option>{#each flurstuecke as f (f.id)}<option value={f.id}>{f.gemarkung} {f.nummer}{f.flur?` (Flur ${f.flur})`:""}</option>{/each}{#if m.flurstueck_id&&!flurstuecke.some(f=>f.id===m!.flurstueck_id)}<option value={m.flurstueck_id}>Flurstück nicht mehr erfasst</option>{/if}</select></label>
-                {#if !m.flurstueck_id}<p class="hinweisbox">Für die Übernahme (Flurstücksfläche bzw. Flächenabzug des Flurstücks) das Flurstück zuordnen; ohne Zuordnung dient die Fläche nur zur Kontrolle.{flurstuecke.length?"":" Flurstücke zuerst unter Grundlagen → Flurstücke anlegen und speichern."}</p>{/if}
-              {/if}
-              {#if ["raum","aufenthaltsraum","nuf","tf","vf"].includes(m.bedeutung)}
-                {@const raeume=p.markierungen.filter(x=>x.id!==m!.id&&!x.hoehenzone_von&&["raum","aufenthaltsraum","nuf","tf","vf"].includes(x.bedeutung)&&x.gebaeude_id===m!.gebaeude_id&&x.geschoss_id===m!.geschoss_id)}
-                {#if raeume.length||m.hoehenzone_von}<label>Höhenzone von Raum<select aria-label="Höhenzone von Raum" value={m.hoehenzone_von??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.hoehenzone_von=v;else delete m!.hoehenzone_von}}><option value="">Keine – eigener Raum</option>{#each raeume as x (x.id)}<option value={x.id}>{x.bezeichnung}</option>{/each}{#if m.hoehenzone_von&&!raeume.some(x=>x.id===m!.hoehenzone_von)}<option value={m.hoehenzone_von}>Raum nicht mehr passend</option>{/if}</select></label>{/if}
-              {/if}
-              {#if ausschnitte.length}<label>Ausschnitt<select aria-label="Ausschnitt der Markierung" value={m.ausschnitt_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m.ausschnitt_id=v;else delete m.ausschnitt_id}}><option value="">Ganzes Blatt</option>{#each ausschnitte as a}<option value={a.id}>{a.bezeichnung}</option>{/each}</select></label>{/if}
-              <label>Zeichenebene<select aria-label="Zeichenebene" bind:value={m.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
-              <label>Baugrundstück<select aria-label="Baugrundstück" bind:value={m.grundstueck_id}><option value={null}>Nicht zugeordnet</option>{#each grund as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>
-              <label>Gebäude<select aria-label="Gebäude" bind:value={m.gebaeude_id} onchange={()=>{if(m)m.geschoss_id=null}}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
-              {#if m.gebaeude_id}<label>Geschoss<select aria-label="Geschoss" bind:value={m.geschoss_id}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse??[] as g,i}<option value={g.id}>{g.bezeichnung||`Geschoss ${i+1} (ohne Bezeichnung)`}</option>{/each}</select></label>{/if}
-              {#if (m.bedeutung==="gebaeudegrundflaeche"||m.bedeutung==="geschoss_aussenkante")&&!m.gebaeude_id}<p class="hinweisbox">Für die Übernahme ein Gebäude zuordnen.{gebaeude.length?"":" Gebäude zuerst unter Grundlagen → Gebäude / Geschosse anlegen und speichern."}</p>
-              {:else if m.bedeutung==="geschoss_aussenkante"&&!m.geschoss_id}<p class="hinweisbox">Für die Geschossfläche ein Geschoss zuordnen.{gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse.length?"":" Für dieses Gebäude sind noch keine Geschosse gespeichert; ohne einzelne Geschosse dient die Gebäudegrundfläche als Fläche des Einzelgeschosses."}</p>
-              {:else if m.bedeutung==="gebaeudegrundflaeche"&&m.geschoss_id}<p class="hinweisbox">Die Gebäudegrundfläche gilt für das ganze Gebäude; die Geschosszuordnung wird dafür nicht verwendet. Für eine Geschossfläche die Markierung duplizieren und die Kopie als „Geschoss – Außenkante“ kennzeichnen.</p>{/if}
-              <div class="aktionen">
-                <button type="button" class="sekundaer" title="Strg+D · Kopie derselben Kontur, z. B. als Gebäudegrundfläche und Geschoss-Außenkante" onclick={duplizieren}>Duplizieren</button>
-                <button type="button" class="sekundaer" title="Entf" onclick={entfernen}>Markierung entfernen</button>
-              </div>
-              <label>Kontur drehen (°)<input type="number" step="any" bind:value={drehenGrad}/></label><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(drehen($state.snapshot(m!.geometrie),drehenGrad))}>Drehung anwenden</button>
-              <details><summary>Stützpunkte und Kanten bearbeiten</summary>
-                <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {z(p[0])}; {z(p[1])} pt</option>{/each}</select></label>
-                {#if m}{@const punkt=eckpunkte(m.geometrie)[punktIndex]??eckpunkte(m.geometrie)[0]}
-                {#if punkt}<label>X (Seitenpunkte)<input type="number" step="any" value={punkt[0]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[Number(e.currentTarget.value),punkt[1]]))}/></label><label>Y (Seitenpunkte)<input type="number" step="any" value={punkt[1]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[punkt[0],Number(e.currentTarget.value)]))}/></label>{/if}
-                {/if}
-                {#if m.geometrie.art==="polygon"}<div class="aktionen"><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(punktEinfuegen($state.snapshot(m!.geometrie),punktIndex))}>Punkt nach Auswahl einfügen</button><button type="button" class="sekundaer" disabled={m.geometrie.punkte.length<=3} onclick={()=>{geometrieSetzen(punktEntfernen($state.snapshot(m!.geometrie),punktIndex));punktIndex=0}}>Punkt entfernen</button></div>{/if}
-                {#if m.geometrie.art==="polygon"||m.geometrie.art==="strecke"}<label>Kantenlänge (m)<input type="number" min=".001" step="any" bind:value={kanteMeter}/></label><label>Kantenwinkel (°)<input type="number" step="any" bind:value={kanteWinkel}/></label><button type="button" disabled={!meterProPunkt(aktueller?.kalibrierung??p.kalibrierung)} onclick={()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);if(f)geometrieSetzen(kantenmass($state.snapshot(m!.geometrie),punktIndex,kanteMeter/f,kanteWinkel))}}>Kantenmaß anwenden</button>{/if}
-              </details>
+          </details>
+          <details class="palette" bind:open={offen.blatt}>
+            <summary><h3>Blatt und Einrichtung</h3> <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
+            <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
+              <label>Bezeichnung<input bind:value={p.bezeichnung} required/></label>
+              <label>Unterlage<select aria-label="Unterlage" value={`${p.dokument.dokument_id}|${p.dokument.version}`} onchange={e=>source(e.currentTarget.value)}>
+                <option value="">Unterlage wählen</option>
+                {#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}
+              </select></label>
+              {#if !istDxfUnterlage}<label>Seite<input type="number" min="1" max={pdf?.seiten.length??1} step="1" value={p.seite} onchange={e=>{const n=Number(e.currentTarget.value);e.currentTarget.value=String(p.seite);void seiteWechseln(n)}} required/></label>{/if}
             </fieldset>
-            <dl class="messwerte">
-              <dt>Fläche</dt><dd>{z(wert?.flaeche_m2)} m²</dd>
-              <dt>Länge / Umfang</dt><dd>{z(wert?.laenge_m)} m</dd>
-              <dt>{m.geometrie.art==="hoehenpunkt"?"Absolute Höhe":"Höhendifferenz"}</dt><dd>{z(wert?.hoehe_m)} m</dd>
-              <dt>Horizontale</dt><dd>{z(wert?.horizontale_m)} m</dd>
-              <dt>Neigung zur Horizontalen</dt><dd>{z(wert?.neigung_grad)}°</dd>
-            </dl>
-            {#if messLaeuft}<p class="meta" role="status">Messwerte werden aktualisiert …</p>{/if}
-            {#each wert?.offen??[] as hinweis}<p class="hinweisbox">{hinweis}</p>{/each}
-            <p class="meta">Nach dem Speichern: {ziel(m.bedeutung)} Eckpunkte lassen sich mit „Auswählen“ ziehen, die ganze Markierung durch Ziehen der Fläche oder mit den Pfeiltasten.</p>
-          {/if}
+            <h3>{istDxfUnterlage?"Zeichnungseinheit":"Blattmaßstab"}</h3>
+            <fieldset disabled={!darf||s.laeuft}><div class="kalibrierung">
+              {#if istDxfUnterlage}
+                <label>Zeichnungseinheit<select aria-label="Zeichnungseinheit" value={p.kalibrierung?.art==="einheit"?p.kalibrierung.einheit:""} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit|"";if(v)p.kalibrierung={art:"einheit",einheit:v}}}><option value="">Einheit wählen</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
+                <span class="meta">{dxf?.plan.einheit?`Laut DXF-Kopf: ${EINHEITEN.find(e=>e.code===dxf!.plan.einheit)?.name}`:"Die DXF nennt keine Einheit; Zeichnungseinheit wählen und mit einer Kontrollstrecke prüfen."}</span>
+              {:else}
+                <label>Maßstab 1 :<input type="number" min=".001" step="any" bind:value={nenner}/></label>
+                <button type="button" class="sekundaer" onclick={()=>{if(aktueller)aktueller.kalibrierung={art:"massstab",nenner};else p.kalibrierung={art:"massstab",nenner}}}>Maßstab setzen</button>
+              {/if}
+              <label>Referenzstrecke (m)<input type="number" min=".001" step="any" bind:value={referenz}/></label>
+              <button type="button" class="sekundaer" class:aktiv={werkzeug==="kalibrieren"} aria-pressed={werkzeug==="kalibrieren"} onclick={()=>werkzeug="kalibrieren"}>Zwei Punkte kalibrieren</button>
+              <span class="meta">{!p.kalibrierung?"Maßstab fehlt":massstabText(p.kalibrierung)}{aktueller?` · gilt für „${aktueller.bezeichnung}“`:""}</span>
+            </div>
+            <h3>Höhenbezug des Blattes</h3>
+            <p class="meta">Nur für Blätter ohne Ausschnitte: Höhen werden dann senkrecht zur Seite gemessen. Bei mehreren Schnitten je Blatt die Bezugslinie je Ausschnitt setzen (unter „Objekte“).</p>
+            <div class="kalibrierung"><label>Höhensystem<input bind:value={hsystem}/></label><label>Bezugshöhe (m)<input type="number" step="any" bind:value={hwert}/></label>
+              <button type="button" class="sekundaer" class:aktiv={werkzeug==="bezug"} aria-pressed={werkzeug==="bezug"} onclick={()=>werkzeug="bezug"}>Bezugspunkt setzen</button>
+              <span>{p.hoehenbezug?`${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:"Noch kein Höhenbezug des Blattes"}</span>
+            </div>
+            <h3>Kontrollstrecke</h3>
+            <div class="kalibrierung"><label>Kontrollstrecke (m)<input type="number" min=".001" step="any" bind:value={kontrollMeter}/></label><button type="button" class="sekundaer" class:aktiv={werkzeug==="kontrolle"} aria-pressed={werkzeug==="kontrolle"} onclick={()=>werkzeug="kontrolle"}>Kontrollstrecke messen</button>
+              {#if kontrolle}<span role="status">Kontrollvorschau: {z(kontrolle.gemessen)} m · Soll {z(kontrolle.soll)} m · Abweichung {z((kontrolle.gemessen/kontrolle.soll-1)*100)} %{Math.abs(kontrolle.gemessen/kontrolle.soll-1)>.01?" · Maßstab oder Unterlage prüfen":""}</span>{/if}
+            </div></fieldset>
+            {#if dxf}<h3>Zeichnungsebenen der DXF <span class="meta">· {dxf.plan.ebenen.length} Ebenen · {dxf.plan.linien.length} Linienzüge</span></h3>
+              <div class="dxf-ebenen">{#each dxf.plan.ebenen as e,i}<label><input type="checkbox" checked={dxfSichtbar[i]??true} onchange={ev=>{const an=ev.currentTarget.checked;dxfSichtbar=dxfSichtbar.map((v,j)=>j===i?an:v)}}/><span class="farbe" style:background={e.farbe??"#222"}></span>{e.name}</label>{/each}</div>
+              {#if dxf.plan.hinweise.length}<ul class="meta">{#each dxf.plan.hinweise as h}<li>{h}</li>{/each}</ul>{/if}
+            {/if}
+          </details>
+          <details class="palette" bind:open={offen.pruefen}>
+            <summary><h3>Prüfen und Ausgabe</h3></summary>
+            <h3>Lage im Baufenster (§ 23 BauNVO)</h3>
+            <p class="meta">Im Lageplan das Baufenster (Baugrenzen / Baulinien) mit Bedeutung „Baufenster“ und den Gebäudeumriss mit Bedeutung „Vorhabenumriss“ zeichnen, je genau eine Markierung; bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen. Die Zuordnung speichert beide Umrisse in Metern am Projekt; der GRZ-Nachweis bewertet die Lage.</p>
+            <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
+            {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
+            {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
+            {#if !istDxfUnterlage}<h3>Planstände vergleichen</h3>
+              <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
+              {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
+                <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
+                <label><input type="checkbox" bind:checked={vergleichBestaetigt}/>Blattlage und Konturen anhand der Überlagerung geprüft</label>
+                <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Als neues Aufmaß auf Vergleichsunterlage übertragen …</button>{/if}
+            {/if}
+            <h3>Ausgabe</h3>
+            <label><input type="checkbox" bind:checked={nurSichtbare}/>Nur sichtbare Ebenen ausgeben</label>
+            <div class="aktionen"><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}>Aufmaßblatt PDF …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}>Messwerte CSV …</button></div>
+          </details>
         </aside>
       </div>
     </div>
   {/snippet}
 </Fachliste>
 
+  {#snippet editorwerkzeuge()}
+    <Symbolknopf titel="Rückgängig" kuerzel="Strg+Z" disabled={!darf||!undo} onclick={rueckwaerts}><WerkzeugIcon art="undo"/></Symbolknopf>
+    <Symbolknopf titel="Wiederholen" kuerzel="Strg+Y" disabled={!darf||!redo} onclick={vorwaerts}><WerkzeugIcon art="redo"/></Symbolknopf>
+    <span class="trenner" aria-hidden="true"></span>
+    <Symbolknopf titel="Aufmaßblatt PDF …" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}><WerkzeugIcon art="pdf"/></Symbolknopf>
+    <Symbolknopf titel="Messwerte CSV …" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}><WerkzeugIcon art="csv"/></Symbolknopf>
+    <span class="trenner" aria-hidden="true"></span>
+    <Symbolknopf titel="Maße anzeigen" aktiv={masse} onclick={()=>masse=!masse}><WerkzeugIcon art="masse"/></Symbolknopf>
+    <Symbolknopf titel={vollbild?"Vollbild beenden":"Vollbild"} kuerzel="F11" aktiv={vollbild} onclick={()=>vollbild=!vollbild}><WerkzeugIcon art="vollbild"/></Symbolknopf>
+    <Symbolknopf titel="Kurzbefehle" kuerzel="F1" aktiv={hilfe} aria-expanded={hilfe} onclick={()=>hilfe=!hilfe}><WerkzeugIcon art="hilfe"/></Symbolknopf>
+  {/snippet}
+
 <style>
-  .panelwahl{position:sticky;top:0;z-index:2;display:flex;gap:.25rem;padding:.4rem 0;background:var(--bg,#f4f6f8);border-bottom:2px solid var(--linie,#ccd5df)}
-  .panelwahl button{flex:1;font-size:.8rem;padding:.4rem .3rem}
-  .panelwahl button.aktiv{box-shadow:inset 0 -3px var(--accent,#126d97)}
-  .speicherstatus{font-size:.8rem;font-variant-numeric:tabular-nums}
-  .kurzbefehle{border:1px solid var(--linie,#ccd5df);padding:.6rem;margin:.4rem 0;background:var(--bg,#f4f6f8)}
-  .kurzbefehle p{margin:.4rem 0;font-size:.85rem}
-  .dxf-ebenen{display:flex;flex-wrap:wrap;gap:.4rem 1rem;padding:.3rem 0}
+  /* Zeichenarbeitsplatz: Schnellleiste oben, Symbolleiste links, Zeichenfläche in der Mitte, Paletten rechts. */
+  .editor{display:flex;flex-direction:column;min-height:480px;border:1px solid var(--border);background:var(--panel)}
+  .editor.vollbild{position:fixed;inset:0;z-index:40;height:auto;border:0}
+  .vollbildleiste{display:flex;gap:8px;align-items:center;padding:4px 8px;background:var(--kopfzeile);border-bottom:1px solid var(--border)}
+  .vollbildleiste .editorwerkzeuge{display:inline-flex;gap:2px;align-items:center;margin-left:auto}
+  .werkzeugleiste :global(svg),.pfad :global(svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .trenner{width:1px;height:20px;background:var(--border);margin:0 5px}
+  .kurzbefehle{border-bottom:1px solid var(--border);padding:.4rem .8rem;background:var(--leiste)}
+  .kurzbefehle p{margin:.3rem 0;font-size:.85rem}
+  .hinweisbox.schmal{margin:0;border-left:0;border-right:0;border-top:0}
+  .arbeitsplatz{display:grid;grid-template-columns:auto minmax(0,1fr) 320px;flex:1;min-height:0}
+  .werkzeugleiste{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:2px;padding:6px 4px;background:var(--kopfzeile);border-right:1px solid var(--border);overflow:auto}
+  .gruppentrenner{width:20px;border-top:1px solid var(--border);margin:4px 0}
+  .flaeche{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+  .flaeche > :global(.pdf-plan){flex:1;min-height:0}
+  .pfad{flex:none;display:flex;gap:.4rem;align-items:center;padding:2px 10px;min-height:26px;background:var(--leiste);border-bottom:1px solid var(--border-innen);font-size:.85rem;white-space:nowrap;overflow:hidden}
+  .pfad .link{min-height:20px;padding:0;color:var(--muted)}
+  .pfad .link:disabled{color:var(--muted);background:transparent}
+  .betrachtung{margin:0;border-left:0;border-right:0;border-top:0}
+  .leer{padding:2rem;text-align:center}
+  .flaeche > .fehlertext{margin:0;padding:4px 10px;border-top:1px solid var(--border)}
+  aside{border-left:1px solid var(--border);overflow:auto;min-height:0;background:var(--leiste);display:flex;flex-direction:column}
+  .panelwahl{position:sticky;top:0;z-index:2;display:flex;gap:0;padding:0;background:var(--kopfzeile);border-bottom:1px solid var(--border)}
+  .panelwahl button{flex:1;font-size:.85rem;padding:.35rem .3rem;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;min-height:28px}
+  .panelwahl button.aktiv{background:var(--panel);box-shadow:inset 0 2px 0 var(--accent);color:var(--accent);font-weight:600}
+  .palette{flex:none;background:var(--panel);border-bottom:1px solid var(--border);padding:0 10px 10px}
+  .palette:not([open]){padding-bottom:0}
+  .palette > summary{margin:0 -10px;padding:5px 10px;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--kopfzeile);border-bottom:1px solid var(--border-innen);list-style:none;display:flex;gap:.4rem;align-items:baseline}
+  .palette > summary::before{content:"▸";font-size:.7rem;transition:transform .1s}
+  .palette[open] > summary::before{transform:rotate(90deg)}
+  .palette > summary .meta{text-transform:none;letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .palette > summary h3{margin:0;font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
+  .palette h3{margin:.8rem 0 .3rem;font-size:.9rem}
+  .palette fieldset{border:0;padding:0;display:grid;gap:.5rem;margin:.4rem 0 0}
+  .palette label:not(:has(> input[type=checkbox])):not(:has(> input[type=radio])){display:flex;flex-direction:column;gap:2px;margin:0;font-size:.85rem;color:var(--muted)}
+  .palette label input:not([type=checkbox]):not([type=radio]),.palette label select{width:100%;min-height:28px;padding:2px 6px;color:var(--fg)}
+  .palette .aktionen{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+  .dxf-ebenen{display:flex;flex-wrap:wrap;gap:.3rem .8rem;padding:.3rem 0}
   .dxf-ebenen label{display:flex;gap:.35rem;align-items:center}
-  .dxf-ebenen .farbe{width:.8rem;height:.8rem;border:1px solid #888;display:inline-block}
-  .vergleichsbereich{padding:.5rem 0;border-top:1px solid var(--linie,#ccd5df)}
-  .vergleichsbereich>label{display:flex;gap:.6rem;align-items:center;margin:.4rem 0}
+  .dxf-ebenen .farbe{width:.8rem;height:.8rem;border:1px solid var(--control-border);display:inline-block}
   .objektzeile{display:flex;gap:.4rem;align-items:center;content-visibility:auto;contain-intrinsic-size:auto 48px}
   .objektzeile button{flex:1}
-  .mehrfach{padding:.5rem;border:1px solid var(--linie,#ccd5df);margin:.5rem 0}
-  .quellzeile{display:grid;grid-template-columns:1fr 2fr 6rem;gap:1rem;margin-bottom:1rem}
-  .einrichtung{margin-bottom:.5rem}
-  .einrichtung summary{cursor:pointer}
-  .kalibrierung,.werkzeuge{display:flex;gap:.6rem;flex-wrap:wrap;align-items:end;margin:.5rem 0}
-  .kalibrierung input[type=number]{width:8rem}
-  .werkzeuge{align-items:center;margin:0 0 .4rem}
-  .werkzeuge .rechts{margin-left:auto}
-  .werkzeuge .umschalter{display:flex;gap:.3rem;align-items:center;font-size:.85rem}
-  .pfad{display:flex;gap:.4rem;align-items:center;margin-right:.6rem;white-space:nowrap}
-  .editor{display:flex;flex-direction:column;min-height:480px}
-  .editor.vollbild{position:fixed;inset:0;z-index:40;background:var(--bg,#f4f6f8);padding:.5rem;height:auto}
-  .arbeitsplatz{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:1rem;flex:1;min-height:0}
-  .flaeche{display:flex;flex-direction:column;min-height:0}
-  aside{border-left:1px solid var(--linie,#ccd5df);padding-left:1rem;overflow:auto;min-height:0}
-  aside h3{margin:.8rem 0 .3rem}
-  .schmal{margin:0 0 .4rem}
+  .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
+  .quellzeile{display:grid;gap:.5rem}
+  .kalibrierung{display:flex;gap:.5rem;flex-wrap:wrap;align-items:end;margin:.3rem 0}
+  .kalibrierung label{flex:1 1 7rem}
+  .kalibrierung input[type=number]{width:100%}
   .ausschnitte{display:grid;gap:.3rem}
-  .ausschnitt{display:flex;gap:.4rem;align-items:center;padding:.25rem .4rem;border:1px solid transparent;border-radius:4px}
-  .ausschnitt.gewaehlt{border-color:#5a3d8f}
-  .ausschnitt.aktiv{background:#5a3d8f14;border-color:#5a3d8f}
+  .ausschnitt{display:flex;gap:.4rem;align-items:center;padding:.25rem .4rem;border:1px solid transparent}
+  .ausschnitt.gewaehlt{border-color:var(--accent)}
+  .ausschnitt.aktiv{background:var(--auswahl);border-color:var(--accent)}
   .ausschnitt>button.link{flex:1;text-align:left;font-weight:600}
   .ausschnitt>button.link span{display:block;font-size:.75rem;font-weight:400}
-  .ausschnitt-eigenschaften{margin:.6rem 0;padding:.5rem;border:1px solid var(--linie,#ccd5df);border-radius:4px}
+  .ausschnitt-eigenschaften{margin:.6rem 0;padding:.5rem!important;border:1px solid var(--border)!important}
   .ausschnitt-eigenschaften legend{font-weight:600;padding:0 .3rem}
   .ausschnitt-eigenschaften .zeile{display:flex;flex-wrap:wrap;gap:.3rem .7rem;align-items:center}
-  .ausschnitt-eigenschaften .zeile input{width:7rem}
-  .ebene{display:flex;gap:.3rem;align-items:center;margin-bottom:.5rem}
+  .ausschnitt-eigenschaften .zeile label{flex:0 0 7rem}
+  .ebene{display:flex;gap:.3rem;align-items:center;margin-bottom:.4rem}
   .ebene>input:not([type=radio]){min-width:3rem;width:100%}
   .ebene label{font-size:.75rem;white-space:nowrap}
-  .markierungen{max-height:220px;overflow:auto;display:grid;gap:.25rem}
+  .markierungen{max-height:260px;overflow:auto;display:grid;gap:.25rem}
   .markierungen button{text-align:left}.markierungen span{display:block;font-size:.75rem;font-weight:400}
-  .messwerte{display:grid;grid-template-columns:1fr auto;gap:.4rem;font-variant-numeric:tabular-nums}.messwerte dd{margin:0;font-weight:600}
-  fieldset{border:0;padding:0;display:grid;gap:.5rem}
-  .aktionen{display:flex;gap:.5rem;flex-wrap:wrap}
-  @media(max-width:1100px){.arbeitsplatz{grid-template-columns:1fr}aside{border-left:0;padding-left:0;max-height:40vh}.quellzeile{grid-template-columns:1fr}}
+  .messwerte{display:grid;grid-template-columns:1fr auto;gap:.3rem .6rem;font-variant-numeric:tabular-nums;margin:.4rem 0;padding:.4rem .6rem;background:var(--leiste);border:1px solid var(--border-innen)}
+  .messwerte dt{color:var(--muted)}.messwerte dd{margin:0;font-weight:600}
+  @media(max-width:1100px){.arbeitsplatz{grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}aside{grid-column:1 / -1;border-left:0;border-top:1px solid var(--border);max-height:45%}}
 </style>

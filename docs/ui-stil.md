@@ -24,6 +24,25 @@ Die Aufteilung der Masken, die Register und die Gliederung bleiben unverändert.
 - Unverändert: Pflichtfelder gelb hinterlegt, schreibgeschützte Felder
   gestrichelt, Schriftgröße 13 px und die dichte Anordnung der Fachmasken.
 
+## Editoren
+
+Der Aufmaß-Editor (`Planaufmass.svelte`, `PdfPlan.svelte`) folgt dem Schnitt
+eines CAD-Arbeitsplatzes und ist Vorbild für weitere Zeichenbereiche:
+
+- `Fachliste` im Modus `kompakt`: Bei geöffnetem Eintrag verschwinden Titel,
+  Listenknöpfe und Pflichthinweis; es bleibt eine schmale Speicherleiste mit
+  Status, Speichern, Schließen und den Symbolknöpfen des Editors (Snippet
+  `werkzeuge`).
+- Senkrechte Werkzeugleiste links, Gruppen durch Linien getrennt, nur Symbole
+  (`WerkzeugIcon.svelte`, 16 × 16, Strich in `currentColor`). Ein gesperrtes
+  Werkzeug nennt im Tooltip den Grund.
+- Zeichenfläche in der Mitte mit Pfadzeile oben (Unterlage › Blatt ›
+  Ausschnitt), Ansichtsleiste (Zoom, Drehen, Seiten, Fang) und einer Zeile
+  Statusmeldung unten; Hintergrund `--fenster`.
+- Rechts Paletten als `<details class="palette">` mit grauer Kopfzeile in
+  Großbuchstaben, 320 px breit; unter 1100 px rutschen sie unter die Fläche.
+- Im Vollbild trägt der Editor eine eigene Kopfleiste mit denselben Knöpfen.
+
 ## Umsetzung
 
 Alle Werte stehen als Variablen in `apps/desktop/src/app.css` im Abschnitt

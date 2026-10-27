@@ -19,6 +19,8 @@
     lesendBedienbar = false,
     zusatzBeschaeftigt,
     pruefen,
+    kompakt = false,
+    werkzeuge,
   }: {
     titel: string;
     s: FachSitzung<T>;
@@ -29,8 +31,13 @@
     pruefen?: () => boolean;
     children: Snippet<[T]>;
     zusatz?: Snippet<[T]>;
+    /** Editor-Modus: bei geöffnetem Eintrag nur eine schmale Speicherleiste, Titel und Listenknöpfe verschwinden. */
+    kompakt?: boolean;
+    /** Zusätzliche Knöpfe rechts in der Speicherleiste (Symbolknöpfe des Editors). */
+    werkzeuge?: Snippet;
   } = $props();
   const aktiv = bereichAktiv();
+  const editor = $derived(kompakt && !!s.eingabe);
   $effect(() => { if (!aktiv()) untrack(() => void s.entwurfFlush()); });
   const formularId = $props.id();
   let formular = $state<HTMLFormElement>();
@@ -180,7 +187,7 @@
   }
 </script>
 
-<h2>{titel}</h2>
+{#if !editor}<h2>{titel}</h2>{/if}
 {#if s.fehler}<p class="fehlertext" role="alert">{s.fehler}</p>{/if}
 {#if s.meldung}<p role="status">{s.meldung}</p>{/if}
 {#if s.gerettet}<div class="hinweisbox">
@@ -191,7 +198,7 @@
       >Entwurf verwerfen</button
     >
   </div>{/if}
-<div class="knoepfe links">
+<div class="knoepfe links" class:ausgeblendet={editor}>
   <button
     disabled={!darf || gesperrt || s.hatAenderungen() || s.gerettet}
     onclick={() => s.neu()}>Neu anlegen</button
@@ -264,9 +271,9 @@
     {#if !darf}<p class="lesemodus" role="status">
         Nur Leserecht · Die Angaben können hier nicht geändert werden.
       </p>{/if}
-    <p class="meta pflichtkonvention">
+    {#if !editor}<p class="meta pflichtkonvention">
       Mit * gekennzeichnete Angaben sind erforderlich.
-    </p>
+    </p>{/if}
     {#if feldfehler.length}<div class="fehlerzusammenfassung" role="alert">
         <strong>Bitte die erforderlichen Eingaben ergänzen.</strong>
         <ul>
@@ -279,7 +286,8 @@
             </li>{/each}
         </ul>
       </div>{/if}
-    <div class="knoepfe links speicherleiste">
+    <div class="knoepfe links speicherleiste" class:editor>
+      {#if editor}<strong class="editortitel">{titel}</strong>{/if}
       <span aria-label="Speicherstatus" role="status">{#if s.laeuft}Wird gespeichert …{:else}<Statusanzeige status={s.hatAenderungen() ? "entwurf" : "gespeichert"}/>{/if}</span>
       <button
         disabled={!darf || gesperrt || !(s.hatAenderungen() || s.gerettet)}
@@ -291,9 +299,10 @@
         onclick={verwerfen}
         >{s.hatAenderungen() ? "Entwurf verwerfen" : "Schließen"}</button
       >
+      {#if werkzeuge}<span class="editorwerkzeuge">{@render werkzeuge()}</span>{/if}
     </div>
     <fieldset disabled={(!darf && !lesendBedienbar) || gesperrt}>
-      <legend
+      <legend class:ausgeblendet={editor}
         >{s.revision === 0 ? "Neuer Eintrag" : "Eintrag bearbeiten"}</legend
       >{@render children(s.eingabe)}
     </fieldset>
@@ -314,6 +323,31 @@
   </details>{/if}
 
 <style>
+  .ausgeblendet {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .speicherleiste.editor {
+    padding: 4px 8px;
+    gap: 6px;
+    align-items: center;
+    background: var(--kopfzeile);
+  }
+  .speicherleiste.editor .editortitel {
+    margin-right: 6px;
+  }
+  .speicherleiste.editor .editorwerkzeuge {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    margin-left: 10px;
+    padding-left: 10px;
+    border-left: 1px solid var(--border);
+  }
   .speicherleiste {
     position: sticky;
     top: 0;
