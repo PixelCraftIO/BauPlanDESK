@@ -57,6 +57,9 @@ eines CAD-Arbeitsplatzes und ist Vorbild für weitere Zeichenbereiche:
 - Rechts Paletten als `<details class="palette">` mit grauer Kopfzeile in
   Großbuchstaben, 320 px breit; unter 1100 px rutschen sie unter die Fläche.
 - Im Vollbild trägt der Editor eine eigene Kopfleiste mit denselben Knöpfen.
+- Palette „Werkzeugkiste“: Vorlagen als flache Knöpfe mit Werkzeugsymbol in
+  Gruppen (Grundstück, GRZ-Bauteile, Gebäude, Räume, DIN 277, Höhen); die
+  gewählte Vorlage ist markiert und erscheint als Statuszeile über der Fläche.
 - Listen mit Kennzahlen (z. B. Messwerte und Verwendung): eine Reihe flacher
   Kennzahlkästen über der Tabelle, Filter als Zeile darunter, Zeilen mit
   älterem Stand gelb hinterlegt; Sprünge als Textlinks in der Zeile.

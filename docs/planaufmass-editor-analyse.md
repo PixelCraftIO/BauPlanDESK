@@ -310,9 +310,12 @@ Tastatur, Höhenhilfslinie mit Höhenvorschau am Höhenpunkt (ersetzt das
 geplante eigene Werkzeug „Höhenlinie“: der Fang an Kanten plus Hilfslinie
 deckt den Fall ab) sowie **Stufe C**: Aufmaß-Aufgaben aus `planaufmass_aufgaben`
 mit Vorbelegung beim Zeichnen und Übernahme per Klick für Gebäude und manuelle
-Abstandswände. Offen bleiben aus C: Aufgaben für Positionen der
-Fachberechnungen und des Raumbuchs (dort müssen die Positionen erst entstehen)
-sowie die Werkzeugkiste und Textvorschläge aus Stufe D.
+Abstandswände, inzwischen auch für Positionen der Fachberechnungen und Räume
+des Raumbuchs (die Positionen bzw. Räume müssen erfasst sein; für Raumbücher
+zusätzlich die Sammelübernahme „Räume aus dem Aufmaß“). Aus Stufe D ist die
+Werkzeugkiste umgesetzt (Vorlagen aus dem Core mit Bedeutung, Namensschema und
+Zeichenebene; eine eigene Farbe je Ebene gibt es nicht, die Ebene trägt die
+Zuordnung). Offen bleiben die Textvorschläge.
 
 
 

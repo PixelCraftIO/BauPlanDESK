@@ -26,6 +26,11 @@ export const planApi = {
   einsetzen: (projektId: string, plan: FachPlan) => invoke<FachPlan>("planaufmass_einsetzen", { projektId, plan }),
   raumbuch: (projektId: string, aufmassId: string, revision: number, raumbuch: import("../generated/plattform").Raumbuch) =>
     invoke<import("../generated/plattform").Raumbuch>("planaufmass_raumbuch", { projektId, aufmassId, revision, raumbuch }),
+  /** Löst die Planbindungen eines Raumbuchentwurfs auf und setzt die Raumflächen ein (Entwurf; Speichern über die Fachgrenze). */
+  raumbuchEinsetzen: (projektId: string, raumbuch: import("../generated/plattform").Raumbuch) =>
+    invoke<import("../generated/plattform").Raumbuch>("planaufmass_raumbuch_einsetzen", { projektId, raumbuch }),
+  /** Vorlagen der Werkzeugkiste: Werkzeug, Bedeutung und Zeichenebene in einem Schritt. */
+  werkzeugkiste: () => invoke<import("../generated/plattform").Werkzeugvorlage[]>("planaufmass_werkzeugkiste"),
   abstandsziele: (plan: import("../generated/plattform").AbstandsPlan) => invoke<Planziel[]>("planaufmass_abstandsziele", { plan }),
   abstand: (projektId: string, plan: import("../generated/plattform").AbstandsPlan) =>
     invoke<import("../generated/plattform").AbstandsPlan>("planaufmass_abstand", { projektId, plan }),

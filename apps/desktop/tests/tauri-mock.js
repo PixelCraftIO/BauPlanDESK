@@ -80,6 +80,12 @@ window.__TAURI_INTERNALS__ = {
       return window.rueckfrage === false ? nein : ja;
     }
     if (cmd === "fachobjekt_lesen") return null;
+    if (cmd === "planaufmass_werkzeugkiste")
+      return [
+        { id: "flurstueck", gruppe: "Grundstück", titel: "Flurstück", bedeutung: "flurstueck", geometrie: "flaeche", ebene: "Grundstück", hinweis: "Flurstücksgrenze aus Flurkarte oder Lageplan" },
+        { id: "nuf", gruppe: "DIN 277", titel: "DIN 277 NUF", bedeutung: "nuf", geometrie: "flaeche", ebene: "DIN 277", hinweis: "Nutzungsfläche; Gebäude und Geschoss zuordnen" },
+        { id: "traufe", gruppe: "Höhen", titel: "Traufe", bedeutung: "traufe", geometrie: "hoehenpunkt", ebene: "Höhen", hinweis: "Traufhöhe; Höhenpunkt mit Bezugslinie" },
+      ];
     if (["fachobjekte","fachobjektseite","fachverlaufsseite","fachverlauf","nachweise","verfahren_planunterlagen"].includes(cmd)) return [];
     if(cmd==='projektuebersicht')return {projekt_id:args.projektId,projekt_version:initial.version,ermittelt_am:initial.created_at,stichtag:'2026-10-16',zahlen:{offene_aufgaben:0,fehlende_unterlagen:0,nachweise_pruefen:0,offene_nachforderungen:0,offene_auflagen:0,ueberfaellig:0},punkte:[],verfahren:[],abgaben:[],empfaenger:[],hinweise:['Fiktive leere Übersicht für diesen Browsertransport.']};
     if (cmd === "projektstatus") return {ermittelt_am:initial.created_at,offene_aufgaben:0,ueberfaellige_aufgaben:0,erforderliche_unterlagen:0,fehlende_unterlagen:0,ungepruefte_unterlagen:0,nachweise:0,veraltete_nachweise:0,offene_freigaben:0,exportierte_pakete:0,bestaetigte_einreichungen:0,hinweise:[]};

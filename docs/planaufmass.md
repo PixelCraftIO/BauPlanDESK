@@ -86,12 +86,19 @@ Enthalten sind:
   in m, optional Winkel; beim Rechteck Breite;Höhe), Beschriftung der
   Markierungen mit Core-Messwerten, Tastaturkürzel (V, M, P, R, K, S, H, Z,
   Entf, Strg+Z/Y/D, Pfeiltasten, Bild ↑/↓, Esc).
-- Aufmaß-Aufgaben: Der Core listet je gespeichertem Gebäude und je manueller
-  Abstandswand die Zielfelder mit benötigter Bedeutung und Geometrie, erkennt
-  verknüpfte Ziele und passende freie Markierungen. „Zeichnen“ belegt Werkzeug,
-  Bedeutung, Gebäude, Geschoss und Namen vor; „Übernehmen“ verknüpft die
-  Markierung über die bestehenden Übernahmedienste und speichert den
-  Verbraucher.
+- Aufmaß-Aufgaben: Der Core listet je Flurstück, Abzugsfläche, GRZ-Bauteil,
+  gespeichertem Gebäude, manueller Abstandswand, Position einer Fachberechnung
+  (DIN 277, Wohnfläche, Freiflächen, Entwässerung, Vollgeschosse, Höhen) und
+  Raum eines Raumbuchs die Zielfelder mit benötigter Bedeutung und Geometrie,
+  erkennt verknüpfte Ziele und passende freie Markierungen. „Zeichnen“ belegt
+  Werkzeug, Bedeutung, Gebäude, Geschoss und Namen vor; „Übernehmen“ verknüpft
+  die Markierung über die bestehenden Übernahmedienste und speichert den
+  Verbraucher. Für Raumbücher zusätzlich „Räume aus dem Aufmaß“ (Sammelübernahme
+  wie im Raumbuch).
+- Werkzeugkiste: feste Vorlagen aus dem Core (`werkzeugkiste`), z. B. „DIN 277
+  NUF“, „Versiegelte Fläche“, „Traufe“. Ein Klick wählt Werkzeug, Bedeutung,
+  laufenden Namen und Zeichenebene (wird beim ersten Gebrauch angelegt);
+  Gebäude und Geschoss kommen aus der Voreinstellung für freie Markierungen.
 - Polygon, Rechteck, Kreis, Strecke und Höhenpunkt; Eckpunkte verschieben,
   Zeichenaktionen rückgängig machen und wiederholen.
 - Benannte Zeichenebenen mit Sichtbarkeit und Bearbeitungssperre.
@@ -342,12 +349,28 @@ weitergegebenen Fachwerte.
 - `abstandsziele`: entsprechende Positivliste für manuelle Wände.
 - `gebaeudeziele`: entsprechende Positivliste für Gebäude und explizite Geschosse.
 - `CoreServices::planaufmass_aufgaben`: `Planaufgabe` je Zielfeld der
-  gespeicherten Gebäude und manuellen Wände (Verbraucher, Objekt, Gruppe,
-  Zielfeld, Messgröße, geforderte `Planbedeutung`, `Aufgabengeometrie`
+  Flurstücke, Abzugsflächen, GRZ-Bauteile, gespeicherten Gebäude, manuellen
+  Wände, Fachberechnungen (`verbraucher: berechnung`, `modul` = Fachobjektart,
+  Zielfelder aus `planziele`; Bedeutung je Modul und Zeile, z. B. DIN-277-Art,
+  Freiflächen-/Entwässerungstyp, Höhenart) und Raumbücher (`verbraucher:
+  raumbuch`, je Raum `raeume.<id>.flaeche_m2`, dazu `raeume` für die
+  Sammelübernahme freier Raumkonturen). Felder: Verbraucher, Objekt, Modul,
+  Gruppe, Zielfeld, Messgröße, geforderte `Planbedeutung`, `Aufgabengeometrie`
   `flaeche`/`hoehenpunkt`/`strecke`, Zuordnungen, `wert_vorhanden`,
-  `gebunden`, passende freie `markierung`, Hinweis). Reine Auskunft; die
-  Übernahme läuft über `planaufmass_gebaeude`/`planaufmass_abstand` und das
-  Speichern des Verbrauchers.
+  `gebunden`, passende freie `markierung`, Hinweis. Reine Auskunft; die
+  Übernahme läuft über `planaufmass_gebaeude`/`planaufmass_abstand`/
+  `planaufmass_einsetzen`/`planaufmass_raumbuch_einsetzen` und das Speichern
+  des Verbrauchers. Freie Markierungen einer Fachberechnung müssen deren
+  Grundstück und Gebäude tragen; Grundstücksbilanzen bekommen zusätzlich die
+  Gebäudegrundfläche eines Gebäudes vorgeschlagen (Eindeutigkeit prüft die
+  Übernahme). Ist die Gebäudeübernahme der Berechnung aktiv oder stammt der
+  Wert aus einem Nachweis, wird nichts vorgeschlagen.
+- `CoreServices::planaufmass_raumbuch_einsetzen`: löst die Planbindungen eines
+  Raumbuchentwurfs auf und setzt die Raumflächen ein (Entwurf). Die
+  Sammelübernahme `planaufmass_raumbuch` aktualisiert einen Raum, dem eine
+  Markierung bereits über eine Bindung zugeordnet ist, statt ihn zu doppeln.
+- `werkzeugkiste` / `Werkzeugvorlage`: feste Liste (Kennung, Gruppe, Titel,
+  Bedeutung, `Aufgabengeometrie`, Ebene, Hinweis) ohne Projektbezug.
 - `CoreServices::baugrenzen_aus_aufmass` / `planaufmass_baugrenzen`: aus dem
   gespeicherten `Aufmassstand` die `BaugrenzenGeometrie` (Meter, Dokumentbezug
   des Aufmaßes, Baugrundstück aus der Zuordnung des Vorhabenumrisses) bilden,
@@ -506,10 +529,10 @@ Für das beschriebene Gesamtziel fehlen noch eigenständige Verbraucheradapter:
   Grundlage und Anrechnung bleiben Eingaben und Regeln des Grundstücksmoduls.
   Noch offen: Teilflächen für GFZ-Geschosse, Dachneigung und Raumhöhen aus
   Schnitten sowie Baumasse als Planziele.
-- Vorschläge für Ausschnitte, Maßstab und Höhenkoten aus dem PDF-Text,
-  Lotfang und eine Werkzeugkiste mit Vorlagen;
-  Aufgaben für Fachberechnungen (Positionen) und Raumbuch; siehe
-  [planaufmass-editor-analyse.md](planaufmass-editor-analyse.md).
+- Vorschläge für Ausschnitte, Maßstab und Höhenkoten aus dem PDF-Text und
+  Lotfang; siehe [planaufmass-editor-analyse.md](planaufmass-editor-analyse.md).
+  Aufgaben setzen voraus, dass Positionen bzw. Räume bereits erfasst sind;
+  neue Positionen einer Fachberechnung entstehen nicht aus dem Aufmaß.
 - Geschoss-Außenkonturen zusätzlich als transformierte Lagegeometrie für
   Gebäudeumrisse und Wandkorrespondenzen bereitstellen. Die Flächenübernahme
   in Gebäude/Geschosse ist vorhanden; räumliche Planausrichtung noch nicht.
@@ -554,7 +577,9 @@ nicht erfasste projektspezifische Pflichten.
   Zoomfenster, Drehung mit Seitenkoordinaten, Ausschnitt mit Bezugslinie und
   Höhenpunkt, Tastenkürzel, Speichern und Seitenwechsel über Miniaturen.
 - Storage-Integration: Aufgaben mit gebundenen Zielen, vorgeschlagener freier
-  Markierung und offener Bedeutung für Gebäude und Wand.
+  Markierung und offener Bedeutung für Gebäude und Wand; Aufgaben, Übernahme
+  und Sammelübernahme für DIN-277-Position und Raumbuch sowie die
+  Werkzeugkiste (`crates/storage/tests/aufgaben_verbraucher.rs`).
   Fachwerte werden durch die Core-Tests geprüft.
 
 PDF-Adapterreferenz: [PDF.js API](https://mozilla.github.io/pdf.js/api/draft/api.js.html).
