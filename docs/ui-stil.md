@@ -42,6 +42,8 @@ eines CAD-Arbeitsplatzes und ist Vorbild für weitere Zeichenbereiche:
 - Rechts Paletten als `<details class="palette">` mit grauer Kopfzeile in
   Großbuchstaben, 320 px breit; unter 1100 px rutschen sie unter die Fläche.
 - Im Vollbild trägt der Editor eine eigene Kopfleiste mit denselben Knöpfen.
+- Editorfenster: dunkle Kopfleiste mit Marke, Projektname und „Aufmaß · eigenes
+  Fenster“, darunter direkt die Zeichnungs-Tabs; keine Akte, keine Register.
 - Zeichnungs-Tabs über dem Editor (`role=tablist`): flache Reiter wie die
   Projekttabs, aktiver Tab weiß mit Akzentlinie, ungespeichert mit eckigem
   Kennzeichen, Schließen als Symbolknopf.

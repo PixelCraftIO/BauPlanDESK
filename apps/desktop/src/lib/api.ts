@@ -1373,6 +1373,8 @@ export const api = {
     invoke<Projektloeschung>("projekt_loeschen", { id, version }),
   /** Eigenes wirksames Projektrecht nach der Core-Regel (zugriff.rs). */
   projektRecht: (id: string) => invoke<ProjektRecht>("projekt_recht", { id }),
+  /** Aufmaß des Projekts in einem eigenen Fenster öffnen oder nach vorn holen. */
+  editorFenster: (id: string) => invoke<void>("editor_fenster_oeffnen", { id }),
   projektAktivieren: (id: string) => invoke<Project>("projekt_oeffnen", { id }),
   projektSchliessen: () => invoke<void>("projekt_schliessen"),
   projektAktualisieren: (

@@ -255,6 +255,44 @@ pub async fn zuletzt_geoeffnet(
         .collect())
 }
 
+/// Öffnet das Aufmaß eines Projekts in einem eigenen Fenster (Label
+/// `editor-<Projekt>`); ein schon offenes Fenster wird nach vorn geholt.
+/// Das Fenster lädt dieselbe Oberfläche mit `?fenster=editor&projekt=<id>`.
+#[tauri::command]
+pub async fn editor_fenster_oeffnen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: ProjectId,
+) -> CmdResult<()> {
+    state
+        .core
+        .projekt_zugriff(
+            id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    let projekt = state.core.get_project(id).await?;
+    let label = format!("editor-{id}");
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    let url = format!("index.html?fenster=editor&projekt={id}");
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
+        .title(format!("Aufmaß – {} – BauPlanIO", projekt.name))
+        .inner_size(1440.0, 900.0)
+        .min_inner_size(1024.0, 680.0)
+        .build()
+        .map_err(|e| CmdError {
+            art: "fenster",
+            meldung: format!("Das Editorfenster konnte nicht geöffnet werden: {e}"),
+        })?;
+    Ok(())
+}
+
 fn set_titel(app: &AppHandle, projekt: Option<&str>) {
     let titel = match projekt {
         Some(name) => format!("{name} – BauPlanIO"),

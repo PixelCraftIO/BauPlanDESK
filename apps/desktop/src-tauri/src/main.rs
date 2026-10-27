@@ -189,6 +189,7 @@ fn main() {
             commands::projekt_bereich_speichern,
             commands::grundstueckskontext,
             commands::projekt_oeffnen,
+            commands::editor_fenster_oeffnen,
             commands::projekt_laden,
             commands::projekt_recht,
             commands::projekt_schliessen,

@@ -7,11 +7,20 @@
   import Planaufmass from "./Planaufmass.svelte";
   import Symbolknopf from "../Symbolknopf.svelte";
   import { tabsLesen, tabsMerken, type Tabstart, type Zeichnungstab } from "./tabs";
+  import { api, fehlertext } from "../api";
+  import WerkzeugIcon from "./WerkzeugIcon.svelte";
   let { projekt, benutzerId, darf, onprojekt, unterlage = null }: FachProps = $props();
   const gemerkt = untrack(() => tabsLesen(benutzerId, projekt.id));
   let tabs = $state<Zeichnungstab[]>(gemerkt.tabs);
   let aktiv = $state(gemerkt.aktiv);
   const instanzen: Record<string, Planaufmass | undefined> = {};
+  // Nur das Hauptfenster bietet das eigene Editorfenster an.
+  const imHauptfenster = !new URLSearchParams(location.search).has("fenster");
+  let fensterFehler = $state("");
+  async function fensterOeffnen() {
+    fensterFehler = "";
+    try { await api.editorFenster(projekt.id); } catch (e) { fensterFehler = fehlertext(e); }
+  }
   $effect(() => {
     if (!tabs.some(t => t.key === aktiv) && aktiv !== "liste") aktiv = "liste";
   });
@@ -64,7 +73,9 @@
       <Symbolknopf klasse="tab-schliessen" titel={`${t.titel || "Aufmaß"} schließen`} onclick={() => void schliessen(t.key)}><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></Symbolknopf>
     </div>
   {/each}
+  {#if imHauptfenster}<Symbolknopf klasse="fensterknopf" titel="Aufmaß in eigenem Fenster öffnen" onclick={() => void fensterOeffnen()}><WerkzeugIcon art="fenster"/></Symbolknopf>{/if}
 </div>
+{#if fensterFehler}<p class="fehlertext" role="alert">{fensterFehler}</p>{/if}
 <section hidden={aktiv !== "liste"} aria-label="Aufmaßliste">
   <Planaufmass {projekt} {benutzerId} {darf} {onprojekt} {unterlage} modus="liste" sichtbar={aktiv === "liste"} onoeffnen={oeffnen} onneu={neu} />
 </section>
@@ -83,5 +94,7 @@
   .punkt{display:inline-block;width:7px;height:7px;margin-left:6px;background:var(--warning-text,#6b4a00);vertical-align:middle}
   .zeichnungstab :global(.tab-schliessen){width:22px;min-height:22px;margin-right:3px}
   .zeichnungstab :global(.tab-schliessen svg){width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
+  .zeichnungstabs :global(.fensterknopf){margin-left:auto;margin-bottom:2px;align-self:center}
+  .zeichnungstabs :global(.fensterknopf svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   section[hidden]{display:none}
 </style>
