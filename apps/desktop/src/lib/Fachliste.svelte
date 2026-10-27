@@ -21,6 +21,8 @@
     pruefen,
     kompakt = false,
     werkzeuge,
+    oeffnen,
+    neu,
   }: {
     titel: string;
     s: FachSitzung<T>;
@@ -35,6 +37,10 @@
     kompakt?: boolean;
     /** Zusätzliche Knöpfe rechts in der Speicherleiste (Symbolknöpfe des Editors). */
     werkzeuge?: Snippet;
+    /** Übernimmt „Öffnen“ einer Zeile statt der Bearbeitung in dieser Liste (Zeichnungs-Tabs). */
+    oeffnen?: (f: Datensatz<T>) => void;
+    /** Übernimmt „Neu anlegen“ statt `s.neu()` (Zeichnungs-Tabs). */
+    neu?: () => void;
   } = $props();
   const aktiv = bereichAktiv();
   const editor = $derived(kompakt && !!s.eingabe);
@@ -201,13 +207,13 @@
 <div class="knoepfe links" class:ausgeblendet={editor}>
   <button
     disabled={!darf || gesperrt || s.hatAenderungen() || s.gerettet}
-    onclick={() => s.neu()}>Neu anlegen</button
+    onclick={() => (neu ? neu() : s.neu())}>Neu anlegen</button
   ><button class="sekundaer" disabled={gesperrt} onclick={() => s.laden()}
     >Liste aktualisieren</button
   >
 </div>
-{#if s.eingabe && s.liste.length}<button type="button" class="link" aria-expanded={listeOffen} onclick={()=>listeOffen=!listeOffen}>{listeOffen ? "Eintragsliste einklappen" : `Eintragsliste anzeigen (${s.liste.length})`}</button>{/if}
-{#if !s.eingabe || listeOffen}
+{#if s.eingabe && s.liste.length && !editor}<button type="button" class="link" aria-expanded={listeOffen} onclick={()=>listeOffen=!listeOffen}>{listeOffen ? "Eintragsliste einklappen" : `Eintragsliste anzeigen (${s.liste.length})`}</button>{/if}
+{#if !s.eingabe || (listeOffen && !editor)}
   <table class="ergebnistabelle">
     <thead
       ><tr
@@ -221,8 +227,8 @@
             >{/if}<td>{f.revision}</td><td
             ><button
               class="link"
-              disabled={gesperrt || s.hatAenderungen() || s.gerettet}
-              onclick={() => s.bearbeiten(f)}>Öffnen</button
+              disabled={gesperrt || (!oeffnen && (s.hatAenderungen() || s.gerettet))}
+              onclick={() => (oeffnen ? oeffnen(f) : s.bearbeiten(f))}>Öffnen</button
             ><button class="link" onclick={() => historie(f.objekt)}
               >Verlauf</button
             ></td

@@ -14,7 +14,7 @@ export const FACHMODULE = [
     id: "planaufmass",
     titel: "Aufmaß",
     gruppe: "Unterlagen",
-    laden: () => import("../planaufmass/Planaufmass.svelte"),
+    laden: () => import("../planaufmass/Aufmasstabs.svelte"),
   },
   {
     id: "ueberbaubarkeit",
