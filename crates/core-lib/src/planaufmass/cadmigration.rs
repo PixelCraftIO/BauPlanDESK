@@ -99,7 +99,7 @@ pub fn umwandeln(a: &CadProjektaufmass, datei: &str, grenzen: &Rechteck) -> Plan
     }
     Planaufmass {
         bezeichnung: format!("{datei} · CAD-Aufmaß (übernommen)"),
-        dokument: a.dokument.clone(),
+        dokument: Some(a.dokument.clone()),
         seite: 1,
         kalibrierung: Some(Plankalibrierung::Einheit { einheit: a.einheit }),
         hoehenbezug: None,
@@ -111,6 +111,8 @@ pub fn umwandeln(a: &CadProjektaufmass, datei: &str, grenzen: &Rechteck) -> Plan
         }],
         markierungen,
         ausschnitte: vec![],
+        hintergruende: vec![],
+        elemente: vec![],
     }
 }
 

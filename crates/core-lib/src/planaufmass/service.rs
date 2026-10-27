@@ -163,17 +163,21 @@ impl CoreServices {
                 return Err(geaendert());
             }
         }
-        let aktuell = self
-            .document_history(a.dokument.dokument_id)
-            .await?
-            .into_iter()
-            .filter(|d| d.project_id == pid)
-            .map(|d| d.version)
-            .max();
-        if aktuell != Some(a.dokument.version) {
-            return Err(fehler(
-                "Unterlage hat eine neuere Version. Aufmaß auf neuer Unterlage prüfen.",
-            ));
+        // Eigene Zeichnungen hängen an keiner Unterlagenversion; ihre
+        // Hintergründe sind Darstellung und machen keine Bindung ungültig.
+        if let Some(d) = &a.dokument {
+            let aktuell = self
+                .document_history(d.dokument_id)
+                .await?
+                .into_iter()
+                .filter(|d| d.project_id == pid)
+                .map(|d| d.version)
+                .max();
+            if aktuell != Some(d.version) {
+                return Err(fehler(
+                    "Unterlage hat eine neuere Version. Aufmaß auf neuer Unterlage prüfen.",
+                ));
+            }
         }
         let m = a
             .markierungen
@@ -226,18 +230,20 @@ impl CoreServices {
         pid: ProjectId,
         plan: &Planaufmass,
     ) -> CoreResult<Pruefkontext> {
-        let dokument = self
-            .document_history(plan.dokument.dokument_id)
-            .await?
-            .into_iter()
-            .find(|d| d.project_id == pid && d.version == plan.dokument.version)
-            .ok_or_else(|| fehler("Dokumentversion gehört nicht zum Projekt"))?;
-        let name = dokument.file_name.to_lowercase();
-        let dxf = name.ends_with(".dxf");
-        if !dxf && !name.ends_with(".pdf") {
-            return Err(fehler("Aufmaß benötigt eine PDF- oder DXF-Unterlage"));
+        if let Some(dokument) = &plan.dokument {
+            let name = self.unterlage_name(pid, dokument).await?;
+            kalibrierung_passend(name.ends_with(".dxf"), plan)?;
+        } else {
+            // Eigene Zeichnung: Hintergründe müssen Unterlagen dieses Projekts sein.
+            for h in &plan.hintergruende {
+                let name = self.unterlage_name(pid, &h.dokument).await?;
+                if name.ends_with(".dxf") && h.seite != 1 {
+                    return Err(fehler(
+                        "DXF-Hintergründe haben nur eine Zeichnung (Seite 1)",
+                    ));
+                }
+            }
         }
-        kalibrierung_passend(dxf, plan)?;
         let projekt = self.get_project(pid).await?;
         let grund = if plan.markierungen.iter().any(|m| m.grundstueck_id.is_some()) {
             crate::grundstueckskontext::ermitteln(&projekt)
@@ -379,23 +385,44 @@ impl CoreServices {
     }
     /// Lesbare Bezeichnung der Unterlage: Dateiname, Plannummer und
     /// Index aus den Dokumentdaten (falls erfasst) und Dokumentversion.
-    async fn planunterlage(&self, pid: ProjectId, a: &Planaufmass) -> CoreResult<String> {
-        let datei = self
-            .document_history(a.dokument.dokument_id)
+    /// Dateiname (klein geschrieben) einer PDF- oder DXF-Unterlage des Projekts.
+    async fn unterlage_name(
+        &self,
+        pid: ProjectId,
+        d: &crate::plattform::objekte::Dokumentbezug,
+    ) -> CoreResult<String> {
+        let dokument = self
+            .document_history(d.dokument_id)
             .await?
             .into_iter()
-            .find(|d| d.project_id == pid && d.version == a.dokument.version)
+            .find(|x| x.project_id == pid && x.version == d.version)
+            .ok_or_else(|| fehler("Dokumentversion gehört nicht zum Projekt"))?;
+        let name = dokument.file_name.to_lowercase();
+        if !name.ends_with(".dxf") && !name.ends_with(".pdf") {
+            return Err(fehler("Aufmaß benötigt eine PDF- oder DXF-Unterlage"));
+        }
+        Ok(name)
+    }
+    async fn planunterlage(&self, pid: ProjectId, a: &Planaufmass) -> CoreResult<String> {
+        let Some(dokument) = &a.dokument else {
+            return Ok("Eigene Zeichnung (Meter)".into());
+        };
+        let datei = self
+            .document_history(dokument.dokument_id)
+            .await?
+            .into_iter()
+            .find(|d| d.project_id == pid && d.version == dokument.version)
             .map(|d| d.file_name)
             .unwrap_or_else(|| "Unterlage".into());
         let daten = self
             .fachobjekte(pid, ObjektArt::Dokumentdaten)
             .await?
             .into_iter()
-            .find(|f| f.objekt == a.dokument.dokument_id.0.to_string())
+            .find(|f| f.objekt == dokument.dokument_id.0.to_string())
             .and_then(|f| {
                 serde_json::from_value::<crate::plattform::objekte::Dokumentdaten>(f.daten).ok()
             })
-            .filter(|d| d.dokument.dokument_id == a.dokument.dokument_id);
+            .filter(|d| d.dokument.dokument_id == dokument.dokument_id);
         let mut t = datei;
         if let Some(d) = daten.filter(|d| !d.plannummer.trim().is_empty()) {
             t.push_str(&format!(" · Plan {}", d.plannummer.trim()));
@@ -403,7 +430,7 @@ impl CoreServices {
                 t.push_str(&format!(" Index {}", d.revisionsindex.trim()));
             }
         }
-        Ok(format!("PDF {t} V{}", a.dokument.version))
+        Ok(format!("PDF {t} V{}", dokument.version))
     }
 }
 

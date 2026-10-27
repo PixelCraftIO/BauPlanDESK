@@ -64,7 +64,11 @@ eines CAD-Arbeitsplatzes und ist Vorbild für weitere Zeichenbereiche:
   Fenster“, darunter direkt die Zeichnungs-Tabs; keine Akte, keine Register.
 - Zeichnungs-Tabs über dem Editor (`role=tablist`): flache Reiter wie die
   Projekttabs, aktiver Tab weiß mit Akzentlinie, ungespeichert mit eckigem
-  Kennzeichen, Schließen als Symbolknopf.
+  Kennzeichen, Schließen als Symbolknopf; rechts „Neue Zeichnung“.
+- Eigene Zeichnung: weißes Blatt mit hellgrauem Meterraster (1 m fein ab
+  10 px/m, 10 m grob), Hintergründe halbtransparent darunter, Wände als graue
+  Konturen, Maßketten und Freitexte in Stahlblau bzw. Anthrazit
+  (`docs/ui-umsetzung/zeichnung-eigene.png`).
 
 ## Umsetzung
 

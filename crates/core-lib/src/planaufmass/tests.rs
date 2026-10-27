@@ -58,11 +58,13 @@ fn plan(g: Plangeometrie) -> Planaufmass {
     let ebene = Uuid::from_u128(1);
     Planaufmass {
         bezeichnung: "EG".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: crate::domain::DocumentId(Uuid::from_u128(2)),
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -624,4 +626,184 @@ fn cad_aufmass_wird_in_seitenpunkte_umgewandelt() {
         super::cadmigration::aufmass_id("x"),
         super::cadmigration::aufmass_id("y")
     );
+}
+
+fn zeichnung(g: Plangeometrie) -> Planaufmass {
+    let mut p = plan(g);
+    p.bezeichnung = "Lageplan-Skizze".into();
+    p.dokument = None;
+    p.kalibrierung = Some(Plankalibrierung::Einheit {
+        einheit: crate::cad::Laengeneinheit::Meter,
+    });
+    p
+}
+
+#[test]
+fn altes_aufmass_json_ohne_neue_felder_bleibt_dateigleich() {
+    let p = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [100., 50.],
+    });
+    let json = serde_json::to_value(&p).unwrap();
+    // Neue Felder tauchen in gespeicherten Aufmaßen nicht auf.
+    assert!(json.get("hintergruende").is_none());
+    assert!(json.get("elemente").is_none());
+    assert_eq!(json["dokument"]["version"], 1);
+    let wieder: Planaufmass = serde_json::from_value(json.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&wieder).unwrap(), json);
+    // Gespeicherter Stand ohne die Felder lässt sich lesen.
+    let mut alt = json.clone();
+    alt.as_object_mut().unwrap().remove("hintergruende");
+    alt.as_object_mut().unwrap().remove("elemente");
+    let gelesen: Planaufmass = serde_json::from_value(alt).unwrap();
+    assert!(gelesen.hintergruende.is_empty() && gelesen.elemente.is_empty());
+    assert!(!gelesen.ist_zeichnung());
+}
+
+#[test]
+fn eigene_zeichnung_rechnet_in_metern() {
+    let p = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [12.5, 8.],
+    });
+    assert!(p.ist_zeichnung());
+    let werte = p.messen().unwrap();
+    assert!((werte[0].flaeche_m2.unwrap() - 100.).abs() < 1e-9);
+    assert!((werte[0].laenge_m.unwrap() - 41.).abs() < 1e-9);
+    // Ohne Kalibrierung gilt ebenfalls Meter.
+    let mut ohne = p.clone();
+    ohne.kalibrierung = None;
+    assert!((ohne.messen().unwrap()[0].flaeche_m2.unwrap() - 100.).abs() < 1e-9);
+    // Serialisiert ohne Unterlage.
+    let json = serde_json::to_value(&p).unwrap();
+    assert!(json.get("dokument").is_none());
+}
+
+#[test]
+fn zeichnung_lehnt_massstab_und_referenzstrecke_ab() {
+    let mut p = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    p.kalibrierung = Some(Plankalibrierung::Massstab { nenner: 100. });
+    assert!(p.messen().is_err());
+    p.kalibrierung = Some(Plankalibrierung::Einheit {
+        einheit: crate::cad::Laengeneinheit::Millimeter,
+    });
+    assert!(p.messen().is_err());
+    p.kalibrierung = None;
+    p.seite = 2;
+    assert!(p.messen().is_err());
+}
+
+fn hintergrund() -> Planhintergrund {
+    Planhintergrund {
+        id: Uuid::from_u128(40),
+        dokument: Dokumentbezug {
+            dokument_id: crate::domain::DocumentId(Uuid::from_u128(41)),
+            version: 1,
+        },
+        seite: 1,
+        ursprung: [0., 0.],
+        lage: [2., 3.],
+        drehung_grad: 0.,
+        meter_pro_punkt: 0.01,
+        deckkraft: 0.6,
+        sichtbar: true,
+    }
+}
+
+#[test]
+fn hintergruende_nur_in_zeichnungen_und_mit_gueltiger_einpassung() {
+    let mut aufmass = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    aufmass.hintergruende.push(hintergrund());
+    assert!(aufmass.messen().is_err());
+
+    let mut z = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    z.hintergruende.push(hintergrund());
+    assert!(z.messen().is_ok());
+    let json = serde_json::to_value(&z).unwrap();
+    assert_eq!(json["hintergruende"][0]["seite"], 1);
+
+    z.hintergruende.push(hintergrund());
+    assert!(z.messen().is_err(), "doppelte Id");
+    z.hintergruende.pop();
+    z.hintergruende[0].deckkraft = 1.5;
+    assert!(z.messen().is_err());
+    z.hintergruende[0].deckkraft = 1.;
+    z.hintergruende[0].meter_pro_punkt = 0.;
+    assert!(z.messen().is_err());
+    z.hintergruende[0].meter_pro_punkt = 0.01;
+    z.hintergruende[0].dokument.version = 0;
+    assert!(z.messen().is_err());
+}
+
+#[test]
+fn zeichenelemente_werden_geprueft_und_gespeichert() {
+    let mut z = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    let ebene = z.ebenen[0].id;
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(50),
+        ebene_id: ebene,
+        form: Zeichenform::Wand {
+            von: [0., 0.],
+            bis: [10., 0.],
+            dicke_m: 0.24,
+        },
+    });
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(51),
+        ebene_id: ebene,
+        form: Zeichenform::Masskette {
+            von: [0., 0.],
+            bis: [10., 0.],
+            abstand: 1.,
+        },
+    });
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(52),
+        ebene_id: ebene,
+        form: Zeichenform::Text {
+            punkt: [1., 1.],
+            inhalt: "Wohnen".into(),
+            hoehe: 0.25,
+            drehung_grad: 0.,
+        },
+    });
+    assert!(z.messen().is_ok());
+    let json = serde_json::to_value(&z).unwrap();
+    assert_eq!(json["elemente"][0]["art"], "wand");
+    assert_eq!(json["elemente"][2]["inhalt"], "Wohnen");
+    let wieder: Planaufmass = serde_json::from_value(json).unwrap();
+    assert_eq!(wieder.elemente.len(), 3);
+
+    let mut falsch = z.clone();
+    falsch.elemente[0].ebene_id = Uuid::from_u128(99);
+    assert!(falsch.messen().is_err(), "Ebene fehlt");
+    let mut falsch = z.clone();
+    falsch.elemente[0].form = Zeichenform::Wand {
+        von: [0., 0.],
+        bis: [10., 0.],
+        dicke_m: 12.,
+    };
+    assert!(falsch.messen().is_err(), "Wanddicke");
+    let mut falsch = z.clone();
+    falsch.elemente[2].id = falsch.elemente[0].id;
+    assert!(falsch.messen().is_err(), "doppelte Id");
+    // Elemente sind auch in Aufmaßen auf Unterlagen erlaubt (Maßketten, Texte).
+    let mut aufmass = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    aufmass.elemente.push(z.elemente[2].clone());
+    assert!(aufmass.messen().is_ok());
 }

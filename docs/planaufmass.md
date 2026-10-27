@@ -289,11 +289,22 @@ die DXF-Darstellung in `planaufmass/dxf.ts` (Linienzüge und Beschriftungen aus
 `CoreServices::cad_plan_version`). Die Bedienoberfläche berechnet keine
 weitergegebenen Fachwerte.
 
-- `Planaufmass`: Dokumentbezug, einsbasierte Seite (DXF: immer 1), optionale
-  Kalibrierung (`massstab`, `strecke` oder `einheit` mit `Laengeneinheit`)/
-  Höhenreferenz, Ebenen, identifizierbare Markierungen und optionale
-  `ausschnitte`. Die Unterlagenart folgt dem Dateinamen der Dokumentversion
-  (`.pdf`/`.dxf`), nicht einem zusätzlichen Feld.
+- `Planaufmass`: optionaler Dokumentbezug, einsbasierte Seite (DXF: immer 1),
+  optionale Kalibrierung (`massstab`, `strecke` oder `einheit` mit
+  `Laengeneinheit`)/Höhenreferenz, Ebenen, identifizierbare Markierungen,
+  optionale `ausschnitte`, `hintergruende` und `elemente`. Die Unterlagenart
+  folgt dem Dateinamen der Dokumentversion (`.pdf`/`.dxf`), nicht einem
+  zusätzlichen Feld. Fehlt `dokument`, ist das Aufmaß eine **eigene Zeichnung**
+  (siehe unten): Seitenpunkte sind Meter, als Kalibrierung ist nur
+  `einheit: meter` (oder keine) zulässig, `seite` ist 1.
+- `Planhintergrund` (nur eigene Zeichnungen): UUID, Dokumentbezug, Seite,
+  Einpassung `ursprung` (Seitenpunkt der Unterlage), `lage` (Meter auf dem
+  Blatt), `drehung_grad`, `meter_pro_punkt`, `deckkraft` 0…1, `sichtbar`.
+  Höchstens 20 je Zeichnung; ein Aufmaß auf einer Unterlage darf keine tragen.
+- `Zeichenelement`: UUID, `ebene_id` und eine Form (`art`): `wand` (`von`,
+  `bis`, `dicke_m`), `masskette` (`von`, `bis`, `abstand`) oder `text`
+  (`punkt`, `inhalt`, `hoehe`, `drehung_grad`). Elemente liefern keine
+  Messwerte und keine Bindungen; sie dienen Darstellung, Fang und Ausgabe.
 - `Planausschnitt`: UUID, Bezeichnung, `art` (`grundriss`, `lageplan`,
   `schnitt`, `ansicht`, `detail`), Rahmen `von`/`bis` in Seitenpunkten,
   optionale eigene `kalibrierung` und optionale `bezugslinie`
@@ -397,6 +408,37 @@ HTTP-Routen bleiben für Altbestand bestehen.
 Speichern erfolgt über die vorhandenen Fachobjekt-Endpunkte mit
 `ObjektArt::Planaufmass`. Die tatsächliche PDF-Seite bzw. die Lesbarkeit der
 DXF wird an der Speichergrenze über den bestehenden Vertrag geprüft.
+
+## Eigene Zeichnungen
+
+Ein Aufmaß ohne `dokument` ist eine eigene Zeichnung in Metern (y nach unten,
+Ursprung links oben). Die Messung bleibt dieselbe wie bei Unterlagen: Der Core
+rechnet mit der Kalibrierung `einheit: meter` (Faktor 1), Bedeutungen,
+Zuordnungen, Aufgaben und Planbindungen sind identisch, und Verbraucher sehen
+keinen Unterschied – deshalb gibt es keinen zweiten Fachobjekttyp. Unterlagen
+werden als `hintergruende` eingepasst: Der Unterlagenpunkt `ursprung` liegt
+bei `lage`, die Unterlage ist um `drehung_grad` gedreht und mit
+`meter_pro_punkt` skaliert (PDF: 1 : n entspricht n · 0,0254 / 72; DXF: die
+Zeichnungseinheit). Die Oberfläche passt Hintergründe über Maßstab, bekannte
+Strecke (Skalierung um den ersten Punkt), Verschieben und Drehen um einen Punkt
+ein; der Fang greift an den Vektoren der Hintergründe.
+
+Beim Speichern prüft `validieren` jede Hintergrund-Dokumentversion wie eine
+Unterlage (vorhanden, lesbar, Seite vorhanden); die Projektübersicht und die
+Berechnungssignatur berücksichtigen alle Hintergründe statt der fehlenden
+Unterlage. Der PDF-Export zeichnet die Zeichnung auf ein leeres Blatt im
+Maßstab 1 : 100 (`export::ZEICHNUNG_MASSSTAB`), Wände als Konturen, Maßketten
+mit Länge, Texte als Beschriftung; die CSV lässt die Dokumentspalten leer.
+Gespeicherte Aufmaße ohne die neuen Felder bleiben dateigleich
+(`serde(default)`/`skip_serializing_if`), geprüft in
+`crates/core-lib/src/planaufmass/tests.rs` und
+`crates/storage/tests/zeichnung.rs`. Oberfläche: `planaufmass/zeichnung.ts`
+(Einpassung, Wandkontur, Maßkette, Blattgröße), `PdfPlan.svelte` (Blatt in
+Metern mit Meterraster, Hintergründe, Elemente, Werkzeuge Wand/Maßkette/Text),
+`Planaufmass.svelte` (Palette „Blatt und Einrichtung → Hintergründe“,
+Eigenschaften der Elemente). UI-Test `tests/zeichnung.py`; Bildschirmfoto
+`docs/ui-umsetzung/zeichnung-eigene.png`. Ausblick: IFC-Modelle als
+Hintergrund (web-ifc, MPL-2.0) sind vorgesehen, aber nicht umgesetzt.
 
 ## Kompatibilität, Herkunft und Aktualität
 

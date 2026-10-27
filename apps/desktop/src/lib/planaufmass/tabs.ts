@@ -1,5 +1,6 @@
 /** Zeichnungs-Tabs des Aufmaßes: offene Aufmaße eines Projekts je Benutzer, über Sitzungen hinweg gemerkt. */
-export type Tabstart = { id?: string; dokument?: { id: string; version: number; name: string } };
+/** Start eines Tabs: gespeichertes Aufmaß, neuer Entwurf auf einer Unterlage oder neue eigene Zeichnung in Metern. */
+export type Tabstart = { id?: string; dokument?: { id: string; version: number; name: string }; zeichnung?: boolean };
 export interface Zeichnungstab {
   /** Eindeutiger Schlüssel des Tabs; zugleich Entwurfsobjekt der lokalen Entwurfssicherung. */
   key: string;

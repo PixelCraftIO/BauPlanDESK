@@ -106,9 +106,14 @@ impl CoreServices {
             }
             None => None,
         };
+        // Eine eigene Zeichnung hat keine Unterlage: Nullkennung und Version 0.
         let g = BaugrenzenGeometrie {
-            dokument_id: a.dokument.dokument_id,
-            dokument_version: a.dokument.version,
+            dokument_id: a
+                .dokument
+                .as_ref()
+                .map(|d| d.dokument_id)
+                .unwrap_or(crate::domain::DocumentId(uuid::Uuid::nil())),
+            dokument_version: a.dokument.as_ref().map(|d| d.version).unwrap_or(0),
             einheit: Laengeneinheit::Meter,
             baufenster: meter(ring(bf)?),
             vorhaben: meter(ring(vh)?),

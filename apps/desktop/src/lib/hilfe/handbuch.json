@@ -933,9 +933,9 @@
     },
     {
       "id": "aufmass",
-      "titel": "Aufmaß auf PDF und DXF erstellen und übernehmen",
+      "titel": "Aufmaß auf PDF und DXF sowie eigene Zeichnungen",
       "gruppe": "Pläne und Unterlagen",
-      "kurztext": "Messwerte auf PDF-Blättern und DXF-Zeichnungen mit dokumentierter Dokumentversion und passender Bedeutung verknüpfen.",
+      "kurztext": "Messwerte auf PDF-Blättern, DXF-Zeichnungen oder eigenen Zeichnungen in Metern mit dokumentierter Dokumentversion und passender Bedeutung verknüpfen.",
       "bereiche": [
         "planaufmass",
         "messwerte"
@@ -951,6 +951,15 @@
             "Für die Lage im Baufenster (§ 23 BauNVO) im Lageplan je genau eine Markierung „Baufenster“ und „Vorhabenumriss“ zeichnen (bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen) und unter „Lage im Baufenster“ dem Projekt zuordnen. Der GRZ-Nachweis bewertet die Lage; eine neue Dokumentversion erfordert die erneute Zuordnung.",
             "Aufmaß speichern. Über „Aufgaben → Übernehmen“ oder an der jeweiligen Zielmaske „Aus Aufmaß“ den Messwert verknüpfen und den Verbraucher speichern. Flurstücke werden dabei mit den Grundstücksinformationen gespeichert; die Katasterfläche bleibt Rechenwert, die gezeichnete Fläche zeigt die Abweichung.",
             "Bei Fachberechnungen die vorhandene Position unter „Quellen / Übernahmen“ mit der passenden Markierung verknüpfen. Die reine Beschriftung einer Markierung erzeugt noch keine Berechnung."
+          ]
+        },
+        {
+          "titel": "Eigene Zeichnung in Metern",
+          "schritte": [
+            "In der Zeichnungsleiste „Neue Zeichnung“ wählen. Das Blatt rechnet in Metern (1 Einheit = 1 m), zeigt ein Meterraster und wächst mit den Inhalten; Maßstab und Kalibrierung entfallen.",
+            "Unter „Blatt und Einrichtung → Hintergründe“ eine PDF-Seite oder DXF-Zeichnung hinzufügen und einpassen: Maßstab 1:n bzw. Zeichnungseinheit setzen, „Über Strecke einpassen“ (zwei Punkte einer bekannten Strecke anklicken, Länge in m), „Verschieben“ (Punkt und Ziel anklicken) und „Um Punkt drehen“. Deckkraft und Sichtbarkeit je Hintergrund; der Punktfang greift an den Vektoren der Hintergründe.",
+            "Mit Wand (W), Maßkette (L) und Text (X) zeichnen; Wanddicke, Abstand der Maßlinie, Text und Schrifthöhe stehen unter „Eigenschaften“. Diese Elemente liefern keine Messwerte, sie dienen der Darstellung.",
+            "Flächen, Strecken und Höhen wie auf einer Unterlage als Markierungen zeichnen; Bedeutungen, Zuordnungen, Aufgaben und Übernahmen sind dieselben. Der PDF-Export gibt die Zeichnung im Maßstab 1:100 aus."
           ]
         },
         {
@@ -984,6 +993,10 @@
               [
                 "Maßeingabe",
                 "Nach dem ersten Punkt eine Ziffer tippen; die eingeblendete Maßeingabe und Einheit beachten"
+              ],
+              [
+                "Zeichenelemente",
+                "W Wand, L Maßkette, X Text; Endpunkte mit „Auswählen“ ziehen, Entf löscht"
               ]
             ]
           }

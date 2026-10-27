@@ -423,16 +423,23 @@ impl CoreServices {
                 .await?;
             if let Some(f) = &f {
                 let a: crate::planaufmass::Planaufmass = decode(&f.daten)?;
-                let version = match self.repos.documents.latest(a.dokument.dokument_id).await {
-                    Ok(d) if d.project_id == pid => Some(d.version),
-                    Ok(_) | Err(CoreError::NotFound(_)) => None,
-                    Err(e) => return Err(e),
-                };
-                fachquellen.push(Some((
-                    format!("pdf:{}", a.dokument.dokument_id.0),
-                    version.unwrap_or(0),
-                    serde_json::Value::Null,
-                )));
+                // Aufmaß: die Unterlage; eigene Zeichnung: ihre Hintergründe.
+                let unterlagen = a
+                    .dokument
+                    .iter()
+                    .chain(a.hintergruende.iter().map(|h| &h.dokument));
+                for d in unterlagen {
+                    let version = match self.repos.documents.latest(d.dokument_id).await {
+                        Ok(d) if d.project_id == pid => Some(d.version),
+                        Ok(_) | Err(CoreError::NotFound(_)) => None,
+                        Err(e) => return Err(e),
+                    };
+                    fachquellen.push(Some((
+                        format!("pdf:{}", d.dokument_id.0),
+                        version.unwrap_or(0),
+                        serde_json::Value::Null,
+                    )));
+                }
             }
             // Nur der für diese Bindung maßgebende Stand; Ebenen oder andere
             // Markierungen desselben Aufmaßes machen den Nachweis nicht veraltet.

@@ -496,7 +496,10 @@ pub(super) async fn erstellen(
                                     )
                                     .ok()
                                 });
-                            let anlage = stand.as_ref().and_then(|a| bezuege.dokument(&a.dokument));
+                            let anlage = stand
+                                .as_ref()
+                                .and_then(|a| a.dokument.as_ref())
+                                .and_then(|d| bezuege.dokument(d));
                             if let Some(a) = anlage {
                                 verweise.push(a);
                             }
@@ -508,15 +511,15 @@ pub(super) async fn erstellen(
                                         .find(|m| m.id == b.markierung_id)
                                         .map(|m| m.bezeichnung.clone())
                                         .unwrap_or_else(|| "Markierung fehlt".into()),
-                                    match anlage {
-                                        Some(n) => format!(
+                                    match (anlage, &a.dokument) {
+                                        (Some(n), Some(d)) => format!(
                                             "Version {} · Seite {} · Anlage {n}",
-                                            a.dokument.version, a.seite
+                                            d.version, a.seite
                                         ),
-                                        None => format!(
-                                            "Version {} · Seite {}",
-                                            a.dokument.version, a.seite
-                                        ),
+                                        (None, Some(d)) => {
+                                            format!("Version {} · Seite {}", d.version, a.seite)
+                                        }
+                                        (_, None) => "Eigene Zeichnung".into(),
                                     },
                                 ),
                                 None => ("Aufmaßstand fehlt".into(), String::new(), String::new()),

@@ -146,12 +146,20 @@ impl CoreServices {
                 "dachneigung_grad" => "Dachneigung",
                 _ => "Dachneigung B",
             };
-            herkunft.entry(w.id).or_default().push(format!(
-                "{feld}: Aufmaß „{}“ R{} · Markierung „{}“ · PDF V{} · Seite {}",
-                a.bezeichnung, b.revision, m.bezeichnung, a.dokument.version, a.seite
-            ));
-            if !plan.quellen.contains(&a.dokument) {
-                plan.quellen.push(a.dokument);
+            herkunft.entry(w.id).or_default().push(match &a.dokument {
+                Some(d) => format!(
+                    "{feld}: Aufmaß „{}“ R{} · Markierung „{}“ · PDF V{} · Seite {}",
+                    a.bezeichnung, b.revision, m.bezeichnung, d.version, a.seite
+                ),
+                None => format!(
+                    "{feld}: Zeichnung „{}“ R{} · Markierung „{}“ · eigene Zeichnung in Metern",
+                    a.bezeichnung, b.revision, m.bezeichnung
+                ),
+            });
+            if let Some(d) = a.dokument
+                && !plan.quellen.contains(&d)
+            {
+                plan.quellen.push(d);
             }
         }
         for w in &mut plan.waende {

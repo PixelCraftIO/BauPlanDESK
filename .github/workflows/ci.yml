@@ -160,6 +160,7 @@ jobs:
           python apps/desktop/tests/ansichtsabfragen.py
           python apps/desktop/tests/handbuch-ui.py
           python apps/desktop/tests/beispielprojekt.py
+          python apps/desktop/tests/zeichnung.py
       - name: Editor- und Entwurfssicherung unter Fehlern prüfen
         run: |
           npm --prefix apps/desktop run dev -- --host 127.0.0.1 --port 1467 > /tmp/bauplan-stabilitaet-vite.log 2>&1 &
@@ -202,5 +203,6 @@ jobs:
             /tmp/bauprojekt-ui-felder
             /tmp/bauplan-handbuch-ui
             /tmp/bauplan-arbeitsplatz-ui
+            /tmp/bauplan-zeichnung
             /tmp/bauplan-workflow-ui
             /tmp/bauprojekt-ui.log

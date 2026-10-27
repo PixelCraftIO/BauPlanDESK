@@ -2,7 +2,9 @@
   import { onMount, untrack } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, EINHEITEN, istDxf, istPlan, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext, type CadPlan, type BaugrenzenPruefung } from "../api";
-  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude, Laengeneinheit } from "../generated/plattform";
+  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude, Laengeneinheit, Planhintergrund, Zeichenelement, Zeichenform } from "../generated/plattform";
+  import { hgSkalieren, hgVerschieben, hgDrehen, hintergrundNeu, mppAusMassstab, elementPunkte, type Hintergrundansicht } from "./zeichnung";
+  import { EINHEIT_METER } from "./pdfGeometry";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
   import Symbolknopf from "../Symbolknopf.svelte";
@@ -26,7 +28,7 @@
   let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
     /** voll: Liste und Editor in einem; liste: nur die Liste, Öffnen/Neu gehen an den Aufrufer; tab: nur der Editor für `start`. */
     modus?:"voll"|"liste"|"tab";start?:Tabstart|null;entwurfObjekt?:string;sichtbar?:boolean;
-    onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(dokument?:Tabstart["dokument"])=>void;onstatus?:(st:{titel:string;geaendert:boolean;id?:string|null})=>void;onschliessen?:()=>void}=$props();
+    onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(start?:Tabstart)=>void;onstatus?:(st:{titel:string;geaendert:boolean;id?:string|null})=>void;onschliessen?:()=>void}=$props();
   // Flurstücke des Projekts für die Zuordnung von Flurstücksmarkierungen; Stand der Akte.
   const flurstuecke=$derived(grundstuecksinformationen(projekt.planungsrecht).flurstuecke);
   let dateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
@@ -38,6 +40,11 @@
     bezeichnung:"Neues Aufmaß",dokument:{dokument_id:dateien[0]?.document_id??"00000000-0000-0000-0000-000000000000",version:dateien[0]?.version??1},
     seite:1,kalibrierung:null,hoehenbezug:null,ebenen:[{id:crypto.randomUUID(),bezeichnung:"Aufmaß",sichtbar:true,gesperrt:false}],markierungen:[],
   }),p=>p.bezeichnung,entwurfObjekt));
+  /** Leere eigene Zeichnung: kein Dokument, Blatt in Metern. */
+  function leereZeichnung():Planaufmass{
+    const {dokument:_d,...rest}=s.leer();void _d;
+    return {...rest,bezeichnung:"Neue Zeichnung",kalibrierung:{art:"einheit",einheit:"meter"},seite:1,ebenen:[{id:crypto.randomUUID(),bezeichnung:"Zeichnung",sichtbar:true,gesperrt:false}]};
+  }
   const bedeutungen=BEDEUTUNGEN;
   const arten: [Ausschnittart,string][]=[["grundriss","Grundriss"],["lageplan","Lageplan"],["schnitt","Schnitt"],["ansicht","Ansicht"],["detail","Detail"]];
   const mitHoehen=(a:Ausschnittart)=>a==="schnitt"||a==="ansicht"||a==="detail";
@@ -46,6 +53,7 @@
   const werkzeuggruppen:[string,string,string][][]=[
     [["auswahl","Auswählen","V"],["verschieben","Verschieben","M"]],
     [["polygon","Polygon","P"],["rechteck","Rechteck","R"],["kreis","Kreis","K"],["strecke","Strecke / Dach","S"]],
+    [["wand","Wand","W"],["masskette","Maßkette","L"],["text","Text","X"]],
     [["hoehenpunkt","Höhenpunkt","H"],["bezugslinie","Bezugslinie setzen","B"]],
     [["ausschnitt","Ausschnitt anlegen","A"],["kalibrieren","Zwei Punkte kalibrieren","Q"],["kontrolle","Kontrollstrecke messen","T"]],
   ];
@@ -68,14 +76,26 @@
   let exportLaeuft=$state(false),nurSichtbare=$state(true);
   let betrachterSeite=$state<number|null>(null),sichtbarkeit=$state<Record<string,boolean>>({});
   let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560);
+  // Zeichenelemente und Hintergründe eigener Zeichnungen.
+  let elementAuswahl=$state(""),wanddicke=$state(.24);
+  let hgQuellen=$state<Record<string,{pdfBase64?:string;plan?:import("../api").CadPlan["plan"]|null;name:string}>>({});
+  const hgLaeuft=new Set<string>();
+  let hgDatei=$state(""),hgSeite=$state(1),hgStrecke=$state(10),hgZiel=$state(""),hgWinkel=$state(0);
+  const el=$derived(s.eingabe?.elemente?.find(e=>e.id===elementAuswahl));
+  const elementGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===el?.ebene_id)?.gesperrt);
+  const istZeichnung=$derived(!!s.eingabe&&!s.eingabe.dokument);
+  const einheitText=$derived(istZeichnung?"m":"Seitenpunkte");
+  const hintergruende=$derived(s.eingabe?.hintergruende??[]);
+  const hgAnsichten=$derived<Hintergrundansicht[]>(hintergruende.map(h=>{const q=hgQuellen[`${h.dokument.dokument_id}|${h.dokument.version}`];return {h,pdfBase64:q?.pdfBase64,plan:q?.plan??null}}));
+  const hgName=(h:Planhintergrund)=>{const d=dateien.find(d=>d.document_id===h.dokument.dokument_id&&d.version===h.dokument.version);return d?`${d.file_name}${istDxf(d.file_name)?"":` · Seite ${h.seite}`}`:"Unterlage fehlt"};
   // Aus den Aufgaben vorbelegte Bedeutung und Zuordnung für die nächste Markierung.
   let vorbelegung=$state<Planaufgabe|null>(null);
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
   const m=$derived(s.eingabe?.markierungen.find(m=>m.id===auswahl));
   const layer=$derived(s.eingabe?.ebenen.find(e=>e.id===ebene));
   const objektGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===m?.ebene_id)?.gesperrt);
-  const quelleAlt=$derived(s.eingabe&&dateien.some(d=>d.document_id===s.eingabe!.dokument.dokument_id&&d.version>s.eingabe!.dokument.version));
-  const aktuelleDatei=$derived(dateien.find(d=>d.document_id===s.eingabe?.dokument.dokument_id&&d.version===s.eingabe?.dokument.version));
+  const quelleAlt=$derived(!!s.eingabe?.dokument&&dateien.some(d=>d.document_id===s.eingabe!.dokument!.dokument_id&&d.version>s.eingabe!.dokument!.version));
+  const aktuelleDatei=$derived(dateien.find(d=>d.document_id===s.eingabe?.dokument?.dokument_id&&d.version===s.eingabe?.dokument?.version));
   const istDxfUnterlage=$derived(!!aktuelleDatei&&istDxf(aktuelleDatei.file_name));
   const pdfDateien=$derived(dateien.filter(d=>!istDxf(d.file_name)));
   const signatur=$derived(JSON.stringify(s.eingabe));
@@ -135,8 +155,8 @@
     const d=dateien.filter(x=>x.document_id===id).sort((a,b)=>b.version-a.version)[0];
     if(!d){s.meldung="Die gewünschte Unterlage ist kein PDF- oder DXF-Dokument dieses Projekts.";return}
     // Bestehendes Aufmaß dieser Unterlage (neueste Dokumentversion zuerst), sonst neuer Entwurf.
-    const vorhanden=s.liste.filter(f=>f.daten.dokument.dokument_id===id).sort((a,b)=>b.daten.dokument.version-a.daten.dokument.version)[0];
-    if(modus==="liste"){if(vorhanden)onoeffnen?.(vorhanden);else onneu?.({id:d.document_id,version:d.version,name:d.file_name});return}
+    const vorhanden=s.liste.filter(f=>f.daten.dokument?.dokument_id===id).sort((a,b)=>(b.daten.dokument?.version??0)-(a.daten.dokument?.version??0))[0];
+    if(modus==="liste"){if(vorhanden)onoeffnen?.(vorhanden);else onneu?.({dokument:{id:d.document_id,version:d.version,name:d.file_name}});return}
     if(vorhanden&&s.id===vorhanden.objekt)return;
     if(s.eingabe&&s.hatAenderungen()){
       if(!(await ask(`„${d.file_name}“ im Aufmaß öffnen? Offene Änderungen werden zuerst gespeichert.`,{title:"Unterlage öffnen",okLabel:"Speichern und öffnen",cancelLabel:"Hier bleiben"})))return;
@@ -172,6 +192,7 @@
       return;
     }
     s.neu();if(!s.eingabe)return;
+    if(st.zeichnung){s.eingabe=leereZeichnung();offen.blatt=true;return}
     const d=st.dokument?unterlagen.find(x=>x.document_id===st.dokument!.id&&x.version===st.dokument!.version):undefined;
     if(d){s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};offen.blatt=true}
   }
@@ -188,7 +209,7 @@
   });
   $effect(()=>{
     const id=s.id;
-    untrack(()=>{auswahl="";auswahlIds=[];betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";offen.blatt=!s.eingabe?.kalibrierung;
+    untrack(()=>{auswahl="";auswahlIds=[];elementAuswahl="";hgZiel="";betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";offen.blatt=!s.eingabe?.kalibrierung;
       try{const v=JSON.parse(localStorage.getItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`)??"null");if(v){panel=["aufgaben","objekte","eigenschaften"].includes(v.panel)?v.panel:"aufgaben";suche=typeof v.suche==="string"?v.suche.slice(0,500):"";aktiv=v.aktiv??"";auswahl=v.auswahl??"";auswahlIds=auswahl?[auswahl]:[];bedeutungFilter=v.bedeutungFilter??"";gebaeudeFilter=v.gebaeudeFilter??"";geschossFilter=v.geschossFilter??"";nurFehler=v.nurFehler===true}}catch{}
     });
   });
@@ -199,6 +220,7 @@
     const d=s.eingabe?.dokument, datei=aktuelleDatei;
     let gone=false;pdf=null;dxf=null;pdfFehler="";
     if(!d||!datei)return;
+    void istZeichnung;
     laedt=true;
     if(istDxf(datei.file_name)){
       void api.cadPlan(d.dokument_id,d.version).then(c=>{
@@ -212,6 +234,18 @@
       void api.pdfVorschau(d.dokument_id,d.version).then(p=>{if(!gone)pdf=p}).catch(e=>{if(!gone)pdfFehler=fehlertext(e)}).finally(()=>{if(!gone)laedt=false});
     }
     return()=>{gone=true};
+  });
+  // Unterlagen der Hintergründe laden (einmal je Dokumentversion); Fehler erscheinen als Blattfehler.
+  $effect(()=>{
+    const hs=hintergruende, liste=dateien; if(!sichtbar)return;
+    for(const h of hs){
+      const key=`${h.dokument.dokument_id}|${h.dokument.version}`;
+      if(hgQuellen[key]||hgLaeuft.has(key))continue;
+      const d=liste.find(x=>x.document_id===h.dokument.dokument_id&&x.version===h.dokument.version); if(!d)continue;
+      hgLaeuft.add(key);
+      const lauf=istDxf(d.file_name)?api.cadPlan(d.document_id,d.version).then(c=>{hgQuellen={...hgQuellen,[key]:{plan:c.plan,name:d.file_name}}}):api.pdfVorschau(d.document_id,d.version).then(p=>{hgQuellen={...hgQuellen,[key]:{pdfBase64:p.pdf_base64,name:d.file_name}}});
+      void lauf.catch(e=>{pdfFehler=`Hintergrund ${d.file_name}: ${fehlertext(e)}`}).finally(()=>hgLaeuft.delete(key));
+    }
   });
   $effect(()=>{
     const sig=signatur;
@@ -269,7 +303,8 @@
       const w=werkzeuge.find(w=>w[2].toLowerCase()===k);
       if(w&&!werkzeugGesperrt(w[0])){e.preventDefault();werkzeugWaehlen(w[0]);return}
       if(k==="z"){e.preventDefault();plan?.zoomfensterStarten();return}
-      if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();entfernen()}
+      if(e.key==="Delete"&&el&&!elementGesperrt){e.preventDefault();elementEntfernen()}
+      else if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();entfernen()}
       else if(e.key.startsWith("Arrow")&&m&&!objektGesperrt){
         e.preventDefault();
         const d=e.shiftKey?10:1;
@@ -318,14 +353,55 @@
     merken();s.eingabe.markierungen=s.eingabe.markierungen.filter(i=>!ids.includes(i.id));auswahl="";auswahlIds=[];
   }
   function merken(){verlaufGruppe="";verlauf.gruppeBeenden();if(s.eingabe)verlauf.beobachten($state.snapshot(s.eingabe))}
+  // Zeichenelemente: anlegen auf der aktiven Ebene, ändern per Ziehen, entfernen.
+  function elementAnlegen(f:Zeichenform){
+    const p=s.eingabe;if(!p||!darf||s.laeuft)return;
+    if(!layer||layer.gesperrt||!layer.sichtbar){s.fehler="Eine sichtbare, ungesperrte Zeichenebene auswählen.";return}
+    merken();
+    const e:Zeichenelement={id:crypto.randomUUID(),ebene_id:layer.id,...f};
+    p.elemente=[...(p.elemente??[]),e];
+    auswahl="";auswahlIds=[];elementAuswahl=e.id;panel="eigenschaften";
+    if(f.art==="text")werkzeug="auswahl";
+  }
+  function elementSetzen(id:string,e:Zeichenelement){
+    const p=s.eingabe;if(!p||elementGesperrt)return;
+    const i=(p.elemente??[]).findIndex(x=>x.id===id);if(i<0)return;
+    merken();p.elemente![i]=e;
+  }
+  function elementEntfernen(){
+    const p=s.eingabe;if(!p||!el||elementGesperrt)return;
+    merken();p.elemente=(p.elemente??[]).filter(e=>e.id!==el!.id);elementAuswahl="";
+  }
+  function elementWaehlen(id:string){elementAuswahl=id;if(id){auswahl="";auswahlIds=[];werkzeug="auswahl"}}
+  // Hintergründe eigener Zeichnungen.
+  function hintergrundHinzufuegen(){
+    const p=s.eingabe;if(!p||!darf||!istZeichnung)return;
+    const d=dateien.find(d=>`${d.document_id}|${d.version}`===hgDatei);if(!d){s.fehler="Eine Unterlage für den Hintergrund wählen.";return}
+    merken();
+    const dxfDatei=istDxf(d.file_name);
+    const h=hintergrundNeu({dokument_id:d.document_id,version:d.version},dxfDatei?1:Math.max(1,Math.round(hgSeite)),dxfDatei?1:mppAusMassstab(nenner));
+    // Neue Hintergründe liegen versetzt, damit sie nicht übereinander verschwinden.
+    h.lage=[hintergruende.length*2,hintergruende.length*2];
+    p.hintergruende=[...hintergruende,h];hgZiel=h.id;
+    if(dxfDatei)s.meldung="DXF-Hintergrund eingefügt: Zeichnungseinheit prüfen oder über eine bekannte Strecke einpassen.";
+  }
+  function hintergrundAendern(id:string,f:(h:Planhintergrund)=>Planhintergrund){
+    const p=s.eingabe;if(!p||!darf)return;
+    const i=hintergruende.findIndex(h=>h.id===id);if(i<0)return;
+    merken();p.hintergruende![i]=f($state.snapshot(hintergruende[i]));
+  }
+  function hintergrundEntfernen(id:string){const p=s.eingabe;if(!p||!darf)return;merken();p.hintergruende=hintergruende.filter(h=>h.id!==id);if(hgZiel===id)hgZiel=""}
+  const hgEinheit=(h:Planhintergrund)=>Object.entries(EINHEIT_METER).find(([,m])=>Math.abs(m-h.meter_pro_punkt)<1e-12)?.[0]??"";
   // Grund, warum ein Werkzeug gerade nicht wählbar ist; leer = wählbar.
   function werkzeugGesperrt(id:string):string{
     if(id==="auswahl"||id==="verschieben")return "";
     if(!darf)return "Nur mit Schreibrecht";
     if(id==="hoehenpunkt"&&!hoehenMoeglich)return "Höhen nur in Schnitt, Ansicht oder Detail";
     if(id==="bezugslinie")return !bearbeiteter?"Zuerst einen Ausschnitt wählen":!mitHoehen(bearbeiteter.art)?"Bezugslinie nur in Schnitt, Ansicht oder Detail":"";
-    if(id==="ausschnitt")return aktiv?"Zuerst den Ausschnitt schließen":!(pdf||dxf)?"Keine Unterlage geladen":"";
-    if(id==="kalibrieren"||id==="kontrolle")return !(pdf||dxf)?"Keine Unterlage geladen":"";
+    if(id==="ausschnitt")return aktiv?"Zuerst den Ausschnitt schließen":!(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
+    if(id==="kalibrieren")return istZeichnung?"Eigene Zeichnungen rechnen in Metern":!(pdf||dxf)?"Keine Unterlage geladen":"";
+    if(id==="kontrolle")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
+    if(id==="wand"||id==="masskette"||id==="text")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     return "";
   }
   function werkzeugWaehlen(id:string){
@@ -335,7 +411,7 @@
     if((id==="bezugslinie"||id==="kalibrieren")&&bearbeiteter&&aktiv!==bearbeiteter.id&&id==="bezugslinie")oeffnen(bearbeiteter.id);
     werkzeug=id;
   }
-  function verlaufStatus(){undo=verlauf.zurueck;redo=verlauf.vor;const ids=new Set(s.eingabe?.markierungen.map(m=>m.id));auswahlIds=auswahlIds.filter(id=>ids.has(id));if(!ids.has(auswahl))auswahl="";if(!s.eingabe?.ausschnitte?.some(a=>a.id===aktiv))aktiv="";plan?.abbrechen()}
+  function verlaufStatus(){undo=verlauf.zurueck;redo=verlauf.vor;const ids=new Set(s.eingabe?.markierungen.map(m=>m.id));auswahlIds=auswahlIds.filter(id=>ids.has(id));if(!ids.has(auswahl))auswahl="";if(!s.eingabe?.elemente?.some(e=>e.id===elementAuswahl))elementAuswahl="";if(!s.eingabe?.ausschnitte?.some(a=>a.id===aktiv))aktiv="";plan?.abbrechen()}
   function rueckwaerts(){
     if(!s.eingabe||!darf||s.laeuft)return;
     const p=verlauf.rueckwaerts($state.snapshot(s.eingabe));if(p)s.eingabe=p;verlaufStatus();
@@ -344,7 +420,7 @@
     if(!s.eingabe||!darf||s.laeuft)return;
     const p=verlauf.vorwaerts($state.snapshot(s.eingabe));if(p)s.eingabe=p;verlaufStatus();
   }
-  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;werkzeug="auswahl"}
+  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id)elementAuswahl="";if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;werkzeug="auswahl"}
   function gemeinsamVerschieben(ids:string[],dx:number,dy:number){if(!s.eingabe||!darf||s.laeuft)return;const ms=s.eingabe.markierungen.filter(m=>ids.includes(m.id));if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;merken();for(const m of ms)m.geometrie=verschieben(m.geometrie,dx,dy)}
   function geometrieSetzen(g:Plangeometrie){if(!m||objektGesperrt)return;merken();m.geometrie=g}
   async function flaechenAktion(operation:import("../generated/plattform").Flaechenoperation){
@@ -358,6 +434,12 @@
   function auswahlAusrichten(art:"links"|"rechts"|"oben"|"unten"){if(!s.eingabe||!darf)return;const ms=s.eingabe.markierungen.filter(m=>auswahlIds.includes(m.id));if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;merken();const gs=ausrichten(ms.map(m=>$state.snapshot(m.geometrie)),art);ms.forEach((m,i)=>m.geometrie=gs[i])}
   function fertig(g:Plangeometrie){
     const p=s.eingabe;if(!p||!darf||s.laeuft)return;
+    if(werkzeug==="hgstrecke"&&g.art==="strecke"){
+      if(!(hgStrecke>0)){s.fehler="Die tatsächliche Länge der Strecke in Metern angeben.";return}
+      hintergrundAendern(hgZiel,h=>hgSkalieren(h,g.von,g.bis,hgStrecke));werkzeug="auswahl";return;
+    }
+    if(werkzeug==="hgverschieben"&&g.art==="strecke"){hintergrundAendern(hgZiel,h=>hgVerschieben(h,g.von,g.bis));werkzeug="auswahl";return}
+    if(werkzeug==="hgdrehen"&&g.art==="hoehenpunkt"){hintergrundAendern(hgZiel,h=>hgDrehen(h,g.punkt,hgWinkel));werkzeug="auswahl";return}
     if(werkzeug==="kontrolle"&&g.art==="strecke"){
       if(!Number.isFinite(kontrollMeter)||kontrollMeter<=0){s.fehler="Eine positive Kontrolllänge in Metern angeben.";return}
       const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);if(f===null){s.fehler="Zuerst einen Maßstab setzen.";return}
@@ -399,7 +481,7 @@
     vorbelegung=a;
     werkzeug=a.geometrie==="flaeche"?"polygon":a.geometrie==="hoehenpunkt"?"hoehenpunkt":"strecke";
   }
-  async function seiteWechseln(n:number){if(!s.eingabe||n===s.eingabe.seite||istDxfUnterlage)return;await quelleWechsel(s.eingabe.dokument,n)}
+  async function seiteWechseln(n:number){if(!s.eingabe?.dokument||n===s.eingabe.seite||istDxfUnterlage)return;await quelleWechsel(s.eingabe.dokument,n)}
   function seiteAnsehen(n:number){betrachterSeite=n===s.eingabe?.seite?null:n;plan?.abbrechen();}
   function ausschnittAnlegen(von:Point,bis:Point){
     const p=s.eingabe;if(!p)return;
@@ -464,9 +546,9 @@
     const ziel=await save({defaultPath:`${s.eingabe.bezeichnung.replace(/[<>:"/\\|?*]/g,"_")}.${format}`,filters:[{name:format==="pdf"?"Aufmaßblatt PDF":"Messwerte CSV",extensions:[format]}]});if(!ziel)return;
     exportLaeuft=true;try{await planApi.exportieren(s.projektId,{aufmass_id:s.id,revision:s.revision,format,nur_sichtbare_ebenen:nurSichtbare},ziel);s.meldung=`${format.toUpperCase()} ausgegeben: ${ziel}`}catch(e){s.fehler=fehlertext(e)}finally{exportLaeuft=false}
   }
-  async function quelleWechsel(dokument:Planaufmass["dokument"],seite:number){
+  async function quelleWechsel(dokument:NonNullable<Planaufmass["dokument"]>,seite:number){
     const p=s.eingabe;if(!p||!darf||s.laeuft||!Number.isInteger(seite)||seite<1)return;
-    if(p.dokument.dokument_id===dokument.dokument_id&&p.dokument.version===dokument.version&&p.seite===seite)return;
+    if(p.dokument?.dokument_id===dokument.dokument_id&&p.dokument.version===dokument.version&&p.seite===seite)return;
     if(p.markierungen.length||(p.ausschnitte?.length??0)||s.revision>0){
       if(!(await ask("Ein eigenes Aufmaß für das andere Blatt öffnen? Der bisherige Stand bleibt erhalten; offene Änderungen werden zuerst gespeichert. Konturen werden nicht auf das andere Blatt verschoben.",{title:"Anderes Blatt öffnen",okLabel:"Speichern und Blatt öffnen",cancelLabel:"Hier bleiben"})))return;
       if(s.hatAenderungen()&&!(await s.speichern()))return;
@@ -492,7 +574,7 @@
 <Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt} kompakt={true} werkzeuge={vollbild?undefined:editorwerkzeuge} oeffnen={modus==="liste"?f=>onoeffnen?.(f):undefined} neu={modus==="liste"?()=>onneu?.():undefined}>
   {#snippet children(p)}
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
-    {#if !dateien.length}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren.</p>{/if}
+    {#if !dateien.length&&!istZeichnung}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren – oder eine eigene Zeichnung in Metern anlegen.</p>{/if}
     {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere Version der Unterlage liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.</p>{/if}
     {#if pdfFehler}<p class="fehlertext" role="alert">{pdfFehler}</p>{/if}
     <div class="editor" class:vollbild bind:this={editor} style:height={vollbild?undefined:`${hoeheEditor}px`} onpointerdowncapture={()=>{verlaufGruppe="";verlauf.gruppeBeenden()}} oninputcapture={e=>{const el=e.target as HTMLElement;verlaufGruppe=`${auswahl}:${el.getAttribute("aria-label")??el.closest("label")?.textContent??el.tagName}`}}>
@@ -502,8 +584,9 @@
         <button type="button" disabled={!darf||s.laeuft||!s.hatAenderungen()} onclick={()=>void s.speichern()}>Aufmaß speichern</button>
         <span class="editorwerkzeuge">{@render editorwerkzeuge()}</span>
       </div>{/if}
-      {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · Alt setzt Fang aus · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
+      {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · W Wand · L Maßkette · X Text · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · Alt setzt Fang aus · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
       {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
+      {#if werkzeug==="hgstrecke"||werkzeug==="hgverschieben"||werkzeug==="hgdrehen"}<p role="status" class="hinweisbox schmal">{werkzeug==="hgstrecke"?`Auf dem Hintergrund Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken; der Hintergrund wird darauf skaliert.`:werkzeug==="hgverschieben"?"Einen Punkt des Hintergrunds und dann seine Zielposition anklicken.":`Den Drehpunkt anklicken; der Hintergrund dreht sich um ${z(hgWinkel)}°.`}</p>{/if}
       {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"||werkzeug==="kontrolle"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?`Anfang und Ende der bekannten Referenzstrecke (${z(referenz)} m) anklicken.`:werkzeug==="bezug"?`Den Punkt mit der Bezugshöhe ${z(hwert)} ${hsystem} auf der Unterlage anklicken.`:werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:werkzeug==="kontrolle"?`Anfang und Ende einer bekannten Strecke (${z(kontrollMeter)} m) anklicken; die Abweichung erscheint unter „Blatt und Einrichtung“.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
       <div class="arbeitsplatz">
         <div class="werkzeugleiste" role="toolbar" aria-label="PDF-Zeichenwerkzeuge" aria-orientation="vertical">
@@ -516,18 +599,20 @@
           {/each}
           <span class="gruppentrenner" role="separator" aria-hidden="true"></span>
           <Symbolknopf titel="Duplizieren" kuerzel="Strg+D" tip="rechts" disabled={!m||objektGesperrt} onclick={duplizieren}><WerkzeugIcon art="duplizieren"/></Symbolknopf>
-          <Symbolknopf titel="Markierung entfernen" kuerzel="Entf" tip="rechts" disabled={!m||objektGesperrt} onclick={entfernen}><WerkzeugIcon art="entfernen"/></Symbolknopf>
+          <Symbolknopf titel={el?"Element entfernen":"Markierung entfernen"} kuerzel="Entf" tip="rechts" disabled={el?elementGesperrt:(!m||objektGesperrt)} onclick={()=>el?elementEntfernen():entfernen()}><WerkzeugIcon art="entfernen"/></Symbolknopf>
         </div>
         <div class="flaeche">
           <div class="pfad" aria-label="Arbeitsbereich">
-            <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{aktuelleDatei?.file_name??"Unterlage"}{istDxfUnterlage?"":` › Blatt ${p.seite}`}</button>
+            <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{istZeichnung?"Eigene Zeichnung (Meter)":`${aktuelleDatei?.file_name??"Unterlage"}${istDxfUnterlage?"":` › Blatt ${p.seite}`}`}</button>
             {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{#if aktueller.bezugslinie}<span class="meta">· Bezug {z(aktueller.bezugslinie.hoehe_m)} {aktueller.bezugslinie.system}</span>{/if}{/if}
           </div>
           {#if betrachterSeite!==null}<p class="hinweisbox betrachtung" role="status">Betrachtung von Seite {betrachterSeite}. Das Aufmaß gehört weiterhin zu Seite {p.seite}. <button type="button" class="link" onclick={()=>betrachterSeite=null}>Zum Aufmaßblatt zurück</button>{#if darf}<button type="button" onclick={()=>void seiteWechseln(betrachterSeite!)}>Eigenes Aufmaß für diese Seite anlegen …</button>{/if}</p>{/if}
-          {#if pdf||dxf}
+          {#if pdf||dxf||istZeichnung}
             <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
-              ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument.dokument_id}.${p.dokument.version}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
+              ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
+              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {wanddicke}
+              onelement={elementAnlegen} onelementauswahl={elementWaehlen} onelementedit={elementSetzen}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
               onfertig={fertig} onauswahl={waehlen} onverschieben={gemeinsamVerschieben} onpunkt={i=>{punktIndex=i;panelOeffnen("eigenschaften")}} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
               onrahmen={(id,von,bis)=>{if(!darf)return;const a=p.ausschnitte?.find(a=>a.id===id);if(a){merken();a.von=von;a.bis=bis}}}
@@ -540,7 +625,17 @@
           <nav class="panelwahl" aria-label="Planpanel">{#each [["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as [id,titel]}<button type="button" class="sekundaer" class:aktiv={panel===id} aria-pressed={panel===id} onclick={()=>panelOeffnen(id)}>{titel}</button>{/each}</nav>
           <details class="palette" bind:open={offen.eigenschaften}>
             <summary><h3>Eigenschaften</h3> <span class="meta">{m?`· ${m.bezeichnung}`:auswahlIds.length>1?`· ${auswahlIds.length} ausgewählt`:"· keine Auswahl"}</span></summary>
-            {#if !m}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen.</p>{/if}
+            {#if el}
+              <fieldset disabled={elementGesperrt} class="element-eigenschaften" aria-label="Zeichenelement">
+                <legend>{el.art==="wand"?"Wand":el.art==="masskette"?"Maßkette":"Text"}</legend>
+                {#if el.art==="wand"}<label>Wanddicke (m)<input type="number" min=".01" max="10" step=".01" bind:value={el.dicke_m}/></label>
+                {:else if el.art==="masskette"}<label>Abstand der Maßlinie ({einheitText})<input type="number" step="any" bind:value={el.abstand}/></label>
+                {:else}<label>Text<input bind:value={el.inhalt} maxlength="500" required/></label><label>Schrifthöhe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.hoehe}/></label><label>Drehung (°)<input type="number" step="any" bind:value={el.drehung_grad}/></label>{/if}
+                <label>Zeichenebene<select aria-label="Zeichenebene des Elements" bind:value={el.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
+                <p class="meta">{el.art==="text"?`Bei ${z(el.punkt[0])}; ${z(el.punkt[1])} ${einheitText}.`:`Von ${z(el.von[0])}; ${z(el.von[1])} bis ${z(el.bis[0])}; ${z(el.bis[1])} ${einheitText}${(()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);const [a,b]=elementPunkte(el);return f?` · ${z(Math.hypot(b[0]-a[0],b[1]-a[1])*f)} m`:""})()}.`} Zeichenelemente liefern keine Messwerte; Endpunkte lassen sich mit „Auswählen“ ziehen.</p>
+                <div class="aktionen"><button type="button" class="sekundaer" title="Entf" onclick={elementEntfernen}>Element entfernen</button></div>
+              </fieldset>
+            {:else if !m}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen.</p>{/if}
             {#if auswahlIds.length>1}<section class="mehrfach"><h3>{auswahlIds.length} Markierungen ausgewählt</h3><fieldset disabled={!darf||s.laeuft}><div class="aktionen">{#each ["links","rechts","oben","unten"] as art}<button type="button" class="sekundaer" onclick={()=>auswahlAusrichten(art as "links"|"rechts"|"oben"|"unten")}>{art} ausrichten</button>{/each}</div>
               {#if auswahlIds.length===2}<div class="aktionen">{#each [["vereinen","Vereinen"],["abziehen","Zweite Fläche abziehen"],["schneiden","Schnittfläche"],["teilen","An zweiter Fläche teilen"]] as [op,t]}<button type="button" onclick={()=>void flaechenAktion(op as import("../generated/plattform").Flaechenoperation)}>{t}</button>{/each}</div>{/if}</fieldset></section>{/if}
             {#if m}
@@ -590,7 +685,7 @@
                   <label>Kontur drehen (°)<input type="number" step="any" bind:value={drehenGrad}/></label><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(drehen($state.snapshot(m!.geometrie),drehenGrad))}>Drehung anwenden</button>
                   <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {z(p[0])}; {z(p[1])} pt</option>{/each}</select></label>
                   {#if m}{@const punkt=eckpunkte(m.geometrie)[punktIndex]??eckpunkte(m.geometrie)[0]}
-                  {#if punkt}<label>X (Seitenpunkte)<input type="number" step="any" value={punkt[0]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[Number(e.currentTarget.value),punkt[1]]))}/></label><label>Y (Seitenpunkte)<input type="number" step="any" value={punkt[1]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[punkt[0],Number(e.currentTarget.value)]))}/></label>{/if}
+                  {#if punkt}<label>X ({einheitText})<input type="number" step="any" value={punkt[0]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[Number(e.currentTarget.value),punkt[1]]))}/></label><label>Y ({einheitText})<input type="number" step="any" value={punkt[1]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[punkt[0],Number(e.currentTarget.value)]))}/></label>{/if}
                   {/if}
                   {#if m.geometrie.art==="polygon"}<div class="aktionen"><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(punktEinfuegen($state.snapshot(m!.geometrie),punktIndex))}>Punkt nach Auswahl einfügen</button><button type="button" class="sekundaer" disabled={m.geometrie.punkte.length<=3} onclick={()=>{geometrieSetzen(punktEntfernen($state.snapshot(m!.geometrie),punktIndex));punktIndex=0}}>Punkt entfernen</button></div>{/if}
                   {#if m.geometrie.art==="polygon"||m.geometrie.art==="strecke"}<label>Kantenlänge (m)<input type="number" min=".001" step="any" bind:value={kanteMeter}/></label><label>Kantenwinkel (°)<input type="number" step="any" bind:value={kanteWinkel}/></label><button type="button" disabled={!meterProPunkt(aktueller?.kalibrierung??p.kalibrierung)} onclick={()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);if(f)geometrieSetzen(kantenmass($state.snapshot(m!.geometrie),punktIndex,kanteMeter/f,kanteWinkel))}}>Kantenmaß anwenden</button>{/if}
@@ -609,7 +704,7 @@
             </fieldset></details>
           </details>
           <details class="palette" bind:open={offen.objekte}>
-            <summary><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen</span></summary>
+            <summary><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></summary>
             <h3>Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
             <p class="meta">Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.</p>
             <div class="ausschnitte">
@@ -621,7 +716,7 @@
                 </div>
               {/each}
             </div>
-            {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
+            {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf||istZeichnung)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
             {#if bearbeiteter}
               {@const a=bearbeiteter}
               <fieldset disabled={!darf||s.laeuft} class="ausschnitt-eigenschaften">
@@ -670,19 +765,64 @@
               {#each gefilterteMarkierungen as item (item.id)}<div class="objektzeile"><input type="checkbox" aria-label={`${item.bezeichnung} zur Auswahl hinzufügen`} checked={auswahlIds.includes(item.id)} onchange={()=>waehlen(item.id,true)}/><button type="button" class:aktiv={item.id===auswahl} onclick={()=>{waehlen(item.id);panelOeffnen("eigenschaften")}}>{item.bezeichnung}<span>{bedeutungen.find(b=>b[0]===item.bedeutung)?.[1]}{fehlerMap.has(item.id)?" · Fehler":""}{!aktiv&&item.ausschnitt_id?` · ${ausschnitte.find(a=>a.id===item.ausschnitt_id)?.bezeichnung??"Ausschnitt fehlt"}`:""}</span></button></div>{/each}
               {#if !p.markierungen.length}<p class="meta">Ein Zeichenwerkzeug wählen (Tasten P, R, K, S, H) und Punkte auf dem Plan setzen.</p>{/if}
             </div>
+            {#if p.elemente?.length}
+              <h3>Zeichenelemente <span class="meta">({p.elemente.length})</span></h3>
+              <div class="markierungen">
+                {#each p.elemente as e (e.id)}<div class="objektzeile"><button type="button" class:aktiv={e.id===elementAuswahl} onclick={()=>{elementWaehlen(e.id);panelOeffnen("eigenschaften")}}>{e.art==="wand"?"Wand":e.art==="masskette"?"Maßkette":`Text „${e.inhalt}“`}<span>{p.ebenen.find(x=>x.id===e.ebene_id)?.bezeichnung??"Ebene fehlt"}</span></button></div>{/each}
+              </div>
+            {/if}
           </details>
           <details class="palette" bind:open={offen.blatt}>
             <summary><h3>Blatt und Einrichtung</h3> <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
             <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
               <label>Bezeichnung des Aufmaßes<input bind:value={p.bezeichnung} required/></label>
-              <label>Unterlage<select aria-label="Unterlage" value={`${p.dokument.dokument_id}|${p.dokument.version}`} onchange={e=>source(e.currentTarget.value)}>
+              {#if istZeichnung}<p class="meta">Eigene Zeichnung: Das Blatt rechnet in Metern (1 Einheit = 1 m, y nach unten) und wächst mit den Inhalten. Unterlagen liegen als Hintergründe darunter.</p>
+              {:else}<label>Unterlage<select aria-label="Unterlage" value={`${p.dokument!.dokument_id}|${p.dokument!.version}`} onchange={e=>source(e.currentTarget.value)}>
                 <option value="">Unterlage wählen</option>
                 {#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}
-              </select></label>
-              {#if !istDxfUnterlage}<label>Seite<input type="number" min="1" max={pdf?.seiten.length??1} step="1" value={p.seite} onchange={e=>{const n=Number(e.currentTarget.value);e.currentTarget.value=String(p.seite);void seiteWechseln(n)}} required/></label>{/if}
+              </select></label>{/if}
+              {#if !istDxfUnterlage&&!istZeichnung}<label>Seite<input type="number" min="1" max={pdf?.seiten.length??1} step="1" value={p.seite} onchange={e=>{const n=Number(e.currentTarget.value);e.currentTarget.value=String(p.seite);void seiteWechseln(n)}} required/></label>{/if}
             </fieldset>
-            <h3>{istDxfUnterlage?"Zeichnungseinheit":"Blattmaßstab"}</h3>
-            <fieldset disabled={!darf||s.laeuft}><div class="kalibrierung">
+            {#if istZeichnung}
+              <h3>Hintergründe <span class="meta">({hintergruende.length})</span></h3>
+              <p class="meta">PDF-Seiten oder DXF-Zeichnungen als Unterlage unter die Zeichnung legen und einpassen: Maßstab setzen oder über eine bekannte Strecke skalieren, verschieben, drehen. Fang greift an ihren Vektoren.</p>
+              <fieldset disabled={!darf||s.laeuft} class="quellzeile">
+                <label>Unterlage<select aria-label="Hintergrund-Unterlage" bind:value={hgDatei}><option value="">Unterlage wählen</option>{#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
+                <div class="kalibrierung">
+                  {#if hgDatei&&!istDxf(dateien.find(d=>`${d.document_id}|${d.version}`===hgDatei)?.file_name??"")}<label>Seite<input type="number" min="1" step="1" bind:value={hgSeite}/></label><label>Maßstab 1 :<input type="number" min=".001" step="any" bind:value={nenner}/></label>{/if}
+                  <button type="button" class="sekundaer" disabled={!hgDatei} onclick={hintergrundHinzufuegen}>Hintergrund hinzufügen</button>
+                </div>
+              </fieldset>
+              {#each hintergruende as h (h.id)}
+                <fieldset disabled={!darf||s.laeuft} class="ausschnitt-eigenschaften hintergrund" class:gewaehlt={hgZiel===h.id}>
+                  <legend><button type="button" class="link" onclick={()=>hgZiel=h.id}>{hgName(h)}</button></legend>
+                  <div class="zeile">
+                    <label title="Sichtbar"><input type="checkbox" checked={h.sichtbar} onchange={e=>{const an=e.currentTarget.checked;hintergrundAendern(h.id,x=>({...x,sichtbar:an}))}}/>Sichtbar</label>
+                    <label>Deckkraft<input type="range" min="0" max="1" step=".05" value={h.deckkraft} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,deckkraft:v}))}}/></label>
+                  </div>
+                  <div class="kalibrierung">
+                    <label>Lage X (m)<input type="number" step="any" value={Math.round(h.lage[0]*1000)/1000} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,lage:[v,x.lage[1]]}))}}/></label>
+                    <label>Lage Y (m)<input type="number" step="any" value={Math.round(h.lage[1]*1000)/1000} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,lage:[x.lage[0],v]}))}}/></label>
+                    <label>Drehung (°)<input type="number" step="any" value={Math.round(h.drehung_grad*100)/100} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,drehung_grad:v}))}}/></label>
+                    {#if istDxf(hgName(h))}<label>Zeichnungseinheit<select aria-label="Zeichnungseinheit des Hintergrunds" value={hgEinheit(h)} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit;if(v)hintergrundAendern(h.id,x=>({...x,meter_pro_punkt:EINHEIT_METER[v]??x.meter_pro_punkt}))}}><option value="">Eigener Faktor</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
+                    {:else}<label>Maßstab 1 :<input type="number" min=".001" step="any" value={Math.round(h.meter_pro_punkt*72/0.0254*1000)/1000} onchange={e=>{const v=Number(e.currentTarget.value);if(v>0)hintergrundAendern(h.id,x=>({...x,meter_pro_punkt:mppAusMassstab(v)}))}}/></label>{/if}
+                  </div>
+                  <div class="kalibrierung">
+                    <label>Strecke (m)<input type="number" min=".001" step="any" bind:value={hgStrecke}/></label>
+                    <button type="button" class="sekundaer" class:aktiv={werkzeug==="hgstrecke"&&hgZiel===h.id} onclick={()=>{hgZiel=h.id;werkzeug="hgstrecke"}}>Über Strecke einpassen</button>
+                    <button type="button" class="sekundaer" class:aktiv={werkzeug==="hgverschieben"&&hgZiel===h.id} onclick={()=>{hgZiel=h.id;werkzeug="hgverschieben"}}>Verschieben</button>
+                    <label>Winkel (°)<input type="number" step="any" bind:value={hgWinkel}/></label>
+                    <button type="button" class="sekundaer" class:aktiv={werkzeug==="hgdrehen"&&hgZiel===h.id} onclick={()=>{hgZiel=h.id;werkzeug="hgdrehen"}}>Um Punkt drehen</button>
+                    <button type="button" class="sekundaer" onclick={()=>hintergrundEntfernen(h.id)}>Entfernen</button>
+                  </div>
+                </fieldset>
+              {/each}
+              <h3>Wandstärke</h3>
+              <div class="kalibrierung"><label>Dicke neuer Wände (m)<input type="number" min=".01" max="10" step=".01" bind:value={wanddicke}/></label></div>
+            {/if}
+            <h3>{istZeichnung?"Maßeinheit":istDxfUnterlage?"Zeichnungseinheit":"Blattmaßstab"}</h3>
+            {#if istZeichnung}<p class="meta">Meter – fest für eigene Zeichnungen. Maßeingabe: Ziffer tippen, Länge in m, optional „;Winkel“.</p>{/if}
+            <fieldset disabled={!darf||s.laeuft}><div class="kalibrierung" hidden={istZeichnung}>
               {#if istDxfUnterlage}
                 <label>Zeichnungseinheit<select aria-label="Zeichnungseinheit" value={p.kalibrierung?.art==="einheit"?p.kalibrierung.einheit:""} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit|"";if(v)p.kalibrierung={art:"einheit",einheit:v}}}><option value="">Einheit wählen</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
                 <span class="meta">{dxf?.plan.einheit?`Laut DXF-Kopf: ${EINHEITEN.find(e=>e.code===dxf!.plan.einheit)?.name}`:"Die DXF nennt keine Einheit; Zeichnungseinheit wählen und mit einer Kontrollstrecke prüfen."}</span>
@@ -716,7 +856,7 @@
             <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
             {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
             {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
-            {#if !istDxfUnterlage}<h3>Planstände vergleichen</h3>
+            {#if !istDxfUnterlage&&!istZeichnung}<h3>Planstände vergleichen</h3>
               <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
               {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
                 <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
@@ -805,6 +945,10 @@
   .ausschnitt>button.link span{display:block;font-size:.75rem;font-weight:400}
   .ausschnitt-eigenschaften{margin:.6rem 0;padding:.5rem!important;border:1px solid var(--border)!important}
   .ausschnitt-eigenschaften legend{font-weight:600;padding:0 .3rem}
+  .hintergrund.gewaehlt{border-color:var(--accent)!important}
+  .hintergrund legend .link{font-weight:600;padding:0;min-height:0}
+  .element-eigenschaften{padding:.5rem!important;border:1px solid var(--border)!important}
+  .element-eigenschaften legend{font-weight:600;padding:0 .3rem}
   .ausschnitt-eigenschaften .zeile{display:flex;flex-wrap:wrap;gap:.3rem .7rem;align-items:center}
   .ausschnitt-eigenschaften .zeile label{flex:0 0 7rem}
   .ebene{display:flex;gap:.3rem;align-items:center;margin-bottom:.4rem}

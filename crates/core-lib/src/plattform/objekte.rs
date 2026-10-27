@@ -289,19 +289,25 @@ pub(super) async fn validieren(
             let plan: crate::planaufmass::Planaufmass =
                 serde_json::from_value(daten).map_err(json_err)?;
             core.planaufmass_pruefen(p.id, &plan).await?;
-            let (version, bytes) = core
-                .load_version(plan.dokument.dokument_id, plan.dokument.version)
-                .await?;
-            if version.file_name.to_lowercase().ends_with(".dxf") {
-                // Die Unterlage muss als Zeichnung lesbar sein (Seite 1 prüft die Fachprüfung).
-                crate::cad::dxf::lesen(&bytes)?;
-            } else if !crate::formular::editor::seiten(&bytes)?
+            // Unterlage bzw. Hintergründe müssen lesbar sein und die Seite besitzen.
+            let unterlagen = plan
+                .dokument
                 .iter()
-                .any(|seite| seite.nummer == plan.seite)
-            {
-                return Err(CoreError::InvalidInput(
-                    "PDF-Seite existiert nicht in dieser Dokumentversion".into(),
-                ));
+                .map(|d| (d, plan.seite))
+                .chain(plan.hintergruende.iter().map(|h| (&h.dokument, h.seite)));
+            for (d, seite) in unterlagen {
+                let (version, bytes) = core.load_version(d.dokument_id, d.version).await?;
+                if version.file_name.to_lowercase().ends_with(".dxf") {
+                    // Die Unterlage muss als Zeichnung lesbar sein (Seite 1 prüft die Fachprüfung).
+                    crate::cad::dxf::lesen(&bytes)?;
+                } else if !crate::formular::editor::seiten(&bytes)?
+                    .iter()
+                    .any(|s| s.nummer == seite)
+                {
+                    return Err(CoreError::InvalidInput(
+                        "PDF-Seite existiert nicht in dieser Dokumentversion".into(),
+                    ));
+                }
             }
             serde_json::to_value(plan)
         }

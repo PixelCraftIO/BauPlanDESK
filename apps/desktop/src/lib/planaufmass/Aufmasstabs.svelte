@@ -30,8 +30,8 @@
     if (da) { aktiv = da.key; return; }
     tabAnlegen({ id: f.objekt }, f.daten.bezeichnung);
   }
-  function neu(dokument?: Tabstart["dokument"]) {
-    tabAnlegen(dokument ? { dokument } : {}, "Neues Aufmaß");
+  function neu(start?: Tabstart) {
+    tabAnlegen(start ?? {}, start?.zeichnung ? "Neue Zeichnung" : "Neues Aufmaß");
   }
   function tabAnlegen(start: Tabstart, titel: string) {
     const key = crypto.randomUUID();
@@ -75,6 +75,7 @@
       <Symbolknopf klasse="tab-schliessen" titel={`${t.titel || "Aufmaß"} schließen`} onclick={() => void schliessen(t.key)}><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></Symbolknopf>
     </div>
   {/each}
+  {#if darf}<button type="button" class="sekundaer neuezeichnung" title="Eigene Zeichnung in Metern anlegen; PDF oder DXF als Hintergrund einpassbar" onclick={() => neu({ zeichnung: true })}>Neue Zeichnung</button>{/if}
   {#if imHauptfenster}<Symbolknopf klasse="fensterknopf" titel="Aufmaß in eigenem Fenster öffnen" onclick={() => void fensterOeffnen()}><WerkzeugIcon art="fenster"/></Symbolknopf>{/if}
 </div>
 {#if fensterFehler}<p class="fehlertext" role="alert">{fensterFehler}</p>{/if}
@@ -96,6 +97,8 @@
   .punkt{display:inline-block;width:7px;height:7px;margin-left:6px;background:var(--warning-text,#6b4a00);vertical-align:middle}
   .zeichnungstab :global(.tab-schliessen){width:22px;min-height:22px;margin-right:3px}
   .zeichnungstab :global(.tab-schliessen svg){width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
+  .zeichnungstabs .neuezeichnung{margin-left:auto;margin-bottom:2px;align-self:center;min-height:26px;padding:0 10px;font-size:.85rem;white-space:nowrap}
+  .zeichnungstabs .neuezeichnung + :global(.fensterknopf){margin-left:4px}
   .zeichnungstabs :global(.fensterknopf){margin-left:auto;margin-bottom:2px;align-self:center}
   .zeichnungstabs :global(.fensterknopf svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   section[hidden]{display:none}

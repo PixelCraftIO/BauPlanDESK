@@ -52,7 +52,7 @@ Stand: 23.10.2026
 
 - [23. Freiflächen und Regenwasser](#23-freiflächen-und-regenwasser)
 
-- [24. Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen)
+- [24. Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen)
 
 - [25. Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben)
 
@@ -401,7 +401,7 @@ Für die Vollgeschosseinstufung kann ein eigener Vollgeschossnachweis verknüpft
 
 Nach der Prüfung und Archivierung über den Rückweg zum Geschoss zurückkehren. Den passenden aktuellen Nachweis unter „Aus Vollgeschossnachweis übernehmen“ bewusst auswählen und das Gebäude speichern.
 
-Weiterlesen: [Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen) · [Vollgeschosse, Gebäudehöhen und Dachneigung](#18-vollgeschosse-gebäudehöhen-und-dachneigung) · [GRZ und GRZ I / II](#14-grz-und-grz-i--ii) · [GFZ und Geschossigkeit](#15-gfz-und-geschossigkeit)
+Weiterlesen: [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Vollgeschosse, Gebäudehöhen und Dachneigung](#18-vollgeschosse-gebäudehöhen-und-dachneigung) · [GRZ und GRZ I / II](#14-grz-und-grz-i--ii) · [GFZ und Geschossigkeit](#15-gfz-und-geschossigkeit)
 
 ## 13. Berechnungen bearbeiten und prüfen
 
@@ -513,7 +513,7 @@ Die maßbezogene Prüfung ergänzt die geometrische Baufensterprüfung aus dem A
 
 Bei mehreren Baugrundstücken den Geometrie-/Baufensterbezug eindeutig zuordnen. Eine Fläche im Stammdatensatz allein lässt keine Überschreitung räumlich prüfen.
 
-Weiterlesen: [Bebauungsplanfestsetzungen eingeben](#09-bebauungsplanfestsetzungen-eingeben) · [Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen) · [Abweichungen, Ausnahmen und Befreiungen](#36-abweichungen-ausnahmen-und-befreiungen)
+Weiterlesen: [Bebauungsplanfestsetzungen eingeben](#09-bebauungsplanfestsetzungen-eingeben) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Abweichungen, Ausnahmen und Befreiungen](#36-abweichungen-ausnahmen-und-befreiungen)
 
 ## 18. Vollgeschosse, Gebäudehöhen und Dachneigung
 
@@ -532,7 +532,7 @@ Messpunkte, absolute und relative Höhen sowie das Höhensystem festlegen. Gelä
 
 Höhenfestsetzungen und Dachneigung aus passenden horizontalen Entfernungen und Höhendifferenzen prüfen. Ein Höhenpunkt mit m ü. NHN ist nicht dasselbe wie eine relative Höhe über Gebäudenull. Bei Quellenänderungen aktuelle Werte übernehmen und erneut prüfen.
 
-Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen) · [GFZ und Geschossigkeit](#15-gfz-und-geschossigkeit)
+Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [GFZ und Geschossigkeit](#15-gfz-und-geschossigkeit)
 
 ## 19. Abstandsflächen nachweisen
 
@@ -557,7 +557,7 @@ Unter „Wände / Bauteile“ steht die Planskizze neben der Bearbeitung. Eine W
 
 „Dachansatz einer anderen Wand verwenden“ kopiert nur die angezeigten Dachparameter. Geometrie, Gelände, Sicherungen, Belege und Freigaben werden nicht kopiert. Dachgrundlage und Rechtsanwendung erneut prüfen. Ein ungeklärtes Baugebiet wird nicht als WA vorbelegt.
 
-Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben) · [Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe)
+Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben) · [Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe)
 
 ## 20. Stellplatznachweis
 
@@ -605,7 +605,7 @@ Vor der Übernahme von Raumfakten zeigt ein Vergleich neue, aktualisierte, entfa
 
 Die letzte Raumübernahme kann bis zur nächsten Speicherung und solange keine weiteren Änderungen vorgenommen wurden rückgängig gemacht werden. Archivierte Nachweise bleiben unverändert.
 
-Weiterlesen: [Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen)
+Weiterlesen: [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen)
 
 ## 22. DIN-277-Flächen und Rauminhalte
 
@@ -642,9 +642,9 @@ Im Nachweis reale Grundstücksfläche und maßgebende Bezugsfläche unterscheide
 
 Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben)
 
-## 24. Aufmaß auf PDF und DXF erstellen und übernehmen
+## 24. Aufmaß auf PDF und DXF sowie eigene Zeichnungen
 
-Messwerte auf PDF-Blättern und DXF-Zeichnungen mit dokumentierter Dokumentversion und passender Bedeutung verknüpfen.
+Messwerte auf PDF-Blättern, DXF-Zeichnungen oder eigenen Zeichnungen in Metern mit dokumentierter Dokumentversion und passender Bedeutung verknüpfen.
 
 ### Zeichnen und zuordnen
 
@@ -656,6 +656,13 @@ Messwerte auf PDF-Blättern und DXF-Zeichnungen mit dokumentierter Dokumentversi
 6. Aufmaß speichern. Über „Aufgaben → Übernehmen“ oder an der jeweiligen Zielmaske „Aus Aufmaß“ den Messwert verknüpfen und den Verbraucher speichern. Flurstücke werden dabei mit den Grundstücksinformationen gespeichert; die Katasterfläche bleibt Rechenwert, die gezeichnete Fläche zeigt die Abweichung.
 7. Bei Fachberechnungen die vorhandene Position unter „Quellen / Übernahmen“ mit der passenden Markierung verknüpfen. Die reine Beschriftung einer Markierung erzeugt noch keine Berechnung.
 
+### Eigene Zeichnung in Metern
+
+1. In der Zeichnungsleiste „Neue Zeichnung“ wählen. Das Blatt rechnet in Metern (1 Einheit = 1 m), zeigt ein Meterraster und wächst mit den Inhalten; Maßstab und Kalibrierung entfallen.
+2. Unter „Blatt und Einrichtung → Hintergründe“ eine PDF-Seite oder DXF-Zeichnung hinzufügen und einpassen: Maßstab 1:n bzw. Zeichnungseinheit setzen, „Über Strecke einpassen“ (zwei Punkte einer bekannten Strecke anklicken, Länge in m), „Verschieben“ (Punkt und Ziel anklicken) und „Um Punkt drehen“. Deckkraft und Sichtbarkeit je Hintergrund; der Punktfang greift an den Vektoren der Hintergründe.
+3. Mit Wand (W), Maßkette (L) und Text (X) zeichnen; Wanddicke, Abstand der Maßlinie, Text und Schrifthöhe stehen unter „Eigenschaften“. Diese Elemente liefern keine Messwerte, sie dienen der Darstellung.
+4. Flächen, Strecken und Höhen wie auf einer Unterlage als Markierungen zeichnen; Bedeutungen, Zuordnungen, Aufgaben und Übernahmen sind dieselben. Der PDF-Export gibt die Zeichnung im Maßstab 1:100 aus.
+
 ### Bedienung der Zeichenfläche
 
 | Aktion | Bedienung |
@@ -666,6 +673,7 @@ Messwerte auf PDF-Blättern und DXF-Zeichnungen mit dokumentierter Dokumentversi
 | Markierung bearbeiten | Auswählen, Eckpunkte bearbeiten; Entf zum Löschen |
 | Rückgängig / Wiederholen / Duplizieren | Strg+Z / Strg+Y / Strg+D innerhalb des Aufmaßeditors |
 | Maßeingabe | Nach dem ersten Punkt eine Ziffer tippen; die eingeblendete Maßeingabe und Einheit beachten |
+| Zeichenelemente | W Wand, L Maßkette, X Text; Endpunkte mit „Auswählen“ ziehen, Entf löscht |
 
 ### Änderungen weitergeben
 
@@ -734,7 +742,7 @@ Beim Import einer einzelnen gleichnamigen Datei bietet die Anwendung an, das vor
 
 Aus einer Anforderung heraus eine Datei importieren oder die genaue Version auswählen. Zurück im Ausgangsbereich die Zuordnung ausdrücklich bestätigen.
 
-Weiterlesen: [E-Mails und Anhänge dokumentieren](#28-e-mails-und-anhänge-dokumentieren) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Aufmaß auf PDF und DXF erstellen und übernehmen](#24-aufmaß-auf-pdf-und-dxf-erstellen-und-übernehmen)
+Weiterlesen: [E-Mails und Anhänge dokumentieren](#28-e-mails-und-anhänge-dokumentieren) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen)
 
 ## 27. Dokumentkategorien im Büro pflegen
 
