@@ -1,17 +1,33 @@
-# PDF-Aufmaß und verknüpfte Berechnungseingaben
+# Aufmaß und verknüpfte Berechnungseingaben
 
 ## Umfang dieses Ausbaus
 
-Unter **Unterlagen → PDF-Aufmaß** lassen sich PDF-Dateien aus dem Projekt-DMS
-als unveränderte Zeichenunterlagen verwenden. Ein Aufmaß gehört zu genau einer
-Dokumentversion und einer Seite. Mehrere Aufmaße können dieselbe Seite verwenden,
-beispielsweise Lageplan, Ansicht und Schnitt mit unterschiedlichen Maßstäben auf
-einem Sammelblatt.
+Unter **Unterlagen → Aufmaß** lassen sich PDF-Dateien und DXF-Zeichnungen aus
+dem Projekt-DMS als unveränderte Zeichenunterlagen verwenden; beide Formate
+teilen sich eine Zeichenfläche, dieselben Werkzeuge, Bedeutungen, Aufgaben und
+Übernahmen. Ein Aufmaß gehört zu genau einer Dokumentversion und, bei PDF, einer
+Seite; eine DXF-Unterlage besitzt genau eine Zeichnung (Seite 1). Mehrere
+Aufmaße können dieselbe Seite verwenden, beispielsweise Lageplan, Ansicht und
+Schnitt mit unterschiedlichen Maßstäben auf einem Sammelblatt. „Im Aufmaß
+öffnen“ in den Projektdateien öffnet für PDF wie DXF das bestehende Aufmaß der
+Unterlage oder einen neuen Entwurf mit der neuesten Dokumentversion. Die frühere
+getrennte Ansicht „Pläne / Aufmaß“ für DXF entfällt.
 
 Enthalten sind:
 
 - Maßstab 1:n oder Kalibrierung einer bekannten Strecke über zwei Punkte,
-  je Blatt oder je Ausschnitt.
+  je Blatt oder je Ausschnitt. DXF-Zeichnungen kalibrieren über ihre
+  Zeichnungseinheit (`Plankalibrierung::Einheit`, Vorbelegung aus dem
+  DXF-Kopf `$INSUNITS`, korrigierbar) oder eine Referenzstrecke; ein
+  Blattmaßstab ist für DXF, eine Zeichnungseinheit für PDF unzulässig.
+- DXF-Darstellung aus Linienzügen und Beschriftungen des Core-Imports mit
+  ein-/ausblendbaren DXF-Ebenen (auch für den Punktfang); Hinweise des Imports
+  (übersprungene Elementtypen) werden angezeigt.
+- Lage im Baufenster (§ 23 BauNVO): je genau eine Markierung „Baufenster“
+  und „Vorhabenumriss“ im Lageplan; „Baufenster und Vorhabenumriss dem Projekt
+  zuordnen“ speichert `planungsrecht.baugrenzen` in Metern und zeigt die
+  Lageprüfung. Der bisherige DXF-Sonderweg entfällt; bestehende Zuordnungen
+  bleiben gültig, bis sie aus dem Aufmaß erneuert werden.
 - Ausschnitte: gespeicherte Sichten auf Teile eines Blattes (Grundriss,
   Lageplan, Schnitt, Ansicht, Detail) mit eigenem Maßstab und, bei Schnitten,
   Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
@@ -34,8 +50,8 @@ Enthalten sind:
   Zeichenaktionen rückgängig machen und wiederholen.
 - Benannte Zeichenebenen mit Sichtbarkeit und Bearbeitungssperre.
 - Fachliche Kennzeichnung, Grundstücks-, Gebäude- und Geschosszuordnung.
-- Endpunkt-, Mittelpunkt- und Kantenfang für extrahierte gerade PDF-Vektoren.
-  Rasterpläne bleiben manuell bearbeitbar.
+- Endpunkt-, Mittelpunkt- und Kantenfang für extrahierte gerade PDF-Vektoren
+  und für DXF-Linienzüge. Rasterpläne bleiben manuell bearbeitbar.
 - Flächen, Umfänge, Längen, horizontale Strecken, Höhendifferenzen, absolute
   Höhen bei bekanntem Bezug und Neigungen zur Seitenhorizontalen.
 - Versionierte Speicherung, lokale Entwurfssicherung und Konfliktbehandlung
@@ -59,7 +75,7 @@ Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
 Übernahmewege: [planaufmass-datenwege.md](planaufmass-datenwege.md).
 
 1. PDF unter **Projektdateien** importieren.
-2. **PDF-Aufmaß → Neu anlegen**, Unterlage, Seite und Bezeichnung auswählen.
+2. **Aufmaß → Neu anlegen**, Unterlage, Seite und Bezeichnung auswählen.
 3. Maßstab setzen oder eine bekannte Strecke kalibrieren. Ein gedruckter
    Maßstab gilt nur, wenn die PDF unverändert im angegebenen Papiermaß vorliegt.
    Liegen mehrere Zeichnungen auf dem Blatt, je Zeichnung mit **Ausschnitt
@@ -79,7 +95,7 @@ Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
 5. Aufmaß speichern. Gebäude- und Wandziele direkt unter **Aufgaben →
    Übernehmen** verknüpfen (das Gebäude bzw. der Abstandsplan wird dabei
    gespeichert). Für Fachberechnungen eine passende Position anlegen und unter
-   **Quellen / Übernahmen → PDF-Aufmaß** das Zielfeld verknüpfen.
+   **Quellen / Übernahmen → Aufmaß** das Zielfeld verknüpfen.
 6. Die eingesetzten Werte prüfen und die Berechnung speichern. Neue Maskenstände
    werden mit **Aktuellen Aufmaßstand übernehmen** bewusst übernommen.
 
@@ -94,18 +110,70 @@ Bedienreihenfolge, Lade-/Aktualisierungszeitpunkte und offene Punkte aller
 | Raumbuch | Raumflächen; neue Räume aus Raum-/Aufenthaltsraum-/NUF-/TF-/VF-Markierungen |
 | Abstandsflächen | Gelände und Wandabschluss an beiden Wandenden, Dachhöhe und Dachneigungen |
 | Gebäude / Geschosse | Horizontale Gebäudeprojektion, Geschossflächen nach Außenmaßen, NHN-Nullpunkt, Gelände-/Trauf-/First-/Fundamenthöhen, Fußboden-/Deckenlage und Höhenabmessungen |
+| Flurstücke (Grundstücksinformationen) | Flurstücksgrenze aus Flurkarte, Liegenschaftskarte oder Lageplan als gezeichnete Fläche neben der Katasterfläche; auf Wunsch als Flurstücksfläche, wenn kein amtlicher Wert vorliegt |
+| Baugrundstück (Flächenabzüge) | Private/öffentliche Grünfläche, Verkehrsfläche, Fläche außerhalb des Baulands, sonstiger Abzug je Flurstück; Art folgt der Bedeutung, rechtliche Grundlage bleibt Eingabe |
+| Baugrundstück (GRZ-Bauteile) | Zufahrt, Stellplatz, Garage/Carport, Nebenanlage, Terrasse, unterirdische Anlage als Grundfläche je Baugrundstück; Anrechnung nach Bauteiltyp und BauNVO-Fassung |
+
+**Projektstart über Pläne:** Beim Anlegen eines Projekts können Flurkarte /
+Liegenschaftskarte und Lageplan als PDF gewählt werden; sie werden mit
+Dokumentkategorie (`flurkarte`, `lageplan`) abgelegt, und die Akte öffnet im
+Aufmaß (die Unterlage wird dort gewählt). Die Projektübersicht führt ohne
+erfasste Flurstücke zum nächsten Schritt: „Flurkarte oder Lageplan ablegen“
+(Ziel Projektdateien) bzw. „Flurstücke aus Flurkarte / Lageplan zeichnen“
+(Ziel Aufmaß). Flurstücksidentität und Katasterfläche bleiben Eingaben unter
+Grundlagen → Flurstücke; die Zeichnung liefert Fläche und Zuordnung.
+
+**Flächenabzüge und GRZ-Bauteile:** Markierungen mit einer Abzugsbedeutung
+(*Private/Öffentliche Grünfläche*, *Verkehrsfläche*, *Fläche außerhalb des
+Baulands*, *Sonstige nicht maßgebende Fläche*) tragen wie Flurstücksgrenzen eine
+`flurstueck_id`; Markierungen mit Bauteilbedeutung (*Zufahrt*, *Stellplatz*,
+*Garage / Carport*, *Nebenanlage*, *Terrasse*, *Unterirdische Anlage*) eine
+`grundstueck_id`. Unter **Berechnungen → Baugrundstück** legt „Abzugsflächen aus
+Aufmaß übernehmen“ je Markierung eine Abzugszeile mit der Markierungs-ID als
+Zeilenkennung an (`FlaechenAbzug.id`, Bindung `abzuege.<id>.flaeche_m2`); die
+Abzugsart folgt der Bedeutung, die rechtliche Grundlage ist zu ergänzen. In der
+GRZ-Maske legt „Bauteile aus Aufmaß übernehmen“ entsprechend Bauteile an
+(`Bauteil.id`, Bindung `bauteile.<id>.flaeche_m2`, Typ aus der Bedeutung,
+keine Gebäudeverknüpfung; die Hauptanlage kommt weiter über die
+Gebäudegrundfläche). Gebundene Flächen sind schreibgeschützt; Art bzw. Typ
+bleiben auf die zur Bedeutung passenden Werte beschränkt. Beim Speichern
+(Projektgrenze, Einzelspeicherung eines Baugrundstücks, Nutzungsnachweise)
+müssen gebundene Werte dem Stand ihrer Quelle entsprechen; nach geänderter
+Kontur zeigt die Projektübersicht „Abzugsflächen …“ bzw. „GRZ-Bauteile aus dem
+Aufmaß aktualisieren“, bis *Aktuellen Aufmaßstand übernehmen* gewählt wurde.
+„Verknüpfung lösen“ behält den Wert als manuelle Angabe. Unter **Aufgaben**
+erscheinen vorhandene Zeilen mit Kennung; neue Zeilen entstehen nur über die
+Übernahme in der Baugrundstücksmaske.
+
+**Flurstücke:** Eine Markierung mit Bedeutung *Flurstück* und zugeordnetem
+Flurstück (`Planmarkierung.flurstueck_id`, Eigenschaften-Panel) erscheint unter
+**Aufgaben** je erfasstem Flurstück. *Übernehmen* bindet sie an
+`flurstuecke.<id>.flaeche_m2` und speichert die Grundstücksinformationen über
+den Projektbereich `grundstuecksinformationen`. Der Core setzt die gemessene
+Fläche (auf 0,01 m² gerundet) in `FlurstuecksInfo.planflaeche_m2`; die
+Katasterfläche `flaeche_m2` bleibt Rechenwert der Baugrundstücksermittlung und
+zeigt ihre Abweichung. Nur mit `flaeche_aus_plan` (Oberfläche: „Gezeichnete
+Fläche als Flurstücksfläche verwenden“, gedacht für Flurstücke ohne amtlichen
+Wert) übernimmt der Core den Messwert in `flaeche_m2`; das Feld ist dann nicht
+von Hand änderbar. Identität (Gemarkung, Flur, Nummer), Rolle, Grundbuch und
+Abzüge der Ermittlung bleiben unberührt; eine geänderte Fläche ändert wie bisher
+den Quellenstand der Ermittlung. Eine neue Aufmaßrevision mit geänderter Kontur
+schreibt nichts still fort: Projektspeicherung und Projektübersicht melden
+„Flurstücksflächen aus dem Aufmaß aktualisieren“, bis *Aktuellen
+Aufmaßstand übernehmen* ausgeführt wurde. *Verknüpfung lösen* behält den
+eingesetzten Wert als manuelle Angabe.
 
 In **Gebäude / Geschosse** bieten die Felder *Gebäudegrundfläche* und
-*Geschossfläche nach Außenmaßen* direkt **Aus PDF-Aufmaß** an. Angeboten werden
+*Geschossfläche nach Außenmaßen* direkt **Aus Aufmaß** an. Angeboten werden
 nur Markierungen dieses Gebäudes mit passender Bedeutung (und beim Geschoss mit
 passender Geschosszuordnung); findet sich keine, nennt das Feld die nicht
 passenden Markierungen und den fehlenden Schritt. Höhen und die Liste aller
-Verknüpfungen stehen unter **Höhen und alle Verknüpfungen aus PDF-Aufmaß**.
+Verknüpfungen stehen unter **Höhen und alle Verknüpfungen aus Aufmaß**.
 Gebäude und Geschosse zuerst speichern, damit Markierungen ihre stabilen IDs
 wählen können. Soll dieselbe Kontur Gebäudegrundfläche und Geschossfläche
-liefern, wird die Markierung im PDF-Aufmaß mit **Duplizieren** kopiert und die
+liefern, wird die Markierung im Aufmaß mit **Duplizieren** kopiert und die
 Kopie als *Geschoss – Außenkante* gekennzeichnet. Das Seitenpanel des
-PDF-Aufmaßes nennt je Bedeutung die Stelle, an der übernommen wird. Die Bedeutung **Gebäudegrundfläche – horizontale Projektion** ist vom
+Aufmaßes nennt je Bedeutung die Stelle, an der übernommen wird. Die Bedeutung **Gebäudegrundfläche – horizontale Projektion** ist vom
 **Geschoss – Außenkante** getrennt; das EG ist nicht automatisch der gesamte
 Gebäudeumgriff. Die bestehende Gebäudeeinbindung versorgt GRZ/GFZ je zugeordnetem
 Baugrundstück. Die rechtliche Geschosseinstufung bleibt ausdrücklich offen.
@@ -117,7 +185,7 @@ Lichte Höhe, Geschosshöhe und Deckendicke stammen aus gemessenen
 Höhendifferenzen. Die fachliche Auswahl des maßgebenden Geländes bleibt beim
 Bearbeiter; ein einzelner Punkt bildet kein automatisch gemitteltes Gelände.
 
-Im **Raumbuch → Räume aus PDF-Aufmaß übernehmen** werden Markierungen des
+Im **Raumbuch → Räume aus Aufmaß übernehmen** werden Markierungen des
 gewählten Gebäudes und Geschosses übernommen. Die Markierungs-ID dient als
 stabile Raum-ID. Erneute Übernahmen aktualisieren die Fläche, erhalten aber
 Raumnummer, Bezeichnung, Nutzung und Raumhöhe. Änderungen der Klassifikation
@@ -135,7 +203,7 @@ Position `Raum_Zone` mit der kleinsten lichten Höhe; DIN 277 zählt weiter eine
 Position je Raum. Der Bindungsstand enthält `hoehenzone_von` nur, wenn es
 gesetzt ist; bestehende Bindungen bleiben aktuell.
 
-Unter **Abstandsflächen → Grundlagen → PDF-Aufmaß verknüpfen** werden bestehende
+Unter **Abstandsflächen → Grundlagen → Aufmaß verknüpfen** werden bestehende
 manuelle Wände als Ziel angeboten. Absolute Höhen benötigen dasselbe
 Höhensystem. Bereits vorhandene Gelände-/Oberkantenprofile müssen ausdrücklich
 entfernt werden, bevor Einzelhöhen eingesetzt werden. Umrisswände erhalten
@@ -170,12 +238,16 @@ jeweiligen Verbraucher.
 `crates/core-lib/src/planaufmass` besitzt Kalibrierung, geometrische Validierung,
 Messwerte und die Übernahmeprüfung. Es verwendet keine UI- oder
 Datenbankbibliothek. Die PDF-Darstellung und Vektorinterpretation sind im
-Frontend-Adapter `planaufmass/pdfGeometry.ts` und `PdfPlan.svelte` gekapselt.
-Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
+Frontend-Adapter `planaufmass/pdfGeometry.ts` und `PdfPlan.svelte` gekapselt,
+die DXF-Darstellung in `planaufmass/dxf.ts` (Linienzüge und Beschriftungen aus
+`CoreServices::cad_plan_version`). Die Bedienoberfläche berechnet keine
+weitergegebenen Fachwerte.
 
-- `Planaufmass`: Dokumentbezug, einsbasierte Seite, optionale Kalibrierung/
+- `Planaufmass`: Dokumentbezug, einsbasierte Seite (DXF: immer 1), optionale
+  Kalibrierung (`massstab`, `strecke` oder `einheit` mit `Laengeneinheit`)/
   Höhenreferenz, Ebenen, identifizierbare Markierungen und optionale
-  `ausschnitte`.
+  `ausschnitte`. Die Unterlagenart folgt dem Dateinamen der Dokumentversion
+  (`.pdf`/`.dxf`), nicht einem zusätzlichen Feld.
 - `Planausschnitt`: UUID, Bezeichnung, `art` (`grundriss`, `lageplan`,
   `schnitt`, `ansicht`, `detail`), Rahmen `von`/`bis` in Seitenpunkten,
   optionale eigene `kalibrierung` und optionale `bezugslinie`
@@ -183,7 +255,9 @@ Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
   Ansicht, Detail). Ohne eigenen Maßstab gilt der Maßstab der Seite.
 - `Planmarkierung`: UUID, Ebene, Geometrie, Bedeutung, optionale
   Grundstücks-, Gebäude- und Geschoss-IDs sowie optionale `ausschnitt_id`
-  (Ausschnitt, in dem gezeichnet wurde; nicht nur die Lage).
+  (Ausschnitt, in dem gezeichnet wurde; nicht nur die Lage) und optionale
+  `flurstueck_id` (nur mit Bedeutung *Flurstück* oder einer Abzugsbedeutung;
+  muss erfasst sein).
 - `Planmesswert`: Messgrößen in m, m² und Grad, jeweils `null`, solange diese
   Größe nicht bestimmbar oder für die Geometrie nicht vorhanden ist.
 - `Planbindung`: Aufmaß-ID, ausdrücklich übernommene Revision, Markierungs-ID,
@@ -194,6 +268,19 @@ Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
 - `CoreServices::planaufmass_raumbuch`: Planräume im Raumbuch anlegen/aktualisieren.
 - `CoreServices::planaufmass_abstand`: Höhen und Neigungen in Wandfelder einsetzen.
 - `CoreServices::planaufmass_gebaeude`: Flächen und Höhen in Gebäudedaten einsetzen.
+- `CoreServices::planaufmass_flurstuecke`: gezeichnete Flurstücksflächen in die
+  Grundstücksinformationen einsetzen (Entwurf); `flurstueck_planquellen_pruefen`
+  verlangt beim Projektspeichern den übernommenen Stand.
+- `flurstueckziele`: Positivliste je erfasstem Flurstück.
+- `CoreServices::planaufmass_abzuege` / `planaufmass_bauteile`: mit
+  `Aufmassstand` (Aufmaß-ID, Revision) Abzugszeilen je zugeordnetem Flurstück
+  bzw. GRZ-Bauteile je Baugrundstück aus Markierungen anlegen, danach alle
+  Bindungen auflösen (Entwurf); `abzug_planquellen_pruefen`,
+  `bauteil_planquellen_pruefen` und `grundstueck_planquellen_pruefen` verlangen
+  beim Speichern den übernommenen Stand. `abzugsziele` / `bauteilziele` liefern
+  die Positivlisten erfasster Zeilen mit Kennung;
+  `Planbedeutung::abzugsart`/`fuer_abzugsart` und `bauteiltyp`/`fuer_bauteiltyp`
+  sind die einzige Zuordnung zwischen Bedeutung, Abzugsart und Bauteiltyp.
 - `planziele`: Positivliste fachlich unterstützter Zielfelder.
 - `abstandsziele`: entsprechende Positivliste für manuelle Wände.
 - `gebaeudeziele`: entsprechende Positivliste für Gebäude und explizite Geschosse.
@@ -204,7 +291,19 @@ Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
   `gebunden`, passende freie `markierung`, Hinweis). Reine Auskunft; die
   Übernahme läuft über `planaufmass_gebaeude`/`planaufmass_abstand` und das
   Speichern des Verbrauchers.
-- `Planbedeutung` um `nullpunkt`, `fussboden`, `decke`, `fundamentsohle` und
+- `CoreServices::baugrenzen_aus_aufmass` / `planaufmass_baugrenzen`: aus dem
+  gespeicherten `Aufmassstand` die `BaugrenzenGeometrie` (Meter, Dokumentbezug
+  des Aufmaßes, Baugrundstück aus der Zuordnung des Vorhabenumrisses) bilden,
+  prüfen und als `planungsrecht.baugrenzen` speichern; Ergebnis
+  `BaugrenzenUebernahme` (Projekt, `BaugrenzenPruefung`).
+- `CoreServices::cadaufmass_uebernehmen`: wiederholbare Übernahme gespeicherter
+  CAD-Aufmaße (`ObjektArt::Cadaufmass`) als Aufmaß „… · CAD-Aufmaß
+  (übernommen)“ mit Bedeutung `unbestimmt` und fester Kennung je Quelle;
+  `seitenpunkt` ist die einzige Umrechnung von Zeichnungs- in Seitenpunkte.
+  Ergebnis `CadUebernahme` (übernommen, vorhanden, übersprungen mit Grund).
+  Die alten Fachobjekte bleiben unverändert lesbar.
+- `Planbedeutung` um `baufenster` und `vorhabenumriss` sowie um `nullpunkt`,
+  `fussboden`, `decke`, `fundamentsohle` und
   `hoehenmass` erweitert, damit Gebäudehöhen eine eigene Bedeutung tragen.
   Bestehende Markierungen sind unberührt; die Übernahmeprüfung der Höhen
   verlangt weiterhin Höhenpunkt und Höhensystem, nicht eine bestimmte
@@ -212,7 +311,10 @@ Die Bedienoberfläche berechnet keine weitergegebenen Fachwerte.
 
 Koordinaten sind physische PDF-Seitenpunkte (72 Punkte = 1 Zoll) der sichtbaren,
 gedrehten Seite ab links oben; y wächst nach unten. Der PDF.js-Viewport
-berücksichtigt CropBox, Rotation und UserUnit. Zoom, Vollbild und
+berücksichtigt CropBox, Rotation und UserUnit. Bei DXF-Unterlagen sind
+Seitenpunkte Zeichnungseinheiten ab der linken oberen Ecke des
+Zeichnungsumfangs (`grenzen.min.x`, `grenzen.max.y`), y nach unten; der
+Umfang ist an die Dokumentversion gebunden. Zoom, Vollbild und
 Bildschirmauflösung beeinflussen gespeicherte Punkte nicht. Kreise bleiben
 echte Kreise und werden im Core analytisch berechnet. Ohne Ausschnitt ist die
 absolute Höhe `Bezugshöhe + (Bezug.y − Punkt.y) × MeterProPunkt`. Innerhalb
@@ -238,14 +340,25 @@ bzw. `POST /projekte/{id}/plangebaeude` (Payload: `id`, `gebaeude`) und
 `POST /berechnung/planaufmass/gebaeudeziele`. Aufgaben liefert
 `planaufmass_aufgaben` bzw. `POST /projekte/{id}/planaufgaben` (Payload:
 das Aufmaß).
+Die Lage im Baufenster liefert `planaufmass_baugrenzen` bzw.
+`POST /projekte/{id}/planbaugrenzen` (Payload: `Aufmassstand`), die
+CAD-Übernahme `cadaufmass_uebernehmen` bzw.
+`POST /projekte/{id}/cadaufmass/uebernehmen`; `cad_plan` bzw.
+`GET /dokumente/{id}/plan?version=` lädt die DXF-Zeichnung einer bestimmten
+Dokumentversion. Die Desktop-Commands `cadaufmass_laden`/`_speichern`/
+`_messwerte`/`_exportieren` der früheren DXF-Ansicht sind entfallen; die
+HTTP-Routen bleiben für Altbestand bestehen.
 Speichern erfolgt über die vorhandenen Fachobjekt-Endpunkte mit
-`ObjektArt::Planaufmass`. Die tatsächliche PDF-Seite wird an der Speichergrenze
-über den bestehenden PDF-Vertrag geprüft.
+`ObjektArt::Planaufmass`. Die tatsächliche PDF-Seite bzw. die Lesbarkeit der
+DXF wird an der Speichergrenze über den bestehenden Vertrag geprüft.
 
 ## Kompatibilität, Herkunft und Aktualität
 
 Keine Datenbankmigration und keine automatische Neuberechnung beim Öffnen.
-Bestehende PDF- und DXF-Funktionen bleiben erhalten. `ObjektArt` erhält die
+Aufmaße ohne `einheit`-Kalibrierung bleiben unverändert; CAD-Aufmaße der
+früheren DXF-Ansicht werden beim ersten Öffnen des Aufmaßes mit Schreibrecht
+über `cadaufmass_uebernehmen` als eigene Aufmaße angelegt (Datenmigration mit
+fester Kennung, wiederholbar, Altbestand bleibt). `ObjektArt` erhält die
 neue Variante `planaufmass`; generierte TypeScript-Verträge werden mitgeführt.
 `FachPlan.planbindungen`, `Raumbuch.planbindungen`, `Gebaeude.planbindungen`
 und `AbstandsPlan.planbindungen`
@@ -301,9 +414,10 @@ Berechtigungsgrenze.
 
 Für das beschriebene Gesamtziel fehlen noch eigenständige Verbraucheradapter:
 
-- Flurstücks- und private Grünflächen direkt in Grundstücksinformationen und
-  Baugrundstücksermittlung übernehmen; Identität und rechtliche Flächenabzüge
-  ausdrücklich erhalten.
+- Abzugsflächen und GRZ-Bauteile liefern nur Flächen; Abzugsart, rechtliche
+  Grundlage und Anrechnung bleiben Eingaben und Regeln des Grundstücksmoduls.
+  Noch offen: Teilflächen für GFZ-Geschosse, Dachneigung und Raumhöhen aus
+  Schnitten sowie Baumasse als Planziele.
 - Vorschläge für Ausschnitte, Maßstab und Höhenkoten aus dem PDF-Text,
   Lotfang und eine Werkzeugkiste mit Vorlagen;
   Aufgaben für Fachberechnungen (Positionen) und Raumbuch; siehe

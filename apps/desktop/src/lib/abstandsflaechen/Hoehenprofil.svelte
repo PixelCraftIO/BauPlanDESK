@@ -25,7 +25,7 @@
     dateien?: DocumentVersion[];
     projektId?: string;
     onquelle?: (d: Dokumentbezug) => void;
-    /** Geländehöhen bzw. Wandabschluss als Eckwerte aus dem PDF-Aufmaß verknüpft. */
+    /** Geländehöhen bzw. Wandabschluss als Eckwerte aus dem Aufmaß verknüpft. */
     planGelaende?: boolean;
     planOberkante?: boolean;
   } = $props();
@@ -125,7 +125,7 @@
   }
 </script>
 
-{#if planGelaende || planOberkante}<p class="hinweisbox">{planGelaende && planOberkante ? "Geländehöhen und Wandabschluss sind" : planGelaende ? "Geländehöhen sind" : "Wandabschlusshöhen sind"} mit PDF-Aufmaß verknüpft. Für ein eigenes Profil unter „Grundlagen“ die Verknüpfung lösen; die übrigen Angaben bleiben bearbeitbar.</p>{/if}
+{#if planGelaende || planOberkante}<p class="hinweisbox">{planGelaende && planOberkante ? "Geländehöhen und Wandabschluss sind" : planGelaende ? "Geländehöhen sind" : "Wandabschlusshöhen sind"} mit Aufmaß verknüpft. Für ein eigenes Profil unter „Grundlagen“ die Verknüpfung lösen; die übrigen Angaben bleiben bearbeitbar.</p>{/if}
 <fieldset class="profil">
   <legend>Höhenprofil der Wand · Länge {laenge.toLocaleString("de-DE", { maximumFractionDigits: 3 })} m</legend>
   <p class="meta">

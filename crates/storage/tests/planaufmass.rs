@@ -82,6 +82,7 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
             grundstueck_id: None,
             gebaeude_id: None,
             geschoss_id: None,
+            flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
         }],
@@ -355,6 +356,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 grundstueck_id: None,
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
+                flurstueck_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
             },
@@ -367,6 +369,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 grundstueck_id: None,
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
+                flurstueck_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
             },
@@ -382,6 +385,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 grundstueck_id: None,
                 gebaeude_id: Some(gid),
                 geschoss_id: None,
+                flurstueck_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
             },
@@ -400,6 +404,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         grundstueck_id: None,
         gebaeude_id: Some(gid),
         geschoss_id: None,
+        flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
     });
@@ -415,6 +420,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         grundstueck_id: None,
         gebaeude_id: Some(gid),
         geschoss_id: Some(sid),
+        flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
     });
@@ -809,6 +815,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
             grundstueck_id: (gebaeude == haus).then_some(grund[0].id),
             gebaeude_id: Some(gebaeude),
             geschoss_id: geschoss,
+            flurstueck_id: None,
             ausschnitt_id: Some(aus),
             hoehenzone_von: None,
         }
@@ -1048,7 +1055,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
     let vorschlag = |feld: &str| {
         aufgaben
             .iter()
-            .find(|x| x.objekt == haus && x.ziel == format!("geschosse.{sid}.{feld}"))
+            .find(|x| x.objekt == haus.to_string() && x.ziel == format!("geschosse.{sid}.{feld}"))
             .unwrap()
             .markierung
     };
@@ -1063,7 +1070,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
     assert!(
         aufgaben
             .iter()
-            .filter(|x| x.objekt == haus)
+            .filter(|x| x.objekt == haus.to_string())
             .all(|x| x.markierung.is_none_or(|m| !gebunden.contains(&m))),
         "gebundene Markierungen werden nicht erneut vorgeschlagen"
     );
@@ -1284,6 +1291,7 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
         grundstueck_id: None,
         gebaeude_id: Some(gid),
         geschoss_id: None,
+        flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: von_raum,
     };
@@ -1431,4 +1439,1078 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
         .and_then(|k| k.wert)
         .unwrap();
     assert!((wf - 45.).abs() < 1e-9, "{wf}");
+}
+
+/// Flurstücksgrenzen aus Flurkarte oder Lageplan: die gezeichnete Fläche wird
+/// neben der Katasterfläche gespeichert und ersetzt sie nur ausdrücklich
+/// („Fläche aus Plan“, kein amtlicher Wert). Bindungen zeigen auf den
+/// gespeicherten Aufmaßstand; eine geänderte Kontur blockiert das stille
+/// Speichern, bis sie übernommen wurde.
+#[tokio::test]
+async fn flurstuecke_werden_aus_dem_pdf_aufmass_uebernommen() {
+    use core_lib::{
+        domain::{Project, ProjectUpdate},
+        grundstuecksinformationen::{FlurstuecksInfo, Grundstuecksinformationen, informationen},
+        projektbereiche::ProjektBereich,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let flurstueck = |id: &str, nummer: &str, flaeche: f64| FlurstuecksInfo {
+        id: id.into(),
+        gemarkung: "Linden".into(),
+        gemarkungsnummer: String::new(),
+        flur: "1".into(),
+        nummer: nummer.into(),
+        flaeche_m2: flaeche,
+        grundbuchbezirk: String::new(),
+        grundbuchblatt: String::new(),
+        laufende_nummer: None,
+        grundbuchauszug: None,
+        eigentuemer: String::new(),
+        eigentuemer_kunden: vec![],
+        bemerkung: String::new(),
+        rolle: Default::default(),
+        planbindung: None,
+        planflaeche_m2: None,
+        flaeche_aus_plan: false,
+    };
+    let mut p = core
+        .create_project(
+            NewProject {
+                name: "Flurkarte".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: core_lib::domain::Planungsrecht {
+                    grundstuecksinformationen: Some(Grundstuecksinformationen {
+                        flurstuecke: vec![
+                            flurstueck("a", "10/1", 1000.),
+                            flurstueck("b", "10/2", 1.),
+                        ],
+                    }),
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Flurkarte.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let (ebene, m_a, m_b, aufmass) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let markierung = |id, name: &str, flurstueck: Option<&str>, bis: [f64; 2]| Planmarkierung {
+        id,
+        ebene_id: ebene,
+        bezeichnung: name.into(),
+        bedeutung: Planbedeutung::Flurstueck,
+        geometrie: Plangeometrie::Rechteck { von: [0., 0.], bis },
+        grundstueck_id: None,
+        gebaeude_id: None,
+        geschoss_id: None,
+        ausschnitt_id: None,
+        hoehenzone_von: None,
+        flurstueck_id: flurstueck.map(Into::into),
+    };
+    let mut a = Planaufmass {
+        bezeichnung: "Flurkarte".into(),
+        dokument: Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        },
+        seite: 1,
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Flurstücke".into(),
+            sichtbar: true,
+            gesperrt: false,
+        }],
+        // 100 × 100 pt = 10 m × 10 m = 100 m²; 100 × 50 pt = 50 m².
+        markierungen: vec![
+            markierung(m_a, "Flurstück 10/1", Some("a"), [100., 100.]),
+            markierung(m_b, "Flurstück 10/2", Some("b"), [100., 50.]),
+        ],
+        ausschnitte: vec![],
+    };
+    // Unbekannte Flurstücks-ID wird abgewiesen.
+    let mut falsch = a.clone();
+    falsch.markierungen[0].flurstueck_id = Some("fremd".into());
+    assert!(core.planaufmass_pruefen(p.id, &falsch).await.is_err());
+    // Flurstückszuordnung nur mit Bedeutung „Flurstück“.
+    falsch = a.clone();
+    falsch.markierungen[0].bedeutung = Planbedeutung::Gebaeudegrundflaeche;
+    assert!(core.planaufmass_pruefen(p.id, &falsch).await.is_err());
+    let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
+    let f = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, aufmass, 0, save(&a), &user)
+        .await
+        .unwrap();
+    // Aufgaben: je Flurstück eine, mit passender Markierung vorgeschlagen.
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    let fa = aufgaben
+        .iter()
+        .find(|x| x.verbraucher == "flurstueck" && x.objekt == "a")
+        .unwrap();
+    assert_eq!(fa.ziel, "flurstuecke.a.flaeche_m2");
+    assert_eq!(fa.markierung, Some(m_a));
+    assert_eq!(fa.flurstueck_id.as_deref(), Some("a"));
+    assert!(fa.wert_vorhanden && fa.gebunden.is_none());
+    let bindung = |m, ziel: String| Planbindung {
+        aufmass_id: aufmass,
+        revision: f.revision,
+        markierung_id: m,
+        groesse: Planmessgroesse::Flaeche,
+        ziel,
+    };
+    let mut infos = informationen(&p.planungsrecht);
+    // Falsche Markierung (anderes Flurstück) wird abgewiesen.
+    infos.flurstuecke[0].planbindung = Some(bindung(m_b, infos.flurstuecke[0].planziel()));
+    assert!(
+        core.planaufmass_flurstuecke(p.id, infos.clone())
+            .await
+            .is_err()
+    );
+    infos.flurstuecke[0].planbindung = Some(bindung(m_a, infos.flurstuecke[0].planziel()));
+    infos.flurstuecke[1].planbindung = Some(bindung(m_b, infos.flurstuecke[1].planziel()));
+    infos.flurstuecke[1].flaeche_aus_plan = true;
+    let infos = core.planaufmass_flurstuecke(p.id, infos).await.unwrap();
+    // Katasterfläche bleibt Rechenwert, die Zeichnung steht daneben.
+    assert_eq!(infos.flurstuecke[0].flaeche_m2, 1000.);
+    assert_eq!(infos.flurstuecke[0].planflaeche_m2, Some(100.));
+    assert_eq!(infos.flurstuecke[0].flaechenabweichung_m2(), Some(-900.));
+    // Ohne amtlichen Wert liefert die Zeichnung die Fläche.
+    assert_eq!(infos.flurstuecke[1].flaeche_m2, 50.);
+    assert_eq!(infos.flurstuecke[1].flaechenabweichung_m2(), None);
+    let speichern = |p: &Project, infos: Grundstuecksinformationen| ProjectUpdate {
+        id: p.id,
+        expected_version: p.version,
+        name: p.name.clone(),
+        bundesland: p.bundesland,
+        grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+        planungsrecht: Some(core_lib::domain::Planungsrecht {
+            grundstuecksinformationen: Some(infos),
+            ..p.planungsrecht.clone()
+        }),
+    };
+    // Eine Oberfläche darf die gezeichnete Fläche nicht selbst eintragen.
+    let mut manipuliert = infos.clone();
+    manipuliert.flurstuecke[1].flaeche_m2 = 51.;
+    assert!(
+        core.update_project(speichern(&p, manipuliert), &user)
+            .await
+            .is_err()
+    );
+    p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            speichern(&p, infos.clone()),
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.grundstuecksflaeche_m2, Some(1050.));
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    assert!(
+        aufgaben
+            .iter()
+            .filter(|x| x.verbraucher == "flurstueck")
+            .all(|x| x.gebunden.is_some())
+    );
+    assert!(
+        core.flurstueck_planquellen_pruefen(p.id, &informationen(&p.planungsrecht))
+            .await
+            .is_ok()
+    );
+    // Geänderte Kontur: neuer Aufmaßstand, Flurstücke bleiben auf dem alten
+    // Stand, bis sie ausdrücklich übernommen werden; stilles Speichern scheitert.
+    a.markierungen[1].geometrie = Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [100., 60.],
+    };
+    let f2 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    let e = core
+        .flurstueck_planquellen_pruefen(p.id, &informationen(&p.planungsrecht))
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("Aufmaßstand"), "{e}");
+    let mut alt = informationen(&p.planungsrecht);
+    alt.flurstuecke[0].bemerkung = "Nur eine Bemerkung".into();
+    assert!(
+        core.update_project(speichern(&p, alt.clone()), &user)
+            .await
+            .is_err()
+    );
+    let uebersicht = core.projektuebersicht(p.id, &user).await.unwrap();
+    assert!(
+        uebersicht
+            .punkte
+            .iter()
+            .any(|x| x.id == "flurstueck_aufmass"),
+        "{:?}",
+        uebersicht.punkte
+    );
+    // Übernahme des neuen Stands: Flurstück „a“ ist unverändert (Bindung bleibt
+    // auf alter Revision gültig), „b“ erhält 60 m².
+    for f in &mut alt.flurstuecke {
+        if let Some(b) = &mut f.planbindung {
+            b.revision = f2.revision;
+        }
+    }
+    let neu = core.planaufmass_flurstuecke(p.id, alt).await.unwrap();
+    assert_eq!(neu.flurstuecke[1].flaeche_m2, 60.);
+    p = core
+        .update_project(speichern(&p, neu), &user)
+        .await
+        .unwrap();
+    assert_eq!(p.grundstuecksflaeche_m2, Some(1060.));
+    // Verknüpfung lösen: der Wert bleibt als manuelle Angabe stehen.
+    let mut geloest = informationen(&p.planungsrecht);
+    geloest.flurstuecke[1].planbindung = None;
+    let geloest = core.planaufmass_flurstuecke(p.id, geloest).await.unwrap();
+    assert_eq!(geloest.flurstuecke[1].flaeche_m2, 60.);
+    assert!(
+        !geloest.flurstuecke[1].flaeche_aus_plan && geloest.flurstuecke[1].planflaeche_m2.is_none()
+    );
+    core.update_project(speichern(&p, geloest), &user)
+        .await
+        .unwrap();
+    // Bestandsdaten ohne die neuen Felder bleiben lesbar.
+    let alt: FlurstuecksInfo = serde_json::from_str(
+        r#"{"id":"x","gemarkung":"L","flur":"1","nummer":"5","flaeche_m2":12.0}"#,
+    )
+    .unwrap();
+    assert!(alt.planbindung.is_none() && !alt.flaeche_aus_plan);
+}
+
+#[tokio::test]
+async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
+    use core_lib::{
+        baugrundstuecke::{BaugrundstueckBerechnung, einheitsschluessel, musterplan},
+        domain::{BebauungsplanArt, Planungsrecht, Project, ProjectUpdate},
+        grundstuecksinformationen::{
+            BaugrundstuecksErmittlung, FlurstuecksAnsatz, FlurstuecksInfo,
+            Grundstuecksinformationen, ermittlung, plan,
+        },
+        plattform::einbindung::grundstueck_id,
+        projektbereiche::ProjektBereich,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let speichern = |p: &Project, recht: Planungsrecht| ProjectUpdate {
+        id: p.id,
+        expected_version: p.version,
+        name: p.name.clone(),
+        bundesland: p.bundesland,
+        grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+        planungsrecht: Some(recht),
+    };
+    let mut p = core
+        .create_project(
+            NewProject {
+                name: "Lageplan".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Planungsrecht {
+                    bebauungsplan_art: BebauungsplanArt::Qualifiziert,
+                    bau_nvo: Some(core_lib::flaechen::BauNvo::V2017),
+                    grundstuecksinformationen: Some(Grundstuecksinformationen {
+                        flurstuecke: vec![FlurstuecksInfo {
+                            id: "a".into(),
+                            gemarkung: "Linden".into(),
+                            gemarkungsnummer: String::new(),
+                            flur: "1".into(),
+                            nummer: "10/1".into(),
+                            flaeche_m2: 1000.,
+                            grundbuchbezirk: String::new(),
+                            grundbuchblatt: String::new(),
+                            laufende_nummer: None,
+                            grundbuchauszug: None,
+                            eigentuemer: String::new(),
+                            eigentuemer_kunden: vec![],
+                            bemerkung: String::new(),
+                            rolle: Default::default(),
+                            planbindung: None,
+                            planflaeche_m2: None,
+                            flaeche_aus_plan: false,
+                        }],
+                    }),
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let schluessel = einheitsschluessel(&["a".into()]);
+    let mut recht = p.planungsrecht.clone();
+    recht.baugrundstuecksermittlung = Some(BaugrundstuecksErmittlung {
+        ansaetze: vec![FlurstuecksAnsatz {
+            flurstueck_id: "a".into(),
+            abzuege: vec![],
+            abweichende_zuordnung: None,
+        }],
+        berechnungen: vec![BaugrundstueckBerechnung {
+            schluessel: schluessel.clone(),
+            eingabe: musterplan().berechnungen[0].eingabe.clone(),
+            eigene_festsetzungen: None,
+            flurstueck_ids: vec![],
+        }],
+        quellen_hash: None,
+    });
+    p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecke,
+            speichern(&p, recht),
+            &user,
+        )
+        .await
+        .unwrap();
+    let grundstueck = grundstueck_id(p.id, &schluessel);
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let (ebene, m_gruen, m_zufahrt, aufmass) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let markierung = |id, name: &str, bedeutung, bis: [f64; 2]| Planmarkierung {
+        id,
+        ebene_id: ebene,
+        bezeichnung: name.into(),
+        bedeutung,
+        geometrie: Plangeometrie::Rechteck { von: [0., 0.], bis },
+        grundstueck_id: None,
+        gebaeude_id: None,
+        geschoss_id: None,
+        ausschnitt_id: None,
+        hoehenzone_von: None,
+        flurstueck_id: None,
+    };
+    // 100 × 100 pt = 10 m × 10 m = 100 m²; 100 × 50 pt = 50 m².
+    let mut gruen = markierung(
+        m_gruen,
+        "Private Grünfläche",
+        Planbedeutung::PrivateGruenflaeche,
+        [100., 100.],
+    );
+    gruen.flurstueck_id = Some("a".into());
+    let mut zufahrt = markierung(m_zufahrt, "Zufahrt", Planbedeutung::Zufahrt, [100., 50.]);
+    zufahrt.grundstueck_id = Some(grundstueck);
+    let mut a = Planaufmass {
+        bezeichnung: "Lageplan".into(),
+        dokument: Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        },
+        seite: 1,
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Lageplan".into(),
+            sichtbar: true,
+            gesperrt: false,
+        }],
+        markierungen: vec![gruen, zufahrt],
+        ausschnitte: vec![],
+    };
+    // Flurstückszuordnung gilt für Abzugsflächen, nicht für Bauteile.
+    let mut falsch = a.clone();
+    falsch.markierungen[1].flurstueck_id = Some("a".into());
+    assert!(core.planaufmass_pruefen(p.id, &falsch).await.is_err());
+    core.planaufmass_pruefen(p.id, &a).await.unwrap();
+    let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
+    let f = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, aufmass, 0, save(&a), &user)
+        .await
+        .unwrap();
+    let stand = Aufmassstand {
+        aufmass_id: aufmass,
+        revision: f.revision,
+    };
+    // Veralteter Aufmaßstand wird nicht übernommen.
+    let e = ermittlung(&p.planungsrecht).unwrap().unwrap();
+    assert!(
+        core.planaufmass_abzuege(
+            p.id,
+            Some(Aufmassstand {
+                revision: f.revision + 1,
+                ..stand
+            }),
+            e.clone()
+        )
+        .await
+        .is_err()
+    );
+    // Abzugszeile aus der Markierung: Art folgt der Bedeutung, Fläche aus dem Plan,
+    // rechtliche Grundlage bleibt Eingabe.
+    let mut neu = core
+        .planaufmass_abzuege(p.id, Some(stand), e.clone())
+        .await
+        .unwrap();
+    let abzug = &neu.ansaetze[0].abzuege[0];
+    assert_eq!(abzug.id.as_deref(), Some(m_gruen.to_string().as_str()));
+    assert_eq!(abzug.art, "private_gruenflaeche");
+    assert_eq!(abzug.flaeche_m2, 100.);
+    assert!(abzug.grundlage.is_empty() && abzug.planbindung.is_some());
+    // Erneute Übernahme legt keine zweite Zeile an.
+    let nochmal = core
+        .planaufmass_abzuege(p.id, Some(stand), neu.clone())
+        .await
+        .unwrap();
+    assert_eq!(nochmal.ansaetze[0].abzuege.len(), 1);
+    // Bindung an ein anderes Ziel oder eine fremde Art wird abgewiesen.
+    let mut manipuliert = neu.clone();
+    manipuliert.ansaetze[0].abzuege[0].art = "verkehrsflaeche".into();
+    assert!(
+        core.planaufmass_abzuege(p.id, None, manipuliert)
+            .await
+            .is_err()
+    );
+    neu.ansaetze[0].abzuege[0].grundlage = "Planfestsetzung private Grünfläche".into();
+    // Eine Oberfläche darf die gezeichnete Fläche nicht selbst eintragen.
+    let mut manipuliert = neu.clone();
+    manipuliert.ansaetze[0].abzuege[0].flaeche_m2 = 101.;
+    let mut recht = p.planungsrecht.clone();
+    recht.baugrundstuecksermittlung = Some(manipuliert);
+    assert!(
+        core.update_project(speichern(&p, recht), &user)
+            .await
+            .is_err()
+    );
+    let mut recht = p.planungsrecht.clone();
+    recht.baugrundstuecksermittlung = Some(neu);
+    p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecke,
+            speichern(&p, recht),
+            &user,
+        )
+        .await
+        .unwrap();
+    let gruppen = plan(&p.planungsrecht)
+        .unwrap()
+        .unwrap()
+        .gruppen(true)
+        .unwrap();
+    assert_eq!(gruppen[0].abzuege_m2, 100.);
+    assert_eq!(gruppen[0].bauland_m2, 900.);
+    // Aufgabe je Abzugszeile, bereits verknüpft.
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    let ab = aufgaben
+        .iter()
+        .find(|x| x.verbraucher == "abzug")
+        .expect("Abzugsaufgabe");
+    assert_eq!(ab.objekt, m_gruen.to_string());
+    assert_eq!(ab.gebunden, Some(m_gruen));
+    assert_eq!(ab.flurstueck_id.as_deref(), Some("a"));
+    // GRZ-Bauteil aus der Zufahrt, dem Baugrundstück zugeordnet.
+    let e = ermittlung(&p.planungsrecht).unwrap().unwrap();
+    let aufstellung = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();
+    assert!(
+        core.planaufmass_bauteile(p.id, "fremd", Some(stand), aufstellung.clone())
+            .await
+            .is_err()
+    );
+    let bauteile = core
+        .planaufmass_bauteile(p.id, &schluessel, Some(stand), aufstellung)
+        .await
+        .unwrap();
+    let zufahrt = bauteile
+        .bauteile
+        .iter()
+        .find(|b| b.id.as_deref() == Some(m_zufahrt.to_string().as_str()))
+        .expect("Bauteil aus dem Plan");
+    assert_eq!(zufahrt.typ, core_lib::flaechen::Bauteiltyp::Zufahrt);
+    assert_eq!(zufahrt.flaeche_m2, 50.);
+    assert!(zufahrt.gebaeude_id.is_none() && zufahrt.planbindung.is_some());
+    assert_eq!(bauteile.bauteile.len(), 2);
+    let mut b = e.berechnungen[0].clone();
+    b.eingabe.aufstellung = Some(bauteile);
+    // Einzelspeicherung prüft die Bindung ebenfalls.
+    let mut manipuliert = b.clone();
+    manipuliert.eingabe.aufstellung.as_mut().unwrap().bauteile[1].flaeche_m2 = 51.;
+    assert!(
+        core.baugrundstueck_einzeln_speichern(p.id, p.version, manipuliert, &user)
+            .await
+            .is_err()
+    );
+    p = core
+        .baugrundstueck_einzeln_speichern(p.id, p.version, b, &user)
+        .await
+        .unwrap();
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    let bt = aufgaben
+        .iter()
+        .find(|x| x.verbraucher == "bauteil")
+        .expect("Bauteilaufgabe");
+    assert_eq!(bt.gebunden, Some(m_zufahrt));
+    assert_eq!(bt.grundstueck_id, Some(grundstueck));
+    // Geänderte Kontur: stilles Speichern scheitert, die Übersicht zeigt den Punkt,
+    // die ausdrückliche Übernahme des neuen Stands setzt 60 m² ein.
+    a.markierungen[1].geometrie = Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [100., 60.],
+    };
+    let f2 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    let e = ermittlung(&p.planungsrecht).unwrap().unwrap();
+    assert!(core.abzug_planquellen_pruefen(p.id, &e).await.is_ok());
+    let err = core
+        .grundstueck_planquellen_pruefen(p.id, &e)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Aufmaßstand"), "{err}");
+    let mut recht = p.planungsrecht.clone();
+    recht.festgesetzte_werte.grz = Some(0.4);
+    assert!(
+        core.update_project(speichern(&p, recht), &user)
+            .await
+            .is_err()
+    );
+    let uebersicht = core.projektuebersicht(p.id, &user).await.unwrap();
+    assert!(
+        uebersicht
+            .punkte
+            .iter()
+            .any(|x| x.id.starts_with("bauteil_aufmass:")),
+        "{:?}",
+        uebersicht.punkte
+    );
+    let mut aufstellung = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();
+    for b in &mut aufstellung.bauteile {
+        if let Some(pb) = &mut b.planbindung {
+            pb.revision = f2.revision;
+        }
+    }
+    let aufstellung = core
+        .planaufmass_bauteile(p.id, &schluessel, None, aufstellung)
+        .await
+        .unwrap();
+    assert_eq!(aufstellung.bauteile[1].flaeche_m2, 60.);
+    let mut b = e.berechnungen[0].clone();
+    b.eingabe.aufstellung = Some(aufstellung);
+    p = core
+        .baugrundstueck_einzeln_speichern(p.id, p.version, b, &user)
+        .await
+        .unwrap();
+    // Verknüpfung lösen: der Wert bleibt als manuelle Angabe stehen.
+    let e = ermittlung(&p.planungsrecht).unwrap().unwrap();
+    let mut aufstellung = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();
+    aufstellung.bauteile[1].planbindung = None;
+    let aufstellung = core
+        .planaufmass_bauteile(p.id, &schluessel, None, aufstellung)
+        .await
+        .unwrap();
+    assert_eq!(aufstellung.bauteile[1].flaeche_m2, 60.);
+    let mut b = e.berechnungen[0].clone();
+    b.eingabe.aufstellung = Some(aufstellung);
+    core.baugrundstueck_einzeln_speichern(p.id, p.version, b, &user)
+        .await
+        .unwrap();
+    // Bestandsdaten ohne Kennung und Bindung bleiben lesbar.
+    let alt: core_lib::baugrundstuecke::FlaechenAbzug =
+        serde_json::from_str(r#"{"art":"sonstiger_abzug","flaeche_m2":1.0,"grundlage":"x"}"#)
+            .unwrap();
+    assert!(alt.id.is_none() && alt.planbindung.is_none());
+}
+
+#[tokio::test]
+async fn projektuebersicht_fuehrt_ohne_flurstuecke_ueber_die_planablage() {
+    use core_lib::{
+        domain::{Planungsrecht, ProjectUpdate},
+        grundstuecksinformationen::{FlurstuecksInfo, Grundstuecksinformationen},
+        projektbereiche::ProjektBereich,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Start".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Planungsrecht::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let punkte = |u: core_lib::projektuebersicht::Projektuebersicht| u.punkte;
+    let u = punkte(core.projektuebersicht(p.id, &user).await.unwrap());
+    assert!(
+        u.iter()
+            .any(|x| x.id == "planablage" && x.ziel.bereich == "dokumente"),
+        "{u:?}"
+    );
+    assert!(!u.iter().any(|x| x.id == "grundstueck"));
+    // Ein Lageplan ohne Kategorie zählt nicht; die kategorisierte Flurkarte führt ins Aufmaß.
+    core.store_document(
+        p.id,
+        None,
+        None,
+        "Irgendwas.pdf",
+        Bytes::from(core_lib::formular::testdaten::musterformular()),
+        &user,
+    )
+    .await
+    .unwrap();
+    let u = punkte(core.projektuebersicht(p.id, &user).await.unwrap());
+    assert!(u.iter().any(|x| x.id == "planablage"));
+    let doc = core
+        .store_document_kategorisiert(
+            p.id,
+            "Flurkarte.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            Some("flurkarte".into()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let u = punkte(core.projektuebersicht(p.id, &user).await.unwrap());
+    let z = u
+        .iter()
+        .find(|x| x.id == "flurstueck_zeichnen")
+        .unwrap_or_else(|| panic!("{u:?}"));
+    assert_eq!(z.ziel.bereich, "planaufmass");
+    assert_eq!(z.ziel.register.as_deref(), Some("unterlage"));
+    assert_eq!(z.ziel.eintrag, Some(doc.document_id.0));
+    assert!(z.hinweis.contains("Flurkarte.pdf"), "{doc:?}");
+    assert!(
+        !u.iter()
+            .any(|x| x.id == "planablage" || x.id == "grundstueck")
+    );
+    // Mit erfasstem Flurstück tritt der Planweg zurück; es folgt die Baugrundstücksermittlung.
+    let mut recht = p.planungsrecht.clone();
+    recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
+        flurstuecke: vec![FlurstuecksInfo {
+            id: "a".into(),
+            gemarkung: "Linden".into(),
+            gemarkungsnummer: String::new(),
+            flur: "1".into(),
+            nummer: "10/1".into(),
+            flaeche_m2: 1000.,
+            grundbuchbezirk: String::new(),
+            grundbuchblatt: String::new(),
+            laufende_nummer: None,
+            grundbuchauszug: None,
+            eigentuemer: String::new(),
+            eigentuemer_kunden: vec![],
+            bemerkung: String::new(),
+            rolle: Default::default(),
+            planbindung: None,
+            planflaeche_m2: None,
+            flaeche_aus_plan: false,
+        }],
+    });
+    let p = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            ProjectUpdate {
+                id: p.id,
+                expected_version: p.version,
+                name: p.name.clone(),
+                bundesland: p.bundesland,
+                grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+                planungsrecht: Some(recht),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let u = punkte(core.projektuebersicht(p.id, &user).await.unwrap());
+    assert!(
+        !u.iter()
+            .any(|x| x.id == "flurstueck_zeichnen" || x.id == "planablage")
+    );
+}
+
+/// DXF-Unterlagen werden im selben Aufmaß gemessen wie PDF-Blätter: die
+/// Zeichnungseinheit kalibriert, Baufenster und Vorhabenumriss gehen als
+/// Lageprüfung ans Projekt, und CAD-Aufmaße der früheren DXF-Ansicht werden
+/// einmalig als Aufmaß übernommen.
+#[tokio::test]
+async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
+    use core_lib::cad::{
+        Laengeneinheit, Punkt,
+        projektaufmass::{CadMarkierung, CadProjektaufmass},
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "DXF-Aufmaß".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let dxf = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan.dxf",
+            Bytes::from(core_lib::cad::testdaten::musterplan()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let pdf = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Blatt.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let ebene = Uuid::new_v4();
+    let mark = |id: u128, name: &str, bedeutung: Planbedeutung, von: Planpunkt, bis: Planpunkt| {
+        Planmarkierung {
+            id: Uuid::from_u128(id),
+            ebene_id: ebene,
+            bezeichnung: name.into(),
+            bedeutung,
+            geometrie: Plangeometrie::Rechteck { von, bis },
+            grundstueck_id: None,
+            gebaeude_id: None,
+            geschoss_id: None,
+            flurstueck_id: None,
+            ausschnitt_id: None,
+            hoehenzone_von: None,
+        }
+    };
+    let mut a = Planaufmass {
+        bezeichnung: "Lageplan".into(),
+        dokument: Dokumentbezug {
+            dokument_id: dxf.document_id,
+            version: 1,
+        },
+        seite: 1,
+        kalibrierung: Some(Plankalibrierung::Einheit {
+            einheit: Laengeneinheit::Meter,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Lageplan".into(),
+            sichtbar: true,
+            gesperrt: false,
+        }],
+        markierungen: vec![mark(
+            1,
+            "Grundstück",
+            Planbedeutung::Unbestimmt,
+            [0., 0.],
+            [20., 30.],
+        )],
+        ausschnitte: vec![],
+    };
+    let w = core.planaufmass_pruefen(p.id, &a).await.unwrap();
+    assert!((w[0].flaeche_m2.unwrap() - 600.).abs() < 1e-9);
+    let mut falsch = a.clone();
+    falsch.kalibrierung = Some(Plankalibrierung::Massstab { nenner: 100. });
+    let e = core.planaufmass_pruefen(p.id, &falsch).await.unwrap_err();
+    assert!(e.to_string().contains("Zeichnungseinheit"), "{e}");
+    let mut seite2 = a.clone();
+    seite2.seite = 2;
+    assert!(core.planaufmass_pruefen(p.id, &seite2).await.is_err());
+    let mut auf_pdf = a.clone();
+    auf_pdf.dokument = Dokumentbezug {
+        dokument_id: pdf.document_id,
+        version: 1,
+    };
+    let e = core.planaufmass_pruefen(p.id, &auf_pdf).await.unwrap_err();
+    assert!(e.to_string().contains("nur für DXF"), "{e}");
+    let aufmass = Uuid::new_v4();
+    let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
+    let f = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, aufmass, 0, save(&a), &user)
+        .await
+        .unwrap();
+    let stand = Aufmassstand {
+        aufmass_id: aufmass,
+        revision: f.revision,
+    };
+    let e = core
+        .planaufmass_baugrenzen(p.id, stand, &user)
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("Baufenster"), "{e}");
+    a.markierungen.push(mark(
+        2,
+        "Baufenster",
+        Planbedeutung::Baufenster,
+        [2., 2.],
+        [18., 28.],
+    ));
+    a.markierungen.push(mark(
+        3,
+        "Haus",
+        Planbedeutung::Vorhabenumriss,
+        [4., 4.],
+        [14., 12.],
+    ));
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    assert!(
+        core.planaufmass_baugrenzen(p.id, stand, &user)
+            .await
+            .is_err(),
+        "alter Aufmaßstand"
+    );
+    let stand = Aufmassstand {
+        aufmass_id: aufmass,
+        revision: f.revision,
+    };
+    let r = core
+        .planaufmass_baugrenzen(p.id, stand, &user)
+        .await
+        .unwrap();
+    assert!(r.pruefung.eingehalten);
+    assert!((r.pruefung.vorhaben_m2 - 80.).abs() < 1e-6);
+    assert!((r.pruefung.baufenster_m2 - 416.).abs() < 1e-6);
+    let g = r.projekt.planungsrecht.baugrenzen.as_ref().unwrap();
+    assert_eq!(g.dokument_id, dxf.document_id);
+    assert_eq!(g.dokument_version, 1);
+    assert_eq!(g.einheit, Laengeneinheit::Meter);
+    assert_eq!(g.baufenster.len(), 4);
+    assert!(g.grundstueck_schluessel.is_none());
+    assert_eq!(
+        core.get_project(p.id)
+            .await
+            .unwrap()
+            .planungsrecht
+            .baugrenzen
+            .as_ref(),
+        Some(g)
+    );
+    a.markierungen[2].geometrie = Plangeometrie::Rechteck {
+        von: [10., 4.],
+        bis: [22., 12.],
+    };
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    let r = core
+        .planaufmass_baugrenzen(
+            p.id,
+            Aufmassstand {
+                aufmass_id: aufmass,
+                revision: f.revision,
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    assert!(!r.pruefung.eingehalten);
+    assert!((r.pruefung.ausserhalb_m2 - 32.).abs() < 1e-6);
+    a.markierungen.push(mark(
+        4,
+        "Baufenster 2",
+        Planbedeutung::Baufenster,
+        [0., 0.],
+        [1., 1.],
+    ));
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    let e = core
+        .planaufmass_baugrenzen(
+            p.id,
+            Aufmassstand {
+                aufmass_id: aufmass,
+                revision: f.revision,
+            },
+            &user,
+        )
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("mehrere"), "{e}");
+
+    // CAD-Aufmaß der früheren DXF-Ansicht (Zeichnungskoordinaten, y nach oben).
+    let cad = CadProjektaufmass {
+        dokument: Dokumentbezug {
+            dokument_id: dxf.document_id,
+            version: 1,
+        },
+        einheit: Laengeneinheit::Meter,
+        markierungen: vec![CadMarkierung {
+            id: Uuid::from_u128(9),
+            bezeichnung: "Umgriff".into(),
+            punkte: vec![[0., 0.], [10., 0.], [10., 10.], [0., 10.]],
+            geschlossen: true,
+        }],
+    };
+    core.cadaufmass_speichern(p.id, cad.clone(), 0, &user)
+        .await
+        .unwrap();
+    let r = core.cadaufmass_uebernehmen(p.id, &user).await.unwrap();
+    assert_eq!(r.uebernommen.len(), 1, "{r:?}");
+    assert!(r.uebersprungen.is_empty(), "{r:?}");
+    assert_eq!(r.vorhanden, 0);
+    let uebernommen: Vec<Planaufmass> = core
+        .fachobjekte(p.id, ObjektArt::Planaufmass)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|f| f.objekt != aufmass.to_string())
+        .map(|f| serde_json::from_value(f.daten).unwrap())
+        .collect();
+    assert_eq!(uebernommen.len(), 1);
+    let u = &uebernommen[0];
+    assert!(u.bezeichnung.contains("Lageplan.dxf"), "{}", u.bezeichnung);
+    assert_eq!(u.dokument.version, 1);
+    let grenzen = core
+        .cad_plan(dxf.document_id)
+        .await
+        .unwrap()
+        .plan
+        .grenzen
+        .unwrap();
+    assert_eq!(
+        u.markierungen[0].geometrie,
+        Plangeometrie::Polygon {
+            punkte: [[0., 0.], [10., 0.], [10., 10.], [0., 10.]]
+                .iter()
+                .map(|q| seitenpunkt(Punkt(q[0], q[1]), &grenzen))
+                .collect()
+        }
+    );
+    assert_eq!(u.markierungen[0].bedeutung, Planbedeutung::Unbestimmt);
+    let w = core.planaufmass_pruefen(p.id, u).await.unwrap();
+    assert!((w[0].flaeche_m2.unwrap() - 100.).abs() < 1e-9);
+    let r = core.cadaufmass_uebernehmen(p.id, &user).await.unwrap();
+    assert!(r.uebernommen.is_empty());
+    assert_eq!(r.vorhanden, 1);
+    assert!(
+        core.cadaufmass_laden(p.id, &cad.dokument)
+            .await
+            .unwrap()
+            .is_some(),
+        "Altbestand bleibt lesbar"
+    );
 }

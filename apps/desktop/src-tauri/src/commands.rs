@@ -557,7 +557,11 @@ pub fn abstandsflaeche(
 
 /// Lädt einen DXF-Plan aus dem DMS für den Plan-Viewer.
 #[tauri::command]
-pub async fn cad_plan(state: State<'_, AppState>, dokument_id: DocumentId) -> CmdResult<CadPlan> {
+pub async fn cad_plan(
+    state: State<'_, AppState>,
+    dokument_id: DocumentId,
+    version: Option<i64>,
+) -> CmdResult<CadPlan> {
     state
         .core
         .dokument_zugriff(
@@ -566,7 +570,10 @@ pub async fn cad_plan(state: State<'_, AppState>, dokument_id: DocumentId) -> Cm
             core_lib::zugriff::ProjektRecht::Lesen,
         )
         .await?;
-    Ok(state.core.cad_plan(dokument_id).await?)
+    Ok(match version {
+        Some(v) => state.core.cad_plan_version(dokument_id, v).await?,
+        None => state.core.cad_plan(dokument_id).await?,
+    })
 }
 
 #[tauri::command]

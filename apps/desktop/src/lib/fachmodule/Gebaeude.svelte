@@ -93,7 +93,7 @@
     if (
       marken.length &&
       !(await ask(
-        `Im PDF-Aufmaß sind diesem Geschoss zugeordnet: ${marken.join(", ")}. Nach dem Entfernen dort ein anderes Geschoss wählen, sonst lässt sich das Aufmaß nicht speichern. Geschoss trotzdem entfernen?`,
+        `Im Aufmaß sind diesem Geschoss zugeordnet: ${marken.join(", ")}. Nach dem Entfernen dort ein anderes Geschoss wählen, sonst lässt sich das Aufmaß nicht speichern. Geschoss trotzdem entfernen?`,
         { title: "Geschoss entfernen", kind: "warning" },
       ))
     )
@@ -638,12 +638,12 @@
         })}>Geschoss hinzufügen</button
     >
     {#if s.id}<details bind:open={planOffen}>
-        <summary>Höhen und alle Verknüpfungen aus PDF-Aufmaß</summary>
+        <summary>Höhen und alle Verknüpfungen aus Aufmaß</summary>
         <p class="meta">
           Flächen lassen sich direkt an den Feldern Gebäudegrundfläche und
           Geschossfläche übernehmen. Hier werden zusätzlich Höhen verknüpft und
           alle Verknüpfungen aufgelistet. Gebäude und Geschosse zuerst
-          speichern, dann Markierungen im PDF-Aufmaß zuordnen. Absolute Höhen in
+          speichern, dann Markierungen im Aufmaß zuordnen. Absolute Höhen in
           NHN werden auf den Gebäudenullpunkt umgerechnet.
         </p>
         <Planquellen

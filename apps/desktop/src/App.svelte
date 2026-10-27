@@ -38,7 +38,7 @@
   import BueroDialog from "./lib/Buero.svelte";
   import Dialog from "./lib/Dialog.svelte";
   import Kunden from "./lib/Kunden.svelte";
-  import ProjektFormular from "./lib/ProjektFormular.svelte";
+  import ProjektFormular, { type Startplan } from "./lib/ProjektFormular.svelte";
   import Projektmitglieder from "./lib/Projektmitglieder.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import LizenzDialog from "./lib/Lizenz.svelte";
@@ -414,7 +414,11 @@
     }
   }
 
-  async function anlegen(werte: Werte, bauherr: string | null) {
+  async function anlegen(
+    werte: Werte,
+    bauherr: string | null,
+    plaene: Startplan[] = [],
+  ) {
     try {
       const neu = await api.projektAnlegen(werte);
       // Die Neuanlage ist bereits gespeichert. Auch bei Folgefehlern schließen
@@ -436,10 +440,31 @@
       } catch (e) {
         fehler = `Projekt „${neu.name}“ wurde angelegt. Die Projektberechtigung konnte nicht geladen werden: ${fehlertext(e)} Die Akte bleibt schreibgeschützt, bis sie erneut geöffnet wird.`;
       }
+      // Pläne zum Start: mit Kategorie ablegen; die Akte öffnet im Aufmaß.
+      // Fehler brechen die Anlage nicht ab.
+      let planDokument: string | null = null;
+      const planFehler: string[] = [];
+      const reihenfolge = (s: Startplan) => (s.kategorie === "flurkarte" ? 0 : 1);
+      for (const pl of [...plaene].sort((a, b) => reihenfolge(a) - reihenfolge(b))) {
+        try {
+          const d = await api.dokumentImportieren(
+            neu.id,
+            pl.pfad,
+            null,
+            null,
+            pl.kategorie,
+          );
+          if (!planDokument) planDokument = d.document_id;
+        } catch (e) {
+          planFehler.push(`${pl.pfad}: ${fehlertext(e)}`);
+        }
+      }
+      if (planFehler.length)
+        fehler = `Projekt „${neu.name}“ wurde angelegt. Nicht abgelegte Pläne: ${planFehler.join(" · ")} Bitte unter Projektdateien ablegen.`;
       sitzungen.push({
         projekt: angelegt,
-        ansicht: "projektuebersicht",
-        planDokument: null,
+        ansicht: planDokument ? "planaufmass" : "projektuebersicht",
+        planDokument,
         importAusloeser: 0,
         recht,
       });
@@ -655,9 +680,6 @@
         break;
       case "ansicht.dokumente":
         bereich("dokumente");
-        break;
-      case "ansicht.plaene":
-        bereich("plaene");
         break;
       case "berechnung.mass":
         bereich("mass");
@@ -1295,6 +1317,7 @@
       kunden={kundenAuswahl}
       {kundenLadefehler}
       knopf="Anlegen"
+      plaene
       absenden={anlegen}
       onabbrechen={() => (dialog = null)}
     />

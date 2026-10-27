@@ -8,10 +8,24 @@ use crate::{
 pub(super) struct Pruefkontext {
     grund: Result<std::collections::BTreeSet<Uuid>, String>,
     gebaeude: std::collections::BTreeMap<String, Result<Gebaeude, String>>,
+    /// IDs der erfassten Flurstücke (Grundstücksinformationen).
+    flurstuecke: std::collections::BTreeSet<String>,
 }
 impl Pruefkontext {
     pub(super) fn zuordnung(&self, m: &Planmarkierung) -> CoreResult<()> {
         let name = |t: &str| fehler(format!("Markierung „{}“: {t}", m.bezeichnung));
+        if let Some(id) = &m.flurstueck_id {
+            if m.bedeutung != Planbedeutung::Flurstueck && m.bedeutung.abzugsart().is_none() {
+                return Err(name(
+                    "Flurstückszuordnung gilt nur für Flurstücksgrenzen und Abzugsflächen",
+                ));
+            }
+            if !self.flurstuecke.contains(id) {
+                return Err(name(
+                    "Flurstück ist nicht mehr erfasst; Flurstück neu wählen",
+                ));
+            }
+        }
         if let Some(id) = m.grundstueck_id {
             let grund = self.grund.as_ref().map_err(|e| name(e))?;
             if !grund.contains(&id) {
@@ -100,6 +114,9 @@ pub(crate) fn bindungsstand(a: &Planaufmass, markierung: Uuid) -> serde_json::Va
         if let Some(raum) = m.hoehenzone_von {
             stand["hoehenzone_von"] = serde_json::json!(raum);
         }
+        if let Some(f) = &m.flurstueck_id {
+            stand["flurstueck_id"] = serde_json::json!(f);
+        }
         stand
     });
     serde_json::json!({
@@ -155,7 +172,7 @@ impl CoreServices {
             .max();
         if aktuell != Some(a.dokument.version) {
             return Err(fehler(
-                "PDF-Unterlage hat eine neuere Version. Aufmaß auf neuer Unterlage prüfen.",
+                "Unterlage hat eine neuere Version. Aufmaß auf neuer Unterlage prüfen.",
             ));
         }
         let m = a
@@ -214,10 +231,13 @@ impl CoreServices {
             .await?
             .into_iter()
             .find(|d| d.project_id == pid && d.version == plan.dokument.version)
-            .ok_or_else(|| fehler("PDF-Version gehört nicht zum Projekt"))?;
-        if !dokument.file_name.to_lowercase().ends_with(".pdf") {
-            return Err(fehler("Aufmaß benötigt eine PDF-Unterlage"));
+            .ok_or_else(|| fehler("Dokumentversion gehört nicht zum Projekt"))?;
+        let name = dokument.file_name.to_lowercase();
+        let dxf = name.ends_with(".dxf");
+        if !dxf && !name.ends_with(".pdf") {
+            return Err(fehler("Aufmaß benötigt eine PDF- oder DXF-Unterlage"));
         }
+        kalibrierung_passend(dxf, plan)?;
         let projekt = self.get_project(pid).await?;
         let grund = if plan.markierungen.iter().any(|m| m.grundstueck_id.is_some()) {
             crate::grundstueckskontext::ermitteln(&projekt)
@@ -237,7 +257,16 @@ impl CoreServices {
                 )
             })
             .collect();
-        Ok(Pruefkontext { grund, gebaeude })
+        let flurstuecke = crate::grundstuecksinformationen::informationen(&projekt.planungsrecht)
+            .flurstuecke
+            .into_iter()
+            .map(|f| f.id)
+            .collect();
+        Ok(Pruefkontext {
+            grund,
+            gebaeude,
+            flurstuecke,
+        })
     }
 
     pub(crate) async fn planwerte_einsetzen(
@@ -250,7 +279,7 @@ impl CoreServices {
         }
         if plan.gebaeudedaten_uebernehmen == Some(true) {
             return Err(fehler(
-                "Gebäudeübernahme und PDF-Aufmaß sind konkurrierende Eingabequellen. Gebäudeübernahme zuerst ausdrücklich deaktivieren.",
+                "Gebäudeübernahme und Aufmaß sind konkurrierende Eingabequellen. Gebäudeübernahme zuerst ausdrücklich deaktivieren.",
             ));
         }
         if plan.planbindungen.len() > 500 {
@@ -348,7 +377,7 @@ impl CoreServices {
         }
         Ok(())
     }
-    /// Lesbare Bezeichnung der PDF-Unterlage: Dateiname, Plannummer und
+    /// Lesbare Bezeichnung der Unterlage: Dateiname, Plannummer und
     /// Index aus den Dokumentdaten (falls erfasst) und Dokumentversion.
     async fn planunterlage(&self, pid: ProjectId, a: &Planaufmass) -> CoreResult<String> {
         let datei = self
@@ -357,7 +386,7 @@ impl CoreServices {
             .into_iter()
             .find(|d| d.project_id == pid && d.version == a.dokument.version)
             .map(|d| d.file_name)
-            .unwrap_or_else(|| "PDF-Unterlage".into());
+            .unwrap_or_else(|| "Unterlage".into());
         let daten = self
             .fachobjekte(pid, ObjektArt::Dokumentdaten)
             .await?
@@ -495,4 +524,33 @@ fn einsetzen(
         obj.insert("form".into(), serde_json::json!("aufmass"));
     }
     Ok(obj.contains_key("quelle"))
+}
+
+/// PDF-Blätter werden über Maßstab oder Referenzstrecke kalibriert, DXF-
+/// Zeichnungen über ihre Zeichnungseinheit oder eine Referenzstrecke; eine
+/// DXF-Unterlage besitzt genau eine Zeichnung (Seite 1).
+fn kalibrierung_passend(dxf: bool, plan: &Planaufmass) -> CoreResult<()> {
+    if dxf && plan.seite != 1 {
+        return Err(fehler("DXF-Unterlagen haben nur eine Zeichnung (Seite 1)"));
+    }
+    for k in plan.kalibrierung.iter().chain(
+        plan.ausschnitte
+            .iter()
+            .filter_map(|a| a.kalibrierung.as_ref()),
+    ) {
+        match (dxf, k) {
+            (true, Plankalibrierung::Massstab { .. }) => {
+                return Err(fehler(
+                    "Ein Blattmaßstab gilt nur für PDF-Blätter; DXF-Aufmaße verwenden die Zeichnungseinheit oder eine Referenzstrecke",
+                ));
+            }
+            (false, Plankalibrierung::Einheit { .. }) => {
+                return Err(fehler(
+                    "Eine Zeichnungseinheit gilt nur für DXF-Unterlagen; PDF-Blätter werden über Maßstab oder Referenzstrecke kalibriert",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }

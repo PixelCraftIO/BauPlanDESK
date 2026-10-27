@@ -406,6 +406,20 @@ fn routen(core: CoreServices) -> Router {
             post(planaufmass_abstandsziele),
         )
         .route("/projekte/{id}/plangebaeude", post(planaufmass_gebaeude))
+        .route(
+            "/projekte/{id}/planflurstuecke",
+            post(planaufmass_flurstuecke),
+        )
+        .route("/projekte/{id}/planabzuege", post(planaufmass_abzuege))
+        .route("/projekte/{id}/planbauteile", post(planaufmass_bauteile))
+        .route(
+            "/projekte/{id}/planbaugrenzen",
+            post(planaufmass_baugrenzen),
+        )
+        .route(
+            "/projekte/{id}/cadaufmass/uebernehmen",
+            post(cadaufmass_uebernehmen),
+        )
         .route("/projekte/{id}/planaufgaben", post(planaufmass_aufgaben))
         .route(
             "/berechnung/planaufmass/gebaeudeziele",
@@ -596,11 +610,21 @@ async fn lizenz_einspielen(
     Ok(Json(core.lizenz_einspielen(&datei, &akteur).await?))
 }
 
+#[derive(Deserialize)]
+struct CadPlanQuery {
+    #[serde(default)]
+    version: Option<i64>,
+}
+
 async fn cad_plan(
     State(ApiState { core, .. }): State<ApiState>,
     Path(id): Path<Uuid>,
+    Query(q): Query<CadPlanQuery>,
 ) -> ApiResult<CadPlan> {
-    Ok(Json(core.cad_plan(DocumentId(id)).await?))
+    Ok(Json(match q.version {
+        Some(v) => core.cad_plan_version(DocumentId(id), v).await?,
+        None => core.cad_plan(DocumentId(id)).await?,
+    }))
 }
 
 #[derive(Deserialize)]
@@ -2094,6 +2118,71 @@ async fn planaufmass_gebaeude(
     Ok(Json(
         core.planaufmass_gebaeude(ProjectId(id), w.id, w.gebaeude)
             .await?,
+    ))
+}
+async fn planaufmass_flurstuecke(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(infos): Json<core_lib::grundstuecksinformationen::Grundstuecksinformationen>,
+) -> ApiResult<core_lib::grundstuecksinformationen::Grundstuecksinformationen> {
+    Ok(Json(
+        core.planaufmass_flurstuecke(ProjectId(id), infos).await?,
+    ))
+}
+#[derive(Deserialize)]
+struct AbzugUebernahme {
+    #[serde(default)]
+    aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
+}
+async fn planaufmass_abzuege(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<AbzugUebernahme>,
+) -> ApiResult<core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung> {
+    Ok(Json(
+        core.planaufmass_abzuege(ProjectId(id), w.aufmass, w.ermittlung)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct BauteilUebernahme {
+    schluessel: String,
+    #[serde(default)]
+    aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    aufstellung: core_lib::flaechen::FlaechenAufstellung,
+}
+async fn planaufmass_bauteile(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<BauteilUebernahme>,
+) -> ApiResult<core_lib::flaechen::FlaechenAufstellung> {
+    Ok(Json(
+        core.planaufmass_bauteile(ProjectId(id), &w.schluessel, w.aufmass, w.aufstellung)
+            .await?,
+    ))
+}
+/// Ordnet Baufenster und Vorhabenumriss eines gespeicherten Aufmaßstands dem
+/// Projekt zu (`planungsrecht.baugrenzen`) und liefert die Lageprüfung.
+async fn planaufmass_baugrenzen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(stand): Json<core_lib::planaufmass::Aufmassstand>,
+) -> ApiResult<core_lib::planaufmass::BaugrenzenUebernahme> {
+    Ok(Json(
+        core.planaufmass_baugrenzen(ProjectId(id), stand, &wer)
+            .await?,
+    ))
+}
+/// Übernimmt gespeicherte CAD-Aufmaße (Altbestand) als Aufmaße auf der DXF-Unterlage.
+async fn cadaufmass_uebernehmen(
+    Extension(wer): Extension<Benutzer>,
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<core_lib::planaufmass::CadUebernahme> {
+    Ok(Json(
+        core.cadaufmass_uebernehmen(ProjectId(id), &wer).await?,
     ))
 }
 

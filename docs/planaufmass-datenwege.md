@@ -1,4 +1,4 @@
-# Datenwege vom PDF-Aufmaß zu Berechnungen, Nachweisen und Formularen
+# Datenwege vom Aufmaß zu Berechnungen, Nachweisen und Formularen
 
 Stand: Prüfung aller Übernahmewege, Oktober 2026. Ergänzt
 [planaufmass.md](planaufmass.md) um die Bedienreihenfolge, die Lade- und
@@ -8,7 +8,7 @@ Aktualisierungszeitpunkte und die festgestellten offenen Punkte.
 
 ```text
 PDF (Projektdateien, versioniert)
-  ↓  Unterlagen → PDF-Aufmaß: zeichnen, Maßstab, Bedeutung, Grundstück/Gebäude/Geschoss, speichern
+  ↓  Unterlagen → Aufmaß: zeichnen, Maßstab, Bedeutung, Grundstück/Gebäude/Geschoss, speichern
 Planaufmaß (Fachobjekt, Revision R n)
   ↓  Planbindung = Aufmaß-ID + Revision + Markierungs-ID + Zielfeld (stabile IDs)
   ├─ Gebäude / Geschosse ──→ Gebäudeeinbindung ──→ GRZ / GFZ / Geschossigkeit je Baugrundstück
@@ -31,7 +31,7 @@ dürfen sich ändern, ohne dass etwas veraltet.
 
 ## Wege im Einzelnen
 
-### 1. Zeichnen (Unterlagen → PDF-Aufmaß)
+### 1. Zeichnen (Unterlagen → Aufmaß)
 
 1. PDF unter Projektdateien importieren, **Neu anlegen**, Unterlage und Seite wählen.
 2. Blattmaßstab setzen oder zwei Punkte kalibrieren.
@@ -62,12 +62,12 @@ verschieben), Bild ↑/↓ (Ausschnitt wechseln).
 
 | Ziel | Bedeutung der Markierung | Wo übernehmen |
 | --- | --- | --- |
-| Gebäudegrundfläche | Gebäudegrundfläche – horizontale Projektion | Feld *Gebäudegrundfläche* → **Aus PDF-Aufmaß** |
-| Geschossfläche | Geschoss – Außenkante + Geschosszuordnung | im Geschoss → **Aus PDF-Aufmaß** |
-| Höhen (NHN, relativ) | Höhenpunkt mit Höhenbezug „m ü. NHN“ bzw. Strecke | **Höhen und alle Verknüpfungen aus PDF-Aufmaß** |
+| Gebäudegrundfläche | Gebäudegrundfläche – horizontale Projektion | Feld *Gebäudegrundfläche* → **Aus Aufmaß** |
+| Geschossfläche | Geschoss – Außenkante + Geschosszuordnung | im Geschoss → **Aus Aufmaß** |
+| Höhen (NHN, relativ) | Höhenpunkt mit Höhenbezug „m ü. NHN“ bzw. Strecke | **Höhen und alle Verknüpfungen aus Aufmaß** |
 
 Reihenfolge: Gebäude anlegen und speichern → Geschosse anlegen und speichern →
-im PDF-Aufmaß zuordnen und speichern → im Gebäude übernehmen → Gebäude speichern.
+im Aufmaß zuordnen und speichern → im Gebäude übernehmen → Gebäude speichern.
 Ohne einzelne Geschosse dient die Gebäudegrundfläche als Fläche des
 vorläufigen Einzelgeschosses; dann ist keine Geschossmarkierung nötig.
 
@@ -96,7 +96,7 @@ Höhen muss die Gebäudeübernahme vorher abgeschaltet werden.
 
 ### 5. Raumbuch
 
-Gebäude und Geschoss wählen → **Räume aus PDF-Aufmaß übernehmen** → Aufmaß →
+Gebäude und Geschoss wählen → **Räume aus Aufmaß übernehmen** → Aufmaß →
 **Planräume anlegen / aktualisieren** → speichern. Wohnfläche/DIN 277 übernehmen
 die Räume über **aus Raumbuch** als Kopie mit gebundener Raumbuchrevision.
 Eine erneute Übernahme gleicht über die Raum-ID ab: Flächen und Höhen kommen
@@ -106,7 +106,7 @@ entfernt.
 
 ### 6. Abstandsflächen
 
-Manuelle Wand anlegen → **Grundlagen → PDF-Aufmaß verknüpfen**. Beim Entfernen
+Manuelle Wand anlegen → **Grundlagen → Aufmaß verknüpfen**. Beim Entfernen
 einer Wand entfallen jetzt auch ihre Verknüpfungen.
 
 ### 7. Nachweise, Druck, Formulare
@@ -162,7 +162,7 @@ Zweite Stufe (Arbeitsablauf im Büro):
   Bauantrag (Gebäudeanzahl) und Abstandsflächen (Gebäude, Dokumente) laden
   nach Änderungen anderer Bereiche neu; Formulare weisen auf geänderte
   Projektdaten hin, ohne Eingaben zu überschreiben.
-* **Nachweisdruck** führt die aus dem PDF-Aufmaß übernommenen Messwerte mit
+* **Nachweisdruck** führt die aus dem Aufmaß übernommenen Messwerte mit
   Aufmaß, Markierung, Unterlage und Stand auf.
 
 ## Offene Punkte

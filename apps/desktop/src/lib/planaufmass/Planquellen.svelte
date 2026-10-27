@@ -89,10 +89,10 @@
 <UebernahmeVorschau {v}/>
 
 <section>
-  <h3>PDF-Aufmaß verknüpfen</h3>
-  <p class="meta">Gespeicherte Markierungen aus „PDF-Aufmaß“ mit einer Position dieser Berechnung verbinden. Grundstück und Gebäude müssen übereinstimmen. Dieselbe Markierung darf mehrere Berechnungen versorgen. Fachliche Anrechnung und Regelprüfung erfolgen in der Berechnung.</p>
+  <h3>Aufmaß verknüpfen</h3>
+  <p class="meta">Gespeicherte Markierungen aus „Aufmaß“ mit einer Position dieser Berechnung verbinden. Grundstück und Gebäude müssen übereinstimmen. Dieselbe Markierung darf mehrere Berechnungen versorgen. Fachliche Anrechnung und Regelprüfung erfolgen in der Berechnung.</p>
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
-  {#if "modul" in plan&&plan.gebaeudedaten_uebernehmen===true}<p class="hinweisbox">Die Werte werden derzeit aus Gebäude/Geschosse übernommen. Gebäudeübernahme und PDF-Aufmaß dürfen nicht gleichzeitig dieselben Eingaben liefern. Flächen und Höhen besser im Gebäude aus dem PDF-Aufmaß übernehmen; sie gelangen dann über die Gebäudeübernahme hierher.
+  {#if "modul" in plan&&plan.gebaeudedaten_uebernehmen===true}<p class="hinweisbox">Die Werte werden derzeit aus Gebäude/Geschosse übernommen. Gebäudeübernahme und Aufmaß dürfen nicht gleichzeitig dieselben Eingaben liefern. Flächen und Höhen besser im Gebäude aus dem Aufmaß übernehmen; sie gelangen dann über die Gebäudeübernahme hierher.
     <button type="button" class="link" disabled={busy} onclick={()=>{if("modul" in plan)plan.gebaeudedaten_uebernehmen=false}}>Gebäudeübernahme für diese Berechnung beenden</button></p>{/if}
   {#each aufmasse.filter(a=>a.fehler) as a}<p class="hinweisbox">{a.stand.daten.bezeichnung}: {a.fehler}</p>{/each}
   {#if !ziele.length}<p class="meta">{"modul" in plan?"Zuerst unter „Eingaben“ eine Position für das Aufmaß anlegen.":"waende" in plan?"Zuerst unter „Wände / Bauteile“ eine manuelle Wand anlegen.":"Gebäude zuerst speichern."} Dieses Modul bietet nur fachlich unterstützte Zielgrößen an.</p>{/if}

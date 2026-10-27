@@ -499,6 +499,9 @@ async fn flurstueckseigentuemer_sind_kunden_und_projektbeteiligte() {
         eigentuemer_kunden: eigentuemer,
         bemerkung: String::new(),
         rolle,
+        planbindung: None,
+        planflaeche_m2: None,
+        flaeche_aus_plan: false,
     };
     let speichern = |p: &Project, flurstuecke: Vec<FlurstuecksInfo>| {
         let mut recht = p.planungsrecht.clone();

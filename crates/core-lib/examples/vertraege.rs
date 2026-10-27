@@ -34,6 +34,8 @@ fn main() {
         core_lib::planaufmass::Planmesswert,
         core_lib::planaufmass::Planmessgroesse,
         core_lib::planaufmass::Planbindung,
+        core_lib::planaufmass::Aufmassstand,
+        core_lib::planaufmass::CadUebernahme,
         core_lib::planaufmass::Planziel,
         core_lib::planaufmass::Aufgabengeometrie,
         core_lib::planaufmass::Planaufgabe,

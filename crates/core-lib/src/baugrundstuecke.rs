@@ -9,9 +9,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FlaechenAbzug {
+    /// Stabile Zeilenkennung für Planbindungen (`abzuege.<id>.flaeche_m2`);
+    /// bei Übernahme aus dem Aufmaß die Markierungs-ID. Altdaten ohne ID
+    /// bleiben gültig, können aber nicht gebunden werden.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     pub art: String,
     pub flaeche_m2: f64,
     pub grundlage: String,
+    /// Fläche aus einer Markierung des Aufmaßes (Bedeutung passend zur
+    /// Art, dem Flurstück zugeordnet). Setzt der Core; siehe `planaufmass_abzuege`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planbindung: Option<crate::planaufmass::Planbindung>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AbweichendeZuordnung {
@@ -207,7 +216,25 @@ impl BaugrundstuecksPlan {
                 ));
             }
             let mut abzug = 0.0;
+            let mut abzug_ids = HashSet::new();
             for a in &f.abzuege {
+                if let Some(id) = &a.id
+                    && (!text_gueltig(id) || !abzug_ids.insert(id.clone()))
+                {
+                    return Err(CoreError::InvalidInput(
+                        "Flächenabzug: Kennung ungültig oder doppelt".into(),
+                    ));
+                }
+                if let Some(b) = &a.planbindung
+                    && (a.id.is_none()
+                        || b.ziel
+                            != format!("abzuege.{}.flaeche_m2", a.id.as_deref().unwrap_or(""))
+                        || b.groesse != crate::planaufmass::Planmessgroesse::Flaeche)
+                {
+                    return Err(CoreError::InvalidInput(
+                        "Flächenabzug: Aufmaßverknüpfung gehört zu einem anderen Ziel".into(),
+                    ));
+                }
                 let regel = abzugsregeln()
                     .get(&a.art)
                     .ok_or_else(|| CoreError::InvalidInput("Unbekannter Flächenabzug".into()))?;
@@ -471,6 +498,8 @@ pub fn musterplan() -> BaugrundstuecksPlan {
         abzuege: if abzug > 0. {
             vec![FlaechenAbzug {
                 art: "private_gruenflaeche".into(),
+                id: None,
+                planbindung: None,
                 flaeche_m2: abzug,
                 grundlage: "Planfestsetzung private Grünfläche".into(),
             }]

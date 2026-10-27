@@ -168,7 +168,7 @@ impl CoreServices {
                 Ok(v) => v,
                 Err(crate::CoreError::InvalidInput(t)) => {
                     return Err(fehler(format!(
-                        "{name}: {t} Im Raumbuch erneut aus dem PDF-Aufmaß übernehmen oder die Verknüpfung lösen."
+                        "{name}: {t} Im Raumbuch erneut aus dem Aufmaß übernehmen oder die Verknüpfung lösen."
                     )));
                 }
                 Err(e) => return Err(e),
@@ -191,7 +191,7 @@ impl CoreServices {
                 Some(z) => {
                     if m.hoehenzone_von != Some(raum.id) {
                         return Err(fehler(format!(
-                            "{name}: Die Planfläche „{}“ ist im PDF-Aufmaß keine Höhenzone dieses Raums mehr. Im Raumbuch erneut aus dem PDF-Aufmaß übernehmen oder die Verknüpfung lösen.",
+                            "{name}: Die Planfläche „{}“ ist im Aufmaß keine Höhenzone dieses Raums mehr. Im Raumbuch erneut aus dem Aufmaß übernehmen oder die Verknüpfung lösen.",
                             m.bezeichnung
                         )));
                     }

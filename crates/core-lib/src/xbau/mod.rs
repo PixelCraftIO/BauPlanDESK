@@ -52,6 +52,31 @@ pub struct Anschrift {
     pub ort: String,
 }
 
+/// „Familienname, Vorname“; fehlt ein Teil, bleibt nur der andere.
+pub fn name_vorname(familienname: &str, vorname: &str) -> String {
+    [familienname.trim(), vorname.trim()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Anschrift in einer Zeile: „Straße Hausnummer, PLZ Ort“; leere Teile
+/// entfallen.
+pub fn anschrift_zeile(a: &Anschrift) -> String {
+    let strasse = format!("{} {}", a.strasse.trim(), a.hausnummer.trim());
+    let ort = format!("{} {}", a.postleitzahl.trim(), a.ort.trim());
+    [strasse.trim(), ort.trim()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn nicht_leer_oder<'a>(erst: &'a str, sonst: &'a str) -> &'a str {
+    if erst.trim().is_empty() { sonst } else { erst }
+}
+
 impl Anschrift {
     pub fn ist_leer(&self) -> bool {
         [
@@ -457,13 +482,27 @@ pub struct Buero {
     /// Kennung des Absenders, wie sie Antragsportal oder Behörde vergeben
     /// (z. B. DVDV-Kennung).
     pub kennung: String,
+    /// Zentrale Rufnummer des Büros; fehlt in älteren Büroangaben.
+    pub telefon: String,
+    /// Zentrale E-Mail-Adresse des Büros; fehlt in älteren Büroangaben.
+    pub email: String,
     /// Bauvorlageberechtigte Personen des Büros, aus denen der Bauantrag den
     /// Entwurfsverfasser wählt.
     pub entwurfsverfasser: Vec<Entwurfsverfasser>,
 }
 
 impl Buero {
+    /// Anschrift in einer Zeile: „Straße Hausnummer, PLZ Ort“.
+    pub fn anschrift_zeile(&self) -> String {
+        anschrift_zeile(&self.anschrift)
+    }
+
     pub fn validate(&self) -> CoreResult<()> {
+        for (feld, wert) in [("Telefon", &self.telefon), ("E-Mail", &self.email)] {
+            if wert.chars().count() > 200 {
+                return Err(CoreError::InvalidInput(format!("Büro: {feld} ist zu lang")));
+            }
+        }
         let mut ids = std::collections::HashSet::new();
         for e in &self.entwurfsverfasser {
             if !ids.insert(e.id) {
@@ -476,6 +515,9 @@ impl Buero {
                 ("Familienname", &e.familienname),
                 ("Berufsbezeichnung", &e.berufsbezeichnung),
                 ("Mitgliedsnummer", &e.mitgliedsnummer),
+                ("Telefon", &e.telefon),
+                ("Mobil", &e.mobil),
+                ("E-Mail", &e.email),
             ] {
                 if wert.chars().count() > 200 {
                     return Err(CoreError::InvalidInput(format!(
@@ -516,6 +558,15 @@ pub struct Entwurfsverfasser {
     /// Nachweis der Bauvorlageberechtigung ohne Kammermitgliedschaft.
     #[serde(default)]
     pub nachweis: String,
+    /// Eigene Durchwahl; leer = Rufnummer des Büros. Fehlt in älteren Büroangaben.
+    #[serde(default)]
+    pub telefon: String,
+    /// Mobiltelefon; fehlt in älteren Büroangaben.
+    #[serde(default)]
+    pub mobil: String,
+    /// Eigene E-Mail-Adresse; leer = E-Mail des Büros. Fehlt in älteren Büroangaben.
+    #[serde(default)]
+    pub email: String,
 }
 
 impl Entwurfsverfasser {
@@ -523,6 +574,21 @@ impl Entwurfsverfasser {
         format!("{} {}", self.vorname.trim(), self.familienname.trim())
             .trim()
             .to_string()
+    }
+
+    /// „Familienname, Vorname“, wie amtliche Formulare es verlangen.
+    pub fn name_vorname(&self) -> String {
+        name_vorname(self.familienname.trim(), self.vorname.trim())
+    }
+
+    /// Telefon der Person, sonst des Büros.
+    pub fn telefon_oder<'a>(&'a self, buero: &'a Buero) -> &'a str {
+        nicht_leer_oder(&self.telefon, &buero.telefon)
+    }
+
+    /// E-Mail der Person, sonst des Büros.
+    pub fn email_oder<'a>(&'a self, buero: &'a Buero) -> &'a str {
+        nicht_leer_oder(&self.email, &buero.email)
     }
 
     fn fehlende(&self, fehlt: &mut Vec<String>) {

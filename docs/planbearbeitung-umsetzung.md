@@ -57,7 +57,8 @@ F1 zeigt Kurzbefehle: V wählt, M verschiebt, S misst, P zeichnet; Leertaste
 verschiebt vorübergehend. Strg+Z/Strg+Umschalt+Z steuern Undo/Redo. Escape,
 Fokusverlust und Pointer-Abbruch verwerfen laufende Ziehaktionen.
 
-PDF-Aufmaßblatt und CSV sowie DXF-CSV lesen explizite gespeicherte Revisionen.
+Aufmaßblatt (PDF) und Messwerte-CSV lesen explizite gespeicherte Revisionen; sie
+gelten für PDF- und DXF-Unterlagen gleichermaßen (die getrennte DXF-CSV entfällt).
 Vorheriges Speichern wird ausdrücklich bestätigt; Originaldateien bleiben erhalten.
 
 ## Verträge und Kompatibilität

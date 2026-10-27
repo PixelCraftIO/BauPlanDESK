@@ -55,6 +55,26 @@ pub struct FlurstuecksInfo {
     #[serde(default, skip_serializing_if = "FlurstuecksRolle::ist_vorhaben")]
     #[ts(as = "Option<FlurstuecksRolle>", optional)]
     pub rolle: FlurstuecksRolle,
+    /// Im Aufmaß gezeichnete Flurstücksgrenze (Flurkarte oder Lageplan):
+    /// Bindung an eine Markierung mit Bedeutung „Flurstück“, die diesem
+    /// Flurstück zugeordnet ist (Ziel [`Self::planziel`]). Die Katasterfläche
+    /// [`Self::flaeche_m2`] bleibt der Rechenwert, solange nicht
+    /// [`Self::flaeche_aus_plan`] gesetzt ist; die Abweichung bleibt sichtbar.
+    // Nicht geschrieben, solange leer, damit Bestandsdaten unverändert bleiben.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub planbindung: Option<crate::planaufmass::Planbindung>,
+    /// Gemessene Fläche der gebundenen Markierung in m² (auf 0,01 m² gerundet).
+    /// Setzt ausschließlich der Core bei der Übernahme (`planaufmass_flurstuecke`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub planflaeche_m2: Option<f64>,
+    /// Die gezeichnete Fläche gilt als Flurstücksfläche, weil (noch) kein
+    /// amtlicher Wert vorliegt; `flaeche_m2` wird dann aus `planflaeche_m2`
+    /// übernommen und ist nicht von Hand änderbar.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(optional, as = "Option<bool>")]
+    pub flaeche_aus_plan: bool,
 }
 /// Anlass der Baulastklärung für ein Flurstück mit Rolle „Sonstiges“.
 pub const BAULAST_GRUND: &str = "Flurstück außerhalb des Vorhabengrundstücks (Zuwegung, Baulastfläche o. Ä.). Klären, ob eine Baulast nötig ist; die Baulasterklärung des Eigentümers ist dann Bauvorlage.";
@@ -93,6 +113,18 @@ impl FlurstuecksInfo {
     /// Bezeichnung für Hinweise, etwa „Schwabing 123/4“.
     pub fn bezeichnung(&self) -> String {
         format!("{} {}", self.gemarkung.trim(), self.nummer.trim())
+    }
+    /// Zielpfad der Flächenübernahme aus dem Aufmaß (`Tabelle.Zeilen-ID.Feld`).
+    pub fn planziel(&self) -> String {
+        format!("flurstuecke.{}.flaeche_m2", self.id)
+    }
+    /// Gezeichnete minus Katasterfläche in m², solange beide Werte getrennt
+    /// vorliegen; `None` ohne Bindung oder wenn die Zeichnung die Fläche liefert.
+    pub fn flaechenabweichung_m2(&self) -> Option<f64> {
+        if self.flaeche_aus_plan {
+            return None;
+        }
+        self.planflaeche_m2.map(|p| p - self.flaeche_m2)
     }
 }
 impl FlurstuecksRolle {
@@ -175,8 +207,41 @@ impl Grundstuecksinformationen {
                     "laufende Nummer im Bestandsverzeichnis muss positiv sein oder leer bleiben",
                 );
             }
+            match (&f.planbindung, f.planflaeche_m2) {
+                (Some(b), Some(p)) => {
+                    if b.ziel != f.planziel()
+                        || b.groesse != crate::planaufmass::Planmessgroesse::Flaeche
+                    {
+                        return fehler("Aufmaßverknüpfung gehört zu einem anderen Ziel");
+                    }
+                    if !p.is_finite() || p <= 0. {
+                        return fehler("gezeichnete Fläche muss größer als 0 sein");
+                    }
+                    if f.flaeche_aus_plan && (f.flaeche_m2 - p).abs() > 1e-6 {
+                        return fehler(
+                            "Flurstücksfläche weicht von der gezeichneten Fläche ab; Übernahme aus dem Aufmaß erneut ausführen",
+                        );
+                    }
+                }
+                (None, None) => {
+                    if f.flaeche_aus_plan {
+                        return fehler(
+                            "Fläche aus dem Aufmaß benötigt eine verknüpfte Flurstücksmarkierung",
+                        );
+                    }
+                }
+                _ => {
+                    return fehler(
+                        "Aufmaßverknüpfung und gezeichnete Fläche gehören zusammen; Übernahme aus dem Aufmaß erneut ausführen",
+                    );
+                }
+            }
             if !f.flaeche_m2.is_finite() || f.flaeche_m2 <= 0. {
-                return fehler("Fläche laut Kataster in m² angeben (größer als 0)");
+                return fehler(if f.planbindung.is_some() {
+                    "Fläche laut Kataster in m² angeben oder die gezeichnete Fläche als Flurstücksfläche verwenden"
+                } else {
+                    "Fläche laut Kataster in m² angeben (größer als 0)"
+                });
             }
             if f.rolle.ist_vorhaben()
                 && !f.grundbuchbezirk.trim().is_empty()
@@ -315,6 +380,9 @@ pub fn informationen(p: &Planungsrecht) -> Grundstuecksinformationen {
                             eigentuemer_kunden: vec![],
                             bemerkung: String::new(),
                             rolle: FlurstuecksRolle::Vorhaben,
+                            planbindung: None,
+                            planflaeche_m2: None,
+                            flaeche_aus_plan: false,
                         })
                         .collect()
                 })

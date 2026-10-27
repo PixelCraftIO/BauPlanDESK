@@ -3,7 +3,7 @@ import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Plan
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };
-export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, };
+export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, } | { "art": "einheit", einheit: Laengeneinheit, };
 export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], } | { "art": "flaeche", polygone: Array<Planpolygon>, };
 export type Planpolygon = { aussen: Array<[number, number]>, innen?: Array<Array<[number, number]>>, };
@@ -12,7 +12,7 @@ export type Markierungspruefung = { id: string, wert: Planmesswert | null, fehle
 export type Planpruefung = { markierungen: Array<Markierungspruefung>, };
 export type Planexportwunsch = { aufmass_id: string, revision: number, format: Planexportformat, nur_sichtbare_ebenen: boolean, };
 export type Planexportformat = "pdf" | "csv";
-export type Planbedeutung = "unbestimmt" | "flurstueck" | "private_gruenflaeche" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass";
+export type Planbedeutung = "unbestimmt" | "flurstueck" | "baufenster" | "vorhabenumriss" | "private_gruenflaeche" | "oeffentliche_gruenflaeche" | "verkehrsflaeche" | "ausserhalb_bauland" | "sonstiger_abzug" | "zufahrt" | "stellplatz" | "garage" | "nebenanlage" | "terrasse" | "unterirdisch" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass";
 export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
 /**
  * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
@@ -23,7 +23,13 @@ ausschnitt_id?: string,
  * Höhe, z. B. unter einer Dachschräge) diese Fläche ist. Das Raumbuch
  * übernimmt sie als Höhenzone des Raums, nicht als eigenen Raum.
  */
-hoehenzone_von?: string, };
+hoehenzone_von?: string,
+/**
+ * Flurstück (ID aus den Grundstücksinformationen), dessen Grenze diese
+ * Markierung mit Bedeutung „Flurstück“ zeigt. Grundlage der Übernahme in
+ * die Flurstücksfläche; ohne Zuordnung bleibt die Fläche eine Kontrolle.
+ */
+flurstueck_id?: string, };
 export type Planhoehenbezug = { punkt: [number, number], hoehe_m: number,
 /**
  * Zum Beispiel „m ü. NHN“ oder „lokal, OKFF EG = 0“.
@@ -52,21 +58,27 @@ export type Planbindung = { aufmass_id: string, revision: number, markierung_id:
  * Tabelle.Zeilen-ID.Feld; niemals Arraypositionen.
  */
 ziel: string, };
+export type Aufmassstand = { aufmass_id: string, revision: number, };
+export type CadUebernahme = { uebernommen: Array<string>, vorhanden: number, uebersprungen: Array<string>, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
 export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";
 export type Planaufgabe = {
 /**
- * `gebaeude` oder `abstand`.
+ * `flurstueck`, `abzug`, `bauteil`, `gebaeude` oder `abstand`.
  */
 verbraucher: string,
 /**
- * Gebäude-ID bzw. ID des Abstandsplans.
+ * Flurstücks-ID, Zeilenkennung des Abzugs bzw. Bauteils, Gebäude-ID bzw. ID des Abstandsplans.
  */
 objekt: string, objekt_name: string,
 /**
  * Anzeigegruppe, z. B. „Lagerhalle · OG“ oder „Südwand“.
  */
 gruppe: string, ziel: string, titel: string, groesse: Planmessgroesse, bedeutung: Planbedeutung, geometrie: Aufgabengeometrie, gebaeude_id: string | null, geschoss_id: string | null, grundstueck_id: string | null,
+/**
+ * Flurstück, dem eine neue Markierung zugeordnet wird (Verbraucher `flurstueck`).
+ */
+flurstueck_id: string | null,
 /**
  * Zielfeld trägt bereits einen (manuellen) Wert.
  */
@@ -315,7 +327,26 @@ eigentuemer_kunden?: Array<string>, bemerkung: string,
 /**
  * Bezug zum Vorhaben; fehlt bei Vorhabenflurstücken.
  */
-rolle?: FlurstuecksRolle, };
+rolle?: FlurstuecksRolle,
+/**
+ * Im PDF-Aufmaß gezeichnete Flurstücksgrenze (Flurkarte oder Lageplan):
+ * Bindung an eine Markierung mit Bedeutung „Flurstück“, die diesem
+ * Flurstück zugeordnet ist (Ziel [`Self::planziel`]). Die Katasterfläche
+ * [`Self::flaeche_m2`] bleibt der Rechenwert, solange nicht
+ * [`Self::flaeche_aus_plan`] gesetzt ist; die Abweichung bleibt sichtbar.
+ */
+planbindung?: Planbindung,
+/**
+ * Gemessene Fläche der gebundenen Markierung in m² (auf 0,01 m² gerundet).
+ * Setzt ausschließlich der Core bei der Übernahme (`planaufmass_flurstuecke`).
+ */
+planflaeche_m2?: number,
+/**
+ * Die gezeichnete Fläche gilt als Flurstücksfläche, weil (noch) kein
+ * amtlicher Wert vorliegt; `flaeche_m2` wird dann aus `planflaeche_m2`
+ * übernommen und ist nicht von Hand änderbar.
+ */
+flaeche_aus_plan?: boolean, };
 export type FlurstuecksRolle = "vorhaben" | "nachbar" | "sonstiges";
 export type FlurstuecksAnsatz = { flurstueck_id: string, abzuege: Array<FlaechenAbzug>, abweichende_zuordnung: { kennung: string; grundlage: string } | null, };
 export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, berechnungen: Array<BaugrundstueckBerechnung>,

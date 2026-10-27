@@ -1053,6 +1053,9 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
                 eigentuemer_kunden: vec![],
                 bemerkung: String::new(),
                 rolle,
+                planbindung: None,
+                planflaeche_m2: None,
+                flaeche_aus_plan: false,
             };
         core_lib::domain::Planungsrecht {
             grundstuecksinformationen: Some(

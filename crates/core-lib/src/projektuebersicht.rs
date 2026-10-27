@@ -182,6 +182,31 @@ impl Projektuebersicht {
     }
 }
 impl CoreServices {
+    /// Neueste Versionen der abgelegten Flurkarten und Lagepläne (Dokumentkategorie),
+    /// Flurkarten zuerst.
+    async fn planunterlagen(
+        &self,
+        p: ProjectId,
+    ) -> CoreResult<Vec<crate::domain::DocumentVersion>> {
+        let kategorien = self.dokumentkategorien(p).await?;
+        let rang = |d: &crate::domain::DocumentVersion| {
+            kategorien
+                .iter()
+                .find(|k| k.dokument_id == d.document_id)
+                .and_then(|k| match k.zuordnung.kategorie.as_deref() {
+                    Some("flurkarte") => Some(0u8),
+                    Some("lageplan") => Some(1),
+                    _ => None,
+                })
+        };
+        let mut docs: Vec<(u8, crate::domain::DocumentVersion)> =
+            crate::projektablage::versionen(self.list_documents(p).await?, false)
+                .into_iter()
+                .filter_map(|d| rang(&d).map(|r| (r, d)))
+                .collect();
+        docs.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.file_name.cmp(&b.1.file_name)));
+        Ok(docs.into_iter().map(|(_, d)| d).collect())
+    }
     pub async fn projektuebersicht(
         &self,
         p: ProjectId,
@@ -246,8 +271,39 @@ impl CoreServices {
                 UebersichtsZiel::neu("uebersicht"),
             );
         }
+        let flurstuecke_erfasst =
+            !crate::grundstuecksinformationen::informationen(&projekt.planungsrecht)
+                .flurstuecke
+                .is_empty();
         match crate::grundstueckskontext::ermitteln(&projekt) {
             Ok(g) if !g.is_empty() && g.iter().all(|g| g.bezugsflaeche_m2.is_some()) => {}
+            // Projektstart über Pläne: ohne erfasste Flurstücke führt eine abgelegte
+            // Flurkarte bzw. ein Lageplan ins Aufmaß, sonst zur Planablage.
+            Ok(_) if !flurstuecke_erfasst => match self.planunterlagen(p).await?.first() {
+                Some(d) => s.punkt(
+                    "flurstueck_zeichnen",
+                    Grundlagen,
+                    Handeln,
+                    "Flurstücke aus Flurkarte / Lageplan zeichnen",
+                    format!(
+                        "„{}“ ist abgelegt. Unter Unterlagen → Aufmaß diese Unterlage wählen und die Flurstücksgrenzen mit Bedeutung „Flurstück“ zeichnen; die Flurstücke (Gemarkung, Flur, Nummer) unter Grundlagen → Flurstücke anlegen und den Markierungen zuordnen.",
+                        d.file_name
+                    ),
+                    // Register „unterlage“ + Eintrag = Dokument-ID: das Aufmaß öffnet
+                    // mit dieser Unterlage (Objekt bleibt die Aufmaß-Kennung).
+                    UebersichtsZiel::neu("planaufmass")
+                        .register("unterlage")
+                        .eintrag(d.document_id.0),
+                ),
+                None => s.punkt(
+                    "planablage",
+                    Grundlagen,
+                    Handeln,
+                    "Flurkarte oder Lageplan ablegen",
+                    "Unter Projektdateien eine Flurkarte / Liegenschaftskarte oder einen Lageplan mit Kategorie ablegen; daraus lassen sich Flurstücke und Abzugsflächen im Aufmaß zeichnen. Alternativ Flurstücke unter Grundlagen → Flurstücke erfassen.",
+                    UebersichtsZiel::neu("dokumente"),
+                ),
+            },
             Ok(_) => s.punkt(
                 "grundstueck",
                 Grundlagen,
@@ -264,6 +320,50 @@ impl CoreServices {
                 e.to_string(),
                 UebersichtsZiel::neu("grundstueck"),
             ),
+        }
+        // Flurstücke mit Aufmaßbindung, deren Quelle sich geändert hat, werden
+        // nicht still fortgeschrieben; der neue Stand ist ausdrücklich zu übernehmen.
+        if let Err(e) = self
+            .flurstueck_planquellen_pruefen(
+                p,
+                &crate::grundstuecksinformationen::informationen(&projekt.planungsrecht),
+            )
+            .await
+        {
+            s.punkt(
+                "flurstueck_aufmass",
+                Grundlagen,
+                Pruefen,
+                "Flurstücksflächen aus dem Aufmaß aktualisieren",
+                e.to_string(),
+                UebersichtsZiel::neu("grundstueck"),
+            );
+        }
+        if let Some(e) = crate::grundstuecksinformationen::ermittlung(&projekt.planungsrecht)? {
+            if let Err(err) = self.abzug_planquellen_pruefen(p, &e).await {
+                s.punkt(
+                    "abzug_aufmass",
+                    Grundlagen,
+                    Pruefen,
+                    "Abzugsflächen aus dem Aufmaß aktualisieren",
+                    err.to_string(),
+                    UebersichtsZiel::neu("grundstueck"),
+                );
+            }
+            for b in &e.berechnungen {
+                if let Some(a) = &b.eingabe.aufstellung
+                    && let Err(err) = self.bauteil_planquellen_pruefen(p, &b.schluessel, a).await
+                {
+                    s.punkt(
+                        format!("bauteil_aufmass:{}", b.schluessel),
+                        Nachweise,
+                        Pruefen,
+                        "GRZ-Bauteile aus dem Aufmaß aktualisieren",
+                        err.to_string(),
+                        UebersichtsZiel::neu("grz"),
+                    );
+                }
+            }
         }
         for f in self.fachobjekte(p, ObjektArt::Aufgaben).await? {
             let a: Aufgabe = decode(f.daten)?;
@@ -323,7 +423,7 @@ impl CoreServices {
             let aufmass: crate::planaufmass::Planaufmass = decode(f.daten)?;
             let mut offen = Vec::new();
             if !doc_aktuell(&aufmass.dokument) {
-                offen.push("PDF-Unterlage ist veraltet oder fehlt".into());
+                offen.push("Unterlage ist veraltet oder fehlt".into());
             }
             // Ohne Seitenmaßstab braucht jeder Ausschnitt einen eigenen.
             if aufmass.kalibrierung.is_none()
@@ -375,7 +475,7 @@ impl CoreServices {
                     format!("planaufmass:{}", f.objekt),
                     Grundlagen,
                     Pruefen,
-                    format!("PDF-Aufmaß: {}", aufmass.bezeichnung),
+                    format!("Aufmaß: {}", aufmass.bezeichnung),
                     offen.join(" · "),
                     UebersichtsZiel::neu("planaufmass").objekt(id(&f.objekt)?),
                 );

@@ -4,11 +4,15 @@ export interface FachProps {
   benutzerId: string;
   darf: boolean;
   darfFreigeben?: boolean;
+  /** Übergibt einen vom Modul gespeicherten Projektstand an die Akte (etwa Flurstücke aus dem Aufmaß). */
+  onprojekt?: (p: Project) => void;
+  /** Wunsch, eine Unterlage (Dokument-ID) zu öffnen; `nummer` unterscheidet wiederholte Wünsche. Nur das Aufmaß wertet ihn aus. */
+  unterlage?: { dokumentId: string; nummer: number } | null;
 }
 export const FACHMODULE = [
   {
     id: "planaufmass",
-    titel: "PDF-Aufmaß",
+    titel: "Aufmaß",
     gruppe: "Unterlagen",
     laden: () => import("../planaufmass/Planaufmass.svelte"),
   },

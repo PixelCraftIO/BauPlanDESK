@@ -850,7 +850,7 @@
                 >
                 {#if istPlan(doc.file_name)}<button
                     class="link"
-                    onclick={() => onplan(doc.document_id)}>Plan ansehen</button
+                    onclick={() => onplan(doc.document_id)}>Im Aufmaß öffnen</button
                   >{/if}
                 {#if darfAblegen && !fremdGesperrt(doc.document_id)}<button
                     class="link"

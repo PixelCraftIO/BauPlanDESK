@@ -1001,7 +1001,7 @@
                               pfad={`${t.pfad}[${i}].${f.name}`}
                               {pruefversuch}
                               quelle={planquelleFuer(ziel(t, row, f))
-                                ? "Aus PDF-Aufmaß verknüpft · Herkunft unter Quellen / Übernahmen"
+                                ? "Aus Aufmaß verknüpft · Herkunft unter Quellen / Übernahmen"
                                 : quelleFuer(ziel(t, row, f))
                                   ? "Aus archiviertem Nachweis übernommen · Herkunft unter Quellen / Übernahmen"
                                   : ""}

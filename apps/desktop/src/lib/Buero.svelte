@@ -19,6 +19,8 @@
     name: "",
     anschrift: leereAnschrift(),
     kennung: "",
+    telefon: "",
+    email: "",
     entwurfsverfasser: [],
   });
   let fehler = $state<string | null>(null);
@@ -30,7 +32,18 @@
     api
       .buero()
       .then((b) => {
-        buero = { ...b, entwurfsverfasser: b.entwurfsverfasser ?? [] };
+        // Ältere Server liefern die Kontaktfelder nicht.
+        buero = {
+          ...b,
+          telefon: b.telefon ?? "",
+          email: b.email ?? "",
+          entwurfsverfasser: (b.entwurfsverfasser ?? []).map((p) => ({
+            ...p,
+            telefon: p.telefon ?? "",
+            mobil: p.mobil ?? "",
+            email: p.email ?? "",
+          })),
+        };
         geladen = JSON.stringify(buero);
       })
       .catch((e) => (fehler = fehlertext(e)));
@@ -65,6 +78,9 @@
       mitgliedsnummer: "",
       kammerland: null,
       nachweis: "",
+      telefon: "",
+      mobil: "",
+      email: "",
     });
   }
 
@@ -97,6 +113,19 @@
   <label>Absenderkennung
     <input bind:value={buero.kennung} disabled={!darf} placeholder="z. B. vom Antragsportal vergeben" />
   </label>
+  <div class="feldzeile">
+    <label>Telefon des Büros
+      <input type="tel" bind:value={buero.telefon} disabled={!darf} />
+    </label>
+    <label>E-Mail des Büros
+      <input type="email" bind:value={buero.email} disabled={!darf} />
+    </label>
+  </div>
+  <p class="meta">
+    Anschrift, Telefon und E-Mail des Büros stehen in Bauantragsformularen,
+    Anschreiben und Berechnungen als Angaben der entwurfsverfassenden Person,
+    sofern die Person keine eigenen Kontaktdaten hat.
+  </p>
 
   <fieldset disabled={!darf}>
     <legend>Bauvorlageberechtigte Personen</legend>
@@ -120,6 +149,15 @@
               <option value={null}>–</option>
               {#each LAENDER as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
             </select>
+          </label>
+        </div>
+        <div class="feldzeile">
+          <label>Telefon (Durchwahl)
+            <input type="tel" bind:value={p.telefon} placeholder="leer = Büro" />
+          </label>
+          <label>Mobil <input type="tel" bind:value={p.mobil} /></label>
+          <label>E-Mail
+            <input type="email" bind:value={p.email} placeholder="leer = Büro" />
           </label>
         </div>
         <label>Nachweis ohne Kammermitgliedschaft

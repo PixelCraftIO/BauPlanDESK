@@ -32,16 +32,29 @@ Verfügbare Schlüssel (Zahlen mit Dezimalkomma, leere Angaben fehlen):
   `kennzahlen.bmz`, `flaechen.grundflaeche_m2`,
   `flaechen.grundflaeche_nebenanlagen_m2`, `flaechen.geschossflaeche_m2`,
   `flaechen.baumasse_m3`, `gebaeude.vollgeschosse`.
-* **Personen** aus der Kundendatenbank, jeweils mit `.name`, `.vorname`,
-  `.familienname`, `.firma`, `.strasse`, `.hausnummer`,
-  `.strasse_hausnummer`, `.plz`, `.ort`, `.plz_ort`, `.telefon`, `.email`:
+* **Personen** aus der Kundendatenbank, jeweils mit `.name` („Vorname
+  Familienname“ bzw. Firma), `.vorname`, `.familienname`, `.firma`,
+  `.name_vorname` („Familienname, Vorname“ bzw. Firma, wie amtliche Formulare
+  es verlangen), `.strasse`, `.hausnummer`, `.strasse_hausnummer`, `.plz`,
+  `.ort`, `.plz_ort`, `.anschrift` („Straße Hausnummer, PLZ Ort“),
+  `.name_anschrift` (Name und Anschrift in zwei Zeilen für mehrzeilige
+  Sammelfelder wie „Bauherrschaft“), `.name_anschrift_zeile` (dasselbe in
+  einer Zeile), `.telefon`, `.email`:
   `bauherr.*` (der gewählte oder einzige Bauherr), `eigentuemer.*` (laut
   Flurstück, sonst die Grundstückseigentümer unter „Weitere Beteiligte“),
   `erbbauberechtigter.*`, `bevollmaechtigter.*`, `fachplaner.*`. Bei mehreren
   Personen einer Rolle steht nur `.name` mit allen Namen.
 * **Entwurfsverfasser und Büro:** `entwurfsverfasser.name`, `.vorname`,
-  `.familienname`, `.berufsbezeichnung`, `.mitgliedsnummer`, `.kammerland`;
-  `buero.name` und die Büroanschrift (`buero.strasse` … `buero.plz_ort`).
+  `.familienname`, `.name_vorname`, `.name_buero` („Familienname, Vorname,
+  Büro“), `.berufsbezeichnung`, `.mitgliedsnummer`, `.kammerland`,
+  `.telefon` und `.email` (eigene Angabe der Person, sonst die des Büros),
+  `.mobil`, die Büroanschrift als Geschäftsanschrift (`.strasse` …
+  `.plz_ort`, `.anschrift`) sowie `.name_anschrift` (mit Büro, zwei Zeilen)
+  und `.name_anschrift_zeile`; `buero.name`, `buero.telefon`, `buero.email`
+  und die Büroanschrift (`buero.strasse` … `buero.plz_ort`, `buero.anschrift`,
+  `buero.name_anschrift`). Die Personen stehen in den Büroangaben; der
+  Bauantrag wählt die verantwortliche Person, die Eingabemaske kann je
+  Formular eine andere Person des Büros wählen.
 * **Verfahren** (das gewählte oder einzige): `verfahren.bezeichnung`,
   `verfahren.aktenzeichen`, `behoerde.name`. Ohne Verfahren kommt
   `behoerde.name` aus dem Bauantrag.
@@ -59,14 +72,27 @@ Hinweis, wird aber nicht abgebrochen. Feste Texte (`'…`), `datum.heute` und
 Felder ohne aktuellen Projektwert werden nicht verglichen; bewusst manuell
 abweichende Werte bleiben als Abweichung sichtbar.
 
-**Entfernte Quellen:** Wurde das gespeicherte Baugrundstück, der Bauherr oder
-das Verfahren entfernt, öffnet das Formular ohne diesen Bezug und mit einem
-Hinweis; eine Ersatzquelle wird nicht still gewählt.
+**Entfernte Quellen:** Wurde das gespeicherte Baugrundstück, der Bauherr, die
+entwurfsverfassende Person oder das Verfahren entfernt, öffnet das Formular
+ohne diesen Bezug und mit einem Hinweis; eine Ersatzquelle wird nicht still
+gewählt.
+
+**Gewählte Feldquellen:** In der Eingabemaske lässt sich je Textfeld eine
+andere Projektdatenquelle wählen, etwa `bauherr.name_anschrift` statt
+`bauherr.name` für ein zweizeiliges Sammelfeld „Bauherrschaft“. Die Wahl wird
+mit der Formularversion gespeichert
+(`formularinstanz.quellen.datenstand.bezug.feldquellen`), gilt beim Abgleich
+veralteter Werte und beim erneuten Laden und verändert die JSON-Vorlage nicht.
+Zweizeilige Werte werden nur in mehrzeilige Felder vorgeschlagen.
 
 Die Feldnamen der amtlichen Formulare liest die App selbst aus
-(Dokumente → „Formular ausfüllen …“ zeigt alle Felder). Die enthaltene
-Vorlage ist ein **Beispiel**; für jedes Landesformular wird eine eigene
-Vorlage mit den echten Feldnamen angelegt.
+(Dokumente → „Formular ausfüllen …“ zeigt alle Felder). Mitgeliefert sind
+`beispiel-bauantrag.json` (Beispiel) sowie für Nordrhein-Westfalen
+`nw-bauantrag-anlage-i-2.json` (Bauantrag / Antrag auf Vorbescheid),
+`nw-baubeschreibung-anlage-i-7.json` und
+`nw-betriebsbeschreibung-anlage-i-8.json` (Anlagen zur VV BauPrüfVO; die
+amtlichen PDFs liegen unter `beispiele/`). Für jedes weitere Landesformular
+wird eine eigene Vorlage mit den echten Feldnamen angelegt.
 
 
 Eigene PDF-Eingabefelder können auch ohne Bearbeitung dieser JSON-Dateien unter

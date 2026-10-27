@@ -1,0 +1,14 @@
+{
+  "id": "nw-betriebsbeschreibung-anlage-i-8",
+  "titel": "Betriebsbeschreibung für gewerbliche Anlagen (Anlage I/8 zur VV BauPrüfVO NRW)",
+  "land": "NW",
+  "version": "2026.1",
+  "erkennung": ["Betreibende", "Bauherrschaft", "Grundstück Ort Straße Hausnummer", "Name_Vorname_Büro"],
+  "zuordnung": {
+    "Bauherrschaft": "bauherr.name_anschrift",
+    "Grundstück Ort Straße Hausnummer": "grundstueck.anschrift",
+    "Name_Vorname_Büro": "entwurfsverfasser.name_buero",
+    "Straße; Hausnummer": "entwurfsverfasser.strasse_hausnummer",
+    "PLZ, Ort": "entwurfsverfasser.plz_ort"
+  }
+}

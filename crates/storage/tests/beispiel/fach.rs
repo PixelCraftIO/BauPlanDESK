@@ -911,6 +911,7 @@ pub async fn fach(b: &mut Beispiel) {
             grundstueck_id: Some(grund),
             gebaeude_id: gebaeude,
             geschoss_id: geschoss,
+            flurstueck_id: None,
             ausschnitt_id: Some(aus),
             hoehenzone_von: None,
         });
@@ -1177,6 +1178,7 @@ pub async fn fach(b: &mut Beispiel) {
             grundstueck_id: Some(grund),
             gebaeude_id: None,
             geschoss_id: None,
+            flurstueck_id: None,
             ausschnitt_id: Some(x_eg),
             hoehenzone_von: None,
         });
@@ -1193,6 +1195,7 @@ pub async fn fach(b: &mut Beispiel) {
             grundstueck_id: Some(grund),
             gebaeude_id: None,
             geschoss_id: None,
+            flurstueck_id: None,
             ausschnitt_id: Some(x_eg),
             hoehenzone_von: None,
         });
@@ -1249,7 +1252,7 @@ pub async fn fach(b: &mut Beispiel) {
     let vorschlag = |ziel: &str| -> Option<Uuid> {
         aufgaben
             .iter()
-            .find(|a| a.verbraucher == "gebaeude" && a.objekt == haus && a.ziel == ziel)
+            .find(|a| a.verbraucher == "gebaeude" && a.objekt == haus.to_string() && a.ziel == ziel)
             .and_then(|a| a.markierung)
     };
     let s = |g: Uuid, f: &str| format!("geschosse.{g}.{f}");

@@ -91,10 +91,14 @@ export function snap(point: Point, geometry: SnapGeometry, tolerance: number):
 
 // Vorschauhilfen für die Zeichenfläche. Maßgebend bleiben die Werte des Cores
 // (planaufmass_pruefen); diese Funktionen zeigen nur während des Zeichnens an.
-type Kalibrierung = { art: "massstab"; nenner: number } | { art: "strecke"; von: Point; bis: Point; meter: number };
+type Kalibrierung = import("../generated/plattform").Plankalibrierung;
 type Geometrie = import("../generated/plattform").Plangeometrie;
+/** Meter je Zeichnungseinheit (spiegelt `Laengeneinheit::meter` im Core). */
+export const EINHEIT_METER: Record<import("../generated/plattform").Laengeneinheit, number> =
+  { millimeter: 0.001, zentimeter: 0.01, dezimeter: 0.1, meter: 1, kilometer: 1000, zoll: 0.0254, fuss: 0.3048 };
 export function meterProPunkt(k: Kalibrierung | null | undefined): number | null {
   if (!k) return null;
+  if (k.art === "einheit") return EINHEIT_METER[k.einheit] ?? null;
   if (k.art === "massstab") return k.nenner > 0 ? (k.nenner * 0.0254) / 72 : null;
   const l = Math.hypot(k.bis[0] - k.von[0], k.bis[1] - k.von[1]);
   return l > 0 && k.meter > 0 ? k.meter / l : null;

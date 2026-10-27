@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
-  import { api, fehlertext, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext } from "../api";
-  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude } from "../generated/plattform";
+  import { api, fehlertext, EINHEITEN, istDxf, istPlan, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext, type CadPlan, type BaugrenzenPruefung } from "../api";
+  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude, Laengeneinheit } from "../generated/plattform";
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
   import { plattformApi, type Datensatz } from "../plattformApi";
@@ -14,15 +14,24 @@
   import { Bearbeitungsverlauf } from "./verlauf";
   import { drehen, punktAendern, punktEinfuegen, punktEntfernen, kantenmass, ausrichten } from "./bearbeitung";
   import { aufmassUebertragen } from "./uebertragung";
-  let {projekt,benutzerId,darf}:{projekt:Project;benutzerId:string;darf:boolean}=$props();
+  import { grundstuecksinformationen } from "../grundstuecksdaten";
+  import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
+  let {projekt,benutzerId,darf,onprojekt,unterlage=null}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null}=$props();
+  // Flurstücke des Projekts für die Zuordnung von Flurstücksmarkierungen; Stand der Akte.
+  const flurstuecke=$derived(grundstuecksinformationen(projekt.planungsrecht).flurstuecke);
   let dateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
   let gebaeude=$state<Datensatz<Gebaeude>[]>([]),listenFehler=$state(""),laedt=$state(false);
+  // DXF-Unterlage: Zeichnung samt Ebenensichtbarkeit (nur Anzeige und Fang).
+  let dxf=$state<CadPlan|null>(null), dxfSichtbar=$state<boolean[]>([]);
+  let baugrenzenLaeuft=$state(false), baugrenzenErgebnis=$state<BaugrenzenPruefung|null>(null);
   const s=untrack(()=>new FachSitzung<Planaufmass>(projekt.id,"planaufmass",benutzerId,()=>({
-    bezeichnung:"Neues PDF-Aufmaß",dokument:{dokument_id:dateien[0]?.document_id??"00000000-0000-0000-0000-000000000000",version:dateien[0]?.version??1},
+    bezeichnung:"Neues Aufmaß",dokument:{dokument_id:dateien[0]?.document_id??"00000000-0000-0000-0000-000000000000",version:dateien[0]?.version??1},
     seite:1,kalibrierung:null,hoehenbezug:null,ebenen:[{id:crypto.randomUUID(),bezeichnung:"Aufmaß",sichtbar:true,gesperrt:false}],markierungen:[],
   }),p=>p.bezeichnung));
   const bedeutungen: [Planbedeutung,string][]=[
-    ["unbestimmt","Noch nicht zugeordnet"],["flurstueck","Flurstück"],["private_gruenflaeche","Private Grünfläche"],
+    ["unbestimmt","Noch nicht zugeordnet"],["flurstueck","Flurstück (Flurkarte / Lageplan)"],["baufenster","Baufenster (Baugrenze / Baulinie)"],["vorhabenumriss","Vorhabenumriss (Gebäude im Lageplan)"],["private_gruenflaeche","Private Grünfläche"],
+    ["oeffentliche_gruenflaeche","Öffentliche Grünfläche"],["verkehrsflaeche","Verkehrsfläche"],["ausserhalb_bauland","Fläche außerhalb des Baulands"],["sonstiger_abzug","Sonstige nicht maßgebende Fläche"],
+    ["zufahrt","Zufahrt"],["stellplatz","Stellplatz"],["garage","Garage / Carport"],["nebenanlage","Nebenanlage (§ 14 BauNVO)"],["terrasse","Terrasse"],["unterirdisch","Unterirdische Anlage"],
     ["versiegelung","Versiegelte Fläche"],["geschoss_aussenkante","Geschoss – Außenkante"],["gebaeudegrundflaeche","Gebäudegrundfläche – horizontale Projektion"],["raum","Raum"],["aufenthaltsraum","Aufenthaltsraum"],
     ["nuf","DIN 277 – Nutzungsfläche (NUF)"],["tf","DIN 277 – Technikfläche (TF)"],["vf","DIN 277 – Verkehrsfläche (VF)"],
     ["kgf","DIN 277 – Konstruktionsfläche (KGF)"],["aussenwand","Außenwand"],["gelaende","Gelände"],["traufe","Traufe"],["first","First"],["dach","Dach"],
@@ -53,6 +62,9 @@
   const layer=$derived(s.eingabe?.ebenen.find(e=>e.id===ebene));
   const objektGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===m?.ebene_id)?.gesperrt);
   const quelleAlt=$derived(s.eingabe&&dateien.some(d=>d.document_id===s.eingabe!.dokument.dokument_id&&d.version>s.eingabe!.dokument.version));
+  const aktuelleDatei=$derived(dateien.find(d=>d.document_id===s.eingabe?.dokument.dokument_id&&d.version===s.eingabe?.dokument.version));
+  const istDxfUnterlage=$derived(!!aktuelleDatei&&istDxf(aktuelleDatei.file_name));
+  const pdfDateien=$derived(dateien.filter(d=>!istDxf(d.file_name)));
   const signatur=$derived(JSON.stringify(s.eingabe));
   const aktuelleWerte=$derived(signatur===messStand?werte:[]);
   const fehlerMap=$derived(new Map(markierungsFehler.map(f=>[f.id,f.fehler])));
@@ -67,14 +79,55 @@
   const hoehenMoeglich=$derived(!aktueller||mitHoehen(aktueller.art));
   const nullpunkte=$derived(gebaeude.flatMap(g=>g.daten.geometrie?.nullpunkt_m_nhn!=null?[{name:g.daten.bezeichnung,wert:g.daten.geometrie.nullpunkt_m_nhn}]:[]));
   let listenGeneration=0;
+  // Je Projekt einmal: CAD-Aufmaße der früheren DXF-Ansicht als Aufmaße übernehmen (nur mit Schreibrecht).
+  const migriert=new Set<string>();
   async function listen(){
     const n=++listenGeneration;
+    const extra:string[]=[];
+    if(darf&&!migriert.has(s.projektId)){
+      migriert.add(s.projektId);
+      try{const r=await planApi.cadUebernehmen(s.projektId);if(n!==listenGeneration)return;
+        if(r.uebernommen.length){s.meldung=`Aus der früheren DXF-Ansicht übernommen: ${r.uebernommen.join(", ")}. Bedeutungen und Zuordnungen dort ergänzen.`;void s.laden()}
+        if(r.uebersprungen.length)extra.push(`CAD-Aufmaße nicht übernommen: ${r.uebersprungen.join(" · ")}`);
+      }catch(e){if(n!==listenGeneration)return;extra.push(fehlertext(e))}
+    }
     const [d,g,b]=await Promise.allSettled([api.dokumente(s.projektId),api.grundstueckskontext(s.projektId),plattformApi.liste<Gebaeude>(s.projektId,"gebaeude")]);
     if(n!==listenGeneration)return;
-    if(d.status==="fulfilled")dateien=d.value.filter(d=>d.file_name.toLowerCase().endsWith(".pdf")).sort((a,b)=>a.file_name.localeCompare(b.file_name,"de")||b.version-a.version);
+    if(d.status==="fulfilled")dateien=d.value.filter(d=>istPlan(d.file_name)).sort((a,b)=>a.file_name.localeCompare(b.file_name,"de")||b.version-a.version);
     grund=g.status==="fulfilled"?g.value:[];
     gebaeude=b.status==="fulfilled"?b.value:[];
-    listenFehler=[d,g,b].flatMap(r=>r.status==="rejected"?[fehlertext(r.reason)]:[]).join(" · ");
+    listenFehler=[...extra,...[d,g,b].flatMap(r=>r.status==="rejected"?[fehlertext(r.reason)]:[])].join(" · ");
+  }
+  // Von außen gewünschte Unterlage (Projektdateien „Im Aufmaß öffnen“, Projektstart, Projektübersicht).
+  let unterlageNummer=0;
+  $effect(()=>{
+    const w=unterlage, liste=dateien, bereit=s.bereit;
+    untrack(()=>{if(w&&bereit&&liste.length&&w.nummer!==unterlageNummer){unterlageNummer=w.nummer;void unterlageOeffnen(w.dokumentId)}});
+  });
+  async function unterlageOeffnen(id:string){
+    const d=dateien.filter(x=>x.document_id===id).sort((a,b)=>b.version-a.version)[0];
+    if(!d){s.meldung="Die gewünschte Unterlage ist kein PDF- oder DXF-Dokument dieses Projekts.";return}
+    // Bestehendes Aufmaß dieser Unterlage (neueste Dokumentversion zuerst), sonst neuer Entwurf.
+    const vorhanden=s.liste.filter(f=>f.daten.dokument.dokument_id===id).sort((a,b)=>b.daten.dokument.version-a.daten.dokument.version)[0];
+    if(vorhanden&&s.id===vorhanden.objekt)return;
+    if(s.eingabe&&s.hatAenderungen()){
+      if(!(await ask(`„${d.file_name}“ im Aufmaß öffnen? Offene Änderungen werden zuerst gespeichert.`,{title:"Unterlage öffnen",okLabel:"Speichern und öffnen",cancelLabel:"Hier bleiben"})))return;
+      if(!(await s.speichern()))return;
+    }
+    if(vorhanden){s.bearbeiten(vorhanden);return}
+    s.neu();if(!s.eingabe)return;
+    s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};
+    einrichtungOffen=true;
+  }
+  async function baugrenzenZuordnen(){
+    if(!s.eingabe||!s.id||!darf||baugrenzenLaeuft)return;
+    if(s.hatAenderungen()&&(!(await ask("Für die Zuordnung den aktuellen Aufmaßentwurf zuerst speichern?",{title:"Lage im Baufenster",okLabel:"Speichern und zuordnen",cancelLabel:"Abbrechen"}))||!(await s.speichern())))return;
+    baugrenzenLaeuft=true;baugrenzenErgebnis=null;
+    try{
+      const r=await planApi.baugrenzen(s.projektId,{aufmass_id:s.id,revision:s.revision});
+      onprojekt?.(r.projekt);baugrenzenErgebnis=r.pruefung;
+      s.meldung=r.pruefung.eingehalten?"Lage im Baufenster dem Projekt zugeordnet: Das Vorhaben liegt im Baufenster.":`Lage im Baufenster dem Projekt zugeordnet: ${z(r.pruefung.ausserhalb_m2)} m² (${z(r.pruefung.ausserhalb_prozent)} %) liegen außerhalb.`;
+    }catch(e){s.fehler=fehlertext(e)}finally{baugrenzenLaeuft=false}
   }
   onMount(()=>()=>{listenGeneration++});
   const vormerken=ansichtsAbfrage(()=>s.projektId,["dokumente","fachobjekte"],listen);
@@ -91,11 +144,21 @@
   $effect(()=>{const v={panel,suche,aktiv,auswahl,bedeutungFilter,gebaeudeFilter,geschossFilter,nurFehler},id=s.id;try{localStorage.setItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`,JSON.stringify(v))}catch{}});
   $effect(()=>{const q=vergleich;let gone=false;vergleichPdf=null;if(q){const [id,v]=q.split("|");void api.pdfVorschau(id,Number(v)).then(p=>{if(!gone)vergleichPdf=p}).catch(e=>{if(!gone)s.fehler=fehlertext(e)})}return()=>{gone=true}});
   $effect(()=>{
-    const d=s.eingabe?.dokument;
-    let gone=false;pdf=null;pdfFehler="";
-    if(!d)return;
+    const d=s.eingabe?.dokument, datei=aktuelleDatei;
+    let gone=false;pdf=null;dxf=null;pdfFehler="";
+    if(!d||!datei)return;
     laedt=true;
-    void api.pdfVorschau(d.dokument_id,d.version).then(p=>{if(!gone)pdf=p}).catch(e=>{if(!gone)pdfFehler=fehlertext(e)}).finally(()=>{if(!gone)laedt=false});
+    if(istDxf(datei.file_name)){
+      void api.cadPlan(d.dokument_id,d.version).then(c=>{
+        if(gone)return;
+        dxf=c;dxfSichtbar=c.plan.ebenen.map(e=>e.sichtbar);
+        // Neuer Entwurf ohne Kalibrierung: die im DXF-Kopf genannte Einheit gilt; nennt die Datei keine, bleibt die Wahl offen.
+        const p=untrack(()=>s.eingabe);
+        if(p&&darf&&!p.kalibrierung&&c.plan.einheit&&untrack(()=>s.revision)===0)p.kalibrierung={art:"einheit",einheit:c.plan.einheit};
+      }).catch(e=>{if(!gone)pdfFehler=fehlertext(e)}).finally(()=>{if(!gone)laedt=false});
+    }else{
+      void api.pdfVorschau(d.dokument_id,d.version).then(p=>{if(!gone)pdf=p}).catch(e=>{if(!gone)pdfFehler=fehlertext(e)}).finally(()=>{if(!gone)laedt=false});
+    }
     return()=>{gone=true};
   });
   $effect(()=>{
@@ -175,14 +238,17 @@
   });
   // Wohin eine gespeicherte Markierung übernommen wird; nur Bedienhinweis.
   function ziel(b:Planbedeutung){
-    if(b==="gebaeudegrundflaeche")return "Grundlagen → Gebäude / Geschosse: am Feld „Gebäudegrundfläche“ über „Aus PDF-Aufmaß“ übernehmen. Von dort geht sie in GRZ des Baugrundstücks ein.";
-    if(b==="geschoss_aussenkante")return "Grundlagen → Gebäude / Geschosse: im jeweiligen Geschoss über „Aus PDF-Aufmaß“ übernehmen. Von dort geht sie in GFZ, Geschossigkeit und Vollgeschossprüfung ein.";
-    if(b==="raum"||b==="aufenthaltsraum"||b==="nuf"||b==="tf"||b==="vf")return "Berechnungen → Flächen- und Raumbuch: „Räume aus PDF-Aufmaß übernehmen“ (Gebäude und Geschoss zuordnen). DIN 277 und Wohnfläche können außerdem unter „Quellen / Übernahmen“ verknüpft werden.";
-    if(b==="nullpunkt"||b==="fussboden"||b==="decke"||b==="fundamentsohle"||b==="hoehenmass")return "Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus PDF-Aufmaß“ oder direkt hier unter „Aufgaben → Übernehmen“.";
-    if(b==="gelaende"||b==="traufe"||b==="first"||b==="dach"||b==="aussenwand")return "Je nach Ziel: Abstandsflächen → Grundlagen → „PDF-Aufmaß verknüpfen“ (manuelle Wand), Gebäudehöhen → „Quellen / Übernahmen“ oder Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus PDF-Aufmaß“.";
-    if(b==="flurstueck")return "Eine direkte Übernahme in Flurstücke und Baugrundstücksermittlung gibt es noch nicht; die Fläche dient vorerst zur Kontrolle der Katasterangaben.";
+    if(b==="gebaeudegrundflaeche")return "Grundlagen → Gebäude / Geschosse: am Feld „Gebäudegrundfläche“ über „Aus Aufmaß“ übernehmen. Von dort geht sie in GRZ des Baugrundstücks ein.";
+    if(b==="geschoss_aussenkante")return "Grundlagen → Gebäude / Geschosse: im jeweiligen Geschoss über „Aus Aufmaß“ übernehmen. Von dort geht sie in GFZ, Geschossigkeit und Vollgeschossprüfung ein.";
+    if(b==="raum"||b==="aufenthaltsraum"||b==="nuf"||b==="tf"||b==="vf")return "Berechnungen → Flächen- und Raumbuch: „Räume aus Aufmaß übernehmen“ (Gebäude und Geschoss zuordnen). DIN 277 und Wohnfläche können außerdem unter „Quellen / Übernahmen“ verknüpft werden.";
+    if(b==="nullpunkt"||b==="fussboden"||b==="decke"||b==="fundamentsohle"||b==="hoehenmass")return "Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus Aufmaß“ oder direkt hier unter „Aufgaben → Übernehmen“.";
+    if(b==="gelaende"||b==="traufe"||b==="first"||b==="dach"||b==="aussenwand")return "Je nach Ziel: Abstandsflächen → Grundlagen → „Aufmaß verknüpfen“ (manuelle Wand), Gebäudehöhen → „Quellen / Übernahmen“ oder Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus Aufmaß“.";
+    if(ABZUGSBEDEUTUNGEN.includes(b))return "Berechnungen → Baugrundstück → Flächenabzüge: „Abzugsflächen aus Aufmaß übernehmen“ (Flurstück zuordnen). Die Abzugsart folgt der Bedeutung, die rechtliche Grundlage wird dort ergänzt.";
+    if(BAUTEILBEDEUTUNGEN.includes(b))return "Berechnungen → Baugrundstück (GRZ): „Bauteile aus Aufmaß übernehmen“ (Baugrundstück zuordnen). Anrechnung nach Bauteiltyp und BauNVO-Fassung; die Hauptanlage kommt über die Gebäudegrundfläche.";
+    if(b==="baufenster"||b==="vorhabenumriss")return "Hier im Aufmaß: „Lage im Baufenster → Baufenster und Vorhabenumriss dem Projekt zuordnen“ (je genau eine Markierung). Der GRZ-Nachweis zeigt dann die Lage im Baufenster.";
+    if(b==="flurstueck")return "Grundlagen → Flurstücke: über „Aufgaben → Übernehmen“ (Flurstück zuordnen). Die Katasterfläche bleibt Rechenwert und zeigt die Abweichung; ohne amtlichen Wert kann die gezeichnete Fläche als Flurstücksfläche gelten.";
     if(b==="unbestimmt")return "Zuerst eine Bedeutung wählen; sie bestimmt, welche Berechnung den Messwert übernehmen kann.";
-    return "In der Fachberechnung eine Position anlegen und unter „Quellen / Übernahmen → PDF-Aufmaß“ verknüpfen.";
+    return "In der Fachberechnung eine Position anlegen und unter „Quellen / Übernahmen → Aufmaß“ verknüpfen.";
   }
   function duplizieren(){
     if(!s.eingabe||!m||objektGesperrt)return;
@@ -252,6 +318,7 @@
     const neu:Planmarkierung={id,ebene_id:layer.id,bezeichnung:v?`${v.gruppe} · ${v.titel}`:`Markierung ${p.markierungen.length+1}`,bedeutung:v?.bedeutung??"unbestimmt",geometrie:g,
       grundstueck_id:v?.grundstueck_id??(grund.length===1?grund[0].id:null),gebaeude_id:v?.gebaeude_id??standardGebaeude,geschoss_id:v?.geschoss_id??standardGeschoss};
     if(!v)neu.bedeutung=standardBedeutung;
+    if(v?.flurstueck_id)neu.flurstueck_id=v.flurstueck_id;
     if(aktiv)neu.ausschnitt_id=aktiv;
     p.markierungen.push(neu);
     waehlen(id);vorbelegung=null;panel="eigenschaften";
@@ -263,7 +330,7 @@
     vorbelegung=a;
     werkzeug=a.geometrie==="flaeche"?"polygon":a.geometrie==="hoehenpunkt"?"hoehenpunkt":"strecke";
   }
-  async function seiteWechseln(n:number){if(!s.eingabe||n===s.eingabe.seite)return;await quelleWechsel(s.eingabe.dokument,n)}
+  async function seiteWechseln(n:number){if(!s.eingabe||n===s.eingabe.seite||istDxfUnterlage)return;await quelleWechsel(s.eingabe.dokument,n)}
   function seiteAnsehen(n:number){betrachterSeite=n===s.eingabe?.seite?null:n;plan?.abbrechen();}
   function ausschnittAnlegen(von:Point,bis:Point){
     const p=s.eingabe;if(!p)return;
@@ -335,7 +402,8 @@
       if(!(await ask("Ein eigenes Aufmaß für das andere Blatt öffnen? Der bisherige Stand bleibt erhalten; offene Änderungen werden zuerst gespeichert. Konturen werden nicht auf das andere Blatt verschoben.",{title:"Anderes Blatt öffnen",okLabel:"Speichern und Blatt öffnen",cancelLabel:"Hier bleiben"})))return;
       if(s.hatAenderungen()&&!(await s.speichern()))return;
       s.neu();if(!s.eingabe)return;
-      s.eingabe={...s.leer(),bezeichnung:`${dateien.find(d=>d.document_id===dokument.dokument_id&&d.version===dokument.version)?.file_name??"PDF"} · Seite ${seite}`,dokument,seite};
+      const datei=dateien.find(d=>d.document_id===dokument.dokument_id&&d.version===dokument.version);
+      s.eingabe={...s.leer(),bezeichnung:datei&&istDxf(datei.file_name)?datei.file_name:`${datei?.file_name??"Unterlage"} · Seite ${seite}`,dokument,seite};
     }else{p.dokument=dokument;p.seite=seite;basisReset()}
     plan?.abbrechen();vergleich="";kontrolle=null;
   }
@@ -347,30 +415,35 @@
     aktiv="";
     s.meldung="Unterlage geändert. Maßstab und Höhenbezug neu bestimmen und alle Markierungen kontrollieren.";
   }
-  const massstabText=(k:Planaufmass["kalibrierung"]|undefined)=>!k?"":k.art==="massstab"?`1 : ${z(k.nenner)}`:`kalibriert über ${z(k.meter)} m`;
+  const massstabText=(k:Planaufmass["kalibrierung"]|undefined)=>!k?"":k.art==="einheit"?`Zeichnungseinheit ${EINHEITEN.find(e=>e.code===k.einheit)?.name??k.einheit}`:k.art==="massstab"?`1 : ${z(k.nenner)}`:`kalibriert über ${z(k.meter)} m`;
   const z=(n:number|null|undefined)=>n==null?"—":n.toLocaleString("de-DE",{maximumFractionDigits:3});
   const anzahl=(a:Planausschnitt)=>s.eingabe?.markierungen.filter(m=>m.ausschnitt_id===a.id)??[];
 </script>
 
-<Fachliste titel="PDF-Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt}>
+<Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt}>
   {#snippet children(p)}
-    <p class="meta">PDF-Pläne unter „Projektdateien“ importieren. Je Blatt ein Aufmaß; mehrere Zeichnungen auf einem Blatt (Grundriss, Schnitte, Ansichten) als Ausschnitte mit eigenem Maßstab und eigener Bezugslinie anlegen. Die Original-PDF bleibt erhalten.</p>
+    <p class="meta">PDF-Pläne und DXF-Zeichnungen unter „Projektdateien“ importieren. Je PDF-Blatt bzw. DXF-Zeichnung ein Aufmaß; mehrere Zeichnungen auf einem Blatt (Grundriss, Schnitte, Ansichten) als Ausschnitte mit eigenem Maßstab und eigener Bezugslinie anlegen. Die Originaldatei bleibt erhalten.</p>
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
-    {#if !dateien.length}<p class="hinweisbox">Noch keine PDF-Unterlage vorhanden. Zuerst eine PDF unter „Projektdateien“ importieren.</p>{/if}
+    {#if !dateien.length}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren.</p>{/if}
     <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
       <label>Bezeichnung<input bind:value={p.bezeichnung} required/></label>
-      <label>PDF-Unterlage<select aria-label="PDF-Unterlage" value={`${p.dokument.dokument_id}|${p.dokument.version}`} onchange={e=>source(e.currentTarget.value)}>
+      <label>Unterlage<select aria-label="Unterlage" value={`${p.dokument.dokument_id}|${p.dokument.version}`} onchange={e=>source(e.currentTarget.value)}>
         <option value="">Unterlage wählen</option>
         {#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}
       </select></label>
-      <label>Seite<input type="number" min="1" max={pdf?.seiten.length??1} step="1" value={p.seite} onchange={e=>{const n=Number(e.currentTarget.value);e.currentTarget.value=String(p.seite);void seiteWechseln(n)}} required/></label>
+      {#if !istDxfUnterlage}<label>Seite<input type="number" min="1" max={pdf?.seiten.length??1} step="1" value={p.seite} onchange={e=>{const n=Number(e.currentTarget.value);e.currentTarget.value=String(p.seite);void seiteWechseln(n)}} required/></label>{/if}
     </fieldset>
-    {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere PDF-Version liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.</p>{/if}
+    {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere Version der Unterlage liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.</p>{/if}
     <details class="einrichtung" bind:open={einrichtungOffen}>
-      <summary>Blattmaßstab und Höhenbezug des Blattes <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
+      <summary>{istDxfUnterlage?"Zeichnungseinheit und Höhenbezug der Zeichnung":"Blattmaßstab und Höhenbezug des Blattes"} <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
       <fieldset disabled={!darf||s.laeuft}><div class="kalibrierung">
+        {#if istDxfUnterlage}
+          <label>Zeichnungseinheit<select aria-label="Zeichnungseinheit" value={p.kalibrierung?.art==="einheit"?p.kalibrierung.einheit:""} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit|"";if(v)p.kalibrierung={art:"einheit",einheit:v}}}><option value="">Einheit wählen</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
+          <span class="meta">{dxf?.plan.einheit?`Laut DXF-Kopf: ${EINHEITEN.find(e=>e.code===dxf!.plan.einheit)?.name}`:"Die DXF nennt keine Einheit; Zeichnungseinheit wählen und mit einer Kontrollstrecke prüfen."}</span>
+        {:else}
         <label>Maßstab 1 :<input type="number" min=".001" step="any" bind:value={nenner}/></label>
         <button type="button" class="sekundaer" onclick={()=>{if(aktueller)aktueller.kalibrierung={art:"massstab",nenner};else p.kalibrierung={art:"massstab",nenner}}}>Maßstab setzen</button>
+        {/if}
         <label>Referenzstrecke (m)<input type="number" min=".001" step="any" bind:value={referenz}/></label>
         <button type="button" class:aktiv={werkzeug==="kalibrieren"} onclick={()=>werkzeug="kalibrieren"}>Zwei Punkte kalibrieren</button>
         <span class="meta">{!p.kalibrierung?"Maßstab fehlt":massstabText(p.kalibrierung)}{aktueller?` · gilt für „${aktueller.bezeichnung}“`:""}</span>
@@ -384,18 +457,28 @@
         {#if kontrolle}<span role="status">Kontrollvorschau: {z(kontrolle.gemessen)} m · Soll {z(kontrolle.soll)} m · Abweichung {z((kontrolle.gemessen/kontrolle.soll-1)*100)} %{Math.abs(kontrolle.gemessen/kontrolle.soll-1)>.01?" · Maßstab oder Unterlage prüfen":""}</span>{/if}
       </div></fieldset>
     </details>
-    <details class="vergleichsbereich"><summary>Planstände vergleichen</summary>
-      <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
+    {#if dxf}<details class="einrichtung"><summary>Zeichnungsebenen der DXF <span class="meta">· {dxf.plan.ebenen.length} Ebenen · {dxf.plan.linien.length} Linienzüge</span></summary>
+      <div class="dxf-ebenen">{#each dxf.plan.ebenen as e,i}<label><input type="checkbox" checked={dxfSichtbar[i]??true} onchange={ev=>{const an=ev.currentTarget.checked;dxfSichtbar=dxfSichtbar.map((v,j)=>j===i?an:v)}}/><span class="farbe" style:background={e.farbe??"#222"}></span>{e.name}</label>{/each}</div>
+      {#if dxf.plan.hinweise.length}<ul class="meta">{#each dxf.plan.hinweise as h}<li>{h}</li>{/each}</ul>{/if}
+    </details>{/if}
+    <details class="vergleichsbereich"><summary>Lage im Baufenster (§ 23 BauNVO)</summary>
+      <p class="meta">Im Lageplan das Baufenster (Baugrenzen / Baulinien) mit Bedeutung „Baufenster“ und den Gebäudeumriss mit Bedeutung „Vorhabenumriss“ zeichnen, je genau eine Markierung; bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen. Die Zuordnung speichert beide Umrisse in Metern am Projekt; der GRZ-Nachweis bewertet die Lage.</p>
+      <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
+      {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
+      {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
+    </details>
+    {#if !istDxfUnterlage}<details class="vergleichsbereich"><summary>Planstände vergleichen</summary>
+      <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
       {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
         <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
         <label><input type="checkbox" bind:checked={vergleichBestaetigt}/>Blattlage und Konturen anhand der Überlagerung geprüft</label>
         <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Als neues Aufmaß auf Vergleichsunterlage übertragen …</button>{/if}
-    </details>
+    </details>{/if}
     {#if pdfFehler}<p class="fehlertext" role="alert">{pdfFehler}</p>{/if}
     <div class="editor" class:vollbild bind:this={editor} style:height={vollbild?undefined:`${hoeheEditor}px`} onpointerdowncapture={()=>{verlaufGruppe="";verlauf.gruppeBeenden()}} oninputcapture={e=>{const el=e.target as HTMLElement;verlaufGruppe=`${auswahl}:${el.getAttribute("aria-label")??el.closest("label")?.textContent??el.tagName}`}}>
       <div class="werkzeuge" role="toolbar" aria-label="PDF-Zeichenwerkzeuge">
         <span class="pfad" aria-label="Arbeitsbereich">
-          <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>Blatt {p.seite}</button>
+          <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{istDxfUnterlage?"Zeichnung":`Blatt ${p.seite}`}</button>
           {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{/if}
         </span>
         {#each werkzeuge as [id,titel,kuerzel]}<button type="button" class:aktiv={werkzeug===id} aria-pressed={werkzeug===id} disabled={(id==="hoehenpunkt"&&!hoehenMoeglich)||(!darf&&id!=="auswahl"&&id!=="verschieben")} title={id==="hoehenpunkt"&&!hoehenMoeglich?"Höhen nur in Schnitt, Ansicht oder Detail":`Taste ${kuerzel}`} onclick={()=>{werkzeug=id;vorbelegung=null}}>{titel}</button>{/each}
@@ -416,8 +499,8 @@
       <div class="arbeitsplatz">
         <div class="flaeche">
           {#if betrachterSeite!==null}<p class="hinweisbox" role="status">Betrachtung von Seite {betrachterSeite}. Das Aufmaß gehört weiterhin zu Seite {p.seite}. <button type="button" class="link" onclick={()=>betrachterSeite=null}>Zum Aufmaßblatt zurück</button>{#if darf}<button type="button" onclick={()=>void seiteWechseln(betrachterSeite!)}>Eigenes Aufmaß für diese Seite anlegen …</button>{/if}</p>{/if}
-          {#if pdf}
-            <PdfPlan bind:this={plan} pdfBase64={pdf.pdf_base64} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
+          {#if pdf||dxf}
+            <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument.dokument_id}.${p.dokument.version}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
@@ -425,12 +508,12 @@
               onrahmen={(id,von,bis)=>{if(!darf)return;const a=p.ausschnitte?.find(a=>a.id===id);if(a){merken();a.von=von;a.bis=bis}}}
               onrahmenauswahl={id=>rahmenAuswahl=id} onoeffnen={oeffnen} onseite={seiteAnsehen}
               onfehler={e=>pdfFehler=e}/>
-          {:else}<p class="meta">{laedt?"PDF wird geladen …":"Eine PDF-Unterlage auswählen."}</p>{/if}
+          {:else}<p class="meta">{laedt?"Unterlage wird geladen …":"Eine Unterlage auswählen."}</p>{/if}
           {#if messFehler}<p class="fehlertext" role="alert">Aufmaß prüfen: {messFehler}</p>{/if}
         </div>
         <aside>
           <nav class="panelwahl" aria-label="Planpanel">{#each [["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as [id,titel]}<button type="button" class="sekundaer" class:aktiv={panel===id} aria-pressed={panel===id} onclick={()=>panel=id}>{titel}</button>{/each}</nav>
-          {#if panel==="aufgaben"&&s.id}<Planaufgaben projektId={projekt.id} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panel="eigenschaften"}}/>{/if}
+          {#if panel==="aufgaben"&&s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panel="eigenschaften"}}/>{/if}
           {#if panel==="aufgaben"}<details><summary>Voreinstellung für freie Markierungen</summary><fieldset disabled={!darf}>
             <label>Bedeutung neuer Markierungen<select aria-label="Bedeutung neuer Markierungen" bind:value={standardBedeutung}>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
             <label>Gebäude neuer Markierungen<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
@@ -448,7 +531,7 @@
               </div>
             {/each}
           </div>
-          {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!pdf} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
+          {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
           {#if bearbeiteter}
             {@const a=bearbeiteter}
             <fieldset disabled={!darf||s.laeuft} class="ausschnitt-eigenschaften">
@@ -506,7 +589,11 @@
             <fieldset disabled={objektGesperrt}>
               <label>Bezeichnung<input bind:value={m.bezeichnung} required/></label>
               {#if fehlerMap.has(m.id)}<p class="fehlertext" role="alert">{fehlerMap.get(m.id)}</p>{/if}
-              <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung}>{#each bedeutungen as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+              <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung} onchange={()=>{if(m&&m.bedeutung!=="flurstueck"&&!ABZUGSBEDEUTUNGEN.includes(m.bedeutung))delete m.flurstueck_id}}>{#each bedeutungen as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+              {#if m.bedeutung==="flurstueck"||ABZUGSBEDEUTUNGEN.includes(m.bedeutung)}
+                <label>Flurstück<select aria-label="Flurstück" value={m.flurstueck_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.flurstueck_id=v;else delete m!.flurstueck_id}}><option value="">Nicht zugeordnet</option>{#each flurstuecke as f (f.id)}<option value={f.id}>{f.gemarkung} {f.nummer}{f.flur?` (Flur ${f.flur})`:""}</option>{/each}{#if m.flurstueck_id&&!flurstuecke.some(f=>f.id===m!.flurstueck_id)}<option value={m.flurstueck_id}>Flurstück nicht mehr erfasst</option>{/if}</select></label>
+                {#if !m.flurstueck_id}<p class="hinweisbox">Für die Übernahme (Flurstücksfläche bzw. Flächenabzug des Flurstücks) das Flurstück zuordnen; ohne Zuordnung dient die Fläche nur zur Kontrolle.{flurstuecke.length?"":" Flurstücke zuerst unter Grundlagen → Flurstücke anlegen und speichern."}</p>{/if}
+              {/if}
               {#if ["raum","aufenthaltsraum","nuf","tf","vf"].includes(m.bedeutung)}
                 {@const raeume=p.markierungen.filter(x=>x.id!==m!.id&&!x.hoehenzone_von&&["raum","aufenthaltsraum","nuf","tf","vf"].includes(x.bedeutung)&&x.gebaeude_id===m!.gebaeude_id&&x.geschoss_id===m!.geschoss_id)}
                 {#if raeume.length||m.hoehenzone_von}<label>Höhenzone von Raum<select aria-label="Höhenzone von Raum" value={m.hoehenzone_von??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.hoehenzone_von=v;else delete m!.hoehenzone_von}}><option value="">Keine – eigener Raum</option>{#each raeume as x (x.id)}<option value={x.id}>{x.bezeichnung}</option>{/each}{#if m.hoehenzone_von&&!raeume.some(x=>x.id===m!.hoehenzone_von)}<option value={m.hoehenzone_von}>Raum nicht mehr passend</option>{/if}</select></label>{/if}
@@ -557,6 +644,9 @@
   .speicherstatus{font-size:.8rem;font-variant-numeric:tabular-nums}
   .kurzbefehle{border:1px solid var(--linie,#ccd5df);padding:.6rem;margin:.4rem 0;background:var(--bg,#f4f6f8)}
   .kurzbefehle p{margin:.4rem 0;font-size:.85rem}
+  .dxf-ebenen{display:flex;flex-wrap:wrap;gap:.4rem 1rem;padding:.3rem 0}
+  .dxf-ebenen label{display:flex;gap:.35rem;align-items:center}
+  .dxf-ebenen .farbe{width:.8rem;height:.8rem;border:1px solid #888;display:inline-block}
   .vergleichsbereich{padding:.5rem 0;border-top:1px solid var(--linie,#ccd5df)}
   .vergleichsbereich>label{display:flex;gap:.6rem;align-items:center;margin:.4rem 0}
   .objektzeile{display:flex;gap:.4rem;align-items:center;content-visibility:auto;contain-intrinsic-size:auto 48px}

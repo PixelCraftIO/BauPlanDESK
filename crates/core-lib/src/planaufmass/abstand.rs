@@ -147,7 +147,7 @@ impl CoreServices {
                 _ => "Dachneigung B",
             };
             herkunft.entry(w.id).or_default().push(format!(
-                "{feld}: PDF-Aufmaß „{}“ R{} · Markierung „{}“ · PDF V{} · Seite {}",
+                "{feld}: Aufmaß „{}“ R{} · Markierung „{}“ · PDF V{} · Seite {}",
                 a.bezeichnung, b.revision, m.bezeichnung, a.dokument.version, a.seite
             ));
             if !plan.quellen.contains(&a.dokument) {
@@ -170,7 +170,7 @@ impl CoreServices {
         self.planwerte_abstand(pid, &mut neu).await?;
         if neu != *plan {
             return Err(fehler(
-                "Wandwerte weichen vom PDF-Aufmaß ab. Quellen erneut übernehmen und speichern.",
+                "Wandwerte weichen vom Aufmaß ab. Quellen erneut übernehmen und speichern.",
             ));
         }
         Ok(())

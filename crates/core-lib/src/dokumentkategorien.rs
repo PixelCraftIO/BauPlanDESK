@@ -31,6 +31,7 @@ impl Default for KategorienKatalog {
             ("bauantrag", "Bauantragsformular"),
             ("baubeschreibung", "Baubeschreibung"),
             ("lageplan", "Lageplan"),
+            ("flurkarte", "Flurkarte / Liegenschaftskarte"),
             ("grundriss", "Grundriss"),
             ("schnitt", "Schnitt"),
             ("ansicht", "Ansicht"),

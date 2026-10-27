@@ -7,57 +7,6 @@ use core_lib::{
 };
 use tauri::State;
 #[tauri::command]
-pub async fn cadaufmass_exportieren(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    dokument: core_lib::plattform::objekte::Dokumentbezug,
-    revision: i64,
-    ziel: std::path::PathBuf,
-) -> Result<(), CmdError> {
-    state
-        .core
-        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
-        .await?;
-    let bytes = state
-        .core
-        .cadaufmass_csv(projekt_id, &dokument, revision)
-        .await?;
-    tokio::fs::write(ziel, bytes)
-        .await
-        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
-    Ok(())
-}
-#[tauri::command]
-pub fn cadaufmass_messwerte(
-    aufmass: core_lib::cad::projektaufmass::CadProjektaufmass,
-) -> Result<Vec<core_lib::cad::Messung>, CmdError> {
-    Ok(aufmass.messen()?)
-}
-#[tauri::command]
-pub async fn cadaufmass_laden(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    dokument: core_lib::plattform::objekte::Dokumentbezug,
-) -> Result<Option<core_lib::commit::Fachstand>, CmdError> {
-    state
-        .core
-        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
-        .await?;
-    Ok(state.core.cadaufmass_laden(projekt_id, &dokument).await?)
-}
-#[tauri::command]
-pub async fn cadaufmass_speichern(
-    state: State<'_, AppState>,
-    projekt_id: ProjectId,
-    aufmass: core_lib::cad::projektaufmass::CadProjektaufmass,
-    basis: i64,
-) -> Result<core_lib::commit::Fachstand, CmdError> {
-    Ok(state
-        .core
-        .cadaufmass_speichern(projekt_id, aufmass, basis, &state.benutzer())
-        .await?)
-}
-#[tauri::command]
 pub async fn planaufmass_exportieren(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
@@ -172,6 +121,83 @@ pub async fn planaufmass_aufgaben(
         .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
         .await?;
     Ok(state.core.planaufmass_aufgaben(projekt_id, &plan).await?)
+}
+#[tauri::command]
+pub async fn planaufmass_flurstuecke(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    infos: core_lib::grundstuecksinformationen::Grundstuecksinformationen,
+) -> Result<core_lib::grundstuecksinformationen::Grundstuecksinformationen, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_flurstuecke(projekt_id, infos)
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_abzuege(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
+) -> Result<core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_abzuege(projekt_id, aufmass, ermittlung)
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_bauteile(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    schluessel: String,
+    aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    aufstellung: core_lib::flaechen::FlaechenAufstellung,
+) -> Result<core_lib::flaechen::FlaechenAufstellung, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_bauteile(projekt_id, &schluessel, aufmass, aufstellung)
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_baugrenzen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+) -> Result<core_lib::planaufmass::BaugrenzenUebernahme, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Bearbeiten)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_baugrenzen(projekt_id, aufmass, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn cadaufmass_uebernehmen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> Result<core_lib::planaufmass::CadUebernahme, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Bearbeiten)
+        .await?;
+    Ok(state
+        .core
+        .cadaufmass_uebernehmen(projekt_id, &state.benutzer())
+        .await?)
 }
 #[tauri::command]
 pub fn planaufmass_gebaeudeziele(

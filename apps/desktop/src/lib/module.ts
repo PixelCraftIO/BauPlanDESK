@@ -60,7 +60,6 @@ const BASIS_MODULE = [
   { id: "abstand", titel: "Abstandsflächen", gruppe: "Berechnungen" },
   { id: "formulare", titel: "Formulare", gruppe: "Unterlagen" },
   { id: "dokumente", titel: "Projektdateien", gruppe: "Unterlagen" },
-  { id: "plaene", titel: "Pläne / Aufmaß", gruppe: "Unterlagen" },
   { id: "portale", titel: "Einreichen / Portal", gruppe: "Unterlagen" },
   { id: "xbau", titel: "XBau-Nachrichten", gruppe: "Unterlagen" },
   { id: "bauantrag", titel: "Bauantrag / XBau", gruppe: "Unterlagen" },

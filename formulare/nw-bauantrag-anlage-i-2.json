@@ -1,0 +1,30 @@
+{
+  "id": "nw-bauantrag-anlage-i-2",
+  "titel": "Bauantrag / Antrag auf Vorbescheid (Anlage I/2 zur VV BauPrüfVO NRW)",
+  "land": "NW",
+  "version": "2026.1",
+  "erkennung": ["bauherr_name", "entwurf_name", "grundstueck_flurstueck", "entwurf_mitgliedsnummer"],
+  "zuordnung": {
+    "adressat_bauaufsicht": "behoerde.name",
+    "aktenzeichen_bauaufsicht": "verfahren.aktenzeichen",
+    "bauherr_name": "bauherr.name_vorname",
+    "bauherr_strasse": "bauherr.strasse_hausnummer",
+    "bauherr_plz_ort": "bauherr.plz_ort",
+    "bauherr_vertreten": "bevollmaechtigter.name_anschrift",
+    "bauherr_telefon": "bauherr.telefon",
+    "bauherr_email": "bauherr.email",
+    "entwurf_name": "entwurfsverfasser.name_buero",
+    "entwurf_strasse": "entwurfsverfasser.strasse_hausnummer",
+    "entwurf_plz_ort": "entwurfsverfasser.plz_ort",
+    "entwurf_bauvorlageberechtigt": "entwurfsverfasser.name_vorname",
+    "entwurf_mitgliedsnummer": "entwurfsverfasser.mitgliedsnummer",
+    "entwurf_telefon": "entwurfsverfasser.telefon",
+    "entwurf_mobil": "entwurfsverfasser.mobil",
+    "entwurf_email": "entwurfsverfasser.email",
+    "grundstueck_adresse": "grundstueck.anschrift",
+    "grundstueck_gemarkung": "grundstueck.gemarkung",
+    "grundstueck_flur": "grundstueck.flur",
+    "grundstueck_flurstueck": "grundstueck.flurstuecke",
+    "vorhaben": "vorhaben.bezeichnung"
+  }
+}

@@ -37,6 +37,9 @@ fn info() -> Grundstuecksinformationen {
             eigentuemer_kunden: vec![],
             bemerkung: String::new(),
             rolle: Default::default(),
+            planbindung: None,
+            planflaeche_m2: None,
+            flaeche_aus_plan: false,
         }],
     }
 }
@@ -47,6 +50,8 @@ fn ansatz() -> BaugrundstuecksErmittlung {
             flurstueck_id: "a".into(),
             abzuege: vec![FlaechenAbzug {
                 art: "private_gruenflaeche".into(),
+                id: None,
+                planbindung: None,
                 flaeche_m2: 100.,
                 grundlage: "Planfestsetzung".into(),
             }],
@@ -670,6 +675,9 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
         mitgliedsnummer: "12345".into(),
         kammerland: Some(Bundesland::By),
         nachweis: String::new(),
+        telefon: String::new(),
+        mobil: String::new(),
+        email: String::new(),
     };
     core.buero_speichern(
         Buero {
@@ -681,6 +689,8 @@ async fn formularkontext_mit_grundbuch_beteiligten_entwurfsverfasser_und_verfahr
                 ort: "München".into(),
             },
             kennung: "arc:1".into(),
+            telefon: String::new(),
+            email: String::new(),
             entwurfsverfasser: vec![ev],
         },
         &user,

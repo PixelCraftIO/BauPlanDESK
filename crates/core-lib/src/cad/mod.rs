@@ -45,6 +45,17 @@ pub enum Laengeneinheit {
 }
 
 impl Laengeneinheit {
+    pub fn titel(self) -> &'static str {
+        match self {
+            Self::Millimeter => "Millimeter",
+            Self::Zentimeter => "Zentimeter",
+            Self::Dezimeter => "Dezimeter",
+            Self::Meter => "Meter",
+            Self::Kilometer => "Kilometer",
+            Self::Zoll => "Zoll",
+            Self::Fuss => "Fuß",
+        }
+    }
     /// Länge einer Zeichnungseinheit in Metern.
     pub fn meter(self) -> f64 {
         match self {

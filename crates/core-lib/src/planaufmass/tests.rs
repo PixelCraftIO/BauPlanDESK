@@ -84,6 +84,7 @@ fn plan(g: Plangeometrie) -> Planaufmass {
             grundstueck_id: None,
             gebaeude_id: None,
             geschoss_id: None,
+            flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
         }],
@@ -283,6 +284,7 @@ fn hoehenpunkt(id: u128, p: Planpunkt, ausschnitt: Option<u128>) -> Planmarkieru
         grundstueck_id: None,
         gebaeude_id: None,
         geschoss_id: None,
+        flurstueck_id: None,
         ausschnitt_id: ausschnitt.map(Uuid::from_u128),
         hoehenzone_von: None,
     }
@@ -459,4 +461,167 @@ fn hoehensystem_folgt_der_bezugslinie_des_ausschnitts() {
     p.hoehenbezug = None;
     assert_eq!(p.hoehensystem(&m(2)), None);
     assert_eq!(p.hoehensystem(&m(0)), Some("m ü. NHN"));
+}
+
+#[test]
+fn abzugs_und_bauteilbedeutungen_sind_umkehrbar() {
+    use crate::flaechen::Bauteiltyp;
+    use Planbedeutung::*;
+    for b in [
+        PrivateGruenflaeche,
+        OeffentlicheGruenflaeche,
+        Verkehrsflaeche,
+        AusserhalbBauland,
+        SonstigerAbzug,
+    ] {
+        let art = b.abzugsart().unwrap();
+        assert!(
+            crate::baugrundstuecke::abzugsregeln().contains_key(art),
+            "{art}"
+        );
+        assert_eq!(Planbedeutung::fuer_abzugsart(art), Some(b));
+        assert!(b.bauteiltyp().is_none());
+    }
+    for b in [
+        Zufahrt,
+        Stellplatz,
+        Garage,
+        Nebenanlage,
+        Terrasse,
+        Unterirdisch,
+    ] {
+        let typ = b.bauteiltyp().unwrap();
+        assert_eq!(Planbedeutung::fuer_bauteiltyp(typ), Some(b));
+        assert!(b.abzugsart().is_none());
+    }
+    assert_eq!(
+        Planbedeutung::fuer_bauteiltyp(Bauteiltyp::Hauptanlage),
+        None
+    );
+    assert_eq!(
+        Planbedeutung::fuer_bauteiltyp(Bauteiltyp::BalkonLoggia),
+        None
+    );
+    assert_eq!(
+        Planbedeutung::fuer_bauteiltyp(Bauteiltyp::GarageAbstandsflaeche),
+        Some(Garage)
+    );
+    assert_eq!(
+        Planbedeutung::fuer_bauteiltyp(Bauteiltyp::TerrasseNebenanlage),
+        Some(Terrasse)
+    );
+    assert_eq!(Planbedeutung::fuer_abzugsart("fremd"), None);
+    assert!(Flurstueck.abzugsart().is_none() && Versiegelung.abzugsart().is_none());
+}
+#[test]
+fn zeichnungseinheit_kalibriert_dxf_seitenpunkte() {
+    let mut p = plan(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1000., 500.],
+    });
+    p.kalibrierung = Some(Plankalibrierung::Einheit {
+        einheit: crate::cad::Laengeneinheit::Zentimeter,
+    });
+    let w = &p.messen().unwrap()[0];
+    assert!((w.flaeche_m2.unwrap() - 50.).abs() < 1e-9);
+    assert!((w.laenge_m.unwrap() - 30.).abs() < 1e-9);
+    assert_eq!(
+        serde_json::to_value(p.kalibrierung.as_ref().unwrap()).unwrap(),
+        serde_json::json!({"art":"einheit","einheit":"zentimeter"})
+    );
+    // Bestehende Aufmaße ohne Einheit bleiben unverändert lesbar.
+    let alt: Planaufmass = serde_json::from_value(
+        serde_json::to_value(plan(Plangeometrie::Strecke {
+            von: [0., 0.],
+            bis: [10., 0.],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(matches!(
+        alt.kalibrierung,
+        Some(Plankalibrierung::Strecke { .. })
+    ));
+}
+#[test]
+fn cad_aufmass_wird_in_seitenpunkte_umgewandelt() {
+    use crate::cad::{
+        Laengeneinheit, Punkt, Rechteck,
+        projektaufmass::{CadMarkierung, CadProjektaufmass},
+    };
+    let a = CadProjektaufmass {
+        dokument: Dokumentbezug {
+            dokument_id: crate::domain::DocumentId(Uuid::from_u128(2)),
+            version: 1,
+        },
+        einheit: Laengeneinheit::Meter,
+        markierungen: vec![
+            CadMarkierung {
+                id: Uuid::from_u128(5),
+                bezeichnung: "Umgriff".into(),
+                punkte: vec![[0., 0.], [10., 0.], [10., 10.], [0., 10.]],
+                geschlossen: true,
+            },
+            CadMarkierung {
+                id: Uuid::from_u128(6),
+                bezeichnung: "Kante".into(),
+                punkte: vec![[0., 0.], [5., 0.]],
+                geschlossen: false,
+            },
+            CadMarkierung {
+                id: Uuid::from_u128(7),
+                bezeichnung: "Zug".into(),
+                punkte: vec![[0., 0.], [3., 0.], [3., 4.]],
+                geschlossen: false,
+            },
+        ],
+    };
+    let grenzen = Rechteck {
+        min: Punkt(0., 0.),
+        max: Punkt(20., 30.),
+    };
+    let p = super::cadmigration::umwandeln(&a, "Lageplan.dxf", &grenzen);
+    assert_eq!(p.seite, 1);
+    assert!(matches!(
+        p.kalibrierung,
+        Some(Plankalibrierung::Einheit {
+            einheit: Laengeneinheit::Meter
+        })
+    ));
+    assert_eq!(p.markierungen.len(), 4);
+    assert_eq!(p.markierungen[0].id, Uuid::from_u128(5));
+    assert_eq!(
+        p.markierungen[0].geometrie,
+        Plangeometrie::Polygon {
+            punkte: vec![[0., 30.], [10., 30.], [10., 20.], [0., 20.]]
+        }
+    );
+    assert_eq!(p.markierungen[0].bedeutung, Planbedeutung::Unbestimmt);
+    assert_eq!(
+        p.markierungen[1].geometrie,
+        Plangeometrie::Strecke {
+            von: [0., 30.],
+            bis: [5., 30.]
+        }
+    );
+    assert_eq!(p.markierungen[2].bezeichnung, "Zug · Teil 1");
+    assert_eq!(
+        p.markierungen[3].geometrie,
+        Plangeometrie::Strecke {
+            von: [3., 30.],
+            bis: [3., 26.]
+        }
+    );
+    let w = p.messen().unwrap();
+    assert!((w[0].flaeche_m2.unwrap() - 100.).abs() < 1e-9);
+    assert!((w[1].laenge_m.unwrap() - 5.).abs() < 1e-9);
+    assert!((w[3].laenge_m.unwrap() - 4.).abs() < 1e-9);
+    assert_eq!(
+        super::cadmigration::aufmass_id("x"),
+        super::cadmigration::aufmass_id("x")
+    );
+    assert_ne!(
+        super::cadmigration::aufmass_id("x"),
+        super::cadmigration::aufmass_id("y")
+    );
 }

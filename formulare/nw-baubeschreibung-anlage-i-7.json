@@ -1,0 +1,16 @@
+{
+  "id": "nw-baubeschreibung-anlage-i-7",
+  "titel": "Baubeschreibung (Anlage I/7 zur VV BauPrüfVO NRW)",
+  "land": "NW",
+  "version": "2026.1",
+  "erkennung": ["Baubeschreibung", "Bauherrschaft", "Bauherrschaft-0", "Name_Vorname_Büro"],
+  "zuordnung": {
+    "Bezeichnung des 1 Vorhabens": "vorhaben.bezeichnung",
+    "Bauherrschaft": "bauherr.name_anschrift",
+    "Bauherrschaft-0": "bauherr.name_vorname",
+    "Grundstück Ort Straße HausNr": "grundstueck.anschrift",
+    "Name_Vorname_Büro": "entwurfsverfasser.name_buero",
+    "Straße; Hausnummer": "entwurfsverfasser.strasse_hausnummer",
+    "PLZ, Ort": "entwurfsverfasser.plz_ort"
+  }
+}

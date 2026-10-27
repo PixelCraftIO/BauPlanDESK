@@ -51,7 +51,6 @@
   import Dokumente from "./Dokumente.svelte";
   import Grundstuecksinformationen from "./Grundstuecksinformationen.svelte";
   import MassDerNutzung from "./MassDerNutzung.svelte";
-  import Plaene from "./Plaene.svelte";
   import Protokoll from "./Protokoll.svelte";
   import Rechtsgrundlagen from "./Rechtsgrundlagen.svelte";
   let {
@@ -100,6 +99,33 @@
     navigationsNummer = a.nummer;
     if (MODULE.some((m) => m.id === a.ziel.bereich))
       ansicht = a.ziel.bereich as Ansicht;
+    // Sprung ins Aufmaß einer bestimmten Unterlage (z. B. Flurkarte):
+    // Register „unterlage“ mit der Dokument-ID als Eintrag.
+    if (
+      a.ziel.bereich === "planaufmass" &&
+      a.ziel.register === "unterlage" &&
+      a.ziel.eintrag
+    )
+      unterlageOeffnen(a.ziel.eintrag);
+  });
+  // Wunsch an das Aufmaß, eine Unterlage zu öffnen; die Nummer macht jeden
+  // Wunsch unterscheidbar, auch für dieselbe Datei.
+  let unterlageWunsch = $state<{ dokumentId: string; nummer: number } | null>(
+    null,
+  );
+  let wunschNummer = 0;
+  function unterlageOeffnen(dokumentId: string) {
+    planDokument = dokumentId;
+    unterlageWunsch = { dokumentId, nummer: ++wunschNummer };
+    ansicht = "planaufmass";
+  }
+  // Von außen gesetzte Unterlage (z. B. Projektstart mit Flurkarte).
+  $effect(() => {
+    const id = planDokument;
+    untrack(() => {
+      if (id && unterlageWunsch?.dokumentId !== id)
+        unterlageWunsch = { dokumentId: id, nummer: ++wunschNummer };
+    });
   });
   function oeffnen(ziel: UebersichtsZiel) {
     if (!MODULE.some((m) => m.id === ziel.bereich)) return;
@@ -115,7 +141,6 @@
     )
       fachBesucht[ansicht] = true;
   });
-  let planEditor = $state<Plaene>();
   let nutzungsEditor = $state<MassDerNutzung>();
   let formularEditor = $state<ProjektFormulare>();
   let festsetzungsEditor = $state<Rechtsgrundlagen>();
@@ -223,10 +248,6 @@
       });
     if (ziel) bereich(ziel);
   }
-  function grundstuecksflaecheUebernehmen(m2: number) {
-    ansicht = "flurstuecke";
-    hinweis = `Gemessene Planfläche: ${m2.toLocaleString("de-DE")} m². Bitte beim passenden Flurstück mit den Katasterangaben abgleichen und bei Bedarf dort eintragen.`;
-  }
 </script>
 
 {#if fehler}<div class="fehler" role="alert">
@@ -327,9 +348,11 @@
               laden={modul.laden}
               aktiv={aktiv && ansicht === modul.id}
               {projekt}
+              {onprojekt}
               benutzerId={ich?.id ?? ""}
               darf={darf("bearbeitung")}
               darfFreigeben={darf("projektleitung")}
+              unterlage={modul.id === "planaufmass" ? unterlageWunsch : null}
             />
           </Arbeitsbereich>
         </section>{/if}
@@ -450,23 +473,6 @@
               onfehler={melde}
             />
           </details>
-        {/key}
-      </Arbeitsbereich>
-    </section>
-    <section hidden={ansicht !== "plaene"}>
-      <Arbeitsbereich aktiv={aktiv && !(ansicht !== "plaene")}>
-        <h2>Pläne</h2>
-        {#key projekt.id}
-          <Plaene
-            bind:this={planEditor}
-            {projekt}
-            aktiv={aktiv && ansicht === "plaene"}
-            darf={darf("bearbeitung")}
-            {onprojekt}
-            bind:dokumentId={planDokument}
-            onflaeche={grundstuecksflaecheUebernehmen}
-            onfehler={melde}
-          />
         {/key}
       </Arbeitsbereich>
     </section>
@@ -630,10 +636,7 @@
             benutzer={ich}
             aktiv={aktiv && ansicht === "dokumente"}
             {importAusloeser}
-            onplan={(id) => {
-              planDokument = id;
-              ansicht = "plaene";
-            }}
+            onplan={unterlageOeffnen}
             onfehler={melde}
           />{/if}
       </Arbeitsbereich>

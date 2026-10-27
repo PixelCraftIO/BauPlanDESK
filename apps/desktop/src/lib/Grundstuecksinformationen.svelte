@@ -17,6 +17,9 @@
   import { grundstuecksinformationen } from "./grundstuecksdaten";
   import { editorAnmelden } from "./editoren";
   import { plattformApi } from "./plattformApi";
+  import { planApi } from "./planaufmass/api";
+  import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
+  import { ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   let {
     projekt,
@@ -52,6 +55,52 @@
     });
   });
   let dokumentenFehler = $state<string | null>(null);
+  // Gespeicherte Aufmaße für die Anzeige der Flurstücksbindungen (Quelle,
+  // Markierung, neuerer Stand). Prüfung und Werte stammen aus dem Core.
+  let aufmasse = $state<Aufmassquelle[]>([]);
+  let aufmassGeneration = 0;
+  async function aufmasseAktualisieren() {
+    const n = ++aufmassGeneration;
+    const a = await aufmasseLaden(projekt.id).catch(() => [] as Aufmassquelle[]);
+    if (n === aufmassGeneration) aufmasse = a;
+  }
+  $effect(() => {
+    if (!aktiv) return;
+    void projekt.version;
+    void aufmasseAktualisieren();
+  });
+  ansichtsAbfrage(() => projekt.id, ["fachobjekte"], aufmasseAktualisieren);
+  const z = (v: number | undefined) =>
+    v == null ? "—" : v.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+  // Änderungen an Bindung oder „Fläche aus Plan“ setzt der Core ein; die
+  // Oberfläche trägt keine gezeichnete Fläche selbst ein.
+  async function planwerte(
+    f: FlurstuecksInfo,
+    aendern: (f: FlurstuecksInfo) => void,
+  ) {
+    const infos = structuredClone($state.snapshot(eingabe));
+    const ziel = infos.flurstuecke.find((x) => x.id === f.id);
+    if (!ziel) return;
+    aendern(ziel);
+    laeuft = true;
+    fehler = null;
+    meldung = null;
+    try {
+      eingabe = await planApi.flurstuecke(projekt.id, infos);
+      meldung =
+        "Werte aus dem Aufmaß eingesetzt. Bitte prüfen und Grundstücksinformationen speichern.";
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
+    }
+  }
+  function verknuepfungLoesen(f: FlurstuecksInfo) {
+    // Der eingesetzte Wert bleibt als manuelle Angabe erhalten.
+    delete f.planbindung;
+    delete f.planflaeche_m2;
+    delete f.flaeche_aus_plan;
+  }
   $effect(() => {
     if (!aktiv) return;
     const id = projekt.id;
@@ -312,6 +361,10 @@
                 min="0.01"
                 step="any"
                 bind:value={f.flaeche_m2}
+                readonly={f.flaeche_aus_plan ?? false}
+                title={f.flaeche_aus_plan
+                  ? "Fläche aus dem Aufmaß; unten „Gezeichnete Fläche als Flurstücksfläche“ abwählen, um einen Katasterwert einzugeben"
+                  : ""}
                 required
               /></td
             ><td
@@ -401,6 +454,60 @@
           ></textarea></label
         >
       </div>
+      <div class="planflaeche" aria-label="Flurstücksgrenze aus Aufmaß">
+        {#if f.planbindung}
+          {@const q = aufmasse.find((a) => a.stand.objekt === f.planbindung?.aufmass_id)}
+          {@const m = q?.stand.daten.markierungen.find((x) => x.id === f.planbindung?.markierung_id)}
+          <span
+            >Aus Aufmaß: <strong
+              >{q?.stand.daten.bezeichnung ?? "Aufmaß fehlt"} · {m?.bezeichnung ??
+                "Markierung fehlt"}</strong
+            > (Stand R{f.planbindung.revision}) · gezeichnet {z(f.planflaeche_m2)} m²{#if !f.flaeche_aus_plan && f.planflaeche_m2 != null}
+              · Abweichung zur Katasterfläche {z(f.planflaeche_m2 - f.flaeche_m2)} m²{/if}</span
+          >
+          <label class="inline"
+            ><input
+              type="checkbox"
+              checked={f.flaeche_aus_plan ?? false}
+              disabled={laeuft}
+              onchange={(e) => {
+                const an = e.currentTarget.checked;
+                void planwerte(f, (x) => {
+                  if (an) x.flaeche_aus_plan = true;
+                  else delete x.flaeche_aus_plan;
+                });
+              }}
+            /> Gezeichnete Fläche als Flurstücksfläche verwenden (kein amtlicher
+            Wert vorhanden)</label
+          >
+          {#if q && q.stand.revision !== f.planbindung.revision}<span class="meta"
+              >Aufmaß inzwischen gespeichert (R{q.stand.revision}); bei geänderter
+              Kontur aktualisieren.</span
+            >
+            <button
+              type="button"
+              class="sekundaer"
+              disabled={laeuft}
+              onclick={() =>
+                void planwerte(f, (x) => {
+                  if (x.planbindung) x.planbindung.revision = q.stand.revision;
+                })}>Aktuellen Aufmaßstand übernehmen</button
+            >{/if}
+          <button
+            type="button"
+            class="link"
+            disabled={laeuft}
+            onclick={() => verknuepfungLoesen(f)}>Verknüpfung lösen</button
+          >
+        {:else}
+          <span class="meta"
+            >Flurstücksgrenze aus Flurkarte, Liegenschaftskarte oder Lageplan: unter
+            Unterlagen → Aufmaß die Grenze als „Flurstück“ zeichnen, dieses
+            Flurstück zuordnen und über „Aufgaben → Übernehmen“ verknüpfen. Ohne
+            amtliche Fläche kann die gezeichnete Fläche als Flurstücksfläche gelten.</span
+          >
+        {/if}
+      </div>
       <div class="eigentuemer">
         <span>Eigentümer</span>
         {#if f.eigentuemer}<p class="meta">
@@ -488,5 +595,17 @@
   .eigentuemer ul {
     margin: 0;
     padding-left: 1.25rem;
+  }
+  .planflaeche {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.8rem;
+    align-items: center;
+    margin-top: 1rem;
+  }
+  .planflaeche .inline {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
   }
 </style>

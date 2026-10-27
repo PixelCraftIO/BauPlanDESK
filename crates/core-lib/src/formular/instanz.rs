@@ -18,6 +18,27 @@ pub struct FormularBezug {
     /// älteren Datenständen und bleibt dann aus der Prüfsumme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verfahren_id: Option<uuid::Uuid>,
+    /// Entwurfsverfassende Person aus den Büroangaben; `None` = die im
+    /// Bauantrag gewählte bzw. einzige Person des Büros. Fehlt in älteren
+    /// Datenständen und bleibt dann aus der Prüfsumme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entwurfsverfasser_id: Option<uuid::Uuid>,
+    /// Je Formularfeld eine abweichend gewählte Projektdatenquelle (Schlüssel
+    /// des Projektkontexts), z. B. `bauherr.name_anschrift` statt
+    /// `bauherr.name`. Betrifft nur die Zuordnung, nicht die Projektdaten,
+    /// und gehört deshalb nicht zur Prüfsumme des Datenstands.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub feldquellen: BTreeMap<String, String>,
+}
+
+impl FormularBezug {
+    /// Der Teil des Bezugs, der die Projektdaten bestimmt (ohne Feldquellen).
+    pub fn datenbezug(&self) -> Self {
+        Self {
+            feldquellen: BTreeMap::new(),
+            ..self.clone()
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FormularDatenstand {
@@ -40,6 +61,10 @@ pub struct FormularQuellen {
     /// Fehlt in älteren Formularinstanzen.
     #[serde(default)]
     pub verfahren: Vec<Quellenwahl>,
+    /// Bauvorlageberechtigte Personen des Büros; fehlt in älteren
+    /// Formularinstanzen.
+    #[serde(default)]
+    pub entwurfsverfasser: Vec<Quellenwahl>,
     pub hinweise: Vec<String>,
 }
 /// Kennung und Version der Formularzuordnung (`formulare/*.json`), mit der
@@ -72,6 +97,16 @@ impl CoreServices {
         projekt: ProjectId,
         mut bezug: FormularBezug,
     ) -> CoreResult<FormularQuellen> {
+        if bezug.feldquellen.len() > 1000
+            || bezug
+                .feldquellen
+                .iter()
+                .any(|(feld, quelle)| feld.len() > 1000 || quelle.len() > 200)
+        {
+            return Err(CoreError::InvalidInput(
+                "Zu viele oder zu lange Feldquellen für das Formular".into(),
+            ));
+        }
         // Dieselben GRZ-/GFZ-Werte wie Berechnung und Nachweis, einschließlich
         // der zugeordneten Gebäude.
         let (p, mut hinweise) = self
@@ -169,19 +204,28 @@ impl CoreServices {
         werte.setze("buero.name", &buero.name);
         let a = &buero.anschrift;
         werte.anschrift("buero", &a.strasse, &a.hausnummer, &a.postleitzahl, &a.ort);
-        match antrag.entwurfsverfasser_von(&buero) {
-            Some(e) => {
-                werte.setze("entwurfsverfasser.name", e.anzeigename());
-                werte.setze("entwurfsverfasser.vorname", &e.vorname);
-                werte.setze("entwurfsverfasser.familienname", &e.familienname);
-                werte.setze("entwurfsverfasser.berufsbezeichnung", &e.berufsbezeichnung);
-                werte.setze("entwurfsverfasser.mitgliedsnummer", &e.mitgliedsnummer);
-                if let Some(l) = e.kammerland {
-                    werte.setze("entwurfsverfasser.kammerland", l.name());
-                }
-            }
-            None if buero.entwurfsverfasser.len() > 1 => hinweise.push(
-                "Mehrere Entwurfsverfasser im Büro: Bitte im Bauantrag die verantwortliche Person wählen.".into(),
+        werte.setze("buero.telefon", &buero.telefon);
+        werte.setze("buero.email", &buero.email);
+        werte.namensblock("buero", &buero.name);
+        // Eine im Formular gewählte Person, die nicht mehr im Büro steht,
+        // wird gemeldet; es fällt nicht still auf eine andere Person zurück.
+        let mut person_entfernt = false;
+        if let Some(id) = bezug.entwurfsverfasser_id
+            && !buero.entwurfsverfasser.iter().any(|e| e.id == id)
+        {
+            bezug.entwurfsverfasser_id = None;
+            person_entfernt = true;
+            hinweise.push("Die zuvor gewählte entwurfsverfassende Person steht nicht mehr in den Büroangaben. Bitte die Person wählen und die Angaben prüfen.".into());
+        }
+        let entwurfsverfasser = match bezug.entwurfsverfasser_id {
+            Some(id) => buero.entwurfsverfasser.iter().find(|e| e.id == id),
+            None if person_entfernt => None,
+            None => antrag.entwurfsverfasser_von(&buero),
+        };
+        match entwurfsverfasser {
+            Some(e) => werte.entwurfsverfasser(e, &buero),
+            None if !person_entfernt && buero.entwurfsverfasser.len() > 1 => hinweise.push(
+                "Mehrere Entwurfsverfasser im Büro: Bitte die verantwortliche Person hier oder im Bauantrag wählen.".into(),
             ),
             None => {}
         }
@@ -204,7 +248,7 @@ impl CoreServices {
         }
         werte.leere_entfernen();
         let daten_hash = ContentHash::of(
-            &serde_json::to_vec(&(&bezug, werte.datenstand()))
+            &serde_json::to_vec(&(bezug.datenbezug(), werte.datenstand()))
                 .map_err(|e| CoreError::InvalidInput(e.to_string()))?,
         );
         Ok(FormularQuellen {
@@ -240,6 +284,18 @@ impl CoreServices {
                     },
                 })
                 .collect(),
+            entwurfsverfasser: buero
+                .entwurfsverfasser
+                .iter()
+                .map(|e| Quellenwahl {
+                    id: e.id,
+                    bezeichnung: if e.berufsbezeichnung.trim().is_empty() {
+                        e.anzeigename()
+                    } else {
+                        format!("{}, {}", e.anzeigename(), e.berufsbezeichnung.trim())
+                    },
+                })
+                .collect(),
             hinweise,
         })
     }
@@ -270,8 +326,13 @@ impl CoreServices {
         let vorlage = self
             .formulare
             .zuordnung_fuer(&felder, land, bisherige_zuordnung);
-        let veraltet =
-            super::vorlage::veraltete_werte(&felder, werte, vorlage, &quellen.datenstand.werte);
+        let veraltet = super::vorlage::veraltete_werte_mit_quellen(
+            &felder,
+            werte,
+            vorlage,
+            &quellen.datenstand.bezug.feldquellen,
+            &quellen.datenstand.werte,
+        );
         let hash = ContentHash::of(pdf);
         // Inhaltsadressierte Vorlage außerhalb der Projektdateiliste. Spätere Bibliotheksänderungen betreffen sie nicht.
         let key = StorageKey::new(format!("formularvorlagen/{hash}.pdf"))?;
@@ -343,10 +404,11 @@ impl CoreServices {
             land,
             instanz.zuordnung.as_ref().map(|z| z.id.as_str()),
         );
-        Ok(Some(super::vorlage::veraltete_werte(
+        Ok(Some(super::vorlage::veraltete_werte_mit_quellen(
             &felder,
             &BTreeMap::new(),
             vorlage,
+            &quellen.datenstand.bezug.feldquellen,
             &quellen.datenstand.werte,
         )))
     }

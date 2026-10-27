@@ -121,11 +121,119 @@
   );
   $effect(() => onstatus?.(dirty, laeuft));
 
-  let auswahl = $state<FormularBezug>({
-    grundstueck_id: null,
-    bauherr_id: null,
-    verfahren_id: null,
-  });
+  function leererBezug(): FormularBezug {
+    return {
+      grundstueck_id: null,
+      bauherr_id: null,
+      verfahren_id: null,
+      entwurfsverfasser_id: null,
+      feldquellen: {},
+    };
+  }
+  let auswahl = $state<FormularBezug>(leererBezug());
+  /** Der Teil des Bezugs, der die Projektdaten bestimmt (ohne Feldquellen). */
+  function datenbezug(b: FormularBezug) {
+    return JSON.stringify([
+      b.grundstueck_id ?? null,
+      b.bauherr_id ?? null,
+      b.verfahren_id ?? null,
+      b.entwurfsverfasser_id ?? null,
+    ]);
+  }
+  /** Geladener Datenstand mit den aktuell gewählten Feldquellen. */
+  function datenstandZumSpeichern() {
+    const d = analyse?.quellen?.datenstand;
+    if (!d) return undefined;
+    return {
+      ...d,
+      bezug: { ...d.bezug, feldquellen: { ...(auswahl.feldquellen ?? {}) } },
+    };
+  }
+
+  // Anzeige der Projektdatenquellen; die Fachlogik (Vorschlag, Abgleich)
+  // bleibt im Core, hier werden nur Schlüssel beschriftet und gewählt.
+  const GRUPPEN: Record<string, string> = {
+    projekt: "Projekt",
+    planung: "Planung",
+    vorhaben: "Vorhaben",
+    datum: "Datum",
+    grundstueck: "Baugrundstück",
+    kennzahlen: "Kennzahlen",
+    flaechen: "Flächen",
+    gebaeude: "Gebäude",
+    bauherr: "Bauherrschaft",
+    eigentuemer: "Grundstückseigentümer",
+    erbbauberechtigter: "Erbbauberechtigte",
+    bevollmaechtigter: "Bevollmächtigte",
+    fachplaner: "Fachplaner",
+    entwurfsverfasser: "Entwurfsverfasser/in",
+    buero: "Büro",
+    verfahren: "Verfahren",
+    behoerde: "Behörde",
+  };
+  const SCHLUESSEL: Record<string, string> = {
+    name: "Name",
+    vorname: "Vorname",
+    familienname: "Familienname",
+    firma: "Firma",
+    name_vorname: "Name, Vorname",
+    name_buero: "Name, Vorname, Büro",
+    anschrift: "Anschrift (eine Zeile)",
+    name_anschrift: "Name und Anschrift (zwei Zeilen)",
+    name_anschrift_zeile: "Name und Anschrift (eine Zeile)",
+    strasse: "Straße",
+    hausnummer: "Hausnummer",
+    strasse_hausnummer: "Straße, Hausnummer",
+    plz: "PLZ",
+    ort: "Ort",
+    plz_ort: "PLZ, Ort",
+    telefon: "Telefon",
+    mobil: "Mobil",
+    email: "E-Mail",
+    berufsbezeichnung: "Berufsbezeichnung",
+    mitgliedsnummer: "Mitgliedsnummer",
+    kammerland: "Land der Kammer",
+    bezeichnung: "Bezeichnung",
+    aktenzeichen: "Aktenzeichen",
+    heute: "Heute",
+  };
+  function quellenName(schluessel: string) {
+    const [gruppe, ...rest] = schluessel.split(".");
+    const feld = rest.join(".");
+    return `${GRUPPEN[gruppe] ?? gruppe} · ${SCHLUESSEL[feld] ?? feld}`;
+  }
+  /** Kontextwerte nach Gruppe; die Gruppe der aktuellen Quelle zuerst. */
+  function quellenGruppen(aktuell: string | undefined, mehrzeilig: boolean) {
+    const gruppen = new Map<string, { schluessel: string; wert: string }[]>();
+    for (const [schluessel, wert] of Object.entries(
+      analyse?.quellen?.datenstand.werte ?? {},
+    )) {
+      if (!mehrzeilig && wert.includes("\n")) continue;
+      const g = schluessel.split(".")[0];
+      if (!gruppen.has(g)) gruppen.set(g, []);
+      gruppen.get(g)!.push({ schluessel, wert });
+    }
+    const eigene = aktuell?.split(".")[0];
+    const alle = [...gruppen.entries()];
+    return [
+      ...alle.filter(([g]) => g === eigene),
+      ...alle.filter(([g]) => g !== eigene),
+    ].map(([g, eintraege]) => ({ gruppe: GRUPPEN[g] ?? g, eintraege }));
+  }
+  let quellenwahlOffen = $state<Record<string, boolean>>({});
+  function wirksameQuelle(name: string) {
+    return auswahl.feldquellen?.[name] ?? analyse?.feldquellen?.[name];
+  }
+  function quelleWaehlen(name: string, schluessel: string) {
+    const feldquellen = { ...(auswahl.feldquellen ?? {}) };
+    if (schluessel) feldquellen[name] = schluessel;
+    else delete feldquellen[name];
+    auswahl.feldquellen = feldquellen;
+    const wert = schluessel
+      ? analyse?.quellen?.datenstand.werte[schluessel]
+      : undefined;
+    if (wert !== undefined) werte[name] = wert;
+  }
   async function laden(auffrischen = false) {
     const nummer = ++ladeNummer;
     laeuft = true;
@@ -168,7 +276,11 @@
       werte = start;
       analyse = a;
       if (a.quellen)
-        auswahl = { verfahren_id: null, ...a.quellen.datenstand.bezug };
+        auswahl = {
+          ...leererBezug(),
+          ...a.quellen.datenstand.bezug,
+          feldquellen: { ...(a.quellen.datenstand.bezug.feldquellen ?? {}) },
+        };
       if (a.dokument) {
         try {
           const p = await api.pdfVorschau(dokumentId!, a.dokument.version);
@@ -231,8 +343,7 @@
     if (!analyse) return;
     if (
       analyse.quellen &&
-      JSON.stringify(auswahl) !==
-        JSON.stringify(analyse.quellen.datenstand.bezug)
+      datenbezug(auswahl) !== datenbezug(analyse.quellen.datenstand.bezug)
     ) {
       fehler =
         "Bitte die gewählten Projektdaten zuerst laden und die Vorschläge prüfen.";
@@ -247,13 +358,13 @@
               quelle,
               geaendert,
               vorgang,
-              analyse.quellen?.datenstand,
+              datenstandZumSpeichern(),
             )
           : await api.formularImProjektSpeichern(
               dokumentId!,
               analyse.dokument!.version,
               geaendert,
-              analyse.quellen?.datenstand,
+              datenstandZumSpeichern(),
             ),
       );
     } catch (e) {
@@ -294,6 +405,14 @@
               >{/each}</select
           ></label
         >
+        {#if analyse.quellen.entwurfsverfasser?.length}<label
+            >Entwurfsverfasser/in<select bind:value={auswahl.entwurfsverfasser_id}
+              ><option value={null}>Laut Bauantrag</option
+              >{#each analyse.quellen.entwurfsverfasser as e}<option value={e.id}
+                  >{e.bezeichnung}</option
+                >{/each}</select
+            ></label
+          >{/if}
         {#if analyse.quellen.verfahren.length}<label
             >Verfahren<select bind:value={auswahl.verfahren_id}
               ><option value={null}>Keine Auswahl</option
@@ -309,7 +428,9 @@
       </div>
       <p class="meta">
         Manuell geänderte Werte bleiben beim Laden erhalten. Die verwendeten
-        Quellen werden mit der PDF-Version gespeichert.
+        Quellen werden mit der PDF-Version gespeichert. Je Textfeld lässt sich
+        unter „Quelle“ ein anderer Projektwert wählen, etwa Name und Anschrift
+        der Bauherrschaft gesammelt in einem Feld.
       </p>
       {#each analyse.quellen.hinweise as hinweis}<p class="hinweis">
           {hinweis}
@@ -415,6 +536,40 @@
                 disabled={f.schreibgeschuetzt}
               />
             {/if}
+            {#if f.art === "text" && !f.schreibgeschuetzt && analyse.quellen}
+              {@const quelleFeld = wirksameQuelle(f.name)}
+              <span class="quellenwahl">
+                {#if quellenwahlOffen[f.name]}
+                  <select
+                    aria-label={`Projektdatenquelle für ${f.beschriftung ?? f.name}`}
+                    value={quelleFeld ?? ""}
+                    onchange={(e) => quelleWaehlen(f.name, e.currentTarget.value)}
+                  >
+                    <option value="">– manuell –</option>
+                    {#each quellenGruppen(quelleFeld, !!f.mehrzeilig) as g (g.gruppe)}
+                      <optgroup label={g.gruppe}>
+                        {#each g.eintraege as q (q.schluessel)}
+                          <option value={q.schluessel}
+                            >{quellenName(q.schluessel)} · {q.wert
+                              .replace(/\n/g, " / ")
+                              .slice(0, 60)}</option
+                          >
+                        {/each}
+                      </optgroup>
+                    {/each}
+                  </select>
+                {:else}
+                  <button
+                    type="button"
+                    class="sekundaer"
+                    onclick={() => (quellenwahlOffen[f.name] = true)}
+                    >{quelleFeld
+                      ? `Quelle: ${quellenName(quelleFeld)}`
+                      : "Quelle: Projektwert wählen …"}</button
+                  >
+                {/if}
+              </span>
+            {/if}
             {#if alt}<span class="hinweis"
                 >Aktuell in den Projektdaten: „{anzeige(alt.aktuell)}“
                 <button
@@ -455,3 +610,14 @@
 {#if fehler && !analyse}<button class="sekundaer" onclick={onabbrechen}
     >Schließen</button
   >{/if}
+
+<style>
+  .quellenwahl {
+    display: block;
+    font-size: 0.85em;
+    margin-top: 0.2rem;
+  }
+  .quellenwahl select {
+    max-width: 100%;
+  }
+</style>

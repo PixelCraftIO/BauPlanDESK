@@ -466,6 +466,9 @@ export interface Buero {
   name: string;
   anschrift: Anschrift;
   kennung: string;
+  /** Zentrale Rufnummer und E-Mail des Büros; fehlen bei älteren Servern. */
+  telefon: string;
+  email: string;
   /** Bauvorlageberechtigte Personen des Büros. */
   entwurfsverfasser: Entwurfsverfasser[];
 }
@@ -480,6 +483,10 @@ export interface Entwurfsverfasser {
   kammerland: Bundesland | null;
   /** Nachweis der Bauvorlageberechtigung ohne Kammermitgliedschaft. */
   nachweis: string;
+  /** Eigene Durchwahl, Mobil und E-Mail; leer = Angaben des Büros. */
+  telefon: string;
+  mobil: string;
+  email: string;
 }
 
 export function entwurfsverfasserName(e: Entwurfsverfasser): string {
@@ -593,6 +600,10 @@ export interface Festsetzungen {
 }
 
 export interface Bauteil {
+  /** Zeilenkennung für Planbindungen (`bauteile.<id>.flaeche_m2`); bei Übernahme aus dem Aufmaß die Markierungs-ID. */
+  id?: string;
+  /** Grundfläche aus einer Markierung des Aufmaßes; setzt der Core, schließt `gebaeude_id` aus. */
+  planbindung?: import("./generated/plattform").Planbindung;
   gebaeude_id?: string;
   bezeichnung: string;
   typ: Bauteiltyp;
@@ -657,9 +668,13 @@ export interface FlaechenErgebnis {
   nichtvollgeschoss_faktor?: number | null;
 }
 export interface FlaechenAbzug {
+  /** Zeilenkennung für Planbindungen (`abzuege.<id>.flaeche_m2`); bei Übernahme aus dem Aufmaß die Markierungs-ID. */
+  id?: string;
   art: string;
   flaeche_m2: number;
   grundlage: string;
+  /** Fläche aus einer Markierung des Aufmaßes (Bedeutung passend zur Art, dem Flurstück zugeordnet); setzt der Core. */
+  planbindung?: import("./generated/plattform").Planbindung;
 }
 export interface GrundstuecksFlurstueck {
   id: string;
@@ -901,6 +916,10 @@ export interface FormularBezug {
   grundstueck_id: string | null;
   bauherr_id: string | null;
   verfahren_id?: string | null;
+  /** Person aus den Büroangaben; null = laut Bauantrag. */
+  entwurfsverfasser_id?: string | null;
+  /** Je Feld eine abweichend gewählte Projektdatenquelle (Kontextschlüssel). */
+  feldquellen?: Record<string, string>;
 }
 export interface FormularDatenstand {
   projekt_id: string;
@@ -914,6 +933,8 @@ export interface FormularQuellen {
   grundstuecke: { id: string; bezeichnung: string }[];
   bauherren: { id: string; bezeichnung: string }[];
   verfahren: { id: string; bezeichnung: string }[];
+  /** Bauvorlageberechtigte Personen des Büros; fehlt bei älteren Servern. */
+  entwurfsverfasser?: { id: string; bezeichnung: string }[];
   hinweise: string[];
 }
 /** Ausgefülltes Feld, dessen Wert von den aktuellen Projektdaten abweicht (Core-Abgleich). */
@@ -931,6 +952,8 @@ export interface FormularAnalyse {
   vorschlag: Record<string, Feldwert>;
   /** Fehlt bei älteren Servern. */
   veraltet?: VeralteterFeldwert[];
+  /** Wirksame Projektdatenquelle je Feld; fehlt bei älteren Servern. */
+  feldquellen?: Record<string, string>;
 }
 
 export type Laengeneinheit =
@@ -989,8 +1012,9 @@ export const EINHEITEN: { code: Laengeneinheit; name: string }[] = [
   { code: "fuss", name: "Fuß" },
 ];
 
-/** Dateien, die der Plan-Viewer öffnen kann. */
-export const istPlan = (dateiname: string) => /\.dxf$/i.test(dateiname);
+/** Unterlagen, die das Aufmaß öffnen kann (PDF-Blätter und DXF-Zeichnungen). */
+export const istPlan = (dateiname: string) => /\.(pdf|dxf)$/i.test(dateiname);
+export const istDxf = (dateiname: string) => /\.dxf$/i.test(dateiname);
 
 export interface CmdError {
   art: string;
@@ -1470,7 +1494,8 @@ export const api = {
     ziel: string,
     version: number | null = null,
   ) => invoke<void>("dokument_exportieren", { dokumentId, version, ziel }),
-  cadPlan: (dokumentId: string) => invoke<CadPlan>("cad_plan", { dokumentId }),
+  /** DXF-Zeichnung einer Dokumentversion (ohne Version: die aktuelle). */
+  cadPlan: (dokumentId: string, version: number | null = null) => invoke<CadPlan>("cad_plan", { dokumentId, version }),
   projektNutzungPruefen: (projektId: string, eingabe: NutzungsEingabe) =>
     invoke<NutzungsPruefung>("projekt_nutzung_pruefen", { projektId, eingabe }),
   projektBaugrundstueckePruefen: (
@@ -1496,8 +1521,6 @@ export const api = {
   baugrundstueckEinzelnSpeichern:(projektId:string,version:number,berechnung:BaugrundstueckBerechnung)=>invoke<Project>("baugrundstueck_einzeln_speichern",{projektId,version,berechnung}),
   baugrenzenPruefen: (geometrie: BaugrenzenGeometrie) =>
     invoke<BaugrenzenPruefung>("baugrenzen_pruefen", { geometrie }),
-  aufmass: (punkte: Punkt[], geschlossen: boolean, einheit: Laengeneinheit) =>
-    invoke<Messung>("aufmass", { punkte, geschlossen, einheit }),
   abstandsflaeche: (
     land: Bundesland,
     eingabe: { wandhoehe_m: number; gebiet: Baugebiet },

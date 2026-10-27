@@ -52,7 +52,7 @@
       text: "Originalquellen und Planversionen sowie verknüpfte Aufmaße prüfen. Nach geänderten Höhen, Grenzen oder Quellen neu berechnen und einen neuen Nachweisstand archivieren. Die fachliche Freigabe erfolgt in den Nachweisständen.",
       links: [
         ["gebaeude", "Gebäude / Geschosse"],
-        ["planaufmass", "PDF-Aufmaß"],
+        ["planaufmass", "Aufmaß"],
         ["nachweise", "Nachweisstände"],
       ],
     },
@@ -61,7 +61,7 @@
       text: "Unter Quellen / Übernahmen die verknüpften Datenstände prüfen. Geänderte Quellen bewusst aktualisieren, neu berechnen und anschließend archivieren. Freigaben gelten für den jeweiligen Nachweisstand.",
       links: [
         ["grundstueck", "Baugrundstück"],
-        ["planaufmass", "PDF-Aufmaß"],
+        ["planaufmass", "Aufmaß"],
         ["nachweise", "Nachweisstände"],
       ],
     },

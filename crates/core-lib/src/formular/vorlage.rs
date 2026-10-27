@@ -12,6 +12,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::grundstuecksinformationen::FlurstuecksInfo;
 use crate::grundstueckskontext::GrundstueckKontext;
 use crate::kunden::{Kunde, Kundentyp};
+use crate::xbau::{Buero, Entwurfsverfasser};
 
 /// Flache Sicht auf alle Daten, die in Formulare einfließen können, z. B.
 /// `projekt.name` oder `grundstueck.flaeche_m2`. Werte sind bereits für
@@ -156,9 +157,13 @@ impl Projektkontext {
 
     /// Angaben des (ersten) Bauherrn aus der Kundendatenbank:
     /// `bauherr.name`, `bauherr.vorname`, `bauherr.familienname`,
-    /// `bauherr.firma`, `bauherr.strasse`, `bauherr.hausnummer`,
+    /// `bauherr.firma`, `bauherr.name_vorname` („Familienname, Vorname“ bzw.
+    /// Firma), `bauherr.strasse`, `bauherr.hausnummer`,
     /// `bauherr.strasse_hausnummer`, `bauherr.plz`, `bauherr.ort`,
-    /// `bauherr.plz_ort`, `bauherr.telefon`, `bauherr.email`.
+    /// `bauherr.plz_ort`, `bauherr.anschrift` (eine Zeile),
+    /// `bauherr.name_anschrift` (Name und Anschrift in zwei Zeilen),
+    /// `bauherr.name_anschrift_zeile` (dasselbe in einer Zeile),
+    /// `bauherr.telefon`, `bauherr.email`.
     pub fn bauherr(&mut self, k: &Kunde) {
         self.person("bauherr", k);
     }
@@ -168,22 +173,80 @@ impl Projektkontext {
     pub fn person(&mut self, praefix: &str, k: &Kunde) {
         let d = &k.daten;
         self.setze(&format!("{praefix}.name"), k.anzeigename());
-        match d.typ {
+        let name_vorname = match d.typ {
             Kundentyp::Person => {
                 self.setze(&format!("{praefix}.vorname"), &d.vorname);
                 self.setze(&format!("{praefix}.familienname"), &d.familienname);
+                crate::xbau::name_vorname(&d.familienname, &d.vorname)
             }
-            Kundentyp::Organisation => self.setze(&format!("{praefix}.firma"), &d.firma),
-        }
+            Kundentyp::Organisation => {
+                self.setze(&format!("{praefix}.firma"), &d.firma);
+                d.firma.trim().to_string()
+            }
+        };
+        self.setze(&format!("{praefix}.name_vorname"), &name_vorname);
         let a = &d.anschrift;
         self.anschrift(praefix, &a.strasse, &a.hausnummer, &a.postleitzahl, &a.ort);
         self.setze(&format!("{praefix}.telefon"), &d.telefon);
         self.setze(&format!("{praefix}.email"), &d.email);
+        self.namensblock(praefix, &name_vorname);
         self.leere_entfernen();
     }
 
+    /// Angaben der entwurfsverfassenden Person; die Büroanschrift ist ihre
+    /// Geschäftsanschrift: `entwurfsverfasser.name`, `.vorname`,
+    /// `.familienname`, `.name_vorname`, `.name_buero` („Familienname,
+    /// Vorname, Büro“), `.berufsbezeichnung`, `.mitgliedsnummer`,
+    /// `.kammerland`, `.telefon` und `.email` (Person, sonst Büro), `.mobil`,
+    /// `.strasse` … `.plz_ort`, `.anschrift`, `.name_anschrift` (Name mit
+    /// Büro und Anschrift in zwei Zeilen) und `.name_anschrift_zeile`.
+    pub fn entwurfsverfasser(&mut self, e: &Entwurfsverfasser, buero: &Buero) {
+        let p = "entwurfsverfasser";
+        self.setze("entwurfsverfasser.name", e.anzeigename());
+        self.setze("entwurfsverfasser.vorname", &e.vorname);
+        self.setze("entwurfsverfasser.familienname", &e.familienname);
+        self.setze("entwurfsverfasser.berufsbezeichnung", &e.berufsbezeichnung);
+        self.setze("entwurfsverfasser.mitgliedsnummer", &e.mitgliedsnummer);
+        if let Some(l) = e.kammerland {
+            self.setze("entwurfsverfasser.kammerland", l.name());
+        }
+        let name_vorname = e.name_vorname();
+        self.setze("entwurfsverfasser.name_vorname", &name_vorname);
+        let name_buero = [name_vorname.as_str(), buero.name.trim()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.setze("entwurfsverfasser.name_buero", &name_buero);
+        self.setze("entwurfsverfasser.telefon", e.telefon_oder(buero));
+        self.setze("entwurfsverfasser.mobil", &e.mobil);
+        self.setze("entwurfsverfasser.email", e.email_oder(buero));
+        let a = &buero.anschrift;
+        self.anschrift(p, &a.strasse, &a.hausnummer, &a.postleitzahl, &a.ort);
+        self.namensblock(p, &name_buero);
+        self.leere_entfernen();
+    }
+
+    /// `präfix.name_anschrift` (Name und Anschrift in zwei Zeilen, für
+    /// mehrzeilige Felder wie „Bauherrschaft“) und
+    /// `präfix.name_anschrift_zeile` (dasselbe in einer Zeile) aus `name`
+    /// und der zuvor gesetzten Anschrift `präfix.anschrift`.
+    pub fn namensblock(&mut self, praefix: &str, name: &str) {
+        let anschrift = self
+            .wert(&format!("{praefix}.anschrift"))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let teile: Vec<&str> = [name.trim(), anschrift.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect();
+        self.setze(&format!("{praefix}.name_anschrift"), teile.join("\n"));
+        self.setze(&format!("{praefix}.name_anschrift_zeile"), teile.join(", "));
+    }
+
     /// `präfix.strasse`, `.hausnummer`, `.strasse_hausnummer`, `.plz`,
-    /// `.ort` und `.plz_ort`.
+    /// `.ort`, `.plz_ort` und `.anschrift` („Straße Hausnummer, PLZ Ort“).
     pub fn anschrift(
         &mut self,
         praefix: &str,
@@ -201,6 +264,15 @@ impl Projektkontext {
         self.setze(&format!("{praefix}.plz"), plz);
         self.setze(&format!("{praefix}.ort"), ort);
         self.setze(&format!("{praefix}.plz_ort"), format!("{plz} {ort}").trim());
+        let zeile = [
+            format!("{strasse} {hausnummer}").trim().to_string(),
+            format!("{plz} {ort}").trim().to_string(),
+        ]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
+        self.setze(&format!("{praefix}.anschrift"), zeile);
     }
 
     /// Leere Angaben nicht vorschlagen.
@@ -289,12 +361,45 @@ impl Formularvorlage {
     }
 }
 
-/// Quelle eines Felds: Zuordnung der Vorlage, sonst der Feldname selbst.
-fn quelle<'a>(feld: &'a Formularfeld, vorlage: Option<&'a Formularvorlage>) -> &'a str {
-    vorlage
-        .and_then(|v| v.zuordnung.get(&feld.name))
+/// Quelle eines Felds: die je Formular gewählte Feldquelle, sonst die
+/// Zuordnung der Vorlage, sonst der Feldname selbst.
+fn quelle<'a>(
+    feld: &'a Formularfeld,
+    vorlage: Option<&'a Formularvorlage>,
+    feldquellen: &'a BTreeMap<String, String>,
+) -> &'a str {
+    feldquellen
+        .get(&feld.name)
+        .or_else(|| vorlage.and_then(|v| v.zuordnung.get(&feld.name)))
         .map(String::as_str)
         .unwrap_or(&feld.name)
+}
+
+/// Wirksame Projektdatenquelle je befüllbarem Feld: die gewählte Feldquelle
+/// oder die Zuordnung der Vorlage, sonst der Feldname, wenn er ein Schlüssel
+/// des Kontexts ist. Feste Texte (`'…`) und nicht befüllbare Felder fehlen.
+pub fn feldquellen(
+    felder: &[Formularfeld],
+    vorlage: Option<&Formularvorlage>,
+    gewaehlt: &BTreeMap<String, String>,
+    kontext: &Projektkontext,
+) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for feld in felder {
+        if feld.schreibgeschuetzt || matches!(feld.art, Feldart::Sonstiges) {
+            continue;
+        }
+        let q = quelle(feld, vorlage, gewaehlt);
+        if q.starts_with('\'') {
+            continue;
+        }
+        let zugeordnet = gewaehlt.contains_key(&feld.name)
+            || vorlage.is_some_and(|v| v.zuordnung.contains_key(&feld.name));
+        if zugeordnet || kontext.wert(q).is_some() {
+            out.insert(feld.name.clone(), q.to_owned());
+        }
+    }
+    out
 }
 
 /// Feldwert für `text` passend zur Feldart; `None`, wenn das Feld den Wert
@@ -330,16 +435,33 @@ pub fn vorschlag(
     vorlage: Option<&Formularvorlage>,
     kontext: &Projektkontext,
 ) -> BTreeMap<String, Feldwert> {
+    vorschlag_mit_quellen(felder, vorlage, &BTreeMap::new(), kontext)
+}
+
+/// Wie [`vorschlag`]; `feldquellen` wählt je Feld eine abweichende Quelle
+/// (Schlüssel des Kontexts), etwa `bauherr.name_anschrift` statt der
+/// Zuordnung der Vorlage.
+pub fn vorschlag_mit_quellen(
+    felder: &[Formularfeld],
+    vorlage: Option<&Formularvorlage>,
+    feldquellen: &BTreeMap<String, String>,
+    kontext: &Projektkontext,
+) -> BTreeMap<String, Feldwert> {
     let mut werte = BTreeMap::new();
     for feld in felder {
         if feld.schreibgeschuetzt || ausgefuellt(feld.wert.as_ref()) {
             continue;
         }
-        let quelle = quelle(feld, vorlage);
+        let quelle = quelle(feld, vorlage, feldquellen);
         let Some(text) = quelle.strip_prefix('\'').or_else(|| kontext.wert(quelle)) else {
             continue;
         };
         if let Some(wert) = feldwert(feld, text) {
+            // Ein Zeilenumbruch passt nur in mehrzeilige Felder; sonst würde
+            // die Befüllung scheitern.
+            if !feld.mehrzeilig && matches!(&wert, Feldwert::Text(t) if t.contains('\n')) {
+                continue;
+            }
             werte.insert(feld.name.clone(), wert);
         }
     }
@@ -371,13 +493,25 @@ pub fn veraltete_werte(
     vorlage: Option<&Formularvorlage>,
     kontext: &Projektkontext,
 ) -> Vec<VeralteterFeldwert> {
+    veraltete_werte_mit_quellen(felder, werte, vorlage, &BTreeMap::new(), kontext)
+}
+
+/// Wie [`veraltete_werte`], mit je Feld gewählten Quellen wie bei
+/// [`vorschlag_mit_quellen`].
+pub fn veraltete_werte_mit_quellen(
+    felder: &[Formularfeld],
+    werte: &BTreeMap<String, Feldwert>,
+    vorlage: Option<&Formularvorlage>,
+    feldquellen: &BTreeMap<String, String>,
+    kontext: &Projektkontext,
+) -> Vec<VeralteterFeldwert> {
     let mut out = Vec::new();
     for feld in felder {
         let wert = werte.get(&feld.name).or(feld.wert.as_ref());
         if feld.schreibgeschuetzt || !ausgefuellt(wert) {
             continue;
         }
-        let quelle = quelle(feld, vorlage);
+        let quelle = quelle(feld, vorlage, feldquellen);
         if quelle.starts_with('\'') || quelle == "datum.heute" {
             continue;
         }
@@ -661,5 +795,229 @@ mod tests {
         assert_eq!(k.wert("bauherr.plz_ort"), Some("80331 München"));
         assert_eq!(k.wert("bauherr.strasse_hausnummer"), None, "leer");
         assert_eq!(k.wert("projekt.name"), Some("EFH Muster"));
+    }
+    #[test]
+    fn sammelschluessel_fuer_personen_und_entwurfsverfasser() {
+        use crate::kunden::{Kunde, KundeId, Kundendaten};
+        use crate::xbau::{Anschrift, Buero, Entwurfsverfasser};
+        let kunde = |daten: Kundendaten| Kunde {
+            id: KundeId::new(),
+            daten,
+            version: 1,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        let mut k = Projektkontext::default();
+        k.bauherr(&kunde(Kundendaten {
+            vorname: "Erika".into(),
+            familienname: "Mustermann".into(),
+            anschrift: Anschrift {
+                strasse: "Musterweg".into(),
+                hausnummer: "3".into(),
+                postleitzahl: "80331".into(),
+                ort: "München".into(),
+            },
+            ..Default::default()
+        }));
+        assert_eq!(k.wert("bauherr.name"), Some("Erika Mustermann"));
+        assert_eq!(k.wert("bauherr.name_vorname"), Some("Mustermann, Erika"));
+        assert_eq!(
+            k.wert("bauherr.anschrift"),
+            Some("Musterweg 3, 80331 München")
+        );
+        assert_eq!(
+            k.wert("bauherr.name_anschrift"),
+            Some("Mustermann, Erika\nMusterweg 3, 80331 München")
+        );
+        assert_eq!(
+            k.wert("bauherr.name_anschrift_zeile"),
+            Some("Mustermann, Erika, Musterweg 3, 80331 München")
+        );
+        // Organisation: Firma statt „Familienname, Vorname“; ohne Anschrift
+        // nur der Name, keine leeren Zeilen.
+        k.person(
+            "eigentuemer",
+            &kunde(Kundendaten {
+                typ: Kundentyp::Organisation,
+                firma: "Bau GmbH".into(),
+                ..Default::default()
+            }),
+        );
+        assert_eq!(k.wert("eigentuemer.name_vorname"), Some("Bau GmbH"));
+        assert_eq!(k.wert("eigentuemer.name_anschrift"), Some("Bau GmbH"));
+        assert!(k.wert("eigentuemer.anschrift").is_none());
+        // Entwurfsverfasser: Büroanschrift als Geschäftsanschrift, eigene
+        // E-Mail, Telefon des Büros als Ersatz.
+        let buero = Buero {
+            name: "Planbüro".into(),
+            anschrift: Anschrift {
+                strasse: "Domstraße".into(),
+                hausnummer: "1".into(),
+                postleitzahl: "50667".into(),
+                ort: "Köln".into(),
+            },
+            telefon: "0221 5".into(),
+            email: "info@planbuero.de".into(),
+            ..Default::default()
+        };
+        let e = Entwurfsverfasser {
+            id: uuid::Uuid::new_v4(),
+            vorname: "Max".into(),
+            familienname: "Plan".into(),
+            berufsbezeichnung: "Architekt".into(),
+            mitgliedsnummer: "4711".into(),
+            kammerland: Some(Bundesland::Nw),
+            nachweis: String::new(),
+            telefon: String::new(),
+            mobil: "0170 1".into(),
+            email: "max@planbuero.de".into(),
+        };
+        k.entwurfsverfasser(&e, &buero);
+        assert_eq!(k.wert("entwurfsverfasser.name"), Some("Max Plan"));
+        assert_eq!(k.wert("entwurfsverfasser.name_vorname"), Some("Plan, Max"));
+        assert_eq!(
+            k.wert("entwurfsverfasser.name_buero"),
+            Some("Plan, Max, Planbüro")
+        );
+        assert_eq!(k.wert("entwurfsverfasser.telefon"), Some("0221 5"));
+        assert_eq!(k.wert("entwurfsverfasser.mobil"), Some("0170 1"));
+        assert_eq!(k.wert("entwurfsverfasser.email"), Some("max@planbuero.de"));
+        assert_eq!(
+            k.wert("entwurfsverfasser.strasse_hausnummer"),
+            Some("Domstraße 1")
+        );
+        assert_eq!(k.wert("entwurfsverfasser.plz_ort"), Some("50667 Köln"));
+        assert_eq!(
+            k.wert("entwurfsverfasser.name_anschrift"),
+            Some("Plan, Max, Planbüro\nDomstraße 1, 50667 Köln")
+        );
+        assert_eq!(
+            k.wert("entwurfsverfasser.kammerland"),
+            Some("Nordrhein-Westfalen")
+        );
+    }
+
+    #[test]
+    fn gewaehlte_feldquelle_geht_der_vorlage_vor() {
+        let felder = felder_lesen(&musterformular()).unwrap();
+        let mut kontext = Projektkontext::aus_projekt(&projekt());
+        kontext.setze("bauherr.name", "Erika Mustermann");
+        kontext.setze(
+            "bauherr.name_anschrift_zeile",
+            "Mustermann, Erika, Musterweg 3, 80331 München",
+        );
+        kontext.setze("bauherr.name_anschrift", "Mustermann, Erika\nMusterweg 3");
+        // Die Vorlage füllt Bauherr_Name aus projekt.name.
+        let v = vorlage();
+        let gewaehlt = BTreeMap::from([(
+            "Bauherr_Name".to_owned(),
+            "bauherr.name_anschrift_zeile".to_owned(),
+        )]);
+        let werte = vorschlag_mit_quellen(&felder, Some(&v), &gewaehlt, &kontext);
+        assert_eq!(
+            werte["Bauherr_Name"],
+            Feldwert::Text("Mustermann, Erika, Musterweg 3, 80331 München".into())
+        );
+        // Unverändert ohne gewählte Quellen.
+        assert_eq!(
+            vorschlag(&felder, Some(&v), &kontext)["Bauherr_Name"],
+            Feldwert::Text("EFH Muster".into())
+        );
+        // Ein zweizeiliger Wert passt nicht in ein einzeiliges Feld: kein
+        // Vorschlag statt einer scheiternden Befüllung.
+        let zweizeilig = BTreeMap::from([(
+            "Bauherr_Name".to_owned(),
+            "bauherr.name_anschrift".to_owned(),
+        )]);
+        assert!(
+            !vorschlag_mit_quellen(&felder, Some(&v), &zweizeilig, &kontext)
+                .contains_key("Bauherr_Name")
+        );
+        // Der Abgleich gilt für die gewählte Quelle, nicht für die Vorlage.
+        let eingabe = BTreeMap::from([(
+            "Bauherr_Name".to_owned(),
+            Feldwert::Text("Mustermann, Erika, Musterweg 3, 80331 München".into()),
+        )]);
+        assert!(
+            veraltete_werte_mit_quellen(&felder, &eingabe, Some(&v), &gewaehlt, &kontext)
+                .is_empty()
+        );
+        let ohne = veraltete_werte(&felder, &eingabe, Some(&v), &kontext);
+        assert_eq!(ohne.len(), 1);
+        assert_eq!(ohne[0].quelle, "projekt.name");
+        // Wirksame Quellen je Feld: Wahl, Vorlage, keine festen Texte.
+        let quellen = feldquellen(&felder, Some(&v), &gewaehlt, &kontext);
+        assert_eq!(quellen["Bauherr_Name"], "bauherr.name_anschrift_zeile");
+        assert_eq!(quellen["Grundstueck.Flaeche"], "grundstueck.flaeche_m2");
+        assert!(!quellen.contains_key("Vorhaben"), "fester Text");
+        assert!(!quellen.contains_key("Sonderbau"), "fester Text");
+    }
+
+    /// Die mitgelieferten NRW-Vorlagen erkennen die amtlichen Formulare
+    /// (Beispiel-PDFs unter `formulare/beispiele`) und belegen Bauherrschaft,
+    /// Entwurfsverfasser und Grundstück aus den Sammelschlüsseln vor.
+    #[test]
+    fn nrw_formulare_werden_erkannt_und_vorbelegt() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../formulare");
+        let mut katalog = Formularkatalog::default();
+        assert!(katalog.laden(&dir).unwrap().is_empty());
+        let mut kontext = Projektkontext::default();
+        kontext.setze("bauherr.name_vorname", "Mustermann, Erika");
+        kontext.setze(
+            "bauherr.name_anschrift",
+            "Mustermann, Erika\nMusterweg 3, 50667 Köln",
+        );
+        kontext.setze("bauherr.strasse_hausnummer", "Musterweg 3");
+        kontext.setze("entwurfsverfasser.name_buero", "Plan, Max, Planbüro");
+        kontext.setze("entwurfsverfasser.plz_ort", "50667 Köln");
+        kontext.setze("entwurfsverfasser.email", "max@planbuero.de");
+        kontext.setze("grundstueck.anschrift", "Baustraße 7, 50667 Köln");
+        for (datei, id, bauherr, bauherr_wert, entwurf) in [
+            (
+                "mb2026-220-anlage1.2.pdf",
+                "nw-bauantrag-anlage-i-2",
+                "bauherr_name",
+                "Mustermann, Erika",
+                "entwurf_name",
+            ),
+            (
+                "Anlage_I_7_Baubeschreibung_250821.pdf",
+                "nw-baubeschreibung-anlage-i-7",
+                "Bauherrschaft",
+                "Mustermann, Erika\nMusterweg 3, 50667 Köln",
+                "Name_Vorname_Büro",
+            ),
+            (
+                "anlage_i_8_betriebsbeschreibung_fuer_gewebliche_anlagen.pdf",
+                "nw-betriebsbeschreibung-anlage-i-8",
+                "Bauherrschaft",
+                "Mustermann, Erika\nMusterweg 3, 50667 Köln",
+                "Name_Vorname_Büro",
+            ),
+        ] {
+            let pdf = std::fs::read(dir.join("beispiele").join(datei)).unwrap();
+            let felder = felder_lesen(&pdf).unwrap();
+            let v = katalog
+                .erkenne_fuer(&felder, Bundesland::Nw)
+                .unwrap_or_else(|| panic!("{datei} nicht erkannt"));
+            assert_eq!(v.id, id, "{datei}");
+            assert!(
+                katalog.erkenne_fuer(&felder, Bundesland::By).is_none(),
+                "{datei}: nur für NRW"
+            );
+            let werte = vorschlag(&felder, Some(v), &kontext);
+            assert_eq!(
+                werte[bauherr],
+                Feldwert::Text(bauherr_wert.into()),
+                "{datei}"
+            );
+            assert_eq!(
+                werte[entwurf],
+                Feldwert::Text("Plan, Max, Planbüro".into()),
+                "{datei}"
+            );
+            crate::formular::pdf::befuellen(&pdf, &werte)
+                .unwrap_or_else(|e| panic!("{datei}: {e}"));
+        }
     }
 }

@@ -826,6 +826,8 @@ pub(crate) mod tests {
                 ort: "München".into(),
             },
             kennung: "arc:4711".into(),
+            telefon: String::new(),
+            email: String::new(),
             entwurfsverfasser: vec![crate::xbau::Entwurfsverfasser {
                 id: Uuid::new_v4(),
                 vorname: "Eva".into(),
@@ -834,6 +836,9 @@ pub(crate) mod tests {
                 mitgliedsnummer: "12345".into(),
                 kammerland: Some(Bundesland::By),
                 nachweis: String::new(),
+                telefon: String::new(),
+                mobil: String::new(),
+                email: String::new(),
             }],
         };
         (projekt, antrag, buero)

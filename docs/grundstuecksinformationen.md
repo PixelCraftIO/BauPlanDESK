@@ -23,8 +23,16 @@ Rolle später, nennt der nächste Abgabestand die Anforderung zur Prüfung. Ausz
 Projektdatei importiert und anschließend ausgewählt. Die Flurstücke lassen sich
 ohne Grundbuch und ohne fertige Baugrundstücksberechnung speichern. Im Dialog
 zum Anlegen/Bearbeiten eines Projekts gibt es deshalb keine zweite Flächeneingabe.
-Gemessene Planflächen verweisen zur Prüfung auf die Flurstücksinformationen und
-überschreiben keine Kataster- oder Baugrundstücksfläche.
+Eine im **Aufmaß** gezeichnete Flurstücksgrenze (Flurkarte, Liegenschafts-
+karte, Lageplan; Markierung „Flurstück“ mit zugeordnetem Flurstück) wird über
+„Aufgaben → Übernehmen“ mit dem Flurstück verknüpft. Die gemessene Fläche steht
+als *gezeichnete Fläche* neben der Katasterfläche und zeigt die Abweichung; sie
+überschreibt keine Kataster- oder Baugrundstücksfläche. Liegt kein amtlicher
+Wert vor, kann „Gezeichnete Fläche als Flurstücksfläche verwenden“ gewählt
+werden; dann setzt der Core die Flurstücksfläche aus der Zeichnung und das Feld
+ist nicht von Hand änderbar. Eine geänderte Kontur im Aufmaß wird nicht still
+übernommen: Speichern und Projektübersicht verlangen „Aktuellen Aufmaßstand
+übernehmen“. „Verknüpfung lösen“ behält den Wert als manuelle Angabe.
 
 Jedes Flurstück hat einen **Bezug zum Vorhaben**: Vorhabengrundstück (Normalfall),
 Nachbarflurstück oder Sonstiges (etwa Zuwegung oder Baulastfläche). Nur
@@ -65,6 +73,22 @@ mit Verwerfen des Entwurfs ist eine ausdrücklich beschriftete Aktion.
 
 - `grundstuecksinformationen::Grundstuecksinformationen` besitzt die Fakten und
   validiert sie unabhängig von Planfestsetzungen und Nutzungsnachweisen.
+- `FlurstuecksInfo.planbindung`, `planflaeche_m2` und `flaeche_aus_plan`
+  (alle optional, nicht geschrieben solange leer) tragen die Herkunft einer
+  gezeichneten Fläche aus dem Aufmaß. Die Werte setzt ausschließlich
+  `CoreServices::planaufmass_flurstuecke`; die Validierung weist von Hand
+  eingetragene oder abweichende Werte zurück. `flaeche_m2` bleibt der
+  Rechenwert; der Quellen-Fingerprint der Ermittlung ist unverändert.
+- `FlaechenAbzug.id`/`planbindung` und `flaechen::Bauteil.id`/`planbindung`
+  (optional, nicht geschrieben solange leer) tragen Zeilenkennung und Herkunft
+  einer aus dem Aufmaß übernommenen Fläche (Ziele `abzuege.<id>.flaeche_m2`
+  bzw. `bauteile.<id>.flaeche_m2`). Die Werte setzen ausschließlich
+  `CoreServices::planaufmass_abzuege` und `planaufmass_bauteile`; Abzugsart,
+  rechtliche Grundlage, Bauteiltyp und Anrechnung bleiben Eingaben und Regeln
+  dieses Moduls. Beim Speichern (Projektgrenze, Einzelspeicherung eines
+  Baugrundstücks, Nutzungsnachweise) müssen gebundene Werte dem Stand ihrer
+  Quelle entsprechen (`grundstueck_planquellen_pruefen`). Altdaten ohne
+  Kennung bleiben gültig, können aber nicht gebunden werden.
 - `BaugrundstuecksErmittlung` speichert nur flurstücksbezogene Ansätze,
   Nutzungsberechnungseingaben und den vom Core gesetzten Quellenhash. Kataster-
   und Grundbuchdaten werden nicht als zweite Faktenkopie darin gespeichert.

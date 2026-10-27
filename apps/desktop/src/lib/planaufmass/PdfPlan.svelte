@@ -8,15 +8,19 @@
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
+  import { dxfBlatt, dxfPfade, dxfTexte, dxfGeometrie } from "./dxf";
+  import type { Plan } from "../api";
   // Zeichenfläche: Anzeige, Fang, Zoom, Drehung und Eingabe. Fachwerte (Längen,
   // Flächen, Höhen) stammen vom Core; hier werden nur Vorschauen während des
-  // Zeichnens gezeigt. Gespeicherte Koordinaten sind immer Seitenpunkte.
-  let { pdfBase64, seite, markierungen, ebenen, auswahl, werkzeug, darf,
+  // Zeichnens gezeigt. Gespeicherte Koordinaten sind immer Seitenpunkte: bei
+  // PDF-Blättern physische Seitenpunkte, bei DXF-Zeichnungen (`plan`)
+  // Zeichnungseinheiten ab der linken oberen Ecke des Zeichnungsumfangs.
+  let { pdfBase64 = "", seite, plan = null, planSichtbar = [], markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
     auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
     onverschieben = () => {}, onpunkt = () => {},
     onfertig, onauswahl, onedit, onfehler, onrahmen = () => {}, onrahmenauswahl = () => {}, onoeffnen = () => {}, onseite = () => {} }:
-    {pdfBase64:string;seite:number;markierungen:Planmarkierung[];ebenen:Planebene[];
+    {pdfBase64?:string;seite:number;plan?:Plan|null;planSichtbar?:boolean[];markierungen:Planmarkierung[];ebenen:Planebene[];
     auswahl:string;werkzeug:string;darf:boolean;
     ausschnitte?:Planausschnitt[];aktiv?:string;rahmenAuswahl?:string;werte?:Planmesswert[];kalibrierung?:Plankalibrierung|null;masse?:boolean;
     onfertig:(g:Plangeometrie)=>void;onauswahl:(id:string,mehrfach?:boolean)=>void;
@@ -59,6 +63,12 @@
   const faktor=$derived(meterProPunkt(ausschnitt?.kalibrierung??kalibrierung));
   const aktiveKalibrierung=$derived(ausschnitt?.kalibrierung??kalibrierung);
   const gedreht=$derived(drehung%180!==0);
+  const blatt=$derived(plan?dxfBlatt(plan):null);
+  const pfade=$derived(plan&&blatt?dxfPfade(plan,blatt,planSichtbar):[]);
+  const texte=$derived(plan&&blatt?dxfTexte(plan,blatt,planSichtbar):[]);
+  // Zoomgrenzen in Pixel je Seitenpunkt: PDF-Blätter liegen bei 0,05–12,
+  // Zeichnungseinheiten reichen von Millimetern bis Kilometern.
+  const zMin=$derived(Math.min(.05,40/Math.max(breite,hoehe))), zMax=$derived(Math.max(12,20000/Math.min(breite,hoehe)));
   // Größe des gedrehten Blattes in Seitenpunkten (Box, in der gescrollt wird).
   const boxB=$derived(gedreht?hoehe:breite), boxH=$derived(gedreht?breite:hoehe);
   const z=(n:number,stellen=2)=>n.toLocaleString("de-DE",{maximumFractionDigits:stellen});
@@ -77,7 +87,9 @@
   $effect(()=>{
     if(!sichtbar())return;
     const source=pdfBase64; let gone=false; let loader:PDFDocumentLoadingTask|undefined;
-    doc=null;bereit=false;punkte=[];seitenbilder=[];
+    doc=null;punkte=[];seitenbilder=[];seitenzahl=1;
+    if(!source)return;
+    bereit=false;
     void(async()=>{
       const {getDocument,GlobalWorkerOptions}=await import("pdfjs-dist");
       if(gone)return;
@@ -117,14 +129,30 @@
       // Beim Öffnen Breite einpassen, höchstens 100 %; „Einpassen“ zeigt das ganze Blatt.
       zoom=Math.min(1,((scroll?.clientWidth??800)-2*PAD)/breite);
       bereit=true;
-      if(ansichtKey)try{
-        const v=JSON.parse(localStorage.getItem(`${ansichtKey}:${nummer}`)??"null");
-        if(v&&v.zoom>=.05&&v.zoom<=12&&[0,90,180,270].includes(v.drehung)){
-          zoom=v.zoom;drehung=v.drehung;await tick();if(scroll){scroll.scrollLeft=Number(v.x)||0;scroll.scrollTop=Number(v.y)||0}
-        }
-      }catch{/* Ansichtssicherung ist optional. */}
+      await ansichtLaden(nummer);
     })().catch(e=>{if(!gone&&!String(e).includes("cancelled"))onfehler(`PDF-Seite: ${String(e)}`)});
     return()=>{gone=true;rasterTask?.cancel();if(url)URL.revokeObjectURL(url);const bild=untrack(()=>seitenbild);if(bild)URL.revokeObjectURL(bild)};
+  });
+  async function ansichtLaden(nummer:number){
+    if(!ansichtKey)return;
+    try{
+      const v=JSON.parse(localStorage.getItem(`${ansichtKey}:${nummer}`)??"null");
+      if(v&&v.zoom>=zMin&&v.zoom<=zMax&&[0,90,180,270].includes(v.drehung)){
+        zoom=v.zoom;drehung=v.drehung;await tick();if(scroll){scroll.scrollLeft=Number(v.x)||0;scroll.scrollTop=Number(v.y)||0}
+      }
+    }catch{/* Ansichtssicherung ist optional. */}
+  }
+  // DXF-Unterlage: der Zeichnungsumfang ist das Blatt; Fang an sichtbaren Ebenen.
+  $effect(()=>{
+    if(!sichtbar())return;
+    const p=plan,b=blatt,vis=planSichtbar; if(!p)return;
+    untrack(()=>{
+      punkte=[];edit=null;page=null;rasterScale=0;cursor=null;
+      if(!b){bereit=false;geometry={points:[],segments:[],limited:false};onfehler("Die DXF-Zeichnung enthält keine darstellbaren Elemente.");return}
+      const neu=!bereit||breite!==b.breite||hoehe!==b.hoehe;
+      breite=b.breite;hoehe=b.hoehe;geometry=dxfGeometrie(p,b,vis);
+      if(neu){drehung=0;zoom=passend();bereit=true;void ansichtLaden(1)}
+    });
   });
   // Nach dem Zoomen scharf nachrastern; nie unter die bisherige Auflösung.
   $effect(()=>{
@@ -171,13 +199,13 @@
   });
   function passend(){
     const w=(scroll?.clientWidth??800)-2*PAD, h=(scroll?.clientHeight??600)-2*PAD;
-    return Math.max(.05,Math.min(w/boxB,h/boxH));
+    return Math.max(zMin,Math.min(w/boxB,h/boxH));
   }
   async function aufBereich(r:{x:number;y:number;w:number;h:number}){
     const el=scroll,n=++ansichtGeneration;if(!el)return;
     const b=boxRect(r);
     const w=el.clientWidth-2*PAD, h=el.clientHeight-2*PAD;
-    zoom=Math.max(.05,Math.min(12,Math.min(w/(b.w+40),h/(b.h+40))));
+    zoom=Math.max(zMin,Math.min(zMax,Math.min(w/(b.w+40),h/(b.h+40))));
     await tick();
     if(n!==ansichtGeneration||scroll!==el||!el.isConnected)return;
     el.scrollLeft=(b.x+b.w/2)*zoom+PAD-el.clientWidth/2;
@@ -196,7 +224,7 @@
     const el=scroll,n=++ansichtGeneration;if(!el)return;
     const r=el.getBoundingClientRect();
     const px=(el.scrollLeft+(clientX-r.left)-PAD)/zoom, py=(el.scrollTop+(clientY-r.top)-PAD)/zoom;
-    const neu=Math.max(.05,Math.min(12,zoom*faktorZoom));
+    const neu=Math.max(zMin,Math.min(zMax,zoom*faktorZoom));
     if(neu===zoom)return;
     zoom=neu;
     await tick();
@@ -479,7 +507,7 @@
     <span class="zoom">{Math.round(zoom*100)} %</span>
     <button type="button" class="sekundaer" disabled={!bereit} onclick={()=>zoomMitte(1.25)} aria-label="Vergrößern">+</button>
     <button type="button" class="sekundaer" disabled={!bereit} onclick={einpassen}>Einpassen</button>
-    <button type="button" class="sekundaer" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>
+    {#if !plan}<button type="button" class="sekundaer" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>{/if}
     <button type="button" class="sekundaer" disabled={!bereit||!gewaehlt} onclick={aufAuswahl}>Auf Auswahl</button>
     <button type="button" class="sekundaer" class:aktiv={zoomfenster} aria-pressed={zoomfenster} disabled={!bereit} title="Taste Z · Bereich aufziehen" onclick={zoomfensterStarten}>Zoomfenster</button>
     <button type="button" class="sekundaer" disabled={!bereit} aria-label="Nach links drehen" title="Ansicht 90° nach links" onclick={()=>drehen(-90)}>↶</button>
@@ -505,16 +533,20 @@
       </nav>
     {/if}
     <div class="plan-scroll" bind:this={scroll} onscroll={ansichtSichern} class:greifen={cursorKlasse==="greifen"}>
-      {#if !bereit}<p role="status">PDF-Seite wird vorbereitet …</p>{/if}
+      {#if !bereit}<p role="status">Unterlage wird vorbereitet …</p>{/if}
       <div class="papier" style:width={`${boxB*zoom}px`} style:height={`${boxH*zoom}px`} style:visibility={bereit?"visible":"hidden"}>
         <div class="blatt" style:width={`${breite*zoom}px`} style:height={`${hoehe*zoom}px`} style:transform={blattTransform}>
-          <img src={seitenbild||undefined} alt="" draggable="false"/>
+          {#if !plan}<img src={seitenbild||undefined} alt="" draggable="false"/>{/if}
           {#if vergleichBild}<img class="vergleich" src={vergleichBild} alt="Vergleichsunterlage" style:opacity={vergleichDeckkraft} style:width={`${vergleichGroesse.breite/breite*100}%`} style:height={`${vergleichGroesse.hoehe/hoehe*100}%`} style:transform={`translate(${vergleichAusrichtung.dx*zoom}px,${vergleichAusrichtung.dy*zoom}px) rotate(${vergleichAusrichtung.grad}deg) scale(${vergleichAusrichtung.faktor})`} draggable="false"/>{/if}
           <!-- Zeicheneditor mit eigener Tastaturbedienung, keine dekorative SVG. -->
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <svg bind:this={svg} viewBox={`0 0 ${breite} ${hoehe}`} role="application" class={cursorKlasse}
-            aria-label="PDF-Zeichenfläche. Punkte anklicken, Enter beendet, Escape bricht ab. Strg+Mausrad zoomt, Leertaste oder mittlere Maustaste verschiebt. Ziffern öffnen die Maßeingabe." tabindex="0"
+            aria-label="Zeichenfläche. Punkte anklicken, Enter beendet, Escape bricht ab. Strg+Mausrad zoomt, Leertaste oder mittlere Maustaste verschiebt. Ziffern öffnen die Maßeingabe." tabindex="0"
             onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={abbrechen} onkeydown={key}>
+            {#if plan&&blatt}<g class="unterlage" aria-hidden="true">
+              {#each pfade as pf (pf.farbe)}<path d={pf.d} style:stroke={pf.farbe}/>{/each}
+              {#each texte as t}{#if t.hoehe*zoom>=4}<text x={t.x} y={t.y} font-size={t.hoehe} text-anchor={t.anker} style:fill={t.farbe} transform={t.drehung?`rotate(${-t.drehung} ${t.x} ${t.y})`:undefined}>{#each t.zeilen as zeile,i}<tspan x={t.x} dy={i?t.zeilenabstand:0}>{zeile}</tspan>{/each}</text>{/if}{/each}
+            </g>{/if}
             {#if aktiveKalibrierung?.art==="strecke"}<g class="referenz" aria-label={`Referenzstrecke ${z(aktiveKalibrierung.meter)} m`}>
               <line x1={aktiveKalibrierung.von[0]} y1={aktiveKalibrierung.von[1]} x2={aktiveKalibrierung.bis[0]} y2={aktiveKalibrierung.bis[1]}/>
               {#each [aktiveKalibrierung.von,aktiveKalibrierung.bis] as p}<circle cx={p[0]} cy={p[1]} r={4/zoom}/>{/each}
@@ -566,7 +598,7 @@
       </div>
     </div>
   </div>
-  <p class="meta status" role="status">{vorschau?`Vorschau: ${vorschau} · `:""}{fangart || (geometry.points.length?`${geometry.points.length} PDF-Vektorpunkte`:"Keine Vektorpunkte – manuell zeichnen")}
+  <p class="meta status" role="status">{vorschau?`Vorschau: ${vorschau} · `:""}{fangart || (geometry.points.length?`${geometry.points.length} Vektorpunkte der Unterlage`:"Keine Vektorpunkte – manuell zeichnen")}
     {geometry.limited?" · Vektorumfang begrenzt":""}{drehung?` · Ansicht ${drehung}° gedreht`:""} · Strg+Rad zoomt, Leertaste verschiebt, Shift rastet, Alt setzt den Fang aus, Ziffern öffnen die Maßeingabe. Enter schließt, Escape bricht ab.</p>
 </div>
 
@@ -625,6 +657,9 @@
   svg .referenz circle{stroke:#5a3d8f;fill:white}
   svg .referenz text{fill:#5a3d8f}
   svg .fremd{opacity:.35;pointer-events:none}
+  svg .unterlage{pointer-events:none}
+  svg .unterlage path{fill:none;stroke-width:1}
+  svg .unterlage text{stroke:none;paint-order:normal;font-family:system-ui,sans-serif;font-weight:400}
   svg .fehler :is(path,polygon,rect,circle,line){stroke:#b02d25;stroke-dasharray:4 3}
   svg .gewaehlt :is(path,polygon,rect,circle,line){stroke:#ad530a;stroke-width:2.5}
   .masseingabe{position:absolute;z-index:2;margin:0}

@@ -1001,6 +1001,9 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
         eigentuemer_kunden: vec![],
         bemerkung: String::new(),
         rolle: Default::default(),
+        planbindung: None,
+        planflaeche_m2: None,
+        flaeche_aus_plan: false,
     };
     let mut recht = p.planungsrecht.clone();
     recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
@@ -1196,6 +1199,9 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
         eigentuemer_kunden: vec![],
         bemerkung: String::new(),
         rolle,
+        planbindung: None,
+        planflaeche_m2: None,
+        flaeche_aus_plan: false,
     };
     let mut recht = p.planungsrecht.clone();
     recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
@@ -1361,6 +1367,8 @@ fn buero(name: &str) -> Buero {
         name: name.into(),
         anschrift: anschrift(),
         kennung: "arc:4711".into(),
+        telefon: String::new(),
+        email: String::new(),
         entwurfsverfasser: vec![Entwurfsverfasser {
             id: uuid::Uuid::new_v4(),
             vorname: "Eva".into(),
@@ -1369,6 +1377,9 @@ fn buero(name: &str) -> Buero {
             mitgliedsnummer: "12345".into(),
             kammerland: Some(Bundesland::By),
             nachweis: String::new(),
+            telefon: String::new(),
+            mobil: String::new(),
+            email: String::new(),
         }],
     }
 }

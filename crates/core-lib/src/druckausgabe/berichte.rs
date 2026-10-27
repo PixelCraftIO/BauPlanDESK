@@ -42,7 +42,7 @@ pub(super) struct Bezuege {
     pub nachweise: std::collections::HashMap<uuid::Uuid, u32>,
     pub raumbuecher: std::collections::HashMap<uuid::Uuid, u32>,
     pub baugrundstueck: Option<u32>,
-    /// Beigefügte Dokumentversionen (z. B. Pläne, aus denen PDF-Aufmaße
+    /// Beigefügte Dokumentversionen (z. B. Pläne, aus denen Aufmaße
     /// oder Quellunterlagen Berechnungen speisen).
     pub dokumente: std::collections::HashMap<(crate::domain::DocumentId, i64), u32>,
     pub verfasser: Vec<(String, String)>,
@@ -56,7 +56,7 @@ impl Bezuege {
         self.dokumente.get(&(d.dokument_id, d.version)).copied()
     }
 }
-/// Dokumentversion, auf der ein gebundener PDF-Aufmaßstand beruht.
+/// Dokumentversion, auf der ein gebundener Aufmaßstand beruht.
 async fn aufmassdokument(
     core: &CoreServices,
     p: &Project,
@@ -477,7 +477,7 @@ pub(super) async fn erstellen(
                     }
                     if !plan.planbindungen.is_empty() {
                         // Herkunft aus dem gebundenen Aufmaßstand, nicht aus dem aktuellen.
-                        z.push(titel("Messwerte aus PDF-Aufmaß"));
+                        z.push(titel("Messwerte aus Aufmaß"));
                         let ziele = crate::planaufmass::planziele(plan).unwrap_or_default();
                         let mut zeilen = Vec::new();
                         for b in &plan.planbindungen {
@@ -535,13 +535,7 @@ pub(super) async fn erstellen(
                             ]);
                         }
                         z.push(tabelle(
-                            &[
-                                "PDF-Aufmaß",
-                                "Markierung",
-                                "PDF-Unterlage",
-                                "Stand",
-                                "Zielfeld",
-                            ],
+                            &["Aufmaß", "Markierung", "Unterlage", "Stand", "Zielfeld"],
                             &[1.8, 1.8, 1.4, 0.6, 2.4],
                             zeilen,
                         ));
@@ -1210,7 +1204,7 @@ pub(super) async fn erstellen(
             )));
             if !plaene.is_empty() {
                 z.push(text(format!(
-                    "Flächen und Höhen per PDF-Aufmaß aus: {}",
+                    "Flächen und Höhen per Aufmaß aus: {}",
                     plaene
                         .iter()
                         .map(|a| format!("Anlage {a}"))

@@ -1,6 +1,11 @@
+<script module lang="ts">
+  /** Beim Anlegen gewählte Unterlage, die mit Kategorie abgelegt wird. */
+  export type Startplan = { kategorie: "flurkarte" | "lageplan"; pfad: string };
+</script>
+
 <script lang="ts">
   import { untrack } from "svelte";
-  import { ask } from "@tauri-apps/plugin-dialog";
+  import { ask, open } from "@tauri-apps/plugin-dialog";
   import {
     LAENDER,
     landName,
@@ -18,16 +23,23 @@
     absenden,
     knopf,
     fassungVerfolgen = false,
+    plaene = false,
     onabbrechen,
   }: {
     start: Werte;
     /** Kunden zur Auswahl des Bauherrn (nur beim Anlegen). */
     kunden?: Kunde[] | null;
     kundenLadefehler?: string | null;
-    absenden: (w: Werte, bauherr: string | null) => Promise<void>;
+    absenden: (
+      w: Werte,
+      bauherr: string | null,
+      plaene: Startplan[],
+    ) => Promise<void>;
     knopf: string;
     /** Gespeichertes Projekt: neue Fassungen von `start` als Grundlage abgleichen. */
     fassungVerfolgen?: boolean;
+    /** Beim Anlegen: Flurkarte / Lageplan zur Ablage mit Kategorie auswählen; die Akte öffnet danach im Aufmaß. */
+    plaene?: boolean;
     onabbrechen: () => void;
   } = $props();
 
@@ -37,7 +49,23 @@
   // svelte-ignore state_referenced_locally
   let basis = $state<Werte>({ ...start });
   let bauherr = $state<string | null>(null);
+  let startplaene = $state<Startplan[]>([]);
   let laeuft = $state(false);
+  async function planWaehlen(kategorie: Startplan["kategorie"]) {
+    const auswahl = await open({
+      multiple: true,
+      title:
+        kategorie === "flurkarte"
+          ? "Flurkarte / Liegenschaftskarte auswählen"
+          : "Lageplan auswählen",
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    const pfade = Array.isArray(auswahl) ? auswahl : auswahl ? [auswahl] : [];
+    for (const pfad of pfade)
+      if (!startplaene.some((p) => p.pfad === pfad))
+        startplaene.push({ kategorie, pfad });
+  }
+  const dateiname = (pfad: string) => pfad.split(/[\\/]/).pop() ?? pfad;
   let abweichungen = $state<Abweichung[]>([]);
   let neueFassung = $state(false);
   const FELDNAMEN: Record<string, string> = {
@@ -73,7 +101,9 @@
   export function hatAenderungen() {
     return (
       JSON.stringify($state.snapshot(werte)) !==
-        JSON.stringify($state.snapshot(basis)) || bauherr !== null
+        JSON.stringify($state.snapshot(basis)) ||
+      bauherr !== null ||
+      startplaene.length > 0
     );
   }
   export function istBeschaeftigt() {
@@ -105,6 +135,7 @@
           grundstuecksflaeche_m2: werte.grundstuecksflaeche_m2 || null,
         },
         bauherr,
+        $state.snapshot(startplaene) as Startplan[],
       );
     } finally {
       laeuft = false;
@@ -158,6 +189,45 @@
           >{/each}
       </select>
     </label>
+  {/if}
+  {#if plaene}
+    <fieldset>
+      <legend>Pläne zum Start (optional)</legend>
+      <p class="meta">
+        Flurkarte / Liegenschaftskarte und Lageplan werden nach dem Anlegen mit
+        Kategorie in den Projektdateien abgelegt; die Akte öffnet sich im
+        Aufmaß, in dem Flurstücksgrenzen, Abzugsflächen und Gebäude
+        gezeichnet werden. Flurstücksnummern und Katasterflächen bleiben
+        Eingaben unter Grundlagen → Flurstücke.
+      </p>
+      <div class="knoepfe">
+        <button
+          type="button"
+          class="sekundaer"
+          disabled={laeuft}
+          onclick={() => void planWaehlen("flurkarte")}>Flurkarte wählen …</button
+        >
+        <button
+          type="button"
+          class="sekundaer"
+          disabled={laeuft}
+          onclick={() => void planWaehlen("lageplan")}>Lageplan wählen …</button
+        >
+      </div>
+      {#if startplaene.length}<ul>
+          {#each startplaene as s, i (s.pfad)}<li>
+              {s.kategorie === "flurkarte" ? "Flurkarte" : "Lageplan"}: {dateiname(
+                s.pfad,
+              )}
+              <button
+                type="button"
+                class="link"
+                disabled={laeuft}
+                onclick={() => startplaene.splice(i, 1)}>Entfernen</button
+              >
+            </li>{/each}
+        </ul>{/if}
+    </fieldset>
   {/if}
   <div class="knoepfe">
     <button

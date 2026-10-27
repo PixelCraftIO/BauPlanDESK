@@ -74,6 +74,9 @@ pub struct FormularAnalyse {
     pub quellen: formular::instanz::FormularQuellen,
     /// Ausgefüllte Felder, deren Wert von den aktuellen Projektdaten abweicht.
     pub veraltet: Vec<formular::VeralteterFeldwert>,
+    /// Wirksame Projektdatenquelle je Feld (gewählte Feldquelle, Zuordnung der
+    /// Vorlage oder passender Feldname), siehe [`formular::vorlage::feldquellen`].
+    pub feldquellen: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -84,6 +87,8 @@ pub struct FormularSchema {
     pub quellen: formular::instanz::FormularQuellen,
     /// Ausgefüllte Felder, deren Wert von den aktuellen Projektdaten abweicht.
     pub veraltet: Vec<formular::VeralteterFeldwert>,
+    /// Wirksame Projektdatenquelle je Feld, siehe [`formular::vorlage::feldquellen`].
+    pub feldquellen: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -416,6 +421,14 @@ impl CoreServices {
             None,
         )
         .await?;
+        self.flurstueck_planquellen_pruefen(
+            p.id,
+            &crate::grundstuecksinformationen::informationen(&p.planungsrecht),
+        )
+        .await?;
+        if let Some(e) = crate::grundstuecksinformationen::ermittlung(&p.planungsrecht)? {
+            self.grundstueck_planquellen_pruefen(p.id, &e).await?;
+        }
         let audit = Self::audit(
             wer,
             Aktion::ProjektAngelegt,
@@ -458,6 +471,17 @@ impl CoreServices {
                 Some(&vorher.planungsrecht),
             )
             .await?;
+            // Flurstücke mit Aufmaßbindung werden nur in dem Stand gespeichert,
+            // den die Quelle liefert; geänderte Konturen sind ausdrücklich zu übernehmen.
+            self.flurstueck_planquellen_pruefen(
+                update.id,
+                &crate::grundstuecksinformationen::informationen(p),
+            )
+            .await?;
+            // Abzugsflächen und GRZ-Bauteile mit Aufmaßbindung ebenso.
+            if let Some(e) = crate::grundstuecksinformationen::ermittlung(p)? {
+                self.grundstueck_planquellen_pruefen(update.id, &e).await?;
+            }
             if let Some(g) = &p.baugrenzen
                 && vorher.planungsrecht.baugrenzen.as_ref() != Some(g)
             {
@@ -1672,6 +1696,7 @@ impl CoreServices {
             vorschlag: schema.vorschlag,
             quellen: schema.quellen,
             veraltet: schema.veraltet,
+            feldquellen: schema.feldquellen,
         })
     }
 
@@ -1709,14 +1734,20 @@ impl CoreServices {
         }
         let land = self.repos.projects.get(projekt_id).await?.bundesland;
         let vorlage = self.formulare.zuordnung_fuer(&felder, land, bisher);
+        let gewaehlt = &quellen.datenstand.bezug.feldquellen;
+        let kontext = &quellen.datenstand.werte;
         Ok(FormularSchema {
-            veraltet: formular::vorlage::veraltete_werte(
+            veraltet: formular::vorlage::veraltete_werte_mit_quellen(
                 &felder,
                 &BTreeMap::new(),
                 vorlage,
-                &quellen.datenstand.werte,
+                gewaehlt,
+                kontext,
             ),
-            vorschlag: formular::vorlage::vorschlag(&felder, vorlage, &quellen.datenstand.werte),
+            vorschlag: formular::vorlage::vorschlag_mit_quellen(
+                &felder, vorlage, gewaehlt, kontext,
+            ),
+            feldquellen: formular::vorlage::feldquellen(&felder, vorlage, gewaehlt, kontext),
             vorlage: vorlage.map(|v| VorlageInfo {
                 id: v.id.clone(),
                 titel: v.titel.clone(),
@@ -1939,6 +1970,16 @@ impl CoreServices {
     /// Lädt die aktuelle Version eines DXF-Plans aus dem DMS.
     pub async fn cad_plan(&self, id: DocumentId) -> CoreResult<CadPlan> {
         let (dokument, daten) = self.load_document(id).await?;
+        Self::cad_plan_aus(dokument, &daten)
+    }
+
+    /// Lädt eine bestimmte Dokumentversion eines DXF-Plans (Unterlage eines Aufmaßes).
+    pub async fn cad_plan_version(&self, id: DocumentId, version: i64) -> CoreResult<CadPlan> {
+        let (dokument, daten) = self.load_version(id, version).await?;
+        Self::cad_plan_aus(dokument, &daten)
+    }
+
+    fn cad_plan_aus(dokument: DocumentVersion, daten: &[u8]) -> CoreResult<CadPlan> {
         let endung = dokument
             .file_name
             .rsplit_once('.')
@@ -1949,7 +1990,7 @@ impl CoreServices {
                 "DWG-Dateien können nicht direkt geöffnet werden. Bitte den Plan im CAD-Programm als DXF exportieren.".into(),
             ));
         }
-        let plan = cad::dxf::lesen(&daten)?;
+        let plan = cad::dxf::lesen(daten)?;
         Ok(CadPlan { dokument, plan })
     }
 

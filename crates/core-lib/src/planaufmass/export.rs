@@ -85,6 +85,9 @@ fn kalibrierung(k: Option<&Plankalibrierung>) -> String {
         Some(Plankalibrierung::Strecke { meter, .. }) => {
             format!("kalibriert über {} m Referenzstrecke", lesbare_zahl(*meter))
         }
+        Some(Plankalibrierung::Einheit { einheit }) => {
+            format!("Zeichnungseinheit {}", einheit.titel())
+        }
     }
 }
 impl CoreServices {

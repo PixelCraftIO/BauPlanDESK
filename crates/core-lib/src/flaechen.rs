@@ -89,6 +89,17 @@ pub enum Anrechnung {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bauteil {
+    /// Stabile Zeilenkennung für Planbindungen (`bauteile.<id>.flaeche_m2`);
+    /// bei Übernahme aus dem Aufmaß die Markierungs-ID. Altdaten ohne ID
+    /// bleiben gültig, können aber nicht gebunden werden.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Fläche aus einer Markierung des Aufmaßes (Zufahrt, Stellplatz,
+    /// Garage, Nebenanlage, Terrasse, unterirdisch), dem Baugrundstück
+    /// zugeordnet. Setzt der Core; siehe `planaufmass_bauteile`. Schließt
+    /// `gebaeude_id` aus: die Hauptanlage kommt über die Gebäudegrundfläche.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planbindung: Option<crate::planaufmass::Planbindung>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gebaeude_id: Option<uuid::Uuid>,
     pub bezeichnung: String,
@@ -313,6 +324,26 @@ impl FlaechenAufstellung {
                 "Höchstens 1000 Bauteile bzw. Geschosse zulässig".into(),
             ));
         }
+        let mut bauteil_ids = std::collections::HashSet::new();
+        for b in &self.bauteile {
+            if let Some(id) = &b.id
+                && (id.trim().is_empty() || id.len() > 500 || !bauteil_ids.insert(id.clone()))
+            {
+                return Err(CoreError::InvalidInput(
+                    "Bauteil: Kennung ungültig oder doppelt".into(),
+                ));
+            }
+            if let Some(p) = &b.planbindung
+                && (b.id.is_none()
+                    || b.gebaeude_id.is_some()
+                    || p.ziel != format!("bauteile.{}.flaeche_m2", b.id.as_deref().unwrap_or(""))
+                    || p.groesse != crate::planaufmass::Planmessgroesse::Flaeche)
+            {
+                return Err(CoreError::InvalidInput(
+                    "Bauteil: Aufmaßverknüpfung gehört zu einem anderen Ziel oder konkurriert mit der Gebäudeverknüpfung".into(),
+                ));
+            }
+        }
         if !self.nichtvollgeschoss_faktor.is_finite()
             || !(0.0..=1.0).contains(&self.nichtvollgeschoss_faktor)
         {
@@ -488,6 +519,8 @@ mod tests {
             .into_iter()
             .map(|(typ, flaeche_m2)| Bauteil {
                 gebaeude_id: None,
+                id: None,
+                planbindung: None,
                 bezeichnung: "Teil".into(),
                 typ,
                 flaeche_m2,

@@ -156,7 +156,7 @@ pub struct Hoehenzone {
     pub bezeichnung: String,
     pub flaeche_m2: f64,
     /// Kleinste lichte Höhe in der Zone (m); `None` = noch nicht erfasst
-    /// (z. B. nach Übernahme aus dem PDF-Aufmaß).
+    /// (z. B. nach Übernahme aus dem Aufmaß).
     pub lichte_hoehe_min_m: Option<f64>,
     /// Größte lichte Höhe in der Zone (m); für den Rauminhalt bei geneigter
     /// Decke. `None` = nicht erfasst.
@@ -289,10 +289,13 @@ pub(super) async fn validieren(
             let plan: crate::planaufmass::Planaufmass =
                 serde_json::from_value(daten).map_err(json_err)?;
             core.planaufmass_pruefen(p.id, &plan).await?;
-            let (_, bytes) = core
+            let (version, bytes) = core
                 .load_version(plan.dokument.dokument_id, plan.dokument.version)
                 .await?;
-            if !crate::formular::editor::seiten(&bytes)?
+            if version.file_name.to_lowercase().ends_with(".dxf") {
+                // Die Unterlage muss als Zeichnung lesbar sein (Seite 1 prüft die Fachprüfung).
+                crate::cad::dxf::lesen(&bytes)?;
+            } else if !crate::formular::editor::seiten(&bytes)?
                 .iter()
                 .any(|seite| seite.nummer == plan.seite)
             {

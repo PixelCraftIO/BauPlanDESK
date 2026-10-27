@@ -424,6 +424,25 @@ impl CoreServices {
             )
             .await?;
         }
+        // Abzugsflächen und GRZ-Bauteile des Nachweisplans mit Aufmaßbindung.
+        if let NachweisEingabe::Nutzung { plan, .. } = e {
+            use crate::grundstuecksinformationen::{BaugrundstuecksErmittlung, FlurstuecksAnsatz};
+            let ermittlung = BaugrundstuecksErmittlung {
+                ansaetze: plan
+                    .flurstuecke
+                    .iter()
+                    .map(|f| FlurstuecksAnsatz {
+                        flurstueck_id: f.id.clone(),
+                        abzuege: f.abzuege.clone(),
+                        abweichende_zuordnung: f.abweichende_zuordnung.clone(),
+                    })
+                    .collect(),
+                berechnungen: plan.berechnungen.clone(),
+                quellen_hash: None,
+            };
+            self.grundstueck_planquellen_pruefen(pid, &ermittlung)
+                .await?;
+        }
         Ok(())
     }
     async fn gebaeude_hash(&self, pid: ProjectId, e: &NachweisEingabe) -> CoreResult<ContentHash> {

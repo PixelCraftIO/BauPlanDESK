@@ -26,6 +26,10 @@
   import ABZUEGE from "../../../../regelwerke/grundstueck-abzuege.json";
   import GrundstueckFormular from "./GrundstueckFormular.svelte";
   import FlaechenFormular from "./FlaechenFormular.svelte";
+  import { planApi } from "./planaufmass/api";
+  import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
+  import { bereichAktiv, ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
+  import type { Aufmassstand, BaugrundstuecksErmittlung } from "./generated/plattform";
   let {
     projekt,
     benutzerId,
@@ -359,6 +363,54 @@
     laeuft = true;
     try {
       await ermitteln();
+    } finally {
+      laeuft = false;
+    }
+  }
+  // Gespeicherte Aufmaße für Abzugsflächen und GRZ-Bauteile; Übernahme,
+  // Prüfung und Werte stammen aus dem Core, die Maske trägt keine Flächen ein.
+  const bereichIstAktiv = bereichAktiv();
+  let aufmasse = $state<Aufmassquelle[]>([]);
+  let aufmassWahl = $state("");
+  let aufmassGeneration = 0;
+  async function aufmasseAktualisieren() {
+    const n = ++aufmassGeneration;
+    const a = await aufmasseLaden(projekt.id).catch(() => [] as Aufmassquelle[]);
+    if (n === aufmassGeneration) aufmasse = a;
+  }
+  $effect(() => {
+    if (!bereichIstAktiv()) return;
+    void projekt.version;
+    void aufmasseAktualisieren();
+  });
+  ansichtsAbfrage(() => projekt.id, ["fachobjekte"], aufmasseAktualisieren);
+  const aufmassQuelle = (id: string | undefined) =>
+    aufmasse.find((a) => a.stand.objekt === id);
+  async function abzuegeAusAufmass(
+    stand: Aufmassstand | null,
+    aendern?: (e: BaugrundstuecksErmittlung) => void,
+  ) {
+    if (laeuft) return;
+    laeuft = true;
+    fehler = null;
+    hinweis = null;
+    try {
+      const plan = request();
+      const e = berechnungsansaetze(plan);
+      aendern?.(e);
+      const neu = await planApi.abzuege(projekt.id, stand, e);
+      eingabe = {
+        ...plan,
+        flurstuecke: plan.flurstuecke.map((f) => {
+          const a = neu.ansaetze.find((x) => x.flurstueck_id === f.id);
+          return a ? { ...f, abzuege: a.abzuege } : f;
+        }),
+      };
+      hinweis = stand
+        ? "Abzugsflächen aus dem Aufmaß übernommen. Rechtliche Grundlage je Abzug ergänzen, prüfen und speichern."
+        : "Abzugsflächen aus dem Aufmaß aktualisiert. Prüfen und speichern.";
+    } catch (e) {
+      fehler = fehlertext(e);
     } finally {
       laeuft = false;
     }
@@ -718,6 +770,37 @@
   </p>
   <fieldset disabled={!darf || laeuft}>
     <legend>1 · Flächenabzüge und Zuordnungen</legend>
+    {#if aufmasse.length}<div class="aufmassleiste">
+        <label
+          >Aufmaß<select
+            aria-label="Aufmaß für Abzugsflächen"
+            bind:value={aufmassWahl}
+            ><option value="">Aufmaß wählen</option
+            >{#each aufmasse as q (q.stand.objekt)}<option value={q.stand.objekt}
+                >{q.stand.daten.bezeichnung} (R{q.stand.revision})</option
+              >{/each}</select
+          ></label
+        >
+        <button
+          type="button"
+          class="sekundaer"
+          disabled={!aufmassWahl}
+          onclick={() => {
+            const q = aufmassQuelle(aufmassWahl);
+            if (q)
+              void abzuegeAusAufmass({
+                aufmass_id: q.stand.objekt,
+                revision: q.stand.revision,
+              });
+          }}>Abzugsflächen aus Aufmaß übernehmen</button
+        >
+        <p class="meta">
+          Markierungen mit Bedeutung Grünfläche, Verkehrsfläche, außerhalb
+          Bauland oder sonstiger Abzug, die einem Vorhabenflurstück zugeordnet
+          sind, werden als Abzugszeilen angelegt. Die Abzugsart folgt der
+          Bedeutung; die rechtliche Grundlage ist zu ergänzen.
+        </p>
+      </div>{/if}
     {#each eingabe.flurstuecke as f (f.id)}<details>
         <summary
           >{f.gemarkung || "Gemarkung"} · {f.nummer || "Flurstück"} · {f.abzuege
@@ -730,7 +813,10 @@
           ><tbody
             >{#each f.abzuege as a, i}<tr
                 ><td
-                  ><select aria-label="Abzugsart" bind:value={a.art}
+                  ><select
+                    aria-label="Abzugsart"
+                    bind:value={a.art}
+                    disabled={!!a.planbindung}
                     >{#each Object.entries(ABZUEGE).filter(([, r]) => mitPlan || !r.bebauungsplan_erforderlich) as [code, r]}<option
                         value={code}>{r.bezeichnung}</option
                       >{/each}</select
@@ -742,6 +828,7 @@
                     min="0"
                     step="any"
                     bind:value={a.flaeche_m2}
+                    readonly={!!a.planbindung}
                   /></td
                 ><td
                   ><input
@@ -753,7 +840,34 @@
                     >Entfernen</button
                   ></td
                 ></tr
-              >{/each}</tbody
+              >{#if a.planbindung}{@const q = aufmassQuelle(a.planbindung.aufmass_id)}{@const m = q?.stand.daten.markierungen.find((x) => x.id === a.planbindung?.markierung_id)}<tr
+                  ><td colspan="4" class="meta"
+                    >Aus Aufmaß: {q?.stand.daten.bezeichnung ??
+                      "Aufmaß fehlt"} · {m?.bezeichnung ?? "Markierung fehlt"} (Stand
+                    R{a.planbindung.revision}){#if q && q.stand.revision !== a.planbindung.revision}
+                      · Aufmaß inzwischen gespeichert (R{q.stand.revision}) <button
+                        type="button"
+                        class="link"
+                        onclick={() =>
+                          void abzuegeAusAufmass(null, (e) => {
+                            for (const an of e.ansaetze)
+                              for (const x of an.abzuege)
+                                if (x.planbindung?.aufmass_id === q.stand.objekt)
+                                  x.planbindung = {
+                                    ...x.planbindung,
+                                    revision: q.stand.revision,
+                                  };
+                          })}>Aktuellen Aufmaßstand übernehmen</button
+                      >{/if}
+                    <button
+                      type="button"
+                      class="link"
+                      onclick={() => {
+                        delete a.planbindung;
+                      }}>Verknüpfung lösen</button
+                    ></td
+                  ></tr
+                >{/if}{/each}</tbody
           >
         </table>
         <button
@@ -877,6 +991,8 @@
         einzigesGrundstueck={gruppen.length === 1}
         flurstueckIds={gruppe.flurstueck_ids}
         projektId={projekt.id}
+        schluessel={gruppe.schluessel}
+        {aufmasse}
         grundstueckId={grundkontexte.find(
           (g) => g.schluessel === gruppe.schluessel,
         )?.id}

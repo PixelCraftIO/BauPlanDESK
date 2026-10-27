@@ -108,9 +108,9 @@
       >
     </div>
     <details bind:open={planOffen}>
-      <summary>Räume aus PDF-Aufmaß übernehmen</summary>
-      <p class="meta">Übernimmt Raum-, Aufenthaltsraum-, NUF-, TF- und VF-Markierungen des gewählten Gebäudes/Geschosses. Neue Räume werden angelegt; vorhandene Raumnummern, Nutzungen und Höhen bleiben erhalten. Flächen bleiben mit der Planquelle verknüpft. Im PDF-Aufmaß als „Höhenzone von Raum“ gekennzeichnete Flächen werden Höhenzonen dieses Raums.</p>
-      <label>PDF-Aufmaß<select aria-label="PDF-Aufmaß" bind:value={aufmassId}><option value="">Aufmaß auswählen</option>{#each aufmasse as a}<option value={a.objekt}>{a.daten.bezeichnung} · R{a.revision}</option>{/each}</select></label>
+      <summary>Räume aus Aufmaß übernehmen</summary>
+      <p class="meta">Übernimmt Raum-, Aufenthaltsraum-, NUF-, TF- und VF-Markierungen des gewählten Gebäudes/Geschosses. Neue Räume werden angelegt; vorhandene Raumnummern, Nutzungen und Höhen bleiben erhalten. Flächen bleiben mit der Planquelle verknüpft. Im Aufmaß als „Höhenzone von Raum“ gekennzeichnete Flächen werden Höhenzonen dieses Raums.</p>
+      <label>Aufmaß<select aria-label="Aufmaß" bind:value={aufmassId}><option value="">Aufmaß auswählen</option>{#each aufmasse as a}<option value={a.objekt}>{a.daten.bezeichnung} · R{a.revision}</option>{/each}</select></label>
       <button type="button" disabled={!aufmassId||!r.gebaeude_id||importBusy} onclick={planraeume}>Planräume anlegen / aktualisieren</button>
       {#each r.planbindungen??[] as b}
         {@const a=aufmasse.find(a=>a.objekt===b.aufmass_id)}

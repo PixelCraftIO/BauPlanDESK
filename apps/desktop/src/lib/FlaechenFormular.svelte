@@ -16,7 +16,13 @@
     bereich = "alle",
     einzigesGrundstueck = false,
     flurstueckIds = [],
+    schluessel = "",
+    aufmasse = [],
   }: {
+    /** Schlüssel des Baugrundstücks; Voraussetzung für die Bauteilübernahme aus dem Aufmaß. */
+    schluessel?: string;
+    /** Gespeicherte Aufmaße des Projekts (Anzeige der Bindungen, Auswahl zur Übernahme). */
+    aufmasse?: import("./planaufmass/quellen").Aufmassquelle[];
     regelOffen?: boolean;
     projektId: string;
     grundstueckId?: string;
@@ -164,6 +170,42 @@
   }
   const z = (v: number) =>
     v.toLocaleString("de-DE", { maximumFractionDigits: 3 });
+  import { planApi } from "./planaufmass/api";
+  import { BAUTEIL_BEDEUTUNG } from "./planaufmass/grundstueck";
+  import type { Aufmassstand } from "./generated/plattform";
+  let aufmassWahl = $state("");
+  let aufmassFehler = $state("");
+  let aufmassHinweis = $state("");
+  let aufmassLaeuft = $state(false);
+  const aufmassQuelle = (id: string | undefined) =>
+    aufmasse.find((a) => a.stand.objekt === id);
+  // Bauteile aus dem Lageplan: Zeilen und Flächen setzt der Core; Typ und
+  // Anrechnung bleiben hier zu prüfen. Die Antwort gilt nur für die Aufstellung,
+  // die beim Aufruf bearbeitet wurde.
+  async function bauteileAusAufmass(
+    stand: Aufmassstand | null,
+    aendern?: (a: FlaechenAufstellung) => void,
+  ) {
+    if (aufmassLaeuft || !schluessel) return;
+    const ziel = aufstellung;
+    aufmassLaeuft = true;
+    aufmassFehler = "";
+    aufmassHinweis = "";
+    try {
+      const entwurf = JSON.parse(JSON.stringify(ziel)) as FlaechenAufstellung;
+      aendern?.(entwurf);
+      const neu = await planApi.bauteile(projektId, schluessel, stand, entwurf);
+      if (ziel !== aufstellung) return;
+      ziel.bauteile = neu.bauteile;
+      aufmassHinweis = stand
+        ? "Bauteile aus dem Aufmaß übernommen. Bauteiltyp und Anrechnung prüfen, dann speichern."
+        : "Bauteilflächen aus dem Aufmaß aktualisiert. Prüfen und speichern.";
+    } catch (e) {
+      if (ziel === aufstellung) aufmassFehler = fehlertext(e);
+    } finally {
+      aufmassLaeuft = false;
+    }
+  }
 </script>
 
 <section class="flaechenformular">
@@ -244,6 +286,42 @@
       dem zusätzlichen Umgriff. Terrassen nach ihrer Zugehörigkeit zur Haupt-
       oder Nebenanlage einordnen.
     </p>
+    {#if aufmasse.length && schluessel}<fieldset>
+        <legend>Bauteile aus Aufmaß</legend>
+        <p class="meta">
+          Markierungen mit Bedeutung Zufahrt, Stellplatz, Garage, Nebenanlage,
+          Terrasse oder unterirdische Anlage, die diesem Baugrundstück
+          zugeordnet sind, werden als Bauteile angelegt. Die Hauptanlage kommt
+          über die Gebäudegrundfläche.
+        </p>
+        <label
+          >Aufmaß<select
+            aria-label="Aufmaß für Bauteile"
+            bind:value={aufmassWahl}
+            ><option value="">Aufmaß wählen</option
+            >{#each aufmasse as q (q.stand.objekt)}<option value={q.stand.objekt}
+                >{q.stand.daten.bezeichnung} (R{q.stand.revision})</option
+              >{/each}</select
+          ></label
+        >
+        <button
+          type="button"
+          class="sekundaer"
+          disabled={!aufmassWahl || aufmassLaeuft}
+          onclick={() => {
+            const q = aufmassQuelle(aufmassWahl);
+            if (q)
+              void bauteileAusAufmass({
+                aufmass_id: q.stand.objekt,
+                revision: q.stand.revision,
+              });
+          }}>Bauteile aus Aufmaß übernehmen</button
+        >
+        {#if aufmassFehler}<p class="fehlertext" role="alert">
+            {aufmassFehler}
+          </p>{/if}
+        {#if aufmassHinweis}<p class="meta" role="status">{aufmassHinweis}</p>{/if}
+      </fieldset>{/if}
     {#if !regelOffen && !modern}<p class="hinweisbox">
         Diese Fassung kennt keine GRZ II und keine pauschale 50-%-Überschreitung
         nach heutigem § 19 Abs. 4. Garagen werden grundsätzlich angesetzt;
@@ -265,7 +343,7 @@
           >
           <label
             >Bauteiltyp<select bind:value={b.typ} disabled={!!b.gebaeude_id}
-              >{#each typen as t}<option value={t.code}>{t.text}</option
+              >{#each typen.filter((t) => !b.planbindung || BAUTEIL_BEDEUTUNG[t.code] === BAUTEIL_BEDEUTUNG[b.typ]) as t}<option value={t.code}>{t.text}</option
                 >{/each}</select
             ></label
           >
@@ -278,7 +356,7 @@
               min="0"
               step="any"
               bind:value={b.flaeche_m2}
-              readonly={!!b.gebaeude_id}
+              readonly={!!b.gebaeude_id || !!b.planbindung}
               required
             /></label
           >
@@ -311,6 +389,35 @@
               class="link"
               onclick={() => {
                 b.gebaeude_id = undefined;
+              }}>Verknüpfung lösen</button
+            >
+          </p>{/if}
+        {#if b.planbindung}{@const q = aufmassQuelle(b.planbindung.aufmass_id)}{@const m = q?.stand.daten.markierungen.find((x) => x.id === b.planbindung?.markierung_id)}<p
+            class="meta"
+          >
+            Grundfläche aus Aufmaß: {q?.stand.daten.bezeichnung ??
+              "Aufmaß fehlt"} · {m?.bezeichnung ?? "Markierung fehlt"} (Stand R{b
+              .planbindung.revision}).
+            {#if q && q.stand.revision !== b.planbindung.revision}Aufmaß
+              inzwischen gespeichert (R{q.stand.revision}). <button
+                type="button"
+                class="link"
+                disabled={aufmassLaeuft}
+                onclick={() =>
+                  void bauteileAusAufmass(null, (a) => {
+                    for (const x of a.bauteile)
+                      if (x.planbindung?.aufmass_id === q.stand.objekt)
+                        x.planbindung = {
+                          ...x.planbindung,
+                          revision: q.stand.revision,
+                        };
+                  })}>Aktuellen Aufmaßstand übernehmen</button
+              >{/if}
+            <button
+              type="button"
+              class="link"
+              onclick={() => {
+                delete b.planbindung;
               }}>Verknüpfung lösen</button
             >
           </p>{/if}

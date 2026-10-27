@@ -1,8 +1,9 @@
-//! Aufmaß-Aufgaben: Welche Zielfelder der Gebäude und manuellen Abstandswände
-//! sind noch offen, welche Bedeutung und Geometrie braucht eine Markierung
+//! Aufmaß-Aufgaben: Welche Zielfelder der Flurstücke, Gebäude und manuellen
+//! Abstandswände sind noch offen, welche Bedeutung und Geometrie braucht eine Markierung
 //! dafür, und gibt es in diesem Aufmaß bereits eine passende Markierung?
 //! Reine Auskunft für die Oberfläche; Übernahme und Prüfung bleiben bei den
-//! bestehenden Diensten (`planaufmass_gebaeude`, `planaufmass_abstand`).
+//! bestehenden Diensten (`planaufmass_flurstuecke`, `planaufmass_gebaeude`,
+//! `planaufmass_abstand`).
 use super::*;
 use crate::{
     CoreServices, abstandsflaechen::AbstandsPlan, domain::ProjectId, plattform::ObjektArt,
@@ -18,10 +19,10 @@ pub enum Aufgabengeometrie {
 }
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct Planaufgabe {
-    /// `gebaeude` oder `abstand`.
+    /// `flurstueck`, `abzug`, `bauteil`, `gebaeude` oder `abstand`.
     pub verbraucher: String,
-    /// Gebäude-ID bzw. ID des Abstandsplans.
-    pub objekt: Uuid,
+    /// Flurstücks-ID, Zeilenkennung des Abzugs bzw. Bauteils, Gebäude-ID bzw. ID des Abstandsplans.
+    pub objekt: String,
     pub objekt_name: String,
     /// Anzeigegruppe, z. B. „Lagerhalle · OG“ oder „Südwand“.
     pub gruppe: String,
@@ -33,6 +34,8 @@ pub struct Planaufgabe {
     pub gebaeude_id: Option<Uuid>,
     pub geschoss_id: Option<Uuid>,
     pub grundstueck_id: Option<Uuid>,
+    /// Flurstück, dem eine neue Markierung zugeordnet wird (Verbraucher `flurstueck`).
+    pub flurstueck_id: Option<String>,
     /// Zielfeld trägt bereits einen (manuellen) Wert.
     pub wert_vorhanden: bool,
     /// Bereits verknüpfte Markierung (aus einem beliebigen Aufmaß).
@@ -203,6 +206,162 @@ impl CoreServices {
                 .find(|m| passt(m, geometrie) && filter(m))
                 .map(|m| m.id)
         };
+        // Flurstücke: eine Markierung „Flurstück“ je Flurstück, aus Flurkarte,
+        // Liegenschaftskarte oder Lageplan. Ohne Zuordnung in den Eigenschaften
+        // wird nichts vorgeschlagen; die Bezeichnung allein ist kein Nachweis.
+        let projekt = self.get_project(pid).await?;
+        let infos = crate::grundstuecksinformationen::informationen(&projekt.planungsrecht);
+        let mut flurstueck_vergeben: std::collections::HashSet<Uuid> = infos
+            .flurstuecke
+            .iter()
+            .filter_map(|f| f.planbindung.as_ref().map(|b| b.markierung_id))
+            .collect();
+        for (f, z) in infos.flurstuecke.iter().zip(flurstueckziele(&infos)) {
+            let gebunden = f.planbindung.as_ref().map(|b| b.markierung_id);
+            let markierung = frei(gebunden, Aufgabengeometrie::Flaeche, &|m| {
+                m.bedeutung == Planbedeutung::Flurstueck
+                    && m.flurstueck_id.as_deref() == Some(f.id.as_str())
+                    && !flurstueck_vergeben.contains(&m.id)
+            });
+            flurstueck_vergeben.extend(markierung);
+            aufgaben.push(Planaufgabe {
+                verbraucher: "flurstueck".into(),
+                objekt: f.id.clone(),
+                objekt_name: format!("Flurstück {}", f.bezeichnung()),
+                gruppe: "Flurstücke".into(),
+                titel: z.titel.rsplit(" · ").next().unwrap_or(&z.titel).to_string(),
+                ziel: z.ziel,
+                groesse: z.groesse,
+                bedeutung: Planbedeutung::Flurstueck,
+                geometrie: Aufgabengeometrie::Flaeche,
+                gebaeude_id: None,
+                geschoss_id: None,
+                grundstueck_id: None,
+                flurstueck_id: Some(f.id.clone()),
+                wert_vorhanden: f.flaeche_m2 > 0. && !f.flaeche_aus_plan,
+                gebunden,
+                markierung,
+                hinweis: Some(
+                    "Flurstücksgrenze in Flurkarte, Liegenschaftskarte oder Lageplan; die Katasterfläche bleibt Rechenwert, solange sie erfasst ist"
+                        .into(),
+                ),
+            });
+        }
+        // Abzugsflächen und GRZ-Bauteile: nur erfasste Zeilen mit Kennung. Neue
+        // Zeilen entstehen aus Markierungen über „Aus Aufmaß übernehmen“
+        // unter Berechnungen → Baugrundstück; dort wird auch gespeichert.
+        if let Some(e) = crate::grundstuecksinformationen::ermittlung(&projekt.planungsrecht)? {
+            let mut vergeben: std::collections::HashSet<Uuid> = e
+                .ansaetze
+                .iter()
+                .flat_map(|a| a.abzuege.iter())
+                .filter_map(|x| x.planbindung.as_ref().map(|b| b.markierung_id))
+                .collect();
+            let ziele = abzugsziele(&e, &infos);
+            for a in &e.ansaetze {
+                for x in &a.abzuege {
+                    let (Some(id), Some(bedeutung)) =
+                        (&x.id, Planbedeutung::fuer_abzugsart(&x.art))
+                    else {
+                        continue;
+                    };
+                    let Some(z) = ziele
+                        .iter()
+                        .find(|z| z.ziel == format!("abzuege.{id}.flaeche_m2"))
+                    else {
+                        continue;
+                    };
+                    let gebunden = x.planbindung.as_ref().map(|b| b.markierung_id);
+                    let markierung = frei(gebunden, Aufgabengeometrie::Flaeche, &|m| {
+                        m.bedeutung == bedeutung
+                            && m.flurstueck_id.as_deref() == Some(a.flurstueck_id.as_str())
+                            && !vergeben.contains(&m.id)
+                    });
+                    vergeben.extend(markierung);
+                    let (objekt_name, titel) = z
+                        .titel
+                        .rsplit_once(" · ")
+                        .map(|(a, b)| (a.to_string(), b.to_string()))
+                        .unwrap_or_else(|| (z.titel.clone(), "Fläche".into()));
+                    aufgaben.push(Planaufgabe {
+                        verbraucher: "abzug".into(),
+                        objekt: id.clone(),
+                        objekt_name,
+                        gruppe: "Abzugsflächen".into(),
+                        titel,
+                        ziel: z.ziel.clone(),
+                        groesse: z.groesse,
+                        bedeutung,
+                        geometrie: Aufgabengeometrie::Flaeche,
+                        gebaeude_id: None,
+                        geschoss_id: None,
+                        grundstueck_id: None,
+                        flurstueck_id: Some(a.flurstueck_id.clone()),
+                        wert_vorhanden: x.flaeche_m2 > 0.,
+                        gebunden,
+                        markierung,
+                        hinweis: Some(
+                            "Abzugsfläche im Lageplan; Übernahme unter Berechnungen → Baugrundstück „Abzugsflächen aus Aufmaß übernehmen“"
+                                .into(),
+                        ),
+                    });
+                }
+            }
+            for b in &e.berechnungen {
+                let Some(a) = &b.eingabe.aufstellung else {
+                    continue;
+                };
+                let grundstueck = crate::plattform::einbindung::grundstueck_id(pid, &b.schluessel);
+                let mut vergeben: std::collections::HashSet<Uuid> = a
+                    .bauteile
+                    .iter()
+                    .filter_map(|x| x.planbindung.as_ref().map(|p| p.markierung_id))
+                    .collect();
+                let zeilen = a
+                    .bauteile
+                    .iter()
+                    .filter(|x| x.gebaeude_id.is_none() && x.id.is_some());
+                for (x, z) in zeilen.zip(bauteilziele(a)) {
+                    let Some(bedeutung) = Planbedeutung::fuer_bauteiltyp(x.typ) else {
+                        continue;
+                    };
+                    let gebunden = x.planbindung.as_ref().map(|p| p.markierung_id);
+                    let markierung = frei(gebunden, Aufgabengeometrie::Flaeche, &|m| {
+                        m.bedeutung == bedeutung
+                            && m.grundstueck_id == Some(grundstueck)
+                            && !vergeben.contains(&m.id)
+                    });
+                    vergeben.extend(markierung);
+                    let (objekt_name, titel) = z
+                        .titel
+                        .rsplit_once(" · ")
+                        .map(|(a, b)| (a.to_string(), b.to_string()))
+                        .unwrap_or_else(|| (z.titel.clone(), "Grundfläche".into()));
+                    aufgaben.push(Planaufgabe {
+                        verbraucher: "bauteil".into(),
+                        objekt: x.id.clone().unwrap_or_default(),
+                        objekt_name,
+                        gruppe: "GRZ-Bauteile".into(),
+                        titel,
+                        ziel: z.ziel,
+                        groesse: z.groesse,
+                        bedeutung,
+                        geometrie: Aufgabengeometrie::Flaeche,
+                        gebaeude_id: None,
+                        geschoss_id: None,
+                        grundstueck_id: Some(grundstueck),
+                        flurstueck_id: None,
+                        wert_vorhanden: x.flaeche_m2 > 0.,
+                        gebunden,
+                        markierung,
+                        hinweis: Some(
+                            "Bauteil im Lageplan, dem Baugrundstück zugeordnet; Übernahme unter Berechnungen → Baugrundstück (GRZ) „Bauteile aus Aufmaß übernehmen“"
+                                .into(),
+                        ),
+                    });
+                }
+            }
+        }
         for f in self.fachobjekte(pid, ObjektArt::Gebaeude).await? {
             let id: Uuid = f
                 .objekt
@@ -256,7 +415,7 @@ impl CoreServices {
                 };
                 aufgaben.push(Planaufgabe {
                     verbraucher: "gebaeude".into(),
-                    objekt: id,
+                    objekt: id.to_string(),
                     objekt_name: g.bezeichnung.clone(),
                     gruppe,
                     titel: z.titel.rsplit(" · ").next().unwrap_or(&z.titel).to_string(),
@@ -267,6 +426,7 @@ impl CoreServices {
                     gebaeude_id: Some(id),
                     geschoss_id,
                     grundstueck_id: None,
+                    flurstueck_id: None,
                     wert_vorhanden: gefuellt(&f.daten, &z.ziel),
                     gebunden,
                     markierung,
@@ -306,7 +466,7 @@ impl CoreServices {
                 };
                 aufgaben.push(Planaufgabe {
                     verbraucher: "abstand".into(),
-                    objekt: id,
+                    objekt: id.to_string(),
                     objekt_name: p.bezeichnung.clone(),
                     gruppe: format!("{} · {}", p.bezeichnung, w.bezeichnung),
                     titel: z.titel.rsplit(" · ").next().unwrap_or(&z.titel).to_string(),
@@ -317,6 +477,7 @@ impl CoreServices {
                     gebaeude_id: w.gebaeude_id,
                     geschoss_id: None,
                     grundstueck_id: w.grundstueck_id,
+                    flurstueck_id: None,
                     wert_vorhanden: wert.is_some(),
                     gebunden,
                     markierung,

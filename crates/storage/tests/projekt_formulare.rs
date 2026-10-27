@@ -504,3 +504,266 @@ async fn veraltete_werte_zuordnung_und_entfernter_bauherr() {
     .await
     .unwrap();
 }
+
+/// Die je Formular gewählte Person des Büros und die gewählten Feldquellen
+/// (z. B. Name und Anschrift der Bauherrschaft gesammelt) werden mit der
+/// Formularversion gespeichert, gelten beim Abgleich und beim erneuten
+/// Öffnen. Feldquellen ändern den Datenstand nicht; die Person gehört dazu.
+#[tokio::test]
+async fn gewaehlte_person_und_feldquellen_bleiben_bei_der_version() {
+    use core_lib::{
+        formular::{
+            Formularkatalog, Formularvorlage,
+            instanz::{FormularBezug, FormularSpeicheroptionen},
+        },
+        kunden::Kundendaten,
+        xbau::{Anschrift, Buero, Entwurfsverfasser},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::in_memory().await.unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(temp.path().join("Ablage"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    )
+    .mit_formularen(Formularkatalog::new(vec![Formularvorlage {
+        id: "antrag".into(),
+        titel: "Antrag".into(),
+        land: None,
+        version: "2026.1".into(),
+        erkennung: vec!["Bauherr_Name".into(), "Grundstueck.Flaeche".into()],
+        zuordnung: BTreeMap::from([("Bauherr_Name".into(), "bauherr.name".into())]),
+    }]));
+    let user = core.anmelden("quellen", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Feldquellen".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let kunde = core
+        .kunde_anlegen(
+            Kundendaten {
+                vorname: "Erika".into(),
+                familienname: "Muster".into(),
+                anschrift: Anschrift {
+                    strasse: "Musterweg".into(),
+                    hausnummer: "3".into(),
+                    postleitzahl: "50667".into(),
+                    ort: "Köln".into(),
+                },
+                ..Default::default()
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    core.bauherren_setzen(p.id, vec![kunde.id], p.version, &user)
+        .await
+        .unwrap();
+    let person = |vorname: &str, familienname: &str| Entwurfsverfasser {
+        id: uuid::Uuid::new_v4(),
+        vorname: vorname.into(),
+        familienname: familienname.into(),
+        berufsbezeichnung: "Architektin".into(),
+        mitgliedsnummer: "4711".into(),
+        kammerland: Some(Bundesland::Nw),
+        nachweis: String::new(),
+        telefon: String::new(),
+        mobil: String::new(),
+        email: String::new(),
+    };
+    let (eva, max) = (person("Eva", "Entwurf"), person("Max", "Plan"));
+    core.buero_speichern(
+        Buero {
+            name: "Planbüro".into(),
+            anschrift: Anschrift {
+                strasse: "Domstraße".into(),
+                hausnummer: "1".into(),
+                postleitzahl: "50667".into(),
+                ort: "Köln".into(),
+            },
+            telefon: "0221 5".into(),
+            email: "info@planbuero.example".into(),
+            entwurfsverfasser: vec![eva.clone(), max.clone()],
+            ..Default::default()
+        },
+        &user,
+    )
+    .await
+    .unwrap();
+
+    // Zwei Personen, keine Wahl: keine stille Auswahl, aber ein Hinweis und
+    // die Liste zur Auswahl.
+    let offen = core
+        .formular_quellen(p.id, FormularBezug::default())
+        .await
+        .unwrap();
+    assert!(
+        offen
+            .datenstand
+            .werte
+            .wert("entwurfsverfasser.name")
+            .is_none()
+    );
+    assert_eq!(offen.entwurfsverfasser.len(), 2);
+    assert!(
+        offen
+            .hinweise
+            .iter()
+            .any(|h| h.contains("Mehrere Entwurfsverfasser"))
+    );
+    assert_eq!(offen.datenstand.werte.wert("buero.telefon"), Some("0221 5"));
+
+    let bezug = FormularBezug {
+        entwurfsverfasser_id: Some(max.id),
+        feldquellen: BTreeMap::from([(
+            "Bauherr_Name".to_owned(),
+            "bauherr.name_anschrift_zeile".to_owned(),
+        )]),
+        ..Default::default()
+    };
+    let schema = core
+        .formular_schema_mit_bezug(p.id, &musterformular(), bezug.clone())
+        .await
+        .unwrap();
+    let werte = &schema.quellen.datenstand.werte;
+    assert_eq!(
+        werte.wert("entwurfsverfasser.name_buero"),
+        Some("Plan, Max, Planbüro")
+    );
+    assert_eq!(werte.wert("entwurfsverfasser.telefon"), Some("0221 5"));
+    assert_eq!(werte.wert("entwurfsverfasser.plz_ort"), Some("50667 Köln"));
+    assert_eq!(
+        schema.vorschlag["Bauherr_Name"],
+        Feldwert::Text("Muster, Erika, Musterweg 3, 50667 Köln".into())
+    );
+    assert_eq!(
+        schema.feldquellen["Bauherr_Name"],
+        "bauherr.name_anschrift_zeile"
+    );
+    // Feldquellen gehören nicht zur Prüfsumme, die Person schon.
+    let ohne_feldquellen = core
+        .formular_quellen(
+            p.id,
+            FormularBezug {
+                entwurfsverfasser_id: Some(max.id),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        ohne_feldquellen.datenstand.daten_hash,
+        schema.quellen.datenstand.daten_hash
+    );
+    let mit_eva = core
+        .formular_quellen(
+            p.id,
+            FormularBezug {
+                entwurfsverfasser_id: Some(eva.id),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_ne!(
+        mit_eva.datenstand.daten_hash,
+        schema.quellen.datenstand.daten_hash
+    );
+
+    let d = core
+        .formular_aus_bibliothek_mit_quellen(
+            p.id,
+            "Antrag.pdf",
+            &musterformular(),
+            &schema.vorschlag,
+            FormularSpeicheroptionen {
+                vorgang: None,
+                datenstand: Some(schema.quellen.datenstand.clone()),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let instanz = core
+        .formular_instanz(d.document_id, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        instanz.quellen.datenstand.bezug.entwurfsverfasser_id,
+        Some(max.id)
+    );
+    assert_eq!(
+        instanz.quellen.datenstand.bezug.feldquellen["Bauherr_Name"],
+        "bauherr.name_anschrift_zeile"
+    );
+    assert!(instanz.veraltet.is_empty(), "{:?}", instanz.veraltet);
+
+    // Erneut geöffnet: gewählte Quelle und Person bleiben, nichts gilt als
+    // veraltet, obwohl die Vorlage eigentlich `bauherr.name` vorsieht.
+    let analyse = core.formular_analysieren(d.document_id).await.unwrap();
+    assert!(analyse.veraltet.is_empty(), "{:?}", analyse.veraltet);
+    assert_eq!(
+        analyse.feldquellen["Bauherr_Name"],
+        "bauherr.name_anschrift_zeile"
+    );
+    assert_eq!(
+        analyse.quellen.datenstand.bezug.entwurfsverfasser_id,
+        Some(max.id)
+    );
+
+    // Geänderte Bauherrenanschrift: der Sammelwert ist veraltet, der aktuelle
+    // Wert stammt aus der gewählten Quelle.
+    let mut daten = kunde.daten.clone();
+    daten.anschrift.hausnummer = "4".into();
+    core.repos
+        .kunden
+        .kunde_aendern(kunde.id, daten, kunde.version)
+        .await
+        .unwrap();
+    let analyse = core.formular_analysieren(d.document_id).await.unwrap();
+    assert_eq!(analyse.veraltet.len(), 1, "{:?}", analyse.veraltet);
+    assert_eq!(analyse.veraltet[0].quelle, "bauherr.name_anschrift_zeile");
+    assert_eq!(
+        analyse.veraltet[0].aktuell,
+        Feldwert::Text("Muster, Erika, Musterweg 4, 50667 Köln".into())
+    );
+
+    // Die gewählte Person verlässt das Büro: Hinweis, keine stille Ersatzperson,
+    // auch wenn nur noch eine übrig ist.
+    let mut buero = core.buero().await.unwrap();
+    buero.entwurfsverfasser.retain(|e| e.id != max.id);
+    core.buero_speichern(buero, &user).await.unwrap();
+    let analyse = core.formular_analysieren(d.document_id).await.unwrap();
+    assert!(
+        analyse
+            .quellen
+            .hinweise
+            .iter()
+            .any(|h| h.contains("nicht mehr in den Büroangaben")),
+        "{:?}",
+        analyse.quellen.hinweise
+    );
+    assert!(
+        analyse
+            .quellen
+            .datenstand
+            .werte
+            .wert("entwurfsverfasser.name")
+            .is_none()
+    );
+    assert_eq!(analyse.quellen.datenstand.bezug.entwurfsverfasser_id, None);
+    // Ein älterer Datenstand ohne die neuen Angaben bleibt lesbar.
+    let alt: FormularBezug =
+        serde_json::from_str(r#"{"grundstueck_id":null,"bauherr_id":null}"#).unwrap();
+    assert_eq!(alt, FormularBezug::default());
+}

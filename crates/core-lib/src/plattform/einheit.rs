@@ -82,6 +82,10 @@ impl CoreServices {
             .into_iter()
             .find(|b| b.schluessel == s)
             .ok_or_else(|| CoreError::InvalidInput("Berechnung fehlt".into()))?;
+        // GRZ-Bauteile mit Aufmaßbindung nur im Stand ihrer Quelle speichern.
+        if let Some(a) = &b.eingabe.aufstellung {
+            self.bauteil_planquellen_pruefen(pid, &s, a).await?;
+        }
         if let Some(e) = &mut p.planungsrecht.baugrundstuecksermittlung {
             let ziel = e
                 .berechnungen

@@ -1,18 +1,30 @@
-//! PDF-Aufmaß: unveränderte Dokumentversion + unabhängig gespeicherte Zeichenmaske.
+//! Aufmaß auf PDF- und DXF-Unterlagen: unveränderte Dokumentversion +
+//! unabhängig gespeicherte Zeichenmaske. Koordinaten sind Seitenpunkte: bei
+//! PDF physische Seitenpunkte (72 je Zoll, links oben, y nach unten), bei DXF
+//! Zeichnungseinheiten ab der linken oberen Ecke des Zeichnungsumfangs, y nach
+//! unten ([`cadmigration::seitenpunkt`]).
 //! Öffentlicher Vertrag und Koordinatenkonvention: docs/planaufmass.md.
 mod abstand;
 mod aufgaben;
+mod baugrenzen;
+mod cadmigration;
 mod export;
+mod flurstueck;
 mod gebaeude;
 mod geometrie;
+mod grundstueck;
 mod pruefung;
 mod raumbuch;
 mod service;
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe};
+pub use baugrenzen::BaugrenzenUebernahme;
+pub use cadmigration::{CadUebernahme, seitenpunkt};
 pub use export::{Planexportformat, Planexportwunsch};
+pub use flurstueck::flurstueckziele;
 pub use gebaeude::gebaeudeziele;
 pub use geometrie::{Flaechenoperation, flaechenoperation};
+pub use grundstueck::{Aufmassstand, abzugsziele, bauteilziele};
 pub use pruefung::{Markierungspruefung, Planpruefung};
 pub(crate) use service::bindungsstand;
 pub use service::{Planziel, planziele};
@@ -37,10 +49,15 @@ pub enum Plankalibrierung {
         bis: Planpunkt,
         meter: f64,
     },
+    /// DXF-Unterlagen: Seitenpunkte sind Zeichnungseinheiten (Ursprung links
+    /// oben am Zeichnungsumfang, y nach unten); die Einheit stammt aus dem
+    /// DXF-Kopf (`$INSUNITS`) oder wird gewählt, wenn die Datei keine nennt.
+    Einheit { einheit: crate::cad::Laengeneinheit },
 }
 impl Plankalibrierung {
     pub fn meter_pro_punkt(&self) -> CoreResult<f64> {
         let faktor = match self {
+            Self::Einheit { einheit } => einheit.meter(),
             Self::Massstab { nenner } => {
                 positiv(*nenner)?;
                 nenner * 0.0254 / 72.
@@ -122,7 +139,25 @@ impl Plangeometrie {
 pub enum Planbedeutung {
     Unbestimmt,
     Flurstueck,
+    /// Baufenster (Baugrenzen / Baulinien) und Umriss des Vorhabens im
+    /// Lageplan; Grundlage der Lageprüfung nach § 23 BauNVO, siehe
+    /// [`crate::CoreServices::planaufmass_baugrenzen`].
+    Baufenster,
+    Vorhabenumriss,
     PrivateGruenflaeche,
+    /// Abzugsflächen der Baugrundstücksermittlung (Arten aus
+    /// `regelwerke/grundstueck-abzuege.json`), siehe [`Self::abzugsart`].
+    OeffentlicheGruenflaeche,
+    Verkehrsflaeche,
+    AusserhalbBauland,
+    SonstigerAbzug,
+    /// GRZ-Bauteile ohne Gebäude (§ 19 Abs. 4 BauNVO), siehe [`Self::bauteiltyp`].
+    Zufahrt,
+    Stellplatz,
+    Garage,
+    Nebenanlage,
+    Terrasse,
+    Unterirdisch,
     Versiegelung,
     GeschossAussenkante,
     Gebaeudegrundflaeche,
@@ -168,13 +203,31 @@ pub struct Planmarkierung {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub hoehenzone_von: Option<Uuid>,
+    /// Flurstück (ID aus den Grundstücksinformationen), dessen Grenze diese
+    /// Markierung mit Bedeutung „Flurstück“ zeigt. Grundlage der Übernahme in
+    /// die Flurstücksfläche; ohne Zuordnung bleibt die Fläche eine Kontrolle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub flurstueck_id: Option<String>,
 }
 impl Planbedeutung {
     pub fn titel(self) -> &'static str {
         match self {
             Self::Unbestimmt => "Noch nicht zugeordnet",
             Self::Flurstueck => "Flurstück",
+            Self::Baufenster => "Baufenster",
+            Self::Vorhabenumriss => "Vorhabenumriss",
             Self::PrivateGruenflaeche => "Private Grünfläche",
+            Self::OeffentlicheGruenflaeche => "Öffentliche Grünfläche",
+            Self::Verkehrsflaeche => "Verkehrsfläche",
+            Self::AusserhalbBauland => "Fläche außerhalb des Baulands",
+            Self::SonstigerAbzug => "Sonstige nicht maßgebende Fläche",
+            Self::Zufahrt => "Zufahrt",
+            Self::Stellplatz => "Stellplatz",
+            Self::Garage => "Garage / Carport",
+            Self::Nebenanlage => "Nebenanlage (§ 14 BauNVO)",
+            Self::Terrasse => "Terrasse",
+            Self::Unterirdisch => "Unterirdische Anlage",
             Self::Versiegelung => "Versiegelung",
             Self::GeschossAussenkante => "Geschoss-Außenkante",
             Self::Gebaeudegrundflaeche => "Gebäudegrundfläche",
@@ -202,6 +255,57 @@ impl Planbedeutung {
             self,
             Self::Raum | Self::Aufenthaltsraum | Self::Nuf | Self::Tf | Self::Vf
         )
+    }
+    /// Abzugsart der Baugrundstücksermittlung, die diese Bedeutung liefert.
+    pub fn abzugsart(self) -> Option<&'static str> {
+        Some(match self {
+            Self::PrivateGruenflaeche => "private_gruenflaeche",
+            Self::OeffentlicheGruenflaeche => "oeffentliche_gruenflaeche",
+            Self::Verkehrsflaeche => "verkehrsflaeche",
+            Self::AusserhalbBauland => "ausserhalb_bauland",
+            Self::SonstigerAbzug => "sonstiger_abzug",
+            _ => return None,
+        })
+    }
+    /// Bedeutung zu einer Abzugsart.
+    pub fn fuer_abzugsart(art: &str) -> Option<Self> {
+        [
+            Self::PrivateGruenflaeche,
+            Self::OeffentlicheGruenflaeche,
+            Self::Verkehrsflaeche,
+            Self::AusserhalbBauland,
+            Self::SonstigerAbzug,
+        ]
+        .into_iter()
+        .find(|b| b.abzugsart() == Some(art))
+    }
+    /// Vorbelegter GRZ-Bauteiltyp für ein gezeichnetes Bauteil ohne Gebäude;
+    /// die Hauptanlage kommt über die Gebäudegrundfläche.
+    pub fn bauteiltyp(self) -> Option<crate::flaechen::Bauteiltyp> {
+        use crate::flaechen::Bauteiltyp as T;
+        Some(match self {
+            Self::Zufahrt => T::Zufahrt,
+            Self::Stellplatz => T::Stellplatz,
+            Self::Garage => T::Garage,
+            Self::Nebenanlage => T::Nebenanlage14,
+            Self::Terrasse => T::TerrasseHauptanlage,
+            Self::Unterirdisch => T::Unterirdisch,
+            _ => return None,
+        })
+    }
+    /// Bedeutung, die ein Bauteiltyp im Aufmaß erwartet (Garagen in der
+    /// Abstandsfläche und Terrassen an Nebenanlagen sind Varianten der Zeichnung).
+    pub fn fuer_bauteiltyp(typ: crate::flaechen::Bauteiltyp) -> Option<Self> {
+        use crate::flaechen::Bauteiltyp as T;
+        Some(match typ {
+            T::Zufahrt => Self::Zufahrt,
+            T::Stellplatz => Self::Stellplatz,
+            T::Garage | T::GarageAbstandsflaeche => Self::Garage,
+            T::Nebenanlage14 => Self::Nebenanlage,
+            T::TerrasseHauptanlage | T::TerrasseNebenanlage => Self::Terrasse,
+            T::Unterirdisch => Self::Unterirdisch,
+            T::Hauptanlage | T::BalkonLoggia => return None,
+        })
     }
 }
 /// Zeichnungsart eines Ausschnitts; bestimmt, ob Höhen gemessen werden können.
@@ -477,6 +581,11 @@ impl Planaufmass {
             .iter()
             .map(|m| {
                 crate::plattform::text(&m.bezeichnung, 500)?;
+                if let Some(f) = &m.flurstueck_id
+                    && (f.trim().is_empty() || f.len() > 500)
+                {
+                    return Err(fehler("Flurstückszuordnung ungültig"));
+                }
                 if !ids.insert(m.id) || !ebenen.contains(&m.ebene_id) {
                     return Err(fehler("Markierung doppelt oder Zeichenebene fehlt"));
                 }

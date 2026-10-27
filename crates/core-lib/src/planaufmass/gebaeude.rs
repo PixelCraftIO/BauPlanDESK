@@ -201,7 +201,7 @@ impl CoreServices {
         if serde_json::to_value(neu).map_err(|e| fehler(e.to_string()))?
             != serde_json::to_value(g).map_err(|e| fehler(e.to_string()))?
         {
-            return Err(benannt("Gebäudewerte weichen vom PDF-Aufmaß ab.".into()));
+            return Err(benannt("Gebäudewerte weichen vom Aufmaß ab.".into()));
         }
         Ok(())
     }

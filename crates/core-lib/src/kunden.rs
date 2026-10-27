@@ -629,6 +629,9 @@ mod tests {
             eigentuemer_kunden: eigentuemer,
             bemerkung: String::new(),
             rolle: Default::default(),
+            planbindung: None,
+            planflaeche_m2: None,
+            flaeche_aus_plan: false,
         };
         let mut projekt = crate::domain::Project {
             id: crate::domain::ProjectId::new(),

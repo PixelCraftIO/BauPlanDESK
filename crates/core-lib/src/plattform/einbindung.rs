@@ -252,6 +252,8 @@ pub fn einbinden(
                     }
                     a.bauteile.push(Bauteil {
                         gebaeude_id: Some(*id),
+                        id: None,
+                        planbindung: None,
                         bezeichnung: name.clone(),
                         typ,
                         flaeche_m2: flaeche,
@@ -587,6 +589,8 @@ mod tests {
         let a = plan.berechnungen[0].eingabe.aufstellung.as_mut().unwrap();
         a.bauteile.push(Bauteil {
             gebaeude_id: None,
+            id: None,
+            planbindung: None,
             bezeichnung: "wohnhaus ".into(),
             typ: crate::flaechen::Bauteiltyp::Hauptanlage,
             flaeche_m2: 100.,

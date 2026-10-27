@@ -70,7 +70,7 @@
           "titel": "Eingaben richtig behandeln",
           "liste": [
             "Mit * markierte Felder sind erforderlich. Eine leere Zahl ist nicht dasselbe wie die ausdrückliche Angabe 0. Einheiten stehen am Feld.",
-            "Übernommene oder schreibgeschützte Werte werden an der Quelle geändert. Bei PDF-Aufmaßen muss ein neuer Stand ausdrücklich übernommen werden.",
+            "Übernommene oder schreibgeschützte Werte werden an der Quelle geändert. Bei Aufmaßen muss ein neuer Stand ausdrücklich übernommen werden.",
             "„Speichern“ sichert den bearbeiteten Stand. Prüfen, Archivieren und Freigeben sind zusätzliche Schritte mit eigener Bedeutung.",
             "Ein Punkt am Projekttab bzw. „Ungespeicherte Änderungen“ weist auf einen Entwurf hin. Beim Wechseln bleibt dieser erhalten; vor dem Schließen speichern oder bewusst verwerfen.",
             "Nach einem Absturz kann ein lokaler Entwurf zur Wiederherstellung angeboten werden. Er ersetzt keinen gespeicherten, freigegebenen oder gesicherten Projektstand."
@@ -115,7 +115,7 @@
           "titel": "Erste Einrichtung",
           "schritte": [
             "Unter „Einstellungen“ das Farbschema Hell, Dunkel oder System wählen.",
-            "Die Büroangaben mit Absender und vorhandener Behördenkennung pflegen. Projektbezogene Behördenangaben gehören später in die Verfahrensakte.",
+            "Die Büroangaben mit Absender, Anschrift, Telefon, E-Mail und vorhandener Behördenkennung pflegen; dort auch alle bauvorlageberechtigten Personen mit Kammernummer und eigenen Kontaktdaten eintragen. Der Bauantrag wählt daraus die entwurfsverfassende Person des Projekts; Formulare, Anschreiben und Berechnungsausgaben übernehmen sie. Projektbezogene Behördenangaben gehören später in die Verfahrensakte.",
             "Speicherorte für Formularvorlagen und lesbare Projektordner festlegen; den Status der verwalteten Dateiablage prüfen.",
             "Dokumentkategorien und Druckgestaltung für das Büro einrichten.",
             "Unter „Benutzer und Rechte“ die benötigten Konten und Zuständigkeiten einrichten; den Lizenzstatus kontrollieren."
@@ -267,6 +267,7 @@
           "schritte": [
             "Im Arbeitsplatz „Projekte“ auf „Neues Projekt“ klicken.",
             "Einen unterscheidbaren Projektnamen und das Bundesland des Vorhabens auswählen. Vorhandene Bauherrschaft zuordnen, soweit im Dialog angeboten.",
+            "Optional unter „Pläne zum Start“ Flurkarte / Liegenschaftskarte und Lageplan als PDF auswählen. Sie werden mit Kategorie in den Projektdateien abgelegt; die Akte öffnet danach im Aufmaß, wo die Flurkarte als Unterlage gewählt und Flurstücksgrenzen, Abzugsflächen und Gebäude gezeichnet werden. Solange keine Flurstücke erfasst sind, nennt die Projektübersicht als nächsten Schritt die Planablage bzw. das Zeichnen der Flurstücke.",
             "Projekt anlegen und über den Projekttab öffnen. Unter „Grundlagen → Stammdaten“ mit „Bearbeiten …“ die Stammdaten pflegen.",
             "Unter „Bauherren …“ die Bauherrschaft und unter „Weitere Beteiligte …“ weitere Projektbeteiligte zuordnen.",
             "Die Projektmitglieder festlegen und anschließend Standort, Gemeinde und Vorhabenbeschreibung in den jeweiligen Grundlagen vervollständigen."
@@ -411,6 +412,7 @@
           "schritte": [
             "„Grundlagen → Flurstücke“ bzw. „Flurstücke und Grundbuch“ öffnen und ein Flurstück hinzufügen.",
             "Gemarkung, Flur, Flurstücksnummer und tatsächliche Flurstücksfläche eingeben. Die Rolle des Flurstücks, etwa Vorhaben- oder Nachbarbezug, richtig festlegen.",
+            "Liegt eine Flurkarte, Liegenschaftskarte oder ein Lageplan als PDF vor: die Datei unter „Projektdateien“ (Kategorie „Flurkarte / Liegenschaftskarte“ oder „Lageplan“) ablegen, unter „Unterlagen → Aufmaß“ kalibrieren, die Flurstücksgrenze als „Flurstück“ zeichnen, das Flurstück zuordnen und über „Aufgaben → Übernehmen“ verknüpfen. Die gezeichnete Fläche steht dann neben der Katasterfläche mit ihrer Abweichung; fehlt ein amtlicher Wert, „Gezeichnete Fläche als Flurstücksfläche verwenden“ wählen.",
             "Soweit bekannt Grundbuchbezirk/-blatt, laufende Nummer, Eigentümer und einen gespeicherten Grundbuchauszug als konkrete Dokumentversion ergänzen.",
             "Grundstücksinformationen speichern. Erst danach im Register „Berechnungen“ die Baugrundstücksermittlung durchführen."
           ]
@@ -425,7 +427,8 @@
         {
           "titel": "Änderungen und Entfernen",
           "text": [
-            "Vor dem Entfernen eines Flurstücks die genannten Gebäude- und Abstandsplanbezüge prüfen. Nach Änderungen an relevanten Flächen oder Zuordnungen Baugrundstücke erneut ermitteln und abhängige Nachweise aktualisieren."
+            "Vor dem Entfernen eines Flurstücks die genannten Gebäude- und Abstandsplanbezüge prüfen. Nach Änderungen an relevanten Flächen oder Zuordnungen Baugrundstücke erneut ermitteln und abhängige Nachweise aktualisieren.",
+            "Ändert sich die gezeichnete Flurstücksgrenze im Aufmaß, bleibt das Flurstück auf dem verknüpften Stand; die Projektübersicht und die Speicherprüfung verlangen „Aktuellen Aufmaßstand übernehmen“. „Verknüpfung lösen“ behält den eingesetzten Wert als manuelle Angabe."
           ]
         }
       ],
@@ -454,6 +457,7 @@
           "schritte": [
             "Gespeicherte Vorhabenflurstücke und vorhandene Grundbuchzuordnungen prüfen.",
             "„Berechnungen → Baugrundstück“ öffnen. Flächenabzüge je Flurstück, z. B. festgesetzte nicht maßgebende Flächen, mit Bezeichnung und Grundlage erfassen.",
+            "Abzugsflächen können aus einem gespeicherten Aufmaß kommen: im Lageplan die Fläche mit passender Bedeutung (Grünfläche, Verkehrsfläche, außerhalb Bauland, sonstiger Abzug) zeichnen und dem Flurstück zuordnen, dann „Abzugsflächen aus Aufmaß übernehmen“ wählen. Die Fläche ist danach schreibgeschützt, die Abzugsart folgt der Bedeutung; die rechtliche Grundlage bleibt zu ergänzen. Nach geänderter Kontur „Aktuellen Aufmaßstand übernehmen“, sonst lässt sich das Projekt nicht speichern.",
             "Eine besondere rechtliche Zuordnung nur mit belegter Grundlage und eindeutiger Zuordnungskennung verwenden.",
             "„Baugrundstücke ermitteln“ wählen und die entstandenen Einheiten, zugehörigen Flurstücke und Flächensummen prüfen.",
             "Etwaige Zuschläge oder zugeordnete Gemeinschaftsflächen in den vorgesehenen Ansätzen dokumentieren. Die maßgebenden Bezugsflächen berechnen und „Eingaben speichern“ wählen."
@@ -493,7 +497,7 @@
             "Die Flurstücke zuordnen, auf denen das Gebäude tatsächlich steht. Eine Baugrundstücksnummer ist kein Ersatz für diese Lagezuordnung.",
             "Gebäudegrundfläche, vorhandene Nutzungsangaben und gegebenenfalls absolute Gelände-, Trauf- und Firsthöhen mit Höhensystem erfassen.",
             "Einzelne Geschosse mit Fläche und Einstufung ergänzen und speichern. Bei einem Gebäude ohne einzelne Geschosse die geprüfte Einstufung des Einzelgeschosses mit Grundlage festlegen.",
-            "Für aus Plänen gewonnene Werte das gespeicherte PDF-Aufmaß an den angebotenen Feldern übernehmen und das Gebäude speichern."
+            "Für aus Plänen gewonnene Werte das gespeicherte Aufmaß an den angebotenen Feldern übernehmen und das Gebäude speichern."
           ]
         },
         {
@@ -573,6 +577,7 @@
           "schritte": [
             "Aktuelle Baugrundstücke und die gewählte BauNVO prüfen; „Berechnungen → GRZ“ öffnen.",
             "Das betreffende Baugrundstück auswählen. Automatisch eingebundene Gebäude prüfen. Zusätzliche Bauteile mit Bezeichnung, Bauteiltyp und Grundfläche erfassen, etwa Garage, Zufahrt oder Terrasse.",
+            "Bauteile ohne Gebäude (Zufahrt, Stellplatz, Garage, Nebenanlage, Terrasse, unterirdische Anlage) lassen sich aus einem gespeicherten Aufmaß übernehmen: Markierung mit passender Bedeutung dem Baugrundstück zuordnen, dann „Bauteile aus Aufmaß übernehmen“ wählen. Bauteiltyp und Anrechnung prüfen; die Hauptanlage kommt weiter über die Gebäudegrundfläche. Nach geänderter Kontur „Aktuellen Aufmaßstand übernehmen“.",
             "Bauteile nach ihrer tatsächlichen Art zuordnen. Ein Bauteiltyp steuert die Anrechnung; die bloße Bezeichnung tut dies nicht.",
             "Berechnen und die angesetzten Flächen sowie die Hinweise zu Anrechnung und Überschreitungen je Einheit kontrollieren. Eingaben speichern und einen Nachweisstand erstellen."
           ]
@@ -693,14 +698,14 @@
         },
         {
           "text": [
-            "Die maßbezogene Prüfung ergänzt die geometrische Baufensterprüfung im Planbereich. Ein negativer bzw. positiver Abstand ist entsprechend der im Formular genannten Richtung zu verstehen; nicht allein einen Absolutbetrag einsetzen. Bei einer Baulinie ist auch ein unzulässiges Zurücktreten relevant.",
+            "Die maßbezogene Prüfung ergänzt die geometrische Baufensterprüfung aus dem Aufmaß („Lage im Baufenster“: Baufenster und Vorhabenumriss im Lageplan zeichnen und dem Projekt zuordnen). Ein negativer bzw. positiver Abstand ist entsprechend der im Formular genannten Richtung zu verstehen; nicht allein einen Absolutbetrag einsetzen. Bei einer Baulinie ist auch ein unzulässiges Zurücktreten relevant.",
             "Bei mehreren Baugrundstücken den Geometrie-/Baufensterbezug eindeutig zuordnen. Eine Fläche im Stammdatensatz allein lässt keine Überschreitung räumlich prüfen."
           ]
         }
       ],
       "siehe": [
         "festsetzungen",
-        "plaene",
+        "aufmass",
         "abweichungen"
       ],
       "stichworte": []
@@ -829,7 +834,7 @@
         {
           "titel": "Raumfakten vorbereiten",
           "schritte": [
-            "Im „Flächen- und Raumbuch“ Gebäude und Geschoss zuordnen und die Räume erfassen. Bei vorhandenem PDF-Aufmaß „Räume aus PDF-Aufmaß übernehmen“ nutzen.",
+            "Im „Flächen- und Raumbuch“ Gebäude und Geschoss zuordnen und die Räume erfassen. Bei vorhandenem Aufmaß „Räume aus Aufmaß übernehmen“ nutzen.",
             "Im Wohnflächenmodul einen Nachweis anlegen und Räume „aus Raumbuch“ übernehmen oder eigene Positionen erfassen.",
             "Je Position Raumart, Wohnung, Aufmaßform und Flächen erfassen. Bei Dachschrägen die getrennten Höhenzonen verwenden; Außenflächen und Wintergärten passend klassifizieren.",
             "Bauteil-/Treppenabzüge, belegte Sonderfaktoren und Vollständigkeit der Wohnungszuordnung prüfen.",
@@ -839,7 +844,7 @@
         {
           "titel": "Nach einer Planänderung",
           "text": [
-            "Zuerst das PDF-Aufmaß und dann das Raumbuch aktualisieren. Die erneute Übernahme in Wohnfläche/DIN 277 gleicht über die Raumidentität ab; eigene Klassifikationen bleiben im vorgesehenen Umfang erhalten. Die Meldung zu neuen, aktualisierten oder entfallenen Räumen prüfen.",
+            "Zuerst das Aufmaß und dann das Raumbuch aktualisieren. Die erneute Übernahme in Wohnfläche/DIN 277 gleicht über die Raumidentität ab; eigene Klassifikationen bleiben im vorgesehenen Umfang erhalten. Die Meldung zu neuen, aktualisierten oder entfallenen Räumen prüfen.",
             "Eine Raumfläche ist noch keine anrechenbare Wohnfläche. Eine Wohnungsanzahl wird nur mit entsprechend bestätigter vollständiger Zuordnung ausgegeben. Fachberechnungsergebnisse wie Wohnflächen werden derzeit nicht automatisch in jedes PDF-Formular übertragen; die konkreten Formularfelder prüfen."
           ]
         },
@@ -927,41 +932,10 @@
       "stichworte": []
     },
     {
-      "id": "plaene",
-      "titel": "Pläne ansehen und zuordnen",
-      "gruppe": "Pläne und Unterlagen",
-      "kurztext": "Originalunterlagen verwalten und ihren Zweck im Projekt festlegen.",
-      "bereiche": [
-        "plaene"
-      ],
-      "abschnitte": [
-        {
-          "titel": "Planunterlagen",
-          "schritte": [
-            "Die Planquelle als Projektdatei importieren und sinnvoll kategorisieren, etwa Lageplan oder Bauzeichnungen.",
-            "Die gewünschte Dokumentversion wählen. Im Planbereich unterstützte Darstellungen öffnen und den Planbezug prüfen.",
-            "DWG- oder andere Fachdateien über eine externe Arbeitskopie mit der passenden Anwendung öffnen. Eine Dateizuordnung im Betriebssystem muss vorhanden sein.",
-            "Für Maße aus PDF-Plänen „PDF-Aufmaß“ verwenden; ein Planimport allein überträgt keine Messwerte in Berechnungen."
-          ]
-        },
-        {
-          "text": [
-            "Quelle, Blatt, Stand und Maßstab müssen zusammenpassen. Eine neue Planversion ist als neue Dokumentversion zu übernehmen, damit alte Einreichungs- und Genehmigungsstände erhalten bleiben. Für den Behördenexport aus einer Fachdatei eine von der Behörde akzeptierte, druckfähige Ausgabe zusätzlich ablegen."
-          ]
-        }
-      ],
-      "siehe": [
-        "aufmass",
-        "dateien",
-        "druck"
-      ],
-      "stichworte": []
-    },
-    {
       "id": "aufmass",
-      "titel": "PDF-Aufmaß erstellen und übernehmen",
+      "titel": "Aufmaß auf PDF und DXF erstellen und übernehmen",
       "gruppe": "Pläne und Unterlagen",
-      "kurztext": "Messwerte mit dokumentierter PDF-Version und passender Bedeutung verknüpfen.",
+      "kurztext": "Messwerte auf PDF-Blättern und DXF-Zeichnungen mit dokumentierter Dokumentversion und passender Bedeutung verknüpfen.",
       "bereiche": [
         "planaufmass"
       ],
@@ -969,11 +943,12 @@
         {
           "titel": "Zeichnen und zuordnen",
           "schritte": [
-            "PDF unter „Projektdateien“ importieren. „Unterlagen → PDF-Aufmaß → Neu anlegen“ öffnen, Unterlage, Dokumentversion, Seite und Bezeichnung festlegen.",
-            "Blattmaßstab 1:n setzen oder eine bekannte Strecke über zwei Punkte kalibrieren. Mit einer zweiten bekannten Länge plausibilisieren.",
+            "PDF oder DXF unter „Projektdateien“ importieren und dort „Im Aufmaß öffnen“ wählen, oder unter „Unterlagen → Aufmaß → Neu anlegen“ Unterlage, Dokumentversion, Seite (nur PDF) und Bezeichnung festlegen. DWG-Dateien vorher im CAD-Programm als DXF exportieren. Beide Formate verwenden dieselbe Zeichenfläche, dieselben Bedeutungen und Übernahmen.",
+            "PDF: Blattmaßstab 1:n setzen oder eine bekannte Strecke über zwei Punkte kalibrieren. DXF: Die Zeichnungseinheit kommt aus dem DXF-Kopf und lässt sich korrigieren; DXF-Ebenen können ein- und ausgeblendet werden (auch für den Punktfang). In beiden Fällen mit einer Kontrollstrecke plausibilisieren.",
             "Bei Sammelblättern für Grundriss, Schnitt oder Ansicht jeweils einen Ausschnitt mit eigenem Maßstab anlegen. Für Höhen eine Bezugslinie und das Höhensystem festlegen.",
-            "Unter „Aufgaben“ das benötigte Ziel auswählen und „Zeichnen“ verwenden oder manuell Polygon, Rechteck, Kreis, Strecke bzw. Höhenpunkt erstellen. Bedeutung, Gebäude und Geschoss zuordnen.",
-            "Aufmaß speichern. Über „Aufgaben → Übernehmen“ oder an der jeweiligen Zielmaske „Aus PDF-Aufmaß“ den Messwert verknüpfen und den Verbraucher speichern.",
+            "Unter „Aufgaben“ das benötigte Ziel auswählen und „Zeichnen“ verwenden oder manuell Polygon, Rechteck, Kreis, Strecke bzw. Höhenpunkt erstellen. Bedeutung, Gebäude und Geschoss zuordnen; bei Flurstücksgrenzen aus Flurkarte oder Lageplan die Bedeutung „Flurstück“ und das Flurstück aus den Grundstücksinformationen; bei Abzugsflächen die Abzugsbedeutung und das Flurstück, bei Zufahrt, Stellplatz, Garage, Nebenanlage, Terrasse oder unterirdischer Anlage das Baugrundstück.",
+            "Für die Lage im Baufenster (§ 23 BauNVO) im Lageplan je genau eine Markierung „Baufenster“ und „Vorhabenumriss“ zeichnen (bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen) und unter „Lage im Baufenster“ dem Projekt zuordnen. Der GRZ-Nachweis bewertet die Lage; eine neue Dokumentversion erfordert die erneute Zuordnung.",
+            "Aufmaß speichern. Über „Aufgaben → Übernehmen“ oder an der jeweiligen Zielmaske „Aus Aufmaß“ den Messwert verknüpfen und den Verbraucher speichern. Flurstücke werden dabei mit den Grundstücksinformationen gespeichert; die Katasterfläche bleibt Rechenwert, die gezeichnete Fläche zeigt die Abweichung.",
             "Bei Fachberechnungen die vorhandene Position unter „Quellen / Übernahmen“ mit der passenden Markierung verknüpfen. Die reine Beschriftung einer Markierung erzeugt noch keine Berechnung."
           ]
         },
@@ -1017,6 +992,13 @@
           "text": [
             "Nach Änderung der gebundenen Kontur, des Maßstabs, Höhenbezugs oder der PDF-Version den Verbraucher öffnen, „Aktuellen Aufmaßstand übernehmen“ und erneut speichern/prüfen. Änderungen an Ebenensichtbarkeit oder unbeteiligten Markierungen erfordern keine ungeprüfte Neuberechnung anderer Werte.",
             "Eine leere Markierungsauswahl nennt meist eine fehlende Bedeutung, falsche Geometrie, Zuordnung oder ein unpassendes Höhensystem. Erst die Quelle korrigieren. Prüfen Sie besonders Gebäude-/Geschosszuordnung und den Unterschied zwischen absoluten Höhen und Höhendifferenzen."
+          ]
+        },
+        {
+          "titel": "Übernahme aus der früheren DXF-Ansicht",
+          "text": [
+            "Messungen der früheren Ansicht „Pläne / Aufmaß“ werden beim ersten Öffnen des Aufmaßes mit Schreibrecht als Aufmaß „… · CAD-Aufmaß (übernommen)“ auf derselben DXF-Dokumentversion angelegt; die Markierungen tragen die Bedeutung „Noch nicht zugeordnet“ und sind dort zu ergänzen. Nicht lesbare Unterlagen werden mit Grund gemeldet, nicht still übersprungen.",
+            "Eine früher gespeicherte Baugrenzenzuordnung bleibt gültig, bis sie aus dem Aufmaß neu zugeordnet wird."
           ]
         }
       ],
@@ -1085,7 +1067,8 @@
             "„Unterlagen → Projektdateien“ öffnen und die Importaktion verwenden. Datei prüfen und eine passende Kategorie auswählen.",
             "Mit Dateisuche, Kategorie und Sortierung die Unterlagen ordnen. Über „Dokumentangaben“ die vorgesehenen Metadaten ergänzen. Kategorien können auch gesammelt zugeordnet werden.",
             "Zum Austausch eines bestehenden Inhalts „Neue Version“ bzw. den Versionsimport am bestehenden Dokument verwenden. Eine gleich benannte, neu importierte Datei ist sonst ein anderes Dokument.",
-            "Über „Versionen“ bzw. die Historie alte Stände ansehen; für eine Ausgabe ausdrücklich die gewünschte Version wählen."
+            "Über „Versionen“ bzw. die Historie alte Stände ansehen; für eine Ausgabe ausdrücklich die gewünschte Version wählen.",
+            "„Im Aufmaß öffnen“ öffnet eine PDF oder DXF direkt im Aufmaß: ein bestehendes Aufmaß dieser Unterlage oder ein neuer Entwurf mit der neuesten Dokumentversion."
           ]
         },
         {
@@ -1113,7 +1096,8 @@
         "email",
         "formulare",
         "ablage",
-        "abgabe"
+        "abgabe",
+        "aufmass"
       ],
       "stichworte": [
         "DMS",
@@ -1203,8 +1187,8 @@
           "titel": "Projektbezogener Ablauf",
           "schritte": [
             "Im geöffneten Projekt „Unterlagen → Formulare“ wählen. Nach Vorlage oder Kategorie suchen und „Ausfüllen“ öffnen.",
-            "Bei mehreren Grundstücken, Bauherren oder Verfahren den passenden Kontext auswählen. Angebotene Projektwerte prüfen und nur passende Werte übernehmen.",
-            "Felder ergänzen; mehrzeilige Texte wie Anschriften im dafür vorgesehenen Textfeld eingeben. Die PDF-Vorschau kontrollieren und gegebenenfalls die Seite wechseln.",
+            "Bei mehreren Grundstücken, Bauherren, Verfahren oder bauvorlageberechtigten Personen den passenden Kontext auswählen. Angebotene Projektwerte prüfen und nur passende Werte übernehmen.",
+            "Felder ergänzen; mehrzeilige Texte wie Anschriften im dafür vorgesehenen Textfeld eingeben. Unter „Quelle“ lässt sich je Textfeld ein anderer Projektwert wählen, etwa Name und Anschrift der Bauherrschaft gesammelt in einem zweizeiligen Feld oder „Familienname, Vorname“ statt des Anzeigenamens; die Wahl wird mit der Formularversion gespeichert. Die PDF-Vorschau kontrollieren und gegebenenfalls die Seite wechseln.",
             "Nach Änderungen anderer Projektbereiche „Projektdaten neu laden“ bzw. die angebotene Aktualisierung verwenden. Bereits getippte Werte nicht unbesehen durch alle Vorschläge ersetzen.",
             "„Im Projekt speichern“ wählen. Die ausgefüllte PDF wird als Projektunterlage geführt und im eingestellten Projektordner ausgegeben. Ein separater Export ist dafür nicht der normale Speicherschritt.",
             "Für eine Korrektur das vorhandene Projektdokument über „Formular bearbeiten“ öffnen und erneut im Projekt speichern; damit bleibt der Dokumentbezug erhalten."
