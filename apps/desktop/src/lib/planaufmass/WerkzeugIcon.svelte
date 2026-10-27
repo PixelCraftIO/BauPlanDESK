@@ -1,0 +1,46 @@
+<script lang="ts">
+  /** Symbole der Zeichenwerkzeuge und Editorleisten, 16×16, Strich in currentColor. */
+  let { art }: { art: string } = $props();
+  const pfade: Record<string, string> = {
+    auswahl: '<path d="M3 2l9 6-4 1 2 5-2 1-2-5-3 3z"/>',
+    verschieben: '<path d="M8 2v12M2 8h12M8 2l-2 2M8 2l2 2M8 14l-2-2M8 14l2-2M2 8l2-2M2 8l2 2M14 8l-2-2M14 8l-2 2"/>',
+    polygon: '<path d="M2 12L5 3l8 2 1 8z"/>',
+    rechteck: '<rect x="2.5" y="4" width="11" height="8"/>',
+    kreis: '<circle cx="8" cy="8" r="5.5"/>',
+    strecke: '<path d="M2 13L14 3"/><circle cx="2" cy="13" r="1.2"/><circle cx="14" cy="3" r="1.2"/>',
+    hoehenpunkt: '<path d="M8 2v9M5 8l3 3 3-3M3 14h10"/>',
+    bezug: '<path d="M8 3v7"/><circle cx="8" cy="12" r="2"/><path d="M2 12h4M10 12h4"/>',
+    bezugslinie: '<path d="M1 10h14" stroke-dasharray="2 1.5"/><path d="M8 3v7"/>',
+    duplizieren: '<rect x="2" y="2" width="8" height="8"/><rect x="6" y="6" width="8" height="8"/>',
+    entfernen: '<path d="M3 4h10M6 4V2h4v2M4 4l1 10h6l1-10M7 7v5M9 7v5"/>',
+    ausschnitt: '<rect x="2" y="2" width="12" height="12" stroke-dasharray="2 1.5"/><path d="M5 10l3-4 3 4"/>',
+    kalibrieren: '<path d="M2 12h12M2 10v4M14 10v4M5 12v-1.5M8 12v-2.5M11 12v-1.5"/>',
+    kontrolle: '<path d="M2 8h12M2 6v4M14 6v4"/><path d="M6 4l2-2 2 2"/>',
+    zoomfenster: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>',
+    minus: '<path d="M3 8h10"/>',
+    plus: '<path d="M8 3v10M3 8h10"/>',
+    einpassen: '<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>',
+    auswahlzoom: '<rect x="3" y="3" width="10" height="10" stroke-dasharray="2 1.5"/><circle cx="8" cy="8" r="2"/>',
+    links: '<path d="M3 8a5 5 0 1 1 1.5 3.5"/><path d="M3 12V8h4"/>',
+    rechts: '<path d="M13 8a5 5 0 1 0-1.5 3.5"/><path d="M13 12V8H9"/>',
+    seiten: '<rect x="2" y="2" width="5" height="6"/><rect x="9" y="2" width="5" height="6"/><rect x="2" y="10" width="5" height="4"/><rect x="9" y="10" width="5" height="4"/>',
+    fang: '<circle cx="8" cy="8" r="2"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3"/>',
+    speichern: '<path d="M3 2h8l2 2v10H3z"/><path d="M5 2v4h6V2M5 14v-4h6v4"/>',
+    undo: '<path d="M5 4L2 7l3 3"/><path d="M2 7h7a4 4 0 0 1 0 8H7"/>',
+    redo: '<path d="M11 4l3 3-3 3"/><path d="M14 7H7a4 4 0 0 0 0 8h2"/>',
+    pdf: '<path d="M4 1h6l3 3v11H4z"/><path d="M10 1v3h3M6 9h5M6 12h3"/>',
+    csv: '<rect x="2" y="3" width="12" height="10"/><path d="M2 7h12M2 10h12M6 3v10"/>',
+    pruefen: '<path d="M4 8l3 3 6-6"/><rect x="1.5" y="1.5" width="13" height="13"/>',
+    vergleich: '<rect x="1.5" y="3" width="5.5" height="10"/><rect x="9" y="3" width="5.5" height="10"/><path d="M7 8h2"/>',
+    masse: '<path d="M2 11h12M2 8v6M14 8v6"/><path d="M4 11l1.5-1M4 11l1.5 1M12 11l-1.5-1M12 11l-1.5 1"/>',
+    vollbild: '<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/><rect x="5" y="5" width="6" height="6"/>',
+    hilfe: '<circle cx="8" cy="8" r="6.5"/><path d="M6 6.5a2 2 0 1 1 2.8 1.8c-.6.3-.8.7-.8 1.2M8 11.5v.1"/>',
+    ebenen: '<path d="M8 2l6 3-6 3-6-3z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/>',
+    liste: '<path d="M3 4h10M3 8h10M3 12h10"/>',
+    aufgaben: '<path d="M3 4h2l1 1 2-2M7 4h6M3 8.5h2l1 1 2-2M7 8.5h6M3 13h2l1 1 2-2M7 13h6"/>',
+    abschliessen: '<path d="M3 8l3 3 7-7"/>',
+    abbrechen: '<path d="M4 4l8 8M12 4l-8 8"/>',
+  };
+</script>
+
+<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">{@html pfade[art] ?? ""}</svg>

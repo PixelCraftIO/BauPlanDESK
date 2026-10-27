@@ -32,6 +32,18 @@ Enthalten sind:
   Lageplan, Schnitt, Ansicht, Detail) mit eigenem Maßstab und, bei Schnitten,
   Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
   Ausschnittmodus, Rahmen ziehen und bearbeiten, Abdunkeln des Restblattes.
+- Arbeitsplatz im CAD-Schnitt (seit 2026-10-27, siehe `docs/ui-stil.md`):
+  schmale Speicherleiste oben (Status, Speichern, Schließen, Rückgängig,
+  Wiederholen, PDF, CSV, Maße, Vollbild, Kurzbefehle als Symbolknöpfe mit
+  Tooltip), senkrechte Werkzeugleiste links in Gruppen (Auswahl/Verschieben;
+  Polygon/Rechteck/Kreis/Strecke; Höhenpunkt/Bezugslinie; Ausschnitt,
+  Kalibrieren, Kontrollstrecke; Duplizieren, Entfernen), Zeichenfläche mit
+  Pfadzeile (Unterlage › Blatt › Ausschnitt) und Ansichtsleiste (Zoom, Drehen,
+  Seiten, Punktfang), rechts Paletten „Eigenschaften“, „Aufgaben“, „Objekte“,
+  „Blatt und Einrichtung“, „Prüfen und Ausgabe“ als auf-/zuklappbare
+  Abschnitte; die Panelwahl oben öffnet eine der ersten drei exklusiv. Nicht
+  wählbare Werkzeuge nennen im Tooltip den Grund. Im Vollbild trägt der Editor
+  eine eigene Kopfleiste mit „Aufmaß speichern“.
 - Arbeitsfläche über die volle Fensterhöhe, Vollbild (F11), Zoom um den
   Mauszeiger (Strg+Rad, Pinch), Zoomfenster (Z), Verschieben mit Leertaste
   oder mittlerer Maustaste, Ansichtsdrehung in 90°-Schritten, Seitenminiaturen,

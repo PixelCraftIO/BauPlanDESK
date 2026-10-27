@@ -1,5 +1,7 @@
 <script lang="ts">
   import { bereichAktiv } from "../ansichtsAbfrage.svelte";
+  import Symbolknopf from "../Symbolknopf.svelte";
+  import WerkzeugIcon from "./WerkzeugIcon.svelte";
   const sichtbar = bereichAktiv();
   import { tick, untrack, onDestroy } from "svelte";
   import type { PDFDocumentProxy, PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from "pdfjs-dist";
@@ -502,20 +504,22 @@
 </script>
 
 <div class="pdf-plan">
-  <div class="plan-kopf">
-    <button type="button" class="sekundaer" disabled={!bereit} onclick={()=>zoomMitte(1/1.25)} aria-label="Verkleinern">−</button>
+  <div class="plan-kopf" role="toolbar" aria-label="Ansicht">
+    <Symbolknopf titel="Verkleinern" disabled={!bereit} onclick={()=>zoomMitte(1/1.25)}><WerkzeugIcon art="minus"/></Symbolknopf>
     <span class="zoom">{Math.round(zoom*100)} %</span>
-    <button type="button" class="sekundaer" disabled={!bereit} onclick={()=>zoomMitte(1.25)} aria-label="Vergrößern">+</button>
-    <button type="button" class="sekundaer" disabled={!bereit} onclick={einpassen}>Einpassen</button>
-    {#if !plan}<button type="button" class="sekundaer" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>{/if}
-    <button type="button" class="sekundaer" disabled={!bereit||!gewaehlt} onclick={aufAuswahl}>Auf Auswahl</button>
-    <button type="button" class="sekundaer" class:aktiv={zoomfenster} aria-pressed={zoomfenster} disabled={!bereit} title="Taste Z · Bereich aufziehen" onclick={zoomfensterStarten}>Zoomfenster</button>
-    <button type="button" class="sekundaer" disabled={!bereit} aria-label="Nach links drehen" title="Ansicht 90° nach links" onclick={()=>drehen(-90)}>↶</button>
-    <button type="button" class="sekundaer" disabled={!bereit} aria-label="Nach rechts drehen" title="Ansicht 90° nach rechts" onclick={()=>drehen(90)}>↷</button>
-    {#if seitenzahl>1}<button type="button" class="sekundaer" aria-pressed={miniaturen} onclick={()=>miniaturen=!miniaturen}>Seiten ({seitenzahl})</button>{/if}
-    <label><input type="checkbox" bind:checked={fang}/> Punktfang</label>
-    <button type="button" class="sekundaer" aria-expanded={fangOffen} onclick={()=>fangOffen=!fangOffen}>Fangoptionen</button>
-    {#if punkte.length}<button type="button" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer" onclick={()=>punkte=[]}>Abbrechen</button>{/if}
+    <Symbolknopf titel="Vergrößern" disabled={!bereit} onclick={()=>zoomMitte(1.25)}><WerkzeugIcon art="plus"/></Symbolknopf>
+    <Symbolknopf titel="Einpassen" disabled={!bereit} onclick={einpassen}><WerkzeugIcon art="einpassen"/></Symbolknopf>
+    {#if !plan}<button type="button" class="sekundaer text" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>{/if}
+    <Symbolknopf titel="Auf Auswahl" disabled={!bereit||!gewaehlt} onclick={aufAuswahl}><WerkzeugIcon art="auswahlzoom"/></Symbolknopf>
+    <Symbolknopf titel="Zoomfenster" kuerzel="Z" aktiv={zoomfenster} disabled={!bereit} onclick={zoomfensterStarten}><WerkzeugIcon art="zoomfenster"/></Symbolknopf>
+    <span class="trenner" aria-hidden="true"></span>
+    <Symbolknopf titel="Nach links drehen" disabled={!bereit} onclick={()=>drehen(-90)}><WerkzeugIcon art="links"/></Symbolknopf>
+    <Symbolknopf titel="Nach rechts drehen" disabled={!bereit} onclick={()=>drehen(90)}><WerkzeugIcon art="rechts"/></Symbolknopf>
+    {#if seitenzahl>1}<Symbolknopf titel={`Seiten (${seitenzahl})`} aktiv={miniaturen} onclick={()=>miniaturen=!miniaturen}><WerkzeugIcon art="seiten"/></Symbolknopf>{/if}
+    <span class="trenner" aria-hidden="true"></span>
+    <label class="fangschalter" class:aktiv={fang} title="Punktfang"><input type="checkbox" bind:checked={fang}/><WerkzeugIcon art="fang"/><span>Punktfang</span></label>
+    <button type="button" class="sekundaer text" aria-expanded={fangOffen} onclick={()=>fangOffen=!fangOffen}>Fangoptionen</button>
+    {#if punkte.length}<span class="trenner" aria-hidden="true"></span><button type="button" class="text" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer text" onclick={()=>punkte=[]}>Abbrechen</button>{/if}
   </div>
   {#if fangOffen}<div class="fangoptionen" aria-label="Fangoptionen">
     {#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"],["eigene","Eigene Konturen"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}
@@ -613,10 +617,16 @@
 
 <style>
   .pdf-plan{display:flex;flex-direction:column;height:100%;min-height:0}
-  .plan-kopf{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.4rem .5rem}
-  .plan-kopf .zoom{min-width:3.5rem;text-align:center;font-variant-numeric:tabular-nums}
-  .plan-kopf label{display:flex;gap:.4rem;align-items:center;margin-left:auto}
-  .fangoptionen{display:flex;flex-wrap:wrap;gap:.7rem;padding:.5rem;background:var(--bg-alt,#eef4f7)}
+  .plan-kopf{display:flex;flex-wrap:wrap;gap:2px;align-items:center;padding:2px 6px;background:var(--leiste);border-bottom:1px solid var(--border-innen)}
+  .plan-kopf .zoom{min-width:3.2rem;text-align:center;font-size:.85rem;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .plan-kopf .text{min-height:26px;padding:0 8px;font-size:.85rem}
+  .plan-kopf .trenner{width:1px;height:18px;background:var(--border);margin:0 4px}
+  .plan-kopf :global(svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .fangschalter{display:inline-flex;gap:5px;align-items:center;min-height:26px;padding:0 7px;border:1px solid transparent;font-size:.85rem;color:var(--muted);cursor:pointer}
+  .fangschalter.aktiv{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+  .fangschalter input{margin:0;width:14px;height:14px}
+  .fangschalter :global(svg){display:none}
+  .fangoptionen{display:flex;flex-wrap:wrap;gap:.7rem;padding:4px 8px;font-size:.85rem;background:var(--kopfzeile);border-bottom:1px solid var(--border-innen)}
   .fangoptionen label{display:flex;gap:.3rem;align-items:center}
   .vergleich{pointer-events:none;mix-blend-mode:multiply;transform-origin:0 0}
   .plan-koerper{display:flex;flex:1;min-height:0}
@@ -625,7 +635,7 @@
   .seitenleiste button.aktiv{border-color:#126d97}
   .seitenleiste img{max-width:100%;height:auto;display:block}
   .seitenleiste .platzhalter{height:60px;display:grid;place-items:center;color:#777}
-  .plan-scroll{flex:1;min-height:320px;overflow:auto;background:#dce3e8;padding:8px;overscroll-behavior:contain}
+  .plan-scroll{flex:1;min-height:0;overflow:auto;background:var(--fenster,#dce3e8);padding:8px;overscroll-behavior:contain}
   .plan-scroll.greifen{cursor:grab}
   .papier{position:relative;background:white;box-shadow:0 2px 8px #16324730}
   .blatt{position:absolute;left:0;top:0;transform-origin:0 0}
@@ -664,5 +674,5 @@
   svg .gewaehlt :is(path,polygon,rect,circle,line){stroke:#ad530a;stroke-width:2.5}
   .masseingabe{position:absolute;z-index:2;margin:0}
   .masseingabe input{width:11rem;font-size:.85rem;padding:.2rem .4rem;border:1px solid #ad530a;border-radius:3px;background:white}
-  .status{padding:.4rem .5rem;margin:0;min-height:2em}
+  .status{padding:3px 8px;margin:0;font-size:.8rem;min-height:1.6em;border-top:1px solid var(--border-innen);background:var(--leiste);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
