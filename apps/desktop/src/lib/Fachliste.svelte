@@ -43,7 +43,7 @@
     neu?: () => void;
   } = $props();
   const aktiv = bereichAktiv();
-  const editor = $derived(kompakt && !!s.eingabe);
+  const editor = $derived(kompakt && (!!s.eingabe || s.gerettet));
   $effect(() => { if (!aktiv()) untrack(() => void s.entwurfFlush()); });
   const formularId = $props.id();
   let formular = $state<HTMLFormElement>();
@@ -213,7 +213,7 @@
   >
 </div>
 {#if s.eingabe && s.liste.length && !editor}<button type="button" class="link" aria-expanded={listeOffen} onclick={()=>listeOffen=!listeOffen}>{listeOffen ? "Eintragsliste einklappen" : `Eintragsliste anzeigen (${s.liste.length})`}</button>{/if}
-{#if !s.eingabe || (listeOffen && !editor)}
+{#if !editor && (!s.eingabe || listeOffen)}
   <table class="ergebnistabelle">
     <thead
       ><tr
@@ -243,7 +243,7 @@
     >
   </table>
   {#if s.mehrVorhanden}<button class="sekundaer" disabled={gesperrt} onclick={() => s.laden(true)}>Weitere Einträge laden</button>{/if}
-{:else if !s.liste.length}<button type="button" class="link" onclick={() => (listeOffen = true)}
+{:else if !s.liste.length && !editor}<button type="button" class="link" onclick={() => (listeOffen = true)}
     >Eintragsliste anzeigen</button
   >{/if}
 {#if s.eingabe}<form

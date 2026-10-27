@@ -32,6 +32,17 @@ Enthalten sind:
   Lageplan, Schnitt, Ansicht, Detail) mit eigenem Maßstab und, bei Schnitten,
   Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
   Ausschnittmodus, Rahmen ziehen und bearbeiten, Abdunkeln des Restblattes.
+- Eigenes Editorfenster (`EditorFenster.svelte`, Command
+  `editor_fenster_oeffnen`): Der Knopf rechts in der Tab-Leiste öffnet das
+  Aufmaß des Projekts in einem zweiten Fenster (`editor-<Projekt>`, URL
+  `?fenster=editor&projekt=<id>`), etwa für den zweiten Monitor neben der
+  Projektverwaltung. Anmeldung, Ablage und Lizenz sind geteilt; Datenänderungen
+  wandern über die Fensterbrücke in `projektEreignisse.ts` (Tauri-Ereignis
+  `projekt-ereignis`) in beide Richtungen, sodass Listen und Aufgaben im
+  anderen Fenster nachladen. Offene Tabs sind je Benutzer und Projekt gemerkt
+  und daher in beiden Fenstern dieselben. Schließen des Fensters fragt bei
+  ungespeicherten Änderungen nach und speichert auf Wunsch. Das Menü bleibt
+  beim Hauptfenster.
 - Zeichnungs-Tabs (`Aufmasstabs.svelte`): Der Bereich Aufmaß zeigt oben einen
   Tab „Aufmaßliste“ und je geöffnetem Aufmaß einen eigenen Tab mit eigenem
   Editor; „Öffnen“ in der Liste und „Neu anlegen“ legen Tabs an, ein offener

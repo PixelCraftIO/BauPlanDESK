@@ -40,6 +40,7 @@
     aufgaben: '<path d="M3 4h2l1 1 2-2M7 4h6M3 8.5h2l1 1 2-2M7 8.5h6M3 13h2l1 1 2-2M7 13h6"/>',
     abschliessen: '<path d="M3 8l3 3 7-7"/>',
     abbrechen: '<path d="M4 4l8 8M12 4l-8 8"/>',
+    fenster: '<rect x="1.5" y="3" width="9" height="8"/><path d="M6 3V1.5h8.5V9.5H10.5"/>',
   };
 </script>
 

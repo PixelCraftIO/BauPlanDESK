@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Rechte des Hauptfensters. Alle Fachfunktionen laufen über eigene Commands.",
-  "windows": ["main"],
+  "description": "Rechte des Hauptfensters und der Editorfenster (editor-<Projekt>). Alle Fachfunktionen laufen über eigene Commands.",
+  "windows": ["main", "editor-*"],
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
