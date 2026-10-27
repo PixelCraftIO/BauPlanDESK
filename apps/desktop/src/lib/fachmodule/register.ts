@@ -17,6 +17,12 @@ export const FACHMODULE = [
     laden: () => import("../planaufmass/Aufmasstabs.svelte"),
   },
   {
+    id: "messwerte",
+    titel: "Messwerte",
+    gruppe: "Unterlagen",
+    laden: () => import("../planaufmass/Messwerte.svelte"),
+  },
+  {
     id: "ueberbaubarkeit",
     titel: "Überbaubare Grundstücksfläche",
     gruppe: "Berechnungen",

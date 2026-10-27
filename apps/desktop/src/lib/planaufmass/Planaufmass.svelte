@@ -19,10 +19,14 @@
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
   import type { Tabstart } from "./tabs";
+  import { BEDEUTUNGEN } from "./bedeutungen";
+  import { verwendungenLaden, type Verwendung } from "./verwendung";
+  import { projektNavigation } from "../projektNavigation.svelte";
+  import { tick } from "svelte";
   let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
     /** voll: Liste und Editor in einem; liste: nur die Liste, Öffnen/Neu gehen an den Aufrufer; tab: nur der Editor für `start`. */
     modus?:"voll"|"liste"|"tab";start?:Tabstart|null;entwurfObjekt?:string;sichtbar?:boolean;
-    onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(dokument?:Tabstart["dokument"])=>void;onstatus?:(st:{titel:string;geaendert:boolean})=>void;onschliessen?:()=>void}=$props();
+    onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(dokument?:Tabstart["dokument"])=>void;onstatus?:(st:{titel:string;geaendert:boolean;id?:string|null})=>void;onschliessen?:()=>void}=$props();
   // Flurstücke des Projekts für die Zuordnung von Flurstücksmarkierungen; Stand der Akte.
   const flurstuecke=$derived(grundstuecksinformationen(projekt.planungsrecht).flurstuecke);
   let dateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
@@ -34,15 +38,7 @@
     bezeichnung:"Neues Aufmaß",dokument:{dokument_id:dateien[0]?.document_id??"00000000-0000-0000-0000-000000000000",version:dateien[0]?.version??1},
     seite:1,kalibrierung:null,hoehenbezug:null,ebenen:[{id:crypto.randomUUID(),bezeichnung:"Aufmaß",sichtbar:true,gesperrt:false}],markierungen:[],
   }),p=>p.bezeichnung,entwurfObjekt));
-  const bedeutungen: [Planbedeutung,string][]=[
-    ["unbestimmt","Noch nicht zugeordnet"],["flurstueck","Flurstück (Flurkarte / Lageplan)"],["baufenster","Baufenster (Baugrenze / Baulinie)"],["vorhabenumriss","Vorhabenumriss (Gebäude im Lageplan)"],["private_gruenflaeche","Private Grünfläche"],
-    ["oeffentliche_gruenflaeche","Öffentliche Grünfläche"],["verkehrsflaeche","Verkehrsfläche"],["ausserhalb_bauland","Fläche außerhalb des Baulands"],["sonstiger_abzug","Sonstige nicht maßgebende Fläche"],
-    ["zufahrt","Zufahrt"],["stellplatz","Stellplatz"],["garage","Garage / Carport"],["nebenanlage","Nebenanlage (§ 14 BauNVO)"],["terrasse","Terrasse"],["unterirdisch","Unterirdische Anlage"],
-    ["versiegelung","Versiegelte Fläche"],["geschoss_aussenkante","Geschoss – Außenkante"],["gebaeudegrundflaeche","Gebäudegrundfläche – horizontale Projektion"],["raum","Raum"],["aufenthaltsraum","Aufenthaltsraum"],
-    ["nuf","DIN 277 – Nutzungsfläche (NUF)"],["tf","DIN 277 – Technikfläche (TF)"],["vf","DIN 277 – Verkehrsfläche (VF)"],
-    ["kgf","DIN 277 – Konstruktionsfläche (KGF)"],["aussenwand","Außenwand"],["gelaende","Gelände"],["traufe","Traufe"],["first","First"],["dach","Dach"],
-    ["nullpunkt","Gebäudenullpunkt ±0,00"],["fussboden","OK Fertigfußboden"],["decke","OK Decke"],["fundamentsohle","Fundamentsohle"],["hoehenmass","Höhenmaß (senkrechte Strecke)"],
-  ];
+  const bedeutungen=BEDEUTUNGEN;
   const arten: [Ausschnittart,string][]=[["grundriss","Grundriss"],["lageplan","Lageplan"],["schnitt","Schnitt"],["ansicht","Ansicht"],["detail","Detail"]];
   const mitHoehen=(a:Ausschnittart)=>a==="schnitt"||a==="ansicht"||a==="detail";
   // Werkzeug, Beschriftung, Tastaturkürzel.
@@ -96,6 +92,19 @@
   const hoehenMoeglich=$derived(!aktueller||mitHoehen(aktueller.art));
   const nullpunkte=$derived(gebaeude.flatMap(g=>g.daten.geometrie?.nullpunkt_m_nhn!=null?[{name:g.daten.bezeichnung,wert:g.daten.geometrie.nullpunkt_m_nhn}]:[]));
   let listenGeneration=0;
+  // Verwendung der Markierungen in Berechnungen und Fachobjekten (Nachverfolgung in den Eigenschaften).
+  let verwendungen=$state<Map<string,Verwendung[]>>(new Map());
+  const navigation=projektNavigation();
+  // „Im Editor zeigen“: Sprungauftrag auf eine Markierung dieses Aufmaßes ausführen, sobald es geladen ist.
+  let fokusNummer=0;
+  $effect(()=>{
+    const a=navigation?.auftrag,id=s.id,geladen=!!s.eingabe;
+    if(!a||a.nummer===fokusNummer||!geladen||a.ziel.bereich!=="planaufmass"||a.ziel.objekt!==id||a.ziel.register!=="markierung"||!a.ziel.eintrag)return;
+    fokusNummer=a.nummer;
+    const m=s.eingabe!.markierungen.find(m=>m.id===a.ziel.eintrag);
+    if(!m){s.meldung="Die gesuchte Markierung ist in diesem Aufmaß nicht mehr vorhanden.";return}
+    untrack(()=>{if(m.ausschnitt_id&&aktiv!==m.ausschnitt_id)oeffnen(m.ausschnitt_id);waehlen(m.id);panelOeffnen("eigenschaften");void tick().then(()=>plan?.aufAuswahl())});
+  });
   // Je Projekt einmal: CAD-Aufmaße der früheren DXF-Ansicht als Aufmaße übernehmen (nur mit Schreibrecht).
   const migriert=new Set<string>();
   async function listen(){
@@ -108,8 +117,9 @@
         if(r.uebersprungen.length)extra.push(`CAD-Aufmaße nicht übernommen: ${r.uebersprungen.join(" · ")}`);
       }catch(e){if(n!==listenGeneration)return;extra.push(fehlertext(e))}
     }
-    const [d,g,b]=await Promise.allSettled([api.dokumente(s.projektId),api.grundstueckskontext(s.projektId),plattformApi.liste<Gebaeude>(s.projektId,"gebaeude")]);
+    const [d,g,b,v]=await Promise.allSettled([api.dokumente(s.projektId),api.grundstueckskontext(s.projektId),plattformApi.liste<Gebaeude>(s.projektId,"gebaeude"),verwendungenLaden(projekt)]);
     if(n!==listenGeneration)return;
+    if(v.status==="fulfilled")verwendungen=v.value;
     if(d.status==="fulfilled")dateien=d.value.filter(d=>istPlan(d.file_name)).sort((a,b)=>a.file_name.localeCompare(b.file_name,"de")||b.version-a.version);
     grund=g.status==="fulfilled"?g.value:[];
     gebaeude=b.status==="fulfilled"?b.value:[];
@@ -166,7 +176,7 @@
     if(d){s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};offen.blatt=true}
   }
   $effect(()=>{if(modus==="tab"&&gestartet&&!s.eingabe&&!s.gerettet&&!s.laeuft)untrack(()=>onschliessen?.())});
-  $effect(()=>{const titel=s.eingabe?.bezeichnung??"",geaendert=s.hatAenderungen();untrack(()=>onstatus?.({titel,geaendert}))});
+  $effect(()=>{const titel=s.eingabe?.bezeichnung??"",geaendert=s.hatAenderungen(),id=s.original?s.id:null;untrack(()=>onstatus?.({titel,geaendert,id}))});
   /** Tab schließen: offene Änderungen nach Rückfrage verwerfen. */
   export async function tabSchliessen(){
     if(s.hatAenderungen()&&!(await ask("Die ungespeicherten Änderungen verwerfen?",{title:"Aufmaß",kind:"warning",okLabel:"Verwerfen",cancelLabel:"Weiter bearbeiten"})))return false;
@@ -567,6 +577,15 @@
                   <button type="button" class="sekundaer" title="Strg+D · Kopie derselben Kontur, z. B. als Gebäudegrundfläche und Geschoss-Außenkante" onclick={duplizieren}>Duplizieren</button>
                   <button type="button" class="sekundaer" title="Entf" onclick={entfernen}>Markierung entfernen</button>
                 </div>
+                <div class="verwendung" aria-label="Verwendung der Markierung">
+                  <h4>Verwendung</h4>
+                  {#if verwendungen.get(m.id)?.length}
+                    <ul>{#each verwendungen.get(m.id)??[] as v}<li>
+                      <button type="button" class="link" onclick={()=>navigation?.springen(v.ziel)}>{v.verbraucher}</button>
+                      <span class="meta">→ {v.bindung.ziel} · R{v.bindung.revision}{s.revision&&v.bindung.revision!==s.revision?" · Aufmaß seitdem gespeichert":""}</span>
+                    </li>{/each}</ul>
+                  {:else}<p class="meta">Noch in keiner Berechnung verwendet. Übernahme über die Aufgaben oder im Zielbereich.</p>{/if}
+                </div>
                 <details><summary>Kontur drehen, Stützpunkte und Kanten</summary>
                   <label>Kontur drehen (°)<input type="number" step="any" bind:value={drehenGrad}/></label><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(drehen($state.snapshot(m!.geometrie),drehenGrad))}>Drehung anwenden</button>
                   <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {z(p[0])}; {z(p[1])} pt</option>{/each}</select></label>
@@ -764,6 +783,10 @@
   .palette label:not(:has(> input[type=checkbox])):not(:has(> input[type=radio])){display:flex;flex-direction:column;gap:2px;margin:0;font-size:.85rem;color:var(--muted)}
   .palette label input:not([type=checkbox]):not([type=radio]),.palette label select{width:100%;min-height:28px;padding:2px 6px;color:var(--fg)}
   .palette .aktionen{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+  .verwendung{margin-top:.6rem;padding-top:.4rem;border-top:1px solid var(--border-innen)}
+  .verwendung h4{margin:0 0 .2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .verwendung ul{margin:0;padding:0;list-style:none}
+  .verwendung li{margin:.15rem 0}
   .dxf-ebenen{display:flex;flex-wrap:wrap;gap:.3rem .8rem;padding:.3rem 0}
   .dxf-ebenen label{display:flex;gap:.35rem;align-items:center}
   .dxf-ebenen .farbe{width:.8rem;height:.8rem;border:1px solid var(--control-border);display:inline-block}

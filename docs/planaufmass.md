@@ -32,6 +32,20 @@ Enthalten sind:
   Lageplan, Schnitt, Ansicht, Detail) mit eigenem Maßstab und, bei Schnitten,
   Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
   Ausschnittmodus, Rahmen ziehen und bearbeiten, Abdunkeln des Restblattes.
+- Messwerte und Verwendung (`Messwerte.svelte`, Modul `messwerte`, Gliederung
+  „Unterlagen → Messwerte“): alle Markierungen aller gespeicherten Aufmaße mit Fläche, Länge,
+  Höhe, Bedeutung und den Berechnungen, in die sie über `Planbindung`en
+  eingehen (`verwendung.ts` sammelt die Bindungen aus Fachobjekten und dem
+  Projektstand, Flurstücke, Abzüge, Bauteile). Kennzahlen: verwendet, mit
+  älterem Aufmaßstand (Bindung trägt eine ältere Revision), offene Aufgaben
+  (aus `planaufmass_aufgaben`, ohne gebundene Markierung). Filter nach
+  Aufmaß, Status und Text. „Im Editor zeigen“ springt über die
+  Projektnavigation (`bereich planaufmass`, `objekt` = Aufmaß, `register
+  markierung`, `eintrag` = Markierung) in den Tab des Aufmaßes, wählt die
+  Markierung, öffnet die Eigenschaften und zoomt auf sie; der Verbraucher ist
+  aus der Liste und aus den Eigenschaften („Verwendung“) direkt anspringbar.
+  Bildschirmfotos: `docs/ui-umsetzung/aufmass-messwerte.png`,
+  `docs/ui-umsetzung/aufmass-im-editor.png`.
 - Eigenes Editorfenster (`EditorFenster.svelte`, Command
   `editor_fenster_oeffnen`): Der Knopf rechts in der Tab-Leiste öffnet das
   Aufmaß des Projekts in einem zweiten Fenster (`editor-<Projekt>`, URL
