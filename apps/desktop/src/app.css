@@ -1945,3 +1945,397 @@ label:has(> .pflicht) > textarea {grid-column:1 / -1; width:100%;}
 }
 
 .ergebnistabelle td > button + button { margin-inline-start: .6rem; }
+
+/* --- Sachlicher Stil für Planungsbüros: dunkle Werkzeugleiste wie in
+   CAD-Programmen, darunter flache helle Arbeitsflächen, neutrale Grautöne,
+   Ecken von höchstens 2 px, Farbe nur als Zustand oder Auswahl. --- */
+:root {
+  --bg: #e9ecef;
+  --fg: #1c232b;
+  --muted: #56616d;
+  --accent: #1d4e89;
+  --action-bg: #1d4e89;
+  --accent-soft: #e2eaf4;
+  --panel: #ffffff;
+  --border: #c6ccd3;
+  --border-innen: #dde1e6;
+  --control-border: #9aa5b1;
+  --fenster: #dfe3e8;
+  --kopfzeile: #f1f3f5;
+  --leiste: #f6f7f9;
+  --zebra: transparent;
+  --zeile-hover: #f3f6f9;
+  --auswahl: #d7e3f4;
+  --knopf-bg: #ffffff;
+  --knopf-rand: #b4bbc3;
+  --titelleiste: #2b3138;
+  --titelleiste-rand: #1c2025;
+  --titelleiste-fg: #e6e9ec;
+  --titelleiste-muted: #a9b2bc;
+  --titelleiste-hover: #3b434d;
+  --titelleiste-aktiv: #4a5563;
+}
+:root[data-theme="dark"] {
+  --bg: #1e242b;
+  --fg: #e4e9ee;
+  --muted: #a3aeb9;
+  --accent: #8fb8e8;
+  --action-bg: #2d5d99;
+  --accent-soft: #273646;
+  --panel: #262d35;
+  --border: #434d58;
+  --border-innen: #343d47;
+  --control-border: #6f7c8a;
+  --fenster: #171c21;
+  --kopfzeile: #2c343d;
+  --leiste: #2a3139;
+  --zebra: transparent;
+  --zeile-hover: #2c3540;
+  --auswahl: #2f4866;
+  --knopf-bg: #2c343d;
+  --knopf-rand: #6f7c8a;
+  --titelleiste: #15191d;
+  --titelleiste-rand: #0d1013;
+  --titelleiste-fg: #e4e9ee;
+  --titelleiste-muted: #99a3ad;
+  --titelleiste-hover: #262d35;
+  --titelleiste-aktiv: #36404b;
+}
+h1,
+h2,
+legend {
+  color: var(--fg);
+}
+legend {
+  font-weight: 600;
+}
+section > h2,
+.globale-seite > h1,
+.verzeichnis-kopf,
+.maskenkopf,
+dialog h2 {
+  border-bottom: 1px solid var(--border);
+}
+section > h2,
+dialog h2 {
+  padding-bottom: 6px;
+}
+button {
+  border-radius: 2px;
+}
+button:hover:not(:disabled) {
+  filter: none;
+  background: #173f70;
+}
+button.sekundaer:hover:not(:disabled),
+.werkzeuge button:not(.sekundaer):hover:not(:disabled),
+.grundstuecksauswahl button:hover:not(:disabled) {
+  background: var(--kopfzeile);
+}
+button.link:hover:not(:disabled) {
+  background: transparent;
+}
+.werkzeuge button:not(.sekundaer) {
+  background: var(--knopf-bg);
+  border-color: var(--knopf-rand);
+}
+.werkzeuge button.aktiv,
+.werkzeuge button.aktiv:hover:not(:disabled) {
+  background: var(--auswahl);
+  color: var(--accent);
+  border-color: #8fb0d9;
+  font-weight: 600;
+}
+/* Tabellen mit Zeilenlinien und grauem Kopf statt Gitter. */
+th {
+  background: var(--kopfzeile);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+td {
+  border: 0;
+  border-top: 1px solid var(--border-innen);
+}
+.ergebnistabelle th,
+.ergebnistabelle td,
+.projekttabelle th,
+.projekttabelle td {
+  border-left: 0;
+  border-right: 0;
+}
+.ergebnistabelle th,
+.projekttabelle th {
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
+}
+tbody tr:hover > td {
+  background: var(--zeile-hover);
+}
+.projekttabelle tr.ausgewaehlt > td,
+.projekttabelle tr.ausgewaehlt:hover > td {
+  background: var(--auswahl);
+}
+/* Dunkle Werkzeugleiste des Anwendungsfensters. */
+.app-werkzeuge {
+  background: var(--titelleiste);
+  border-bottom: 1px solid var(--titelleiste-rand);
+  color: var(--titelleiste-fg);
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  min-height: 34px;
+}
+.app-marke {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #79838e;
+  border-radius: 2px;
+  color: var(--titelleiste-fg);
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.app-werkzeuge button {
+  color: var(--titelleiste-fg);
+  border-color: transparent;
+  border-radius: 2px;
+  min-height: 26px;
+  padding: 2px 9px;
+}
+.app-werkzeuge button svg {
+  color: var(--titelleiste-muted);
+}
+.app-werkzeuge button:hover:not(:disabled) {
+  background: var(--titelleiste-hover);
+}
+.app-werkzeuge button.aktiv,
+.app-werkzeuge button.aktiv:hover:not(:disabled) {
+  background: var(--titelleiste-aktiv);
+  border-color: transparent;
+  color: #ffffff;
+}
+.app-werkzeuge button.aktiv svg {
+  color: #ffffff;
+}
+.app-werkzeuge .konto {
+  color: var(--titelleiste-muted);
+}
+.app-werkzeuge .werkzeug-trenner {
+  border-left-color: #4a5563;
+}
+/* Projekttabs und Register als flache Reiter mit Akzentlinie oben. */
+.projekttabs {
+  background: var(--fenster);
+  border-bottom: 1px solid var(--border);
+  padding: 0 6px;
+  align-items: stretch;
+  min-height: 32px;
+}
+.offene-projekte {
+  gap: 0;
+}
+.projekttab {
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  align-items: stretch;
+  color: var(--muted);
+}
+.projekttab:first-child {
+  border-left: 1px solid var(--border);
+}
+.projekttab:hover {
+  background: var(--bg);
+}
+.projekttab.aktiv,
+.projekttab.aktiv:hover {
+  background: var(--panel);
+  box-shadow: inset 0 2px 0 var(--accent);
+  margin-bottom: -1px;
+  padding-bottom: 0;
+}
+.projekttabs button {
+  min-height: 30px;
+  padding: 2px 12px;
+  color: inherit;
+}
+.projekttab.aktiv button {
+  color: var(--fg);
+}
+.projekttabs button:hover:not(:disabled) {
+  background: transparent;
+}
+.projekttabs .tab-schliessen {
+  color: var(--muted);
+  width: 24px;
+  align-self: center;
+  margin-right: 4px;
+  font-size: inherit;
+}
+.projekttabs .tab-schliessen:hover:not(:disabled) {
+  color: var(--fg);
+}
+.register,
+.reiter {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.register button,
+.reiter button {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--muted);
+}
+.register button:hover:not(:disabled),
+.reiter button:hover:not(:disabled) {
+  background: var(--kopfzeile);
+  color: var(--fg);
+}
+.register button.aktiv,
+.reiter button.aktiv,
+.register button.aktiv:hover:not(:disabled),
+.reiter button.aktiv:hover:not(:disabled) {
+  background: var(--panel);
+  border-color: var(--border);
+  box-shadow: inset 0 2px 0 var(--accent);
+  color: var(--fg);
+}
+.projektkopf {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border-innen);
+}
+.aktennavigation,
+:root[data-theme="dark"] .aktennavigation {
+  background: var(--kopfzeile);
+}
+.aktennavigation button.aktiv {
+  color: var(--accent);
+}
+.aktennavigation button:hover:not(:disabled):not(.aktiv) {
+  background: var(--bg);
+}
+.statusleiste {
+  background: var(--kopfzeile);
+  color: var(--muted);
+}
+.statusleiste .link {
+  color: var(--fg);
+}
+.verzeichnis-filter,
+.werkzeugleiste,
+.lesemodus,
+.planbezug {
+  background: var(--kopfzeile);
+}
+.banner,
+.fehler,
+.hinweisbox,
+.fehlerzusammenfassung {
+  border-radius: 2px;
+}
+.auswahlliste li.aktiv {
+  background: var(--auswahl);
+  color: var(--accent);
+}
+.grundstuecksauswahl button.aktiv {
+  color: var(--accent);
+}
+/* Symbolknopf: nur Symbol, Name und Kürzel als Tooltip und für Vorlesehilfen. */
+.symbolknopf {
+  position: relative;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--fg);
+  font-weight: 400;
+}
+.symbolknopf svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.symbolknopf:hover:not(:disabled) {
+  background: var(--border-innen);
+  color: var(--fg);
+}
+.symbolknopf[aria-pressed="true"],
+.symbolknopf.aktiv {
+  background: var(--auswahl);
+  color: var(--accent);
+  border-color: #8fb0d9;
+}
+.symbolknopf:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--control-border);
+}
+.symbolknopf::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--titelleiste);
+  color: var(--titelleiste-fg);
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s;
+}
+.symbolknopf:hover::after,
+.symbolknopf:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0.35s;
+}
+.symbolknopf.tip-rechts::after {
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+.symbolknopf.tip-links::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.app-werkzeuge .symbolknopf {
+  color: var(--titelleiste-fg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .symbolknopf::after {
+    transition: none;
+  }
+}
+.projekttabs:not(:has(.projekttab)) {
+  display: none;
+}
+.register {
+  border-top: 1px solid var(--border-innen);
+  padding-top: 4px;
+}
+.projektkopf {
+  border-bottom: 0;
+}

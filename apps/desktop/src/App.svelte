@@ -24,6 +24,7 @@
   import Formularbibliothek from "./lib/Formularbibliothek.svelte";
   import { MODULE, voraussetzung } from "./lib/module";
   import NavIcon from "./lib/NavIcon.svelte";
+  import Symbolknopf from "./lib/Symbolknopf.svelte";
   import Darstellung from "./lib/Darstellung.svelte";
   import Speicherorte from "./lib/Speicherorte.svelte";
   import DruckEinstellungen from "./lib/DruckEinstellungen.svelte";
@@ -919,6 +920,7 @@
 {/if}
 
 <header class="app-werkzeuge">
+  <span class="app-marke" aria-hidden="true">B</span>
   <nav aria-label="Arbeitsplatz">
     <button
       class:aktiv={globalAnsicht === "projekte"}
@@ -978,10 +980,11 @@
                   aria-label="Ungespeicherte Änderungen">●</span
                 >{/if}</button
             >
-            <button
-              class="tab-schliessen"
-              aria-label={`${s.projekt.name} schließen`}
-              onclick={() => schliessen(s.projekt.id)}>×</button
+            <Symbolknopf
+              klasse="tab-schliessen"
+              titel={`${s.projekt.name} schließen`}
+              onclick={() => schliessen(s.projekt.id)}
+              ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg></Symbolknopf
             >
           </div>
         {/each}
