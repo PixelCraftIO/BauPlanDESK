@@ -18,7 +18,11 @@
   import { aufmassUebertragen } from "./uebertragung";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
-  let {projekt,benutzerId,darf,onprojekt,unterlage=null}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null}=$props();
+  import type { Tabstart } from "./tabs";
+  let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
+    /** voll: Liste und Editor in einem; liste: nur die Liste, Öffnen/Neu gehen an den Aufrufer; tab: nur der Editor für `start`. */
+    modus?:"voll"|"liste"|"tab";start?:Tabstart|null;entwurfObjekt?:string;sichtbar?:boolean;
+    onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(dokument?:Tabstart["dokument"])=>void;onstatus?:(st:{titel:string;geaendert:boolean})=>void;onschliessen?:()=>void}=$props();
   // Flurstücke des Projekts für die Zuordnung von Flurstücksmarkierungen; Stand der Akte.
   const flurstuecke=$derived(grundstuecksinformationen(projekt.planungsrecht).flurstuecke);
   let dateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
@@ -29,7 +33,7 @@
   const s=untrack(()=>new FachSitzung<Planaufmass>(projekt.id,"planaufmass",benutzerId,()=>({
     bezeichnung:"Neues Aufmaß",dokument:{dokument_id:dateien[0]?.document_id??"00000000-0000-0000-0000-000000000000",version:dateien[0]?.version??1},
     seite:1,kalibrierung:null,hoehenbezug:null,ebenen:[{id:crypto.randomUUID(),bezeichnung:"Aufmaß",sichtbar:true,gesperrt:false}],markierungen:[],
-  }),p=>p.bezeichnung));
+  }),p=>p.bezeichnung,entwurfObjekt));
   const bedeutungen: [Planbedeutung,string][]=[
     ["unbestimmt","Noch nicht zugeordnet"],["flurstueck","Flurstück (Flurkarte / Lageplan)"],["baufenster","Baufenster (Baugrenze / Baulinie)"],["vorhabenumriss","Vorhabenumriss (Gebäude im Lageplan)"],["private_gruenflaeche","Private Grünfläche"],
     ["oeffentliche_gruenflaeche","Öffentliche Grünfläche"],["verkehrsflaeche","Verkehrsfläche"],["ausserhalb_bauland","Fläche außerhalb des Baulands"],["sonstiger_abzug","Sonstige nicht maßgebende Fläche"],
@@ -122,6 +126,7 @@
     if(!d){s.meldung="Die gewünschte Unterlage ist kein PDF- oder DXF-Dokument dieses Projekts.";return}
     // Bestehendes Aufmaß dieser Unterlage (neueste Dokumentversion zuerst), sonst neuer Entwurf.
     const vorhanden=s.liste.filter(f=>f.daten.dokument.dokument_id===id).sort((a,b)=>b.daten.dokument.version-a.daten.dokument.version)[0];
+    if(modus==="liste"){if(vorhanden)onoeffnen?.(vorhanden);else onneu?.({id:d.document_id,version:d.version,name:d.file_name});return}
     if(vorhanden&&s.id===vorhanden.objekt)return;
     if(s.eingabe&&s.hatAenderungen()){
       if(!(await ask(`„${d.file_name}“ im Aufmaß öffnen? Offene Änderungen werden zuerst gespeichert.`,{title:"Unterlage öffnen",okLabel:"Speichern und öffnen",cancelLabel:"Hier bleiben"})))return;
@@ -143,6 +148,30 @@
     }catch(e){s.fehler=fehlertext(e)}finally{baugrenzenLaeuft=false}
   }
   onMount(()=>()=>{listenGeneration++});
+  // Zeichnungs-Tab: Startauftrag ausführen, sobald Liste und Unterlagen da sind; danach meldet das Schließen des Eintrags den Tab ab.
+  let gestartet=$state(false);
+  $effect(()=>{
+    const st=start,bereit=s.bereit,liste=s.liste,unterlagen=dateien;
+    if(modus!=="tab"||!st||!bereit||gestartet||laedt)return;
+    untrack(()=>{gestartet=true;void tabStarten(st,liste,unterlagen)});
+  });
+  async function tabStarten(st:Tabstart,liste:Datensatz<Planaufmass>[],unterlagen:DocumentVersion[]){
+    if(s.gerettet||s.eingabe)return;
+    if(st.id){
+      try{const f=liste.find(f=>f.objekt===st.id)??await plattformApi.lesen<Planaufmass>(s.projektId,s.art,st.id);if(f)s.bearbeiten(f);else s.fehler="Das Aufmaß ist nicht mehr vorhanden."}catch(e){s.fehler=fehlertext(e)}
+      return;
+    }
+    s.neu();if(!s.eingabe)return;
+    const d=st.dokument?unterlagen.find(x=>x.document_id===st.dokument!.id&&x.version===st.dokument!.version):undefined;
+    if(d){s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};offen.blatt=true}
+  }
+  $effect(()=>{if(modus==="tab"&&gestartet&&!s.eingabe&&!s.gerettet&&!s.laeuft)untrack(()=>onschliessen?.())});
+  $effect(()=>{const titel=s.eingabe?.bezeichnung??"",geaendert=s.hatAenderungen();untrack(()=>onstatus?.({titel,geaendert}))});
+  /** Tab schließen: offene Änderungen nach Rückfrage verwerfen. */
+  export async function tabSchliessen(){
+    if(s.hatAenderungen()&&!(await ask("Die ungespeicherten Änderungen verwerfen?",{title:"Aufmaß",kind:"warning",okLabel:"Verwerfen",cancelLabel:"Weiter bearbeiten"})))return false;
+    await s.verwerfen();return true;
+  }
   const vormerken=ansichtsAbfrage(()=>s.projektId,["dokumente","fachobjekte"],listen);
   $effect(()=>{
     void projekt.version;untrack(vormerken);
@@ -209,7 +238,7 @@
   });
   $effect(()=>{
     const taste=(e:KeyboardEvent)=>{
-      if(!s.eingabe||(e.target as Element).closest("input,select,textarea,[contenteditable]"))return;
+      if(!sichtbar||!s.eingabe||(e.target as Element).closest("input,select,textarea,[contenteditable]"))return;
       const drin=editor?.contains(e.target as Node)||(e.target===document.body&&imEditor);
       if(!drin&&!vollbild)return;
       const k=e.key.toLowerCase();
@@ -450,7 +479,7 @@
   const anzahl=(a:Planausschnitt)=>s.eingabe?.markierungen.filter(m=>m.ausschnitt_id===a.id)??[];
 </script>
 
-<Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt} kompakt={true} werkzeuge={vollbild?undefined:editorwerkzeuge}>
+<Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt} kompakt={true} werkzeuge={vollbild?undefined:editorwerkzeuge} oeffnen={modus==="liste"?f=>onoeffnen?.(f):undefined} neu={modus==="liste"?()=>onneu?.():undefined}>
   {#snippet children(p)}
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
     {#if !dateien.length}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren.</p>{/if}
@@ -626,7 +655,7 @@
           <details class="palette" bind:open={offen.blatt}>
             <summary><h3>Blatt und Einrichtung</h3> <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
             <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
-              <label>Bezeichnung<input bind:value={p.bezeichnung} required/></label>
+              <label>Bezeichnung des Aufmaßes<input bind:value={p.bezeichnung} required/></label>
               <label>Unterlage<select aria-label="Unterlage" value={`${p.dokument.dokument_id}|${p.dokument.version}`} onchange={e=>source(e.currentTarget.value)}>
                 <option value="">Unterlage wählen</option>
                 {#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}

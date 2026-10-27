@@ -32,6 +32,15 @@ Enthalten sind:
   Lageplan, Schnitt, Ansicht, Detail) mit eigenem Maßstab und, bei Schnitten,
   Ansichten und Details, eigener Bezugslinie für Höhen. Blatt- und
   Ausschnittmodus, Rahmen ziehen und bearbeiten, Abdunkeln des Restblattes.
+- Zeichnungs-Tabs (`Aufmasstabs.svelte`): Der Bereich Aufmaß zeigt oben einen
+  Tab „Aufmaßliste“ und je geöffnetem Aufmaß einen eigenen Tab mit eigenem
+  Editor; „Öffnen“ in der Liste und „Neu anlegen“ legen Tabs an, ein offener
+  Tab wird beim erneuten Öffnen nur angesprungen. Jeder Tab hat seine eigene
+  Fachsitzung und lokale Entwurfssicherung (Entwurfsobjekt = Tab-Schlüssel);
+  ein ungespeicherter Tab trägt ein Kennzeichen, Schließen fragt nach. Offene
+  Tabs und der aktive Tab bleiben je Benutzer und Projekt gemerkt
+  (`localStorage`, `tabs.ts`). Wünsche „Im Aufmaß öffnen“ aus den
+  Projektdateien landen im passenden Tab.
 - Arbeitsplatz im CAD-Schnitt (seit 2026-10-27, siehe `docs/ui-stil.md`):
   schmale Speicherleiste oben (Status, Speichern, Schließen, Rückgängig,
   Wiederholen, PDF, CSV, Maße, Vollbild, Kurzbefehle als Symbolknöpfe mit
