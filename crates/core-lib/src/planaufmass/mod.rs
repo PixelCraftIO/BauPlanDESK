@@ -373,11 +373,80 @@ pub struct Planhoehenbezug {
     /// Zum Beispiel „m ü. NHN“ oder „lokal, OKFF EG = 0“.
     pub system: String,
 }
+/// Unterlage als eingepasster Hintergrund einer eigenen Zeichnung. Der
+/// Seitenpunkt `ursprung` der Unterlage liegt bei `lage` (Meter) der Zeichnung;
+/// die Unterlage ist um `drehung_grad` (im Uhrzeigersinn, Blattkoordinaten)
+/// gedreht und mit `meter_pro_punkt` skaliert. Die Unterlage selbst bleibt
+/// unverändert; Markierungen werden in Metern der Zeichnung gespeichert.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Planhintergrund {
+    pub id: Uuid,
+    pub dokument: Dokumentbezug,
+    /// Einsbasiert; DXF immer 1.
+    pub seite: u32,
+    pub ursprung: Planpunkt,
+    pub lage: Planpunkt,
+    pub drehung_grad: f64,
+    pub meter_pro_punkt: f64,
+    /// 0 … 1.
+    pub deckkraft: f64,
+    pub sichtbar: bool,
+}
+/// Zeichenelemente ohne Messwert: Wand mit Dicke, Maßkette, Text. Sie
+/// gehören zur Darstellung und zum Fang, nicht zu den Messwerten.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Zeichenform {
+    Wand {
+        von: Planpunkt,
+        bis: Planpunkt,
+        dicke_m: f64,
+    },
+    Masskette {
+        von: Planpunkt,
+        bis: Planpunkt,
+        /// Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
+        /// der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
+        abstand: f64,
+    },
+    Text {
+        punkt: Planpunkt,
+        inhalt: String,
+        /// Schrifthöhe in Seitenpunkten.
+        hoehe: f64,
+        drehung_grad: f64,
+    },
+}
+// Kein `deny_unknown_fields`: serde kann es nicht mit `flatten` verbinden;
+// die Form selbst lehnt unbekannte Felder ab.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct Zeichenelement {
+    pub id: Uuid,
+    pub ebene_id: Uuid,
+    #[serde(flatten)]
+    #[ts(flatten)]
+    pub form: Zeichenform,
+}
+impl Zeichenform {
+    /// Stützpunkte in Seitenkoordinaten.
+    pub fn punkte(&self) -> Vec<Planpunkt> {
+        match self {
+            Self::Wand { von, bis, .. } | Self::Masskette { von, bis, .. } => vec![*von, *bis],
+            Self::Text { punkt, .. } => vec![*punkt],
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Planaufmass {
     pub bezeichnung: String,
-    pub dokument: Dokumentbezug,
+    /// Unterlage (PDF-Seite oder DXF). Fehlt sie, ist das Aufmaß eine eigene
+    /// Zeichnung: Seitenpunkte sind Meter (y nach unten), Unterlagen liegen
+    /// als `hintergruende` eingepasst darunter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub dokument: Option<Dokumentbezug>,
     /// Einsbasiert. Mehrere Aufmaße derselben Seite dürfen verschiedene Maßstäbe haben.
     pub seite: u32,
     pub kalibrierung: Option<Plankalibrierung>,
@@ -388,6 +457,14 @@ pub struct Planaufmass {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(optional, as = "Option<Vec<Planausschnitt>>")]
     pub ausschnitte: Vec<Planausschnitt>,
+    /// Nur eigene Zeichnungen: eingepasste Unterlagen als Hintergrund.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Planhintergrund>>")]
+    pub hintergruende: Vec<Planhintergrund>,
+    /// Zeichenelemente ohne Messwert (Wand, Maßkette, Text).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Zeichenelement>>")]
+    pub elemente: Vec<Zeichenelement>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Planmesswert {
@@ -478,6 +555,114 @@ fn polygon(punkte: &[Planpunkt]) -> CoreResult<(f64, f64)> {
     Ok((area, length))
 }
 impl Planaufmass {
+    /// Eigene Zeichnung ohne Unterlage: Seitenpunkte sind Meter.
+    pub fn ist_zeichnung(&self) -> bool {
+        self.dokument.is_none()
+    }
+    /// Kalibrierung des Blattes; eine eigene Zeichnung rechnet immer in Metern.
+    pub fn kalibrierung_wirksam(&self) -> Option<Plankalibrierung> {
+        if self.ist_zeichnung() {
+            Some(Plankalibrierung::Einheit {
+                einheit: crate::cad::Laengeneinheit::Meter,
+            })
+        } else {
+            self.kalibrierung.clone()
+        }
+    }
+    fn zeichnung_pruefen(&self) -> CoreResult<()> {
+        if self.ist_zeichnung() {
+            if self.seite != 1 {
+                return Err(fehler("Eine eigene Zeichnung hat genau ein Blatt"));
+            }
+            let meter = |k: &Plankalibrierung| {
+                matches!(
+                    k,
+                    Plankalibrierung::Einheit {
+                        einheit: crate::cad::Laengeneinheit::Meter
+                    }
+                )
+            };
+            if self.kalibrierung.as_ref().is_some_and(|k| !meter(k))
+                || self.ausschnitte.iter().any(|a| a.kalibrierung.is_some())
+            {
+                return Err(fehler(
+                    "Eine eigene Zeichnung rechnet in Metern; Maßstab und Referenzstrecke gelten nur für Unterlagen",
+                ));
+            }
+            if self.hintergruende.len() > 20 {
+                return Err(fehler("Zu viele Hintergründe"));
+            }
+            let mut ids = std::collections::HashSet::new();
+            for h in &self.hintergruende {
+                if !ids.insert(h.id) {
+                    return Err(fehler("Hintergrund doppelt"));
+                }
+                if h.seite == 0 || h.dokument.version < 1 {
+                    return Err(fehler(
+                        "Ungültige Seite oder Dokumentversion des Hintergrunds",
+                    ));
+                }
+                punkt(&h.ursprung)?;
+                punkt(&h.lage)?;
+                positiv(h.meter_pro_punkt)?;
+                if !h.drehung_grad.is_finite()
+                    || !(0. ..=1.).contains(&h.deckkraft)
+                    || h.meter_pro_punkt > 1e6
+                {
+                    return Err(fehler("Ungültige Einpassung des Hintergrunds"));
+                }
+            }
+        } else if !self.hintergruende.is_empty() {
+            return Err(fehler(
+                "Hintergründe gibt es nur in eigenen Zeichnungen; ein Aufmaß zeichnet direkt auf seiner Unterlage",
+            ));
+        }
+        if self.elemente.len() > 2000 {
+            return Err(fehler("Zu viele Zeichenelemente"));
+        }
+        let ebenen: std::collections::HashSet<Uuid> = self.ebenen.iter().map(|e| e.id).collect();
+        let mut ids = std::collections::HashSet::new();
+        for e in &self.elemente {
+            if !ids.insert(e.id) || !ebenen.contains(&e.ebene_id) {
+                return Err(fehler("Zeichenelement doppelt oder Zeichenebene fehlt"));
+            }
+            for p in e.form.punkte() {
+                punkt(&p)?;
+            }
+            match &e.form {
+                Zeichenform::Wand { von, bis, dicke_m } => {
+                    positiv(abstand(von, bis))?;
+                    positiv(*dicke_m)?;
+                    if *dicke_m > 10. {
+                        return Err(fehler("Wanddicke über 10 m"));
+                    }
+                }
+                Zeichenform::Masskette {
+                    von,
+                    bis,
+                    abstand: a,
+                } => {
+                    positiv(abstand(von, bis))?;
+                    if !a.is_finite() || a.abs() > 1e6 {
+                        return Err(fehler("Ungültiger Abstand der Maßkette"));
+                    }
+                }
+                Zeichenform::Text {
+                    inhalt,
+                    hoehe,
+                    drehung_grad,
+                    ..
+                } => {
+                    crate::plattform::text(inhalt, 500)?;
+                    positiv(*hoehe)?;
+                    if !drehung_grad.is_finite() {
+                        return Err(fehler("Ungültige Textdrehung"));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     /// Höhensystem, in dem die Markierung absolute Höhen liefert: die
     /// Bezugslinie ihres Ausschnitts, ohne Ausschnitt der blattweite
     /// Höhenbezug. Entspricht der Höhenermittlung in [`Self::messen`]; ein
@@ -494,7 +679,7 @@ impl Planaufmass {
     pub fn messen(&self) -> CoreResult<Vec<Planmesswert>> {
         crate::plattform::text(&self.bezeichnung, 500)?;
         if self.seite == 0
-            || self.dokument.version < 1
+            || self.dokument.as_ref().is_some_and(|d| d.version < 1)
             || self.ebenen.len() > 100
             || self.markierungen.len() > 2000
         {
@@ -516,8 +701,9 @@ impl Planaufmass {
                 return Err(fehler("Ungültiger Höhenbezug"));
             }
         }
+        self.zeichnung_pruefen()?;
         let seitenfaktor = self
-            .kalibrierung
+            .kalibrierung_wirksam()
             .as_ref()
             .map(Plankalibrierung::meter_pro_punkt)
             .transpose()?;

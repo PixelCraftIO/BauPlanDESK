@@ -837,8 +837,10 @@ pub async fn fach(b: &mut Beispiel) {
         };
     let mut aufmass = Planaufmass {
         bezeichnung: "EP-01 Grundrisse und Schnitt A-A".into(),
-        dokument: dokument.clone(),
+        dokument: Some(dokument.clone()),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Massstab { nenner: 100. }),
         hoehenbezug: None,
         ebenen: [

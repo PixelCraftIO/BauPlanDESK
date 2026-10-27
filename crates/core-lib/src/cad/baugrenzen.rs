@@ -70,7 +70,9 @@ fn polygon(punkte: &[Punkt], origin: Punkt, faktor: f64, name: &str) -> CoreResu
 
 impl BaugrenzenGeometrie {
     pub fn validate(&self) -> CoreResult<()> {
-        if self.dokument_version < 1 {
+        // Version 0 mit Nullkennung: Umrisse aus einer eigenen Zeichnung ohne Unterlage.
+        if self.dokument_version < 1 && !(self.dokument_version == 0 && self.dokument_id.0.is_nil())
+        {
             return Err(CoreError::InvalidInput("Ungültige Planversion".into()));
         }
         let o = self.baufenster.first().copied().unwrap_or(Punkt(0.0, 0.0));

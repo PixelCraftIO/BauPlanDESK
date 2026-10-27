@@ -6,7 +6,8 @@
   import { tick, untrack, onDestroy } from "svelte";
   import type { PDFDocumentProxy, PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from "pdfjs-dist";
   import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-  import type { Plangeometrie, Planmarkierung, Planebene, Planausschnitt, Planmesswert, Plankalibrierung } from "../generated/plattform";
+  import type { Plangeometrie, Planmarkierung, Planebene, Planausschnitt, Planmesswert, Plankalibrierung, Zeichenelement, Zeichenform } from "../generated/plattform";
+  import { hgTransform, hgPunkt, blattmass, elementPunkte, elementSetzen, elementVerschieben, wandKontur, masskette, type Hintergrundansicht } from "./zeichnung";
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
@@ -20,6 +21,8 @@
   let { pdfBase64 = "", seite, plan = null, planSichtbar = [], markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
     auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
+    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", wanddicke = .24,
+    onelement = () => {}, onelementauswahl = () => {}, onelementedit = () => {},
     onverschieben = () => {}, onpunkt = () => {},
     onfertig, onauswahl, onedit, onfehler, onrahmen = () => {}, onrahmenauswahl = () => {}, onoeffnen = () => {}, onseite = () => {} }:
     {pdfBase64?:string;seite:number;plan?:Plan|null;planSichtbar?:boolean[];markierungen:Planmarkierung[];ebenen:Planebene[];
@@ -28,6 +31,9 @@
     onfertig:(g:Plangeometrie)=>void;onauswahl:(id:string,mehrfach?:boolean)=>void;
     auswahlIds?:string[];ansichtKey?:string;fehlerIds?:string[];vergleichBase64?:string;vergleichDeckkraft?:number;
     vergleichAusrichtung?:{dx:number;dy:number;grad:number;faktor:number};
+    /** Eigene Zeichnung: Blatt in Metern, Unterlagen als eingepasste Hintergründe. */
+    zeichnung?:boolean;hintergruende?:Hintergrundansicht[];elemente?:Zeichenelement[];elementAuswahl?:string;wanddicke?:number;
+    onelement?:(f:Zeichenform)=>void;onelementauswahl?:(id:string)=>void;onelementedit?:(id:string,e:Zeichenelement)=>void;
     onverschieben?:(ids:string[],dx:number,dy:number)=>void;onpunkt?:(index:number)=>void;
     onedit:(id:string,g:Plangeometrie)=>void;onfehler:(s:string)=>void;
     onrahmen?:(id:string,von:Point,bis:Point)=>void;onrahmenauswahl?:(id:string)=>void;onoeffnen?:(id:string)=>void;onseite?:(n:number)=>void}=$props();
@@ -53,11 +59,27 @@
   let rahmenVorschau=$state<{id:string;von:Point;bis:Point}|null>(null), touchPunkt:Point|null=null;
   let vergleichBild=$state("");
   let vergleichGroesse=$state({breite:0,hoehe:0});
+  // Eigene Zeichnung: gerasterte PDF-Hintergründe je Dokumentversion und Seite; Fang an deren Vektoren.
+  let hgBilder=$state<Record<string,{url:string;breite:number;hoehe:number;geometry:SnapGeometry}>>({});
+  const hgLaeuft=new Set<string>();
+  const hgKey=(h:Hintergrundansicht)=>`${h.h.dokument.dokument_id}|${h.h.dokument.version}|${h.h.seite}`;
+  let elementDrag=$state<{id:string;index:number;e:Zeichenelement;start:Point;bewegt:boolean}|null>(null);
+  let elementEdit=$state<Zeichenelement|null>(null);
+  const rasterId=`r${Math.random().toString(36).slice(2,8)}`;
   const fangindex=$derived(new Fangindex(geometry));
   const wertMap=$derived(new Map(werte.map(w=>[w.id,w])));
   const ebenenMap=$derived(new Map(ebenen.map(e=>[e.id,e])));
   const angezeigt=$derived(markierungen.filter(m=>ebenenMap.get(m.ebene_id)?.sichtbar));
   const gewaehlt=$derived(angezeigt.find(m=>m.id===auswahl));
+  const angezeigteElemente=$derived(elemente.filter(e=>ebenenMap.get(e.ebene_id)?.sichtbar));
+  const gewaehltesElement=$derived(angezeigteElemente.find(e=>e.id===elementAuswahl));
+  const elementGesperrt=$derived(!darf||!!ebenen.find(e=>e.id===gewaehltesElement?.ebene_id)?.gesperrt);
+  const elementWerkzeug=$derived(werkzeug==="wand"||werkzeug==="masskette"||werkzeug==="text");
+  // Hintergründe mit Darstellung: DXF als Pfade, PDF als Seitenbild.
+  const hgAnsicht=$derived(hintergruende.flatMap(hg=>{
+    if(hg.plan){const b=dxfBlatt(hg.plan);if(!b)return [];const alle=hg.plan.ebenen.map(()=>true);return [{hg,breite:b.breite,hoehe:b.hoehe,url:"",pfade:dxfPfade(hg.plan,b,alle),geometry:dxfGeometrie(hg.plan,b,alle,20000)}]}
+    const b=hgBilder[hgKey(hg)];return b?[{hg,breite:b.breite,hoehe:b.hoehe,url:b.url,pfade:[] as {farbe:string;d:string}[],geometry:b.geometry}]:[];
+  }));
   const gesperrt=$derived(!darf || !!ebenen.find(e=>e.id===gewaehlt?.ebene_id)?.gesperrt);
   const ausschnitt=$derived(ausschnitte.find(a=>a.id===aktiv));
   // Markierungen anderer Ausschnitte bleiben sichtbar, aber nicht bedienbar.
@@ -156,6 +178,51 @@
       if(neu){drehung=0;zoom=passend();bereit=true;void ansichtLaden(1)}
     });
   });
+  // PDF-Hintergründe einer Zeichnung rastern (einmal je Dokumentversion und Seite).
+  $effect(()=>{
+    if(!sichtbar())return;
+    for(const hg of hintergruende){
+      const key=hgKey(hg), quelle=hg.pdfBase64;
+      if(!quelle||hg.plan||hgBilder[key]||hgLaeuft.has(key))continue;
+      hgLaeuft.add(key);
+      void(async()=>{
+        const {getDocument,GlobalWorkerOptions,OPS}=await import("pdfjs-dist");
+        GlobalWorkerOptions.workerSrc=workerUrl;
+        const loader=getDocument({data:Uint8Array.from(atob(quelle),c=>c.charCodeAt(0)),isEvalSupported:false,
+          cMapUrl:new URL("./pdfjs/cmaps/",document.baseURI).href,cMapPacked:true,standardFontDataUrl:new URL("./pdfjs/standard_fonts/",document.baseURI).href});
+        try{
+          const d=await loader.promise, p=await d.getPage(Math.min(hg.h.seite,d.numPages)), v=p.getViewport({scale:1});
+          const scale=Math.min(2,2200/Math.max(v.width,v.height)), vp=p.getViewport({scale}), c=document.createElement("canvas");
+          c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+          await p.render({canvasContext:c.getContext("2d")!,viewport:vp}).promise;
+          const list=await p.getOperatorList();
+          const blob=await new Promise<Blob|null>(r=>c.toBlob(r)); if(!blob)return;
+          hgBilder={...hgBilder,[key]:{url:URL.createObjectURL(blob),breite:v.width,hoehe:v.height,geometry:extractGeometry(list,OPS,v.transform as Matrix)}};
+        }finally{hgLaeuft.delete(key);void loader.destroy()}
+      })().catch(e=>onfehler(`Hintergrund: ${String(e)}`));
+    }
+  });
+  onDestroy(()=>{for(const b of Object.values(hgBilder))URL.revokeObjectURL(b.url)});
+  // Eigene Zeichnung: Blatt in Metern, so groß wie die Inhalte samt Rand; Fang an den Hintergründen.
+  $effect(()=>{
+    if(!zeichnung||!sichtbar())return;
+    const punkte=[...markierungen.flatMap(m=>eckpunkte(m.geometrie)),...elemente.flatMap(e=>elementPunkte(e)),...ausschnitte.flatMap(a=>[a.von,a.bis])];
+    const b=blattmass(punkte,hgAnsicht.map(a=>({h:a.hg.h,breite:a.breite,hoehe:a.hoehe})));
+    const g:SnapGeometry={points:[],segments:[],limited:false};
+    for(const a of hgAnsicht){
+      if(!a.hg.h.sichtbar)continue;
+      const t=(p:Point)=>hgPunkt(a.hg.h,p);
+      g.points.push(...a.geometry.points.map(t));
+      g.segments.push(...a.geometry.segments.map(s=>[t(s[0]),t(s[1])] as [Point,Point]));
+      g.limited||=a.geometry.limited;
+    }
+    untrack(()=>{
+      const neu=!bereit||breite!==b.breite||hoehe!==b.hoehe;
+      breite=b.breite;hoehe=b.hoehe;geometry=g;page=null;rasterScale=0;
+      if(!bereit){drehung=0;zoom=passend();bereit=true;void ansichtLaden(1)}
+      else if(neu)zoom=Math.max(zMin,Math.min(zMax,zoom));
+    });
+  });
   // Nach dem Zoomen scharf nachrastern; nie unter die bisherige Auflösung.
   $effect(()=>{
     const zielZoom=zoom; void bereit;
@@ -188,7 +255,7 @@
   onDestroy(()=>{ansichtGeneration++;clearTimeout(ansichtTimer);ansichtSchreiben()});
   $effect(()=>{void zoom;void drehung;if(bereit)untrack(ansichtSichern)});
   export function abbrechen(){
-    punkte=[];cursor=null;drag=null;edit=null;schieben=null;rahmenDrag=null;rahmenVorschau=null;pan=null;pinch=null;touchPunkt=null;leertaste=false;masseingabe=null;
+    punkte=[];cursor=null;drag=null;edit=null;schieben=null;rahmenDrag=null;rahmenVorschau=null;pan=null;pinch=null;touchPunkt=null;leertaste=false;masseingabe=null;elementDrag=null;elementEdit=null;
     for(const id of zeiger.keys())if(svg?.hasPointerCapture(id))svg.releasePointerCapture(id);zeiger.clear();
   }
   $effect(()=>{window.addEventListener("blur",abbrechen);return()=>window.removeEventListener("blur",abbrechen)});
@@ -283,31 +350,46 @@
     }
     return p;
   }
-  function eigeneKanten():[Point,Point][]{return angezeigt.filter(m=>!auswahlIds.includes(m.id)&&m.id!==auswahl).flatMap(m=>{
+  function elementKanten():[Point,Point][]{return angezeigteElemente.filter(e=>e.id!==elementAuswahl&&e.art!=="text").flatMap(e=>{
+    if(e.art==="wand"&&faktor!==null){const k=wandKontur(e.von,e.bis,e.dicke_m/faktor);return k.map((p,i)=>[p,k[(i+1)%4]] as [Point,Point])}
+    return [[elementPunkte(e)[0],elementPunkte(e)[1]] as [Point,Point]];
+  })}
+  function eigeneKanten():[Point,Point][]{return [...elementKanten(),...angezeigt.filter(m=>!auswahlIds.includes(m.id)&&m.id!==auswahl).flatMap(m=>{
     const g=m.geometrie,ps=eckpunkte(g);if(g.art==="polygon")return ps.map((p,i)=>[p,ps[(i+1)%ps.length]] as [Point,Point]);
     if(g.art==="strecke")return [[g.von,g.bis] as [Point,Point]];
     if(g.art==="rechteck"){const a=g.von,b=g.bis,r:Point[]=[a,[b[0],a[1]],b,[a[0],b[1]]];return r.map((p,i)=>[p,r[(i+1)%4]] as [Point,Point])}return [];
-  })}
+  })]}
   // Fang auch an eigenen Markierungen und Bezugslinien.
   function eigenePunkte():Point[]{
     const ps:Point[]=[];
     for(const m of angezeigt)if(m.id!==auswahl&&!auswahlIds.includes(m.id))ps.push(...eckpunkte(m.geometrie));
     for(const a of ausschnitte)if(a.bezugslinie)ps.push(a.bezugslinie.von,a.bezugslinie.bis);
+    for(const e of angezeigteElemente)if(e.id!==elementAuswahl){ps.push(...elementPunkte(e));if(e.art==="wand"&&faktor!==null)ps.push(...wandKontur(e.von,e.bis,e.dicke_m/faktor))}
     return ps;
   }
   function shape(ps:Point[]):Plangeometrie|null {
-    if((werkzeug==="hoehenpunkt"||werkzeug==="bezug") && ps.length)return{art:"hoehenpunkt",punkt:ps[0]};
+    if((werkzeug==="hoehenpunkt"||werkzeug==="bezug"||werkzeug==="text") && ps.length)return{art:"hoehenpunkt",punkt:ps[0]};
     if(werkzeug==="polygon")return ps.length>=3?{art:"polygon",punkte:ps}:null;
     if(ps.length<2)return null;
     if(werkzeug==="rechteck"||werkzeug==="ausschnitt")return{art:"rechteck",von:ps[0],bis:ps[1]};
     if(werkzeug==="kreis")return{art:"kreis",mitte:ps[0],rand:ps[1]};
     return{art:"strecke",von:ps[0],bis:ps[1]};
   }
-  function finish(){const g=shape(punkte);if(g){onfertig(g);punkte=[];cursor=null}}
+  // Zeichenelement aus den gesetzten Punkten: Wand und Maßkette aus zwei Punkten, Text aus einem.
+  function elementForm(ps:Point[]):Zeichenform|null{
+    if(werkzeug==="text")return ps.length?{art:"text",punkt:ps[0],inhalt:"Text",hoehe:zeichnung?.25:12,drehung_grad:0}:null;
+    if(ps.length<2||Math.hypot(ps[1][0]-ps[0][0],ps[1][1]-ps[0][1])===0)return null;
+    if(werkzeug==="wand")return{art:"wand",von:ps[0],bis:ps[1],dicke_m:wanddicke};
+    return{art:"masskette",von:ps[0],bis:ps[1],abstand:zeichnung?-.8:-20};
+  }
+  function finish(){
+    if(elementWerkzeug){const f=elementForm(punkte);if(f){onelement(f);punkte=[];cursor=null}return}
+    const g=shape(punkte);if(g){onfertig(g);punkte=[];cursor=null}
+  }
   function punktSetzen(p:Point){
     if(werkzeug==="polygon"&&punkte.length>=3&&Math.hypot(p[0]-punkte[0][0],p[1]-punkte[0][1])<8/zoom){finish();return}
     punkte=[...punkte,p];
-    if(werkzeug!=="polygon" && (punkte.length===2||werkzeug==="hoehenpunkt"||werkzeug==="bezug"))finish();
+    if(werkzeug!=="polygon" && (punkte.length===2||werkzeug==="hoehenpunkt"||werkzeug==="bezug"||werkzeug==="text"))finish();
   }
   // Maßeingabe: „5,20“ (Länge in m, Richtung wie zuletzt bzw. nach rechts),
   // „5,20;90“ (Länge; Winkel in Grad, 90 = nach oben), beim Rechteck „Breite;Höhe“.
@@ -384,7 +466,18 @@
         }
         return;
       }
-      onauswahl("");onrahmenauswahl("");
+      const elId=target.closest("[data-element]")?.getAttribute("data-element");
+      if(elId){
+        const el=angezeigteElemente.find(e=>e.id===elId); if(!el)return;
+        onelementauswahl(elId);onauswahl("");
+        if(darf&&!ebenen.find(x=>x.id===el.ebene_id)?.gesperrt){
+          const ecke=target.getAttribute("data-elementecke");
+          elementDrag={id:elId,index:ecke===null?-1:Number(ecke),e:structuredClone($state.snapshot(el)),start:roh(e),bewegt:false};
+          svg?.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+      onauswahl("");onrahmenauswahl("");onelementauswahl("");
       return;
     }
     if(!darf)return;
@@ -416,6 +509,12 @@
       rahmenVorschau={id:rahmenDrag.id,von,bis};return;
     }
     cursor=zoomfenster?roh(e):position(e);
+    if(elementDrag){
+      const p=roh(e), dx=p[0]-elementDrag.start[0], dy=p[1]-elementDrag.start[1];
+      if(Math.hypot(dx,dy)*zoom>3)elementDrag.bewegt=true;
+      if(elementDrag.bewegt)elementEdit=elementDrag.index<0?elementVerschieben(elementDrag.e,dx,dy):elementSetzen(elementDrag.e,elementDrag.index,cursor);
+      return;
+    }
     if(drag)edit=changed(drag.g,drag.index,cursor);
     if(schieben){
       const p=roh(e), dx=p[0]-schieben.start[0], dy=p[1]-schieben.start[1];
@@ -433,7 +532,8 @@
       else onedit(schieben.id,edit);
     }
     if(rahmenDrag?.bewegt&&rahmenVorschau)onrahmen(rahmenVorschau.id,rahmenVorschau.von,rahmenVorschau.bis);
-    rahmenVorschau=null;
+    if(elementDrag?.bewegt&&elementEdit)onelementedit(elementDrag.id,elementEdit);
+    rahmenVorschau=null;elementDrag=null;elementEdit=null;
     drag=null;edit=null;pan=null;schieben=null;rahmenDrag=null;
     if(svg?.hasPointerCapture(e.pointerId))svg.releasePointerCapture(e.pointerId);
   }
@@ -441,11 +541,11 @@
     if((e.target as Element).closest("input,select,textarea,button"))return;
     if(e.key==="Escape"){
       if(zoomfenster){e.stopPropagation();zoomfenster=false;zf=null}
-      else if(punkte.length||drag||schieben||rahmenDrag){e.stopPropagation();abbrechen()}
+      else if(punkte.length||drag||schieben||rahmenDrag||elementDrag){e.stopPropagation();abbrechen()}
     }
     else if(e.key==="Enter"){e.preventDefault();finish()}
     else if(e.key==="Backspace"){e.preventDefault();punkte=punkte.slice(0,-1)}
-    else if(/^[0-9,.]$/.test(e.key)&&punkte.length&&["polygon","strecke","rechteck"].includes(werkzeug)){e.preventDefault();masseingabe=e.key}
+    else if(/^[0-9,.]$/.test(e.key)&&punkte.length&&["polygon","strecke","rechteck","wand","masskette"].includes(werkzeug)){e.preventDefault();masseingabe=e.key}
   }
   const preview=$derived(punkte.length&&cursor?shape([...punkte,cursor]):null);
   // Höhenvorschau am Cursor: Bezugslinie des Ausschnitts, sonst Seitenvertikale (nur Anzeige).
@@ -509,7 +609,7 @@
     <span class="zoom">{Math.round(zoom*100)} %</span>
     <Symbolknopf titel="Vergrößern" disabled={!bereit} onclick={()=>zoomMitte(1.25)}><WerkzeugIcon art="plus"/></Symbolknopf>
     <Symbolknopf titel="Einpassen" disabled={!bereit} onclick={einpassen}><WerkzeugIcon art="einpassen"/></Symbolknopf>
-    {#if !plan}<button type="button" class="sekundaer text" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>{/if}
+    {#if !plan&&!zeichnung}<button type="button" class="sekundaer text" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>{/if}
     <Symbolknopf titel="Auf Auswahl" disabled={!bereit||!gewaehlt} onclick={aufAuswahl}><WerkzeugIcon art="auswahlzoom"/></Symbolknopf>
     <Symbolknopf titel="Zoomfenster" kuerzel="Z" aktiv={zoomfenster} disabled={!bereit} onclick={zoomfensterStarten}><WerkzeugIcon art="zoomfenster"/></Symbolknopf>
     <span class="trenner" aria-hidden="true"></span>
@@ -537,7 +637,7 @@
       </nav>
     {/if}
     <div class="plan-scroll" bind:this={scroll} onscroll={ansichtSichern} class:greifen={cursorKlasse==="greifen"}>
-      {#if !bereit}<p role="status">Unterlage wird vorbereitet …</p>{/if}
+      {#if !bereit}<p role="status">{zeichnung?"Zeichnung wird vorbereitet …":"Unterlage wird vorbereitet …"}</p>{/if}
       <div class="papier" style:width={`${boxB*zoom}px`} style:height={`${boxH*zoom}px`} style:visibility={bereit?"visible":"hidden"}>
         <div class="blatt" style:width={`${breite*zoom}px`} style:height={`${hoehe*zoom}px`} style:transform={blattTransform}>
           {#if !plan}<img src={seitenbild||undefined} alt="" draggable="false"/>{/if}
@@ -547,6 +647,20 @@
           <svg bind:this={svg} viewBox={`0 0 ${breite} ${hoehe}`} role="application" class={cursorKlasse}
             aria-label="Zeichenfläche. Punkte anklicken, Enter beendet, Escape bricht ab. Strg+Mausrad zoomt, Leertaste oder mittlere Maustaste verschiebt. Ziffern öffnen die Maßeingabe." tabindex="0"
             onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={abbrechen} onkeydown={key}>
+            {#if zeichnung}
+              <defs>
+                <pattern id={`${rasterId}f`} width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0V1M0 1H1" class="raster"/></pattern>
+                <pattern id={`${rasterId}g`} width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0V10M0 10H10" class="raster grob"/></pattern>
+              </defs>
+              <rect class="rasterflaeche" width={breite} height={hoehe} style:fill={zoom>=10?`url(#${rasterId}f)`:"none"}/>
+              <rect class="rasterflaeche" width={breite} height={hoehe} style:fill={`url(#${rasterId}g)`}/>
+            {/if}
+            {#each hgAnsicht as a (a.hg.h.id)}{#if a.hg.h.sichtbar}
+              <g class="hintergrund" transform={hgTransform(a.hg.h)} opacity={a.hg.h.deckkraft} aria-hidden="true">
+                {#if a.url}<image href={a.url} x="0" y="0" width={a.breite} height={a.hoehe} preserveAspectRatio="none"/>{/if}
+                {#each a.pfade as pf (pf.farbe)}<path d={pf.d} style:stroke={pf.farbe}/>{/each}
+              </g>
+            {/if}{/each}
             {#if plan&&blatt}<g class="unterlage" aria-hidden="true">
               {#each pfade as pf (pf.farbe)}<path d={pf.d} style:stroke={pf.farbe}/>{/each}
               {#each texte as t}{#if t.hoehe*zoom>=4}<text x={t.x} y={t.y} font-size={t.hoehe} text-anchor={t.anker} style:fill={t.farbe} transform={t.drehung?`rotate(${-t.drehung} ${t.x} ${t.y})`:undefined}>{#each t.zeilen as zeile,i}<tspan x={t.x} dy={i?t.zeilenabstand:0}>{zeile}</tspan>{/each}</text>{/if}{/each}
@@ -579,8 +693,19 @@
                 <text x={eckpunkte(m.geometrie)[0][0]+5/zoom} y={eckpunkte(m.geometrie)[0][1]-5/zoom} font-size={12/zoom}>{m.bezeichnung}{beschriftung(m)?` · ${beschriftung(m)}`:""}</text>
               </g>
             {/each}
+            {#each angezeigteElemente as e (e.id)}
+              <g data-element={e.id} class="element" class:gewaehlt={e.id===elementAuswahl}>
+                {@render element(elementEdit&&elementDrag?.id===e.id?elementEdit:e)}
+              </g>
+            {/each}
+            {#if gewaehltesElement&&werkzeug==="auswahl"&&!elementGesperrt}
+              <g data-element={gewaehltesElement.id}>
+                {#each elementPunkte(elementEdit&&elementDrag?.id===gewaehltesElement.id?elementEdit:gewaehltesElement) as p,i}<circle data-elementecke={i} cx={p[0]} cy={p[1]} r={7/zoom} class="ecke"/>{/each}
+              </g>
+            {/if}
             {#if hoehenHilfe}<line x1={hoehenHilfe.x1} y1={hoehenHilfe.y1} x2={hoehenHilfe.x2} y2={hoehenHilfe.y2} class="hoehenhilfe"/>{/if}
-            {#if preview}<g class="entwurf" class:rahmenentwurf={werkzeug==="ausschnitt"}>{@render figur(preview,false)}</g>{/if}
+            {#if preview&&werkzeug==="wand"&&preview.art==="strecke"&&faktor!==null}<g class="entwurf"><polygon points={wandKontur(preview.von,preview.bis,wanddicke/faktor).map(p=>p.join(",")).join(" ")} class="wand"/></g>
+            {:else if preview}<g class="entwurf" class:rahmenentwurf={werkzeug==="ausschnitt"}>{@render figur(preview,false)}</g>{/if}
             {#if zoomfenster&&zf&&cursor}{@const r=umgrenzung([zf,cursor])}<rect x={r.x} y={r.y} width={r.w} height={r.h} class="zoomrahmen"/>{/if}
             {#if punkte.length}<polyline points={[...punkte,...(cursor?[cursor]:[])].map(p=>p.join(",")).join(" ")} class="vorschau"/>{/if}
             {#each punkte as p}<circle cx={p[0]} cy={p[1]} r={4/zoom} class="ecke"/>{/each}
@@ -602,7 +727,7 @@
       </div>
     </div>
   </div>
-  <p class="meta status" role="status">{vorschau?`Vorschau: ${vorschau} · `:""}{fangart || (geometry.points.length?`${geometry.points.length} Vektorpunkte der Unterlage`:"Keine Vektorpunkte – manuell zeichnen")}
+  <p class="meta status" role="status">{vorschau?`Vorschau: ${vorschau} · `:""}{fangart || (zeichnung?`Eigene Zeichnung in Metern · Blatt ${z(breite,0)} × ${z(hoehe,0)} m${geometry.points.length?` · ${geometry.points.length} Fangpunkte der Hintergründe`:""}`:geometry.points.length?`${geometry.points.length} Vektorpunkte der Unterlage`:"Keine Vektorpunkte – manuell zeichnen")}
     {geometry.limited?" · Vektorumfang begrenzt":""}{drehung?` · Ansicht ${drehung}° gedreht`:""} · Strg+Rad zoomt, Leertaste verschiebt, Shift rastet, Alt setzt den Fang aus, Ziffern öffnen die Maßeingabe. Enter schließt, Escape bricht ab.</p>
 </div>
 
@@ -613,6 +738,22 @@
   {:else if g.art==="kreis"}<circle cx={g.mitte[0]} cy={g.mitte[1]} r={Math.hypot(g.rand[0]-g.mitte[0],g.rand[1]-g.mitte[1])} class:aktiv={selected}/>
   {:else if g.art==="strecke"}<line x1={g.von[0]} y1={g.von[1]} x2={g.bis[0]} y2={g.bis[1]} class:aktiv={selected}/>
   {:else}<circle cx={g.punkt[0]} cy={g.punkt[1]} r={4/zoom} class:aktiv={selected}/>{/if}
+{/snippet}
+
+{#snippet element(e:Zeichenelement)}
+  {#if e.art==="wand"}
+    {#if faktor!==null}<polygon points={wandKontur(e.von,e.bis,e.dicke_m/faktor).map(p=>p.join(",")).join(" ")} class="wand"/>
+    {:else}<line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wand"/>{/if}
+    <line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wandachse"/>
+  {:else if e.art==="masskette"}
+    {@const k=masskette(e.von,e.bis,e.abstand)}
+    {#each k.hilfen as [a,b]}<line x1={a[0]} y1={a[1]} x2={b[0]+k.ueber[0]*4/zoom} y2={b[1]+k.ueber[1]*4/zoom} class="masshilfe"/>{/each}
+    <line x1={k.linie[0][0]} y1={k.linie[0][1]} x2={k.linie[1][0]} y2={k.linie[1][1]} class="masslinie"/>
+    {#each k.linie as p}<line x1={p[0]-4/zoom} y1={p[1]+4/zoom} x2={p[0]+4/zoom} y2={p[1]-4/zoom} class="masslinie" transform={`rotate(${k.winkel} ${p[0]} ${p[1]})`}/>{/each}
+    <text class="masstext" x={k.mitte[0]} y={k.mitte[1]-3/zoom} font-size={11/zoom} text-anchor="middle" transform={`rotate(${k.winkel} ${k.mitte[0]} ${k.mitte[1]})`}>{faktor===null?"— m":`${z(k.laenge*faktor)} m`}</text>
+  {:else}
+    <text class="freitext" x={e.punkt[0]} y={e.punkt[1]} font-size={e.hoehe} transform={e.drehung_grad?`rotate(${-e.drehung_grad} ${e.punkt[0]} ${e.punkt[1]})`:undefined}>{e.inhalt}</text>
+  {/if}
 {/snippet}
 
 <style>
@@ -667,6 +808,20 @@
   svg .referenz circle{stroke:#5a3d8f;fill:white}
   svg .referenz text{fill:#5a3d8f}
   svg .fremd{opacity:.35;pointer-events:none}
+  svg .rasterflaeche{stroke:none;pointer-events:none}
+  svg .raster{stroke:#dde3e8;fill:none;stroke-width:1}
+  svg .raster.grob{stroke:#bcc6cf}
+  svg .hintergrund{pointer-events:none}
+  svg .hintergrund path{fill:none;stroke-width:1}
+  svg .element .wand{fill:#6b747d33;stroke:#2b3138;stroke-width:1.4}
+  svg .element .wandachse{stroke:#2b3138;stroke-width:.8;stroke-dasharray:6 3;opacity:.5;fill:none}
+  svg .element .masslinie,svg .element .masshilfe{stroke:#1d4e89;stroke-width:1;fill:none}
+  svg .element .masshilfe{opacity:.7}
+  svg .element .masstext{fill:#1d4e89;font-weight:600}
+  svg .element .freitext{fill:#2b3138;stroke:none;paint-order:normal;font-family:system-ui,sans-serif}
+  svg .element.gewaehlt :is(polygon,line){stroke:#ad530a;stroke-width:2.2}
+  svg .element.gewaehlt text{fill:#ad530a}
+  .entwurf .wand{fill:#6b747d33;stroke:#ad530a}
   svg .unterlage{pointer-events:none}
   svg .unterlage path{fill:none;stroke-width:1}
   svg .unterlage text{stroke:none;paint-order:normal;font-family:system-ui,sans-serif;font-weight:400}

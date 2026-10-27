@@ -42,7 +42,13 @@ export type Planausschnitt = { id: string, bezeichnung: string, art: Ausschnitta
  * Stabile Zeichenebene; Altbestände verwenden weiterhin die Namenszuordnung.
  */
 ebene_id?: string, kalibrierung?: Plankalibrierung, bezugslinie?: Planbezugslinie, };
-export type Planaufmass = { bezeichnung: string, dokument: Dokumentbezug,
+export type Planaufmass = { bezeichnung: string,
+/**
+ * Unterlage (PDF-Seite oder DXF). Fehlt sie, ist das Aufmaß eine eigene
+ * Zeichnung: Seitenpunkte sind Meter (y nach unten), Unterlagen liegen
+ * als `hintergruende` eingepasst darunter.
+ */
+dokument?: Dokumentbezug,
 /**
  * Einsbasiert. Mehrere Aufmaße derselben Seite dürfen verschiedene Maßstäbe haben.
  */
@@ -50,7 +56,44 @@ seite: number, kalibrierung: Plankalibrierung | null, hoehenbezug: Planhoehenbez
 /**
  * Optionale Ausschnitte; ohne sie gelten Maßstab und Höhenbezug der Seite.
  */
-ausschnitte?: Array<Planausschnitt>, };
+ausschnitte?: Array<Planausschnitt>,
+/**
+ * Nur eigene Zeichnungen: eingepasste Unterlagen als Hintergrund.
+ */
+hintergruende?: Array<Planhintergrund>,
+/**
+ * Zeichenelemente ohne Messwert (Wand, Maßkette, Text).
+ */
+elemente?: Array<Zeichenelement>, };
+export type Planhintergrund = { id: string, dokument: Dokumentbezug,
+/**
+ * Einsbasiert; DXF immer 1.
+ */
+seite: number, ursprung: [number, number], lage: [number, number], drehung_grad: number, meter_pro_punkt: number,
+/**
+ * 0 … 1.
+ */
+deckkraft: number, sichtbar: boolean, };
+export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+/**
+ * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
+ * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
+ */
+abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
+/**
+ * Schrifthöhe in Seitenpunkten.
+ */
+hoehe: number, drehung_grad: number, };
+export type Zeichenelement = { id: string, ebene_id: string, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+/**
+ * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
+ * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
+ */
+abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
+/**
+ * Schrifthöhe in Seitenpunkten.
+ */
+hoehe: number, drehung_grad: number, });
 export type Planmesswert = { id: string, laenge_m: number | null, flaeche_m2: number | null, horizontale_m: number | null, hoehe_m: number | null, neigung_grad: number | null, offen: Array<string>, };
 export type Planmessgroesse = "flaeche" | "laenge" | "horizontale" | "hoehe" | "neigung";
 export type Planbindung = { aufmass_id: string, revision: number, markierung_id: string, groesse: Planmessgroesse,
@@ -329,7 +372,7 @@ eigentuemer_kunden?: Array<string>, bemerkung: string,
  */
 rolle?: FlurstuecksRolle,
 /**
- * Im PDF-Aufmaß gezeichnete Flurstücksgrenze (Flurkarte oder Lageplan):
+ * Im Aufmaß gezeichnete Flurstücksgrenze (Flurkarte oder Lageplan):
  * Bindung an eine Markierung mit Bedeutung „Flurstück“, die diesem
  * Flurstück zugeordnet ist (Ziel [`Self::planziel`]). Die Katasterfläche
  * [`Self::flaeche_m2`] bleibt der Rechenwert, solange nicht
@@ -1084,7 +1127,7 @@ hoehenzonen?: Array<Hoehenzone>, };
 export type Hoehenzone = { id: string, bezeichnung: string, flaeche_m2: number,
 /**
  * Kleinste lichte Höhe in der Zone (m); `None` = noch nicht erfasst
- * (z. B. nach Übernahme aus dem PDF-Aufmaß).
+ * (z. B. nach Übernahme aus dem Aufmaß).
  */
 lichte_hoehe_min_m: number | null,
 /**

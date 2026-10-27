@@ -53,11 +53,13 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
     let aufmass = Uuid::new_v4();
     let mut a = Planaufmass {
         bezeichnung: "EG".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: doc.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -322,11 +324,13 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
     let geschossflaeche = Uuid::new_v4();
     let mut a = Planaufmass {
         bezeichnung: "Grundriss und Ansicht".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: doc.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -900,8 +904,10 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
     ];
     let a = Planaufmass {
         bezeichnung: "Grundriss und Schnitt".into(),
-        dokument: dokument.clone(),
+        dokument: Some(dokument.clone()),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -1298,11 +1304,13 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
     // 10 m × 5 m Raum, davon 10 m × 1 m Schräge zwischen 1 m und 2 m.
     let mut a = Planaufmass {
         bezeichnung: "DG".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: doc.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -1535,11 +1543,13 @@ async fn flurstuecke_werden_aus_dem_pdf_aufmass_uebernommen() {
     };
     let mut a = Planaufmass {
         bezeichnung: "Flurkarte".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: doc.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -1856,11 +1866,13 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     zufahrt.grundstueck_id = Some(grundstueck);
     let mut a = Planaufmass {
         bezeichnung: "Lageplan".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: doc.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -2280,11 +2292,13 @@ async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
     };
     let mut a = Planaufmass {
         bezeichnung: "Lageplan".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: dxf.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Einheit {
             einheit: Laengeneinheit::Meter,
         }),
@@ -2314,10 +2328,10 @@ async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
     seite2.seite = 2;
     assert!(core.planaufmass_pruefen(p.id, &seite2).await.is_err());
     let mut auf_pdf = a.clone();
-    auf_pdf.dokument = Dokumentbezug {
+    auf_pdf.dokument = Some(Dokumentbezug {
         dokument_id: pdf.document_id,
         version: 1,
-    };
+    });
     let e = core.planaufmass_pruefen(p.id, &auf_pdf).await.unwrap_err();
     assert!(e.to_string().contains("nur für DXF"), "{e}");
     let aufmass = Uuid::new_v4();
@@ -2483,7 +2497,7 @@ async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
     assert_eq!(uebernommen.len(), 1);
     let u = &uebernommen[0];
     assert!(u.bezeichnung.contains("Lageplan.dxf"), "{}", u.bezeichnung);
-    assert_eq!(u.dokument.version, 1);
+    assert_eq!(u.dokument.as_ref().unwrap().version, 1);
     let grenzen = core
         .cad_plan(dxf.document_id)
         .await

@@ -422,7 +422,13 @@ impl CoreServices {
         for f in self.fachobjekte(p, ObjektArt::Planaufmass).await? {
             let aufmass: crate::planaufmass::Planaufmass = decode(f.daten)?;
             let mut offen = Vec::new();
-            if !doc_aktuell(&aufmass.dokument) {
+            // Aufmaß: die Unterlage; eigene Zeichnung: alle Hintergründe.
+            let unterlagen_aktuell = aufmass
+                .dokument
+                .iter()
+                .chain(aufmass.hintergruende.iter().map(|h| &h.dokument))
+                .all(doc_aktuell);
+            if !unterlagen_aktuell {
                 offen.push("Unterlage ist veraltet oder fehlt".into());
             }
             // Ohne Seitenmaßstab braucht jeder Ausschnitt einen eigenen.
@@ -462,7 +468,7 @@ impl CoreServices {
                         offen.extend(w.offen.into_iter().map(|h| format!("{name}: {h}")));
                     }
                     // Zuordnungen zu Grundstück, Gebäude und Geschoss am Entstehungsort melden.
-                    if doc_aktuell(&aufmass.dokument)
+                    if unterlagen_aktuell
                         && let Err(e) = self.planaufmass_pruefen(p, &aufmass).await
                     {
                         offen.push(e.to_string());

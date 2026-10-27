@@ -63,11 +63,13 @@ async fn veraltete_planquelle_blockiert_nur_ihre_grundstueckseinheit() {
     let aid = Uuid::new_v4();
     let mut a = Planaufmass {
         bezeichnung: "Haus B".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: d.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [0., 0.],
             bis: [100., 0.],
@@ -272,11 +274,13 @@ async fn einzelpruefung_export_und_cad_aufmasse_erhalten_ihre_quellen() {
     let ebene = Uuid::new_v4();
     let mut a = Planaufmass {
         bezeichnung: "Grundriss EG".into(),
-        dokument: Dokumentbezug {
+        dokument: Some(Dokumentbezug {
             dokument_id: d.document_id,
             version: 1,
-        },
+        }),
         seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
         kalibrierung: Some(Plankalibrierung::Strecke {
             von: [70., 300.],
             bis: [370., 300.],
