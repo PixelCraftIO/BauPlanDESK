@@ -2,7 +2,8 @@
 
 Stand: 27.10.2026. Ersetzt die Optik des „Behördenstils“ aus `docs/ui-umsetzung`
 durch ein Erscheinungsbild, wie es Planer von CAD- und AVA-Programmen kennen.
-Die Aufteilung der Masken, die Register und die Gliederung bleiben unverändert.
+Die Aufteilung der Masken bleibt unverändert; die Register sind seit PR 6 in
+zwei Bereiche gegliedert (siehe unten).
 
 ## Regeln
 
@@ -23,6 +24,20 @@ Die Aufteilung der Masken, die Register und die Gliederung bleiben unverändert.
   (`Symbolknopf.svelte`, Klasse `.symbolknopf`).
 - Unverändert: Pflichtfelder gelb hinterlegt, schreibgeschützte Felder
   gestrichelt, Schriftgröße 13 px und die dichte Anordnung der Fachmasken.
+
+## Register und Bereiche
+
+Die Projektakte hat drei Register (`navigation.ts`, `Projektakte.svelte`):
+„Übersicht“ sowie die beiden Bereiche „Ermittlung“ (Bereich 1: alles, was
+Werte erzeugt – Grundlagen, Unterlagen mit Aufmaß und Messwerten,
+Gebäudemodell) und „Nachweis und Einreichung“ (Bereich 2: alles, was Werte
+verarbeitet und ausgibt – Grundstück und Nutzung, Gebäude und Flächen, weitere
+Nachweise, Formulare und Ausgabe, Verfahren, Einreichungswerkzeuge). Die
+Reiter tragen die Bereichsnummer in Kapitälchen über dem Titel; die Gliederung
+links zeigt die Zwischenüberschriften des gewählten Bereichs. Sprünge aus der
+Projektübersicht, der Navigation und den Messwerten landen über `registerVon`
+automatisch im richtigen Bereich. Bildschirmfotos:
+`docs/ui-umsetzung/bereich-ermittlung.png`, `bereich-nachweis.png`.
 
 ## Editoren
 

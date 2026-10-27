@@ -144,7 +144,7 @@ Orientierung, parallele Projekte und sichere Entwurfsbearbeitung.
 
 Oben wechseln Sie zwischen „Projekte“, „Kunden / Bauherren“, „Formularbibliothek“, „Einstellungen“ und der Hilfe. Die darunter geöffneten Projekttabs bleiben unabhängig davon erhalten.
 
-Innerhalb einer Projektakte wechseln Sie über die Register „Übersicht“, „Grundlagen“, „Berechnungen“, „Unterlagen“ und „Verfahren“. Links erscheint jeweils die Gliederung des gewählten Registers. Ein gesperrter Bereich nennt beim Darüberfahren konkret die fehlenden Schritte. Über das Informationssymbol ist die Erklärung mit Tastatur erreichbar und mit Escape schließbar. Nutzungsmodule können über „Entwurf öffnen“ vorbereitet werden; für Berechnung und Nachweise bleiben die fachlichen Voraussetzungen erforderlich.
+Innerhalb einer Projektakte wechseln Sie über die Register „Übersicht“, „Ermittlung“ (Bereich 1: alles, was Werte erzeugt – Grundlagen, Unterlagen, Aufmaß, Messwerte, Gebäudemodell) und „Nachweis und Einreichung“ (Bereich 2: alles, was Werte verarbeitet und ausgibt – Berechnungen, Formulare, Druck, Verfahren). Links erscheint jeweils die Gliederung des gewählten Bereichs. Ein gesperrter Bereich nennt beim Darüberfahren konkret die fehlenden Schritte. Über das Informationssymbol ist die Erklärung mit Tastatur erreichbar und mit Escape schließbar. Nutzungsmodule können über „Entwurf öffnen“ vorbereitet werden; für Berechnung und Nachweise bleiben die fachlichen Voraussetzungen erforderlich.
 
 ### Eingaben richtig behandeln
 
@@ -338,7 +338,7 @@ Katasterfakten getrennt von der rechnerischen Grundstücksbildung pflegen.
 2. Gemarkung, Flur, Flurstücksnummer und tatsächliche Flurstücksfläche eingeben. Die Rolle des Flurstücks, etwa Vorhaben- oder Nachbarbezug, richtig festlegen.
 3. Liegt eine Flurkarte, Liegenschaftskarte oder ein Lageplan als PDF vor: die Datei unter „Projektdateien“ (Kategorie „Flurkarte / Liegenschaftskarte“ oder „Lageplan“) ablegen, unter „Unterlagen → Aufmaß“ kalibrieren, die Flurstücksgrenze als „Flurstück“ zeichnen, das Flurstück zuordnen und über „Aufgaben → Übernehmen“ verknüpfen. Die gezeichnete Fläche steht dann neben der Katasterfläche mit ihrer Abweichung; fehlt ein amtlicher Wert, „Gezeichnete Fläche als Flurstücksfläche verwenden“ wählen.
 4. Soweit bekannt Grundbuchbezirk/-blatt, laufende Nummer, Eigentümer und einen gespeicherten Grundbuchauszug als konkrete Dokumentversion ergänzen.
-5. Grundstücksinformationen speichern. Erst danach im Register „Berechnungen“ die Baugrundstücksermittlung durchführen.
+5. Grundstücksinformationen speichern. Erst danach im Bereich „Nachweis und Einreichung“ die Baugrundstücksermittlung durchführen.
 
 ### Grundbuch ist optional
 
@@ -361,7 +361,7 @@ Bezugsflächen je Grundstück nachvollziehbar herleiten.
 ### Berechnung vorbereiten
 
 1. Gespeicherte Vorhabenflurstücke und vorhandene Grundbuchzuordnungen prüfen.
-2. „Berechnungen → Baugrundstück“ öffnen. Flächenabzüge je Flurstück, z. B. festgesetzte nicht maßgebende Flächen, mit Bezeichnung und Grundlage erfassen.
+2. „Nachweis und Einreichung → Baugrundstück“ öffnen. Flächenabzüge je Flurstück, z. B. festgesetzte nicht maßgebende Flächen, mit Bezeichnung und Grundlage erfassen.
 3. Abzugsflächen können aus einem gespeicherten Aufmaß kommen: im Lageplan die Fläche mit passender Bedeutung (Grünfläche, Verkehrsfläche, außerhalb Bauland, sonstiger Abzug) zeichnen und dem Flurstück zuordnen, dann „Abzugsflächen aus Aufmaß übernehmen“ wählen. Die Fläche ist danach schreibgeschützt, die Abzugsart folgt der Bedeutung; die rechtliche Grundlage bleibt zu ergänzen. Nach geänderter Kontur „Aktuellen Aufmaßstand übernehmen“, sonst lässt sich das Projekt nicht speichern.
 4. Eine besondere rechtliche Zuordnung nur mit belegter Grundlage und eindeutiger Zuordnungskennung verwenden.
 5. „Baugrundstücke ermitteln“ wählen und die entstandenen Einheiten, zugehörigen Flurstücke und Flächensummen prüfen.
@@ -383,7 +383,7 @@ Das Gebäudemodell als gemeinsame Quelle für Berechnungen nutzen.
 
 ### Gebäudedaten
 
-1. „Grundlagen → Gebäude / Geschosse“ öffnen und „Neu anlegen“ wählen. Bezeichnung und Gebäudetyp erfassen.
+1. „Ermittlung → Gebäude / Geschosse“ öffnen und „Neu anlegen“ wählen. Bezeichnung und Gebäudetyp erfassen.
 2. Die Flurstücke zuordnen, auf denen das Gebäude tatsächlich steht. Eine Baugrundstücksnummer ist kein Ersatz für diese Lagezuordnung.
 3. Gebäudegrundfläche, vorhandene Nutzungsangaben und gegebenenfalls absolute Gelände-, Trauf- und Firsthöhen mit Höhensystem erfassen.
 4. Einzelne Geschosse mit Fläche und Einstufung ergänzen und speichern. Bei einem Gebäude ohne einzelne Geschosse die geprüfte Einstufung des Einzelgeschosses mit Grundlage festlegen.
@@ -438,7 +438,7 @@ Bauteilflächen abhängig von der gewählten BauNVO ansetzen.
 
 ### Grundflächenaufstellung
 
-1. Aktuelle Baugrundstücke und die gewählte BauNVO prüfen; „Berechnungen → GRZ“ öffnen.
+1. Aktuelle Baugrundstücke und die gewählte BauNVO prüfen; „Nachweis und Einreichung → GRZ“ öffnen.
 2. Das betreffende Baugrundstück auswählen. Automatisch eingebundene Gebäude prüfen. Zusätzliche Bauteile mit Bezeichnung, Bauteiltyp und Grundfläche erfassen, etwa Garage, Zufahrt oder Terrasse.
 3. Bauteile ohne Gebäude (Zufahrt, Stellplatz, Garage, Nebenanlage, Terrasse, unterirdische Anlage) lassen sich aus einem gespeicherten Aufmaß übernehmen: Markierung mit passender Bedeutung dem Baugrundstück zuordnen, dann „Bauteile aus Aufmaß übernehmen“ wählen. Bauteiltyp und Anrechnung prüfen; die Hauptanlage kommt weiter über die Gebäudegrundfläche. Nach geänderter Kontur „Aktuellen Aufmaßstand übernehmen“.
 4. Bauteile nach ihrer tatsächlichen Art zuordnen. Ein Bauteiltyp steuert die Anrechnung; die bloße Bezeichnung tut dies nicht.
@@ -468,7 +468,7 @@ Geschossflächen und Vollgeschosse nachvollziehbar zuordnen.
 
 ### Geschossflächen erfassen
 
-1. „Berechnungen → GFZ“ bzw. „Geschossigkeit“ öffnen und die Grundstückseinheit prüfen.
+1. „Nachweis und Einreichung → GFZ“ bzw. „Geschossigkeit“ öffnen und die Grundstückseinheit prüfen.
 2. Die aus Gebäude/Geschosse eingebundenen Geschosse kontrollieren. Weitere manuelle Geschosse nur ergänzen, wenn sie nicht bereits enthalten sind.
 3. Geschosstyp und Geschossfläche nach Außenmaßen erfassen. Bei Nichtvollgeschossen die erforderlichen Teilflächen für Aufenthaltsräume, umfassende Wände und Erschließung getrennt angeben.
 4. Bei gebundenen Geschossen die Einstufung an der Gebäudequelle bzw. im verknüpften Vollgeschossnachweis ändern.
@@ -540,7 +540,7 @@ Wände, Gelände, Grundstück und Konflikte gemeinsam dokumentieren.
 
 ### Abstandsplan aufbauen
 
-1. „Berechnungen → Abstandsflächen“ öffnen und einen Abstandsplan anlegen. Gemeinde, Rechtsfassung, Anwendbarkeit, Plan-/Satzungsbezug sowie Höhen- und Koordinatenbezug dokumentieren.
+1. „Nachweis und Einreichung → Abstandsflächen“ öffnen und einen Abstandsplan anlegen. Gemeinde, Rechtsfassung, Anwendbarkeit, Plan-/Satzungsbezug sowie Höhen- und Koordinatenbezug dokumentieren.
 2. Gebäudeumrisse mit Eckpunkten in Umlaufrichtung erfassen. „Seiten als Wände übernehmen“ erzeugt die zugehörigen Wandseiten; deren Lage und Außenseite anschließend am Plan prüfen. Alternativ manuelle Wände erfassen.
 3. Gelände- und Wandabschlussprofile, Dachanteile und relevante Bauteile je Wand ergänzen. Gebäude- oder PDF-Übernahmen bewusst verknüpfen.
 4. Grundstücksgrenzen und weitere Konfliktgeometrien im selben Koordinatenbezug erfassen. Abweichende Ansätze, Sicherungen und Entscheidungen mit Belegen dokumentieren.
@@ -688,7 +688,7 @@ Unveränderliche Nachweise von bearbeitbaren Berechnungen unterscheiden.
 ### Nachweisführung
 
 1. Die Berechnung vollständig prüfen und ihre aktuellen Eingaben speichern. Gegebenenfalls speichert „Nachweisstand speichern“ bzw. „Nachweis erstellen …“ die offenen Eingaben zuerst und berechnet neu.
-2. Den erzeugten Stand unter „Berechnungen → Nachweisstände“ kontrollieren. Grundlagen, Ergebnis, Hinweise und Quellen müssen zum beabsichtigten Planungsstand passen.
+2. Den erzeugten Stand unter „Nachweis und Einreichung → Nachweisstände“ kontrollieren. Grundlagen, Ergebnis, Hinweise und Quellen müssen zum beabsichtigten Planungsstand passen.
 3. Erforderliche Bürofreigaben durch die berechtigte Leitung erfassen. Archivieren und Freigeben sind unterschiedliche Handlungen.
 4. PDF ausgeben und bei Bedarf mit „Als Projektunterlage ablegen“ in die Projektdateien übernehmen. Für einen Abgabestand konkrete Dokumentversionen auswählen.
 

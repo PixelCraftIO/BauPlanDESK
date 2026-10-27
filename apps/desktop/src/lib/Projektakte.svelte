@@ -312,7 +312,12 @@
       role="tab"
       aria-selected={aktuellesRegister?.id === r.id}
       class:aktiv={aktuellesRegister?.id === r.id}
-      onclick={() => registerOeffnen(r)}>{r.titel}</button
+      aria-label={r.titel}
+      title={r.untertitel}
+      onclick={() => registerOeffnen(r)}
+      ><span class="registertitel"
+        >{#if r.ziffer}<small class="ziffer">{r.ziffer}</small>{/if}{r.titel}</span
+      ></button
     >
   {/each}
 </div>

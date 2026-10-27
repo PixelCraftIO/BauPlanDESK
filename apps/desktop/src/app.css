@@ -2339,3 +2339,22 @@ tbody tr:hover > td {
 .projektkopf {
   border-bottom: 0;
 }
+.register button {
+  padding: 4px 16px 5px;
+}
+.register .registertitel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+.register .ziffer {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.register button.aktiv .ziffer {
+  color: var(--accent);
+}

@@ -72,7 +72,7 @@ with sync_playwright() as pw:
   page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
   return page
  page=start();a=page.locator('.projekt-sitzung:visible')
- register(page,'Berechnungen');nav=a.locator('.aktennavigation')
+ register(page,'Nachweis und Einreichung');nav=a.locator('.aktennavigation')
  expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled()
  nav.get_by_role('button',name='GRZ',exact=True).hover(force=True)
  tip=page.get_by_role('tooltip').filter(has_text='Berechnungsmaßstab')
@@ -95,7 +95,7 @@ with sync_playwright() as pw:
  expect(a.get_by_role('status').filter(has_text='Entwurf auf diesem Gerät gesichert')).to_be_visible()
  assert not page.evaluate("window.calls.some(c=>c.cmd==='nachweis_erstellen'||c.cmd==='projekt_baugrundstuecke_pruefen')")
  page.screenshot(path=str(out/'01-grz-entwurf.png'))
- page.reload();page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click();register(page,'Berechnungen')
+ page.reload();page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click();register(page,'Nachweis und Einreichung')
  a=page.locator('.projekt-sitzung:visible');a.locator('.aktennavigation').get_by_role('button',name='GRZ: Entwurf öffnen',exact=True).click()
  a.get_by_role('button',name='Lokalen Entwurf wiederherstellen',exact=True).click()
  expect(a.locator('.flaechenformular').get_by_label('Bezeichnung',exact=True)).to_have_value('Haus vorläufig')

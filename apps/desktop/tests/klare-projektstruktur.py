@@ -51,8 +51,8 @@ with sync_playwright() as p:
  def section():return page.locator('.projekt-sitzung:visible > .aktenrumpf > main > section:not([hidden])')
  assert page.get_by_role('navigation',name='Projektbereiche').count()==0
  assert page.get_by_role('navigation',name='Werkzeugleiste').count()==0
- register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled()
- register(page,'Grundlagen');expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_be_disabled();expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen: Voraussetzungen anzeigen',exact=True)).to_be_visible()
+ register(page,'Nachweis und Einreichung');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled()
+ register(page,'Ermittlung');expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_be_disabled();expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen: Voraussetzungen anzeigen',exact=True)).to_be_visible()
  checks.append('Eine Sidebar, keine doppelte Projekt- oder Werkzeugnavigation')
  view('Rechtsgrundlagen')
  section().get_by_label('Bebauungsplan',exact=True).select_option('qualifiziert')
@@ -60,7 +60,7 @@ with sync_playwright() as p:
  section().get_by_label('Planbezeichnung',exact=True).fill('Lindenweg Nord')
  section().get_by_role('button',name='Speichern',exact=True).click()
  expect(nav.get_by_role('button',name='Bebauungsplanfestsetzungen',exact=True)).to_be_visible()
- register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled();expect(nav.get_by_role('button',name='GRZ: Entwurf öffnen',exact=True)).to_be_visible()
+ register(page,'Nachweis und Einreichung');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_disabled();expect(nav.get_by_role('button',name='GRZ: Entwurf öffnen',exact=True)).to_be_visible()
  assert not section().get_by_label('GFZ',exact=True).count()
  view('Bebauungsplanfestsetzungen')
  section().get_by_label('GFZ',exact=True).fill('0.8')
@@ -76,7 +76,7 @@ with sync_playwright() as p:
  page.evaluate('window.failSave=false')
  section().get_by_role('button',name='Grundstücksinformationen speichern',exact=True).click()
  expect(section().get_by_text('Ungespeicherte Änderungen',exact=True)).not_to_be_visible()
- register(page,'Berechnungen');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_enabled();view('Flurstücke und Grundbuch')
+ register(page,'Nachweis und Einreichung');expect(nav.get_by_role('button',name='GRZ',exact=True)).to_be_enabled();view('Flurstücke und Grundbuch')
  assert page.evaluate('window.testProjects[0].planungsrecht.grundstuecksinformationen.flurstuecke[0].laufende_nummer') is None
  assert not page.evaluate('window.testProjects[0].planungsrecht.baugrundstuecksermittlung')
  for width in [1024,768,600]:

@@ -4,31 +4,52 @@ export interface NavZweig {
   titel: string;
   module: ModulId[];
   kinder?: NavZweig[];
+  /** Nur Register: Nummer des Bereichs („Bereich 1“) und eine Zeile Erklärung. */
+  ziffer?: string;
+  untertitel?: string;
 }
 /**
- * Register der Projektakte. Jedes Register zeigt links nur seine eigene
+ * Register der Projektakte: Übersicht sowie die beiden Bereiche Ermittlung
+ * (alles, was Werte erzeugt) und Nachweis und Einreichung (alles, was Werte
+ * verarbeitet und ausgibt). Jedes Register zeigt links nur seine eigene
  * Gliederung; Unterzweige erscheinen dort als Zwischenüberschriften.
  */
 export const NAVIGATION: NavZweig[] = [
   {
     id: "akte",
     titel: "Übersicht",
+    untertitel: "Stand, offene Punkte",
     module: ["projektuebersicht", "aufgaben", "protokoll"],
   },
   {
-    id: "grundlagen",
-    titel: "Grundlagen",
-    module: [
-      "uebersicht",
-      "rechtsgrundlagen",
-      "festsetzungen",
-      "flurstuecke",
-      "gebaeude",
+    id: "ermittlung",
+    titel: "Ermittlung",
+    ziffer: "Bereich 1",
+    untertitel: "Flächen, Höhen, Maße aus Unterlagen und Zeichnungen",
+    module: [],
+    kinder: [
+      {
+        id: "grundlagen",
+        titel: "Grundlagen",
+        module: ["uebersicht", "rechtsgrundlagen", "festsetzungen", "flurstuecke"],
+      },
+      {
+        id: "unterlagen",
+        titel: "Unterlagen",
+        module: ["dokumente", "planaufmass", "messwerte", "unterlagen"],
+      },
+      {
+        id: "gebaeudemodell",
+        titel: "Gebäudemodell",
+        module: ["gebaeude", "raumbuch"],
+      },
     ],
   },
   {
-    id: "berechnungen",
-    titel: "Berechnungen",
+    id: "nachweis",
+    titel: "Nachweis und Einreichung",
+    ziffer: "Bereich 2",
+    untertitel: "Berechnungen, Formulare, Ausgabe fürs Bauamt",
     module: [],
     kinder: [
       {
@@ -46,13 +67,7 @@ export const NAVIGATION: NavZweig[] = [
       {
         id: "flaechen",
         titel: "Gebäude und Flächen",
-        module: [
-          "raumbuch",
-          "wohnflaechen",
-          "din277",
-          "vollgeschosse",
-          "hoehen",
-        ],
+        module: ["wohnflaechen", "din277", "vollgeschosse", "hoehen"],
       },
       {
         id: "weitere",
@@ -65,18 +80,16 @@ export const NAVIGATION: NavZweig[] = [
           "nachweise",
         ],
       },
-    ],
-  },
-  {
-    id: "unterlagen",
-    titel: "Unterlagen",
-    module: ["dokumente", "formulare", "planaufmass", "druck", "unterlagen"],
-  },
-  {
-    id: "verfahren",
-    titel: "Verfahren",
-    module: ["verfahren", "einreichen", "aktensuche"],
-    kinder: [
+      {
+        id: "ausgabe",
+        titel: "Formulare und Ausgabe",
+        module: ["formulare", "druck"],
+      },
+      {
+        id: "verfahren",
+        titel: "Verfahren",
+        module: ["verfahren", "einreichen", "aktensuche"],
+      },
       {
         id: "einreichungswerkzeuge",
         titel: "Einreichungswerkzeuge",
@@ -104,24 +117,20 @@ export function navigationMitModulen(
 ) {
   const zweige = structuredClone(NAVIGATION);
   const bekannt = new Set<string>();
-  for (const z of zweige) {
-    for (const id of z.module) bekannt.add(id);
-    for (const k of z.kinder ?? []) for (const id of k.module) bekannt.add(id);
-  }
+  for (const z of zweige) for (const id of moduleVon(z)) bekannt.add(id);
+  const zweig = (register: string, kind: string) =>
+    zweige.find((z) => z.id === register)!.kinder!.find((k) => k.id === kind)!;
   for (const m of module) {
     if (bekannt.has(m.id)) continue;
-    const gruppe =
+    const ziel =
       m.gruppe === "Berechnungen"
-        ? "berechnungen"
+        ? zweig("nachweis", "weitere")
         : m.gruppe === "Unterlagen"
-          ? "unterlagen"
+          ? zweig("ermittlung", "unterlagen")
           : m.gruppe === "Organisation"
-            ? "verfahren"
-            : "grundlagen";
-    const z = zweige.find((z) => z.id === gruppe)!;
-    if (gruppe === "berechnungen")
-      z.kinder!.find((k) => k.id === "weitere")!.module.push(m.id);
-    else z.module.push(m.id);
+            ? zweig("nachweis", "verfahren")
+            : zweig("ermittlung", "grundlagen");
+    ziel.module.push(m.id);
     bekannt.add(m.id);
   }
   return zweige;
