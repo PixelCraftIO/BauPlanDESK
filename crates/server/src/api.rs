@@ -422,6 +422,14 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/planaufgaben", post(planaufmass_aufgaben))
         .route(
+            "/projekte/{id}/planraumbuch/einsetzen",
+            post(planaufmass_raumbuch_einsetzen),
+        )
+        .route(
+            "/berechnung/planaufmass/werkzeugkiste",
+            get(planaufmass_werkzeugkiste),
+        )
+        .route(
             "/berechnung/planaufmass/gebaeudeziele",
             post(planaufmass_gebaeudeziele),
         )
@@ -2104,6 +2112,18 @@ async fn planaufmass_aufgaben(
     Json(plan): Json<core_lib::planaufmass::Planaufmass>,
 ) -> ApiResult<Vec<core_lib::planaufmass::Planaufgabe>> {
     Ok(Json(core.planaufmass_aufgaben(ProjectId(id), &plan).await?))
+}
+async fn planaufmass_raumbuch_einsetzen(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(r): Json<core_lib::plattform::objekte::Raumbuch>,
+) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
+    Ok(Json(
+        core.planaufmass_raumbuch_einsetzen(ProjectId(id), r).await?,
+    ))
+}
+async fn planaufmass_werkzeugkiste() -> Json<Vec<core_lib::planaufmass::Werkzeugvorlage>> {
+    Json(core_lib::planaufmass::werkzeugkiste())
 }
 async fn planaufmass_gebaeudeziele(
     Json(plan): Json<core_lib::plattform::objekte::Gebaeude>,

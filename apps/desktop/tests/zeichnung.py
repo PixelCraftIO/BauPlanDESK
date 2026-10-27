@@ -46,6 +46,17 @@ with sync_playwright() as pw:
  tab.get_by_role('button',name='Rechteck',exact=True).click();click(5,15);click(17.5,23)
  expect(tab.get_by_label('Bezeichnung',exact=True).first).to_have_value('Markierung 1')
  expect(tab.locator('.messwerte')).to_contain_text('50 m²')
+ # Werkzeugkiste: ein Klick wählt Polygon, Bedeutung NUF, Namen und legt die Ebene „DIN 277“ an.
+ kiste=tab.locator('details.palette').filter(has_text='Werkzeugkiste')
+ if not kiste.evaluate('d=>d.open'):kiste.locator('summary').click()
+ kiste.get_by_role('button',name='DIN 277 NUF',exact=True).click()
+ expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_be_visible()
+ expect(tab.get_by_role('button',name='Polygon',exact=True)).to_have_attribute('aria-pressed','true')
+ click(20,5);click(26,5);click(26,9);click(20,9);svg.press('Enter')
+ expect(tab.get_by_label('Bezeichnung',exact=True).first).to_have_value('DIN 277 NUF 1')
+ expect(tab.get_by_label('Bedeutung',exact=True)).to_have_value('nuf')
+ expect(tab.get_by_label('Zeichenebene',exact=True)).to_have_value(tab.get_by_label('Zeichenebene',exact=True).locator('option',has_text='DIN 277').evaluate('o=>o.value'))
+ expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_have_count(0)
  # Hintergrund: PDF-Seite 1 im Maßstab 1:100, über Strecke einpassen, verschieben.
  blatt=tab.locator('details.palette').filter(has_text='Blatt und Einrichtung')
  if not blatt.evaluate('d=>d.open'):blatt.locator('summary').click()
@@ -79,6 +90,8 @@ with sync_playwright() as pw:
  assert abs(saved['hintergruende'][0]['meter_pro_punkt']-200*0.0254/72)<1e-9,saved['hintergruende'][0]
  g=saved['markierungen'][0]['geometrie']
  assert g['art']=='rechteck' and all(abs(a-b)<1e-6 for a,b in zip(g['von']+g['bis'],[5,15,17.5,23])),g
+ assert saved['markierungen'][1]['bezeichnung']=='DIN 277 NUF 1' and saved['markierungen'][1]['bedeutung']=='nuf',saved['markierungen'][1]
+ assert any(e['bezeichnung']=='DIN 277' for e in saved['ebenen']),saved['ebenen']
  # Wieder öffnen aus der Liste: Tab heißt wie die Zeichnung, Hintergrund und Elemente sind da.
  tab.get_by_label('Bezeichnung des Aufmaßes',exact=True).fill('Skizze EG')
  tab=scope.locator('section[aria-label="Skizze EG"]:visible')

@@ -107,13 +107,18 @@ export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, 
 export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";
 export type Planaufgabe = {
 /**
- * `flurstueck`, `abzug`, `bauteil`, `gebaeude` oder `abstand`.
+ * `flurstueck`, `abzug`, `bauteil`, `gebaeude`, `abstand`, `berechnung` oder `raumbuch`.
  */
 verbraucher: string,
 /**
- * Flurstücks-ID, Zeilenkennung des Abzugs bzw. Bauteils, Gebäude-ID bzw. ID des Abstandsplans.
+ * Flurstücks-ID, Zeilenkennung des Abzugs bzw. Bauteils, Gebäude-ID, ID des
+ * Abstandsplans, der Fachberechnung oder des Raumbuchs.
  */
-objekt: string, objekt_name: string,
+objekt: string,
+/**
+ * Modul einer Fachberechnung (`din277`, `wohnflaechen`, …), sonst `None`.
+ */
+modul?: string, objekt_name: string,
 /**
  * Anzeigegruppe, z. B. „Lagerhalle · OG“ oder „Südwand“.
  */
@@ -134,6 +139,15 @@ gebunden: string | null,
  * Passende, noch nicht verknüpfte Markierung dieses Aufmaßes.
  */
 markierung: string | null, hinweis: string | null, };
+export type Werkzeugvorlage = { id: string,
+/**
+ * Anzeigegruppe, z. B. „Grundstück“ oder „DIN 277“.
+ */
+gruppe: string, titel: string, bedeutung: Planbedeutung, geometrie: Aufgabengeometrie,
+/**
+ * Zeichenebene, die beim ersten Gebrauch angelegt wird.
+ */
+ebene: string, hinweis: string, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

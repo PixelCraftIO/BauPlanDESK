@@ -2,7 +2,7 @@
   import { onMount, untrack } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
   import { api, fehlertext, EINHEITEN, istDxf, istPlan, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext, type CadPlan, type BaugrenzenPruefung } from "../api";
-  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Gebaeude, Laengeneinheit, Planhintergrund, Zeichenelement, Zeichenform } from "../generated/plattform";
+  import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Werkzeugvorlage, Gebaeude, Laengeneinheit, Planhintergrund, Zeichenelement, Zeichenform } from "../generated/plattform";
   import { hgSkalieren, hgVerschieben, hgDrehen, hintergrundNeu, mppAusMassstab, elementPunkte, type Hintergrundansicht } from "./zeichnung";
   import { EINHEIT_METER } from "./pdfGeometry";
   import { FachSitzung } from "../FachSitzung.svelte";
@@ -65,7 +65,7 @@
   let auswahlIds=$state<string[]>([]),punktIndex=$state(0),drehenGrad=$state(0),kanteMeter=$state(1),kanteWinkel=$state(0);
   let suche=$state(""),bedeutungFilter=$state(""),gebaeudeFilter=$state(""),geschossFilter=$state(""),nurFehler=$state(false),panel=$state("aufgaben"),hilfe=$state(false);
   // Aufgeklappte Paletten rechts; Aufgaben/Objekte/Eigenschaften folgen dem Panelwahl-Zustand.
-  let offen=$state({eigenschaften:false,aufgaben:true,objekte:false,blatt:true,pruefen:false});
+  let offen=$state({eigenschaften:false,aufgaben:true,werkzeugkiste:false,objekte:false,blatt:true,pruefen:false});
   function panelOeffnen(id:string){panel=id}
   $effect(()=>{const id=panel;untrack(()=>{offen.aufgaben=id==="aufgaben";offen.objekte=id==="objekte";offen.eigenschaften=id==="eigenschaften"})});
   let markierungsFehler=$state<{id:string;fehler:string}[]>([]);
@@ -90,6 +90,11 @@
   const hgName=(h:Planhintergrund)=>{const d=dateien.find(d=>d.document_id===h.dokument.dokument_id&&d.version===h.dokument.version);return d?`${d.file_name}${istDxf(d.file_name)?"":` · Seite ${h.seite}`}`:"Unterlage fehlt"};
   // Aus den Aufgaben vorbelegte Bedeutung und Zuordnung für die nächste Markierung.
   let vorbelegung=$state<Planaufgabe|null>(null);
+  // Werkzeugkiste: Vorlagen aus dem Core; die gewählte Vorlage belegt Bedeutung, Namen und Zeichenebene der nächsten Markierung vor.
+  let vorlagen=$state<Werkzeugvorlage[]>([]),vorlage=$state<Werkzeugvorlage|null>(null);
+  const vorlagenGruppen=$derived([...new Map(vorlagen.map(v=>[v.gruppe,vorlagen.filter(x=>x.gruppe===v.gruppe)])).entries()]);
+  const werkzeugFuer=(g:Werkzeugvorlage["geometrie"])=>g==="flaeche"?"polygon":g==="hoehenpunkt"?"hoehenpunkt":"strecke";
+  onMount(()=>{planApi.werkzeugkiste().then(v=>vorlagen=v).catch(e=>{listenFehler=fehlertext(e)})});
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
   const m=$derived(s.eingabe?.markierungen.find(m=>m.id===auswahl));
   const layer=$derived(s.eingabe?.ebenen.find(e=>e.id===ebene));
@@ -406,7 +411,7 @@
   }
   function werkzeugWaehlen(id:string){
     if(werkzeugGesperrt(id))return;
-    vorbelegung=null;
+    vorbelegung=null;vorlage=null;
     if(id==="ausschnitt")rahmenAuswahl="";
     if((id==="bezugslinie"||id==="kalibrieren")&&bearbeiteter&&aktiv!==bearbeiteter.id&&id==="bezugslinie")oeffnen(bearbeiteter.id);
     werkzeug=id;
@@ -465,14 +470,30 @@
     if(!layer||layer.gesperrt||!layer.sichtbar){s.fehler="Eine sichtbare, ungesperrte Zeichenebene auswählen.";return}
     merken();
     const id=crypto.randomUUID();
-    const v=vorbelegung;
+    const v=vorbelegung,t=vorlage;
     const neu:Planmarkierung={id,ebene_id:layer.id,bezeichnung:v?`${v.gruppe} · ${v.titel}`:`Markierung ${p.markierungen.length+1}`,bedeutung:v?.bedeutung??"unbestimmt",geometrie:g,
       grundstueck_id:v?.grundstueck_id??(grund.length===1?grund[0].id:null),gebaeude_id:v?.gebaeude_id??standardGebaeude,geschoss_id:v?.geschoss_id??standardGeschoss};
     if(!v)neu.bedeutung=standardBedeutung;
+    // Vorlage der Werkzeugkiste: Bedeutung und laufender Name („DIN 277 NUF 3“).
+    if(!v&&t){neu.bedeutung=t.bedeutung;neu.bezeichnung=`${t.titel} ${p.markierungen.filter(m=>m.bedeutung===t.bedeutung).length+1}`}
     if(v?.flurstueck_id)neu.flurstueck_id=v.flurstueck_id;
     if(aktiv)neu.ausschnitt_id=aktiv;
     p.markierungen.push(neu);
-    waehlen(id);vorbelegung=null;panel="eigenschaften";
+    waehlen(id);vorbelegung=null;vorlage=null;panel="eigenschaften";
+  }
+  // Vorlage wählen: Werkzeug, Bedeutung und Zeichenebene in einem Schritt; die Ebene entsteht beim ersten Gebrauch.
+  function vorlageWaehlen(t:Werkzeugvorlage){
+    const p=s.eingabe;if(!p||!darf)return;
+    const id=werkzeugFuer(t.geometrie);
+    if(werkzeugGesperrt(id))return;
+    if(t.geometrie==="hoehenpunkt"&&!hoehenMoeglich){s.meldung=`„${t.titel}“ ist eine Höhe: zuerst einen Schnitt oder eine Ansicht als Ausschnitt öffnen und dort die Bezugslinie setzen.`;return}
+    // Im geöffneten Ausschnitt bleibt dessen Ebene maßgebend.
+    if(!aktiv){
+      let e=p.ebenen.find(e=>e.bezeichnung===t.ebene&&!e.gesperrt);
+      if(!e){merken();e={id:crypto.randomUUID(),bezeichnung:t.ebene,sichtbar:true,gesperrt:false};p.ebenen.push(e)}
+      e.sichtbar=true;ebene=e.id;
+    }
+    vorbelegung=null;vorlage=t;werkzeug=id;
   }
   function aufgabeZeichnen(a:Planaufgabe){
     if(a.geometrie==="hoehenpunkt"&&!hoehenMoeglich){
@@ -585,6 +606,7 @@
         <span class="editorwerkzeuge">{@render editorwerkzeuge()}</span>
       </div>{/if}
       {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · W Wand · L Maßkette · X Text · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · Alt setzt Fang aus · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
+      {#if vorlage}<p role="status" class="hinweisbox schmal">Vorlage <strong>{vorlage.titel}</strong> ({bedeutungen.find(b=>b[0]===vorlage!.bedeutung)?.[1]}) auf Ebene „{aktiv?layer?.bezeichnung??vorlage.ebene:vorlage.ebene}“ · {vorlage.hinweis}. <button type="button" class="link" onclick={()=>{vorlage=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if werkzeug==="hgstrecke"||werkzeug==="hgverschieben"||werkzeug==="hgdrehen"}<p role="status" class="hinweisbox schmal">{werkzeug==="hgstrecke"?`Auf dem Hintergrund Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken; der Hintergrund wird darauf skaliert.`:werkzeug==="hgverschieben"?"Einen Punkt des Hintergrunds und dann seine Zielposition anklicken.":`Den Drehpunkt anklicken; der Hintergrund dreht sich um ${z(hgWinkel)}°.`}</p>{/if}
       {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"||werkzeug==="kontrolle"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?`Anfang und Ende der bekannten Referenzstrecke (${z(referenz)} m) anklicken.`:werkzeug==="bezug"?`Den Punkt mit der Bezugshöhe ${z(hwert)} ${hsystem} auf der Unterlage anklicken.`:werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:werkzeug==="kontrolle"?`Anfang und Ende einer bekannten Strecke (${z(kontrollMeter)} m) anklicken; die Abweichung erscheint unter „Blatt und Einrichtung“.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
@@ -702,6 +724,19 @@
               <label>Gebäude neuer Markierungen<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
               {#if standardGebaeude}<label>Geschoss neuer Markierungen<select aria-label="Geschoss neuer Markierungen" bind:value={standardGeschoss}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===standardGebaeude)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
             </fieldset></details>
+          </details>
+          <details class="palette" bind:open={offen.werkzeugkiste}>
+            <summary><h3>Werkzeugkiste</h3> <span class="meta">· Vorlagen mit Bedeutung und Ebene</span></summary>
+            <p class="meta">Ein Klick wählt Werkzeug, Bedeutung, Namen und Zeichenebene der nächsten Markierung; Gebäude und Geschoss kommen aus der Voreinstellung unter „Aufgaben“.</p>
+            {#each vorlagenGruppen as [gruppe,liste] (gruppe)}
+              <h4>{gruppe}</h4>
+              <div class="vorlagen" role="group" aria-label={`Vorlagen ${gruppe}`}>
+                {#each liste as t (t.id)}
+                  {@const aus=werkzeugGesperrt(werkzeugFuer(t.geometrie))}
+                  <button type="button" class="sekundaer" class:aktiv={vorlage?.id===t.id} aria-pressed={vorlage?.id===t.id} disabled={!!aus} title={aus||t.hinweis} onclick={()=>vorlageWaehlen(t)}><WerkzeugIcon art={werkzeugFuer(t.geometrie)}/>{t.titel}</button>
+                {/each}
+              </div>
+            {/each}
           </details>
           <details class="palette" bind:open={offen.objekte}>
             <summary><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></summary>
@@ -919,6 +954,11 @@
   .palette > summary .meta{text-transform:none;letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .palette > summary h3{margin:0;font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
   .palette h3{margin:.8rem 0 .3rem;font-size:.9rem}
+  .palette h4{margin:.6rem 0 .2rem;font-size:.8rem;color:var(--muted)}
+  .vorlagen{display:flex;flex-wrap:wrap;gap:4px}
+  .vorlagen button{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;padding:2px 8px;min-height:26px}
+  .vorlagen button.aktiv{background:var(--akzent-hell,var(--leiste));border-color:var(--akzent)}
+  .vorlagen :global(svg){width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   .palette fieldset{border:0;padding:0;display:grid;gap:.5rem;margin:.4rem 0 0}
   .palette label:not(:has(> input[type=checkbox])):not(:has(> input[type=radio])){display:flex;flex-direction:column;gap:2px;margin:0;font-size:.85rem;color:var(--muted)}
   .palette label input:not([type=checkbox]):not([type=radio]),.palette label select{width:100%;min-height:28px;padding:2px 6px;color:var(--fg)}

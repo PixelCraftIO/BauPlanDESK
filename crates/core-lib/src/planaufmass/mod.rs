@@ -17,7 +17,7 @@ mod pruefung;
 mod raumbuch;
 mod service;
 pub use abstand::abstandsziele;
-pub use aufgaben::{Aufgabengeometrie, Planaufgabe};
+pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;
 pub use cadmigration::{CadUebernahme, seitenpunkt};
 pub use export::{Planexportformat, Planexportwunsch};

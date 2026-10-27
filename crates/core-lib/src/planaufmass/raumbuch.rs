@@ -49,7 +49,21 @@ impl CoreServices {
                 continue;
             }
             anzahl += 1;
-            let ziel = format!("raeume.{}.flaeche_m2", m.id);
+            // Eine Markierung, die über die Aufmaß-Aufgaben bereits einem
+            // erfassten Raum zugeordnet wurde, aktualisiert diesen Raum.
+            let raum_id = r
+                .planbindungen
+                .iter()
+                .find(|b| b.markierung_id == m.id)
+                .and_then(|b| {
+                    b.ziel
+                        .strip_prefix("raeume.")?
+                        .strip_suffix(".flaeche_m2")?
+                        .parse::<Uuid>()
+                        .ok()
+                })
+                .unwrap_or(m.id);
+            let ziel = format!("raeume.{raum_id}.flaeche_m2");
             let b = Planbindung {
                 aufmass_id,
                 revision,
@@ -58,7 +72,7 @@ impl CoreServices {
                 ziel: ziel.clone(),
             };
             let (_, _, flaeche) = self.planbindung_aufloesen(pid, &b).await?;
-            if let Some(raum) = r.raeume.iter_mut().find(|r| r.id == m.id) {
+            if let Some(raum) = r.raeume.iter_mut().find(|r| r.id == raum_id) {
                 // Bereits vom Benutzer vergebene Raumnummer, Nutzung und Raumhöhe erhalten.
                 raum.flaeche_m2 = flaeche;
             } else {
@@ -129,6 +143,18 @@ impl CoreServices {
             r.planbindungen.retain(|b| b.ziel != ziel);
             r.planbindungen.push(b);
         }
+        self.planwerte_raumbuch(pid, &mut r).await?;
+        r.summen()?;
+        Ok(r)
+    }
+    /// Löst die Planbindungen eines Raumbuchentwurfs auf und setzt die
+    /// Raumflächen ein (Entwurf; Speichern über die Fachgrenze). Grundlage
+    /// für „Übernehmen“ je Raum aus den Aufmaß-Aufgaben.
+    pub async fn planaufmass_raumbuch_einsetzen(
+        &self,
+        pid: ProjectId,
+        mut r: Raumbuch,
+    ) -> CoreResult<Raumbuch> {
         self.planwerte_raumbuch(pid, &mut r).await?;
         r.summen()?;
         Ok(r)

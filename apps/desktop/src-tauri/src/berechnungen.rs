@@ -123,6 +123,25 @@ pub async fn planaufmass_aufgaben(
     Ok(state.core.planaufmass_aufgaben(projekt_id, &plan).await?)
 }
 #[tauri::command]
+pub async fn planaufmass_raumbuch_einsetzen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    raumbuch: core_lib::plattform::objekte::Raumbuch,
+) -> Result<core_lib::plattform::objekte::Raumbuch, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_raumbuch_einsetzen(projekt_id, raumbuch)
+        .await?)
+}
+#[tauri::command]
+pub fn planaufmass_werkzeugkiste() -> Vec<core_lib::planaufmass::Werkzeugvorlage> {
+    core_lib::planaufmass::werkzeugkiste()
+}
+#[tauri::command]
 pub async fn planaufmass_flurstuecke(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
