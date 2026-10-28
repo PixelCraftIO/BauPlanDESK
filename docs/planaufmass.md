@@ -360,6 +360,15 @@ weitergegebenen Fachwerte.
   (`planaufmass_raumbuch_abgleich`): Kandidaten sind ungebundene Räume, deren
   Nummer oder Bezeichnung der Markierungsbezeichnung entspricht; ein verknüpfter
   Raum behält Nummer, Nutzung und Höhe.
+- `CoreServices::planquellen_zustand`: führt die Quellenprüfungen aller
+  Verbraucher (Flurstücke, Abzüge/Bauteile, Gebäude, Raumbücher,
+  Abstandspläne, Fachberechnungen) als Auskunft aus und liefert je
+  veraltetem Verbraucher einen `Planquellenhinweis`. Grundstücksinformationen,
+  Baugrundstück und der Aufmaß-Editor zeigen sie beim Öffnen an, nicht erst
+  beim Speichern. Wer eine verknüpfte Markierung entfernt, sieht vorher, welche
+  Werte daran hängen (`verwendung.ts`); beim Entfernen eines Flurstücks nennt
+  `flurstuecksverweise` auch zugeordnete Aufmaß-Markierungen, deren Zuordnung
+  `flurstuecksverweise_entfernen` danach löst.
 - Doppelerfassung (`abzugsdubletten`, `bauteildubletten`): Eine gezeichnete
   Zeile und eine Handzeile gleicher Art am selben Flurstück bzw. Baugrundstück,
   deren Flächen höchstens 1 m² oder 2 % auseinanderliegen (`fast_gleich`),

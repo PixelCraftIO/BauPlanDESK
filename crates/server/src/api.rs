@@ -433,6 +433,7 @@ fn routen(core: CoreServices) -> Router {
             post(cadaufmass_uebernehmen),
         )
         .route("/projekte/{id}/planaufgaben", post(planaufmass_aufgaben))
+        .route("/projekte/{id}/planquellen", get(planquellen_zustand))
         .route(
             "/projekte/{id}/planraumbuch/einsetzen",
             post(planaufmass_raumbuch_einsetzen),
@@ -2142,6 +2143,12 @@ async fn planaufmass_aufgaben(
     Json(plan): Json<core_lib::planaufmass::Planaufmass>,
 ) -> ApiResult<Vec<core_lib::planaufmass::Planaufgabe>> {
     Ok(Json(core.planaufmass_aufgaben(ProjectId(id), &plan).await?))
+}
+async fn planquellen_zustand(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::planaufmass::Planquellenhinweis>> {
+    Ok(Json(core.planquellen_zustand(ProjectId(id)).await?))
 }
 async fn planaufmass_raumbuch_einsetzen(
     State(ApiState { core }): State<ApiState>,

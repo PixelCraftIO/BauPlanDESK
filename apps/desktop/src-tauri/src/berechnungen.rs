@@ -147,6 +147,17 @@ pub async fn planaufmass_aufgaben(
     Ok(state.core.planaufmass_aufgaben(projekt_id, &plan).await?)
 }
 #[tauri::command]
+pub async fn planquellen_zustand(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> Result<Vec<core_lib::planaufmass::Planquellenhinweis>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state.core.planquellen_zustand(projekt_id).await?)
+}
+#[tauri::command]
 pub async fn planaufmass_raumbuch_einsetzen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
