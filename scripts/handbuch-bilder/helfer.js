@@ -122,3 +122,39 @@ async function reiter(t) {
   e.parentElement.scrollIntoView({ block: "start" });
   await sleep(400);
 }
+/** Wählt in einem Auswahlfeld (aria-label) die Option, deren Text `t` enthält. */
+async function waehle(label, t) {
+  const s = document.querySelector(`select[aria-label="${label}"]`);
+  if (!s) throw new Error("Auswahl fehlt: " + label);
+  const o = [...s.options].find((o) => o.text.includes(t));
+  if (!o) throw new Error("Option fehlt: " + t);
+  s.value = o.value;
+  s.dispatchEvent(new Event("change", { bubbles: true }));
+  await sleep(800);
+}
+async function tippe(label, wert) {
+  const e = document.querySelector(`input[aria-label="${label}"]`);
+  if (!e) throw new Error("Feld fehlt: " + label);
+  e.value = wert;
+  e.dispatchEvent(new Event("input", { bubbles: true }));
+  await sleep(300);
+}
+/** Öffnet im Aufmaß den Tab des IFC-Modells „Entwurf Architekt“. */
+async function ifcModell() {
+  await register("Ermittlung");
+  await bereich("Aufmaß");
+  const t = [...haupt().querySelectorAll("[role=tab]")].filter(sichtbar).find((e) => txt(e) === "Entwurf Architekt");
+  if (!t) throw new Error("Modelltab fehlt");
+  t.click();
+  await sleep(1500);
+}
+/** Detailreiter der Modellansicht (Eigenschaften, Prüfung, Nacharbeit …). */
+async function ifcReiter(t) {
+  await klick(t, "[aria-label=Details] [role=tab]");
+  await sleep(1500);
+}
+/** Rollt die rechte Spalte der Modellansicht ans Ende. */
+function ifcDetailsEnde() {
+  const d = document.querySelector("[aria-label=Details]");
+  d.scrollTop = d.scrollHeight;
+}

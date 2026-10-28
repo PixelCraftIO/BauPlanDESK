@@ -9,8 +9,8 @@ Beispielprojekt **„Neubau Einfamilienhaus Mustermann“** (Nordrhein-Westfalen
 Sie können jeden Schritt dort nachvollziehen: **Hilfe → Beispielprojekt öffnen**
 (siehe [Kapitel 1](01-einstieg.md#beispielprojekt-öffnen)).
 
-**Stand:** 28.10.2026 · Programmstand `main` 3c66d55 (inkl. neuem Zeicheneditor
-und Abgleich von Hand- und Zeichnungswerten).
+**Stand:** 28.10.2026 · Programmstand `main` f5c4e8d (inkl. neuem Zeicheneditor,
+Abgleich von Hand- und Zeichnungswerten und IFC-Modellen).
 
 ## Inhalt
 
@@ -20,7 +20,7 @@ und Abgleich von Hand- und Zeichnungswerten).
 | 2 | [Oberfläche und Bedienung](02-oberflaeche.md) | Arbeitsplatz, Projekttabs, die drei Register, Speichern, Status |
 | 3 | [Büro einrichten](03-einrichtung.md) | Einstellungen, Büroangaben, Benutzer, Kunden, Formularbibliothek |
 | 4 | [Projekt anlegen und Grundlagen](04-projekt-grundlagen.md) | Neues Projekt, Stammdaten, Rechtsgrundlagen, B-Plan, Flurstücke |
-| 5 | [Unterlagen, Aufmaß und Gebäudemodell](05-ermittlung.md) | Projektdateien, Zeicheneditor, Messwerte, Gebäude, Raumbuch |
+| 5 | [Unterlagen, Aufmaß und Gebäudemodell](05-ermittlung.md) | Projektdateien, Zeicheneditor, IFC-Modelle (BIM), Messwerte, Gebäude, Raumbuch |
 | 6 | [Berechnungen und Nachweise](06-nachweise.md) | Baugrundstück, GRZ/GFZ/BMZ, Fachberechnungen, Nachweisstände |
 | 7 | [Formulare und Druckausgabe](07-formulare-druck.md) | PDF-Formulare ausfüllen, Berechnungsheft, Behördenausgabe |
 | 8 | [Verfahren und Einreichung](08-verfahren.md) | Verfahrensakte, Abgabestände, Portal, XBau, Bescheid, Bauausführung |
@@ -75,3 +75,4 @@ und wird beim Ergänzen neuer Module ebenfalls gepflegt.
 | --- | --- | --- |
 | 28.10.2026 | main 3c66d55 | Erstfassung mit 48 Bildschirmfotos aus dem Beispielprojekt. Berücksichtigt den neuen Zeicheneditor (Zeichnungs-Tabs, eigenes Fenster, eigene Zeichnungen, Werkzeugkiste), die Gliederung der Projektakte in zwei Bereiche und den Abgleich von Hand- und Zeichnungswerten. |
 | 28.10.2026 | main 09df005 | PDF-Ausgabe `Benutzerhandbuch.pdf` (59 Seiten) und Skript `scripts/benutzerhandbuch-pdf.py`. |
+| 28.10.2026 | main f5c4e8d | IFC-Modelle (BIM): neuer Abschnitt in Kapitel 5 mit 10 Bildschirmfotos (Modell öffnen, Ansicht, Prüfung, Nacharbeit, Auswertung, Übernahme, Abgleich, Export), Workflow 6, Hinweise in Kapitel 1 und 8, fünf neue Begriffe. Die Bildautomatik legt dafür das IFC-Testmodell in das Beispielprojekt (Szenen `ifc-modell-…`). |

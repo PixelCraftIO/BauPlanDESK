@@ -47,6 +47,13 @@ python3 scripts/handbuch-bilder/aufnahmen.py --laufend nachweis-grz verfahren-po
 Fehlschläge werden als `FEHLT <szene> <Meldung>` gemeldet; die übrigen Bilder
 entstehen trotzdem.
 
+Für die Szenen `ifc-modell-…` schreibt das Skript vorher mit
+`cargo run -p core-lib --features testdaten --example ifc_dateien` das
+IFC-Testmodell nach `/tmp/handbuch-ifc/` und legt die erste Fassung in die
+Projektdateien des Beispielprojekts; die Szene `ifc-modell-abgleich` legt die
+zweite Fassung als neue Version ab. Die IFC-Szenen laufen in ihrer Reihenfolge
+(Übernahme vor Export, Export vor Abgleich) und deshalb nur zusammen.
+
 ## Neue Szene ergänzen
 
 1. In `SZENEN` eine Zeile `("<bildname>", '<JavaScript>')` einfügen. Das

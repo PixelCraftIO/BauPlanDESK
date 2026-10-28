@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "titel": "BauPlanIO – Bedienhandbuch",
   "untertitel": "Für Architekten, Entwurfsverfasser und Planer",
-  "stand": "23.10.2026",
+  "stand": "28.10.2026",
   "basis": "e80717f + Workflow-Verbesserungen",
   "kapitel": [
     {
@@ -1020,9 +1020,77 @@
         "gebaeude",
         "wohnflaechen",
         "abstand",
-        "stoerungen"
+        "stoerungen",
+        "ifc"
       ],
       "stichworte": []
+    },
+    {
+      "id": "ifc",
+      "titel": "IFC-Modelle prüfen, nacharbeiten und auswerten",
+      "gruppe": "Pläne und Unterlagen",
+      "kurztext": "IFC-Modelle (BIM) aus der Planungssoftware öffnen, gegen die Angaben eines Bauantrags prüfen, ohne Änderung der Datei nacharbeiten, Flächen und Höhen auswerten, ins Projekt übernehmen und als IFC-Datei weitergeben.",
+      "bereiche": [],
+      "abschnitte": [
+        {
+          "titel": "Modell öffnen",
+          "schritte": [
+            "Die IFC-Datei (IFC2X3, IFC4, IFC4X3; .ifc oder .ifczip) unter „Projektdateien“ importieren. IFC-XML wird nicht gelesen.",
+            "Unter „Unterlagen → Aufmaß“ den Knopf „IFC-Modell“ wählen, die Datei und eine Bezeichnung angeben und „Modell öffnen“. Es entsteht eine Modellakte; die Datei bleibt unverändert.",
+            "Links steht die Struktur (Gebäude, Geschoss, Bauteilklasse, Element), in der Mitte der Grundriss-Schnitt je Geschoss (Schnitthöhe einstellbar) oder die 3D-Ansicht, rechts Eigenschaften, Mengen und die Werkzeuge der Modellakte."
+          ]
+        },
+        {
+          "titel": "Prüfen und nacharbeiten",
+          "schritte": [
+            "„Modellbericht“ zeigt Schema, Software, Einheit, Georeferenz und die Zahl der Elemente je Klasse.",
+            "„Prüfung“ prüft gegen das mitgelieferte Regelwerk „Modell für den Bauantrag“ (IDS) oder ein eigenes IDS aus den Projektdateien. Befunde lassen sich im Modell zeigen; die Aktion eines Befunds öffnet die passende Nacharbeit.",
+            "„Nacharbeit“ ändert das Modell für BauPlanIO: Klasse und Art, Geschosszuordnung, Eigenschaft, Name und Nutzung, Ausblenden, Höhe ändern, neuen Umriss im Grundriss zeichnen und Räume aus geschlossenen Wandflächen bilden. Jede Änderung hängt an der GlobalId und lässt sich zurücknehmen."
+          ],
+          "hinweis": "Nur klassifizieren, was das Bauteil wirklich ist: Wände, Stützen und Decken zählen zur Außenkante, zur Gebäudegrundfläche und zur GRZ der Auswertung."
+        },
+        {
+          "titel": "Auswerten und übernehmen",
+          "schritte": [
+            "„Auswertung“ rechnet aus der Geometrie mit Nacharbeit: Gebäudegrundfläche, BGF und BRI je Geschoss, Netto-Raumflächen nach Nutzung, Höhen über dem Erdgeschoss sowie GRZ und GFZ zur Bezugsfläche des Baugrundstücks. Diese GRZ und GFZ sind Orientierungswerte.",
+            "„Übernahme“ legt ein Gebäude mit Geschossen, je Geschoss eine eigene Zeichnung mit dem IFC-Grundriss als Hintergrund und Markierungen für Räume, Außenkante und Gebäudegrundfläche sowie auf Wunsch Raumbücher an. Die Fachmodule (GRZ, GFZ, Vollgeschosse, Abstandsflächen) rechnen danach wie gewohnt.",
+            "Eine erneute Übernahme aktualisiert nur die übernommenen Markierungen; selbst gezeichnete Markierungen und Verknüpfungen bleiben."
+          ]
+        },
+        {
+          "titel": "Neue Modellversion",
+          "schritte": [
+            "Die neue Fassung des Planers als neue Version derselben Datei unter „Projektdateien“ ablegen. Die Modellansicht meldet „Neue Version … vorhanden: abgleichen“.",
+            "Im „Modellbericht“ unter „Neue Modellversion“ abgleichen: neue, entfernte und geänderte Elemente sowie der Stand jeder Nacharbeit (wirksam, verwaist, überholt).",
+            "„Auf diese Version umstellen“ übernimmt die Nacharbeit; überholte und verwaiste Änderungen können dabei gestrichen werden. Anschließend die Übernahme aktualisieren."
+          ]
+        },
+        {
+          "titel": "IFC-Datei schreiben und einreichen",
+          "schritte": [
+            "„Export → IFC-Datei schreiben“ schreibt die Datei mit der Nacharbeit neu (Schema der Quelle, unberührte Teile zeichengleich) und legt sie unter „Projektdateien“ ab.",
+            "„Eigenes IFC4-Modell aus Zeichnungen“ erzeugt aus einem Gebäude und je Geschoss einer eigenen Zeichnung ein IFC4-Modell mit Wänden, Decken und Räumen. Die GlobalIds bleiben bei jedem Export gleich.",
+            "Jede Ausgabe wird zur Kontrolle wieder eingelesen. „Modelldatei dem Bauantrag beifügen“ ordnet die Datei als Anlage „BIM-Gebäudemodell“ (XBau-Anlagenart 2010) zu."
+          ]
+        }
+      ],
+      "siehe": [
+        "aufmass",
+        "gebaeude",
+        "grz",
+        "antrag"
+      ],
+      "stichworte": [
+        "IFC",
+        "BIM",
+        "IDS",
+        "GlobalId",
+        "Modellakte",
+        "3D",
+        "Reimport",
+        "IFC4",
+        "Gebäudemodell"
+      ]
     },
     {
       "id": "nachweise",

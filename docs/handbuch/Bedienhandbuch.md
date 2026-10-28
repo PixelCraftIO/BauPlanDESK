@@ -2,7 +2,7 @@
 
 Für Architekten, Entwurfsverfasser und Planer
 
-Stand: 23.10.2026
+Stand: 28.10.2026
 
 ## Inhaltsverzeichnis
 
@@ -54,59 +54,61 @@ Stand: 23.10.2026
 
 - [24. Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen)
 
-- [25. Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben)
+- [25. IFC-Modelle prüfen, nacharbeiten und auswerten](#25-ifc-modelle-prüfen-nacharbeiten-und-auswerten)
 
-- [26. Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten)
+- [26. Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben)
 
-- [27. Dokumentkategorien im Büro pflegen](#27-dokumentkategorien-im-büro-pflegen)
+- [27. Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten)
 
-- [28. E-Mails und Anhänge dokumentieren](#28-e-mails-und-anhänge-dokumentieren)
+- [28. Dokumentkategorien im Büro pflegen](#28-dokumentkategorien-im-büro-pflegen)
 
-- [29. PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen)
+- [29. E-Mails und Anhänge dokumentieren](#29-e-mails-und-anhänge-dokumentieren)
 
-- [30. Formularbibliothek und eigene PDF-Vorlagen](#30-formularbibliothek-und-eigene-pdf-vorlagen)
+- [30. PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen)
 
-- [31. Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe)
+- [31. Formularbibliothek und eigene PDF-Vorlagen](#31-formularbibliothek-und-eigene-pdf-vorlagen)
 
-- [32. Projektübersicht, Aufgaben und Chronik](#32-projektübersicht-aufgaben-und-chronik)
+- [32. Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe)
 
-- [33. Aktensuche, OCR und Wiedervorlagen](#33-aktensuche-ocr-und-wiedervorlagen)
+- [33. Projektübersicht, Aufgaben und Chronik](#33-projektübersicht-aufgaben-und-chronik)
 
-- [34. Verfahrensakte und Vorhabenprofil anlegen](#34-verfahrensakte-und-vorhabenprofil-anlegen)
+- [34. Aktensuche, OCR und Wiedervorlagen](#34-aktensuche-ocr-und-wiedervorlagen)
 
-- [35. Unterlagenbedarf und Freigaben organisieren](#35-unterlagenbedarf-und-freigaben-organisieren)
+- [35. Verfahrensakte und Vorhabenprofil anlegen](#35-verfahrensakte-und-vorhabenprofil-anlegen)
 
-- [36. Abweichungen, Ausnahmen und Befreiungen](#36-abweichungen-ausnahmen-und-befreiungen)
+- [36. Unterlagenbedarf und Freigaben organisieren](#36-unterlagenbedarf-und-freigaben-organisieren)
 
-- [37. Unterschriften und Freigaben dokumentieren](#37-unterschriften-und-freigaben-dokumentieren)
+- [37. Abweichungen, Ausnahmen und Befreiungen](#37-abweichungen-ausnahmen-und-befreiungen)
 
-- [38. Bauantrag und XBau-Grunddaten](#38-bauantrag-und-xbau-grunddaten)
+- [38. Unterschriften und Freigaben dokumentieren](#38-unterschriften-und-freigaben-dokumentieren)
 
-- [39. Workflow: Unterlagen für die Erstabgabe vorbereiten](#39-workflow-unterlagen-für-die-erstabgabe-vorbereiten)
+- [39. Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten)
 
-- [40. Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich)
+- [40. Workflow: Unterlagen für die Erstabgabe vorbereiten](#40-workflow-unterlagen-für-die-erstabgabe-vorbereiten)
 
-- [41. Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen)
+- [41. Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
-- [42. Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren)
+- [42. Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen)
 
-- [43. Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung)
+- [43. Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren)
 
-- [44. Schreiben und behördliche Zwischenschritte](#44-schreiben-und-behördliche-zwischenschritte)
+- [44. Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung)
 
-- [45. XBau-Nachrichten austauschen und auswerten](#45-xbau-nachrichten-austauschen-und-auswerten)
+- [45. Schreiben und behördliche Zwischenschritte](#45-schreiben-und-behördliche-zwischenschritte)
 
-- [46. Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen)
+- [46. XBau-Nachrichten austauschen und auswerten](#46-xbau-nachrichten-austauschen-und-auswerten)
 
-- [47. Nach der Genehmigung und Verfahrensabschluss](#47-nach-der-genehmigung-und-verfahrensabschluss)
+- [47. Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen)
 
-- [48. Sicherung, Wiederherstellung und Aktenexport](#48-sicherung-wiederherstellung-und-aktenexport)
+- [48. Nach der Genehmigung und Verfahrensabschluss](#48-nach-der-genehmigung-und-verfahrensabschluss)
 
-- [49. Durchgängiges Beispiel: Einfamilienhaus](#49-durchgängiges-beispiel-einfamilienhaus)
+- [49. Sicherung, Wiederherstellung und Aktenexport](#49-sicherung-wiederherstellung-und-aktenexport)
 
-- [50. Häufige Fragen und Störungen](#50-häufige-fragen-und-störungen)
+- [50. Durchgängiges Beispiel: Einfamilienhaus](#50-durchgängiges-beispiel-einfamilienhaus)
 
-- [51. Begriffe und Abschlusscheckliste](#51-begriffe-und-abschlusscheckliste)
+- [51. Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen)
+
+- [52. Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
 ## 01. Mit BauPlanIO arbeiten
 
@@ -134,7 +136,7 @@ Ein Wechsel zur Hilfe schließt keine Projektakte und verwirft keine Eingaben. Z
 
 > Die fachliche Verantwortung bleibt beim Planungsteam. Ungeprüfte Regelbeispiele, unvollständige Angaben oder offene Prüfpunkte sind keine behördlich bestätigten Nachweise. Maßgebend sind die für das Vorhaben geltenden Rechtsgrundlagen, Satzungen und Anforderungen der zuständigen Stelle.
 
-Weiterlesen: [Durchgängiges Beispiel: Einfamilienhaus](#49-durchgängiges-beispiel-einfamilienhaus) · [Workflow: Unterlagen für die Erstabgabe vorbereiten](#39-workflow-unterlagen-für-die-erstabgabe-vorbereiten) · [Begriffe und Abschlusscheckliste](#51-begriffe-und-abschlusscheckliste)
+Weiterlesen: [Durchgängiges Beispiel: Einfamilienhaus](#50-durchgängiges-beispiel-einfamilienhaus) · [Workflow: Unterlagen für die Erstabgabe vorbereiten](#40-workflow-unterlagen-für-die-erstabgabe-vorbereiten) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
 ## 02. Oberfläche, Projektregister und Speichern
 
@@ -170,7 +172,7 @@ Die Gliederung bietet eine Bereichs-/Aktionssuche (Strg+K), Favoriten und zuletz
 
 „Datenherkunft und nächste Schritte“ zeigt ungespeicherte Quellentwürfe. „Nur diese Quelle speichern“ speichert gezielt deren registrierte Editoren. Über den Rückweg gelangen Sie zur aufrufenden Berechnung; Übernahmen anschließend bewusst prüfen.
 
-Weiterlesen: [Benutzer und Projektmitglieder](#04-benutzer-und-projektmitglieder) · [Häufige Fragen und Störungen](#50-häufige-fragen-und-störungen) · [Begriffe und Abschlusscheckliste](#51-begriffe-und-abschlusscheckliste)
+Weiterlesen: [Benutzer und Projektmitglieder](#04-benutzer-und-projektmitglieder) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
 ## 03. Arbeitsplatz und Büro einrichten
 
@@ -194,7 +196,7 @@ Im Einzelplatzbetrieb erfolgt die Anmeldung über das Benutzerkonto des Rechners
 
 Unter „Einstellungen → Anwendung und Updates“ lässt sich „Updates prüfen“ ausführen. Eine Installation verlangt eine dafür eingerichtete, signierte Updatequelle. Vor „Update installieren und neu starten“ offene Eingaben speichern und laufende Dateiaktionen beenden. Meldet die App fehlende Konfiguration, richtet die Administration den Updatekanal ein.
 
-Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Benutzer und Projektmitglieder](#04-benutzer-und-projektmitglieder) · [Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe) · [Sicherung, Wiederherstellung und Aktenexport](#48-sicherung-wiederherstellung-und-aktenexport)
+Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Benutzer und Projektmitglieder](#04-benutzer-und-projektmitglieder) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe) · [Sicherung, Wiederherstellung und Aktenexport](#49-sicherung-wiederherstellung-und-aktenexport)
 
 ## 04. Benutzer und Projektmitglieder
 
@@ -219,7 +221,7 @@ Die Benutzerverwaltung unter „Einstellungen → Benutzer und Rechte“ regelt 
 
 > Ein deaktivierter Speichern-Knopf kann auf fehlende Rechte, einen unveränderten Stand, einen laufenden Vorgang oder eine Sperre hinweisen. Nicht durch Umbenennen oder Kopieren an der Versionsverwaltung vorbei arbeiten.
 
-Weiterlesen: [Oberfläche, Projektregister und Speichern](#02-oberfläche-projektregister-und-speichern) · [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Häufige Fragen und Störungen](#50-häufige-fragen-und-störungen)
+Weiterlesen: [Oberfläche, Projektregister und Speichern](#02-oberfläche-projektregister-und-speichern) · [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen)
 
 ## 05. Dateiablage und lesbare Projektordner
 
@@ -245,7 +247,7 @@ Mehrere Arbeitsplätze benötigen eine gemeinsame PostgreSQL-Datenbank und eine 
 
 Eine außerhalb der Anwendung geänderte Ausgabe wird nicht automatisch zur neuen Dokumentversion. Die Änderung über eine Arbeitskopie übernehmen oder gezielt als neue Version importieren. Eine Projektordnerkopie allein ist keine vollständige Datensicherung.
 
-Weiterlesen: [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Sicherung, Wiederherstellung und Aktenexport](#48-sicherung-wiederherstellung-und-aktenexport)
+Weiterlesen: [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Sicherung, Wiederherstellung und Aktenexport](#49-sicherung-wiederherstellung-und-aktenexport)
 
 ## 06. Projekt anlegen und Stammdaten pflegen
 
@@ -270,7 +272,7 @@ Zum Wechseln zwischen Vorhaben mehrere Projekte aus dem Projektverzeichnis öffn
 
 Eine eindeutige Projektakte mit richtigem Bundesland, zugeordneter Bauherrschaft und geklärtem Zugriff ist der Ausgangspunkt für sämtliche weiteren Unterlagen.
 
-Weiterlesen: [Kunden, Bauherren und weitere Beteiligte](#07-kunden-bauherren-und-weitere-beteiligte) · [Rechtsgrundlagen des Vorhabens](#08-rechtsgrundlagen-des-vorhabens) · [Projektübersicht, Aufgaben und Chronik](#32-projektübersicht-aufgaben-und-chronik)
+Weiterlesen: [Kunden, Bauherren und weitere Beteiligte](#07-kunden-bauherren-und-weitere-beteiligte) · [Rechtsgrundlagen des Vorhabens](#08-rechtsgrundlagen-des-vorhabens) · [Projektübersicht, Aufgaben und Chronik](#33-projektübersicht-aufgaben-und-chronik)
 
 ## 07. Kunden, Bauherren und weitere Beteiligte
 
@@ -290,7 +292,7 @@ Kontaktdaten wiederverwenden und projektbezogene Rollen zuordnen.
 - Sind Vollmachten und weitere erforderliche Erklärungen als konkrete Projektdateien vorhanden?
 - Nach Änderung von Kontaktdaten ein bereits ausgefülltes Formular erneut öffnen und die angebotenen aktuellen Projektdaten prüfen. Alte PDF-Versionen ändern sich dadurch nicht.
 
-Weiterlesen: [Projekt anlegen und Stammdaten pflegen](#06-projekt-anlegen-und-stammdaten-pflegen) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [Bauantrag und XBau-Grunddaten](#38-bauantrag-und-xbau-grunddaten)
+Weiterlesen: [Projekt anlegen und Stammdaten pflegen](#06-projekt-anlegen-und-stammdaten-pflegen) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen) · [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten)
 
 ## 08. Rechtsgrundlagen des Vorhabens
 
@@ -326,7 +328,7 @@ Festgesetzte Werte mit Wortlaut und Fundstelle dokumentieren.
 
 > Die Baufensterfläche ist allein kein geometrischer Nachweis, dass ein Gebäude innerhalb einer Baugrenze liegt. Ebenso ersetzt ein eingetragener Zahlenwert nicht die Prüfung textlicher Festsetzungen und Ausnahmen.
 
-Weiterlesen: [Rechtsgrundlagen des Vorhabens](#08-rechtsgrundlagen-des-vorhabens) · [Überbaubare Fläche und Baugrenzen](#17-überbaubare-fläche-und-baugrenzen) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben)
+Weiterlesen: [Rechtsgrundlagen des Vorhabens](#08-rechtsgrundlagen-des-vorhabens) · [Überbaubare Fläche und Baugrenzen](#17-überbaubare-fläche-und-baugrenzen) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben)
 
 ## 10. Flurstücke und Grundbuch erfassen
 
@@ -430,7 +432,7 @@ Nach Änderungen „Gespeicherte Grundlagen bestätigen …“ verwenden. Die Ak
 
 „Positionen als Tabelle bearbeiten“ wechselt zwischen Tabellen- und Detailerfassung. Gebundene Quellwerte bleiben schreibgeschützt.
 
-Weiterlesen: [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben) · [Häufige Fragen und Störungen](#50-häufige-fragen-und-störungen)
+Weiterlesen: [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen)
 
 ## 14. GRZ und GRZ I / II
 
@@ -460,7 +462,7 @@ Bei fehlenden Rechtsgrundlagen oder BauNVO können die Flächen über „GRZ: En
 
 „Entwurf auf diesem Gerät sichern“ speichert benutzer- und projektbezogen lokal. Nach erneutem Öffnen „Lokalen Entwurf wiederherstellen“ verwenden und die aktuellen Quellen neu prüfen. Diese lokale Sicherung ist noch kein bestätigter Projektstand, nicht zwischen Arbeitsplätzen geteilt und kein Ersatz für eine Datensicherung.
 
-Weiterlesen: [Baugrundstücke ermitteln](#11-baugrundstücke-ermitteln) · [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Abweichungen, Ausnahmen und Befreiungen](#36-abweichungen-ausnahmen-und-befreiungen)
+Weiterlesen: [Baugrundstücke ermitteln](#11-baugrundstücke-ermitteln) · [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Abweichungen, Ausnahmen und Befreiungen](#37-abweichungen-ausnahmen-und-befreiungen)
 
 ## 15. GFZ und Geschossigkeit
 
@@ -495,7 +497,7 @@ Volumenansatz und Bezugsfläche getrennt dokumentieren.
 
 Der BMZ-Ansatz wird nicht automatisch vollständig aus den Gebäudedaten erzeugt. Einen vorhandenen DIN-277-BRI nicht ohne Prüfung als Baumasse im planungsrechtlichen Sinn einsetzen. Unterschiedliche Definitionen und gegebenenfalls ausgeschlossene Bauteile ausdrücklich berücksichtigen.
 
-Weiterlesen: [Baugrundstücke ermitteln](#11-baugrundstücke-ermitteln) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben)
+Weiterlesen: [Baugrundstücke ermitteln](#11-baugrundstücke-ermitteln) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben)
 
 ## 17. Überbaubare Fläche und Baugrenzen
 
@@ -513,7 +515,7 @@ Die maßbezogene Prüfung ergänzt die geometrische Baufensterprüfung aus dem A
 
 Bei mehreren Baugrundstücken den Geometrie-/Baufensterbezug eindeutig zuordnen. Eine Fläche im Stammdatensatz allein lässt keine Überschreitung räumlich prüfen.
 
-Weiterlesen: [Bebauungsplanfestsetzungen eingeben](#09-bebauungsplanfestsetzungen-eingeben) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Abweichungen, Ausnahmen und Befreiungen](#36-abweichungen-ausnahmen-und-befreiungen)
+Weiterlesen: [Bebauungsplanfestsetzungen eingeben](#09-bebauungsplanfestsetzungen-eingeben) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Abweichungen, Ausnahmen und Befreiungen](#37-abweichungen-ausnahmen-und-befreiungen)
 
 ## 18. Vollgeschosse, Gebäudehöhen und Dachneigung
 
@@ -557,7 +559,7 @@ Unter „Wände / Bauteile“ steht die Planskizze neben der Bearbeitung. Eine W
 
 „Dachansatz einer anderen Wand verwenden“ kopiert nur die angezeigten Dachparameter. Geometrie, Gelände, Sicherungen, Belege und Freigaben werden nicht kopiert. Dachgrundlage und Rechtsanwendung erneut prüfen. Ein ungeklärtes Baugebiet wird nicht als WA vorbelegt.
 
-Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben) · [Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe)
+Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe)
 
 ## 20. Stellplatznachweis
 
@@ -579,7 +581,7 @@ Unter „Regeln / Grundlagen“ lassen sich bestätigte Regelversionen auf diese
 
 Bei Wiederverwendung wird die Bestätigung nicht übertragen. Kommune, Fassung, Gültigkeit und Anwendbarkeit im neuen Projekt prüfen. Für geänderte Regeln eine neue Regelversion verwenden; ungeprüfte Beispielsätze sind keine Gemeindesatzung.
 
-Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben) · [Durchgängiges Beispiel: Einfamilienhaus](#49-durchgängiges-beispiel-einfamilienhaus)
+Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Durchgängiges Beispiel: Einfamilienhaus](#50-durchgängiges-beispiel-einfamilienhaus)
 
 ## 21. Raumbuch und Wohnflächen
 
@@ -605,7 +607,7 @@ Vor der Übernahme von Raumfakten zeigt ein Vergleich neue, aktualisierte, entfa
 
 Die letzte Raumübernahme kann bis zur nächsten Speicherung und solange keine weiteren Änderungen vorgenommen wurden rückgängig gemacht werden. Archivierte Nachweise bleiben unverändert.
 
-Weiterlesen: [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen)
+Weiterlesen: [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [DIN-277-Flächen und Rauminhalte](#22-din-277-flächen-und-rauminhalte) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen)
 
 ## 22. DIN-277-Flächen und Rauminhalte
 
@@ -640,7 +642,7 @@ Im Nachweis reale Grundstücksfläche und maßgebende Bezugsfläche unterscheide
 
 > Das Regenwassermodul ist eine vereinfachte stationäre Bilanz, kein vollständiger hydraulischer Netz-, Versickerungs- oder Überflutungsnachweis nach DWA/DIN. Gegebenenfalls weitere Fachplanung beauftragen und deren Unterlagen im Projekt verwalten.
 
-Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben)
+Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben)
 
 ## 24. Aufmaß auf PDF und DXF sowie eigene Zeichnungen
 
@@ -687,9 +689,47 @@ Messungen der früheren Ansicht „Pläne / Aufmaß“ werden beim ersten Öffne
 
 Eine früher gespeicherte Baugrenzenzuordnung bleibt gültig, bis sie aus dem Aufmaß neu zugeordnet wird.
 
-Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Raumbuch und Wohnflächen](#21-raumbuch-und-wohnflächen) · [Abstandsflächen nachweisen](#19-abstandsflächen-nachweisen) · [Häufige Fragen und Störungen](#50-häufige-fragen-und-störungen)
+Weiterlesen: [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [Raumbuch und Wohnflächen](#21-raumbuch-und-wohnflächen) · [Abstandsflächen nachweisen](#19-abstandsflächen-nachweisen) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen) · [IFC-Modelle prüfen, nacharbeiten und auswerten](#25-ifc-modelle-prüfen-nacharbeiten-und-auswerten)
 
-## 25. Nachweisstände archivieren und freigeben
+## 25. IFC-Modelle prüfen, nacharbeiten und auswerten
+
+IFC-Modelle (BIM) aus der Planungssoftware öffnen, gegen die Angaben eines Bauantrags prüfen, ohne Änderung der Datei nacharbeiten, Flächen und Höhen auswerten, ins Projekt übernehmen und als IFC-Datei weitergeben.
+
+### Modell öffnen
+
+1. Die IFC-Datei (IFC2X3, IFC4, IFC4X3; .ifc oder .ifczip) unter „Projektdateien“ importieren. IFC-XML wird nicht gelesen.
+2. Unter „Unterlagen → Aufmaß“ den Knopf „IFC-Modell“ wählen, die Datei und eine Bezeichnung angeben und „Modell öffnen“. Es entsteht eine Modellakte; die Datei bleibt unverändert.
+3. Links steht die Struktur (Gebäude, Geschoss, Bauteilklasse, Element), in der Mitte der Grundriss-Schnitt je Geschoss (Schnitthöhe einstellbar) oder die 3D-Ansicht, rechts Eigenschaften, Mengen und die Werkzeuge der Modellakte.
+
+### Prüfen und nacharbeiten
+
+1. „Modellbericht“ zeigt Schema, Software, Einheit, Georeferenz und die Zahl der Elemente je Klasse.
+2. „Prüfung“ prüft gegen das mitgelieferte Regelwerk „Modell für den Bauantrag“ (IDS) oder ein eigenes IDS aus den Projektdateien. Befunde lassen sich im Modell zeigen; die Aktion eines Befunds öffnet die passende Nacharbeit.
+3. „Nacharbeit“ ändert das Modell für BauPlanIO: Klasse und Art, Geschosszuordnung, Eigenschaft, Name und Nutzung, Ausblenden, Höhe ändern, neuen Umriss im Grundriss zeichnen und Räume aus geschlossenen Wandflächen bilden. Jede Änderung hängt an der GlobalId und lässt sich zurücknehmen.
+
+> Nur klassifizieren, was das Bauteil wirklich ist: Wände, Stützen und Decken zählen zur Außenkante, zur Gebäudegrundfläche und zur GRZ der Auswertung.
+
+### Auswerten und übernehmen
+
+1. „Auswertung“ rechnet aus der Geometrie mit Nacharbeit: Gebäudegrundfläche, BGF und BRI je Geschoss, Netto-Raumflächen nach Nutzung, Höhen über dem Erdgeschoss sowie GRZ und GFZ zur Bezugsfläche des Baugrundstücks. Diese GRZ und GFZ sind Orientierungswerte.
+2. „Übernahme“ legt ein Gebäude mit Geschossen, je Geschoss eine eigene Zeichnung mit dem IFC-Grundriss als Hintergrund und Markierungen für Räume, Außenkante und Gebäudegrundfläche sowie auf Wunsch Raumbücher an. Die Fachmodule (GRZ, GFZ, Vollgeschosse, Abstandsflächen) rechnen danach wie gewohnt.
+3. Eine erneute Übernahme aktualisiert nur die übernommenen Markierungen; selbst gezeichnete Markierungen und Verknüpfungen bleiben.
+
+### Neue Modellversion
+
+1. Die neue Fassung des Planers als neue Version derselben Datei unter „Projektdateien“ ablegen. Die Modellansicht meldet „Neue Version … vorhanden: abgleichen“.
+2. Im „Modellbericht“ unter „Neue Modellversion“ abgleichen: neue, entfernte und geänderte Elemente sowie der Stand jeder Nacharbeit (wirksam, verwaist, überholt).
+3. „Auf diese Version umstellen“ übernimmt die Nacharbeit; überholte und verwaiste Änderungen können dabei gestrichen werden. Anschließend die Übernahme aktualisieren.
+
+### IFC-Datei schreiben und einreichen
+
+1. „Export → IFC-Datei schreiben“ schreibt die Datei mit der Nacharbeit neu (Schema der Quelle, unberührte Teile zeichengleich) und legt sie unter „Projektdateien“ ab.
+2. „Eigenes IFC4-Modell aus Zeichnungen“ erzeugt aus einem Gebäude und je Geschoss einer eigenen Zeichnung ein IFC4-Modell mit Wänden, Decken und Räumen. Die GlobalIds bleiben bei jedem Export gleich.
+3. Jede Ausgabe wird zur Kontrolle wieder eingelesen. „Modelldatei dem Bauantrag beifügen“ ordnet die Datei als Anlage „BIM-Gebäudemodell“ (XBau-Anlagenart 2010) zu.
+
+Weiterlesen: [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Gebäude und Geschosse aufbauen](#12-gebäude-und-geschosse-aufbauen) · [GRZ und GRZ I / II](#14-grz-und-grz-i--ii) · [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten)
+
+## 26. Nachweisstände archivieren und freigeben
 
 Unveränderliche Nachweise von bearbeitbaren Berechnungen unterscheiden.
 
@@ -712,9 +752,9 @@ Ein archivierter Nachweis allein belegt weder, dass er dem Bauamt vorliegt, noch
 2. Quellen und Eingaben prüfen, Änderungen speichern und neu berechnen. Einen neuen Nachweisstand archivieren; der frühere bleibt erhalten.
 3. Den neuen Stand fachlich prüfen und freigeben. Unterlagen und geplante Abgaben anschließend bewusst auf die passende Dokumentversion umstellen.
 
-Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Begriffe und Abschlusscheckliste](#51-begriffe-und-abschlusscheckliste)
+Weiterlesen: [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
-## 26. Projektdateien und Versionen verwalten
+## 27. Projektdateien und Versionen verwalten
 
 PDF, CAD, Office-Dateien und Fotos zentral und nachvollziehbar führen.
 
@@ -742,9 +782,9 @@ Beim Import einer einzelnen gleichnamigen Datei bietet die Anwendung an, das vor
 
 Aus einer Anforderung heraus eine Datei importieren oder die genaue Version auswählen. Zurück im Ausgangsbereich die Zuordnung ausdrücklich bestätigen.
 
-Weiterlesen: [E-Mails und Anhänge dokumentieren](#28-e-mails-und-anhänge-dokumentieren) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen)
+Weiterlesen: [E-Mails und Anhänge dokumentieren](#29-e-mails-und-anhänge-dokumentieren) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen) · [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#24-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen)
 
-## 27. Dokumentkategorien im Büro pflegen
+## 28. Dokumentkategorien im Büro pflegen
 
 Haupt- und Unterkategorien einheitlich verwenden.
 
@@ -761,9 +801,9 @@ Beim Dateiimport bzw. in den Dokumentangaben die passende Kategorie wählen. Meh
 
 Eine Vorlagenvorgabe in der Formularbibliothek gilt für daraus neu erzeugte Unterlagen. Sie ändert bereits gespeicherte Projektdokumente nicht nachträglich. Umbenennungen im Katalog verändern keine eingefrorenen Kategoriesnapshots früherer Abgaben.
 
-Weiterlesen: [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Formularbibliothek und eigene PDF-Vorlagen](#30-formularbibliothek-und-eigene-pdf-vorlagen) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich)
+Weiterlesen: [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Formularbibliothek und eigene PDF-Vorlagen](#31-formularbibliothek-und-eigene-pdf-vorlagen) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
-## 28. E-Mails und Anhänge dokumentieren
+## 29. E-Mails und Anhänge dokumentieren
 
 Archivierte Nachrichten lesen und als Verfahrensbelege verwenden.
 
@@ -780,9 +820,9 @@ Die Vorschau zeigt Nachrichtentext, führt aber keine aktiven HTML-Inhalte aus u
 
 Die Anwendung ist damit ein Archiv für Projektkommunikation, kein automatischer Posteingang und kein E-Mail-Versanddienst. Eine abgelegte E-Mail mit Versandabsicht ist noch kein belegter Zugang bei der Behörde.
 
-Weiterlesen: [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren)
+Weiterlesen: [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren)
 
-## 29. PDF-Formulare im Projekt ausfüllen
+## 30. PDF-Formulare im Projekt ausfüllen
 
 Eine Vorlage auswählen, Eingaben prüfen und die ausgefüllte Original-PDF ablegen.
 
@@ -807,9 +847,9 @@ Unter „Anforderungen“ mit „Formular für diese Anforderung erstellen …�
 
 „Vorlagen hinzufügen / Eingabefelder einrichten …“ öffnet die globale Bibliothek. Dort führt „Zurück zu Formularen im Projekt“ zurück; die Bibliothek wird beim Wiederöffnen aktualisiert.
 
-Weiterlesen: [Formularbibliothek und eigene PDF-Vorlagen](#30-formularbibliothek-und-eigene-pdf-vorlagen) · [Einzeldruck, Stapeldruck und Behördenausgabe](#31-einzeldruck-stapeldruck-und-behördenausgabe) · [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Bauantrag und XBau-Grunddaten](#38-bauantrag-und-xbau-grunddaten)
+Weiterlesen: [Formularbibliothek und eigene PDF-Vorlagen](#31-formularbibliothek-und-eigene-pdf-vorlagen) · [Einzeldruck, Stapeldruck und Behördenausgabe](#32-einzeldruck-stapeldruck-und-behördenausgabe) · [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten)
 
-## 30. Formularbibliothek und eigene PDF-Vorlagen
+## 31. Formularbibliothek und eigene PDF-Vorlagen
 
 Wiederverwendbare Vorlagen unabhängig von einzelnen Projekten vorbereiten.
 
@@ -827,9 +867,9 @@ Der Vorlagenordner ist projektunabhängig und kann zentral auf einer Serverfreig
 
 Ein Feldname wie &lt;Platzhalter1&gt; stellt ein Eingabefeld bereit; er ist allein keine automatische Zuordnung zu einem beliebigen Berechnungsergebnis. Die angebotenen Feld-/Quellenzuordnungen prüfen.
 
-Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen)
+Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen)
 
-## 31. Einzeldruck, Stapeldruck und Behördenausgabe
+## 32. Einzeldruck, Stapeldruck und Behördenausgabe
 
 Einreichungsfähige Ausgaben kontrolliert zusammenstellen.
 
@@ -860,9 +900,9 @@ Im verfahrensbezogenen Arbeitsplatz einen eingefrorenen Abgabestand wählen und 
 
 Nicht verfügbare oder nicht druckbare Versionen werden gemeldet. DWG und andere Originaldateien separat über das Abgabepaket berücksichtigen. Eine andere Druckauswahl verändert den eingefrorenen Stand nicht. Originalformulare erhalten weiterhin keinen zusätzlichen Briefbogen.
 
-Weiterlesen: [Nachweisstände archivieren und freigeben](#25-nachweisstände-archivieren-und-freigeben) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen)
+Weiterlesen: [Nachweisstände archivieren und freigeben](#26-nachweisstände-archivieren-und-freigeben) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen)
 
-## 32. Projektübersicht, Aufgaben und Chronik
+## 33. Projektübersicht, Aufgaben und Chronik
 
 Handlungsbedarf, Fristen und Bearbeitungsstand im Blick behalten.
 
@@ -890,9 +930,9 @@ Die Projektchronik dokumentiert gespeicherte Aktionen und Änderungen. Sie ergä
 
 > Der Arbeitscheck verwendet gespeicherte Daten. Ungespeicherte Entwürfe, fehlende Anforderungen und nicht erreichbare Prüfungen ergeben keine bestätigte Abgabereife.
 
-Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#35-unterlagenbedarf-und-freigaben-organisieren) · [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung) · [Häufige Fragen und Störungen](#50-häufige-fragen-und-störungen)
+Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#36-unterlagenbedarf-und-freigaben-organisieren) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung) · [Häufige Fragen und Störungen](#51-häufige-fragen-und-störungen)
 
-## 33. Aktensuche, OCR und Wiedervorlagen
+## 34. Aktensuche, OCR und Wiedervorlagen
 
 Inhalte finden, Termine exportieren und die vollständige Akte ausgeben.
 
@@ -913,9 +953,9 @@ Mit „Wiedervorlagen aktualisieren“ den Stand laden und gegebenenfalls „Nur
 
 „Projektakte als ZIP exportieren …“ umfasst die Projektakte mit allen Dokumentversionen, Fachhistorien und festgehaltenen Ausgabe-Artefakten. Für eine Behördenabgabe stattdessen den ausgewählten Abgabestand verwenden. Für die Wiederherstellung einer Installation sind Profil-/Bürosicherungen vorgesehen.
 
-Weiterlesen: [Projektübersicht, Aufgaben und Chronik](#32-projektübersicht-aufgaben-und-chronik) · [Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren) · [Sicherung, Wiederherstellung und Aktenexport](#48-sicherung-wiederherstellung-und-aktenexport)
+Weiterlesen: [Projektübersicht, Aufgaben und Chronik](#33-projektübersicht-aufgaben-und-chronik) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren) · [Sicherung, Wiederherstellung und Aktenexport](#49-sicherung-wiederherstellung-und-aktenexport)
 
-## 34. Verfahrensakte und Vorhabenprofil anlegen
+## 35. Verfahrensakte und Vorhabenprofil anlegen
 
 Behörde, Verfahren und Anforderungskatalog projektbezogen festlegen.
 
@@ -939,9 +979,9 @@ Die Bereiche sind in „Vorbereitung“, „Laufendes Verfahren“ und „Entsch
 
 „Unterlagen und Arbeitsaufträge“ bündelt Anforderungen, konkrete Dokumentstände, Nachforderungspunkte und Pflichten aus Bescheiden. Die Ansicht besitzt keinen zweiten Erledigungsstatus; Änderungen führen zum Originaleintrag. Hinweise ohne Pflicht werden nicht als Aufgabe gezählt.
 
-Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#35-unterlagenbedarf-und-freigaben-organisieren) · [Bauantrag und XBau-Grunddaten](#38-bauantrag-und-xbau-grunddaten) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich)
+Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#36-unterlagenbedarf-und-freigaben-organisieren) · [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
-## 35. Unterlagenbedarf und Freigaben organisieren
+## 36. Unterlagenbedarf und Freigaben organisieren
 
 Erforderlichkeit entscheiden und konkrete Dokumentstände zuordnen.
 
@@ -963,9 +1003,9 @@ Die Dokumentauswahl lässt sich nach Dateiname, Kategorie und Dateityp filtern. 
 
 „Genau diese Version ansehen“ öffnet die referenzierte Historie. Fehlende Metadaten werden als nicht auflösbar angezeigt; die Referenz wird nicht still gelöscht. Kategorie allein erfüllt keine Anforderung.
 
-Weiterlesen: [Projektdateien und Versionen verwalten](#26-projektdateien-und-versionen-verwalten) · [Unterschriften und Freigaben dokumentieren](#37-unterschriften-und-freigaben-dokumentieren) · [Workflow: Unterlagen für die Erstabgabe vorbereiten](#39-workflow-unterlagen-für-die-erstabgabe-vorbereiten)
+Weiterlesen: [Projektdateien und Versionen verwalten](#27-projektdateien-und-versionen-verwalten) · [Unterschriften und Freigaben dokumentieren](#38-unterschriften-und-freigaben-dokumentieren) · [Workflow: Unterlagen für die Erstabgabe vorbereiten](#40-workflow-unterlagen-für-die-erstabgabe-vorbereiten)
 
-## 36. Abweichungen, Ausnahmen und Befreiungen
+## 37. Abweichungen, Ausnahmen und Befreiungen
 
 Soll/Ist-Abweichungen mit Antrag, Begründung und Entscheidung dokumentieren.
 
@@ -981,9 +1021,9 @@ Gespeicherte Wortlaute werden nicht still überschrieben. Wird ein Bedarf durch 
 
 Eine Freistellung mit notwendiger planungsrechtlicher Ausnahme oder Befreiung kann gesperrt sein. In diesem Fall das richtige Verfahren fachlich klären und nicht nur den Nachweiswert ändern.
 
-Weiterlesen: [Überbaubare Fläche und Baugrenzen](#17-überbaubare-fläche-und-baugrenzen) · [GRZ und GRZ I / II](#14-grz-und-grz-i--ii) · [Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich)
+Weiterlesen: [Überbaubare Fläche und Baugrenzen](#17-überbaubare-fläche-und-baugrenzen) · [GRZ und GRZ I / II](#14-grz-und-grz-i--ii) · [Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
-## 37. Unterschriften und Freigaben dokumentieren
+## 38. Unterschriften und Freigaben dokumentieren
 
 Person, Rolle und konkrete Unterlagenversion zusammenführen.
 
@@ -996,9 +1036,9 @@ Person, Rolle und konkrete Unterlagenversion zusammenführen.
 
 > Eine erfasste Unterschriftsangabe erzeugt keine handschriftliche oder qualifizierte elektronische Signatur in einer PDF. Fehlende Unterschriften können am Abgabestand nur als Hinweis erscheinen, weil Portale eigene Abläufe haben. Den tatsächlichen Bedarf daher vor Abgabe unabhängig von einer technischen Sperre prüfen.
 
-Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#35-unterlagenbedarf-und-freigaben-organisieren) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen)
+Weiterlesen: [Unterlagenbedarf und Freigaben organisieren](#36-unterlagenbedarf-und-freigaben-organisieren) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen) · [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen)
 
-## 38. Bauantrag und XBau-Grunddaten
+## 39. Bauantrag und XBau-Grunddaten
 
 Antragsangaben mit Projekt, Beteiligten und Verfahrensakte abstimmen.
 
@@ -1012,9 +1052,9 @@ Antragsangaben mit Projekt, Beteiligten und Verfahrensakte abstimmen.
 
 Nicht jede im Programm dokumentierbare Verfahrensart besitzt eine unterstützte XBau-Antragsnachricht. Die Oberfläche nennt solche Grenzen. Keine andere Nachricht als technisch passenden Ersatz wählen, wenn dies das tatsächlich beantragte Verfahren falsch beschreibt.
 
-Weiterlesen: [Verfahrensakte und Vorhabenprofil anlegen](#34-verfahrensakte-und-vorhabenprofil-anlegen) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [XBau-Nachrichten austauschen und auswerten](#45-xbau-nachrichten-austauschen-und-auswerten) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich)
+Weiterlesen: [Verfahrensakte und Vorhabenprofil anlegen](#35-verfahrensakte-und-vorhabenprofil-anlegen) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen) · [XBau-Nachrichten austauschen und auswerten](#46-xbau-nachrichten-austauschen-und-auswerten) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
-## 39. Workflow: Unterlagen für die Erstabgabe vorbereiten
+## 40. Workflow: Unterlagen für die Erstabgabe vorbereiten
 
 Die vollständige Abgabe vom Entwurf bis zum dokumentierten Zugang durchführen.
 
@@ -1043,9 +1083,9 @@ Die vollständige Abgabe vom Entwurf bis zum dokumentierten Zugang durchführen.
 2. Jeden offenen Prüfpunkt über den Direktlink bearbeiten. Eine leere Gruppe bedeutet lediglich, dass dazu keine offenen Meldungen erfasst sind.
 3. Über die Schrittauswahl zu Anforderungen, Antragsdaten, Unterlagen, Abgabe oder Eingangsbeleg springen. Abschließende Paketprüfung und tatsächlichen Eingang im zuständigen Bereich dokumentieren.
 
-Weiterlesen: [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen) · [Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren) · [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung)
+Weiterlesen: [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung)
 
-## 40. Abgabestände und Einreichungsvergleich
+## 41. Abgabestände und Einreichungsvergleich
 
 Festhalten, welche Unterlagen in welcher Version abgegeben werden.
 
@@ -1063,9 +1103,9 @@ Festhalten, welche Unterlagen in welcher Version abgegeben werden.
 
 Der gesonderte Bereich „Einreichungen“ dient der Paket- und Versionsübersicht. Für einen laufenden Genehmigungsvorgang die Verfahrensakte als führenden Zusammenhang nutzen und keine unverbundenen Doppelvorgänge anlegen. Historische Abgaben bleiben erhalten.
 
-Weiterlesen: [Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen) · [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung) · [Begriffe und Abschlusscheckliste](#51-begriffe-und-abschlusscheckliste)
+Weiterlesen: [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung) · [Begriffe und Abschlusscheckliste](#52-begriffe-und-abschlusscheckliste)
 
-## 41. Über das zuständige Bauportal einreichen
+## 42. Über das zuständige Bauportal einreichen
 
 Die lokale Bereitstellung mit der tatsächlichen Portalabgabe verbinden.
 
@@ -1084,9 +1124,9 @@ BauPlanIO unterstützt die manuelle Übergabe. Es gibt keinen automatischen Port
 
 Die lokale Bereitstellungs-ZIP ist kein zugesichertes Portalimportformat. Ebenso muss die Annahme einer XBau-Datei mit dem konkreten Portal geklärt sein. Gegebenenfalls Originaldateien einzeln hochladen. Rückmeldungen später als Originale importieren und der Akte zuordnen.
 
-Weiterlesen: [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren) · [XBau-Nachrichten austauschen und auswerten](#45-xbau-nachrichten-austauschen-und-auswerten)
+Weiterlesen: [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren) · [XBau-Nachrichten austauschen und auswerten](#46-xbau-nachrichten-austauschen-und-auswerten)
 
-## 42. Kommunikation, Versand und Eingang dokumentieren
+## 43. Kommunikation, Versand und Eingang dokumentieren
 
 Originalbelege und tatsächliche Ereignisse in der Akte zusammenführen.
 
@@ -1104,9 +1144,9 @@ Ein Export beweist keine Übermittlung, ein Versand noch keinen bestätigten Ein
 
 In einem Portal anders benannte, entfernte oder ausgetauschte Dateien mit der lokalen Bereitstellung abgleichen. Ungeklärte Übergaben zuerst klären; keinen vollständigen Dateiabgleich bestätigen, wenn Belege oder Zuordnungen fehlen.
 
-Weiterlesen: [E-Mails und Anhänge dokumentieren](#28-e-mails-und-anhänge-dokumentieren) · [Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen) · [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung) · [XBau-Nachrichten austauschen und auswerten](#45-xbau-nachrichten-austauschen-und-auswerten)
+Weiterlesen: [E-Mails und Anhänge dokumentieren](#29-e-mails-und-anhänge-dokumentieren) · [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung) · [XBau-Nachrichten austauschen und auswerten](#46-xbau-nachrichten-austauschen-und-auswerten)
 
-## 43. Workflow: Nachforderung und Nachreichung
+## 44. Workflow: Nachforderung und Nachreichung
 
 Einzelne Forderungspunkte, Antworten und neue Dokumentstände verfolgen.
 
@@ -1126,9 +1166,9 @@ Gespeicherter Forderungswortlaut bleibt erhalten. Ändert die Behörde den Inhal
 
 Die Antworten „in Bearbeitung“, „eingereicht“ und „behördlich bestätigt“ haben unterschiedliche Bedeutung. Eine fertige neue PDF allein erledigt keinen noch nicht übermittelten Punkt. Fristfolgen fachlich prüfen; Hinweise der Anwendung ersetzen keine Auswertung des konkreten Schreibens.
 
-Weiterlesen: [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Schreiben und behördliche Zwischenschritte](#44-schreiben-und-behördliche-zwischenschritte) · [Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren)
+Weiterlesen: [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Schreiben und behördliche Zwischenschritte](#45-schreiben-und-behördliche-zwischenschritte) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren)
 
-## 44. Schreiben und behördliche Zwischenschritte
+## 45. Schreiben und behördliche Zwischenschritte
 
 Antworten, Fristverlängerungen und Stellungnahmen aus der Akte vorbereiten.
 
@@ -1146,9 +1186,9 @@ Behördliche Schritte an das eingegangene Original binden. Frist zur Stellungnah
 
 Automatische Terminhinweise, Genehmigungsfiktionen oder Handlungsvorschläge hängen vom erfassten Datum und vom Regelstand ab. Ungeprüfte Landesregeln und unbekannte Hemmungen nicht als gesicherte Rechtsfrist verwenden. Im Zweifel die zuständige fachliche/rechtliche Prüfung einholen.
 
-Weiterlesen: [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung) · [Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen) · [Projektübersicht, Aufgaben und Chronik](#32-projektübersicht-aufgaben-und-chronik)
+Weiterlesen: [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung) · [Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen) · [Projektübersicht, Aufgaben und Chronik](#33-projektübersicht-aufgaben-und-chronik)
 
-## 45. XBau-Nachrichten austauschen und auswerten
+## 46. XBau-Nachrichten austauschen und auswerten
 
 Strukturierte Nachrichten archivieren, prüfen und kontrolliert übernehmen.
 
@@ -1168,9 +1208,9 @@ XBau-Ausgänge werden aus dem Abgabestand der Verfahrensakte erzeugt. Je nach un
 
 > Schema-Konformität ist keine inhaltliche Genehmigung und keine Transportbestätigung. Die Anwendung stellt keinen universellen Direktversand an alle Behörden und keinen automatisch abgerufenen Portalposteingang bereit.
 
-Weiterlesen: [Bauantrag und XBau-Grunddaten](#38-bauantrag-und-xbau-grunddaten) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen) · [Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen)
+Weiterlesen: [Bauantrag und XBau-Grunddaten](#39-bauantrag-und-xbau-grunddaten) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen) · [Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen)
 
-## 46. Bescheide, genehmigte Unterlagen und Auflagen
+## 47. Bescheide, genehmigte Unterlagen und Auflagen
 
 Die Entscheidung mit ihren Originalen und verbindlichen Versionen festhalten.
 
@@ -1192,9 +1232,9 @@ Auflagen und Bedingungen können bis zur Erfüllung offen bleiben. Befristungen 
 
 Bekanntgaben an Nachbarn und deren tatsächliche Zugangsangaben im vorgesehenen Bescheidbezug dokumentieren. Ein Nachbar kann einen anderen Fristbeginn haben als die Bauherrschaft. Eine Rechtsbehelfsfrist deshalb anhand von Zustellung, Rechtsbehelfsbelehrung und tatsächlicher Verfahrenslage prüfen; den angezeigten Termin nicht ungeprüft als Rechtsberatung verwenden.
 
-Weiterlesen: [Nach der Genehmigung und Verfahrensabschluss](#47-nach-der-genehmigung-und-verfahrensabschluss) · [Kommunikation, Versand und Eingang dokumentieren](#42-kommunikation-versand-und-eingang-dokumentieren) · [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung)
+Weiterlesen: [Nach der Genehmigung und Verfahrensabschluss](#48-nach-der-genehmigung-und-verfahrensabschluss) · [Kommunikation, Versand und Eingang dokumentieren](#43-kommunikation-versand-und-eingang-dokumentieren) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung)
 
-## 47. Nach der Genehmigung und Verfahrensabschluss
+## 48. Nach der Genehmigung und Verfahrensabschluss
 
 Baubeginn, Nutzungsaufnahme und verbleibende Pflichten weiterverfolgen.
 
@@ -1209,9 +1249,9 @@ Baubeginn, Nutzungsaufnahme und verbleibende Pflichten weiterverfolgen.
 
 > Die Kennzeichnung „genehmigt“ ist keine pauschale Freigabe jeder Bauausführung. Bedingungen, Geltungsdauer, Anzeigen, bautechnische Nachweise und aktuelle Ausführungsvoraussetzungen müssen gesondert erfüllt sein.
 
-Weiterlesen: [Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen) · [Sicherung, Wiederherstellung und Aktenexport](#48-sicherung-wiederherstellung-und-aktenexport) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich)
+Weiterlesen: [Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen) · [Sicherung, Wiederherstellung und Aktenexport](#49-sicherung-wiederherstellung-und-aktenexport) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich)
 
-## 48. Sicherung, Wiederherstellung und Aktenexport
+## 49. Sicherung, Wiederherstellung und Aktenexport
 
 Projektunterlagen und Projektdaten zusammen erhalten.
 
@@ -1229,9 +1269,9 @@ Im Netzwerkbetrieb die angebotene Bürosicherung bzw. das administrierte Verfahr
 
 Ein Aktenexport aus der Verfahrensakte dient der nachvollziehbaren Weitergabe eines Vorgangs mit seinen Artefakten. Eine Einreichungs-ZIP enthält dagegen nur den festgehaltenen Abgabeumfang. Weder diese ZIP noch ein lesbarer Projektordner sind automatisch eine vollständige Wiederherstellung der Anwendung.
 
-Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#40-abgabestände-und-einreichungsvergleich) · [Nach der Genehmigung und Verfahrensabschluss](#47-nach-der-genehmigung-und-verfahrensabschluss)
+Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare-projektordner) · [Abgabestände und Einreichungsvergleich](#41-abgabestände-und-einreichungsvergleich) · [Nach der Genehmigung und Verfahrensabschluss](#48-nach-der-genehmigung-und-verfahrensabschluss)
 
-## 49. Durchgängiges Beispiel: Einfamilienhaus
+## 50. Durchgängiges Beispiel: Einfamilienhaus
 
 Einen Musterablauf ohne produktive Daten ausprobieren.
 
@@ -1254,9 +1294,9 @@ Nachweise und Formulare prüfen und als Version 1 in einen Abgabestand aufnehmen
 
 Antwortschreiben und Version 2 tatsächlich übermitteln. Danach kann die Akte zwischen dem früher eingegangenen Stand und der Nachreichung unterscheiden. Erst mit dem Bescheid die ausdrücklich genehmigten Versionen zuordnen.
 
-Weiterlesen: [Workflow: Unterlagen für die Erstabgabe vorbereiten](#39-workflow-unterlagen-für-die-erstabgabe-vorbereiten) · [Workflow: Nachforderung und Nachreichung](#43-workflow-nachforderung-und-nachreichung) · [Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen)
+Weiterlesen: [Workflow: Unterlagen für die Erstabgabe vorbereiten](#40-workflow-unterlagen-für-die-erstabgabe-vorbereiten) · [Workflow: Nachforderung und Nachreichung](#44-workflow-nachforderung-und-nachreichung) · [Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen)
 
-## 50. Häufige Fragen und Störungen
+## 51. Häufige Fragen und Störungen
 
 Gezielt zur Ursache zurückgehen und Entwürfe erhalten.
 
@@ -1289,9 +1329,9 @@ Gezielt zur Ursache zurückgehen und Entwürfe erhalten.
 
 App-Version, betroffenen Bereich, genaue Meldung und nachvollziehbare Schritte nennen. Projektdaten und Originale zunächst erhalten; keine verwalteten Dateien oder Datenbankdateien auf Verdacht löschen. Personenbezogene Bauherrendaten vor einer Weitergabe an Support angemessen begrenzen.
 
-Weiterlesen: [Oberfläche, Projektregister und Speichern](#02-oberfläche-projektregister-und-speichern) · [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [PDF-Formulare im Projekt ausfüllen](#29-pdf-formulare-im-projekt-ausfüllen) · [Über das zuständige Bauportal einreichen](#41-über-das-zuständige-bauportal-einreichen)
+Weiterlesen: [Oberfläche, Projektregister und Speichern](#02-oberfläche-projektregister-und-speichern) · [Berechnungen bearbeiten und prüfen](#13-berechnungen-bearbeiten-und-prüfen) · [PDF-Formulare im Projekt ausfüllen](#30-pdf-formulare-im-projekt-ausfüllen) · [Über das zuständige Bauportal einreichen](#42-über-das-zuständige-bauportal-einreichen)
 
-## 51. Begriffe und Abschlusscheckliste
+## 52. Begriffe und Abschlusscheckliste
 
 Die wichtigsten Zustände und Übergaben eindeutig unterscheiden.
 
@@ -1320,4 +1360,4 @@ Die wichtigsten Zustände und Übergaben eindeutig unterscheiden.
 - Versand-/Eingangsbelege, Schriftverkehr und relevante Anhänge in der Akte enthalten.
 - Aktenexport geprüft und vollständige Sicherung erstellt bzw. durch die Administration bestätigt.
 
-Weiterlesen: [Mit BauPlanIO arbeiten](#01-mit-bauplanio-arbeiten) · [Bescheide, genehmigte Unterlagen und Auflagen](#46-bescheide-genehmigte-unterlagen-und-auflagen) · [Sicherung, Wiederherstellung und Aktenexport](#48-sicherung-wiederherstellung-und-aktenexport)
+Weiterlesen: [Mit BauPlanIO arbeiten](#01-mit-bauplanio-arbeiten) · [Bescheide, genehmigte Unterlagen und Auflagen](#47-bescheide-genehmigte-unterlagen-und-auflagen) · [Sicherung, Wiederherstellung und Aktenexport](#49-sicherung-wiederherstellung-und-aktenexport)
