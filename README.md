@@ -7,6 +7,10 @@ NAS-/Büro-Server und optional in der Cloud.
 
 ## Bedienhandbuch und Hilfe
 
+Das **[bebilderte Benutzerhandbuch](docs/handbuch/benutzerhandbuch/README.md)**
+erklärt alle Funktionen und Standard-Workflows mit Bildschirmfotos aus dem
+Beispielprojekt und wird kapitelweise fortgeschrieben.
+
 Das [Bedienhandbuch für Architekten und Planer](docs/handbuch/Bedienhandbuch.md)
 führt durch Projektanlage, Grundlagen, Berechnungen, Dokumente, Formulare,
 Einreichung und Verfahrensdokumentation bis zur Genehmigung und Bauausführung.
