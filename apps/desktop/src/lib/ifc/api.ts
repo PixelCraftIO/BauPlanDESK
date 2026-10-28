@@ -1,6 +1,7 @@
 /** IFC-Modelle: dünne Aufrufe der Core-Befehle (`apps/desktop/src-tauri/src/ifc.rs`). */
 import { invoke } from "@tauri-apps/api/core";
-import type { Dokumentbezug, Modellauszug, Modellgeschoss, Modellgrundriss } from "../generated/plattform";
+import type { Dokumentbezug, Modellauszug, Modellgeschoss, Modellgrundriss, Modelluebernahmeergebnis, Modelluebernahmewunsch } from "../generated/plattform";
+import { nachErfolg } from "../projektEreignisse";
 import type { Plan } from "../api";
 export const ifcApi = {
   auszug: (projektId: string, dokument: Dokumentbezug) => invoke<Modellauszug>("ifc_auszug", { projektId, dokument }),
@@ -12,4 +13,7 @@ export const ifcApi = {
     invoke<Plan>("ifc_grundriss_plan", { projektId, dokument, geschoss }),
   /** Modelldatei für die 3D-Ansicht (Base64). */
   datei: (projektId: string, dokument: Dokumentbezug) => invoke<string>("ifc_datei", { projektId, dokument }),
+  /** Gebäude, Zeichnungen je Geschoss und Raumbücher aus dem Modell anlegen oder aktualisieren. */
+  uebernehmen: (projektId: string, wunsch: Modelluebernahmewunsch) =>
+    nachErfolg(invoke<Modelluebernahmeergebnis>("ifc_uebernehmen", { projektId, wunsch }), { projektId, bereich: "fachobjekte" }),
 };

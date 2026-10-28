@@ -125,6 +125,16 @@ impl CoreServices {
         Ok(v.file_name)
     }
 
+    /// Auszug, wie die Modellakte ihn sieht: das Modell ihrer Dokumentversion
+    /// mit angewendeter Nacharbeit. Grundlage von Übernahme und Auswertung.
+    pub async fn ifc_akte_auszug(
+        &self,
+        p: ProjectId,
+        akte: &Modellakte,
+    ) -> CoreResult<Modellauszug> {
+        Ok(self.ifc_modell(p, &akte.dokument).await?.auszug.clone())
+    }
+
     /// Modellauszug einer Dokumentversion (Struktur, Eigenschaften, Geometrie).
     pub async fn ifc_auszug(&self, p: ProjectId, d: &Dokumentbezug) -> CoreResult<Modellauszug> {
         Ok(self.ifc_modell(p, d).await?.auszug.clone())

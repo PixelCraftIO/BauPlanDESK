@@ -7,12 +7,15 @@
   import type { Modellakte, Modellauszug, Modellelement, Modellgrundriss, Strukturelement } from "../generated/plattform";
   import { ifcApi } from "./api";
   import Grundriss from "./Grundriss.svelte";
+  import Uebernahme from "./Uebernahme.svelte";
   import { zahl, flaeche, laenge, klassentitel, elementtitel } from "./format";
-  let { projekt, darf, start, onstatus }: {
+  let { projekt, darf, start, onstatus, onzeichnung }: {
     projekt: Project;
     darf: boolean;
     start: { modell?: string };
     onstatus?: (s: { titel: string; geaendert: boolean; id?: string | null }) => void;
+    /** Zeichnung (Planaufmaß) in einem eigenen Tab öffnen. */
+    onzeichnung?: (id: string, titel: string) => void;
   } = $props();
   let akte = $state<Datensatz<Modellakte> | null>(null);
   let akten = $state<Datensatz<Modellakte>[]>([]);
@@ -24,7 +27,7 @@
   let geschoss = $state(""), schnitt = $state(1);
   let grundriss = $state<Modellgrundriss | null>(null);
   let auswahl = $state("");
-  let rechts = $state<"eigenschaften" | "bericht">("eigenschaften");
+  let rechts = $state<"eigenschaften" | "bericht" | "uebernahme">("eigenschaften");
   const element = $derived(auszug?.elemente.find(e => e.global_id === auswahl) ?? null);
   const struktur = $derived(auszug?.geschosse.find(g => g.global_id === auswahl) ?? auszug?.gebaeude.find(g => g.global_id === auswahl) ?? null);
   const geschossName = (gid: string | null | undefined) => auszug?.geschosse.find(g => g.global_id === gid)?.name || "ohne Geschoss";
@@ -169,6 +172,7 @@
       <div class="segment" role="tablist" aria-label="Detailbereich">
         <button type="button" role="tab" aria-selected={rechts === "eigenschaften"} onclick={() => (rechts = "eigenschaften")}>Eigenschaften</button>
         <button type="button" role="tab" aria-selected={rechts === "bericht"} onclick={() => (rechts = "bericht")}>Modellbericht</button>
+        <button type="button" role="tab" aria-selected={rechts === "uebernahme"} onclick={() => (rechts = "uebernahme")}>Übernahme</button>
       </div>
       {#if rechts === "eigenschaften"}
         {#if element}
@@ -199,6 +203,8 @@
           <dl class="werte"><dt>Name</dt><dd>{struktur.name || "—"}</dd>{#if struktur.langname}<dt>Langname</dt><dd>{struktur.langname}</dd>{/if}{#if struktur.hoehe_m != null}<dt>Höhe Geschossebene</dt><dd>{laenge(struktur.hoehe_m)}</dd>{/if}<dt>GlobalId</dt><dd class="gid">{struktur.global_id}</dd></dl>
           {#if struktur.eigenschaften.length}<table class="liste"><tbody>{#each struktur.eigenschaften as p}<tr><td>{p.satz}</td><td>{p.name}</td><td>{p.wert}</td></tr>{/each}</tbody></table>{/if}
         {:else}<p class="meta">Ein Element in der Struktur, im Grundriss oder in der 3D-Ansicht wählen.</p>{/if}
+      {:else if rechts === "uebernahme"}
+        <Uebernahme projektId={projekt.id} akte={akte} {darf} onakte={a => (akte = a)} {onzeichnung}/>
       {:else if auszug}
         <dl class="werte" aria-label="Modellbericht">
           <dt>Schema</dt><dd>{auszug.schema}</dd>

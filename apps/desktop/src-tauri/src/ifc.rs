@@ -79,3 +79,20 @@ pub async fn ifc_datei(
     let daten = state.core.ifc_datei(projekt_id, &dokument).await?;
     Ok(base64::engine::general_purpose::STANDARD.encode(daten))
 }
+
+#[tauri::command]
+pub async fn ifc_uebernehmen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::ifc::Modelluebernahmewunsch,
+) -> Result<core_lib::ifc::Modelluebernahmeergebnis, CmdError> {
+    let wer = state.benutzer();
+    state
+        .core
+        .projekt_zugriff(projekt_id, &wer, ProjektRecht::Bearbeiten)
+        .await?;
+    Ok(state
+        .core
+        .ifc_uebernehmen(projekt_id, &wunsch, &wer)
+        .await?)
+}

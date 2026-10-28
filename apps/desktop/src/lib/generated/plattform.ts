@@ -157,7 +157,11 @@ export type Modellakte = { bezeichnung: string,
 /**
  * IFC-Datei (`.ifc` oder `.ifczip`) im DMS.
  */
-dokument: Dokumentbezug, };
+dokument: Dokumentbezug,
+/**
+ * Letzte Übernahme in Gebäude, Zeichnungen und Raumbücher.
+ */
+uebernahme?: Modelluebernahme, };
 export type Georeferenz = {
 /**
  * Koordinatenreferenzsystem, z. B. `EPSG:25832`.
@@ -268,6 +272,44 @@ export type Modellgrundriss = { geschoss: string, schnitthoehe_m: number, teile:
  */
 min: [number, number], max: [number, number], };
 export type Modellgeschoss = { global_id: string, name: string, hoehe_m: number | null, };
+export type Modelluebernahme = { gebaeude_id: string,
+/**
+ * Dokumentversion, aus der übernommen wurde.
+ */
+dokument: Dokumentbezug, geschosse: Array<Geschossuebernahme>, };
+export type Geschossuebernahme = {
+/**
+ * GlobalId des IFC-Geschosses.
+ */
+global_id: string,
+/**
+ * Geschoss im Gebäude.
+ */
+geschoss_id: string,
+/**
+ * Eigene Zeichnung (Fachobjekt `planaufmass`) des Geschosses.
+ */
+aufmass_id: string,
+/**
+ * Raumbuch des Geschosses, sofern mit übernommen.
+ */
+raumbuch_id?: string,
+/**
+ * Übernommene Markierungen und ihre Herkunft im Modell.
+ */
+markierungen: Array<Modellbezug>, };
+export type Modellbezug = { markierung_id: string, global_id: string, };
+export type Modelluebernahmewunsch = { akte_id: string, revision: number,
+/**
+ * Vorhandenes Gebäude, in das übernommen wird; ohne Angabe das Gebäude
+ * der letzten Übernahme oder ein neues.
+ */
+gebaeude_id: string | null,
+/**
+ * Je Geschoss ein Raumbuch aus den Räumen füllen.
+ */
+raumbuch: boolean, };
+export type Modelluebernahmeergebnis = { akte: Fachstand, gebaeude: Fachstand, zeichnungen: Array<Fachstand>, raumbuecher: Array<Fachstand>, hinweise: Array<string>, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

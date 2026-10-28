@@ -18,7 +18,7 @@ const istIfcDok=d=>d&&d.dokument_id===ifcDok.document_id&&d.version===ifcDok.ver
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  const c=({fachobjektseite:'fachobjekte'})[cmd]??cmd;
  if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok];}
- if(c.startsWith("ifc_")){
+ if(c.startsWith("ifc_")&&c!=="ifc_uebernehmen"){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});
    if(!istIfcDok(args.dokument))throw "Dokument ist kein IFC-Modell des Projekts";
    if(c==="ifc_auszug")return structuredClone(IFC.auszug);
@@ -26,6 +26,18 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(c==="ifc_grundriss"){const g=structuredClone(IFC.grundrisse[args.geschoss]);if(!g)throw "Geschoss ist nicht im Modell";if(args.schnitthoeheM!=null)g.schnitthoehe_m=args.schnitthoeheM;return g;}
    if(c==="ifc_grundriss_plan")return structuredClone(IFC.plaene[args.geschoss]);
    if(c==="ifc_datei")return IFC.datei_base64;
+ }
+ if(c==="ifc_uebernehmen"){
+   window.ifcAufrufe.push({cmd:c,args:kopie(args)});
+   const w=args.wunsch,akte=window.ifcAkten.find(a=>a.objekt===w.akte_id);
+   if(!akte||akte.revision!==w.revision)throw "Modellakte wurde inzwischen geändert. Bitte neu laden.";
+   const gid=w.gebaeude_id??"9e0c1d4e-1b2c-4d5e-8f90-123456789abc";
+   const geschosse=IFC.geschosse.map((g,i)=>({global_id:g.global_id,geschoss_id:`6b2d1e5f-2c3d-4e6f-9a01-23456789ab0${i}`,aufmass_id:`7c2d1e5f-2c3d-4e6f-9a01-23456789ab0${i}`,markierungen:[]}));
+   const zeichnungen=geschosse.map((g,i)=>({projekt_id:args.projektId,modul:"planaufmass",objekt:g.aufmass_id,revision:1,schema_version:1,daten:{bezeichnung:`${akte.daten.bezeichnung} · ${IFC.geschosse[i].name}`,seite:1,kalibrierung:{art:"einheit",einheit:"meter"},hoehenbezug:null,ebenen:[],markierungen:[],hintergruende:[{id:crypto.randomUUID(),dokument:akte.daten.dokument,seite:1,ursprung:[0,0],lage:[2,2],drehung_grad:0,meter_pro_punkt:1,deckkraft:.6,sichtbar:true,geschoss:g.global_id}]}}));
+   window.planSaves=[...window.planSaves.filter(f=>!zeichnungen.some(z=>z.objekt===f.objekt)),...zeichnungen];
+   const neu={...akte,revision:akte.revision+1,daten:{...akte.daten,uebernahme:{gebaeude_id:gid,dokument:akte.daten.dokument,geschosse}}};
+   window.ifcAkten=[...window.ifcAkten.filter(a=>a.objekt!==akte.objekt),neu];
+   return kopie({akte:neu,gebaeude:{projekt_id:args.projektId,modul:"gebaeude",objekt:gid,revision:1,schema_version:1,daten:{bezeichnung:"Wohnhaus",grundstueck_ids:[],geschosse:[],quelle:null}},zeichnungen,raumbuecher:w.raumbuch?geschosse.map(g=>({projekt_id:args.projektId,modul:"raumbuch",objekt:crypto.randomUUID(),revision:1,schema_version:1,daten:{}})):[],hinweise:[]});
  }
  if(c==="fachobjekte"&&args.art==="ifcmodell")return structuredClone(window.ifcAkten);
  if(c==="fachobjekt_lesen"&&args.art==="ifcmodell")return structuredClone(window.ifcAkten.find(a=>a.objekt===args.id)??null);

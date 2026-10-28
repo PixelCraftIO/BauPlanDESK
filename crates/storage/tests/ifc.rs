@@ -78,6 +78,7 @@ async fn modell_lesen_und_modellakte_speichern() {
     let akte = ifc::Modellakte {
         bezeichnung: "Entwurf Architekt".into(),
         dokument: d.clone(),
+        uebernahme: None,
     };
     let f = u
         .core
@@ -121,6 +122,7 @@ async fn modell_lesen_und_modellakte_speichern() {
     let akte = ifc::Modellakte {
         bezeichnung: "Kaputt".into(),
         dokument: kaputt,
+        uebernahme: None,
     };
     assert!(
         u.core
@@ -224,4 +226,158 @@ async fn ifc_geschoss_als_zeichnungshintergrund() {
             .await
             .is_err()
     );
+}
+
+/// Übernahme: Gebäude mit Geschossen, je Geschoss eine Zeichnung mit Räumen,
+/// Außenkante und (EG) Gebäudegrundfläche, Raumbücher mit lichter Höhe.
+/// Wiederholt: gleiche Markierungs-IDs, eigene Markierungen bleiben.
+#[tokio::test]
+async fn uebernahme_in_gebaeude_zeichnungen_und_raumbuch() {
+    use core_lib::planaufmass::{Planaufmass, Planbedeutung};
+    use core_lib::plattform::objekte::{Gebaeude, Raumbuch};
+    use testdaten::efh;
+    let u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let akte_id = Uuid::new_v4();
+    let akte = ifc::Modellakte {
+        bezeichnung: "Entwurf".into(),
+        dokument: d.clone(),
+        uebernahme: None,
+    };
+    let f = u
+        .core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Ifcmodell,
+            akte_id,
+            0,
+            serde_json::to_value(&akte).unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let mut wunsch = ifc::Modelluebernahmewunsch {
+        akte_id,
+        revision: f.revision,
+        gebaeude_id: None,
+        raumbuch: true,
+    };
+    let r = u
+        .core
+        .ifc_uebernehmen(u.projekt.id, &wunsch, &u.user)
+        .await
+        .unwrap();
+    assert!(r.hinweise.is_empty(), "{:?}", r.hinweise);
+    let haus: Gebaeude = serde_json::from_value(r.gebaeude.daten.clone()).unwrap();
+    assert_eq!(haus.bezeichnung, "Wohnhaus");
+    let namen: Vec<_> = haus
+        .geschosse
+        .iter()
+        .map(|g| g.bezeichnung.as_str())
+        .collect();
+    assert_eq!(namen, ["EG", "OG"]);
+    let eg_hoehe = haus.geschosse[0]
+        .geometrie
+        .as_ref()
+        .unwrap()
+        .geschosshoehe_m;
+    assert_eq!(eg_hoehe, Some(efh::GESCHOSSHOEHE));
+    assert_eq!(r.zeichnungen.len(), 2);
+
+    let eg: Planaufmass = serde_json::from_value(r.zeichnungen[0].daten.clone()).unwrap();
+    assert_eq!(eg.hintergruende.len(), 1);
+    assert_eq!(eg.hintergruende[0].lage, [ifc::RAND_M, ifc::RAND_M]);
+    let arten: Vec<_> = eg.markierungen.iter().map(|m| m.bedeutung).collect();
+    assert_eq!(
+        arten,
+        [
+            Planbedeutung::Raum,
+            Planbedeutung::Raum,
+            Planbedeutung::GeschossAussenkante,
+            Planbedeutung::Gebaeudegrundflaeche
+        ]
+    );
+    assert!(
+        eg.markierungen
+            .iter()
+            .all(|m| m.gebaeude_id == Some(haus_id(&r))
+                && m.geschoss_id == Some(haus.geschosse[0].id))
+    );
+    let werte = u.core.planaufmass_pruefen(u.projekt.id, &eg).await.unwrap();
+    let flaeche = |i: usize| werte[i].flaeche_m2.unwrap();
+    assert!(
+        (flaeche(0) - efh::raumflaeche()).abs() < 1e-6,
+        "{}",
+        flaeche(0)
+    );
+    assert!(
+        (flaeche(2) - efh::LAENGE * efh::BREITE).abs() < 1e-6,
+        "{}",
+        flaeche(2)
+    );
+    assert!((flaeche(3) - efh::LAENGE * efh::BREITE).abs() < 1e-6);
+    let og: Planaufmass = serde_json::from_value(r.zeichnungen[1].daten.clone()).unwrap();
+    assert_eq!(og.markierungen.len(), 3, "OG ohne Gebäudegrundfläche");
+
+    assert_eq!(r.raumbuecher.len(), 2);
+    let rb: Raumbuch = serde_json::from_value(r.raumbuecher[0].daten.clone()).unwrap();
+    assert_eq!(rb.raeume.len(), 2);
+    assert_eq!(rb.raeume[0].bezeichnung, "0.01 Wohnen");
+    assert!((rb.raeume[0].flaeche_m2 - efh::raumflaeche()).abs() < 1e-6);
+    assert_eq!(rb.raeume[0].hoehe_m, Some(efh::LICHTE_HOEHE));
+
+    // Veraltete Revision der Modellakte wird abgewiesen.
+    assert!(
+        u.core
+            .ifc_uebernehmen(u.projekt.id, &wunsch, &u.user)
+            .await
+            .is_err()
+    );
+    // Eigene Markierung ergänzen, dann erneut übernehmen.
+    let mut eigen = eg.clone();
+    let mut m = eg.markierungen[0].clone();
+    m.id = Uuid::new_v4();
+    m.bezeichnung = "Terrasse".into();
+    m.bedeutung = Planbedeutung::Terrasse;
+    eigen.markierungen.push(m.clone());
+    u.core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Planaufmass,
+            r.zeichnungen[0].objekt.parse().unwrap(),
+            r.zeichnungen[0].revision,
+            serde_json::to_value(&eigen).unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    wunsch.revision = r.akte.revision;
+    let r2 = u
+        .core
+        .ifc_uebernehmen(u.projekt.id, &wunsch, &u.user)
+        .await
+        .unwrap();
+    assert_eq!(r2.gebaeude.objekt, r.gebaeude.objekt);
+    let haus2: Gebaeude = serde_json::from_value(r2.gebaeude.daten.clone()).unwrap();
+    assert_eq!(haus2.geschosse.len(), 2);
+    let eg2: Planaufmass = serde_json::from_value(r2.zeichnungen[0].daten.clone()).unwrap();
+    assert_eq!(eg2.markierungen.len(), 5);
+    assert!(eg2.markierungen.iter().any(|x| x.id == m.id));
+    for alt in &eg.markierungen {
+        assert!(eg2.markierungen.iter().any(|x| x.id == alt.id));
+    }
+    assert_eq!(eg2.hintergruende.len(), 1);
+    let rb2: Raumbuch = serde_json::from_value(r2.raumbuecher[0].daten.clone()).unwrap();
+    assert_eq!(r2.raumbuecher[0].objekt, r.raumbuecher[0].objekt);
+    assert_eq!(rb2.raeume.len(), 2);
+    let stand = serde_json::from_value::<ifc::Modellakte>(r2.akte.daten)
+        .unwrap()
+        .uebernahme
+        .unwrap();
+    assert_eq!(stand.geschosse.len(), 2);
+    assert!(stand.geschosse.iter().all(|g| g.raumbuch_id.is_some()));
+}
+
+fn haus_id(r: &ifc::Modelluebernahmeergebnis) -> Uuid {
+    r.gebaeude.objekt.parse().unwrap()
 }

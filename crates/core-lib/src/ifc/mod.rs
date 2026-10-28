@@ -20,6 +20,7 @@ pub mod step;
 pub mod testdaten;
 #[cfg(test)]
 mod tests;
+mod uebernahme;
 
 pub use auszug::{auszug, klassentitel};
 pub use grundriss::{
@@ -27,6 +28,10 @@ pub use grundriss::{
     grundriss, modellumfang,
 };
 pub use service::{Modell, ist_ifc};
+pub use uebernahme::{
+    Geschossuebernahme, Modellbezug, Modelluebernahme, Modelluebernahmeergebnis,
+    Modelluebernahmewunsch, RAND_M, raumhoehe, zeichnungspunkt,
+};
 
 use crate::planaufmass::Planpolygon;
 use crate::plattform::objekte::Dokumentbezug;
@@ -41,6 +46,10 @@ pub struct Modellakte {
     pub bezeichnung: String,
     /// IFC-Datei (`.ifc` oder `.ifczip`) im DMS.
     pub dokument: Dokumentbezug,
+    /// Letzte Übernahme in Gebäude, Zeichnungen und Raumbücher.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub uebernahme: Option<Modelluebernahme>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]

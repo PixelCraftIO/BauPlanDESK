@@ -71,6 +71,27 @@ with sync_playwright() as pw:
  # Tab merkt sich die Modellakte.
  tabs=page.evaluate("Object.entries(localStorage).filter(([k])=>k.startsWith('bauprojekt.aufmasstabs.v1.')).map(([,v])=>JSON.parse(v))[0].tabs")
  assert any(t['start'].get('ifc') and t['start'].get('modell')==page.evaluate('window.ifcAkten[0].objekt') for t in tabs), tabs
+ # Übernahme ins Projekt: neues Gebäude, Zeichnungen je Geschoss, Raumbücher.
+ details.get_by_role('tab',name='Übernahme').click()
+ ueb=details.get_by_role('region',name='Übernahme ins Projekt')
+ expect(ueb.get_by_label('Zielgebäude')).to_have_value('')
+ ueb.get_by_role('button',name='In Projekt übernehmen').click()
+ ergebnis=ueb.get_by_role('status',name='Übernahmeergebnis')
+ expect(ergebnis).to_contain_text('2 Zeichnung(en), 2 Raumbuch/Raumbücher')
+ aufruf=page.evaluate("window.ifcAufrufe.find(a=>a.cmd==='ifc_uebernehmen').args.wunsch")
+ assert aufruf['gebaeude_id'] is None and aufruf['raumbuch'] is True and aufruf['revision']==1, aufruf
+ expect(ueb.get_by_role('button',name='Übernahme aktualisieren')).to_be_visible()
+ expect(ueb).to_contain_text('Zuletzt übernommen')
+ page.screenshot(path=str(out/'ifc-uebernahme.png'))
+ ergebnis.get_by_role('button',name=f"Entwurf Architekt · {eg['name']}").click()
+ expect(scope.get_by_role('tab',name=f"Entwurf Architekt · {eg['name']}")).to_have_attribute('aria-selected','true')
+ page.wait_for_function(f"window.ifcAufrufe.some(a=>a.cmd==='ifc_grundriss_plan'&&a.args.geschoss==={json.dumps(eg['global_id'])})")
+ # Zweite Übernahme nutzt die neue Revision der Modellakte.
+ scope.get_by_role('tab',name='Entwurf Architekt',exact=True).click()
+ ueb.get_by_role('button',name='Übernahme aktualisieren').click()
+ page.wait_for_function("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen').length===2")
+ expect(ueb.get_by_role('alert')).to_have_count(0)
+ assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen')[1].args.wunsch.revision")==2
  # IFC-Geschoss als Hintergrund einer eigenen Zeichnung.
  scope.get_by_role('button',name='Neue Zeichnung',exact=True).click()
  tab=scope.locator('section[aria-label="Neue Zeichnung"]:visible')

@@ -88,7 +88,7 @@
 {#each tabs as t (t.key)}
   <section hidden={aktiv !== t.key} aria-label={t.titel || "Aufmaß"}>
     {#if t.start.ifc}
-      <IfcModell {projekt} {darf} start={t.start} onstatus={st => status(t.key, st)} />
+      <IfcModell {projekt} {darf} start={t.start} onstatus={st => status(t.key, st)} onzeichnung={(id, titel) => { const da = tabs.find(x => x.start.id === id); if (da) aktiv = da.key; else tabAnlegen({ id }, titel); }} />
     {:else}
     <Planaufmass bind:this={instanzen[t.key]} {projekt} {benutzerId} {darf} {onprojekt} modus="tab" start={t.start} entwurfObjekt={t.key} sichtbar={aktiv === t.key} onstatus={st => status(t.key, st)} onschliessen={() => entfernen(t.key)} />
     {/if}

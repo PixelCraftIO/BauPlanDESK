@@ -77,6 +77,31 @@ rechts Eigenschaften und Modellbericht. Der Tab merkt sich die Modellakte.
   Speichern, dass das Geschoss im Modell steht; PDF- und DXF-Hintergründe
   tragen kein Geschoss.
 
+## Übernahme ins Projekt
+
+`CoreServices::ifc_uebernehmen` (Befehl `ifc_uebernehmen`, Reiter
+„Übernahme“ der Modellansicht) legt aus dem Auszug der Modellakte (mit
+Nacharbeit) an oder aktualisiert:
+
+- ein **Gebäude** mit je einem Geschoss je IFC-Geschoss (gleichnamige
+  Geschosse eines vorhandenen Gebäudes werden wiederverwendet; die
+  Geschosshöhe aus den Geschossebenen wird nur ergänzt, nie überschrieben),
+- je Geschoss eine **eigene Zeichnung** in Metern mit dem IFC-Grundriss als
+  Hintergrund (Lage `RAND_M` = 2 m) und den Markierungen *Raum* je `IfcSpace`
+  (Name „Nummer Langname“), *Geschoss-Außenkante* (Vereinigung von Wänden,
+  Stützen und Decken ohne Innenhöfe) und im Geschoss nächst ±0 die
+  *Gebäudegrundfläche* (Außenkanten aller Geschosse darüber),
+- auf Wunsch je Geschoss ein **Raumbuch** über die vorhandene Übernahme aus
+  dem Aufmaß; die lichte Höhe kommt aus `FinishCeilingHeight`, `Height` oder
+  `ClearHeight`, wenn der Raum noch keine hat.
+
+Die Flächen rechnet das Aufmaß aus der Geometrie, nicht aus den Mengen der
+Datei (die Mengen zeigt die Prüfung als Abweichung). Die Modellakte merkt
+sich die Übernahme (`Modelluebernahme`: Gebäude, Geschosse, Zeichnungen,
+Raumbücher und je Markierung die Herkunft). Wiederholen ersetzt nur die
+übernommenen Markierungen und behält ihre IDs, damit Bindungen an
+Berechnungen gültig bleiben; selbst gezeichnete Markierungen bleiben.
+
 ## Testdaten
 
 `core_lib::ifc::testdaten::efh_ifc4()` erzeugt ein vollständig bekanntes
