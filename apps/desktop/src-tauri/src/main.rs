@@ -16,6 +16,7 @@ mod druckausgabe;
 mod druckjobs;
 mod einreichungen;
 mod emails;
+mod ifc;
 mod kategorien;
 mod lizenzdienst;
 mod menu;
@@ -275,6 +276,7 @@ fn main() {
             berechnungen::planaufmass_abstand,
             berechnungen::planaufmass_abstandsziele,
             berechnungen::planaufmass_gebaeude,
+            ifc::ifc_auszug,
             berechnungen::planaufmass_gebaeudeziele,
             berechnungen::planaufmass_flurstuecke,
             berechnungen::planaufmass_abzuege,

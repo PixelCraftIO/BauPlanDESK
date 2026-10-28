@@ -285,6 +285,11 @@ pub(super) async fn validieren(
             core.cadaufmass_pruefen(p.id, &a).await?;
             serde_json::to_value(a)
         }
+        ObjektArt::Ifcmodell => {
+            let a: crate::ifc::Modellakte = serde_json::from_value(daten).map_err(json_err)?;
+            core.modellakte_pruefen(p.id, &a).await?;
+            serde_json::to_value(a)
+        }
         ObjektArt::Planaufmass => {
             let plan: crate::planaufmass::Planaufmass =
                 serde_json::from_value(daten).map_err(json_err)?;

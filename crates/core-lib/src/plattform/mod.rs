@@ -36,6 +36,8 @@ pub enum ObjektArt {
     Raumbuch,
     Planaufmass,
     Cadaufmass,
+    /// Importiertes IFC-Modell ([`crate::ifc::Modellakte`]).
+    Ifcmodell,
 }
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
@@ -58,6 +60,7 @@ impl ObjektArt {
             Self::Raumbuch => "raumbuch",
             Self::Planaufmass => "planaufmass",
             Self::Cadaufmass => "cadaufmass",
+            Self::Ifcmodell => "ifcmodell",
         }
     }
 }
@@ -262,6 +265,7 @@ pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
         ObjektArt::Raumbuch => rund::<objekte::Raumbuch>(&f.daten),
         ObjektArt::Planaufmass => rund::<crate::planaufmass::Planaufmass>(&f.daten),
         ObjektArt::Cadaufmass => rund::<crate::cad::projektaufmass::CadProjektaufmass>(&f.daten),
+        ObjektArt::Ifcmodell => rund::<crate::ifc::Modellakte>(&f.daten),
     };
     if let Some(neu) = neu {
         f.daten = neu;

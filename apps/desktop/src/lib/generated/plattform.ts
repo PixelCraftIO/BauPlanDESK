@@ -148,6 +148,105 @@ gruppe: string, titel: string, bedeutung: Planbedeutung, geometrie: Aufgabengeom
  * Zeichenebene, die beim ersten Gebrauch angelegt wird.
  */
 ebene: string, hinweis: string, };
+export type Modellakte = { bezeichnung: string,
+/**
+ * IFC-Datei (`.ifc` oder `.ifczip`) im DMS.
+ */
+dokument: Dokumentbezug, };
+export type Georeferenz = {
+/**
+ * Koordinatenreferenzsystem, z. B. `EPSG:25832`.
+ */
+crs: string | null, ostwert: number | null, nordwert: number | null, hoehe: number | null,
+/**
+ * Drehung der Modell-x-Achse gegen Ost, Grad gegen den Uhrzeigersinn.
+ */
+drehung_grad: number | null,
+/**
+ * IFC2X3: geographische Lage des Grundstücks in Dezimalgrad.
+ */
+breite: number | null, laenge: number | null, };
+export type Mengenart = "laenge" | "flaeche" | "volumen" | "anzahl" | "gewicht" | "zeit";
+export type Modelleigenschaft = { satz: string, name: string,
+/**
+ * Anzeigewert (z. B. „Ja“, „2,50 m“, „Wohnen“).
+ */
+wert: string,
+/**
+ * Zahlenwert in SI-Einheit (m, m², m³), sofern es eine Zahl ist.
+ */
+zahl: number | null,
+/**
+ * Vom Typ (`IfcRelDefinesByType`) geerbt statt am Element gesetzt.
+ */
+vom_typ: boolean, };
+export type Modellmenge = { satz: string, name: string, art: Mengenart, wert: number, };
+export type Modellgeometrie = {
+/**
+ * Senkrechte Projektion (Grundriss) aller Körperteile.
+ */
+grundriss: Array<Planpolygon>, grundflaeche_m2: number, unten_m: number, oben_m: number, volumen_m3: number | null,
+/**
+ * Boolesche Operationen oder schräge Körper angenähert.
+ */
+naeherung: boolean, };
+export type Strukturelement = { global_id: string, name: string, langname: string | null,
+/**
+ * Übergeordnetes Strukturelement (Grundstück → Gebäude → Geschoss).
+ */
+teil_von: string | null,
+/**
+ * Geschosse: Höhe der Geschossebene über dem Projektnullpunkt (m).
+ */
+hoehe_m: number | null, eigenschaften: Array<Modelleigenschaft>, mengen: Array<Modellmenge>, geometrie: Modellgeometrie | null, };
+export type Modellelement = { global_id: string,
+/**
+ * Entitätsname in Großbuchstaben, z. B. `IFCWALL`, `IFCSPACE`.
+ */
+klasse: string, name: string, langname: string | null, objekttyp: string | null,
+/**
+ * `PredefinedType` (z. B. `FLOOR`, `ROOF`) oder Innen/Außen bei IFC2X3-Räumen.
+ */
+vordefiniert: string | null,
+/**
+ * Geschoss (GlobalId), dem das Element über die räumliche Struktur angehört.
+ */
+geschoss: string | null,
+/**
+ * Gebäude (GlobalId) des Elements, auch ohne Geschoss.
+ */
+gebaeude: string | null,
+/**
+ * Übergeordnetes Element (z. B. Dach → Dachplatten) oder Raum.
+ */
+teil_von: string | null, eigenschaften: Array<Modelleigenschaft>, mengen: Array<Modellmenge>, geometrie: Modellgeometrie | null,
+/**
+ * Nicht ausgewertete Darstellungsarten der Geometrie.
+ */
+geometrie_offen: Array<string>, };
+export type Klassenzahl = { klasse: string, titel: string, anzahl: number, };
+export type Modellbericht = { klassen: Array<Klassenzahl>, elemente: number, mit_geometrie: number, ohne_geometrie: number, naeherungen: number, raeume: number, raeume_mit_flaechenmenge: number,
+/**
+ * Darstellungsarten, die nicht ausgewertet wurden, mit Anzahl Elemente.
+ */
+offene_darstellungen: Array<Klassenzahl>, hinweise: Array<string>, };
+export type Modellauszug = { rechenstand: string,
+/**
+ * `IFC2X3`, `IFC4`, `IFC4X3_ADD2` …
+ */
+schema: string,
+/**
+ * Erzeugende Software laut Dateikopf.
+ */
+system: string | null, projekt: string | null,
+/**
+ * Längeneinheit der Datei, z. B. „Millimeter“.
+ */
+einheit: string, meter_je_einheit: number, georeferenz: Georeferenz | null, grundstuecke: Array<Strukturelement>, gebaeude: Array<Strukturelement>,
+/**
+ * Geschosse nach Höhe sortiert.
+ */
+geschosse: Array<Strukturelement>, elemente: Array<Modellelement>, bericht: Modellbericht, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
@@ -1038,7 +1137,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
