@@ -343,7 +343,7 @@ export type Modellaenderung = { "art": "klassifizieren", global_id: string, klas
 /**
  * Lichte Höhe; ohne Angabe bis zur nächsten Geschossebene.
  */
-hoehe_m: number | null, } | { "art": "ausblenden", global_id: string, };
+hoehe_m: number | null, } | { "art": "ausblenden", global_id: string, } | { "art": "hoehe_setzen", global_id: string, unten_m: number | null, oben_m: number | null, } | { "art": "umriss_setzen", global_id: string, umriss: Array<[number, number]>, };
 export type Raumvorschlag = {
 /**
  * Neue GlobalId für den Raum, falls er gebildet wird.
@@ -477,6 +477,19 @@ export type Exportergebnis = {
  * Abgelegte IFC-Datei (neue Version, wenn es den Namen schon gibt).
  */
 dokument: Dokumentbezug, bericht: Exportbericht, };
+export type Bauantragsanlage = {
+/**
+ * `false`: Die Datei lag dem Bauantrag schon bei.
+ */
+neu: boolean,
+/**
+ * Anlagenart (leer, wenn die Anlagenliste fehlt oder 2010 nicht kennt).
+ */
+anlageart: string,
+/**
+ * Zahl der Anlagen des Bauantrags.
+ */
+anlagen: number, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

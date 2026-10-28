@@ -37,6 +37,8 @@
   let vorgabe = $state<Befund | null>(null), vorschau = $state<Planpolygon[]>([]), grundflaeche = $state<Planpolygon[]>([]);
   // Von der Prüfung hervorgehobene Elemente; Stand zählt Änderungen am Modell.
   let markiert = $state<string[]>([]), stand = $state(0);
+  // Umriss zeichnen (Nacharbeit): Punkte in Modellkoordinaten.
+  let zeichnen = $state(false), punkte = $state<[number, number][]>([]);
   const element = $derived(auszug?.elemente.find(e => e.global_id === auswahl) ?? null);
   const struktur = $derived(auszug?.geschosse.find(g => g.global_id === auswahl) ?? auszug?.gebaeude.find(g => g.global_id === auswahl) ?? null);
   const geschossName = (gid: string | null | undefined) => auszug?.geschosse.find(g => g.global_id === gid)?.name || "ohne Geschoss";
@@ -192,7 +194,8 @@
             <m.default laden={() => ifcApi.datei(projekt.id, akte!.daten.dokument)} {auswahl} {markiert} onauswahl={waehlen}/>
           {/await}
         {:else if grundriss}
-          <Grundriss {grundriss} {auswahl} {markiert} zusatz={rechts === "nacharbeit" ? vorschau : rechts === "auswertung" ? grundflaeche : []} onauswahl={gid => { const r = rechts; waehlen(gid); if (r === "nacharbeit" || r === "pruefung") rechts = r; }}/>
+          <Grundriss {grundriss} {auswahl} {markiert} zusatz={rechts === "nacharbeit" ? (zeichnen && punkte.length >= 2 ? [{ aussen: punkte, innen: [] }] : vorschau) : rechts === "auswertung" ? grundflaeche : []}
+            onpunkt={zeichnen && rechts === "nacharbeit" ? p => (punkte = [...punkte, p]) : undefined} hinweis={zeichnen && rechts === "nacharbeit" ? `Umriss: ${punkte.length} Punkt(e)` : ""} onauswahl={gid => { const r = rechts; waehlen(gid); if (r === "nacharbeit" || r === "pruefung") rechts = r; }}/>
         {:else if auszug && !auszug.geschosse.length}<p class="meta">Das Modell hat keine Geschosse; die 3D-Ansicht zeigt alle Elemente.</p>{/if}
       </div>
     </section>
@@ -238,7 +241,7 @@
       {:else if rechts === "pruefung" && auszug}
         <Pruefung projektId={projekt.id} akteId={akte.objekt} {auszug} {stand} onauswahl={gid => { waehlen(gid); rechts = "pruefung"; }} onmarkieren={g => (markiert = g)} onaktion={b => { markiert = b.elemente; vorgabe = b; rechts = "nacharbeit"; }}/>
       {:else if rechts === "nacharbeit" && auszug}
-        <Nacharbeit projektId={projekt.id} {akte} {auszug} {auswahl} {markiert} {geschoss} {darf} {vorgabe} onakte={a => { akte = a; stand++; void modellLaden(); }} onvorschau={p => (vorschau = p)} onmarkieren={g => { markiert = g; vorgabe = null; }} onauswahl={gid => { waehlen(gid); rechts = "nacharbeit"; }}/>
+        <Nacharbeit projektId={projekt.id} {akte} {auszug} {auswahl} {markiert} {geschoss} {darf} {vorgabe} {zeichnen} {punkte} onzeichnen={an => { zeichnen = an; punkte = []; }} onakte={a => { akte = a; stand++; void modellLaden(); }} onvorschau={p => (vorschau = p)} onmarkieren={g => { markiert = g; vorgabe = null; }} onauswahl={gid => { waehlen(gid); rechts = "nacharbeit"; }}/>
       {:else if rechts === "auswertung"}
         <Auswertung projektId={projekt.id} akteId={akte.objekt} {stand} onvorschau={p => (grundflaeche = p)}/>
       {:else if rechts === "export"}

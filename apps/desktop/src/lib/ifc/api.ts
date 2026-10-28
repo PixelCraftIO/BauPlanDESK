@@ -1,6 +1,6 @@
 /** IFC-Modelle: dünne Aufrufe der Core-Befehle (`apps/desktop/src-tauri/src/ifc.rs`). */
 import { invoke } from "@tauri-apps/api/core";
-import type { Dokumentbezug, Modellauszug, Modellgeschoss, Modellgrundriss, Modellpruefung, Modelluebernahmeergebnis, Modelluebernahmewunsch, Raumvorschlag, Modellabgleich, Reimportwunsch, Fachstand, Modellauswertung, Exportwunsch, Exportergebnis } from "../generated/plattform";
+import type { Dokumentbezug, Modellauszug, Modellgeschoss, Modellgrundriss, Modellpruefung, Modelluebernahmeergebnis, Modelluebernahmewunsch, Raumvorschlag, Modellabgleich, Reimportwunsch, Fachstand, Modellauswertung, Exportwunsch, Exportergebnis, Bauantragsanlage } from "../generated/plattform";
 import { nachErfolg } from "../projektEreignisse";
 import type { Plan } from "../api";
 export const ifcApi = {
@@ -28,6 +28,9 @@ export const ifcApi = {
   /** IFC-Datei schreiben (Nacharbeit oder eigenes Modell), selbst prüfen und ablegen. */
   exportieren: (projektId: string, wunsch: Exportwunsch) =>
     nachErfolg(invoke<Exportergebnis>("ifc_exportieren", { projektId, wunsch }), { projektId, bereich: "dokumente" }),
+  /** IFC-Datei dem Bauantrag (XBau) als Anlage „BIM-Gebäudemodell“ beifügen. */
+  bauantragBeifuegen: (projektId: string, dokumentId: string, bezeichnung = "") =>
+    invoke<Bauantragsanlage>("ifc_dem_bauantrag_beifuegen", { projektId, dokumentId, bezeichnung }),
   /** Prüfung gegen das mitgelieferte IDS oder ein IDS aus den Projektdateien. */
   pruefen: (projektId: string, akteId: string, ids: Dokumentbezug | null = null) =>
     invoke<Modellpruefung>("ifc_pruefen", { projektId, akteId, ids }),

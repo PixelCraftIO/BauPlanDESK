@@ -39,6 +39,9 @@ const ZUORDNUNG: &[(&str, &str)] = &[
     ("entwaesserung", "1806"),
 ];
 
+/// Anlagenart „BIM-Gebäudemodell“ für IFC-Dateien.
+pub const BIM_MODELL: &str = "2010";
+
 /// Vorgeschlagene Anlagenart eines Dokuments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Anlagenartvorschlag {
@@ -75,7 +78,7 @@ impl crate::CoreServices {
             return Ok(HashMap::new());
         };
         let katalog = self.kategorienkatalog().await?;
-        Ok(self
+        let mut v: HashMap<DocumentId, Anlagenartvorschlag> = self
             .dokumentkategorien(p)
             .await?
             .into_iter()
@@ -83,7 +86,20 @@ impl crate::CoreServices {
                 let k = d.zuordnung.kategorie?;
                 Some((d.dokument_id, vorschlag(&katalog, &k, anlagen)?))
             })
-            .collect())
+            .collect();
+        // IFC-Modelle ohne eigene Kategorie sind BIM-Gebäudemodelle.
+        if anlagen.enthaelt(BIM_MODELL) {
+            for d in self.list_documents(p).await? {
+                if crate::ifc::ist_ifc(&d.file_name) {
+                    v.entry(d.document_id)
+                        .or_insert_with(|| Anlagenartvorschlag {
+                            anlageart: BIM_MODELL.into(),
+                            kategorie: "IFC-Modell".into(),
+                        });
+                }
+            }
+        }
+        Ok(v)
     }
 }
 

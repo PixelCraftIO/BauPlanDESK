@@ -980,3 +980,86 @@ fn entwurf_als_ifc4_mit_stabilen_global_ids() {
         .is_err()
     );
 }
+
+#[test]
+fn geometrie_nacharbeiten_hoehe_umriss_und_deckendicke() {
+    let m = modell(&efh_ifc4());
+    let a = &m.auszug;
+    let finde = |n: &str| {
+        a.elemente
+            .iter()
+            .find(|e| e.name == n)
+            .unwrap()
+            .global_id
+            .clone()
+    };
+    let (wand, decke) = (finde("Innenwand"), finde("Decke über EG"));
+    let raum = a
+        .elemente
+        .iter()
+        .find(|e| e.klasse == "IFCSPACE")
+        .unwrap()
+        .global_id
+        .clone();
+    let decke_oben = a
+        .element(&decke)
+        .unwrap()
+        .geometrie
+        .as_ref()
+        .unwrap()
+        .oben_m;
+    let liste = vec![
+        Modellaenderung::HoeheSetzen {
+            global_id: wand.clone(),
+            unten_m: None,
+            oben_m: Some(2.0),
+        },
+        Modellaenderung::HoeheSetzen {
+            global_id: decke.clone(),
+            unten_m: Some(decke_oben - 0.3),
+            oben_m: None,
+        },
+        Modellaenderung::UmrissSetzen {
+            global_id: raum.clone(),
+            umriss: vec![[1., 1.], [4., 1.], [4., 5.], [1., 5.]],
+        },
+    ];
+    nacharbeit::pruefen(a, &liste).unwrap();
+    let mut soll = a.clone();
+    assert!(nacharbeit::anwenden(&mut soll, &liste).is_empty());
+    let g = |x: &Modellauszug, gid: &str| x.element(gid).unwrap().geometrie.clone().unwrap();
+    assert!(nah(g(&soll, &wand).oben_m, 2.0) && nah(g(&soll, &wand).unten_m, 0.));
+    assert!(nah(
+        g(&soll, &wand).grundflaeche_m2,
+        g(a, &wand).grundflaeche_m2
+    ));
+    assert!(nah(g(&soll, &decke).oben_m - g(&soll, &decke).unten_m, 0.3));
+    assert!(nah(g(&soll, &raum).grundflaeche_m2, 12.));
+    assert!(nah(g(&soll, &raum).oben_m, efh::LICHTE_HOEHE));
+    // Der Export schreibt Ersatzkörper; die Selbstkontrolle vergleicht Höhen und Flächen.
+    let (text, b) = nacharbeit_schreiben(&m, &soll, &liste, "x.ifc", "2026-10-28").unwrap();
+    assert!(b.abweichungen.is_empty(), "{:#?}", b.abweichungen);
+    let ist = modell(&text).auszug;
+    assert!(nah(g(&ist, &wand).oben_m, 2.0));
+    assert!(nah(g(&ist, &decke).unten_m, decke_oben - 0.3));
+    assert!(nah(g(&ist, &raum).grundflaeche_m2, 12.));
+    // Abgleich: auf der geschriebenen Datei sind die Änderungen überholt.
+    let v = abgleichen(a, &ist, &liste);
+    assert_eq!(v.nacharbeit, [Nacharbeitsstand::Ueberholt; 3]);
+    // Ungültiges wird abgewiesen.
+    let falsch = |c: Modellaenderung| nacharbeit::pruefen(a, &[c]).is_err();
+    assert!(falsch(Modellaenderung::HoeheSetzen {
+        global_id: wand.clone(),
+        unten_m: None,
+        oben_m: None,
+    }));
+    assert!(falsch(Modellaenderung::HoeheSetzen {
+        global_id: wand.clone(),
+        unten_m: Some(3.),
+        oben_m: Some(2.),
+    }));
+    assert!(falsch(Modellaenderung::UmrissSetzen {
+        global_id: raum,
+        umriss: vec![[0., 0.], [0.1, 0.], [0.1, 0.1]],
+    }));
+}

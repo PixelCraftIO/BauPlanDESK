@@ -944,3 +944,61 @@ async fn export_nacharbeit_und_eigenes_modell_aus_zeichnungen() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn ifc_modell_dem_bauantrag_beifuegen() {
+    let u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    // Ohne Anlagenliste: beigefügt, aber ohne Anlagenart.
+    let r = u
+        .core
+        .ifc_dem_bauantrag_beifuegen(u.projekt.id, d.dokument_id, "Gebäudemodell", &u.user)
+        .await
+        .unwrap();
+    assert!(r.neu && r.anlageart.is_empty() && r.anlagen == 1, "{r:?}");
+    let xml = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../codelisten/xbau-anlagen_4.0.xml"),
+    )
+    .unwrap();
+    u.core
+        .xbau_codeliste_einspielen(&xml, &u.user, |_, _| Ok(()))
+        .await
+        .unwrap();
+    // Zweites Beifügen ändert nichts; die Abgabe schlägt „BIM-Gebäudemodell“ vor.
+    let r = u
+        .core
+        .ifc_dem_bauantrag_beifuegen(u.projekt.id, d.dokument_id, "", &u.user)
+        .await
+        .unwrap();
+    assert!(!r.neu && r.anlagen == 1);
+    let g = u.core.bauantrag(u.projekt.id).await.unwrap();
+    assert_eq!(g.antrag.anlagen[0].bezeichnung, "Gebäudemodell");
+    let v = g
+        .anlagenart_vorschlaege
+        .get(&d.dokument_id.0.to_string())
+        .unwrap();
+    assert_eq!(v.anlageart, "2010");
+    let e = ablegen(&u, "Zweitmodell.ifczip", testdaten::efh_ifc4()).await;
+    let r = u
+        .core
+        .ifc_dem_bauantrag_beifuegen(u.projekt.id, e.dokument_id, "", &u.user)
+        .await
+        .unwrap();
+    assert_eq!((r.neu, r.anlageart.as_str(), r.anlagen), (true, "2010", 2));
+    // Andere Dateien und fremde Projekte werden abgewiesen.
+    let pdf = ablegen(&u, "Lageplan.pdf", "%PDF-1.4".into()).await;
+    assert!(
+        u.core
+            .ifc_dem_bauantrag_beifuegen(u.projekt.id, pdf.dokument_id, "", &u.user)
+            .await
+            .is_err()
+    );
+    let fremd = neues_projekt(&u.core, &u.user, "Fremd").await;
+    assert!(
+        u.core
+            .ifc_dem_bauantrag_beifuegen(fremd.id, d.dokument_id, "", &u.user)
+            .await
+            .is_err()
+    );
+}

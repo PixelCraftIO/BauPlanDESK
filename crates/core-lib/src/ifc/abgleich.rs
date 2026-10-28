@@ -292,6 +292,31 @@ pub fn abgleichen(
                 }
             }
             Modellaenderung::Ausblenden { .. } => Nacharbeitsstand::Wirksam,
+            Modellaenderung::HoeheSetzen {
+                unten_m, oben_m, ..
+            } => match el.and_then(|e| e.geometrie.as_ref()) {
+                None => Nacharbeitsstand::Verwaist,
+                Some(g)
+                    if unten_m.is_none_or(|u| (g.unten_m - u).abs() < 0.005)
+                        && oben_m.is_none_or(|o| (g.oben_m - o).abs() < 0.005) =>
+                {
+                    Nacharbeitsstand::Ueberholt
+                }
+                Some(_) => Nacharbeitsstand::Wirksam,
+            },
+            Modellaenderung::UmrissSetzen { umriss, .. } => {
+                match el.and_then(|e| e.geometrie.as_ref()) {
+                    None => Nacharbeitsstand::Verwaist,
+                    Some(g)
+                        if (g.grundflaeche_m2 - super::nacharbeit::umriss_flaeche(umriss))
+                            .abs()
+                            < 0.01 =>
+                    {
+                        Nacharbeitsstand::Ueberholt
+                    }
+                    Some(_) => Nacharbeitsstand::Wirksam,
+                }
+            }
         };
         v.nacharbeit.push(stand);
     }

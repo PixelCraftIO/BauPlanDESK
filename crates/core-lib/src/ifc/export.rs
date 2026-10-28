@@ -545,6 +545,126 @@ impl<'a> Schreiber<'a> {
         raum
     }
 
+    /// Körperdarstellung durch eine senkrechte Extrusion des Grundrisses
+    /// (Weltsystem, m) ersetzen; andere Darstellungen (Achse, Grundriss) bleiben.
+    fn koerper_ersetzen(&mut self, id: u64, geo: &super::Modellgeometrie, m: f64) {
+        let Some(mut e) = self.get(id) else { return };
+        let gid = e.attr(0).text().unwrap_or("").to_string();
+        let Some(ctx) = self.kontext() else {
+            self.hinweise.push(format!(
+                "{gid}: kein Darstellungskontext, Geometrie unverändert."
+            ));
+            return;
+        };
+        let l = super::geometrie::Geometrie { d: self.d, m }.platzierung(e.attr(5));
+        if (l.z[2] - 1.).abs() > 1e-6 {
+            self.hinweise.push(format!(
+                "{gid}: Lage ist nicht senkrecht ausgerichtet, Geometrie unverändert."
+            ));
+            return;
+        }
+        let punkt = |v: [f64; 3], a: [f64; 3]| a[0] * v[0] + a[1] * v[1] + a[2] * v[2];
+        let lokal = |p: [f64; 3]| {
+            let d = [p[0] - l.o[0], p[1] - l.o[1], p[2] - l.o[2]];
+            [punkt(l.x, d) / m, punkt(l.y, d) / m, punkt(l.z, d) / m]
+        };
+        let z = lokal([0., 0., geo.unten_m])[2];
+        let oben = self.add(
+            "IFCDIRECTION",
+            vec![Wert::Liste(vec![
+                Wert::Real(0.),
+                Wert::Real(0.),
+                Wert::Real(1.),
+            ])],
+        );
+        let mut koerper = Vec::new();
+        for poly in &geo.grundriss {
+            let ring = |r: &[[f64; 2]], s: &mut Self| {
+                let mut ids: Vec<u64> = r
+                    .iter()
+                    .map(|q| {
+                        let p = lokal([q[0], q[1], geo.unten_m]);
+                        s.punkt(&[p[0], p[1]])
+                    })
+                    .collect();
+                ids.push(ids[0]);
+                s.add("IFCPOLYLINE", vec![Self::liste(&ids)])
+            };
+            if poly.aussen.len() < 3 {
+                continue;
+            }
+            let aussen = ring(&poly.aussen, self);
+            let innen: Vec<u64> = poly
+                .innen
+                .iter()
+                .filter(|r| r.len() >= 3)
+                .map(|r| ring(r, self))
+                .collect();
+            let prof = if innen.is_empty() {
+                self.add(
+                    "IFCARBITRARYCLOSEDPROFILEDEF",
+                    vec![Wert::Enum("AREA".into()), Wert::Null, Wert::Ref(aussen)],
+                )
+            } else {
+                self.add(
+                    "IFCARBITRARYPROFILEDEFWITHVOIDS",
+                    vec![
+                        Wert::Enum("AREA".into()),
+                        Wert::Null,
+                        Wert::Ref(aussen),
+                        Self::liste(&innen),
+                    ],
+                )
+            };
+            let o = self.punkt(&[0., 0., z]);
+            let lage = self.add(
+                "IFCAXIS2PLACEMENT3D",
+                vec![Wert::Ref(o), Wert::Null, Wert::Null],
+            );
+            koerper.push(self.add(
+                "IFCEXTRUDEDAREASOLID",
+                vec![
+                    Wert::Ref(prof),
+                    Wert::Ref(lage),
+                    Wert::Ref(oben),
+                    Wert::Real((geo.oben_m - geo.unten_m) / m),
+                ],
+            ));
+        }
+        let rep = self.add(
+            "IFCSHAPEREPRESENTATION",
+            vec![
+                Wert::Ref(ctx),
+                Wert::Text("Body".into()),
+                Wert::Text("SweptSolid".into()),
+                Self::liste(&koerper),
+            ],
+        );
+        let mut darstellungen: Vec<u64> = e
+            .attr(6)
+            .referenz()
+            .and_then(|x| self.get(x))
+            .map(|pds| {
+                pds.attr(2)
+                    .referenzen()
+                    .into_iter()
+                    .filter(|r| {
+                        self.get(*r)
+                            .is_some_and(|x| x.attr(1).text() != Some("Body"))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        darstellungen.push(rep);
+        let pds = self.add(
+            "IFCPRODUCTDEFINITIONSHAPE",
+            vec![Wert::Null, Wert::Null, Self::liste(&darstellungen)],
+        );
+        e.attribute.resize(e.attribute.len().max(7), Wert::Null);
+        e.attribute[6] = Wert::Ref(pds);
+        self.setzen(e);
+    }
+
     /// Entfernte Elemente aus allen Beziehungen nehmen; Beziehungen, deren
     /// Bezugsobjekt fehlt oder deren Liste leer wird, entfallen. Teile eines
     /// entfernten Aggregats rücken in dessen Geschoss.
@@ -673,6 +793,7 @@ pub fn nacharbeit_schreiben(
     let mut weg = HashSet::new();
     let mut neu = 0;
     let mut gesetzt: Vec<(String, String, String)> = Vec::new();
+    let mut koerper: BTreeMap<u64, String> = BTreeMap::new();
     for c in nacharbeit {
         let gid = c.global_id();
         if let Modellaenderung::RaumBilden {
@@ -728,9 +849,20 @@ pub fn nacharbeit_schreiben(
                 weg.insert(id);
                 continue;
             }
+            Modellaenderung::HoeheSetzen { .. } | Modellaenderung::UmrissSetzen { .. } => {
+                koerper.insert(id, gid.to_string());
+            }
             Modellaenderung::RaumBilden { .. } => unreachable!(),
         }
         s.geaendert.insert(id);
+    }
+    // Körper erst am Ende: der Endstand steht im Soll.
+    for (id, gid) in &koerper {
+        if let Some(geo) = soll.element(gid).and_then(|e| e.geometrie.as_ref())
+            && !weg.contains(id)
+        {
+            s.koerper_ersetzen(*id, geo, mj);
+        }
     }
     s.aufraeumen(&weg);
     let kopf = kopfzeilen(&d.schema, dateiname, zeit, d.system.as_deref());
@@ -801,11 +933,17 @@ pub fn kontrolle(
         if geschossname(&ist, &x.geschoss) != geschossname(soll, &e.geschoss) {
             d.push("Geschoss".into());
         }
-        if let (Some(a), Some(b)) = (&e.geometrie, &x.geometrie)
-            && e.klasse == "IFCSPACE"
-            && (a.grundflaeche_m2 - b.grundflaeche_m2).abs() > 0.01
-        {
-            d.push(format!("Fläche {:.2} m²", b.grundflaeche_m2));
+        match (&e.geometrie, &x.geometrie) {
+            (Some(a), Some(b)) => {
+                if (a.grundflaeche_m2 - b.grundflaeche_m2).abs() > 0.01 {
+                    d.push(format!("Grundfläche {:.2} m²", b.grundflaeche_m2));
+                }
+                if (a.unten_m - b.unten_m).abs() > 0.005 || (a.oben_m - b.oben_m).abs() > 0.005 {
+                    d.push(format!("Höhe {:.3}–{:.3} m", b.unten_m, b.oben_m));
+                }
+            }
+            (Some(_), None) => d.push("Geometrie fehlt".into()),
+            _ => {}
         }
         if !d.is_empty() {
             ab.push(format!("{}: {}", e.global_id, d.join(", ")));
@@ -1741,5 +1879,75 @@ impl crate::CoreServices {
             },
             hinweise,
         ))
+    }
+}
+
+/// Ergebnis von [`crate::CoreServices::ifc_dem_bauantrag_beifuegen`].
+#[derive(Debug, Clone, PartialEq, Serialize, ts_rs::TS)]
+pub struct Bauantragsanlage {
+    /// `false`: Die Datei lag dem Bauantrag schon bei.
+    pub neu: bool,
+    /// Anlagenart (leer, wenn die Anlagenliste fehlt oder 2010 nicht kennt).
+    pub anlageart: String,
+    /// Zahl der Anlagen des Bauantrags.
+    pub anlagen: usize,
+}
+
+impl crate::CoreServices {
+    /// IFC-Datei des Projekts dem Bauantrag (XBau) als Anlage
+    /// „BIM-Gebäudemodell“ beifügen. Die Abgabe nimmt die jeweils neueste
+    /// Version des Dokuments.
+    pub async fn ifc_dem_bauantrag_beifuegen(
+        &self,
+        p: crate::domain::ProjectId,
+        dokument: crate::domain::DocumentId,
+        bezeichnung: &str,
+        wer: &crate::benutzer::Benutzer,
+    ) -> CoreResult<Bauantragsanlage> {
+        let d = self.repos.documents.latest(dokument).await?;
+        if d.project_id != p {
+            return Err(fehler("Dokument gehört zu einem anderen Projekt"));
+        }
+        if !super::ist_ifc(&d.file_name) {
+            return Err(fehler(
+                "Nur IFC-Dateien (.ifc, .ifczip) als BIM-Gebäudemodell beifügen",
+            ));
+        }
+        if bezeichnung.chars().count() > 200 {
+            return Err(fehler("Bezeichnung höchstens 200 Zeichen"));
+        }
+        let g = self.bauantrag(p).await?;
+        if g.antrag.anlagen.iter().any(|a| a.dokument == dokument) {
+            return Ok(Bauantragsanlage {
+                neu: false,
+                anlageart: g
+                    .antrag
+                    .anlagen
+                    .iter()
+                    .find(|a| a.dokument == dokument)
+                    .map(|a| a.anlageart.clone())
+                    .unwrap_or_default(),
+                anlagen: g.antrag.anlagen.len(),
+            });
+        }
+        let codelisten = self.codelisten.aktuell();
+        let art = codelisten
+            .liste(crate::xbau::codeliste::ANLAGEN)
+            .filter(|l| l.enthaelt(crate::xbau::anlagenart::BIM_MODELL))
+            .map_or(String::new(), |_| {
+                crate::xbau::anlagenart::BIM_MODELL.to_string()
+            });
+        let mut antrag = g.antrag;
+        antrag.anlagen.push(crate::xbau::Anlagenwahl {
+            dokument,
+            anlageart: art.clone(),
+            bezeichnung: bezeichnung.trim().to_string(),
+        });
+        let s = self.bauantrag_speichern(p, antrag, g.version, wer).await?;
+        Ok(Bauantragsanlage {
+            neu: true,
+            anlageart: art,
+            anlagen: s.antrag.anlagen.len(),
+        })
     }
 }

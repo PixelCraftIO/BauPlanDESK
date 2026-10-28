@@ -52,6 +52,13 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    return {dokument:{dokument_id:e?"f416da8b-cbfb-4ae6-931b-8765fb6454f1":"e416da8b-cbfb-4ae6-931b-8765fb6454e1",version:1},
      bericht:{dateiname:e?"Lagerhalle-Modell.ifc":"EFH-Mustermann-nachgearbeitet.ifc",schema:"IFC4",elemente:e?8:20,geaendert:e?0:1,neu:e?8:0,entfernt:0,hinweise:e?["EG: keine Geschosshöhe, 2.75 m angenommen."]:[],abweichungen:[]}};
  }
+ if(c==="ifc_dem_bauantrag_beifuegen"){
+   window.ifcAufrufe.push({cmd:c,args:kopie(args)});window.ifcAnlagen=window.ifcAnlagen??[];
+   if(window.ifcAnlagen.includes(args.dokumentId))return {neu:false,anlageart:"2010",anlagen:window.ifcAnlagen.length};
+   // Die Originaldatei liegt im Testprojekt schon bei.
+   if(args.dokumentId===ifcDok.document_id)return {neu:false,anlageart:"2010",anlagen:window.ifcAnlagen.length+1};
+   window.ifcAnlagen.push(args.dokumentId);return {neu:true,anlageart:"2010",anlagen:window.ifcAnlagen.length};
+ }
  if(c==="ifc_auswerten"){window.ifcAufrufe.push({cmd:c,args:kopie(args)});return kopie(IFC.auswertung);}
  if(c==="ifc_pruefen"){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});

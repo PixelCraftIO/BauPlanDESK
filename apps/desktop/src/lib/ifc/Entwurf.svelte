@@ -64,7 +64,7 @@
   {/if}
   {#if laeuft}<p class="meta" role="status">Modell wird geschrieben …</p>{/if}
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
-  {#if ergebnis}<Exportbericht {ergebnis} onoeffnen={onoeffnen ? () => onoeffnen!(ergebnis!) : undefined}/>{/if}
+  {#if ergebnis}<Exportbericht {ergebnis} {projektId} {darf} onoeffnen={onoeffnen ? () => onoeffnen!(ergebnis!) : undefined}/>{/if}
 </section>
 
 <style>

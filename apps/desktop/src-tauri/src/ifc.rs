@@ -227,3 +227,21 @@ pub async fn ifc_exportieren(
         .ifc_exportieren(projekt_id, &wunsch, &wer)
         .await?)
 }
+
+#[tauri::command]
+pub async fn ifc_dem_bauantrag_beifuegen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    dokument_id: core_lib::domain::DocumentId,
+    bezeichnung: String,
+) -> Result<core_lib::ifc::Bauantragsanlage, CmdError> {
+    let wer = state.benutzer();
+    state
+        .core
+        .projekt_zugriff(projekt_id, &wer, ProjektRecht::Bearbeiten)
+        .await?;
+    Ok(state
+        .core
+        .ifc_dem_bauantrag_beifuegen(projekt_id, dokument_id, &bezeichnung, &wer)
+        .await?)
+}

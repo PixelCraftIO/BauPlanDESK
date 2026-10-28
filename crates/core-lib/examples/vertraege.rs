@@ -83,6 +83,7 @@ fn main() {
         core_lib::ifc::Entwurfszuordnung,
         core_lib::ifc::Exportwunsch,
         core_lib::ifc::Exportergebnis,
+        core_lib::ifc::Bauantragsanlage,
         core_lib::portale::Profilfreigabe,
         core_lib::portale::PortalUnterlagenart,
         core_lib::portale::Portalprofil,

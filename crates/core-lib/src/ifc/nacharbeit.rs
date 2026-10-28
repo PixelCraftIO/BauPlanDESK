@@ -90,6 +90,20 @@ pub enum Modellaenderung {
     /// Element bei Auswertung, Übernahme und Prüfung nicht berücksichtigen
     /// (z. B. Möblierung, Hilfskörper).
     Ausblenden { global_id: String },
+    /// Höhenlage ändern (Wandhöhe, Deckendicke, Brüstung): Unter- und
+    /// Oberkante in m über dem Projektnullpunkt; fehlende Angabe bleibt.
+    /// Der Körper wird zur senkrechten Extrusion seines Grundrisses.
+    HoeheSetzen {
+        global_id: String,
+        unten_m: Option<f64>,
+        oben_m: Option<f64>,
+    },
+    /// Grundriss ersetzen (Raum, Decke, Wand) durch einen Umriss in
+    /// Modellkoordinaten (m); die Höhenlage bleibt.
+    UmrissSetzen {
+        global_id: String,
+        umriss: Vec<[f64; 2]>,
+    },
 }
 
 impl Modellaenderung {
@@ -100,7 +114,9 @@ impl Modellaenderung {
             | Self::EigenschaftSetzen { global_id, .. }
             | Self::Benennen { global_id, .. }
             | Self::RaumBilden { global_id, .. }
-            | Self::Ausblenden { global_id } => global_id,
+            | Self::Ausblenden { global_id }
+            | Self::HoeheSetzen { global_id, .. }
+            | Self::UmrissSetzen { global_id, .. } => global_id,
         }
     }
 }
@@ -257,6 +273,21 @@ pub fn anwenden(a: &mut Modellauszug, liste: &[Modellaenderung]) -> Vec<String> 
             }
             Modellaenderung::Ausblenden { .. } => {
                 aus.insert(gid);
+            }
+            Modellaenderung::HoeheSetzen {
+                unten_m, oben_m, ..
+            } => match koerper_neu(e, None, *unten_m, *oben_m) {
+                Some(()) => {}
+                None => verwaist.push(gid),
+            },
+            Modellaenderung::UmrissSetzen { umriss, .. } => {
+                match umriss_polygon(umriss)
+                    .ok()
+                    .and_then(|p| koerper_neu(e, Some(geo::MultiPolygon(vec![p])), None, None))
+                {
+                    Some(()) => {}
+                    None => verwaist.push(gid),
+                }
             }
             Modellaenderung::RaumBilden { .. } => unreachable!(),
         }
@@ -420,9 +451,62 @@ pub fn pruefen(a: &Modellauszug, liste: &[Modellaenderung]) -> CoreResult<()> {
                 }
             }
             Modellaenderung::Ausblenden { .. } => {}
+            Modellaenderung::HoeheSetzen {
+                unten_m, oben_m, ..
+            } => {
+                let Some(geo) = a.element(g).and_then(|e| e.geometrie.as_ref()) else {
+                    return Err(fehler(
+                        "Höhe lässt sich nur bei Elementen mit Geometrie ändern",
+                    ));
+                };
+                if unten_m.is_none() && oben_m.is_none() {
+                    return Err(fehler("Unterkante oder Oberkante angeben"));
+                }
+                let ok = |v: &Option<f64>| {
+                    v.is_none_or(|v| v.is_finite() && (-100. ..=500.).contains(&v))
+                };
+                if !ok(unten_m) || !ok(oben_m) {
+                    return Err(fehler("Höhen zwischen −100 und 500 m angeben"));
+                }
+                if oben_m.unwrap_or(geo.oben_m) - unten_m.unwrap_or(geo.unten_m) < 0.01 {
+                    return Err(fehler("Oberkante muss über der Unterkante liegen"));
+                }
+            }
+            Modellaenderung::UmrissSetzen { umriss, .. } => {
+                if a.element(g).and_then(|e| e.geometrie.as_ref()).is_none() {
+                    return Err(fehler(
+                        "Umriss lässt sich nur bei Elementen mit Geometrie ändern",
+                    ));
+                }
+                umriss_polygon(umriss)?;
+            }
         }
     }
     Ok(())
+}
+
+/// Ersetzt den Körper durch eine senkrechte Extrusion: Grundriss (sonst der
+/// bisherige) zwischen Unter- und Oberkante (sonst die bisherigen).
+fn koerper_neu(
+    e: &mut Modellelement,
+    grundriss: Option<geo::MultiPolygon<f64>>,
+    unten: Option<f64>,
+    oben: Option<f64>,
+) -> Option<()> {
+    let alt = e.geometrie.as_ref()?;
+    let grundriss = grundriss.unwrap_or_else(|| multipolygon(&alt.grundriss));
+    let (u, o) = (unten.unwrap_or(alt.unten_m), oben.unwrap_or(alt.oben_m));
+    if o - u < 0.01 || grundriss.0.is_empty() {
+        return None;
+    }
+    e.teile = vec![Teil::Prisma {
+        grundriss,
+        unten: u,
+        oben: o,
+    }];
+    e.geometrie = super::auszug::geometrie_aus(&e.teile, false);
+    e.geometrie_offen.clear();
+    Some(())
 }
 
 /// Raumvorschlag aus den Wänden eines Geschosses.

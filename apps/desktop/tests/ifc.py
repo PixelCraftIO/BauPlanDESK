@@ -98,6 +98,35 @@ with sync_playwright() as pw:
  aenderungen.locator('li').first.get_by_role('button',name='Zurücknehmen').click()
  expect(aenderungen.locator('li')).to_have_count(1)
  assert page.evaluate('window.ifcAkten[0].daten.nacharbeit.length')==1
+ # Geometrie nacharbeiten: Wandhöhe ändern, neuen Umriss im Grundriss zeichnen.
+ innen=next(e for e in ifc['auszug']['elemente'] if e['name']=='Innenwand' and e['geschoss']==eg['global_id'])
+ struktur.locator('details[open] details').filter(has=page.locator('summary',has_text='Wand')).first.locator('summary').click()
+ struktur.get_by_role('button',name='Innenwand',exact=True).first.click()
+ details.get_by_role('tab',name='Nacharbeit').click()
+ expect(nach).to_contain_text('Auswahl: Innenwand')
+ expect(nach.get_by_label('Oberkante')).to_have_value(str(innen['geometrie']['oben_m']))
+ nach.get_by_label('Oberkante').fill('2')
+ nach.get_by_role('button',name='Höhe ändern').click()
+ expect(aenderungen.locator('li')).to_have_count(2)
+ expect(aenderungen).to_contain_text('Innenwand: Oberkante 2 m')
+ h=page.evaluate('window.ifcAkten[0].daten.nacharbeit[1]')
+ assert h=={'art':'hoehe_setzen','global_id':innen['global_id'],'unten_m':None,'oben_m':2}, h
+ nach.get_by_role('button',name='Neuen Umriss zeichnen').click()
+ svg=grundriss
+ box=svg.bounding_box()
+ for fx,fy in [(.45,.3),(.55,.3),(.55,.7)]:
+     page.mouse.click(box['x']+box['width']*fx,box['y']+box['height']*fy)
+ expect(nach.get_by_role('button',name='Umriss übernehmen (3 Punkte)')).to_be_enabled()
+ expect(grundriss.locator('path.zusatz')).to_have_count(1)
+ nach.get_by_role('button',name='Umriss übernehmen (3 Punkte)').click()
+ expect(aenderungen.locator('li')).to_have_count(3)
+ u=page.evaluate('window.ifcAkten[0].daten.nacharbeit[2]')
+ assert u['art']=='umriss_setzen' and u['global_id']==innen['global_id'] and len(u['umriss'])==3, u
+ expect(nach.get_by_role('button',name='Neuen Umriss zeichnen')).to_be_visible()
+ page.screenshot(path=str(out/'ifc-geometrie.png'))
+ for _ in range(2):
+     aenderungen.locator('li').last.get_by_role('button',name='Zurücknehmen').click()
+ expect(aenderungen.locator('li')).to_have_count(1)
  assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_akte_auszug').length")>=4
  # Reimport: neue Version V2 wird angeboten, abgeglichen und übernommen.
  struktur.get_by_role('button',name='Neue Version V2 vorhanden: abgleichen').click()
@@ -174,6 +203,12 @@ with sync_playwright() as pw:
  expect(bericht).to_contain_text('Selbstkontrolle bestanden')
  aufruf=page.evaluate("window.ifcAufrufe.find(a=>a.cmd==='ifc_exportieren').args.wunsch")
  assert aufruf=={'art':'nacharbeit','akte_id':page.evaluate('window.ifcAkten[0].objekt')}, aufruf
+ bericht.get_by_role('button',name='Dem Bauantrag beifügen').click()
+ expect(bericht.get_by_role('status').filter(has_text='BIM-Gebäudemodell')).to_be_visible()
+ ex.get_by_role('button',name='Modelldatei dem Bauantrag beifügen').click()
+ expect(ex.get_by_text('Liegt dem Bauantrag schon bei.')).to_be_visible()
+ aufrufe=page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_dem_bauantrag_beifuegen').map(a=>a.args)")
+ assert [a['dokumentId'] for a in aufrufe]==['e416da8b-cbfb-4ae6-931b-8765fb6454e1',page.evaluate('window.ifcDok.document_id')], aufrufe
  ent=ex.get_by_role('region',name='Eigenes IFC4-Modell')
  expect(ent.get_by_label('Gebäude für das Modell')).not_to_have_value('')
  zeichnung=ent.get_by_label('Zeichnung für EG')

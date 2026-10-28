@@ -6,6 +6,7 @@
   import { ifcApi } from "./api";
   import Exportbericht from "./Exportbericht.svelte";
   import Entwurf from "./Entwurf.svelte";
+  import Bauantragsanlage from "./Bauantragsanlage.svelte";
   let { projektId, akte, darf, onoeffnen }: {
     projektId: string;
     akte: Datensatz<Modellakte>;
@@ -29,7 +30,10 @@
   {#if !zahl}<p class="meta">Noch keine Nacharbeit; die Datei ist unverändert.</p>{/if}
   {#if laeuft}<p class="meta" role="status">Datei wird geschrieben …</p>{/if}
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
-  {#if ergebnis}<Exportbericht {ergebnis} onoeffnen={onoeffnen ? () => onoeffnen!(ergebnis!) : undefined}/>{/if}
+  {#if ergebnis}<Exportbericht {ergebnis} {projektId} {darf} onoeffnen={onoeffnen ? () => onoeffnen!(ergebnis!) : undefined}/>{/if}
+  <h4>Bauantrag (XBau)</h4>
+  <p class="meta">Die Modelldatei liegt dem Bauantrag als Anlage „BIM-Gebäudemodell“ bei; übermittelt wird die jeweils neueste Version.</p>
+  <Bauantragsanlage {projektId} {darf} dokumentId={akte.daten.dokument.dokument_id} bezeichnung={akte.daten.bezeichnung} titel="Modelldatei dem Bauantrag beifügen"/>
   <h4>Eigenes IFC4-Modell aus Zeichnungen</h4>
   <Entwurf {projektId} {darf} {onoeffnen}/>
 </section>

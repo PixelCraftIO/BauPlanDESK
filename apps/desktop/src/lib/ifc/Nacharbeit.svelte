@@ -1,11 +1,12 @@
 <script lang="ts">
   /** Nacharbeit des Modells: Änderungen über die GlobalId, gespeichert in der Modellakte. */
+  import { untrack } from "svelte";
   import { fehlertext } from "../api";
   import { plattformApi, type Datensatz } from "../plattformApi";
   import type { Befund, Modellaenderung, Modellakte, Modellauszug, Planpolygon, Raumvorschlag } from "../generated/plattform";
   import { ifcApi } from "./api";
-  import { ARTEN, NACHARBEIT_KLASSEN, elementtitel, flaeche, klassentitel } from "./format";
-  let { projektId, akte, auszug, auswahl, markiert, geschoss, darf, vorgabe = null, onakte, onvorschau, onauswahl, onmarkieren }: {
+  import { ARTEN, NACHARBEIT_KLASSEN, elementtitel, flaeche, klassentitel, laenge } from "./format";
+  let { projektId, akte, auszug, auswahl, markiert, geschoss, darf, vorgabe = null, punkte = [], zeichnen = false, onzeichnen, onakte, onvorschau, onauswahl, onmarkieren }: {
     projektId: string;
     akte: Datensatz<Modellakte>;
     auszug: Modellauszug;
@@ -15,6 +16,10 @@
     darf: boolean;
     /** Befund der Prüfung, dessen Behebung vorbelegt wird. */
     vorgabe?: Befund | null;
+    /** Im Grundriss gesetzte Punkte für einen neuen Umriss (Modellkoordinaten). */
+    punkte?: [number, number][];
+    zeichnen?: boolean;
+    onzeichnen?: (an: boolean) => void;
     onakte: (a: Datensatz<Modellakte>) => void;
     onvorschau: (p: Planpolygon[]) => void;
     onauswahl: (gid: string) => void;
@@ -26,6 +31,7 @@
   let klasse = $state("IFCWALL"), art = $state(""), zielGeschoss = $state("");
   let satz = $state("Pset_WallCommon"), name = $state("IsExternal"), typ = $state<"text" | "zahl" | "logisch">("logisch"), wert = $state("true");
   let neuName = $state(""), neuLang = $state("");
+  let uk = $state(0), ok = $state(0);
   let laeuft = $state(false), fehler = $state(""), meldung = $state("");
   let vorschlaege = $state<Raumvorschlag[]>([]), raumNamen = $state<Record<string, string>>({});
   $effect(() => {
@@ -33,6 +39,9 @@
     if (v.eigenschaft) { const [s, n] = v.eigenschaft.split("."); satz = s; name = n ?? ""; }
   });
   $effect(() => { if (einzel) { neuName = einzel.name; neuLang = einzel.langname ?? ""; } });
+  $effect(() => { const g = einzel?.geometrie; if (g) { uk = g.unten_m; ok = g.oben_m; } });
+  // Zeichnen endet, wenn ein anderes Element gewählt wird.
+  $effect(() => { void einzel?.global_id; untrack(() => { if (zeichnen) onzeichnen?.(false); }); });
   $effect(() => { if (!zielGeschoss || !auszug.geschosse.some(g => g.global_id === zielGeschoss)) zielGeschoss = geschoss || auszug.geschosse[0]?.global_id || ""; });
   $effect(() => { void geschoss; vorschlaege = []; onvorschau([]); });
 
@@ -53,6 +62,18 @@
     void anhaengen(ziele.map(g => ({ art: "eigenschaft_setzen", global_id: g, satz: satz.trim(), name: name.trim(), wert: w })), `${satz}.${name} an ${ziele.length} Element(en) gesetzt.`);
   }
   function benennen() { if (einzel) void anhaengen([{ art: "benennen", global_id: einzel.global_id, name: neuName.trim(), langname: neuLang.trim() || null }], "Name geändert."); }
+  function hoehe() {
+    const g = einzel?.geometrie; if (!einzel || !g) return;
+    const u = Number(uk), o = Number(ok);
+    if (!Number.isFinite(u) || !Number.isFinite(o) || o - u < 0.01) { fehler = "Oberkante über der Unterkante angeben."; return; }
+    const unten_m = Math.abs(u - g.unten_m) > 1e-4 ? u : null, oben_m = Math.abs(o - g.oben_m) > 1e-4 ? o : null;
+    if (unten_m == null && oben_m == null) { meldung = "Höhe unverändert."; return; }
+    void anhaengen([{ art: "hoehe_setzen", global_id: einzel.global_id, unten_m, oben_m }], `Höhe von ${elementtitel(einzel)} geändert.`);
+  }
+  function umriss() {
+    if (!einzel || punkte.length < 3) return;
+    void anhaengen([{ art: "umriss_setzen", global_id: einzel.global_id, umriss: $state.snapshot(punkte) as [number, number][] }], `Umriss von ${elementtitel(einzel)} ersetzt.`).then(() => onzeichnen?.(false));
+  }
   function ausblenden() { void anhaengen(ziele.map(g => ({ art: "ausblenden", global_id: g })), `${ziele.length} Element(e) ausgeblendet.`); }
   async function vorschlagen() {
     fehler = "";
@@ -81,6 +102,8 @@
       case "benennen": return `${wer}: Name „${c.name}${c.langname ? ` ${c.langname}` : ""}“`;
       case "raum_bilden": return `Neuer Raum „${c.name}${c.langname ? ` ${c.langname}` : ""}“`;
       case "ausblenden": return `${wer}: ausgeblendet`;
+      case "hoehe_setzen": return `${wer}: ${c.unten_m != null ? `Unterkante ${laenge(c.unten_m)}` : ""}${c.unten_m != null && c.oben_m != null ? ", " : ""}${c.oben_m != null ? `Oberkante ${laenge(c.oben_m)}` : ""}`;
+      case "umriss_setzen": return `${wer}: neuer Umriss (${c.umriss.length} Punkte)`;
     }
   };
 </script>
@@ -108,6 +131,24 @@
     {/if}
     <button type="button" class="sekundaer" onclick={ausblenden}>Ausblenden</button>
   </fieldset>
+
+  {#if einzel?.geometrie}
+    <h4>Geometrie</h4>
+    <fieldset disabled={!darf || laeuft}>
+      <div class="zeile"><label>Unterkante (m)<input aria-label="Unterkante" type="number" step=".01" bind:value={uk}/></label>
+        <label>Oberkante (m)<input aria-label="Oberkante" type="number" step=".01" bind:value={ok}/></label>
+        <button type="button" class="sekundaer" onclick={hoehe}>Höhe ändern</button></div>
+      <p class="meta">{einzel.klasse.startsWith("IFCSLAB") ? "Dicke" : "Höhe"} {laenge(Number(ok) - Number(uk))} · Wandhöhe, Deckendicke oder Brüstung; der Körper wird zur senkrechten Extrusion seines Grundrisses.</p>
+      <div class="zeile">
+        <button type="button" class="sekundaer" onclick={() => onzeichnen?.(!zeichnen)}>{zeichnen ? "Zeichnen beenden" : "Neuen Umriss zeichnen"}</button>
+        {#if zeichnen}
+          <button type="button" class="sekundaer" disabled={punkte.length < 3} onclick={umriss}>Umriss übernehmen ({punkte.length} Punkte)</button>
+          <button type="button" class="link" onclick={() => onzeichnen?.(true)}>Neu beginnen</button>
+        {/if}
+      </div>
+      {#if zeichnen}<p class="meta" role="status">Eckpunkte nacheinander im Grundriss setzen; der Umriss schließt sich selbst.</p>{/if}
+    </fieldset>
+  {/if}
 
   <h4>Räume aus Wänden ({auszug.geschosse.find(g => g.global_id === geschoss)?.name ?? "Geschoss"})</h4>
   <button type="button" class="sekundaer" disabled={!geschoss || laeuft} onclick={() => void vorschlagen()}>Geschlossene Flächen suchen</button>

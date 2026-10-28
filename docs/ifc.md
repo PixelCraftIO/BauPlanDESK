@@ -124,6 +124,8 @@ sehen das nachgearbeitete Modell.
 | `benennen` | Name und Langname (Räume: Nummer und Nutzung), auch Geschosse und Gebäude |
 | `raum_bilden` | neuer Raum (neue GlobalId) aus einem Umriss in Modellkoordinaten, Höhe bis zur nächsten Geschossebene oder angegeben |
 | `ausblenden` | Element aus Prüfung, Übernahme und Auswertung nehmen |
+| `hoehe_setzen` | Unter- und/oder Oberkante (m über dem Projektnullpunkt): Wandhöhe, Deckendicke, Brüstung; der Körper wird zur senkrechten Extrusion seines Grundrisses |
+| `umriss_setzen` | Grundriss eines Raums, einer Decke oder Wand durch einen Umriss ersetzen (im Grundriss gezeichnet), Höhenlage bleibt |
 
 **Räume aus Wänden** (`ifc::raumvorschlaege`, Befehl
 `ifc_raumvorschlaege`): Die Wände, Stützen und Vorhangfassaden im
@@ -224,6 +226,7 @@ Instanzen ändern sich, alle anderen bleiben zeichengleich
 | `benennen` | `Name`, bei Räumen, Geschossen und Gebäuden `LongName` |
 | `raum_bilden` | `IfcSpace` als Extrusion des Umrisses mit `Qto_SpaceBaseQuantities` (NetFloorArea, Height), dem Geschoss aggregiert |
 | `ausblenden` | Element entfernt, aus allen Beziehungen genommen; Teile eines entfernten Aggregats rücken in dessen Geschoss |
+| `hoehe_setzen`, `umriss_setzen` | neue Körperdarstellung `Body` als Extrusion des Endstands (in der Lage des Elements, bei nicht senkrechter Lage Hinweis), übrige Darstellungen bleiben; Öffnungen schneiden weiter über ihre Beziehung |
 
 **Eigenes IFC4-Modell** (`Exportwunsch::Entwurf`, `ifc::entwurf_schreiben`):
 Aus einem Gebäude und je Geschoss einer eigenen Zeichnung (Planaufmaß ohne
@@ -237,6 +240,18 @@ Nutzung, mit Basismengen). Die GlobalIds werden aus den IDs von Gebäude,
 Geschossen, Wänden und Markierungen abgeleitet (UUID v5) und bleiben bei jedem
 Export gleich, damit Empfänger neu exportierte Fassungen über die GlobalId
 abgleichen können. Die Datei lässt sich direkt wieder als Modellakte öffnen.
+
+## Bauantrag (XBau)
+
+IFC-Dateien (`.ifc`, `.ifczip`) sind Bauvorlagen wie andere Dokumente.
+`CoreServices::ifc_dem_bauantrag_beifuegen` (Befehl
+`ifc_dem_bauantrag_beifuegen`, Reiter „Export“ und Exportergebnis) fügt die
+Datei der Modellakte oder eine exportierte Datei den Anlagen des Bauantrags
+hinzu, mit der Anlagenart **2010 „BIM-Gebäudemodell“**, sofern die geladene
+Anlagenliste sie kennt. Ohne eigene Kategorie schlägt
+`anlagenart_vorschlaege` für jede IFC-Datei des Projekts diese Anlagenart vor.
+Der MIME-Typ (`application/x-extension-ifc`, `…-ifczip`) kommt aus der
+XBau-MIME-Liste; übermittelt wird die neueste Version des Dokuments.
 
 ## Testdaten
 
