@@ -1073,6 +1073,15 @@ impl CoreServices {
         let codelisten = self.codelisten.aktuell();
         fehlende_angaben.extend(codelisten.fehlende());
         fehlende_angaben.extend(self.anlagen_pruefen(&pruefstand).await?);
+        // Gezeichnete Flurstücksfläche weicht deutlich vom Kataster ab: erst
+        // klären, dann einreichen (Warnungen stehen in der Baugrundstücksprüfung).
+        fehlende_angaben.extend(
+            crate::grundstuecksinformationen::informationen(&p.planungsrecht)
+                .flaechenabweichungen()
+                .into_iter()
+                .filter(|(s, _)| *s == crate::grundstuecksinformationen::Flaechenabweichung::Fehler)
+                .map(|(_, t)| t),
+        );
         if let Err(e) = codelisten.verfahrensart(p.bundesland, &antrag.verfahrensart) {
             fehlende_angaben.push(e.to_string());
         }

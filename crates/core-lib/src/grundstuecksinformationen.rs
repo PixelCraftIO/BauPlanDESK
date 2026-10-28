@@ -127,6 +127,64 @@ impl FlurstuecksInfo {
         self.planflaeche_m2.map(|p| p - self.flaeche_m2)
     }
 }
+/// Einstufung der Abweichung zwischen gezeichneter und Katasterfläche
+/// (Schwellen in `regelwerke/aufmass-toleranzen.json`): bis 1 m² oder 1 %
+/// unauffällig (Mess- und Rundungsgenauigkeit), bis 5 % Warnung, darüber
+/// Fehler, der die Einreichung aufhält, bis Kataster oder Zeichnung geklärt sind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Flaechenabweichung {
+    Unauffaellig,
+    Warnung,
+    Fehler,
+}
+impl FlurstuecksInfo {
+    pub fn flaechenabweichung(&self) -> Option<Flaechenabweichung> {
+        let d = self.flaechenabweichung_m2()?.abs();
+        let t = &crate::planaufmass::toleranzen().flurstueck;
+        let basis = self.flaeche_m2.abs();
+        Some(
+            if d <= t.unauffaellig_m2.max(basis * t.unauffaellig_prozent / 100.) {
+                Flaechenabweichung::Unauffaellig
+            } else if d <= basis * t.fehler_prozent / 100. {
+                Flaechenabweichung::Warnung
+            } else {
+                Flaechenabweichung::Fehler
+            },
+        )
+    }
+    /// Text zu einer auffälligen Abweichung (Warnung oder Fehler).
+    pub fn flaechenabweichung_hinweis(&self) -> Option<(Flaechenabweichung, String)> {
+        let stufe = self.flaechenabweichung()?;
+        if stufe == Flaechenabweichung::Unauffaellig {
+            return None;
+        }
+        let plan = self.planflaeche_m2?;
+        let d = plan - self.flaeche_m2;
+        let zahl = crate::formular::vorlage::zahl;
+        Some((
+            stufe,
+            format!(
+                "Flurstück {}: gezeichnete Fläche {} m² weicht um {} m² ({} %) von der Katasterfläche {} m² ab. Kataster oder Zeichnung prüfen; gerechnet wird mit der Katasterfläche.",
+                self.bezeichnung(),
+                zahl(plan, 2),
+                zahl(d, 2),
+                zahl(d / self.flaeche_m2 * 100., 1),
+                zahl(self.flaeche_m2, 2)
+            ),
+        ))
+    }
+}
+impl Grundstuecksinformationen {
+    /// Auffällige Flächenabweichungen der Vorhabenflurstücke.
+    pub fn flaechenabweichungen(&self) -> Vec<(Flaechenabweichung, String)> {
+        self.flurstuecke
+            .iter()
+            .filter(|f| f.rolle.ist_vorhaben())
+            .filter_map(|f| f.flaechenabweichung_hinweis())
+            .collect()
+    }
+}
 impl FlurstuecksRolle {
     pub fn ist_vorhaben(&self) -> bool {
         *self == Self::Vorhaben
@@ -662,6 +720,39 @@ pub(crate) async fn dokumente_pruefen(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn flaechenabweichung_wird_nach_toleranz_eingestuft() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let mut f = p.grundstuecksinformationen.unwrap().flurstuecke.remove(0);
+        f.flaeche_m2 = 1000.;
+        assert_eq!(f.flaechenabweichung(), None, "ohne Zeichnung");
+        let stufe = |f: &mut FlurstuecksInfo, plan: f64| {
+            f.planflaeche_m2 = Some(plan);
+            f.flaechenabweichung()
+        };
+        assert_eq!(stufe(&mut f, 1010.), Some(Flaechenabweichung::Unauffaellig));
+        assert_eq!(stufe(&mut f, 989.), Some(Flaechenabweichung::Warnung));
+        assert_eq!(stufe(&mut f, 1050.), Some(Flaechenabweichung::Warnung));
+        assert_eq!(stufe(&mut f, 1051.), Some(Flaechenabweichung::Fehler));
+        // Kleine Flurstücke: mindestens 1 m² gilt als Messgenauigkeit.
+        f.flaeche_m2 = 50.;
+        assert_eq!(stufe(&mut f, 50.9), Some(Flaechenabweichung::Unauffaellig));
+        f.flaeche_m2 = 1000.;
+        stufe(&mut f, 1080.);
+        let (s, text) = f.flaechenabweichung_hinweis().unwrap();
+        assert_eq!(s, Flaechenabweichung::Fehler);
+        assert!(
+            text.contains("80,00 m²") && text.contains("(8,0 %)"),
+            "{text}"
+        );
+        // „Fläche aus Plan“: kein Vergleich, die Zeichnung ist der Wert.
+        f.flaeche_aus_plan = true;
+        assert_eq!(f.flaechenabweichung(), None);
+    }
     #[test]
     fn optionale_grundbuchangaben_fuehren_nicht_zu_heimlicher_gruppierung() {
         let mut p = Planungsrecht {

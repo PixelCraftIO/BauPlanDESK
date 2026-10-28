@@ -109,9 +109,38 @@ pub struct Doppelerfassung {
     pub text: String,
 }
 
-/// Fast gleich: höchstens 1 m² oder 2 % der gezeichneten Fläche Unterschied.
+#[derive(Deserialize)]
+pub(crate) struct Toleranzen {
+    pub flurstueck: FlurstueckToleranz,
+    doppelerfassung: DoppelToleranz,
+}
+#[derive(Deserialize)]
+pub(crate) struct FlurstueckToleranz {
+    pub unauffaellig_m2: f64,
+    pub unauffaellig_prozent: f64,
+    pub fehler_prozent: f64,
+}
+#[derive(Deserialize)]
+struct DoppelToleranz {
+    m2: f64,
+    prozent: f64,
+}
+/// Gemeinsame Schwellen mit der Oberfläche: `regelwerke/aufmass-toleranzen.json`.
+pub(crate) fn toleranzen() -> &'static Toleranzen {
+    static T: std::sync::OnceLock<Toleranzen> = std::sync::OnceLock::new();
+    T.get_or_init(|| {
+        serde_json::from_str(include_str!(
+            "../../../../regelwerke/aufmass-toleranzen.json"
+        ))
+        .expect("Ungültige Aufmaß-Toleranzen")
+    })
+}
+
+/// Fast gleich: höchstens 1 m² oder 2 % der gezeichneten Fläche Unterschied
+/// (`doppelerfassung` in den Toleranzen).
 pub fn fast_gleich(gezeichnet: f64, hand: f64) -> bool {
-    (gezeichnet - hand).abs() <= (gezeichnet.abs() * 0.02).max(1.)
+    let t = &toleranzen().doppelerfassung;
+    (gezeichnet - hand).abs() <= (gezeichnet.abs() * t.prozent / 100.).max(t.m2)
 }
 
 /// Paare (gebundene Zeile, Handzeile) gleicher `art`; jede Handzeile höchstens einmal.

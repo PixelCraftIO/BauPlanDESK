@@ -1,0 +1,12 @@
+{
+  "_hinweis": "Toleranzen für den Vergleich gezeichneter Flächen mit amtlichen oder manuell erfassten Werten. Gelesen von core-lib (grundstuecksinformationen.rs, planaufmass/abgleich.rs) und der Oberfläche (Anzeige).",
+  "flurstueck": {
+    "unauffaellig_m2": 1.0,
+    "unauffaellig_prozent": 1.0,
+    "fehler_prozent": 5.0
+  },
+  "doppelerfassung": {
+    "m2": 1.0,
+    "prozent": 2.0
+  }
+}

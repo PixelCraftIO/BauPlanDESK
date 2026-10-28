@@ -447,6 +447,7 @@ planflaeche_m2?: number,
  */
 flaeche_aus_plan?: boolean, };
 export type FlurstuecksRolle = "vorhaben" | "nachbar" | "sonstiges";
+export type Flaechenabweichung = "unauffaellig" | "warnung" | "fehler";
 export type FlurstuecksAnsatz = { flurstueck_id: string, abzuege: Array<FlaechenAbzug>, abweichende_zuordnung: { kennung: string; grundlage: string } | null, };
 export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, berechnungen: Array<BaugrundstueckBerechnung>,
 /**
