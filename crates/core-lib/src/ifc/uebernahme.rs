@@ -546,9 +546,22 @@ impl CoreServices {
                     ),
                 };
                 let z = &zeichnungen[i];
-                let mut r = self
-                    .planaufmass_raumbuch(p, gu.aufmass_id, z.revision, r)
-                    .await?;
+                // Gleichnamige, von Hand erfasste Räume verknüpft das Raumbuch
+                // nur nach Entscheidung; dann bleibt dieses Raumbuch unberührt.
+                let mut r = match self
+                    .planaufmass_raumbuch(p, gu.aufmass_id, z.revision, &[], r)
+                    .await
+                {
+                    Ok(r) => r,
+                    Err(CoreError::InvalidInput(e)) => {
+                        hinweise.push(format!(
+                            "Raumbuch {}: {e} Im Raumbuch „Aus Aufmaß übernehmen“ wählen.",
+                            geschossname(g)
+                        ));
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                };
                 // Lichte Höhe aus dem Modell, wo der Raum noch keine hat.
                 for b in &gu.markierungen {
                     let Some(e) = a.element(&b.global_id) else {
