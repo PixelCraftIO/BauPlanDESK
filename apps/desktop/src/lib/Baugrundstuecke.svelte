@@ -27,6 +27,9 @@
   import GrundstueckFormular from "./GrundstueckFormular.svelte";
   import FlaechenFormular from "./FlaechenFormular.svelte";
   import { planApi } from "./planaufmass/api";
+  import { Abgleich } from "./planaufmass/Abgleich.svelte";
+  import AbgleichDialog from "./planaufmass/AbgleichDialog.svelte";
+  import Quellenzustand from "./planaufmass/Quellenzustand.svelte";
   import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
   import { bereichAktiv, ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
   import type { Aufmassstand, BaugrundstuecksErmittlung } from "./generated/plattform";
@@ -185,6 +188,28 @@
         )?.pruefung
       : null,
   );
+  const doppelerfassungen = $derived(
+    aktuell
+      ? (ergebnis?.baugrundstuecke.find(
+          (g) => g.grundstueck.schluessel === gruppe?.schluessel,
+        )?.doppelerfassungen ?? [])
+      : [],
+  );
+  // Positionen gelten für den geprüften Stand (`aktuell`); entfernt wird nur
+  // eine weiterhin ungebundene Handzeile.
+  function zusammenfuehren(d: import("./generated/plattform").Doppelerfassung) {
+    const liste =
+      d.bereich === "abzug"
+        ? eingabe.flurstuecke.find((f) => f.id === d.bezug)?.abzuege
+        : eingabe.berechnungen.find((b) => b.schluessel === d.bezug)?.eingabe
+            .aufstellung?.bauteile;
+    const gebunden = (liste as { id?: string | null }[] | undefined)?.some(
+      (x) => x.id === d.gebunden,
+    );
+    if (!liste || !gebunden || !liste[d.hand] || liste[d.hand].planbindung) return;
+    liste.splice(d.hand, 1);
+    hinweis = "Handzeile entfernt; die gezeichnete Zeile bleibt. Prüfen und speichern.";
+  }
   const z = (n: number | null | undefined) =>
     n == null ? "—" : n.toLocaleString("de-DE", { maximumFractionDigits: 3 });
   const nachweisTitel: Record<string, string> = {
@@ -386,6 +411,7 @@
   ansichtsAbfrage(() => projekt.id, ["fachobjekte"], aufmasseAktualisieren);
   const aufmassQuelle = (id: string | undefined) =>
     aufmasse.find((a) => a.stand.objekt === id);
+  const abgleich = new Abgleich();
   async function abzuegeAusAufmass(
     stand: Aufmassstand | null,
     aendern?: (e: BaugrundstuecksErmittlung) => void,
@@ -398,7 +424,12 @@
       const plan = request();
       const e = berechnungsansaetze(plan);
       aendern?.(e);
-      const neu = await planApi.abzuege(projekt.id, stand, e);
+      // Gezeichnete Flächen, die schon von Hand erfasst sind, nicht verdoppeln.
+      const zuordnung = stand
+        ? await abgleich.fragen(await planApi.abzuegeAbgleich(projekt.id, stand, e))
+        : [];
+      if (!zuordnung) return;
+      const neu = await planApi.abzuege(projekt.id, stand, e, zuordnung);
       eingabe = {
         ...plan,
         flurstuecke: plan.flurstuecke.map((f) => {
@@ -651,6 +682,8 @@
   });
 </script>
 
+<AbgleichDialog a={abgleich} />
+<Quellenzustand projektId={projekt.id} version={projekt.version} bereiche={["grundstueck"]} />
 {#if voraussetzung}<aside
     class="hinweisbox"
     aria-label="Voraussetzungen der Berechnung"
@@ -874,6 +907,9 @@
           class="sekundaer"
           onclick={() =>
             f.abzuege.push({
+              // Kennung von Anfang an: die Zeile erscheint in den Aufmaß-Aufgaben
+              // und lässt sich später mit einer Zeichnung verknüpfen.
+              id: crypto.randomUUID(),
               art: "sonstiger_abzug",
               flaeche_m2: 0,
               grundlage: "",
@@ -1047,8 +1083,20 @@
       );
     }}>Nicht zugeordnete Berechnungen entfernen</button
   >{/if}
-{#each nachweis?.hinweise ?? [] as h}<p class="hinweisbox" role="status">
+{#each (nachweis?.hinweise ?? []).filter((h) => !doppelerfassungen.some((d) => d.text === h)) as h}<p class="hinweisbox" role="status">
     {h}
+  </p>{/each}
+{#each doppelerfassungen as d (d.bereich + d.bezug + d.hand)}<p
+    class="hinweisbox"
+    role="status"
+  >
+    {d.text}
+    <button
+      type="button"
+      class="link"
+      disabled={!darf || laeuft}
+      onclick={() => zusammenfuehren(d)}>Handzeile entfernen</button
+    >
   </p>{/each}
 {#if relevanteNachweise.length}<div class="tabellen-scroll">
     <table class="ergebnistabelle berechnungswerte">

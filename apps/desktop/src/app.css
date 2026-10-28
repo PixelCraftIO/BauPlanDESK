@@ -265,6 +265,9 @@ button.link {
   color: var(--error-text);
   font-weight: 600;
 }
+.hinweistext {
+  color: var(--warning-text);
+}
 .fehlertext {
   color: var(--error-text);
 }

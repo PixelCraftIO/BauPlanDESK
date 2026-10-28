@@ -25,6 +25,7 @@
   import type { Tabstart } from "./tabs";
   import { BEDEUTUNGEN } from "./bedeutungen";
   import { verwendungenLaden, type Verwendung } from "./verwendung";
+  import Quellenzustand from "./Quellenzustand.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import { tick } from "svelte";
   let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
@@ -324,7 +325,7 @@
       if(w&&!werkzeugGesperrt(w[0])){e.preventDefault();werkzeugWaehlen(w[0]);return}
       if(k==="z"){e.preventDefault();plan?.zoomfensterStarten();return}
       if(e.key==="Delete"&&el&&!elementGesperrt){e.preventDefault();elementEntfernen()}
-      else if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();entfernen()}
+      else if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();void entfernen()}
       else if(e.key.startsWith("Arrow")&&m&&!objektGesperrt){
         e.preventDefault();
         const d=e.shiftKey?10:1;
@@ -366,10 +367,13 @@
     const kopien=ms.map(m=>({...structuredClone($state.snapshot(m)),id:ids.get(m.id)!,bezeichnung:`${m.bezeichnung} (Kopie)`,hoehenzone_von:m.hoehenzone_von?ids.get(m.hoehenzone_von)??m.hoehenzone_von:undefined}));
     s.eingabe.markierungen.push(...kopien);auswahlIds=kopien.map(m=>m.id);auswahl=auswahlIds.at(-1)??"";
   }
-  function entfernen(){
+  async function entfernen(){
     if(!s.eingabe||!m||objektGesperrt)return;
     const ids=auswahlIds.length?auswahlIds:[auswahl];
     if(ids.some(id=>s.eingabe!.ebenen.find(e=>e.id===s.eingabe!.markierungen.find(m=>m.id===id)?.ebene_id)?.gesperrt))return;
+    // Verknüpfte Werte verlieren ihre Quelle: vorher nennen, was daran hängt.
+    const genutzt=ids.flatMap(id=>verwendungen.get(id)??[]);
+    if(genutzt.length&&!(await ask(`Diese Markierung liefert Werte für:\n${[...new Set(genutzt.map(v=>v.verbraucher))].map(v=>`• ${v}`).join("\n")}\n\nNach dem Speichern des Aufmaßes melden diese Bereiche „Planmarkierung fehlt“. Dort die Verknüpfung lösen (der Wert bleibt als manuelle Angabe) oder neu verknüpfen. Markierung trotzdem entfernen?`,{title:"Verknüpfte Markierung entfernen",kind:"warning"})))return;
     merken();s.eingabe.markierungen=s.eingabe.markierungen.filter(i=>!ids.includes(i.id));auswahl="";auswahlIds=[];
   }
   function merken(){verlaufGruppe="";verlauf.gruppeBeenden();if(s.eingabe)verlauf.beobachten($state.snapshot(s.eingabe))}
@@ -614,6 +618,7 @@
   {#snippet children(p)}
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
     {#if !dateien.length&&!istZeichnung}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren – oder eine eigene Zeichnung in Metern anlegen.</p>{/if}
+    <Quellenzustand projektId={projekt.id} version={projekt.version} />
     {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere Version der Unterlage liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.</p>{/if}
     {#if pdfFehler}<p class="fehlertext" role="alert">{pdfFehler}</p>{/if}
     <div class="editor" class:vollbild bind:this={editor} style:height={vollbild?undefined:`${hoeheEditor}px`} onpointerdowncapture={()=>{verlaufGruppe="";verlauf.gruppeBeenden()}} oninputcapture={e=>{const el=e.target as HTMLElement;verlaufGruppe=`${auswahl}:${el.getAttribute("aria-label")??el.closest("label")?.textContent??el.tagName}`}}>

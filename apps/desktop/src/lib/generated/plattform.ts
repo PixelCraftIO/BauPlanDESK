@@ -107,6 +107,54 @@ export type Planbindung = { aufmass_id: string, revision: number, markierung_id:
  */
 ziel: string, };
 export type Aufmassstand = { aufmass_id: string, revision: number, };
+export type Zeilenzuordnung = { markierung_id: string,
+/**
+ * Schlüssel der Zeile ([`Abgleichskandidat::zeile`]), die die gezeichnete
+ * Fläche übernimmt; leer legt eine neue Zeile an.
+ */
+zeile?: string, };
+export type Abgleichskandidat = {
+/**
+ * Zeilenkennung oder, für Altzeilen ohne Kennung, `#<Position>` in ihrer
+ * Liste. Gilt nur für den Entwurf, aus dem die Frage entstand.
+ */
+zeile: string, bezeichnung: string, flaeche_m2: number, };
+export type Abgleichsfrage = { markierung_id: string, markierung: string,
+/**
+ * Ziel der Zeile, etwa „Flurstück Musterdorf 12 · Verkehrsfläche“.
+ */
+ziel: string,
+/**
+ * Gezeichnete Fläche; fehlt, wenn die Markierung noch nicht messbar ist.
+ */
+flaeche_m2?: number, kandidaten: Array<Abgleichskandidat>,
+/**
+ * Vorbelegung: die Handzeile mit der geringsten Flächendifferenz.
+ */
+vorschlag?: string, };
+export type Doppelerfassung = {
+/**
+ * `abzug` oder `bauteil`.
+ */
+bereich: string,
+/**
+ * Flurstück (Abzug) bzw. Schlüssel des Baugrundstücks (Bauteil).
+ */
+bezug: string,
+/**
+ * Kennung der gezeichneten Zeile.
+ */
+gebunden: string,
+/**
+ * Position der Handzeile in ihrer Liste.
+ */
+hand: number, text: string, };
+export type Planquellenhinweis = {
+/**
+ * Bereich für den Sprung: `flurstuecke`, `grundstueck`, `gebaeude`,
+ * `raumbuch`, `abstand` oder das Modul einer Fachberechnung.
+ */
+bereich: string, objekt?: string, titel: string, text: string, };
 export type CadUebernahme = { uebernommen: Array<string>, vorhanden: number, uebersprungen: Array<string>, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
 export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";
@@ -747,6 +795,7 @@ planflaeche_m2?: number,
  */
 flaeche_aus_plan?: boolean, };
 export type FlurstuecksRolle = "vorhaben" | "nachbar" | "sonstiges";
+export type Flaechenabweichung = "unauffaellig" | "warnung" | "fehler";
 export type FlurstuecksAnsatz = { flurstueck_id: string, abzuege: Array<FlaechenAbzug>, abweichende_zuordnung: { kennung: string; grundlage: string } | null, };
 export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, berechnungen: Array<BaugrundstueckBerechnung>,
 /**
@@ -1442,7 +1491,8 @@ export type Dachgrundlagen = { form: Dachform, neigung_grad: number | null,
 dachhoehe_m: number | null, herleitung: string, };
 export type Flurstuecksverweis = { flurstueck_id: string,
 /**
- * Fachbereich des verweisenden Objekts: `gebaeude` oder `abstandsflaechen`.
+ * Fachbereich des verweisenden Objekts: `gebaeude`, `abstandsflaechen`
+ * oder `planaufmass`.
  */
 bereich: string, objekt: string, bezeichnung: string, };
 export type AufgabenStatus = "offen" | "in_arbeit" | "erledigt";

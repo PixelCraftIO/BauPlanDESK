@@ -514,13 +514,85 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         serde_json::json!({"bezeichnung":"Räume","gebaeude_id":gid,"geschoss_id":null,"raeume":[]}),
     )
     .unwrap();
-    let mut r = core.planaufmass_raumbuch(p.id, aid, 1, alt).await.unwrap();
+    // Ein von Hand erfasster Raum gleicher Bezeichnung wird nicht verdoppelt.
+    let mut hand = alt.clone();
+    let markierung = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], alt.clone())
+        .await
+        .unwrap()
+        .raeume[0]
+        .bezeichnung
+        .clone();
+    let hand_id = Uuid::new_v4();
+    hand.raeume.push(core_lib::plattform::objekte::Raum {
+        id: hand_id,
+        nummer: "1".into(),
+        bezeichnung: markierung.to_uppercase(),
+        nutzung: "Wohnen".into(),
+        flaeche_m2: 48.,
+        hoehe_m: Some(2.5),
+        hoehenzonen: vec![],
+    });
+    let fragen = core
+        .planaufmass_raumbuch_abgleich(p.id, aid, 1, &hand)
+        .await
+        .unwrap();
+    assert_eq!(fragen.len(), 1);
+    assert_eq!(fragen[0].vorschlag, Some(hand_id.to_string()));
+    assert_eq!(fragen[0].flaeche_m2, Some(50.));
+    assert!(
+        core.planaufmass_raumbuch(p.id, aid, 1, &[], hand.clone())
+            .await
+            .is_err()
+    );
+    let wahl = [Zeilenzuordnung {
+        markierung_id: fragen[0].markierung_id,
+        zeile: Some(hand_id.to_string()),
+    }];
+    let verknuepft = core
+        .planaufmass_raumbuch(p.id, aid, 1, &wahl, hand.clone())
+        .await
+        .unwrap();
+    assert_eq!(verknuepft.raeume.len(), 1);
+    assert_eq!(verknuepft.raeume[0].id, hand_id);
+    assert_eq!(verknuepft.raeume[0].flaeche_m2, 50.);
+    assert_eq!(
+        verknuepft.raeume[0].nutzung, "Wohnen",
+        "Nutzung bleibt Eingabe"
+    );
+    assert!(
+        core.planaufmass_raumbuch_abgleich(p.id, aid, 1, &verknuepft)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let getrennt = core
+        .planaufmass_raumbuch(
+            p.id,
+            aid,
+            1,
+            &[Zeilenzuordnung {
+                markierung_id: fragen[0].markierung_id,
+                zeile: None,
+            }],
+            hand,
+        )
+        .await
+        .unwrap();
+    assert_eq!(getrennt.raeume.len(), 2);
+    let mut r = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], alt)
+        .await
+        .unwrap();
     assert_eq!(r.raeume.len(), 1);
     assert_eq!(r.raeume[0].flaeche_m2, 50.);
     assert_eq!(r.raeume[0].nutzung, "Aufenthaltsraum");
     r.raeume[0].nummer = "EG-01".into();
     r.raeume[0].hoehe_m = Some(2.8);
-    r = core.planaufmass_raumbuch(p.id, aid, 1, r).await.unwrap();
+    r = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], r)
+        .await
+        .unwrap();
     assert_eq!(
         r.raeume.len(),
         1,
@@ -716,7 +788,10 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
     assert!(u.punkte.iter().any(|x| x.ziel.bereich == "raumbuch"));
     assert!(u.punkte.iter().any(|x| x.ziel.bereich == "gebaeude"));
     assert!(u.punkte.iter().any(|x| x.ziel.bereich == "abstand"));
-    let r = core.planaufmass_raumbuch(p.id, aid, 2, r).await.unwrap();
+    let r = core
+        .planaufmass_raumbuch(p.id, aid, 2, &[], r)
+        .await
+        .unwrap();
     assert_eq!(r.raeume[0].flaeche_m2, 60.);
     assert_eq!(r.raeume[0].nummer, "EG-01");
 }
@@ -1170,7 +1245,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
         raeume: vec![],
     };
     let r = core
-        .planaufmass_raumbuch(p.id, aid, f.revision, leer)
+        .planaufmass_raumbuch(p.id, aid, f.revision, &[], leer)
         .await
         .unwrap();
     let rid = Uuid::new_v4();
@@ -1348,7 +1423,10 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
         serde_json::json!({"bezeichnung":"DG","gebaeude_id":gid,"geschoss_id":null,"raeume":[]}),
     )
     .unwrap();
-    let mut r = core.planaufmass_raumbuch(p.id, aid, 1, leer).await.unwrap();
+    let mut r = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], leer)
+        .await
+        .unwrap();
     assert_eq!(r.raeume.len(), 2);
     r.raeume.iter_mut().find(|x| x.id == zone).unwrap().hoehe_m = Some(1.0);
     r.raeume.iter_mut().find(|x| x.id == raum).unwrap().hoehe_m = Some(2.5);
@@ -1364,7 +1442,10 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
     )
     .await
     .unwrap();
-    let r = core.planaufmass_raumbuch(p.id, aid, 2, r).await.unwrap();
+    let r = core
+        .planaufmass_raumbuch(p.id, aid, 2, &[], r)
+        .await
+        .unwrap();
     assert_eq!(r.raeume.len(), 1);
     let z = &r.raeume[0].hoehenzonen[0];
     assert_eq!(
@@ -1911,15 +1992,101 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
                 revision: f.revision + 1,
                 ..stand
             }),
+            &[],
             e.clone()
         )
         .await
         .is_err()
     );
+    // Abgleich: eine von Hand erfasste private Grünfläche wird nicht verdoppelt.
+    let handabzug = |art: &str, flaeche_m2: f64| core_lib::baugrundstuecke::FlaechenAbzug {
+        id: None,
+        art: art.into(),
+        flaeche_m2,
+        grundlage: "Festsetzung".into(),
+        planbindung: None,
+    };
+    let mut hand = e.clone();
+    hand.ansaetze[0].abzuege = vec![
+        handabzug("verkehrsflaeche", 20.),
+        handabzug("private_gruenflaeche", 98.),
+    ];
+    let fragen = core
+        .planaufmass_abzuege_abgleich(p.id, stand, &hand)
+        .await
+        .unwrap();
+    assert_eq!(fragen.len(), 1);
+    assert_eq!(fragen[0].markierung_id, m_gruen);
+    assert_eq!(fragen[0].flaeche_m2, Some(100.));
+    assert_eq!(fragen[0].kandidaten.len(), 1, "nur gleiche Abzugsart");
+    assert_eq!(fragen[0].vorschlag.as_deref(), Some("#1"));
+    // Ohne Entscheidung wird weder verknüpft noch eine zweite Zeile angelegt.
+    assert!(
+        core.planaufmass_abzuege(p.id, Some(stand), &[], hand.clone())
+            .await
+            .is_err()
+    );
+    // Eine Zeile anderer Art ist keine zulässige Wahl.
+    let falsch = [Zeilenzuordnung {
+        markierung_id: m_gruen,
+        zeile: Some("#0".into()),
+    }];
+    assert!(
+        core.planaufmass_abzuege(p.id, Some(stand), &falsch, hand.clone())
+            .await
+            .is_err()
+    );
+    // Verknüpfen: die Handzeile übernimmt die gezeichnete Fläche, Grundlage bleibt.
+    let wahl = [Zeilenzuordnung {
+        markierung_id: m_gruen,
+        zeile: fragen[0].vorschlag.clone(),
+    }];
+    let verknuepft = core
+        .planaufmass_abzuege(p.id, Some(stand), &wahl, hand.clone())
+        .await
+        .unwrap();
+    let zeilen = &verknuepft.ansaetze[0].abzuege;
+    assert_eq!(zeilen.len(), 2);
+    assert_eq!(zeilen[1].flaeche_m2, 100.);
+    assert_eq!(zeilen[1].grundlage, "Festsetzung");
+    let id = zeilen[1]
+        .id
+        .clone()
+        .expect("Kennung für die verknüpfte Altzeile");
+    let bindung = zeilen[1].planbindung.as_ref().unwrap();
+    assert_eq!(bindung.markierung_id, m_gruen);
+    assert_eq!(bindung.ziel, format!("abzuege.{id}.flaeche_m2"));
+    assert!(zeilen[0].planbindung.is_none() && zeilen[0].id.is_none());
+    // Erneute Übernahme findet die verknüpfte Zeile ohne Rückfrage wieder.
+    assert!(
+        core.planaufmass_abzuege_abgleich(p.id, stand, &verknuepft)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let nochmal = core
+        .planaufmass_abzuege(p.id, Some(stand), &[], verknuepft.clone())
+        .await
+        .unwrap();
+    assert_eq!(nochmal, verknuepft);
+    // Bewusst als eigene Zeile: Handzeile bleibt ungebunden daneben stehen.
+    let getrennt = core
+        .planaufmass_abzuege(
+            p.id,
+            Some(stand),
+            &[Zeilenzuordnung {
+                markierung_id: m_gruen,
+                zeile: None,
+            }],
+            hand,
+        )
+        .await
+        .unwrap();
+    assert_eq!(getrennt.ansaetze[0].abzuege.len(), 3);
     // Abzugszeile aus der Markierung: Art folgt der Bedeutung, Fläche aus dem Plan,
     // rechtliche Grundlage bleibt Eingabe.
     let mut neu = core
-        .planaufmass_abzuege(p.id, Some(stand), e.clone())
+        .planaufmass_abzuege(p.id, Some(stand), &[], e.clone())
         .await
         .unwrap();
     let abzug = &neu.ansaetze[0].abzuege[0];
@@ -1929,7 +2096,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     assert!(abzug.grundlage.is_empty() && abzug.planbindung.is_some());
     // Erneute Übernahme legt keine zweite Zeile an.
     let nochmal = core
-        .planaufmass_abzuege(p.id, Some(stand), neu.clone())
+        .planaufmass_abzuege(p.id, Some(stand), &[], neu.clone())
         .await
         .unwrap();
     assert_eq!(nochmal.ansaetze[0].abzuege.len(), 1);
@@ -1937,7 +2104,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     let mut manipuliert = neu.clone();
     manipuliert.ansaetze[0].abzuege[0].art = "verkehrsflaeche".into();
     assert!(
-        core.planaufmass_abzuege(p.id, None, manipuliert)
+        core.planaufmass_abzuege(p.id, None, &[], manipuliert)
             .await
             .is_err()
     );
@@ -1979,16 +2146,27 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     assert_eq!(ab.objekt, m_gruen.to_string());
     assert_eq!(ab.gebunden, Some(m_gruen));
     assert_eq!(ab.flurstueck_id.as_deref(), Some("a"));
+    // Vor dem Entfernen des Flurstücks nennt die Verweisliste die Markierung.
+    let verweise = core
+        .flurstuecksverweise(p.id, &["a".to_string()])
+        .await
+        .unwrap();
+    assert!(
+        verweise
+            .iter()
+            .any(|v| v.bereich == "planaufmass" && v.objekt == aufmass),
+        "{verweise:?}"
+    );
     // GRZ-Bauteil aus der Zufahrt, dem Baugrundstück zugeordnet.
     let e = ermittlung(&p.planungsrecht).unwrap().unwrap();
     let aufstellung = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();
     assert!(
-        core.planaufmass_bauteile(p.id, "fremd", Some(stand), aufstellung.clone())
+        core.planaufmass_bauteile(p.id, "fremd", Some(stand), &[], aufstellung.clone())
             .await
             .is_err()
     );
     let bauteile = core
-        .planaufmass_bauteile(p.id, &schluessel, Some(stand), aufstellung)
+        .planaufmass_bauteile(p.id, &schluessel, Some(stand), &[], aufstellung)
         .await
         .unwrap();
     let zufahrt = bauteile
@@ -2000,6 +2178,58 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     assert_eq!(zufahrt.flaeche_m2, 50.);
     assert!(zufahrt.gebaeude_id.is_none() && zufahrt.planbindung.is_some());
     assert_eq!(bauteile.bauteile.len(), 2);
+    // Abgleich: eine von Hand erfasste Zufahrt übernimmt die gezeichnete Fläche.
+    let mut hand = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();
+    hand.bauteile.push(core_lib::flaechen::Bauteil {
+        id: None,
+        planbindung: None,
+        gebaeude_id: None,
+        bezeichnung: "Zufahrt Hof".into(),
+        typ: core_lib::flaechen::Bauteiltyp::Zufahrt,
+        flaeche_m2: 48.,
+        abweichende_anrechnung: None,
+        begruendung: String::new(),
+    });
+    let fragen = core
+        .planaufmass_bauteile_abgleich(p.id, &schluessel, stand, &hand)
+        .await
+        .unwrap();
+    assert_eq!(fragen.len(), 1);
+    assert_eq!(fragen[0].markierung_id, m_zufahrt);
+    let hand_zeile = format!("#{}", hand.bauteile.len() - 1);
+    assert_eq!(fragen[0].vorschlag.as_deref(), Some(hand_zeile.as_str()));
+    assert!(
+        core.planaufmass_bauteile(p.id, &schluessel, Some(stand), &[], hand.clone())
+            .await
+            .is_err()
+    );
+    let verknuepft = core
+        .planaufmass_bauteile(
+            p.id,
+            &schluessel,
+            Some(stand),
+            &[Zeilenzuordnung {
+                markierung_id: m_zufahrt,
+                zeile: Some(hand_zeile),
+            }],
+            hand.clone(),
+        )
+        .await
+        .unwrap();
+    let zufahrten: Vec<_> = verknuepft
+        .bauteile
+        .iter()
+        .filter(|b| b.typ == core_lib::flaechen::Bauteiltyp::Zufahrt)
+        .collect();
+    assert_eq!(zufahrten.len(), 1);
+    assert_eq!(zufahrten[0].flaeche_m2, 50.);
+    assert_eq!(zufahrten[0].bezeichnung, "Zufahrt Hof");
+    assert!(
+        core.planaufmass_bauteile_abgleich(p.id, &schluessel, stand, &verknuepft)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     let mut b = e.berechnungen[0].clone();
     b.eingabe.aufstellung = Some(bauteile);
     // Einzelspeicherung prüft die Bindung ebenfalls.
@@ -2068,7 +2298,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
         }
     }
     let aufstellung = core
-        .planaufmass_bauteile(p.id, &schluessel, None, aufstellung)
+        .planaufmass_bauteile(p.id, &schluessel, None, &[], aufstellung)
         .await
         .unwrap();
     assert_eq!(aufstellung.bauteile[1].flaeche_m2, 60.);
@@ -2083,7 +2313,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     let mut aufstellung = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();
     aufstellung.bauteile[1].planbindung = None;
     let aufstellung = core
-        .planaufmass_bauteile(p.id, &schluessel, None, aufstellung)
+        .planaufmass_bauteile(p.id, &schluessel, None, &[], aufstellung)
         .await
         .unwrap();
     assert_eq!(aufstellung.bauteile[1].flaeche_m2, 60.);

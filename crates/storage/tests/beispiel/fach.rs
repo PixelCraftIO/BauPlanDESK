@@ -1528,7 +1528,7 @@ pub async fn fach(b: &mut Beispiel) {
             raeume: vec![],
         };
         let mut r =
-            b.c.planaufmass_raumbuch(pid, aid, f_aufmass.revision, leer)
+            b.c.planaufmass_raumbuch(pid, aid, f_aufmass.revision, &[], leer)
                 .await
                 .unwrap_or_else(|e| panic!("{name}: {e}"));
         for (i, raum) in r.raeume.iter_mut().enumerate() {
@@ -1563,7 +1563,7 @@ pub async fn fach(b: &mut Beispiel) {
         }
         // Zweite Übernahme erhält Nummern/Höhen und erzeugt keine Dubletten.
         let r2 =
-            b.c.planaufmass_raumbuch(pid, aid, f_aufmass.revision, r.clone())
+            b.c.planaufmass_raumbuch(pid, aid, f_aufmass.revision, &[], r.clone())
                 .await
                 .unwrap();
         assert_eq!(r2.raeume.len(), r.raeume.len());

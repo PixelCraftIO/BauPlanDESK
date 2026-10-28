@@ -400,6 +400,10 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/planwerte", post(planaufmass_einsetzen))
         .route("/projekte/{id}/planraumbuch", post(planaufmass_raumbuch))
+        .route(
+            "/projekte/{id}/planraumbuch/abgleich",
+            post(planaufmass_raumbuch_abgleich),
+        )
         .route("/projekte/{id}/planabstand", post(planaufmass_abstand))
         .route(
             "/berechnung/planaufmass/abstandsziele",
@@ -413,6 +417,14 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/planabzuege", post(planaufmass_abzuege))
         .route("/projekte/{id}/planbauteile", post(planaufmass_bauteile))
         .route(
+            "/projekte/{id}/planabzuege/abgleich",
+            post(planaufmass_abzuege_abgleich),
+        )
+        .route(
+            "/projekte/{id}/planbauteile/abgleich",
+            post(planaufmass_bauteile_abgleich),
+        )
+        .route(
             "/projekte/{id}/planbaugrenzen",
             post(planaufmass_baugrenzen),
         )
@@ -421,6 +433,7 @@ fn routen(core: CoreServices) -> Router {
             post(cadaufmass_uebernehmen),
         )
         .route("/projekte/{id}/planaufgaben", post(planaufmass_aufgaben))
+        .route("/projekte/{id}/planquellen", get(planquellen_zustand))
         .route(
             "/projekte/{id}/planraumbuch/einsetzen",
             post(planaufmass_raumbuch_einsetzen),
@@ -676,6 +689,8 @@ async fn planaufmass_einsetzen(
 struct PlanraumRequest {
     aufmass_id: Uuid,
     revision: i64,
+    #[serde(default)]
+    zuordnung: Vec<core_lib::planaufmass::Zeilenzuordnung>,
     raumbuch: core_lib::plattform::objekte::Raumbuch,
 }
 async fn planaufmass_raumbuch(
@@ -684,7 +699,23 @@ async fn planaufmass_raumbuch(
     Json(r): Json<PlanraumRequest>,
 ) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
     Ok(Json(
-        core.planaufmass_raumbuch(ProjectId(id), r.aufmass_id, r.revision, r.raumbuch)
+        core.planaufmass_raumbuch(
+            ProjectId(id),
+            r.aufmass_id,
+            r.revision,
+            &r.zuordnung,
+            r.raumbuch,
+        )
+        .await?,
+    ))
+}
+async fn planaufmass_raumbuch_abgleich(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(r): Json<PlanraumRequest>,
+) -> ApiResult<Vec<core_lib::planaufmass::Abgleichsfrage>> {
+    Ok(Json(
+        core.planaufmass_raumbuch_abgleich(ProjectId(id), r.aufmass_id, r.revision, &r.raumbuch)
             .await?,
     ))
 }
@@ -2113,13 +2144,20 @@ async fn planaufmass_aufgaben(
 ) -> ApiResult<Vec<core_lib::planaufmass::Planaufgabe>> {
     Ok(Json(core.planaufmass_aufgaben(ProjectId(id), &plan).await?))
 }
+async fn planquellen_zustand(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Vec<core_lib::planaufmass::Planquellenhinweis>> {
+    Ok(Json(core.planquellen_zustand(ProjectId(id)).await?))
+}
 async fn planaufmass_raumbuch_einsetzen(
     State(ApiState { core }): State<ApiState>,
     Path(id): Path<Uuid>,
     Json(r): Json<core_lib::plattform::objekte::Raumbuch>,
 ) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
     Ok(Json(
-        core.planaufmass_raumbuch_einsetzen(ProjectId(id), r).await?,
+        core.planaufmass_raumbuch_einsetzen(ProjectId(id), r)
+            .await?,
     ))
 }
 async fn planaufmass_werkzeugkiste() -> Json<Vec<core_lib::planaufmass::Werkzeugvorlage>> {
@@ -2153,6 +2191,8 @@ async fn planaufmass_flurstuecke(
 struct AbzugUebernahme {
     #[serde(default)]
     aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    #[serde(default)]
+    zuordnung: Vec<core_lib::planaufmass::Zeilenzuordnung>,
     ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
 }
 async fn planaufmass_abzuege(
@@ -2161,7 +2201,22 @@ async fn planaufmass_abzuege(
     Json(w): Json<AbzugUebernahme>,
 ) -> ApiResult<core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung> {
     Ok(Json(
-        core.planaufmass_abzuege(ProjectId(id), w.aufmass, w.ermittlung)
+        core.planaufmass_abzuege(ProjectId(id), w.aufmass, &w.zuordnung, w.ermittlung)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct AbzugAbgleich {
+    aufmass: core_lib::planaufmass::Aufmassstand,
+    ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
+}
+async fn planaufmass_abzuege_abgleich(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<AbzugAbgleich>,
+) -> ApiResult<Vec<core_lib::planaufmass::Abgleichsfrage>> {
+    Ok(Json(
+        core.planaufmass_abzuege_abgleich(ProjectId(id), w.aufmass, &w.ermittlung)
             .await?,
     ))
 }
@@ -2170,6 +2225,8 @@ struct BauteilUebernahme {
     schluessel: String,
     #[serde(default)]
     aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    #[serde(default)]
+    zuordnung: Vec<core_lib::planaufmass::Zeilenzuordnung>,
     aufstellung: core_lib::flaechen::FlaechenAufstellung,
 }
 async fn planaufmass_bauteile(
@@ -2178,7 +2235,29 @@ async fn planaufmass_bauteile(
     Json(w): Json<BauteilUebernahme>,
 ) -> ApiResult<core_lib::flaechen::FlaechenAufstellung> {
     Ok(Json(
-        core.planaufmass_bauteile(ProjectId(id), &w.schluessel, w.aufmass, w.aufstellung)
+        core.planaufmass_bauteile(
+            ProjectId(id),
+            &w.schluessel,
+            w.aufmass,
+            &w.zuordnung,
+            w.aufstellung,
+        )
+        .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct BauteilAbgleich {
+    schluessel: String,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+    aufstellung: core_lib::flaechen::FlaechenAufstellung,
+}
+async fn planaufmass_bauteile_abgleich(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<BauteilAbgleich>,
+) -> ApiResult<Vec<core_lib::planaufmass::Abgleichsfrage>> {
+    Ok(Json(
+        core.planaufmass_bauteile_abgleich(ProjectId(id), &w.schluessel, w.aufmass, &w.aufstellung)
             .await?,
     ))
 }

@@ -1,0 +1,203 @@
+"""Erzeugt die Bildschirmfotos des Benutzerhandbuchs aus der echten Anwendung.
+
+Ablauf: Xvfb starten, Brücke (bruecke.py) für apps/desktop/dist bereitstellen,
+Debug-Binary starten, über „Hilfe → Beispielprojekt öffnen“ eine frische Kopie
+von „Neubau Einfamilienhaus Mustermann“ laden und die Szenen unten der Reihe
+nach aufnehmen. Ergebnis: docs/handbuch/benutzerhandbuch/bilder/<name>.png.
+
+Voraussetzungen (Linux): Xvfb, ImageMagick (import), WebKitGTK-Laufzeit,
+`npm run build --prefix apps/desktop` und
+`CARGO_PROFILE_DEV_DEBUG=0 cargo build -p bauprojektio-desktop`.
+
+Aufrufe:
+  python3 scripts/handbuch-bilder/aufnahmen.py                # alles neu
+  python3 scripts/handbuch-bilder/aufnahmen.py grz abstand    # nur diese Szenen
+  python3 scripts/handbuch-bilder/aufnahmen.py --laufend grz  # App läuft schon
+
+Umgebungsvariablen: BAUPROJEKT_APP_BENUTZER (Systemkonto, unter dem die App
+läuft, z. B. „mmeier“ mit vollem Namen „Maria Meier“; sonst der aktuelle
+Benutzer), BAUPROJEKT_APP_HOME (Profilverzeichnis, Standard: Home des Kontos).
+"""
+
+import glob
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+WURZEL = Path(__file__).resolve().parents[2]
+HIER = Path(__file__).resolve().parent
+ZIEL = WURZEL / "docs/handbuch/benutzerhandbuch/bilder"
+DISPLAY = os.environ.get("BAUPROJEKT_DISPLAY", ":77")
+HELFER = (HIER / "helfer.js").read_text()
+BENUTZER = os.environ.get("BAUPROJEKT_APP_BENUTZER")
+
+
+def js(code, timeout=90, fenster="main"):
+    daten = json.dumps({"js": HELFER + "\n" + code, "label": fenster, "timeout": timeout}).encode()
+    antwort = urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:1421", daten), timeout=timeout + 10)
+    d = json.loads(antwort.read())
+    if not d.get("ok"):
+        raise RuntimeError(d.get("v"))
+    return d.get("v")
+
+
+def foto(name, ausschnitt=None):
+    ZIEL.mkdir(parents=True, exist_ok=True)
+    befehl = ["import", "-display", DISPLAY, "-window", "root"]
+    if ausschnitt:
+        befehl += ["-crop", ausschnitt, "+repage"]
+    datei = ZIEL / f"{name}.png"
+    subprocess.run(befehl + [str(datei)], check=True)
+    # Verkleinert die Dateien auf etwa ein Drittel, Text bleibt scharf.
+    if shutil.which("pngquant"):
+        subprocess.run(["pngquant", "--quality", "80-95", "--strip", "--force", "--ext", ".png", str(datei)])
+
+
+def warte_auf_app(sekunden=60):
+    ende = time.time() + sekunden
+    while time.time() < ende:
+        try:
+            js("return document.readyState", timeout=3)
+            return
+        except Exception:
+            time.sleep(1)
+    raise RuntimeError("App meldet sich nicht")
+
+
+def home():
+    if os.environ.get("BAUPROJEKT_APP_HOME"):
+        return Path(os.environ["BAUPROJEKT_APP_HOME"])
+    return Path(os.path.expanduser(f"~{BENUTZER}" if BENUTZER else "~"))
+
+
+def app_starten(frisch):
+    subprocess.run(["pkill", "-x", "bauprojektio"])
+    time.sleep(1)
+    h = home()
+    if frisch:
+        shutil.rmtree(h / ".local/share/io.pixelcraft.bauprojektio", ignore_errors=True)
+        shutil.rmtree(h / ".config/io.pixelcraft.bauprojektio", ignore_errors=True)
+    umgebung = ["env", f"DISPLAY={DISPLAY}", f"HOME={h}", "LANG=de_DE.UTF-8", "TZ=Europe/Berlin"]
+    vorne = ["sudo", "-u", BENUTZER] if BENUTZER else []
+    log = open("/tmp/handbuch-app.log", "w")
+    subprocess.Popen(vorne + umgebung + [str(WURZEL / "target/debug/bauprojektio")], cwd=WURZEL, stdout=log, stderr=log)
+    warte_auf_app()
+
+
+def umgebung_starten():
+    if subprocess.run(["pgrep", "-f", f"Xvfb {DISPLAY}"], capture_output=True).returncode:
+        subprocess.Popen(["Xvfb", DISPLAY, "-screen", "0", "1440x900x24"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1)
+    try:
+        urllib.request.urlopen("http://127.0.0.1:1420/", timeout=2)
+    except Exception:
+        subprocess.Popen([sys.executable, str(HIER / "bruecke.py"), str(WURZEL / "apps/desktop/dist")])
+        time.sleep(1)
+
+
+def beispielprojekt_oeffnen():
+    """Frische Kopie des Beispielprojekts; die App startet dabei neu."""
+    js('await window.__TAURI_INTERNALS__.invoke("plugin:event|emit",{event:"menu",payload:"hilfe.beispielprojekt"}); await sleep(900); return 1')
+    foto("arbeitsplatz-beispielprojekt-oeffnen")
+    try:
+        js('klick("Beispielprojekt öffnen","[role=dialog] button"); return 1', timeout=5)
+    except Exception:
+        pass  # Fenster wird während der Antwort neu gestartet
+    time.sleep(8)
+    warte_auf_app()
+    # Das Beispielprofil bringt keine Formularvorlagen mit; die amtlichen
+    # Beispiel-PDFs aus formulare/beispiele dienen als Bibliothek.
+    for ordner in glob.glob(str(home() / ".local/share/io.pixelcraft.bauprojektio/Beispielprojekt/*/Formularvorlagen")):
+        for pdf in (WURZEL / "formulare/beispiele").glob("*.pdf"):
+            shutil.copy(pdf, ordner)
+            if BENUTZER:
+                shutil.chown(Path(ordner) / pdf.name, BENUTZER)
+    js('await klick("Öffnen","main button, button"); await sleep(2500); return 1')
+
+
+# Jede Szene: Name der Bilddatei und JavaScript, das die Ansicht herstellt.
+# Szenen laufen in dieser Reihenfolge; spätere setzen keinen bestimmten
+# Zustand voraus außer der geöffneten Projektakte.
+SZENEN = [
+    # Arbeitsplatz
+    ("arbeitsplatz-projektverzeichnis", 'await arbeitsplatz("Projekte")'),
+    ("arbeitsplatz-neues-projekt", 'await arbeitsplatz("Projekte"); await klick("Neues Projekt")'),
+    ("arbeitsplatz-kunden", 'await arbeitsplatz("Kunden / Bauherren"); await klick("Max Mustermann")'),
+    ("arbeitsplatz-formularbibliothek", 'await arbeitsplatz("Formularbibliothek")'),
+    ("einstellungen-speicherorte", 'await arbeitsplatz("Einstellungen"); await zeige("Darstellung","h2,h3")'),
+    ("einstellungen-buero", 'await arbeitsplatz("Einstellungen"); await imAbschnitt("Büroangaben","Bearbeiten"); await sleep(800)'),
+    ("einstellungen-benutzer", 'await arbeitsplatz("Einstellungen"); await imAbschnitt("Benutzer und Rechte","Öffnen"); await sleep(800)'),
+    ("einstellungen-briefbogen", 'await arbeitsplatz("Einstellungen"); await aufklappen("Briefbogen und Druckvorlagen"); await zeige("Briefbogen und Druckvorlagen","summary")'),
+    ("arbeitsplatz-hilfe", 'await arbeitsplatz("Hilfe / Handbuch")'),
+    # Übersicht
+    ("akte-projektuebersicht", 'await register("Übersicht"); await bereich("Projektübersicht")'),
+    ("akte-arbeitscheck", 'await register("Übersicht"); await bereich("Projektübersicht"); await aufklappen("Arbeitscheck vor der Abgabe"); await zeige("Arbeitscheck vor der Abgabe","summary")'),
+    ("akte-aufgaben", 'await register("Übersicht"); await bereich("Aufgaben / Fristen"); await eintrag("bei der Bauaufsicht nachreichen")'),
+    ("akte-chronik", 'await register("Übersicht"); await bereich("Chronik")'),
+    # Bereich 1 – Ermittlung
+    ("ermittlung-stammdaten", 'await register("Ermittlung"); await bereich("Stammdaten")'),
+    ("ermittlung-rechtsgrundlagen", 'await register("Ermittlung"); await bereich("Rechtsgrundlagen")'),
+    ("ermittlung-festsetzungen", 'await register("Ermittlung"); await bereich("Planfestsetzungen")'),
+    ("ermittlung-flurstuecke", 'await register("Ermittlung"); await bereich("Flurstücke")'),
+    ("ermittlung-projektdateien", 'await register("Ermittlung"); await bereich("Projektdateien")'),
+    ("ermittlung-aufmass", 'await register("Ermittlung"); await bereich("Aufmaß"); if(!finde("Rückgängig")) await eintrag()'),
+    ("ermittlung-aufmass-vollbild", 'await register("Ermittlung"); await bereich("Aufmaß"); if(!finde("Rückgängig")) await eintrag(); await klick("Vollbild"); await sleep(1500)'),
+    ("ermittlung-aufmass-objekte", 'await klick("Objekte","[role=tab],button"); await sleep(800)'),
+    ("ermittlung-messwerte", 'await taste("Escape"); await register("Ermittlung"); await bereich("Messwerte")'),
+    ("ermittlung-unterlagenregister", 'await register("Ermittlung"); await bereich("Unterlagenregister")'),
+    ("ermittlung-gebaeude", 'await register("Ermittlung"); await bereich("Gebäude / Geschosse"); await eintrag("Wohnhaus")'),
+    ("ermittlung-raumbuch", 'await register("Ermittlung"); await bereich("Flächen- und Raumbuch"); await eintrag("Erdgeschoss")'),
+    # Bereich 2 – Nachweis und Einreichung
+    ("nachweis-baugrundstueck", 'await register("Nachweis und Einreichung"); await bereich("Baugrundstück"); await zeige("2 · Baugrundstücksermittlung")'),
+    ("nachweis-grz", 'await register("Nachweis und Einreichung"); await bereich("GRZ")'),
+    ("nachweis-grz-ergebnis", 'await register("Nachweis und Einreichung"); await bereich("GRZ"); await klick("Berechnen"); let t; for(let i=0;i<30&&!t;i++){await sleep(500); t=[...haupt().querySelectorAll("table")].filter(sichtbar).pop()} if(!t) throw new Error("kein Ergebnis"); t.scrollIntoView({block:"center"})'),
+    ("nachweis-wohnflaeche", 'await register("Nachweis und Einreichung"); await bereich("Wohnflächenberechnung"); await eintrag()'),
+    ("nachweis-stellplaetze", 'await register("Nachweis und Einreichung"); await bereich("Stellplatznachweis"); await eintrag()'),
+    ("nachweis-abstandsflaechen", 'await register("Nachweis und Einreichung"); await bereich("Abstandsflächen"); await eintrag()'),
+    ("nachweis-nachweisstaende", 'await register("Nachweis und Einreichung"); await bereich("Nachweisstände")'),
+    ("nachweis-formulare", 'await register("Nachweis und Einreichung"); await bereich("Formulare")'),
+    ("nachweis-druckausgabe", 'await register("Nachweis und Einreichung"); await bereich("Drucken / PDF-Ausgabe")'),
+    # Verfahren
+    ("verfahren-akte", 'await register("Nachweis und Einreichung"); await bereich("Verfahrensakte"); if(!finde("Vorbereitung")) await eintrag(); await klick("Vorbereitung"); await reiter("Verfahren")'),
+    ("verfahren-anforderungen", 'await klick("Vorbereitung"); await reiter("Anforderungen")'),
+    ("verfahren-kommunikation", 'await klick("Laufendes Verfahren"); await reiter("Kommunikation")'),
+    ("verfahren-nachforderungen", 'await klick("Laufendes Verfahren"); await reiter("Nachforderungen")'),
+    ("verfahren-abgabestaende", 'await klick("Laufendes Verfahren"); await reiter("Abgabestände")'),
+    ("verfahren-bescheide", 'await klick("Entscheidung und Ausführung"); await reiter("Bescheide / Auflagen")'),
+    ("verfahren-bauausfuehrung", 'await klick("Entscheidung und Ausführung"); await reiter("Bauausführung")'),
+    ("verfahren-einreichen", 'await register("Nachweis und Einreichung"); await bereich("Einreichen / Nachreichen"); const s=haupt().querySelector("select"); if(s){s.selectedIndex=1; s.dispatchEvent(new Event("change",{bubbles:true})); await sleep(2500)}'),
+    ("verfahren-bauantrag", 'await register("Nachweis und Einreichung"); await bereich("Bauantrag / XBau")'),
+    ("verfahren-portal", 'await register("Nachweis und Einreichung"); await bereich("Einreichen / Portal")'),
+    ("verfahren-xbau", 'await register("Nachweis und Einreichung"); await bereich("XBau-Nachrichten")'),
+    ("verfahren-aktensuche", 'await register("Nachweis und Einreichung"); await bereich("Suche / Wiedervorlagen")'),
+    # Zuletzt: Das Verlassen des Formulareditors fragt nativ nach und würde
+    # spätere Aufnahmen verdecken.
+    ("nachweis-formular-ausfuellen", 'await register("Nachweis und Einreichung"); await bereich("Formulare"); await klick("Ausfüllen"); await sleep(8000)'),
+]
+
+
+def main(argumente):
+    laufend = "--laufend" in argumente
+    auswahl = [a for a in argumente if not a.startswith("--")]
+    if not laufend:
+        umgebung_starten()
+        app_starten(frisch=True)
+        beispielprojekt_oeffnen()
+    for name, code in SZENEN:
+        if auswahl and name not in auswahl:
+            continue
+        try:
+            js("await dialogeSchliessen(); " + code + "; aufraeumen(); await sleep(700); return 1")
+            foto(name)
+            print("ok   ", name)
+        except Exception as fehler:
+            print("FEHLT", name, str(fehler).splitlines()[0][:200])
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

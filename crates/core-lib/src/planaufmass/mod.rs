@@ -4,6 +4,7 @@
 //! Zeichnungseinheiten ab der linken oberen Ecke des Zeichnungsumfangs, y nach
 //! unten ([`cadmigration::seitenpunkt`]).
 //! Öffentlicher Vertrag und Koordinatenkonvention: docs/planaufmass.md.
+mod abgleich;
 mod abstand;
 mod aufgaben;
 mod baugrenzen;
@@ -13,9 +14,16 @@ mod flurstueck;
 mod gebaeude;
 mod geometrie;
 mod grundstueck;
+mod protokoll;
 mod pruefung;
 mod raumbuch;
 mod service;
+mod zustand;
+pub use abgleich::{
+    Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
+    bauteildubletten, fast_gleich,
+};
+pub(crate) use abgleich::toleranzen;
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;
@@ -25,9 +33,11 @@ pub use flurstueck::flurstueckziele;
 pub use gebaeude::gebaeudeziele;
 pub use geometrie::{Flaechenoperation, flaechenoperation};
 pub use grundstueck::{Aufmassstand, abzugsziele, bauteilziele};
+pub use protokoll::planaenderungen;
 pub use pruefung::{Markierungspruefung, Planpruefung};
 pub(crate) use service::bindungsstand;
 pub use service::{Planziel, planziele};
+pub use zustand::Planquellenhinweis;
 #[cfg(test)]
 mod tests;
 

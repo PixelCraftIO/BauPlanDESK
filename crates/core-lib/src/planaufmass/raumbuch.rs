@@ -1,3 +1,4 @@
+use super::abgleich::{Abgleichsfrage, Abgleichskandidat, Zeilenzuordnung, vorschlag, wahl};
 use super::*;
 use crate::{
     CoreServices,
@@ -17,14 +18,103 @@ fn nutzung(b: Planbedeutung) -> Option<&'static str> {
         _ => None,
     }
 }
+/// Markierung, die schon einen Raum versorgt: über ihre Bindung oder als aus ihr angelegter Raum.
+fn raum_zu(r: &Raumbuch, m: &Planmarkierung) -> Option<Uuid> {
+    r.planbindungen
+        .iter()
+        .find(|b| b.markierung_id == m.id)
+        .and_then(|b| {
+            b.ziel
+                .strip_prefix("raeume.")?
+                .strip_suffix(".flaeche_m2")?
+                .parse::<Uuid>()
+                .ok()
+        })
+        .or_else(|| r.raeume.iter().any(|x| x.id == m.id).then_some(m.id))
+}
+/// Von Hand erfasste Räume ohne Flächenbindung, deren Nummer oder Bezeichnung
+/// der Bezeichnung der Markierung entspricht (ohne Groß-/Kleinschreibung).
+fn raumkandidaten(r: &Raumbuch, m: &Planmarkierung) -> Vec<(usize, String)> {
+    let name = m.bezeichnung.trim().to_lowercase();
+    if name.is_empty() {
+        return vec![];
+    }
+    r.raeume
+        .iter()
+        .enumerate()
+        .filter(|(_, x)| {
+            let ziel = format!("raeume.{}.flaeche_m2", x.id);
+            !r.planbindungen.iter().any(|b| b.ziel == ziel)
+                && (x.nummer.trim().to_lowercase() == name
+                    || x.bezeichnung.trim().to_lowercase() == name)
+        })
+        .map(|(i, x)| (i, x.id.to_string()))
+        .collect()
+}
 impl CoreServices {
-    pub async fn planaufmass_raumbuch(
+    /// Rückfragen vor der Übernahme der Planräume: Raumkonturen, die einen
+    /// neuen Raum anlegen würden, obwohl ein gleich benannter oder
+    /// nummerierter Raum schon von Hand erfasst ist.
+    pub async fn planaufmass_raumbuch_abgleich(
         &self,
         pid: ProjectId,
         aufmass_id: Uuid,
         revision: i64,
-        mut r: Raumbuch,
-    ) -> CoreResult<Raumbuch> {
+        r: &Raumbuch,
+    ) -> CoreResult<Vec<Abgleichsfrage>> {
+        let a = self.raumaufmass(pid, aufmass_id, revision).await?;
+        let mut fragen = Vec::new();
+        for m in &a.markierungen {
+            if nutzung(m.bedeutung).is_none()
+                || m.hoehenzone_von.is_some()
+                || m.gebaeude_id != Some(r.gebaeude_id)
+                || (r.geschoss_id.is_some() && m.geschoss_id != r.geschoss_id)
+                || raum_zu(r, m).is_some()
+            {
+                continue;
+            }
+            let kandidaten: Vec<Abgleichskandidat> = raumkandidaten(r, m)
+                .into_iter()
+                .map(|(i, zeile)| Abgleichskandidat {
+                    zeile,
+                    bezeichnung: format!("Raum {} {}", r.raeume[i].nummer, r.raeume[i].bezeichnung)
+                        .trim()
+                        .to_string(),
+                    flaeche_m2: r.raeume[i].flaeche_m2,
+                })
+                .collect();
+            if kandidaten.is_empty() {
+                continue;
+            }
+            let b = Planbindung {
+                aufmass_id,
+                revision,
+                markierung_id: m.id,
+                groesse: Planmessgroesse::Flaeche,
+                ziel: format!("raeume.{}.flaeche_m2", m.id),
+            };
+            let flaeche = self
+                .planbindung_aufloesen(pid, &b)
+                .await
+                .ok()
+                .map(|(_, _, w)| (w * 100.).round() / 100.);
+            fragen.push(Abgleichsfrage {
+                markierung_id: m.id,
+                markierung: m.bezeichnung.clone(),
+                ziel: format!("Raumbuch „{}“", r.bezeichnung),
+                flaeche_m2: flaeche,
+                vorschlag: vorschlag(flaeche, &kandidaten),
+                kandidaten,
+            });
+        }
+        Ok(fragen)
+    }
+    async fn raumaufmass(
+        &self,
+        pid: ProjectId,
+        aufmass_id: Uuid,
+        revision: i64,
+    ) -> CoreResult<Planaufmass> {
         let f = self
             .fachobjekte(pid, ObjektArt::Planaufmass)
             .await?
@@ -34,7 +124,21 @@ impl CoreServices {
         if f.revision != revision || f.schema_version != 1 {
             return Err(fehler("Planaufmaß geändert. Auswahl aktualisieren."));
         }
-        let a: Planaufmass = serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))?;
+        serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))
+    }
+    /// Planräume im Raumbuch anlegen oder aktualisieren. Ein von Hand erfasster
+    /// Raum gleicher Nummer oder Bezeichnung wird nur nach Entscheidung
+    /// (`zuordnung`, siehe [`Self::planaufmass_raumbuch_abgleich`]) verknüpft
+    /// oder daneben neu angelegt; ohne Entscheidung lehnt der Core ab.
+    pub async fn planaufmass_raumbuch(
+        &self,
+        pid: ProjectId,
+        aufmass_id: Uuid,
+        revision: i64,
+        zuordnung: &[Zeilenzuordnung],
+        mut r: Raumbuch,
+    ) -> CoreResult<Raumbuch> {
+        let a = self.raumaufmass(pid, aufmass_id, revision).await?;
         let mut anzahl = 0;
         for m in &a.markierungen {
             let Some(nutzung) = nutzung(m.bedeutung) else {
@@ -50,19 +154,15 @@ impl CoreServices {
             }
             anzahl += 1;
             // Eine Markierung, die über die Aufmaß-Aufgaben bereits einem
-            // erfassten Raum zugeordnet wurde, aktualisiert diesen Raum.
-            let raum_id = r
-                .planbindungen
-                .iter()
-                .find(|b| b.markierung_id == m.id)
-                .and_then(|b| {
-                    b.ziel
-                        .strip_prefix("raeume.")?
-                        .strip_suffix(".flaeche_m2")?
-                        .parse::<Uuid>()
-                        .ok()
-                })
-                .unwrap_or(m.id);
+            // erfassten Raum zugeordnet wurde, aktualisiert diesen Raum; ein
+            // gleich benannter Handraum nur nach ausdrücklicher Wahl.
+            let raum_id = match raum_zu(&r, m) {
+                Some(id) => id,
+                None => match wahl(zuordnung, m, &raumkandidaten(&r, m))? {
+                    Some(i) => r.raeume[i].id,
+                    None => m.id,
+                },
+            };
             let ziel = format!("raeume.{raum_id}.flaeche_m2");
             let b = Planbindung {
                 aufmass_id,

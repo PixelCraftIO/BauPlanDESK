@@ -1,7 +1,8 @@
 //! Verweise anderer Fachmodule auf Flurstücke der Grundstücksinformationen.
 //!
-//! Gebäude/Geschosse und Abstandsflächenpläne verweisen über stabile
-//! Flurstück-IDs auf die Grundstücksinformationen. Vor dem Entfernen eines
+//! Gebäude/Geschosse, Abstandsflächenpläne und Markierungen der Aufmaße
+//! (Flurstücksgrenzen, Abzugsflächen) verweisen über stabile Flurstück-IDs auf
+//! die Grundstücksinformationen. Vor dem Entfernen eines
 //! Flurstücks zeigt die Oberfläche die betroffenen Angaben; nach dem Speichern
 //! können die Verweise ausdrücklich bereinigt werden. Bereinigt wird nur, was
 //! tatsächlich nicht mehr erfasst ist; jedes Objekt erhält eine neue Revision,
@@ -14,7 +15,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Serialize, ts_rs::TS)]
 pub struct Flurstuecksverweis {
     pub flurstueck_id: String,
-    /// Fachbereich des verweisenden Objekts: `gebaeude` oder `abstandsflaechen`.
+    /// Fachbereich des verweisenden Objekts: `gebaeude`, `abstandsflaechen`
+    /// oder `planaufmass`.
     pub bereich: String,
     pub objekt: Uuid,
     pub bezeichnung: String,
@@ -60,6 +62,26 @@ impl CoreServices {
                         bezeichnung: format!(
                             "Abstandsflächen {} · {}",
                             a.bezeichnung, g.bezeichnung
+                        ),
+                    });
+                }
+            }
+        }
+        for f in self.repos.commit.fachstaende(p, "planaufmass").await? {
+            let a: crate::planaufmass::Planaufmass =
+                serde_json::from_value(f.daten).map_err(json_err)?;
+            for m in &a.markierungen {
+                if let Some(id) = m.flurstueck_id.as_ref().filter(|id| ids.contains(id)) {
+                    r.push(Flurstuecksverweis {
+                        flurstueck_id: id.clone(),
+                        bereich: "planaufmass".into(),
+                        objekt: f
+                            .objekt
+                            .parse()
+                            .map_err(|_| CoreError::InvalidInput("Aufmaß-ID ungültig".into()))?,
+                        bezeichnung: format!(
+                            "Aufmaß {} · Markierung {}",
+                            a.bezeichnung, m.bezeichnung
                         ),
                     });
                 }
@@ -123,6 +145,30 @@ impl CoreServices {
                 .map_err(|_| CoreError::InvalidInput("Abstandsplan-ID ungültig".into()))?;
             let daten = serde_json::to_value(a).map_err(json_err)?;
             self.fachobjekt_speichern(p, ObjektArt::Abstandsflaechen, id, f.revision, daten, wer)
+                .await?;
+            anzahl += 1;
+        }
+        // Markierungen behalten Geometrie und Bedeutung; nur die Zuordnung
+        // entfällt, damit das Aufmaß wieder prüfbar und speicherbar ist.
+        for f in self.repos.commit.fachstaende(p, "planaufmass").await? {
+            let mut a: crate::planaufmass::Planaufmass =
+                serde_json::from_value(f.daten).map_err(json_err)?;
+            let mut geaendert = false;
+            for m in &mut a.markierungen {
+                if m.flurstueck_id.as_ref().is_some_and(|id| ids.contains(id)) {
+                    m.flurstueck_id = None;
+                    geaendert = true;
+                }
+            }
+            if !geaendert {
+                continue;
+            }
+            let id = f
+                .objekt
+                .parse()
+                .map_err(|_| CoreError::InvalidInput("Aufmaß-ID ungültig".into()))?;
+            let daten = serde_json::to_value(a).map_err(json_err)?;
+            self.fachobjekt_speichern(p, ObjektArt::Planaufmass, id, f.revision, daten, wer)
                 .await?;
             anzahl += 1;
         }

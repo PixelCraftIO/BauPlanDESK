@@ -171,6 +171,8 @@
   const z = (v: number) =>
     v.toLocaleString("de-DE", { maximumFractionDigits: 3 });
   import { planApi } from "./planaufmass/api";
+  import { Abgleich } from "./planaufmass/Abgleich.svelte";
+  import AbgleichDialog from "./planaufmass/AbgleichDialog.svelte";
   import { BAUTEIL_BEDEUTUNG } from "./planaufmass/grundstueck";
   import type { Aufmassstand } from "./generated/plattform";
   let aufmassWahl = $state("");
@@ -182,6 +184,7 @@
   // Bauteile aus dem Lageplan: Zeilen und Flächen setzt der Core; Typ und
   // Anrechnung bleiben hier zu prüfen. Die Antwort gilt nur für die Aufstellung,
   // die beim Aufruf bearbeitet wurde.
+  const abgleich = new Abgleich();
   async function bauteileAusAufmass(
     stand: Aufmassstand | null,
     aendern?: (a: FlaechenAufstellung) => void,
@@ -194,7 +197,12 @@
     try {
       const entwurf = JSON.parse(JSON.stringify(ziel)) as FlaechenAufstellung;
       aendern?.(entwurf);
-      const neu = await planApi.bauteile(projektId, schluessel, stand, entwurf);
+      // Gezeichnete Bauteile, die schon von Hand erfasst sind, nicht verdoppeln.
+      const zuordnung = stand
+        ? await abgleich.fragen(await planApi.bauteileAbgleich(projektId, schluessel, stand, entwurf))
+        : [];
+      if (!zuordnung || ziel !== aufstellung) return;
+      const neu = await planApi.bauteile(projektId, schluessel, stand, entwurf, zuordnung);
       if (ziel !== aufstellung) return;
       ziel.bauteile = neu.bauteile;
       aufmassHinweis = stand
@@ -208,6 +216,7 @@
   }
 </script>
 
+<AbgleichDialog a={abgleich} />
 <section class="flaechenformular">
   {#if gebaeude.length}<fieldset>
       <legend>Bekannte Flächen aus Gebäude/Geschosse</legend>
@@ -439,6 +448,7 @@
       class="sekundaer"
       onclick={() =>
         aufstellung.bauteile.push({
+          id: crypto.randomUUID(),
           bezeichnung: "",
           typ: "hauptanlage",
           flaeche_m2: 0,

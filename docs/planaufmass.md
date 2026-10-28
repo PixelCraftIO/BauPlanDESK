@@ -345,6 +345,45 @@ weitergegebenen Fachwerte.
   die Positivlisten erfasster Zeilen mit Kennung;
   `Planbedeutung::abzugsart`/`fuer_abzugsart` und `bauteiltyp`/`fuer_bauteiltyp`
   sind die einzige Zuordnung zwischen Bedeutung, Abzugsart und Bauteiltyp.
+- Abgleich mit Handzeilen (`planaufmass/abgleich.rs`): Eine Übernahme legt nie
+  stillschweigend eine zweite Zeile für eine schon von Hand erfasste Fläche an.
+  `planaufmass_abzuege_abgleich` / `planaufmass_bauteile_abgleich` liefern je
+  Markierung ohne eigene Zeile eine `Abgleichsfrage`, wenn am selben Flurstück
+  bzw. Baugrundstück ungebundene Zeilen gleicher Art (Abzug) oder passender
+  Bedeutung (Bauteil, `fuer_bauteiltyp`) existieren, mit Kandidaten, gezeichneter
+  Fläche und Vorbelegung (geringste Flächendifferenz). Die Übernahme erhält die
+  Entscheidungen als `Zeilenzuordnung` (Zeilenschlüssel oder leer = neue Zeile);
+  fehlt eine Entscheidung trotz Kandidaten, lehnt der Core ab. Eine verknüpfte
+  Handzeile behält Kennung, Art und Grundlage; Altzeilen ohne Kennung erhalten
+  dabei eine. Bereits verknüpfte Zeilen werden über `planbindung.markierung_id`
+  wiedergefunden. Im Raumbuch gilt dasselbe für Raumkonturen
+  (`planaufmass_raumbuch_abgleich`): Kandidaten sind ungebundene Räume, deren
+  Nummer oder Bezeichnung der Markierungsbezeichnung entspricht; ein verknüpfter
+  Raum behält Nummer, Nutzung und Höhe.
+- `CoreServices::planquellen_zustand`: führt die Quellenprüfungen aller
+  Verbraucher (Flurstücke, Abzüge/Bauteile, Gebäude, Raumbücher,
+  Abstandspläne, Fachberechnungen) als Auskunft aus und liefert je
+  veraltetem Verbraucher einen `Planquellenhinweis`. Grundstücksinformationen,
+  Baugrundstück und der Aufmaß-Editor zeigen sie beim Öffnen an, nicht erst
+  beim Speichern. Wer eine verknüpfte Markierung entfernt, sieht vorher, welche
+  Werte daran hängen (`verwendung.ts`); beim Entfernen eines Flurstücks nennt
+  `flurstuecksverweise` auch zugeordnete Aufmaß-Markierungen, deren Zuordnung
+  `flurstuecksverweise_entfernen` danach löst.
+- Protokoll (`planaenderungen`): Beim Speichern eines Fachobjekts oder
+  Projektbereichs nennt der Protokolleintrag jede neu verknüpfte,
+  aktualisierte oder gelöste Aufmaßverknüpfung mit Zielfeld, altem und neuem
+  Wert. Neue Abzugs- und Bauteilzeilen erhalten in der Maske sofort eine
+  Kennung; sie erscheinen damit in den Aufmaß-Aufgaben, und eine passende freie
+  Markierung wird als „Handwert ohne Zeichnung“ angeboten.
+- Doppelerfassung (`abzugsdubletten`, `bauteildubletten`): Eine gezeichnete
+  Zeile und eine Handzeile gleicher Art am selben Flurstück bzw. Baugrundstück,
+  deren Flächen höchstens 1 m² oder 2 % auseinanderliegen (`fast_gleich`),
+  erscheinen als Hinweis in der Baugrundstücksprüfung
+  (`BaugrundstueckNachweis.doppelerfassungen`, Text auch in
+  `pruefung.hinweise` und damit in der Druckausgabe). Kein Fehler, weil gleich
+  große getrennte Flächen zulässig sind; die Maske bietet „Handzeile
+  entfernen“. Eine Markierung, die mit mehreren Zeilen verknüpft ist, ist
+  dagegen ein Fehler beim Auflösen und Speichern.
 - `planziele`: Positivliste fachlich unterstützter Zielfelder.
 - `abstandsziele`: entsprechende Positivliste für manuelle Wände.
 - `gebaeudeziele`: entsprechende Positivliste für Gebäude und explizite Geschosse.
