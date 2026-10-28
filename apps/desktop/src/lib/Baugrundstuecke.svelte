@@ -29,6 +29,7 @@
   import { planApi } from "./planaufmass/api";
   import { Abgleich } from "./planaufmass/Abgleich.svelte";
   import AbgleichDialog from "./planaufmass/AbgleichDialog.svelte";
+  import Quellenzustand from "./planaufmass/Quellenzustand.svelte";
   import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
   import { bereichAktiv, ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
   import type { Aufmassstand, BaugrundstuecksErmittlung } from "./generated/plattform";
@@ -682,6 +683,7 @@
 </script>
 
 <AbgleichDialog a={abgleich} />
+<Quellenzustand projektId={projekt.id} version={projekt.version} bereiche={["grundstueck"]} />
 {#if voraussetzung}<aside
     class="hinweisbox"
     aria-label="Voraussetzungen der Berechnung"

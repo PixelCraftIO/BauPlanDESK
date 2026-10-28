@@ -20,6 +20,7 @@
   import { planApi } from "./planaufmass/api";
   import { Uebernahme } from "./planaufmass/Uebernahme.svelte";
   import UebernahmeVorschau from "./planaufmass/UebernahmeVorschau.svelte";
+  import Quellenzustand from "./planaufmass/Quellenzustand.svelte";
   import TOLERANZ from "../../../../regelwerke/aufmass-toleranzen.json";
   import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
   import { ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
@@ -263,7 +264,7 @@
     fehler = null;
     meldung = null;
     try {
-      // Entfernte Flurstücke, auf die Gebäude oder Abstandspläne verweisen,
+      // Entfernte Flurstücke, auf die Gebäude, Abstandspläne oder Aufmaß-Markierungen verweisen,
       // nur nach ausdrücklicher Bestätigung; die Verweise werden dann bereinigt.
       const entfernt = gespeichert.flurstuecke
         .map((f) => f.id)
@@ -274,7 +275,7 @@
       if (
         verweise.length &&
         !(await ask(
-          `Auf zu entfernende Flurstücke verweisen noch:\n${[...new Set(verweise.map((v) => v.bezeichnung))].join("\n")}\n\nDiese Verweise werden beim Speichern ebenfalls entfernt. Gebäude ohne Flurstück gehen danach nicht mehr in die Berechnungen ein; Abstandspläne sind neu zu prüfen.`,
+          `Auf zu entfernende Flurstücke verweisen noch:\n${[...new Set(verweise.map((v) => v.bezeichnung))].join("\n")}\n\nDiese Verweise werden beim Speichern ebenfalls entfernt. Gebäude ohne Flurstück gehen danach nicht mehr in die Berechnungen ein; Abstandspläne sind neu zu prüfen; Aufmaß-Markierungen bleiben gezeichnet, verlieren aber ihre Flurstückszuordnung.`,
           {
             title: "Flurstücke entfernen",
             kind: "warning",
@@ -329,6 +330,7 @@
   });
 </script>
 <UebernahmeVorschau v={vorschau} />
+<Quellenzustand projektId={projekt.id} version={projekt.version} bereiche={["flurstuecke"]} />
 
 <p class="meta">
   Katasterangaben und tatsächliche Flurstücksflächen. Grundbuchangaben und

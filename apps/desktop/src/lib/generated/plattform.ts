@@ -144,6 +144,12 @@ gebunden: string,
  * Position der Handzeile in ihrer Liste.
  */
 hand: number, text: string, };
+export type Planquellenhinweis = {
+/**
+ * Bereich für den Sprung: `flurstuecke`, `grundstueck`, `gebaeude`,
+ * `raumbuch`, `abstand` oder das Modul einer Fachberechnung.
+ */
+bereich: string, objekt?: string, titel: string, text: string, };
 export type CadUebernahme = { uebernommen: Array<string>, vorhanden: number, uebersprungen: Array<string>, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
 export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";
@@ -1143,7 +1149,8 @@ export type Dachgrundlagen = { form: Dachform, neigung_grad: number | null,
 dachhoehe_m: number | null, herleitung: string, };
 export type Flurstuecksverweis = { flurstueck_id: string,
 /**
- * Fachbereich des verweisenden Objekts: `gebaeude` oder `abstandsflaechen`.
+ * Fachbereich des verweisenden Objekts: `gebaeude`, `abstandsflaechen`
+ * oder `planaufmass`.
  */
 bereich: string, objekt: string, bezeichnung: string, };
 export type AufgabenStatus = "offen" | "in_arbeit" | "erledigt";

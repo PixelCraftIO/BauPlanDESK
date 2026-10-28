@@ -285,6 +285,7 @@ fn main() {
             berechnungen::planaufmass_baugrenzen,
             berechnungen::cadaufmass_uebernehmen,
             berechnungen::planaufmass_aufgaben,
+            berechnungen::planquellen_zustand,
             berechnungen::planaufmass_raumbuch_einsetzen,
             berechnungen::planaufmass_werkzeugkiste,
             berechnungen::berechnung_aus_raumbuch,

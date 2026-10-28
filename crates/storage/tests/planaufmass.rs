@@ -2146,6 +2146,17 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
     assert_eq!(ab.objekt, m_gruen.to_string());
     assert_eq!(ab.gebunden, Some(m_gruen));
     assert_eq!(ab.flurstueck_id.as_deref(), Some("a"));
+    // Vor dem Entfernen des Flurstücks nennt die Verweisliste die Markierung.
+    let verweise = core
+        .flurstuecksverweise(p.id, &["a".to_string()])
+        .await
+        .unwrap();
+    assert!(
+        verweise
+            .iter()
+            .any(|v| v.bereich == "planaufmass" && v.objekt == aufmass),
+        "{verweise:?}"
+    );
     // GRZ-Bauteil aus der Zufahrt, dem Baugrundstück zugeordnet.
     let e = ermittlung(&p.planungsrecht).unwrap().unwrap();
     let aufstellung = e.berechnungen[0].eingabe.aufstellung.clone().unwrap();

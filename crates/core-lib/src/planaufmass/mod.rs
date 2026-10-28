@@ -17,6 +17,7 @@ mod grundstueck;
 mod pruefung;
 mod raumbuch;
 mod service;
+mod zustand;
 pub use abgleich::{
     Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
     bauteildubletten, fast_gleich,
@@ -34,6 +35,7 @@ pub use grundstueck::{Aufmassstand, abzugsziele, bauteilziele};
 pub use pruefung::{Markierungspruefung, Planpruefung};
 pub(crate) use service::bindungsstand;
 pub use service::{Planziel, planziele};
+pub use zustand::Planquellenhinweis;
 #[cfg(test)]
 mod tests;
 
