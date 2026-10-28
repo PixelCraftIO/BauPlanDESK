@@ -27,6 +27,9 @@ und Abgleich von Hand- und Zeichnungswerten).
 | 9 | [Standard-Workflows](09-workflows.md) | Schritt-für-Schritt-Abläufe für die typischen Aufgaben |
 | 10 | [Tastatur, Fragen und Begriffe](10-anhang.md) | Kurzbefehle, häufige Meldungen, Glossar, Abschlusscheckliste |
 
+Das ganze Handbuch als eine Datei zum Drucken oder Weitergeben:
+[Benutzerhandbuch.pdf](Benutzerhandbuch.pdf).
+
 Wer zum ersten Mal mit BauPlanIO arbeitet, liest Kapitel 1 und 2 und folgt
 dann dem Workflow [„Vom Grundstück zur Erstabgabe“](09-workflows.md#workflow-1-vom-grundstück-zur-erstabgabe).
 
@@ -55,6 +58,11 @@ fortgeschrieben wird:
   in „Anführungszeichen“ genau so, wie sie in der App heißen. Wird ein Knopf
   umbenannt, nach dem alten Text im Ordner suchen und ersetzen.
 - **Änderungen unten im Verlauf eintragen** (Datum, Programmstand, was neu ist).
+- **PDF neu erzeugen.** Nach jeder Änderung `python3 scripts/benutzerhandbuch-pdf.py`
+  ausführen (braucht pandoc und Playwright mit Chromium; ein anderes Chromium
+  über `BAUPROJEKT_CHROMIUM=<Pfad>`). Das Skript setzt Titel, Inhalt und alle
+  Kapitel mit Bildern zu `Benutzerhandbuch.pdf` zusammen und bricht ab, wenn
+  ein Verweis oder Bild ins Leere zeigt.
 
 Daneben gibt es die in die App eingebaute Hilfe (Taste F1, Quelle
 `apps/desktop/src/lib/hilfe/handbuch.json`, Ausgaben unter
@@ -66,3 +74,4 @@ und wird beim Ergänzen neuer Module ebenfalls gepflegt.
 | Datum | Programmstand | Änderung |
 | --- | --- | --- |
 | 28.10.2026 | main 3c66d55 | Erstfassung mit 48 Bildschirmfotos aus dem Beispielprojekt. Berücksichtigt den neuen Zeicheneditor (Zeichnungs-Tabs, eigenes Fenster, eigene Zeichnungen, Werkzeugkiste), die Gliederung der Projektakte in zwei Bereiche und den Abgleich von Hand- und Zeichnungswerten. |
+| 28.10.2026 | main 09df005 | PDF-Ausgabe `Benutzerhandbuch.pdf` (59 Seiten) und Skript `scripts/benutzerhandbuch-pdf.py`. |
