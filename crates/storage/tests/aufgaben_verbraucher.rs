@@ -273,7 +273,7 @@ async fn aufgaben_fuer_berechnung_und_raumbuch() {
     // 4. Sammelübernahme: Wohnen und Flur werden neue Räume, die Küche bleibt ein Raum (keine Dublette).
     let r: Raumbuch = serde_json::from_value(rb_stand.daten).unwrap();
     let r = core
-        .planaufmass_raumbuch(p.id, aid, gespeichert.revision, r)
+        .planaufmass_raumbuch(p.id, aid, gespeichert.revision, &[], r)
         .await
         .unwrap();
     let namen: Vec<_> = r.raeume.iter().map(|x| x.bezeichnung.as_str()).collect();

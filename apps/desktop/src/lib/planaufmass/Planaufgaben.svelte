@@ -8,7 +8,10 @@
   import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { Uebernahme, zielfeld, werttext, type Wertvergleich } from "./Uebernahme.svelte";
   import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
+  import { Abgleich } from "./Abgleich.svelte";
+  import AbgleichDialog from "./AbgleichDialog.svelte";
   const v=new Uebernahme();
+  const abgleich=new Abgleich();
   const einheit=(a:Planaufgabe)=>a.groesse==="flaeche"?"m²":a.groesse==="neigung"?"°":"m";
   // Fachobjektart, unter der ein Verbraucher gespeichert wird.
   const artVon=(a:Planaufgabe):ObjektArt=>a.verbraucher==="gebaeude"?"gebaeude":a.verbraucher==="raumbuch"?"raumbuch":a.verbraucher==="berechnung"?(a.modul as ObjektArt):"abstandsflaechen";
@@ -104,7 +107,9 @@
         let geprueft: Raumbuch, zeile;
         if (a.ziel === "raeume") {
           // Alle freien Raumkonturen des Gebäudes/Geschosses als Räume übernehmen (wie im Raumbuch).
-          geprueft = await planApi.raumbuch(projektId, aufmassId, aufmass.revision, structuredClone(stand.daten));
+          const zuordnung = await abgleich.fragen(await planApi.raumbuchAbgleich(projektId, aufmassId, aufmass.revision, structuredClone(stand.daten)));
+          if (!zuordnung) return;
+          geprueft = await planApi.raumbuch(projektId, aufmassId, aufmass.revision, structuredClone(stand.daten), zuordnung);
           zeile = {ziel:`${a.objekt_name} · Räume`,vorher:`${stand.daten.raeume.length} Räume`,nachher:`${geprueft.raeume.length} Räume`,quelle:`${plan.bezeichnung} · R${aufmass.revision}`};
         } else {
           const neu = structuredClone(stand.daten);
@@ -165,6 +170,7 @@
   }
 </script>
 <UebernahmeVorschau {v}/>
+<AbgleichDialog a={abgleich}/>
 
 <section class="aufgaben" aria-label="Aufmaß-Aufgaben">
   <h3>Aufgaben <span class="meta">({offen} offen)</span></h3>

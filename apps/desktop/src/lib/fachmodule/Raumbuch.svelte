@@ -7,6 +7,8 @@
   import { FachSitzung } from "../FachSitzung.svelte";
   import Fachliste from "../Fachliste.svelte";
   import { planApi } from "../planaufmass/api";
+  import { Abgleich } from "../planaufmass/Abgleich.svelte";
+  import AbgleichDialog from "../planaufmass/AbgleichDialog.svelte";
   import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import type { Planaufmass } from "../generated/plattform";
@@ -30,13 +32,17 @@
     await plaeneLaden();
     try { gebaeude=await plattformApi.liste<Gebaeude>(projekt.id,"gebaeude"); } catch(e) { s.fehler=fehlertext(e); }
   });
+  const abgleich=new Abgleich();
   async function planraeume() {
     const a=aufmasse.find(a=>a.objekt===aufmassId);
     if(!a||!s.eingabe)return;
     const before=JSON.stringify(s.eingabe);
     importBusy=true;s.fehler=null;
     try {
-      const r=await planApi.raumbuch(s.projektId,a.objekt,a.revision,JSON.parse(before));
+      // Gleich benannte Handräume nicht verdoppeln: Abgleich vor der Übernahme.
+      const zuordnung=await abgleich.fragen(await planApi.raumbuchAbgleich(s.projektId,a.objekt,a.revision,JSON.parse(before)));
+      if(!zuordnung)return;
+      const r=await planApi.raumbuch(s.projektId,a.objekt,a.revision,JSON.parse(before),zuordnung);
       if(JSON.stringify(s.eingabe)!==before)throw Error("Raumbuch zwischenzeitlich geändert. Übernahme wiederholen.");
       s.eingabe=r;s.meldung="Planräume im Entwurf übernommen. Raumnummern und Nutzung prüfen, anschließend speichern.";
     } catch(e) { s.fehler=fehlertext(e); } finally { importBusy=false; }
@@ -84,6 +90,7 @@
     if (a?.ziel.bereich === "raumbuch" && a.ziel.register === "planaufmass") planOffen = true;
   });
 </script>
+<AbgleichDialog a={abgleich} />
 
 <Fachliste titel="Flächen- und Raumbuch" {s} bereich="raumbuch" {darf} zusatzBeschaeftigt={()=>importBusy}>
   {#snippet children(r)}<div class="raster">

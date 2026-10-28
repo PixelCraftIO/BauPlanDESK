@@ -400,6 +400,10 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/planwerte", post(planaufmass_einsetzen))
         .route("/projekte/{id}/planraumbuch", post(planaufmass_raumbuch))
+        .route(
+            "/projekte/{id}/planraumbuch/abgleich",
+            post(planaufmass_raumbuch_abgleich),
+        )
         .route("/projekte/{id}/planabstand", post(planaufmass_abstand))
         .route(
             "/berechnung/planaufmass/abstandsziele",
@@ -684,6 +688,8 @@ async fn planaufmass_einsetzen(
 struct PlanraumRequest {
     aufmass_id: Uuid,
     revision: i64,
+    #[serde(default)]
+    zuordnung: Vec<core_lib::planaufmass::Zeilenzuordnung>,
     raumbuch: core_lib::plattform::objekte::Raumbuch,
 }
 async fn planaufmass_raumbuch(
@@ -692,7 +698,23 @@ async fn planaufmass_raumbuch(
     Json(r): Json<PlanraumRequest>,
 ) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
     Ok(Json(
-        core.planaufmass_raumbuch(ProjectId(id), r.aufmass_id, r.revision, r.raumbuch)
+        core.planaufmass_raumbuch(
+            ProjectId(id),
+            r.aufmass_id,
+            r.revision,
+            &r.zuordnung,
+            r.raumbuch,
+        )
+        .await?,
+    ))
+}
+async fn planaufmass_raumbuch_abgleich(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(r): Json<PlanraumRequest>,
+) -> ApiResult<Vec<core_lib::planaufmass::Abgleichsfrage>> {
+    Ok(Json(
+        core.planaufmass_raumbuch_abgleich(ProjectId(id), r.aufmass_id, r.revision, &r.raumbuch)
             .await?,
     ))
 }
