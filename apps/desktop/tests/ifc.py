@@ -165,6 +165,32 @@ with sync_playwright() as pw:
  page.wait_for_function("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen').length===2")
  expect(ueb.get_by_role('alert')).to_have_count(0)
  assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen')[1].args.wunsch.revision")==rev+1
+ # Export: Datei mit Nacharbeit schreiben, eigenes IFC4-Modell aus den Zeichnungen.
+ details.get_by_role('tab',name='Export').click()
+ ex=details.get_by_role('region',name='Export')
+ ex.get_by_role('button',name='IFC-Datei schreiben').click()
+ bericht=ex.get_by_role('status',name='Exportergebnis').first
+ expect(bericht).to_contain_text('EFH-Mustermann-nachgearbeitet.ifc')
+ expect(bericht).to_contain_text('Selbstkontrolle bestanden')
+ aufruf=page.evaluate("window.ifcAufrufe.find(a=>a.cmd==='ifc_exportieren').args.wunsch")
+ assert aufruf=={'art':'nacharbeit','akte_id':page.evaluate('window.ifcAkten[0].objekt')}, aufruf
+ ent=ex.get_by_role('region',name='Eigenes IFC4-Modell')
+ expect(ent.get_by_label('Gebäude für das Modell')).not_to_have_value('')
+ zeichnung=ent.get_by_label('Zeichnung für EG')
+ expect(zeichnung).to_have_value(page.evaluate("window.planSaves.find(z=>z.daten.bezeichnung.endsWith('EG')).objekt"))
+ ent.get_by_role('button',name='IFC4-Modell schreiben').click()
+ eb=ent.get_by_role('status',name='Exportergebnis')
+ expect(eb).to_contain_text('Lagerhalle-Modell.ifc')
+ expect(eb).to_contain_text('keine Geschosshöhe')
+ w=page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_exportieren')[1].args.wunsch")
+ assert w['art']=='entwurf' and len(w['geschosse'])==1 and w['geschosse'][0]['zeichnung_id']==zeichnung.input_value(), w
+ page.screenshot(path=str(out/'ifc-export.png'))
+ n=len(page.evaluate('window.ifcAkten'))
+ eb.get_by_role('button',name='Als Modell öffnen').click()
+ page.wait_for_function(f"window.ifcAkten.length==={n+1}")
+ neu=page.evaluate("window.ifcAkten.find(a=>a.daten.dokument.dokument_id==='f416da8b-cbfb-4ae6-931b-8765fb6454f1')")
+ assert neu and neu['daten']['bezeichnung']=='Lagerhalle-Modell', neu
+ expect(scope.get_by_role('complementary',name='Modellstruktur')).to_contain_text('Lagerhalle-Modell')
  # IFC-Geschoss als Hintergrund einer eigenen Zeichnung.
  scope.get_by_role('button',name='Neue Zeichnung',exact=True).click()
  tab=scope.locator('section[aria-label="Neue Zeichnung"]:visible')

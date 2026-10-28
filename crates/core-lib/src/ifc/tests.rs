@@ -694,3 +694,289 @@ fn auswertung_grundflaeche_bgf_bri_und_hoehen() {
     assert!(nah(w.nrf_m2, 3. * efh::raumflaeche()));
     assert!(nah(w.bgf_m2, v.bgf_m2));
 }
+
+#[test]
+fn export_schreibt_nacharbeit_in_die_datei() {
+    let m = modell(&efh_ifc4());
+    let a = &m.auszug;
+    let (eg, og) = (
+        a.geschosse[0].global_id.clone(),
+        a.geschosse[1].global_id.clone(),
+    );
+    let gid = |k: &str| {
+        a.elemente
+            .iter()
+            .find(|e| e.klasse == k)
+            .unwrap()
+            .global_id
+            .clone()
+    };
+    let wand = a
+        .elemente
+        .iter()
+        .find(|e| e.name == "Außenwand Süd")
+        .unwrap()
+        .global_id
+        .clone();
+    let raeume: Vec<String> = a
+        .elemente
+        .iter()
+        .filter(|e| e.klasse == "IFCSPACE")
+        .map(|e| e.global_id.clone())
+        .collect();
+    let neu_raum = step::global_id(uuid::Uuid::from_u128(7));
+    let liste = vec![
+        Modellaenderung::Klassifizieren {
+            global_id: gid("IFCBUILDINGELEMENTPROXY"),
+            klasse: "IFCWALL".into(),
+            vordefiniert: Some("PARAPET".into()),
+        },
+        // Geteilter Satz (vier Außenwände): Wand bekommt eine eigene Kopie.
+        Modellaenderung::EigenschaftSetzen {
+            global_id: wand.clone(),
+            satz: "Pset_WallCommon".into(),
+            name: "IsExternal".into(),
+            wert: Eigenschaftswert::Logisch { wert: false },
+        },
+        Modellaenderung::EigenschaftSetzen {
+            global_id: wand.clone(),
+            satz: "Pset_WallCommon".into(),
+            name: "FireRating".into(),
+            wert: Eigenschaftswert::Text { wert: "F90".into() },
+        },
+        Modellaenderung::EigenschaftSetzen {
+            global_id: wand.clone(),
+            satz: "BauProjektIO".into(),
+            name: "Dicke".into(),
+            wert: Eigenschaftswert::Zahl { wert: 0.365 },
+        },
+        Modellaenderung::Benennen {
+            global_id: raeume[0].clone(),
+            name: "0.01".into(),
+            langname: Some("Wohnen/Essen".into()),
+        },
+        Modellaenderung::Benennen {
+            global_id: og.clone(),
+            name: "1. OG".into(),
+            langname: Some("Obergeschoss".into()),
+        },
+        Modellaenderung::GeschossZuordnen {
+            global_id: gid("IFCCHIMNEY"),
+            geschoss: og.clone(),
+        },
+        Modellaenderung::GeschossZuordnen {
+            global_id: raeume[1].clone(),
+            geschoss: og.clone(),
+        },
+        Modellaenderung::Ausblenden {
+            global_id: gid("IFCROOF"),
+        },
+        Modellaenderung::Ausblenden {
+            global_id: raeume[3].clone(),
+        },
+        Modellaenderung::RaumBilden {
+            global_id: neu_raum.clone(),
+            geschoss: eg.clone(),
+            name: "0.03".into(),
+            langname: Some("Abstellraum".into()),
+            umriss: vec![[1., 1.], [3., 1.], [3., 2.5], [1., 2.5]],
+            hoehe_m: Some(2.4),
+        },
+    ];
+    nacharbeit::pruefen(a, &liste).unwrap();
+    let mut soll = a.clone();
+    nacharbeit::anwenden(&mut soll, &liste);
+    let (text, b) = nacharbeit_schreiben(
+        &m,
+        &soll,
+        &liste,
+        "EFH-nachgearbeitet.ifc",
+        "2026-10-28T12:00:00",
+    )
+    .unwrap();
+    assert!(b.abweichungen.is_empty(), "{:#?}", b.abweichungen);
+    assert_eq!((b.neu, b.entfernt), (1, 2));
+    assert_eq!(b.elemente, soll.elemente.len());
+    assert!(text.contains("FILE_NAME('EFH-nachgearbeitet.ifc'"));
+    // Unberührte Instanzen bleiben zeichengleich.
+    let erste = efh_ifc4()
+        .lines()
+        .find(|l| l.contains("=IFCSIUNIT("))
+        .unwrap()
+        .to_string();
+    assert!(text.contains(&erste));
+
+    let ist = modell(&text).auszug;
+    let w = ist.element(&gid("IFCBUILDINGELEMENTPROXY")).unwrap();
+    assert_eq!(
+        (w.klasse.as_str(), w.vordefiniert.as_deref()),
+        ("IFCWALL", Some("PARAPET"))
+    );
+    let s = ist.element(&wand).unwrap();
+    let p = |satz: &str, n: &str| {
+        s.eigenschaften
+            .iter()
+            .find(|p| p.satz == satz && p.name == n)
+            .map(|p| p.wert.clone())
+    };
+    assert_eq!(p("Pset_WallCommon", "IsExternal").as_deref(), Some("Nein"));
+    assert_eq!(p("Pset_WallCommon", "FireRating").as_deref(), Some("F90"));
+    assert!(p("BauProjektIO", "Dicke").is_some());
+    // Die anderen Außenwände behalten ihren Satz.
+    let nord = ist
+        .elemente
+        .iter()
+        .find(|e| e.name == "Außenwand Nord")
+        .unwrap();
+    assert!(
+        nord.eigenschaften
+            .iter()
+            .any(|p| p.name == "IsExternal" && p.wert == "Ja")
+    );
+    assert_eq!(ist.geschosse[1].name, "1. OG");
+    assert_eq!(
+        ist.element(&gid("IFCCHIMNEY")).unwrap().geschoss.as_deref(),
+        Some(og.as_str())
+    );
+    assert!(ist.element(&gid("IFCROOF")).is_none());
+    let dachplatte = ist
+        .elemente
+        .iter()
+        .find(|e| e.name == "Dachplatte")
+        .unwrap();
+    assert_eq!(dachplatte.geschoss.as_deref(), Some(og.as_str()));
+    let r = ist.element(&neu_raum).unwrap();
+    assert_eq!(r.langname.as_deref(), Some("Abstellraum"));
+    assert!(nah(r.geometrie.as_ref().unwrap().grundflaeche_m2, 3.));
+    assert!(nah(r.geometrie.as_ref().unwrap().oben_m, 2.4));
+    assert!(
+        r.mengen
+            .iter()
+            .any(|q| q.name == "NetFloorArea" && nah(q.wert, 3.))
+    );
+    // Die geschriebene Datei besteht die eingebauten Regeln wie das Soll.
+    let pr = pruefen(&ist, BAUANTRAG_IDS).unwrap();
+    assert_eq!(pr.fehler, 0, "{:#?}", pr.befunde);
+}
+
+#[test]
+fn export_ifc2x3_ersetzt_fehlende_klasse() {
+    let m = modell(&wand_ifc2x3());
+    let w = m.auszug.elemente[0].global_id.clone();
+    let liste = vec![Modellaenderung::Klassifizieren {
+        global_id: w.clone(),
+        klasse: "IFCCHIMNEY".into(),
+        vordefiniert: None,
+    }];
+    let mut soll = m.auszug.clone();
+    nacharbeit::anwenden(&mut soll, &liste);
+    let (text, b) = nacharbeit_schreiben(&m, &soll, &liste, "w.ifc", "2026-10-28").unwrap();
+    assert!(b.abweichungen.is_empty(), "{:?}", b.abweichungen);
+    assert!(
+        b.hinweise.iter().any(|h| h.contains("IFC2X3")),
+        "{:?}",
+        b.hinweise
+    );
+    let ist = modell(&text).auszug;
+    assert_eq!(ist.schema, "IFC2X3");
+    let e = ist.element(&w).unwrap();
+    assert_eq!(e.klasse, "IFCBUILDINGELEMENTPROXY");
+    assert_eq!(e.objekttyp.as_deref(), Some("Schornstein"));
+}
+
+#[test]
+fn entwurf_als_ifc4_mit_stabilen_global_ids() {
+    use uuid::Uuid;
+    let rechteck = |x0: f64, y0: f64, x1: f64, y1: f64| crate::planaufmass::Planpolygon {
+        aussen: vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+        innen: vec![],
+    };
+    let wand = |n: u128, von: [f64; 2], bis: [f64; 2], aussen: bool| Entwurfswand {
+        id: Uuid::from_u128(n),
+        von,
+        bis,
+        dicke_m: if aussen { 0.3 } else { 0.1 },
+        aussen,
+    };
+    let geschoss = |n: u128, name: &str, ebene: f64| Entwurfsgeschoss {
+        id: Uuid::from_u128(n),
+        name: name.into(),
+        ebene_m: ebene,
+        geschosshoehe_m: 2.8,
+        deckendicke_m: 0.2,
+        lichte_hoehe_m: Some(2.5),
+        waende: vec![
+            wand(n * 10 + 1, [0., 0.15], [10., 0.15], true),
+            wand(n * 10 + 2, [0., 7.85], [10., 7.85], true),
+            wand(n * 10 + 3, [0.15, 0.3], [0.15, 7.7], true),
+            wand(n * 10 + 4, [9.85, 0.3], [9.85, 7.7], true),
+            wand(n * 10 + 5, [5., 0.3], [5., 7.7], false),
+        ],
+        raeume: vec![
+            Entwurfsraum {
+                id: Uuid::from_u128(n * 10 + 6),
+                name: format!("{n}.01"),
+                langname: Some("Wohnen".into()),
+                umriss: vec![rechteck(0.3, 0.3, 4.95, 7.7)],
+            },
+            Entwurfsraum {
+                id: Uuid::from_u128(n * 10 + 7),
+                name: format!("{n}.02"),
+                langname: Some("Küche".into()),
+                umriss: vec![rechteck(5.05, 0.3, 9.7, 7.7)],
+            },
+        ],
+        aussenkante: vec![rechteck(0., 0., 10., 8.)],
+    };
+    let e = Entwurf {
+        id: Uuid::from_u128(1),
+        projekt: "EFH Mustermann".into(),
+        gebaeude: "Wohnhaus".into(),
+        nullpunkt_m_nhn: Some(92.5),
+        geschosse: vec![geschoss(1, "EG", 0.), geschoss(2, "OG", 2.8)],
+    };
+    let text = entwurf_schreiben(&e, "Wohnhaus.ifc", "2026-10-28T12:00:00").unwrap();
+    let (n, ab) = entwurf_kontrolle(&text, &e);
+    assert!(ab.is_empty(), "{ab:#?}");
+    assert_eq!(n, 2 * (5 + 1 + 2));
+    assert_eq!(
+        text,
+        entwurf_schreiben(&e, "Wohnhaus.ifc", "2026-10-28T12:00:00").unwrap()
+    );
+    let a = modell(&text).auszug;
+    assert_eq!(a.schema, "IFC4");
+    assert_eq!(a.einheit, "Meter");
+    // Auswertung und Prüfung arbeiten auf dem eigenen Modell wie auf fremden.
+    let v = auswerten(&a, None);
+    assert!(nah(v.grundflaeche_m2, 80.) && nah(v.bgf_m2, 160.), "{v:?}");
+    assert_eq!(v.hoehen.first_m, Some(2. * 2.8));
+    assert!(v.hoehen.flachdach);
+    let r = a.elemente.iter().find(|x| x.name == "1.01").unwrap();
+    assert!(nah(
+        r.geometrie.as_ref().unwrap().grundflaeche_m2,
+        4.65 * 7.4
+    ));
+    let aussen = a
+        .elemente
+        .iter()
+        .filter(|x| {
+            x.eigenschaften
+                .iter()
+                .any(|p| p.name == "IsExternal" && p.wert == "Ja")
+        })
+        .count();
+    assert_eq!(aussen, 8);
+    let pr = pruefen(&a, BAUANTRAG_IDS).unwrap();
+    assert_eq!(pr.fehler, 0, "{:#?}", pr.befunde);
+    assert!(
+        entwurf_schreiben(
+            &Entwurf {
+                geschosse: vec![],
+                ..e
+            },
+            "x.ifc",
+            ""
+        )
+        .is_err()
+    );
+}

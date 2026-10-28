@@ -18,7 +18,7 @@ const idsDok={...ifcDok,document_id:"d416da8b-cbfb-4ae6-931b-8765fb6454d1",file_
 const istIfcDok=d=>d&&d.dokument_id===ifcDok.document_id&&(d.version===1||d.version===2);
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  const c=({fachobjektseite:'fachobjekte'})[cmd]??cmd;
- if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok,{...ifcDok,version:2},idsDok];}
+ if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok,{...ifcDok,version:2},idsDok,...(window.ifcExportDoks??[])];}
  if(["ifc_auszug","ifc_geschosse","ifc_grundriss","ifc_grundriss_plan","ifc_datei"].includes(c)){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});
    if(!istIfcDok(args.dokument))throw "Dokument ist kein IFC-Modell des Projekts";
@@ -42,6 +42,15 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(!akte||akte.revision!==w.revision)throw "Modellakte wurde inzwischen geändert. Bitte neu laden.";
    const neu={...kopie(akte),revision:akte.revision+1};neu.daten.dokument=kopie(w.dokument);
    window.ifcAkten=[...window.ifcAkten.filter(a=>a.objekt!==akte.objekt),neu];return kopie(neu);
+ }
+ if(c==="ifc_exportieren"){
+   window.ifcAufrufe.push({cmd:c,args:kopie(args)});const w=args.wunsch,e=w.art==="entwurf";
+   if(e&&!w.geschosse.length)throw "Mindestens ein Geschoss mit Zeichnung wählen";
+   if(!e&&!window.ifcAkten.some(a=>a.objekt===w.akte_id))throw "Modellakte fehlt im Projekt";
+   const dok={...ifcDok,document_id:e?"f416da8b-cbfb-4ae6-931b-8765fb6454f1":"e416da8b-cbfb-4ae6-931b-8765fb6454e1",file_name:e?"Lagerhalle-Modell.ifc":"EFH-Mustermann-nachgearbeitet.ifc"};
+   window.ifcExportDoks=[...(window.ifcExportDoks??[]).filter(d=>d.document_id!==dok.document_id),dok];
+   return {dokument:{dokument_id:e?"f416da8b-cbfb-4ae6-931b-8765fb6454f1":"e416da8b-cbfb-4ae6-931b-8765fb6454e1",version:1},
+     bericht:{dateiname:e?"Lagerhalle-Modell.ifc":"EFH-Mustermann-nachgearbeitet.ifc",schema:"IFC4",elemente:e?8:20,geaendert:e?0:1,neu:e?8:0,entfernt:0,hinweise:e?["EG: keine Geschosshöhe, 2.75 m angenommen."]:[],abweichungen:[]}};
  }
  if(c==="ifc_auswerten"){window.ifcAufrufe.push({cmd:c,args:kopie(args)});return kopie(IFC.auswertung);}
  if(c==="ifc_pruefen"){

@@ -203,6 +203,41 @@ Raumbücher und je Markierung die Herkunft). Wiederholen ersetzt nur die
 übernommenen Markierungen und behält ihre IDs, damit Bindungen an
 Berechnungen gültig bleiben; selbst gezeichnete Markierungen bleiben.
 
+## Export (IFC schreiben)
+
+`CoreServices::ifc_exportieren` (Befehl `ifc_exportieren`, Reiter „Export“)
+schreibt eine IFC-Datei, liest sie zur **Selbstkontrolle** wieder ein
+(`ifc::kontrolle`, `ifc::entwurf_kontrolle`) und legt sie in den
+Projektdateien ab; gibt es den Dateinamen schon, als neue Version.
+
+**Nacharbeit zurückschreiben** (`Exportwunsch::Nacharbeit`,
+`ifc::nacharbeit_schreiben`): Die Datei der Modellakte wird im Schema der
+Quelle neu geschrieben (`<Name>-nachgearbeitet.ifc`). Nur betroffene
+Instanzen ändern sich, alle anderen bleiben zeichengleich
+(`StepDatei::neu_schreiben`).
+
+| Änderung | in der Datei |
+| --- | --- |
+| `klassifizieren` | Entität ersetzt (gleiche ID, Attribute der Zielklasse, `PredefinedType`); fehlt die Klasse im Schema (Schornstein, Sonnenschutz in IFC2X3), unklassifiziertes Bauteil mit Objekttyp und Hinweis |
+| `geschoss_zuordnen` | aus der bisherigen Enthaltensein- bzw. Aggregationsbeziehung genommen, in die des Geschosses aufgenommen |
+| `eigenschaft_setzen` | neuer Einzelwert im Typ des bisherigen Werts (Längen in Dateieinheiten); ein mit anderen Elementen geteilter Satz wird für das Element kopiert |
+| `benennen` | `Name`, bei Räumen, Geschossen und Gebäuden `LongName` |
+| `raum_bilden` | `IfcSpace` als Extrusion des Umrisses mit `Qto_SpaceBaseQuantities` (NetFloorArea, Height), dem Geschoss aggregiert |
+| `ausblenden` | Element entfernt, aus allen Beziehungen genommen; Teile eines entfernten Aggregats rücken in dessen Geschoss |
+
+**Eigenes IFC4-Modell** (`Exportwunsch::Entwurf`, `ifc::entwurf_schreiben`):
+Aus einem Gebäude und je Geschoss einer eigenen Zeichnung (Planaufmaß ohne
+Unterlage, Meter) entsteht `<Gebäude>-Modell.ifc` mit Projekt, Grundstück,
+Gebäude (Nullpunkt in m ü. NHN), Geschossen (Ebene aus `fussboden_m` oder
+aufsummierten Geschosshöhen, sonst 2,75 m), `IfcWall` je gezeichneter Wand
+(Höhe Geschosshöhe − Deckendicke; `Pset_WallCommon.IsExternal`, wenn die Achse
+an der Geschoss-Außenkante liegt), `IfcSlab` aus der Außenkante (oberstes
+Geschoss als Dach) und `IfcSpace` je Raummarkierung („0.01 Wohnen“ → Nummer und
+Nutzung, mit Basismengen). Die GlobalIds werden aus den IDs von Gebäude,
+Geschossen, Wänden und Markierungen abgeleitet (UUID v5) und bleiben bei jedem
+Export gleich, damit Empfänger neu exportierte Fassungen über die GlobalId
+abgleichen können. Die Datei lässt sich direkt wieder als Modellakte öffnen.
+
 ## Testdaten
 
 `core_lib::ifc::testdaten::efh_ifc4()` erzeugt ein vollständig bekanntes

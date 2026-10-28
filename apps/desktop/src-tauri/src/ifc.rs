@@ -210,3 +210,20 @@ pub async fn ifc_auswerten(
         .ifc_auswerten(projekt_id, akte_id, grundstueck_id)
         .await?)
 }
+
+#[tauri::command]
+pub async fn ifc_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::ifc::Exportwunsch,
+) -> Result<core_lib::ifc::Exportergebnis, CmdError> {
+    let wer = state.benutzer();
+    state
+        .core
+        .projekt_zugriff(projekt_id, &wer, ProjektRecht::Bearbeiten)
+        .await?;
+    Ok(state
+        .core
+        .ifc_exportieren(projekt_id, &wunsch, &wer)
+        .await?)
+}

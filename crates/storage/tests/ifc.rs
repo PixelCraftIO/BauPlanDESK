@@ -720,3 +720,227 @@ async fn auswertung_mit_bezugsflaeche_des_projekts() {
     let fremd = neues_projekt(&u.core, &u.user, "Fremd").await;
     assert!(u.core.ifc_auswerten(fremd.id, akte_id, None).await.is_err());
 }
+
+#[tokio::test]
+async fn export_nacharbeit_und_eigenes_modell_aus_zeichnungen() {
+    use core_lib::ifc::{Entwurfszuordnung, Exportwunsch, Modellaenderung};
+    use core_lib::planaufmass::{
+        Planaufmass, Planbedeutung, Plangeometrie, Zeichenelement, Zeichenform,
+    };
+    use core_lib::plattform::objekte::Gebaeude;
+    let u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let roh = u.core.ifc_auszug(u.projekt.id, &d).await.unwrap();
+    let proxy = roh
+        .elemente
+        .iter()
+        .find(|e| e.klasse == "IFCBUILDINGELEMENTPROXY")
+        .unwrap()
+        .global_id
+        .clone();
+    let akte_id = Uuid::new_v4();
+    let akte = ifc::Modellakte {
+        bezeichnung: "Entwurf".into(),
+        dokument: d.clone(),
+        uebernahme: None,
+        nacharbeit: vec![Modellaenderung::Klassifizieren {
+            global_id: proxy.clone(),
+            klasse: "IFCWALL".into(),
+            vordefiniert: None,
+        }],
+    };
+    let f = u
+        .core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Ifcmodell,
+            akte_id,
+            0,
+            serde_json::to_value(&akte).unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+
+    // 1. Nacharbeit in die Datei: neues Dokument, beim zweiten Mal neue Version.
+    let w = Exportwunsch::Nacharbeit { akte_id };
+    let e1 = u
+        .core
+        .ifc_exportieren(u.projekt.id, &w, &u.user)
+        .await
+        .unwrap();
+    assert!(
+        e1.bericht.abweichungen.is_empty(),
+        "{:?}",
+        e1.bericht.abweichungen
+    );
+    assert_eq!(e1.bericht.dateiname, "EFH-nachgearbeitet.ifc");
+    assert_eq!(e1.bericht.geaendert, 1);
+    let neu = u.core.ifc_auszug(u.projekt.id, &e1.dokument).await.unwrap();
+    assert_eq!(neu.element(&proxy).unwrap().klasse, "IFCWALL");
+    let e2 = u
+        .core
+        .ifc_exportieren(u.projekt.id, &w, &u.user)
+        .await
+        .unwrap();
+    assert_eq!(e2.dokument.dokument_id, e1.dokument.dokument_id);
+    assert_eq!(e2.dokument.version, e1.dokument.version + 1);
+
+    // 2. Eigenes Modell: Übernahme liefert Gebäude und Zeichnungen, im EG
+    //    kommen zwei Wände dazu; das IFC4-Modell öffnet wieder als Modellakte.
+    let r = u
+        .core
+        .ifc_uebernehmen(
+            u.projekt.id,
+            &ifc::Modelluebernahmewunsch {
+                akte_id,
+                revision: f.revision,
+                gebaeude_id: None,
+                raumbuch: false,
+            },
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let haus: Gebaeude = serde_json::from_value(r.gebaeude.daten.clone()).unwrap();
+    let z = &r.zeichnungen[0];
+    let mut eg: Planaufmass = serde_json::from_value(z.daten.clone()).unwrap();
+    let kante = eg
+        .markierungen
+        .iter()
+        .find(|m| m.bedeutung == Planbedeutung::GeschossAussenkante)
+        .unwrap();
+    let Plangeometrie::Flaeche { polygone } = &kante.geometrie else {
+        panic!("Außenkante ist eine Fläche")
+    };
+    let (a, b) = (polygone[0].aussen[0], polygone[0].aussen[1]);
+    let ebene = eg.ebenen[0].id;
+    let mitte = [ifc::RAND_M + 5., ifc::RAND_M + 1.];
+    for (von, bis) in [(a, b), (mitte, [mitte[0], mitte[1] + 5.])] {
+        eg.elemente.push(Zeichenelement {
+            id: Uuid::new_v4(),
+            ebene_id: ebene,
+            form: Zeichenform::Wand {
+                von,
+                bis,
+                dicke_m: 0.24,
+            },
+        });
+    }
+    u.core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Planaufmass,
+            z.objekt.parse().unwrap(),
+            z.revision,
+            serde_json::to_value(&eg).unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let geschosse: Vec<Entwurfszuordnung> = haus
+        .geschosse
+        .iter()
+        .zip(&r.zeichnungen)
+        .map(|(g, z)| Entwurfszuordnung {
+            geschoss_id: g.id,
+            zeichnung_id: z.objekt.parse().unwrap(),
+        })
+        .collect();
+    let w = Exportwunsch::Entwurf {
+        gebaeude_id: r.gebaeude.objekt.parse::<Uuid>().unwrap(),
+        geschosse: geschosse.clone(),
+    };
+    let e = u
+        .core
+        .ifc_exportieren(u.projekt.id, &w, &u.user)
+        .await
+        .unwrap();
+    assert!(
+        e.bericht.abweichungen.is_empty(),
+        "{:?}",
+        e.bericht.abweichungen
+    );
+    assert_eq!(e.bericht.schema, "IFC4");
+    assert_eq!(e.bericht.dateiname, "Wohnhaus-Modell.ifc");
+    let m = u.core.ifc_auszug(u.projekt.id, &e.dokument).await.unwrap();
+    assert_eq!(m.geschosse.len(), 2);
+    assert_eq!(
+        m.elemente.iter().filter(|x| x.klasse == "IFCWALL").count(),
+        2
+    );
+    let raeume: Vec<_> = m
+        .elemente
+        .iter()
+        .filter(|x| x.klasse == "IFCSPACE")
+        .collect();
+    assert_eq!(raeume.len(), 4);
+    let flaeche = |a: &ifc::Modellauszug, n: &str| {
+        a.elemente
+            .iter()
+            .find(|x| x.klasse == "IFCSPACE" && x.name == n)
+            .and_then(|x| x.geometrie.as_ref())
+            .map(|g| g.grundflaeche_m2)
+            .unwrap()
+    };
+    assert!((flaeche(&m, "0.01") - flaeche(&roh, "0.01")).abs() < 1e-3);
+    assert_eq!(
+        raeume
+            .iter()
+            .find(|x| x.name == "0.01")
+            .unwrap()
+            .langname
+            .as_deref(),
+        Some("Wohnen")
+    );
+    let aussen: Vec<bool> = m
+        .elemente
+        .iter()
+        .filter(|x| x.klasse == "IFCWALL")
+        .map(|x| {
+            x.eigenschaften
+                .iter()
+                .any(|p| p.name == "IsExternal" && p.wert == "Ja")
+        })
+        .collect();
+    assert_eq!(aussen, [true, false]);
+    // Gleicher Export: gleiche GlobalIds, neue Version derselben Datei.
+    let e2 = u
+        .core
+        .ifc_exportieren(u.projekt.id, &w, &u.user)
+        .await
+        .unwrap();
+    assert_eq!(e2.dokument.dokument_id, e.dokument.dokument_id);
+    let m2 = u.core.ifc_auszug(u.projekt.id, &e2.dokument).await.unwrap();
+    let ids = |a: &ifc::Modellauszug| {
+        a.elemente
+            .iter()
+            .map(|x| x.global_id.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(ids(&m), ids(&m2));
+    // Unterlagen-Aufmaße und fremde Geschosse werden abgewiesen.
+    let falsch = Exportwunsch::Entwurf {
+        gebaeude_id: r.gebaeude.objekt.parse::<Uuid>().unwrap(),
+        geschosse: vec![Entwurfszuordnung {
+            geschoss_id: Uuid::new_v4(),
+            zeichnung_id: z.objekt.parse().unwrap(),
+        }],
+    };
+    assert!(
+        u.core
+            .ifc_exportieren(u.projekt.id, &falsch, &u.user)
+            .await
+            .is_err()
+    );
+    let doppelt = Exportwunsch::Entwurf {
+        gebaeude_id: r.gebaeude.objekt.parse::<Uuid>().unwrap(),
+        geschosse: vec![geschosse[0].clone(), geschosse[0].clone()],
+    };
+    assert!(
+        u.core
+            .ifc_exportieren(u.projekt.id, &doppelt, &u.user)
+            .await
+            .is_err()
+    );
+}

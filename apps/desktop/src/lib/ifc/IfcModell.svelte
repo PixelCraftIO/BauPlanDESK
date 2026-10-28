@@ -4,7 +4,7 @@
   import { untrack } from "svelte";
   import { api, fehlertext, istIfc, type DocumentVersion, type Project } from "../api";
   import { plattformApi, type Datensatz } from "../plattformApi";
-  import type { Befund, Modellakte, Modellauszug, Modellelement, Modellgrundriss, Planpolygon, Strukturelement } from "../generated/plattform";
+  import type { Befund, Exportergebnis, Modellakte, Modellauszug, Modellelement, Modellgrundriss, Planpolygon, Strukturelement } from "../generated/plattform";
   import { ifcApi } from "./api";
   import Grundriss from "./Grundriss.svelte";
   import Uebernahme from "./Uebernahme.svelte";
@@ -12,6 +12,8 @@
   import Nacharbeit from "./Nacharbeit.svelte";
   import Reimport from "./Reimport.svelte";
   import Auswertung from "./Auswertung.svelte";
+  import Export from "./Export.svelte";
+  import Entwurf from "./Entwurf.svelte";
   import { zahl, flaeche, laenge, klassentitel, elementtitel } from "./format";
   let { projekt, darf, start, onstatus, onzeichnung }: {
     projekt: Project;
@@ -31,7 +33,7 @@
   let geschoss = $state(""), schnitt = $state(1);
   let grundriss = $state<Modellgrundriss | null>(null);
   let auswahl = $state("");
-  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "nacharbeit" | "auswertung" | "uebernahme">("eigenschaften");
+  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "nacharbeit" | "auswertung" | "uebernahme" | "export">("eigenschaften");
   let vorgabe = $state<Befund | null>(null), vorschau = $state<Planpolygon[]>([]), grundflaeche = $state<Planpolygon[]>([]);
   // Von der Prüfung hervorgehobene Elemente; Stand zählt Änderungen am Modell.
   let markiert = $state<string[]>([]), stand = $state(0);
@@ -75,6 +77,20 @@
       akte = f; onstatus?.({ titel: f.daten.bezeichnung, geaendert: false, id: f.objekt });
       await modellLaden();
     } catch (e) { fehler = fehlertext(e); } finally { laedt = false; }
+  }
+  /** Exportierte Datei als (neue oder vorhandene) Modellakte öffnen. */
+  async function exportOeffnen(e: Exportergebnis) {
+    await listen();
+    const da = akten.find(a => a.daten.dokument.dokument_id === e.dokument.dokument_id);
+    // Gibt es schon eine Akte zur Datei, öffnet sie; eine neuere Version läuft über den Abgleich.
+    if (da) {
+      await oeffnen(da.objekt);
+      rechts = da.daten.dokument.version === e.dokument.version ? "eigenschaften" : "bericht";
+      return;
+    }
+    neuDatei = `${e.dokument.dokument_id}|${e.dokument.version}`; neuName = e.bericht.dateiname.replace(/\.ifc$/i, "");
+    await anlegen();
+    rechts = "eigenschaften";
   }
   // Nach dem Anlegen merkt sich der Tab die Modellakte; dann nicht erneut laden.
   $effect(() => { const id = start.modell; untrack(() => { if (id && id === akte?.objekt) return; void listen(); if (id) void oeffnen(id); }); });
@@ -124,6 +140,9 @@
     {/if}
     {#if laedt}<p class="meta" role="status">Modell wird gelesen …</p>{/if}
     {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
+    <details class="entwurfwahl"><summary>Eigenes IFC4-Modell aus Zeichnungen schreiben</summary>
+      <Entwurf projektId={projekt.id} {darf} onoeffnen={e => void exportOeffnen(e)}/>
+    </details>
   </section>
 {:else}
   <div class="modell" aria-label={`Modell ${akte.daten.bezeichnung}`}>
@@ -185,6 +204,7 @@
         <button type="button" role="tab" aria-selected={rechts === "nacharbeit"} onclick={() => (rechts = "nacharbeit")}>Nacharbeit</button>
         <button type="button" role="tab" aria-selected={rechts === "auswertung"} onclick={() => (rechts = "auswertung")}>Auswertung</button>
         <button type="button" role="tab" aria-selected={rechts === "uebernahme"} onclick={() => (rechts = "uebernahme")}>Übernahme</button>
+        <button type="button" role="tab" aria-selected={rechts === "export"} onclick={() => (rechts = "export")}>Export</button>
       </div>
       {#if rechts === "eigenschaften"}
         {#if element}
@@ -221,6 +241,8 @@
         <Nacharbeit projektId={projekt.id} {akte} {auszug} {auswahl} {markiert} {geschoss} {darf} {vorgabe} onakte={a => { akte = a; stand++; void modellLaden(); }} onvorschau={p => (vorschau = p)} onmarkieren={g => { markiert = g; vorgabe = null; }} onauswahl={gid => { waehlen(gid); rechts = "nacharbeit"; }}/>
       {:else if rechts === "auswertung"}
         <Auswertung projektId={projekt.id} akteId={akte.objekt} {stand} onvorschau={p => (grundflaeche = p)}/>
+      {:else if rechts === "export"}
+        <Export projektId={projekt.id} {akte} {darf} onoeffnen={e => void exportOeffnen(e)}/>
       {:else if rechts === "uebernahme"}
         <Uebernahme projektId={projekt.id} akte={akte} {darf} onakte={a => (akte = a)} {onzeichnung}/>
       {:else if auszug}
@@ -246,6 +268,8 @@
   .modellwahl{background:var(--panel);border:1px solid var(--border);padding:12px 16px;max-width:900px}
   .modellwahl .zeile{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
   .akten{margin:0 0 8px;padding-left:18px}
+  .entwurfwahl{margin-top:12px;max-width:520px}
+  .entwurfwahl summary{cursor:pointer;font-weight:600}
   .modell{display:grid;grid-template-columns:260px minmax(0,1fr) 340px;gap:0;border:1px solid var(--border);background:var(--panel);height:calc(100vh - 210px);min-height:520px}
   .struktur,.rechts{overflow:auto;padding:6px 8px;border-right:1px solid var(--border)}
   .rechts{border-right:0;border-left:1px solid var(--border)}

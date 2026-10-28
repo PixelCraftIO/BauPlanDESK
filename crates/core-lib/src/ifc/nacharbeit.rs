@@ -3,7 +3,7 @@
 //! Auszug der Modellakte ist das gelesene Modell mit angewendeter Liste.
 //! So überstehen die Änderungen einen Reimport (Abgleich über die GlobalId)
 //! und lassen sich beim Export in die Datei schreiben.
-use super::geometrie::{Teil, multipolygon, planpolygone, vereinen};
+use super::geometrie::{self, Teil, multipolygon, planpolygone, vereinen};
 use super::{Klassenzahl, Modellauszug, Modelleigenschaft, Modellelement, auszug, klassentitel};
 use crate::planaufmass::Planpolygon;
 use crate::{CoreError, CoreResult};
@@ -128,6 +128,11 @@ fn umriss_polygon(umriss: &[[f64; 2]]) -> CoreResult<geo::Polygon<f64>> {
         return Err(fehler("Raumumriss ist kleiner als 0,1 m²"));
     }
     Ok(p)
+}
+
+/// Fläche eines Raumumrisses (m², 0 bei ungültigem Umriss).
+pub(super) fn umriss_flaeche(umriss: &[[f64; 2]]) -> f64 {
+    umriss_polygon(umriss).map_or(0., |p| geometrie::rund(p.unsigned_area()))
 }
 
 /// Höhe der nächsten Geschossebene über `g` (für Räume ohne Höhenangabe).

@@ -14,6 +14,7 @@
 mod abgleich;
 mod auswertung;
 mod auszug;
+mod export;
 pub mod geometrie;
 mod grundriss;
 pub mod nacharbeit;
@@ -33,6 +34,11 @@ pub use auswertung::{
     Bezugsflaeche, Geschossauswertung, Modellauswertung, Modellhoehen, Nutzungsflaeche, auswerten,
 };
 pub use auszug::{auszug, klassentitel};
+pub use export::{
+    Entwurf, Entwurfsgeschoss, Entwurfsraum, Entwurfswand, Entwurfszuordnung, Exportbericht,
+    Exportergebnis, Exportwunsch, entwurf_kontrolle, entwurf_schreiben, kontrolle,
+    nacharbeit_schreiben,
+};
 pub use grundriss::{
     Grundrissteil, Modellgeschoss, Modellgrundriss, SCHNITTHOEHE_M, als_plan, geschossliste,
     grundriss, modellumfang,

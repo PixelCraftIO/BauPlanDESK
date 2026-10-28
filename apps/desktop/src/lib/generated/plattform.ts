@@ -453,6 +453,30 @@ grz: number | null,
  * BGF der oberirdischen Geschosse / Bezugsfläche (rechnerisch).
  */
 gfz: number | null, hinweise: Array<string>, };
+export type Exportbericht = { dateiname: string, schema: string,
+/**
+ * Elemente der geschriebenen Datei (wie der Auszug sie zählt).
+ */
+elemente: number, geaendert: number, neu: number, entfernt: number, hinweise: Array<string>,
+/**
+ * Abweichungen der wieder eingelesenen Datei vom erwarteten Modell.
+ */
+abweichungen: Array<string>, };
+export type Entwurfszuordnung = {
+/**
+ * Geschoss des Gebäudes (Fachobjekt `gebaeude`).
+ */
+geschoss_id: string,
+/**
+ * Eigene Zeichnung (Planaufmaß ohne Unterlage, Meter) dieses Geschosses.
+ */
+zeichnung_id: string, };
+export type Exportwunsch = { "art": "nacharbeit", akte_id: string, } | { "art": "entwurf", gebaeude_id: string, geschosse: Array<Entwurfszuordnung>, };
+export type Exportergebnis = {
+/**
+ * Abgelegte IFC-Datei (neue Version, wenn es den Namen schon gibt).
+ */
+dokument: Dokumentbezug, bericht: Exportbericht, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
