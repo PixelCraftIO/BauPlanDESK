@@ -187,6 +187,28 @@
         )?.pruefung
       : null,
   );
+  const doppelerfassungen = $derived(
+    aktuell
+      ? (ergebnis?.baugrundstuecke.find(
+          (g) => g.grundstueck.schluessel === gruppe?.schluessel,
+        )?.doppelerfassungen ?? [])
+      : [],
+  );
+  // Positionen gelten für den geprüften Stand (`aktuell`); entfernt wird nur
+  // eine weiterhin ungebundene Handzeile.
+  function zusammenfuehren(d: import("./generated/plattform").Doppelerfassung) {
+    const liste =
+      d.bereich === "abzug"
+        ? eingabe.flurstuecke.find((f) => f.id === d.bezug)?.abzuege
+        : eingabe.berechnungen.find((b) => b.schluessel === d.bezug)?.eingabe
+            .aufstellung?.bauteile;
+    const gebunden = (liste as { id?: string | null }[] | undefined)?.some(
+      (x) => x.id === d.gebunden,
+    );
+    if (!liste || !gebunden || !liste[d.hand] || liste[d.hand].planbindung) return;
+    liste.splice(d.hand, 1);
+    hinweis = "Handzeile entfernt; die gezeichnete Zeile bleibt. Prüfen und speichern.";
+  }
   const z = (n: number | null | undefined) =>
     n == null ? "—" : n.toLocaleString("de-DE", { maximumFractionDigits: 3 });
   const nachweisTitel: Record<string, string> = {
@@ -1056,8 +1078,20 @@
       );
     }}>Nicht zugeordnete Berechnungen entfernen</button
   >{/if}
-{#each nachweis?.hinweise ?? [] as h}<p class="hinweisbox" role="status">
+{#each (nachweis?.hinweise ?? []).filter((h) => !doppelerfassungen.some((d) => d.text === h)) as h}<p class="hinweisbox" role="status">
     {h}
+  </p>{/each}
+{#each doppelerfassungen as d (d.bereich + d.bezug + d.hand)}<p
+    class="hinweisbox"
+    role="status"
+  >
+    {d.text}
+    <button
+      type="button"
+      class="link"
+      disabled={!darf || laeuft}
+      onclick={() => zusammenfuehren(d)}>Handzeile entfernen</button
+    >
   </p>{/each}
 {#if relevanteNachweise.length}<div class="tabellen-scroll">
     <table class="ergebnistabelle berechnungswerte">

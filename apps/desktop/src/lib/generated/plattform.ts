@@ -127,6 +127,23 @@ flaeche_m2?: number, kandidaten: Array<Abgleichskandidat>,
  * Vorbelegung: die Handzeile mit der geringsten Flächendifferenz.
  */
 vorschlag?: string, };
+export type Doppelerfassung = {
+/**
+ * `abzug` oder `bauteil`.
+ */
+bereich: string,
+/**
+ * Flurstück (Abzug) bzw. Schlüssel des Baugrundstücks (Bauteil).
+ */
+bezug: string,
+/**
+ * Kennung der gezeichneten Zeile.
+ */
+gebunden: string,
+/**
+ * Position der Handzeile in ihrer Liste.
+ */
+hand: number, text: string, };
 export type CadUebernahme = { uebernommen: Array<string>, vorhanden: number, uebersprungen: Array<string>, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
 export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";

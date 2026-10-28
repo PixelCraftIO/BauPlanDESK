@@ -6,7 +6,8 @@
 //! Fläche; Anrechnung, Abzugsart und rechtliche Grundlage bleiben Eingaben
 //! und Regeln des Grundstücksmoduls.
 use super::abgleich::{
-    Abgleichsfrage, Abgleichskandidat, Zeilenzuordnung, vorschlag, wahl, zeilenschluessel,
+    Abgleichsfrage, Abgleichskandidat, Zeilenzuordnung, markierung_einmal, vorschlag, wahl,
+    zeilenschluessel,
 };
 use super::*;
 use crate::{
@@ -314,6 +315,12 @@ impl CoreServices {
         pid: ProjectId,
         e: &mut BaugrundstuecksErmittlung,
     ) -> CoreResult<()> {
+        markierung_einmal(
+            e.ansaetze
+                .iter()
+                .flat_map(|a| a.abzuege.iter())
+                .filter_map(|x| x.planbindung.as_ref()),
+        )?;
         for ansatz in &mut e.ansaetze {
             for abzug in &mut ansatz.abzuege {
                 let Some(b) = abzug.planbindung.clone() else {
@@ -504,6 +511,7 @@ impl CoreServices {
         a: &mut FlaechenAufstellung,
     ) -> CoreResult<()> {
         let grundstueck = crate::plattform::einbindung::grundstueck_id(pid, schluessel);
+        markierung_einmal(a.bauteile.iter().filter_map(|b| b.planbindung.as_ref()))?;
         for b in &mut a.bauteile {
             let Some(bindung) = b.planbindung.clone() else {
                 continue;
