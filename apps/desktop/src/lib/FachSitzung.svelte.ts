@@ -2,6 +2,7 @@ import { untrack } from "svelte";
 import { entwurfspeicher } from "./entwurfspeicher";
 import { plattformApi, type Datensatz } from "./plattformApi";
 import { fehlertext } from "./api";
+import { vergleichsform } from "./vergleichsform";
 import type { ObjektArt } from "./generated/plattform";
 export class FachSitzung<T> {
   liste = $state<Datensatz<T>[]>([]);
@@ -19,6 +20,13 @@ export class FachSitzung<T> {
   private geschlossen = false;
   private eingabeSignatur = $derived(JSON.stringify(this.eingabe));
   private originalSignatur = $derived(JSON.stringify(this.original));
+  // Gleiche Signaturen sind der schnelle Fall; sonst entscheidet die
+  // Vergleichsform (leere Listen und fehlende Angaben gelten als gleich).
+  private geaendert = $derived(
+    this.eingabe !== null &&
+      this.eingabeSignatur !== this.originalSignatur &&
+      vergleichsform(this.eingabe) !== vergleichsform(this.original),
+  );
   get laeuft() {
     return this.aktion || this.ladezahl > 0;
   }
@@ -41,9 +49,7 @@ export class FachSitzung<T> {
     return `bauprojekt.entwurf.v1.${this.benutzerId}.${this.projektId}.${this.art}${this.entwurfObjekt ? "." + this.entwurfObjekt : ""}`;
   }
   hatAenderungen() {
-    return (
-      this.eingabe !== null && this.eingabeSignatur !== this.originalSignatur
-    );
+    return this.geaendert;
   }
   istBeschaeftigt() {
     return this.laeuft;
