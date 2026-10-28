@@ -279,6 +279,8 @@ fn main() {
             berechnungen::planaufmass_flurstuecke,
             berechnungen::planaufmass_abzuege,
             berechnungen::planaufmass_bauteile,
+            berechnungen::planaufmass_abzuege_abgleich,
+            berechnungen::planaufmass_bauteile_abgleich,
             berechnungen::planaufmass_baugrenzen,
             berechnungen::cadaufmass_uebernehmen,
             berechnungen::planaufmass_aufgaben,

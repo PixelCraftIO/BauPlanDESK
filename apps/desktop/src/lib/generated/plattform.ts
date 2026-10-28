@@ -102,6 +102,31 @@ export type Planbindung = { aufmass_id: string, revision: number, markierung_id:
  */
 ziel: string, };
 export type Aufmassstand = { aufmass_id: string, revision: number, };
+export type Zeilenzuordnung = { markierung_id: string,
+/**
+ * Schlüssel der Zeile ([`Abgleichskandidat::zeile`]), die die gezeichnete
+ * Fläche übernimmt; leer legt eine neue Zeile an.
+ */
+zeile?: string, };
+export type Abgleichskandidat = {
+/**
+ * Zeilenkennung oder, für Altzeilen ohne Kennung, `#<Position>` in ihrer
+ * Liste. Gilt nur für den Entwurf, aus dem die Frage entstand.
+ */
+zeile: string, bezeichnung: string, flaeche_m2: number, };
+export type Abgleichsfrage = { markierung_id: string, markierung: string,
+/**
+ * Ziel der Zeile, etwa „Flurstück Musterdorf 12 · Verkehrsfläche“.
+ */
+ziel: string,
+/**
+ * Gezeichnete Fläche; fehlt, wenn die Markierung noch nicht messbar ist.
+ */
+flaeche_m2?: number, kandidaten: Array<Abgleichskandidat>,
+/**
+ * Vorbelegung: die Handzeile mit der geringsten Flächendifferenz.
+ */
+vorschlag?: string, };
 export type CadUebernahme = { uebernommen: Array<string>, vorhanden: number, uebersprungen: Array<string>, };
 export type Planziel = { ziel: string, titel: string, groesse: Planmessgroesse, };
 export type Aufgabengeometrie = "flaeche" | "hoehenpunkt" | "strecke";

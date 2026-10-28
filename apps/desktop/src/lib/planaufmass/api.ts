@@ -17,11 +17,17 @@ export const planApi = {
   flurstuecke: (projektId: string, infos: import("../generated/plattform").Grundstuecksinformationen) =>
     invoke<import("../generated/plattform").Grundstuecksinformationen>("planaufmass_flurstuecke", { projektId, infos }),
   /** Legt aus dem Aufmaßstand (optional) Abzugszeilen je zugeordnetem Flurstück an und löst alle Abzugsbindungen auf (Entwurf; Speichern über Berechnungen → Baugrundstück). */
-  abzuege: (projektId: string, aufmass: import("../generated/plattform").Aufmassstand | null, ermittlung: import("../generated/plattform").BaugrundstuecksErmittlung) =>
-    invoke<import("../generated/plattform").BaugrundstuecksErmittlung>("planaufmass_abzuege", { projektId, aufmass, ermittlung }),
+  abzuege: (projektId: string, aufmass: import("../generated/plattform").Aufmassstand | null, ermittlung: import("../generated/plattform").BaugrundstuecksErmittlung, zuordnung: import("../generated/plattform").Zeilenzuordnung[] = []) =>
+    invoke<import("../generated/plattform").BaugrundstuecksErmittlung>("planaufmass_abzuege", { projektId, aufmass, zuordnung, ermittlung }),
+  /** Rückfragen, wenn eine gezeichnete Abzugsfläche schon als Handzeile erfasst ist (vor `abzuege`). */
+  abzuegeAbgleich: (projektId: string, aufmass: import("../generated/plattform").Aufmassstand, ermittlung: import("../generated/plattform").BaugrundstuecksErmittlung) =>
+    invoke<import("../generated/plattform").Abgleichsfrage[]>("planaufmass_abzuege_abgleich", { projektId, aufmass, ermittlung }),
   /** Legt aus dem Aufmaßstand (optional) GRZ-Bauteile des Baugrundstücks `schluessel` an und löst alle Bauteilbindungen auf (Entwurf). */
-  bauteile: (projektId: string, schluessel: string, aufmass: import("../generated/plattform").Aufmassstand | null, aufstellung: import("../api").FlaechenAufstellung) =>
-    invoke<import("../api").FlaechenAufstellung>("planaufmass_bauteile", { projektId, schluessel, aufmass, aufstellung }),
+  bauteile: (projektId: string, schluessel: string, aufmass: import("../generated/plattform").Aufmassstand | null, aufstellung: import("../api").FlaechenAufstellung, zuordnung: import("../generated/plattform").Zeilenzuordnung[] = []) =>
+    invoke<import("../api").FlaechenAufstellung>("planaufmass_bauteile", { projektId, schluessel, aufmass, zuordnung, aufstellung }),
+  /** Rückfragen, wenn ein gezeichnetes Bauteil schon von Hand erfasst ist (vor `bauteile`). */
+  bauteileAbgleich: (projektId: string, schluessel: string, aufmass: import("../generated/plattform").Aufmassstand, aufstellung: import("../api").FlaechenAufstellung) =>
+    invoke<import("../generated/plattform").Abgleichsfrage[]>("planaufmass_bauteile_abgleich", { projektId, schluessel, aufmass, aufstellung }),
   ziele: (plan: FachPlan) => invoke<Planziel[]>("planaufmass_ziele", { plan }),
   einsetzen: (projektId: string, plan: FachPlan) => invoke<FachPlan>("planaufmass_einsetzen", { projektId, plan }),
   raumbuch: (projektId: string, aufmassId: string, revision: number, raumbuch: import("../generated/plattform").Raumbuch) =>

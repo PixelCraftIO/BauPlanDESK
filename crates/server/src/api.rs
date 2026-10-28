@@ -413,6 +413,14 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/planabzuege", post(planaufmass_abzuege))
         .route("/projekte/{id}/planbauteile", post(planaufmass_bauteile))
         .route(
+            "/projekte/{id}/planabzuege/abgleich",
+            post(planaufmass_abzuege_abgleich),
+        )
+        .route(
+            "/projekte/{id}/planbauteile/abgleich",
+            post(planaufmass_bauteile_abgleich),
+        )
+        .route(
             "/projekte/{id}/planbaugrenzen",
             post(planaufmass_baugrenzen),
         )
@@ -2119,7 +2127,8 @@ async fn planaufmass_raumbuch_einsetzen(
     Json(r): Json<core_lib::plattform::objekte::Raumbuch>,
 ) -> ApiResult<core_lib::plattform::objekte::Raumbuch> {
     Ok(Json(
-        core.planaufmass_raumbuch_einsetzen(ProjectId(id), r).await?,
+        core.planaufmass_raumbuch_einsetzen(ProjectId(id), r)
+            .await?,
     ))
 }
 async fn planaufmass_werkzeugkiste() -> Json<Vec<core_lib::planaufmass::Werkzeugvorlage>> {
@@ -2153,6 +2162,8 @@ async fn planaufmass_flurstuecke(
 struct AbzugUebernahme {
     #[serde(default)]
     aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    #[serde(default)]
+    zuordnung: Vec<core_lib::planaufmass::Zeilenzuordnung>,
     ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
 }
 async fn planaufmass_abzuege(
@@ -2161,7 +2172,22 @@ async fn planaufmass_abzuege(
     Json(w): Json<AbzugUebernahme>,
 ) -> ApiResult<core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung> {
     Ok(Json(
-        core.planaufmass_abzuege(ProjectId(id), w.aufmass, w.ermittlung)
+        core.planaufmass_abzuege(ProjectId(id), w.aufmass, &w.zuordnung, w.ermittlung)
+            .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct AbzugAbgleich {
+    aufmass: core_lib::planaufmass::Aufmassstand,
+    ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
+}
+async fn planaufmass_abzuege_abgleich(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<AbzugAbgleich>,
+) -> ApiResult<Vec<core_lib::planaufmass::Abgleichsfrage>> {
+    Ok(Json(
+        core.planaufmass_abzuege_abgleich(ProjectId(id), w.aufmass, &w.ermittlung)
             .await?,
     ))
 }
@@ -2170,6 +2196,8 @@ struct BauteilUebernahme {
     schluessel: String,
     #[serde(default)]
     aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    #[serde(default)]
+    zuordnung: Vec<core_lib::planaufmass::Zeilenzuordnung>,
     aufstellung: core_lib::flaechen::FlaechenAufstellung,
 }
 async fn planaufmass_bauteile(
@@ -2178,7 +2206,29 @@ async fn planaufmass_bauteile(
     Json(w): Json<BauteilUebernahme>,
 ) -> ApiResult<core_lib::flaechen::FlaechenAufstellung> {
     Ok(Json(
-        core.planaufmass_bauteile(ProjectId(id), &w.schluessel, w.aufmass, w.aufstellung)
+        core.planaufmass_bauteile(
+            ProjectId(id),
+            &w.schluessel,
+            w.aufmass,
+            &w.zuordnung,
+            w.aufstellung,
+        )
+        .await?,
+    ))
+}
+#[derive(Deserialize)]
+struct BauteilAbgleich {
+    schluessel: String,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+    aufstellung: core_lib::flaechen::FlaechenAufstellung,
+}
+async fn planaufmass_bauteile_abgleich(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<BauteilAbgleich>,
+) -> ApiResult<Vec<core_lib::planaufmass::Abgleichsfrage>> {
+    Ok(Json(
+        core.planaufmass_bauteile_abgleich(ProjectId(id), &w.schluessel, w.aufmass, &w.aufstellung)
             .await?,
     ))
 }

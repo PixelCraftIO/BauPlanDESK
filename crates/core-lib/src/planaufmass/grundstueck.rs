@@ -5,6 +5,9 @@
 //! unterirdische Anlage) je Baugrundstück. Die Zeichnung liefert nur die
 //! Fläche; Anrechnung, Abzugsart und rechtliche Grundlage bleiben Eingaben
 //! und Regeln des Grundstücksmoduls.
+use super::abgleich::{
+    Abgleichsfrage, Abgleichskandidat, Zeilenzuordnung, vorschlag, wahl, zeilenschluessel,
+};
 use super::*;
 use crate::{
     CoreServices,
@@ -29,6 +32,76 @@ fn abzugsname(art: &str) -> String {
         .get(art)
         .map(|r| r.bezeichnung.clone())
         .unwrap_or_else(|| art.to_string())
+}
+
+fn bauteilname(b: Planbedeutung) -> &'static str {
+    match b {
+        Planbedeutung::Zufahrt => "Zufahrt",
+        Planbedeutung::Stellplatz => "Stellplatz",
+        Planbedeutung::Garage => "Garage",
+        Planbedeutung::Nebenanlage => "Nebenanlage",
+        Planbedeutung::Terrasse => "Terrasse",
+        Planbedeutung::Unterirdisch => "Unterirdische Anlage",
+        _ => "Bauteil",
+    }
+}
+fn abzugsbindung(s: Aufmassstand, markierung: Uuid) -> Planbindung {
+    Planbindung {
+        aufmass_id: s.aufmass_id,
+        revision: s.revision,
+        markierung_id: markierung,
+        groesse: Planmessgroesse::Flaeche,
+        ziel: abzugsziel(&markierung.to_string()),
+    }
+}
+fn bauteilbindung(s: Aufmassstand, markierung: Uuid) -> Planbindung {
+    Planbindung {
+        ziel: bauteilziel(&markierung.to_string()),
+        ..abzugsbindung(s, markierung)
+    }
+}
+/// Zeile, die schon zu dieser Markierung gehört: aus ihr angelegt (Kennung =
+/// Markierungs-ID) oder mit ihr verknüpft.
+fn abzug_zu(zeilen: &[FlaechenAbzug], markierung: Uuid) -> Option<usize> {
+    let id = markierung.to_string();
+    zeilen.iter().position(|x| {
+        x.id.as_deref() == Some(id.as_str())
+            || x.planbindung
+                .as_ref()
+                .is_some_and(|b| b.markierung_id == markierung)
+    })
+}
+fn bauteil_zu(zeilen: &[Bauteil], markierung: Uuid) -> Option<usize> {
+    let id = markierung.to_string();
+    zeilen.iter().position(|x| {
+        x.id.as_deref() == Some(id.as_str())
+            || x.planbindung
+                .as_ref()
+                .is_some_and(|b| b.markierung_id == markierung)
+    })
+}
+/// Ungebundene Handzeilen gleicher Abzugsart (Position, Abgleichsschlüssel).
+fn abzugskandidaten(zeilen: &[FlaechenAbzug], art: &str) -> Vec<(usize, String)> {
+    zeilen
+        .iter()
+        .enumerate()
+        .filter(|(_, x)| x.planbindung.is_none() && x.art == art)
+        .map(|(i, x)| (i, zeilenschluessel(x.id.as_deref(), i)))
+        .collect()
+}
+/// Ungebundene Bauteile ohne Gebäudeverknüpfung, deren Typ zur Bedeutung der
+/// Markierung passt (eine Garage in der Abstandsfläche ist gezeichnet „Garage“).
+fn bauteilkandidaten(zeilen: &[Bauteil], bedeutung: Planbedeutung) -> Vec<(usize, String)> {
+    zeilen
+        .iter()
+        .enumerate()
+        .filter(|(_, x)| {
+            x.planbindung.is_none()
+                && x.gebaeude_id.is_none()
+                && Planbedeutung::fuer_bauteiltyp(x.typ) == Some(bedeutung)
+        })
+        .map(|(i, x)| (i, zeilenschluessel(x.id.as_deref(), i)))
+        .collect()
 }
 
 /// Zielfelder der erfassten Abzugsflächen (nur Zeilen mit Kennung).
@@ -107,15 +180,78 @@ impl CoreServices {
         serde_json::from_value(f.daten).map_err(|e| fehler(e.to_string()))
     }
 
-    /// Entwurfsübernahme der Abzugsflächen: mit `aufmass` werden je Markierung
-    /// mit Abzugsbedeutung und Flurstückszuordnung Zeilen angelegt oder (gleiche
-    /// Kennung) aktualisiert; Art und rechtliche Grundlage bestehender Zeilen
-    /// bleiben erhalten, neue Zeilen tragen eine leere Grundlage, die vor dem
-    /// Speichern zu ergänzen ist. Anschließend werden alle Bindungen aufgelöst.
+    /// Rückfragen vor der Übernahme der Abzugsflächen: Markierungen, die eine
+    /// neue Zeile anlegen würden, obwohl am selben Flurstück schon eine
+    /// ungebundene Zeile gleicher Art von Hand erfasst ist.
+    pub async fn planaufmass_abzuege_abgleich(
+        &self,
+        pid: ProjectId,
+        aufmass: Aufmassstand,
+        e: &BaugrundstuecksErmittlung,
+    ) -> CoreResult<Vec<Abgleichsfrage>> {
+        let a = self.aufmassstand(pid, aufmass).await?;
+        let projekt = self.get_project(pid).await?;
+        let infos = crate::grundstuecksinformationen::informationen(&projekt.planungsrecht);
+        let mut fragen = Vec::new();
+        for m in &a.markierungen {
+            let (Some(art), Some(flurstueck)) = (m.bedeutung.abzugsart(), &m.flurstueck_id) else {
+                continue;
+            };
+            let Some(ansatz) = e.ansaetze.iter().find(|x| &x.flurstueck_id == flurstueck) else {
+                continue;
+            };
+            if abzug_zu(&ansatz.abzuege, m.id).is_some() {
+                continue;
+            }
+            let kandidaten: Vec<Abgleichskandidat> = abzugskandidaten(&ansatz.abzuege, art)
+                .into_iter()
+                .map(|(i, zeile)| Abgleichskandidat {
+                    zeile,
+                    bezeichnung: match ansatz.abzuege[i].grundlage.trim() {
+                        "" => abzugsname(art),
+                        g => format!("{} · {g}", abzugsname(art)),
+                    },
+                    flaeche_m2: ansatz.abzuege[i].flaeche_m2,
+                })
+                .collect();
+            if kandidaten.is_empty() {
+                continue;
+            }
+            let flaeche = self
+                .planbindung_aufloesen(pid, &abzugsbindung(aufmass, m.id))
+                .await
+                .ok()
+                .map(|(_, _, w)| gerundet(w));
+            let name = infos
+                .flurstuecke
+                .iter()
+                .find(|f| &f.id == flurstueck)
+                .map(|f| f.bezeichnung())
+                .unwrap_or_else(|| flurstueck.clone());
+            fragen.push(Abgleichsfrage {
+                markierung_id: m.id,
+                markierung: m.bezeichnung.clone(),
+                ziel: format!("Flurstück {name} · {}", abzugsname(art)),
+                flaeche_m2: flaeche,
+                vorschlag: vorschlag(flaeche, &kandidaten),
+                kandidaten,
+            });
+        }
+        Ok(fragen)
+    }
+
+    /// Entwurfsübernahme der Abzugsflächen: mit `aufmass` wird je Markierung
+    /// mit Abzugsbedeutung und Flurstückszuordnung die zugehörige Zeile
+    /// aktualisiert, eine Handzeile verknüpft (`zuordnung`, siehe
+    /// [`Self::planaufmass_abzuege_abgleich`]) oder eine neue Zeile angelegt.
+    /// Art und rechtliche Grundlage bestehender Zeilen bleiben erhalten, neue
+    /// Zeilen tragen eine leere Grundlage, die vor dem Speichern zu ergänzen
+    /// ist. Anschließend werden alle Bindungen aufgelöst.
     pub async fn planaufmass_abzuege(
         &self,
         pid: ProjectId,
         aufmass: Option<Aufmassstand>,
+        zuordnung: &[Zeilenzuordnung],
         mut e: BaugrundstuecksErmittlung,
     ) -> CoreResult<BaugrundstuecksErmittlung> {
         if let Some(s) = aufmass {
@@ -134,25 +270,33 @@ impl CoreServices {
                     continue;
                 };
                 getroffen += 1;
-                let bindung = Planbindung {
-                    aufmass_id: s.aufmass_id,
-                    revision: s.revision,
-                    markierung_id: m.id,
-                    groesse: Planmessgroesse::Flaeche,
-                    ziel: abzugsziel(&m.id.to_string()),
-                };
-                match ansatz
-                    .abzuege
-                    .iter_mut()
-                    .find(|x| x.id.as_deref() == Some(m.id.to_string().as_str()))
-                {
-                    Some(x) => x.planbindung = Some(bindung),
+                if let Some(i) = abzug_zu(&ansatz.abzuege, m.id) {
+                    let x = &mut ansatz.abzuege[i];
+                    let id = x.id.clone().unwrap_or_else(|| m.id.to_string());
+                    x.id = Some(id.clone());
+                    x.planbindung = Some(Planbindung {
+                        ziel: abzugsziel(&id),
+                        ..abzugsbindung(s, m.id)
+                    });
+                    continue;
+                }
+                let kandidaten = abzugskandidaten(&ansatz.abzuege, art);
+                match wahl(zuordnung, m, &kandidaten)? {
+                    Some(i) => {
+                        let x = &mut ansatz.abzuege[i];
+                        let id = x.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+                        x.id = Some(id.clone());
+                        x.planbindung = Some(Planbindung {
+                            ziel: abzugsziel(&id),
+                            ..abzugsbindung(s, m.id)
+                        });
+                    }
                     None => ansatz.abzuege.push(FlaechenAbzug {
                         id: Some(m.id.to_string()),
                         art: art.into(),
                         flaeche_m2: 0.,
                         grundlage: String::new(),
-                        planbindung: Some(bindung),
+                        planbindung: Some(abzugsbindung(s, m.id)),
                     }),
                 }
             }
@@ -241,15 +385,69 @@ impl CoreServices {
         Ok(())
     }
 
+    /// Rückfragen vor der Übernahme der GRZ-Bauteile des Baugrundstücks
+    /// `schluessel`: Markierungen, die eine neue Zeile anlegen würden, obwohl
+    /// schon ein ungebundenes Bauteil gleichen Typs von Hand erfasst ist.
+    pub async fn planaufmass_bauteile_abgleich(
+        &self,
+        pid: ProjectId,
+        schluessel: &str,
+        aufmass: Aufmassstand,
+        a: &FlaechenAufstellung,
+    ) -> CoreResult<Vec<Abgleichsfrage>> {
+        let grundstueck = crate::plattform::einbindung::grundstueck_id(pid, schluessel);
+        let plan = self.aufmassstand(pid, aufmass).await?;
+        let mut fragen = Vec::new();
+        for m in &plan.markierungen {
+            if m.bedeutung.bauteiltyp().is_none() {
+                continue;
+            }
+            if m.grundstueck_id != Some(grundstueck) || bauteil_zu(&a.bauteile, m.id).is_some() {
+                continue;
+            }
+            let kandidaten: Vec<Abgleichskandidat> = bauteilkandidaten(&a.bauteile, m.bedeutung)
+                .into_iter()
+                .map(|(i, zeile)| Abgleichskandidat {
+                    zeile,
+                    bezeichnung: match a.bauteile[i].bezeichnung.trim() {
+                        "" => "Bauteil ohne Bezeichnung".into(),
+                        b => b.to_string(),
+                    },
+                    flaeche_m2: a.bauteile[i].flaeche_m2,
+                })
+                .collect();
+            if kandidaten.is_empty() {
+                continue;
+            }
+            let flaeche = self
+                .planbindung_aufloesen(pid, &bauteilbindung(aufmass, m.id))
+                .await
+                .ok()
+                .map(|(_, _, w)| gerundet(w));
+            fragen.push(Abgleichsfrage {
+                markierung_id: m.id,
+                markierung: m.bezeichnung.clone(),
+                ziel: format!("Baugrundstück · {}", bauteilname(m.bedeutung)),
+                flaeche_m2: flaeche,
+                vorschlag: vorschlag(flaeche, &kandidaten),
+                kandidaten,
+            });
+        }
+        Ok(fragen)
+    }
+
     /// Entwurfsübernahme der GRZ-Bauteile eines Baugrundstücks (`schluessel`):
-    /// mit `aufmass` werden je Markierung mit Bauteilbedeutung und passender
-    /// Baugrundstückszuordnung Zeilen angelegt oder aktualisiert; Typ,
+    /// mit `aufmass` wird je Markierung mit Bauteilbedeutung und passender
+    /// Baugrundstückszuordnung die zugehörige Zeile aktualisiert, ein von Hand
+    /// erfasstes Bauteil verknüpft (`zuordnung`, siehe
+    /// [`Self::planaufmass_bauteile_abgleich`]) oder eine Zeile angelegt; Typ,
     /// Bezeichnung und Sonderansätze bestehender Zeilen bleiben erhalten.
     pub async fn planaufmass_bauteile(
         &self,
         pid: ProjectId,
         schluessel: &str,
         aufmass: Option<Aufmassstand>,
+        zuordnung: &[Zeilenzuordnung],
         mut a: FlaechenAufstellung,
     ) -> CoreResult<FlaechenAufstellung> {
         let grundstueck = crate::plattform::einbindung::grundstueck_id(pid, schluessel);
@@ -264,22 +462,23 @@ impl CoreServices {
                     continue;
                 }
                 getroffen += 1;
-                let bindung = Planbindung {
-                    aufmass_id: s.aufmass_id,
-                    revision: s.revision,
-                    markierung_id: m.id,
-                    groesse: Planmessgroesse::Flaeche,
-                    ziel: bauteilziel(&m.id.to_string()),
+                let gefunden = match bauteil_zu(&a.bauteile, m.id) {
+                    Some(i) => Some(i),
+                    None => wahl(zuordnung, m, &bauteilkandidaten(&a.bauteile, m.bedeutung))?,
                 };
-                match a
-                    .bauteile
-                    .iter_mut()
-                    .find(|x| x.id.as_deref() == Some(m.id.to_string().as_str()))
-                {
-                    Some(x) => x.planbindung = Some(bindung),
+                match gefunden {
+                    Some(i) => {
+                        let x = &mut a.bauteile[i];
+                        let id = x.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+                        x.id = Some(id.clone());
+                        x.planbindung = Some(Planbindung {
+                            ziel: bauteilziel(&id),
+                            ..bauteilbindung(s, m.id)
+                        });
+                    }
                     None => a.bauteile.push(Bauteil {
                         id: Some(m.id.to_string()),
-                        planbindung: Some(bindung),
+                        planbindung: Some(bauteilbindung(s, m.id)),
                         gebaeude_id: None,
                         bezeichnung: m.bezeichnung.clone(),
                         typ,

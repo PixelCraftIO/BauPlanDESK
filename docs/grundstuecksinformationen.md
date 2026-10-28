@@ -88,7 +88,8 @@ mit Verwerfen des Entwurfs ist eine ausdrücklich beschriftete Aktion.
   dieses Moduls. Beim Speichern (Projektgrenze, Einzelspeicherung eines
   Baugrundstücks, Nutzungsnachweise) müssen gebundene Werte dem Stand ihrer
   Quelle entsprechen (`grundstueck_planquellen_pruefen`). Altdaten ohne
-  Kennung bleiben gültig, können aber nicht gebunden werden.
+  Kennung bleiben gültig; verknüpft der Nutzer sie beim Abgleich mit einer
+  Markierung, erhalten sie eine Kennung (siehe docs/planaufmass.md, Abgleich).
 - `BaugrundstuecksErmittlung` speichert nur flurstücksbezogene Ansätze,
   Nutzungsberechnungseingaben und den vom Core gesetzten Quellenhash. Kataster-
   und Grundbuchdaten werden nicht als zweite Faktenkopie darin gespeichert.
