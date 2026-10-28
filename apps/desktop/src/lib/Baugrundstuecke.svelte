@@ -907,6 +907,9 @@
           class="sekundaer"
           onclick={() =>
             f.abzuege.push({
+              // Kennung von Anfang an: die Zeile erscheint in den Aufmaß-Aufgaben
+              // und lässt sich später mit einer Zeichnung verknüpfen.
+              id: crypto.randomUUID(),
               art: "sonstiger_abzug",
               flaeche_m2: 0,
               grundlage: "",

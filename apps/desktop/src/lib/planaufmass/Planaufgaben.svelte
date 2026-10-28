@@ -187,7 +187,7 @@
         {#each liste as a (`${a.verbraucher}:${a.ziel}`)}
           <li class:erledigt={!!a.gebunden} class:bereit={!!a.markierung}>
             <span class="status" aria-hidden="true">{a.gebunden ? "✔" : a.markierung ? "●" : "○"}</span>
-            <span class="titel">{a.titel}{a.wert_vorhanden && !a.gebunden ? " · manuell erfasst" : ""}</span>
+            <span class="titel">{a.titel}{a.wert_vorhanden && !a.gebunden ? (a.markierung ? " · Handwert ohne Zeichnung, passende Markierung vorhanden" : " · manuell erfasst") : ""}</span>
             {#if a.gebunden}<span class="meta">verknüpft mit „{name(a.gebunden)}“</span>
             {:else if a.markierung}
               <button type="button" class="link" onclick={() => onwaehlen(a.markierung!)}>„{name(a.markierung)}“</button>

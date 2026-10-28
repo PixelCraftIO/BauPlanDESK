@@ -493,18 +493,30 @@ impl CoreServices {
             name: update.name,
             bundesland: update.bundesland,
             grundstuecksflaeche_m2: update.grundstuecksflaeche_m2,
-            planungsrecht: update.planungsrecht.unwrap_or(vorher.planungsrecht),
+            planungsrecht: update
+                .planungsrecht
+                .unwrap_or_else(|| vorher.planungsrecht.clone()),
             version: update.expected_version + 1,
             created_at: vorher.created_at,
             updated_at: Utc::now(),
         };
         crate::grundstuecksinformationen::projektflaeche_ableiten(&mut p);
+        let aufmass = match (
+            serde_json::to_value(&vorher.planungsrecht),
+            serde_json::to_value(&p.planungsrecht),
+        ) {
+            (Ok(a), Ok(n)) => crate::planaufmass::planaenderungen(Some(&a), &n),
+            _ => None,
+        };
         let audit = Self::audit(
             wer,
             Aktion::ProjektGeaendert,
             Some(p.id),
             None,
-            projekt_details(&p),
+            match aufmass {
+                Some(a) => format!("{} · {a}", projekt_details(&p)),
+                None => projekt_details(&p),
+            },
         );
         self.repos
             .commit

@@ -369,6 +369,12 @@ weitergegebenen Fachwerte.
   Werte daran hängen (`verwendung.ts`); beim Entfernen eines Flurstücks nennt
   `flurstuecksverweise` auch zugeordnete Aufmaß-Markierungen, deren Zuordnung
   `flurstuecksverweise_entfernen` danach löst.
+- Protokoll (`planaenderungen`): Beim Speichern eines Fachobjekts oder
+  Projektbereichs nennt der Protokolleintrag jede neu verknüpfte,
+  aktualisierte oder gelöste Aufmaßverknüpfung mit Zielfeld, altem und neuem
+  Wert. Neue Abzugs- und Bauteilzeilen erhalten in der Maske sofort eine
+  Kennung; sie erscheinen damit in den Aufmaß-Aufgaben, und eine passende freie
+  Markierung wird als „Handwert ohne Zeichnung“ angeboten.
 - Doppelerfassung (`abzugsdubletten`, `bauteildubletten`): Eine gezeichnete
   Zeile und eine Handzeile gleicher Art am selben Flurstück bzw. Baugrundstück,
   deren Flächen höchstens 1 m² oder 2 % auseinanderliegen (`fast_gleich`),
