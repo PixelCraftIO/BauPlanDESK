@@ -56,6 +56,10 @@ with sync_playwright() as p:
  # Status und behördliche Vollständigkeitsbestätigung stammen aus der Akte, nicht aus freien Texten.
  expect(page.get_by_role('combobox',name='Bearbeitungsstand',exact=True).locator('option:checked')).to_have_text('Entschieden')
  expect(page.get_by_role('textbox',name='Vollständigkeit bestätigt am',exact=True)).to_have_value(wf['verfahren']['daten']['vollstaendigkeit']['datum'])
+ # Bloßes Ansehen aller Bereiche ändert die Akte nicht (fehlende Listen gelten als leer).
+ for name in ['Verfahren','Vorhabenprofil','Anforderungen','Abweichungen / Befreiungen','Unterschriften','Unterlagen und Arbeitsaufträge','Kommunikation','Nachforderungen','Behördliche Schritte','Schreiben','Abgabestände','Bescheide / Auflagen','Bauausführung','Korrekturen','Verfahrenschronik']:
+  tab(name);page.wait_for_timeout(150)
+  expect(page.get_by_text('Ungespeicherte Änderungen',exact=False)).to_have_count(0)
  tab('Nachforderungen');expect(page.get_by_text('0 von 3 Punkten abgeschlossen',exact=True)).to_be_visible()
  expect(page.get_by_role('textbox',name='Forderung',exact=True)).to_have_count(3)
  # Wortlaut gespeicherter Forderungspunkte ist schreibgeschützt.
