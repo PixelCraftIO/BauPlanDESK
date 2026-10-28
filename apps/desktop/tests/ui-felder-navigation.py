@@ -82,11 +82,11 @@ with sync_playwright() as pw:
  field=row.get_by_label('Direkte Aufmaßfläche (m²)',exact=True);field.fill('45');page.evaluate('window.fachSaveFail=true');wc().get_by_role('button',name='Speichern',exact=True).click();expect(wc()).to_contain_text('Parallel geändert');expect(field).to_have_value('45');expect(wc().get_by_text('Gespeichert.',exact=True)).to_have_count(0)
  page.evaluate('window.fachSaveFail=false');field.fill('46');wc().get_by_role('button',name='Speichern',exact=True).click()
  # Jedes Register merkt sich je Projekt den zuletzt geöffneten Bereich.
- view('Pläne / Aufmaß');register(page,'Übersicht');register(page,'Unterlagen')
- expect(gliederung(page).get_by_role('button',name='Pläne / Aufmaß',exact=True)).to_have_attribute('aria-current','page')
- view('Projekte');open_project('Umbau Bürogebäude');register(page,'Unterlagen')
- expect(gliederung(page).get_by_role('button',name='Projektdateien',exact=True)).to_have_attribute('aria-current','page')
- page.locator('.tab-auswahl').filter(has_text=fixture['name']).click();expect(gliederung(page).get_by_role('button',name='Pläne / Aufmaß',exact=True)).to_have_attribute('aria-current','page')
+ view('Aufmaß');register(page,'Übersicht');register(page,'Ermittlung')
+ expect(gliederung(page).get_by_role('button',name='Aufmaß',exact=True)).to_have_attribute('aria-current','page')
+ view('Projekte');open_project('Umbau Bürogebäude');register(page,'Ermittlung')
+ expect(gliederung(page).get_by_role('button',name='Stammdaten',exact=True)).to_have_attribute('aria-current','page')
+ page.locator('.tab-auswahl').filter(has_text=fixture['name']).click();expect(gliederung(page).get_by_role('button',name='Aufmaß',exact=True)).to_have_attribute('aria-current','page')
  view('Bebauungsplanfestsetzungen');expect(active().get_by_role('textbox',name='Planbezeichnung',exact=True)).to_have_count(0)
  active().get_by_role('button',name='Rechtsgrundlagen bearbeiten',exact=True).click();expect(active().get_by_label('Planbezeichnung',exact=True)).to_be_visible()
  view('Projektdateien');page.screenshot(path=str(out/'dateifilter-light.png'));search=active().get_by_label('Dateien suchen',exact=True);label=active().get_by_label('Kategorie filtern',exact=True);assert label.locator('..').bounding_box()['height']>label.bounding_box()['height']+10
