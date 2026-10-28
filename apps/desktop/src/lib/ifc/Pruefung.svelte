@@ -76,7 +76,8 @@
   .zeile label{display:flex;flex-direction:column;font-size:.85rem;flex:1;min-width:0}
   .summe{margin:4px 0 8px}
   .befunde{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-  .befunde > li{border:1px solid var(--border-innen);border-left-width:4px;padding:4px 6px;background:var(--panel)}
+  /* Eigene Blockdarstellung statt der globalen Listenzeile (Flex). */
+  .befunde > li{display:block;border:1px solid var(--border-innen);border-left-width:4px;padding:4px 6px;background:var(--panel)}
   .befunde > li.fehler{border-left-color:var(--danger,#b3261e)}
   .befunde > li.warnung{border-left-color:var(--warning-text,#9a6700)}
   .befunde > li.hinweis{border-left-color:var(--accent)}

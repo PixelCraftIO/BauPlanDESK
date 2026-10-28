@@ -379,6 +379,41 @@ async fn uebernahme_in_gebaeude_zeichnungen_und_raumbuch() {
         .unwrap();
     assert_eq!(stand.geschosse.len(), 2);
     assert!(stand.geschosse.iter().all(|g| g.raumbuch_id.is_some()));
+
+    // Ein zweites Modell in ein neues Gebäude: der Name bleibt unterscheidbar.
+    let zweite_id = Uuid::new_v4();
+    let zweite = ifc::Modellakte {
+        bezeichnung: "Variante B".into(),
+        ..akte
+    };
+    let f = u
+        .core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Ifcmodell,
+            zweite_id,
+            0,
+            serde_json::to_value(&zweite).unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let r = u
+        .core
+        .ifc_uebernehmen(
+            u.projekt.id,
+            &ifc::Modelluebernahmewunsch {
+                akte_id: zweite_id,
+                revision: f.revision,
+                gebaeude_id: None,
+                raumbuch: false,
+            },
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let haus: Gebaeude = serde_json::from_value(r.gebaeude.daten.clone()).unwrap();
+    assert_eq!(haus.bezeichnung, "Wohnhaus (Variante B)");
 }
 
 fn haus_id(r: &ifc::Modelluebernahmeergebnis) -> Uuid {

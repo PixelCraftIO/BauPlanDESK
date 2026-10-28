@@ -625,7 +625,7 @@ fn reimport_abgleich_ueber_global_id() {
     let p = v.geaendert.iter().find(|g| g.global_id == proxy).unwrap();
     assert_eq!(p.aenderungen, ["Klasse Unklassifiziertes Bauteil → Wand"]);
     let w = v.geaendert.iter().find(|g| g.global_id == wohnen).unwrap();
-    assert!(w.aenderungen[0].starts_with("Name"));
+    assert_eq!(w.aenderungen, ["Langname „Wohnen“ → „Wohnen/Essen“"]);
     assert_eq!(v.unveraendert, alt.elemente.len() - 3);
     assert_eq!(
         v.nacharbeit,
