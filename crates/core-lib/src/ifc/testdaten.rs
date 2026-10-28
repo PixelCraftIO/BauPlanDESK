@@ -83,6 +83,21 @@ pub mod efh {
     pub const FIRST: f64 = 5.6;
 }
 
+/// Zweite Fassung des Beispielhauses für den Reimport: Lichtschacht als
+/// Wand klassifiziert, Schornstein entfernt, „Wohnen“ heißt „Wohnen/Essen“.
+pub fn efh_ifc4_v2() -> String {
+    efh_ifc4()
+        .lines()
+        .filter(|l| !l.contains("=IFCCHIMNEY("))
+        .map(|l| {
+            l.replace("IFCBUILDINGELEMENTPROXY(", "IFCWALL(")
+                .replace("'Wohnen'", "'Wohnen/Essen'")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
 /// Zweigeschossiges Einfamilienhaus (EG, OG), Flachdach, IFC4, Millimeter:
 /// Außenwände 36,5 cm, Innenwand 11,5 cm, je Geschoss zwei Räume mit
 /// Basismengen, Bodenplatte, Geschossdecke, Dach als Aggregat, ein

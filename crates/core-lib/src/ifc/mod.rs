@@ -11,6 +11,7 @@
 //!   gespeichert.
 //! * Rechtliche Anrechnungen (Vollgeschoss, GRZ/GFZ, Abstandsflächen) bleiben
 //!   bei ihren Fachmodulen. Das Modell liefert Flächen, Höhen und Herkunft.
+mod abgleich;
 mod auszug;
 pub mod geometrie;
 mod grundriss;
@@ -24,6 +25,9 @@ pub mod testdaten;
 mod tests;
 mod uebernahme;
 
+pub use abgleich::{
+    Elementaenderung, Elementverweis, Modellabgleich, Nacharbeitsstand, Reimportwunsch, abgleichen,
+};
 pub use auszug::{auszug, klassentitel};
 pub use grundriss::{
     Grundrissteil, Modellgeschoss, Modellgrundriss, SCHNITTHOEHE_M, als_plan, geschossliste,

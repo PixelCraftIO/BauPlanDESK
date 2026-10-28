@@ -15,11 +15,11 @@ window.ifcAkten=window.ifcAkten??[];window.ifcAufrufe=[];
 const ifcDok={document_id:"c416da8b-cbfb-4ae6-931b-8765fb6454c1",project_id:window.fixture.id,version:1,file_name:IFC.datei_name,sha256:"0".repeat(64),size_bytes:40000,created_at:window.fixture.created_at,created_by:"Test",storage_key:"efh.ifc"};
 window.ifcDok=ifcDok;
 const idsDok={...ifcDok,document_id:"d416da8b-cbfb-4ae6-931b-8765fb6454d1",file_name:"buero.ids",storage_key:"buero.ids"};
-const istIfcDok=d=>d&&d.dokument_id===ifcDok.document_id&&d.version===ifcDok.version;
+const istIfcDok=d=>d&&d.dokument_id===ifcDok.document_id&&(d.version===1||d.version===2);
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  const c=({fachobjektseite:'fachobjekte'})[cmd]??cmd;
- if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok,idsDok];}
- if(c.startsWith("ifc_")&&!["ifc_uebernehmen","ifc_pruefen","ifc_akte_auszug","ifc_akte_grundriss","ifc_raumvorschlaege"].includes(c)){
+ if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok,{...ifcDok,version:2},idsDok];}
+ if(["ifc_auszug","ifc_geschosse","ifc_grundriss","ifc_grundriss_plan","ifc_datei"].includes(c)){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});
    if(!istIfcDok(args.dokument))throw "Dokument ist kein IFC-Modell des Projekts";
    if(c==="ifc_auszug")return structuredClone(IFC.auszug);
@@ -34,6 +34,14 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(c==="ifc_akte_auszug")return kopie(IFC.auszug);
    if(c==="ifc_raumvorschlaege")return kopie((IFC.raumvorschlaege[args.geschoss]??[]).map((v,i)=>i===0?{...v,vorhanden:null}:v));
    const g=kopie(IFC.grundrisse[args.geschoss]);if(!g)throw "Geschoss ist nicht im Modell";if(args.schnitthoeheM!=null)g.schnitthoehe_m=args.schnitthoeheM;return g;
+ }
+ if(c==="ifc_abgleich"){window.ifcAufrufe.push({cmd:c,args:kopie(args)});const akte=window.ifcAkten.find(a=>a.objekt===args.akteId);return {...kopie(IFC.abgleich_v2),nacharbeit:(akte.daten.nacharbeit??[]).map(()=>"wirksam")};}
+ if(c==="ifc_reimport"){
+   window.ifcAufrufe.push({cmd:c,args:kopie(args)});
+   const w=args.wunsch,akte=window.ifcAkten.find(a=>a.objekt===w.akte_id);
+   if(!akte||akte.revision!==w.revision)throw "Modellakte wurde inzwischen geändert. Bitte neu laden.";
+   const neu={...kopie(akte),revision:akte.revision+1};neu.daten.dokument=kopie(w.dokument);
+   window.ifcAkten=[...window.ifcAkten.filter(a=>a.objekt!==akte.objekt),neu];return kopie(neu);
  }
  if(c==="ifc_pruefen"){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});

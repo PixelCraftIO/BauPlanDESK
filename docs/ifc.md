@@ -137,6 +137,28 @@ einem Reimport fehlen, bleiben gespeichert, wirken nicht und erscheinen als
 Hinweis im Modellbericht. Im Reiter „Prüfung“ öffnet die Aktion eines Befunds
 die Nacharbeit mit den betroffenen Elementen.
 
+## Reimport
+
+Kommt eine neue Fassung vom Planer (neue Dokumentversion derselben Datei oder
+eine andere IFC-Datei), gleicht `CoreServices::ifc_abgleich` (Befehl
+`ifc_abgleich`, Reiter „Modellbericht“) sie mit dem bisherigen Modell der Akte
+ab, beide ohne Nacharbeit und über die GlobalId (`ifc::abgleichen`):
+
+- neue, entfernte und geänderte Elemente (Klasse, Art, Name, Geschoss,
+  Grundfläche, Ober-/Unterkante, Eigenschaften), Zahl der unveränderten,
+- Geschosse, die hinzukommen, entfallen oder ihre Höhe ändern,
+- der Stand jeder Nacharbeit: *wirksam* (wirkt weiter), *verwaist* (Element
+  fehlt) oder *überholt* (die neue Fassung hat den Zustand schon selbst, z. B.
+  der Proxy ist jetzt eine Wand; ein gebildeter Raum ist überholt, wenn ein
+  Raum der neuen Fassung ihn abdeckt).
+
+`CoreServices::ifc_reimport` (Befehl `ifc_reimport`) stellt die Akte auf die
+neue Datei um. Die Nacharbeit wandert mit; überholte und verwaiste Änderungen
+können dabei gestrichen werden. Die Revision der Akte muss stimmen, dieselbe
+Version wird abgelehnt. Eine vorhandene Übernahme bleibt bestehen und wird beim
+nächsten Übernehmen aktualisiert (Markierungs-IDs bleiben). Steht im DMS eine
+neuere Version der Datei, zeigt die Modellansicht „Neue Version … vorhanden“.
+
 ## Übernahme ins Projekt
 
 `CoreServices::ifc_uebernehmen` (Befehl `ifc_uebernehmen`, Reiter
@@ -166,7 +188,8 @@ Berechnungen gültig bleiben; selbst gezeichnete Markierungen bleiben.
 
 `core_lib::ifc::testdaten::efh_ifc4()` erzeugt ein vollständig bekanntes
 zweigeschossiges Einfamilienhaus (Millimeter, Georeferenz, Proxy, Flächenmodell,
-absichtlich abweichende Raummengen). `wand_ifc2x3()` ist ein minimales
+absichtlich abweichende Raummengen). `efh_ifc4_v2()` ist die zweite Fassung für den Reimport (Proxy als Wand,
+Schornstein entfernt, Raum umbenannt). `wand_ifc2x3()` ist ein minimales
 IFC2X3-Modell. Tests: `crates/core-lib/src/ifc/tests.rs`,
 `crates/storage/tests/ifc.rs`, UI: `apps/desktop/tests/ifc.py` mit der Fixture
 `apps/desktop/tests/fixtures/ifc-efh.json`, erzeugt mit

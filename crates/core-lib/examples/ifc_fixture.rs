@@ -32,6 +32,11 @@ fn main() {
         "grundrisse": Value::Object(grundrisse),
         "plaene": Value::Object(plaene),
         "raumvorschlaege": Value::Object(vorschlaege),
+        "abgleich_v2": ifc::abgleichen(
+            &m.auszug,
+            &Modell::lesen("EFH.ifc", testdaten::efh_ifc4_v2().as_bytes()).expect("V2").auszug,
+            &[],
+        ),
         "pruefung": ifc::pruefen(&m.auszug, ifc::BAUANTRAG_IDS).expect("Prüfung"),
     });
     println!("{}", serde_json::to_string(&v).expect("JSON"));

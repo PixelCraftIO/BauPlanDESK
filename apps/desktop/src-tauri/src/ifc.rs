@@ -162,3 +162,34 @@ pub async fn ifc_akte_grundriss(
         .ifc_akte_grundriss(projekt_id, akte_id, &geschoss, schnitthoehe_m)
         .await?)
 }
+
+#[tauri::command]
+pub async fn ifc_abgleich(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    akte_id: uuid::Uuid,
+    dokument: Dokumentbezug,
+) -> Result<core_lib::ifc::Modellabgleich, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .ifc_abgleich(projekt_id, akte_id, &dokument)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn ifc_reimport(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::ifc::Reimportwunsch,
+) -> Result<core_lib::commit::Fachstand, CmdError> {
+    let wer = state.benutzer();
+    state
+        .core
+        .projekt_zugriff(projekt_id, &wer, ProjektRecht::Bearbeiten)
+        .await?;
+    Ok(state.core.ifc_reimport(projekt_id, &wunsch, &wer).await?)
+}

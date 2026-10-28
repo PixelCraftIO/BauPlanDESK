@@ -357,6 +357,35 @@ umriss: Array<[number, number]>, flaeche_m2: number,
  * Vorhandener Raum, der diesen Umriss schon abdeckt.
  */
 vorhanden: string | null, };
+export type Nacharbeitsstand = "wirksam" | "verwaist" | "ueberholt";
+export type Elementaenderung = { global_id: string, titel: string,
+/**
+ * Was sich geändert hat, z. B. „Klasse Proxy → Wand“, „Fläche +1,20 m²“.
+ */
+aenderungen: Array<string>, };
+export type Elementverweis = { global_id: string, titel: string, };
+export type Modellabgleich = { alt_schema: string, neu_schema: string, neu: Array<Elementverweis>, entfernt: Array<Elementverweis>, geaendert: Array<Elementaenderung>, unveraendert: number,
+/**
+ * Geschosse: hinzugekommen, entfallen, Höhe geändert (Texte).
+ */
+geschosse: Array<string>,
+/**
+ * Stand jeder Nacharbeit, in der Reihenfolge der Liste.
+ */
+nacharbeit: Array<Nacharbeitsstand>, hinweise: Array<string>, };
+export type Reimportwunsch = { akte_id: string, revision: number,
+/**
+ * Neue IFC-Datei (neue Version derselben Datei oder eine andere).
+ */
+dokument: Dokumentbezug,
+/**
+ * Überholte Nacharbeit (die neue Version hat den Zustand selbst) streichen.
+ */
+ueberholte_entfernen: boolean,
+/**
+ * Verwaiste Nacharbeit (Element fehlt in der neuen Version) streichen.
+ */
+verwaiste_entfernen: boolean, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

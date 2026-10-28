@@ -575,3 +575,66 @@ fn nacharbeit_klassifizieren_zuordnen_ausblenden_und_raum_bilden() {
         .contains("0,1 m²")
     );
 }
+
+#[test]
+fn reimport_abgleich_ueber_global_id() {
+    use super::testdaten::efh_ifc4_v2;
+    let alt = modell(&efh_ifc4()).auszug;
+    let neu = modell(&efh_ifc4_v2()).auszug;
+    let gid = |k: &str| {
+        alt.elemente
+            .iter()
+            .find(|e| e.klasse == k)
+            .unwrap()
+            .global_id
+            .clone()
+    };
+    let (proxy, kamin) = (gid("IFCBUILDINGELEMENTPROXY"), gid("IFCCHIMNEY"));
+    let wohnen = alt
+        .elemente
+        .iter()
+        .find(|e| e.langname.as_deref() == Some("Wohnen"))
+        .unwrap()
+        .global_id
+        .clone();
+    let liste = vec![
+        Modellaenderung::Klassifizieren {
+            global_id: proxy.clone(),
+            klasse: "IFCWALL".into(),
+            vordefiniert: None,
+        },
+        Modellaenderung::Ausblenden {
+            global_id: kamin.clone(),
+        },
+        Modellaenderung::Benennen {
+            global_id: wohnen.clone(),
+            name: "0.01".into(),
+            langname: Some("Wohnzimmer".into()),
+        },
+    ];
+    let v = abgleichen(&alt, &neu, &liste);
+    assert!(v.neu.is_empty());
+    assert_eq!(
+        v.entfernt
+            .iter()
+            .map(|e| e.global_id.as_str())
+            .collect::<Vec<_>>(),
+        [kamin.as_str()]
+    );
+    assert_eq!(v.geaendert.len(), 2, "{:#?}", v.geaendert);
+    let p = v.geaendert.iter().find(|g| g.global_id == proxy).unwrap();
+    assert_eq!(p.aenderungen, ["Klasse Unklassifiziertes Bauteil → Wand"]);
+    let w = v.geaendert.iter().find(|g| g.global_id == wohnen).unwrap();
+    assert!(w.aenderungen[0].starts_with("Name"));
+    assert_eq!(v.unveraendert, alt.elemente.len() - 3);
+    assert_eq!(
+        v.nacharbeit,
+        [
+            Nacharbeitsstand::Ueberholt,
+            Nacharbeitsstand::Verwaist,
+            Nacharbeitsstand::Wirksam
+        ]
+    );
+    assert!(v.geschosse.is_empty());
+    assert_eq!(v.hinweise.len(), 1);
+}

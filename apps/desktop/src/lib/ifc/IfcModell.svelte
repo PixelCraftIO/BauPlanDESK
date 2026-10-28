@@ -10,6 +10,7 @@
   import Uebernahme from "./Uebernahme.svelte";
   import Pruefung from "./Pruefung.svelte";
   import Nacharbeit from "./Nacharbeit.svelte";
+  import Reimport from "./Reimport.svelte";
   import { zahl, flaeche, laenge, klassentitel, elementtitel } from "./format";
   let { projekt, darf, start, onstatus, onzeichnung }: {
     projekt: Project;
@@ -95,6 +96,7 @@
     for (const e of els) { const k = klassentitel(e.klasse); m.set(k, [...(m.get(k) ?? []), e]); }
     return [...m].sort((a, b) => a[0].localeCompare(b[0], "de"));
   };
+  const neuereVersion = $derived(akte ? Math.max(0, ...dokumente.filter(d => d.document_id === akte!.daten.dokument.dokument_id && d.version > akte!.daten.dokument.version).map(d => d.version)) || null : null);
   const ohneGeschoss = $derived((auszug?.elemente ?? []).filter(e => !e.geschoss).length);
   const sichtbarImGrundriss = $derived(new Set(grundriss?.teile.map(t => t.global_id) ?? []));
 </script>
@@ -125,7 +127,8 @@
 {:else}
   <div class="modell" aria-label={`Modell ${akte.daten.bezeichnung}`}>
     <aside class="struktur" aria-label="Modellstruktur">
-      <header><strong>{akte.daten.bezeichnung}</strong>{#if auszug}<span class="meta">{auszug.schema} · {auszug.system ?? "Software unbekannt"}</span>{/if}</header>
+      <header><strong>{akte.daten.bezeichnung}</strong>{#if auszug}<span class="meta">{auszug.schema} · {auszug.system ?? "Software unbekannt"} · V{akte.daten.dokument.version}</span>{/if}
+        {#if neuereVersion}<button type="button" class="link hinweis" onclick={() => (rechts = "bericht")}>Neue Version V{neuereVersion} vorhanden: abgleichen</button>{/if}</header>
       {#if auszug}
         {#each auszug.gebaeude as b (b.global_id)}<button type="button" class="knoten gebaeude" class:gewaehlt={auswahl === b.global_id} onclick={() => (auswahl = b.global_id)}>Gebäude {b.name || b.langname || ""}</button>{/each}
         {#each auszug.geschosse as g (g.global_id)}
@@ -229,6 +232,7 @@
         <table class="liste" aria-label="Klassen"><thead><tr><th>Klasse</th><th class="zahl">Anzahl</th></tr></thead><tbody>{#each auszug.bericht.klassen as k}<tr><td>{k.titel} <span class="meta">{k.klasse}</span></td><td class="zahl">{k.anzahl}</td></tr>{/each}</tbody></table>
         {#if auszug.bericht.offene_darstellungen.length}<h4>Nicht ausgewertete Darstellungen</h4><ul>{#each auszug.bericht.offene_darstellungen as o}<li>{o.titel}: {o.anzahl} Element(e)</li>{/each}</ul>{/if}
         {#if auszug.bericht.hinweise.length}<h4>Hinweise</h4><ul>{#each auszug.bericht.hinweise as h}<li>{h}</li>{/each}</ul>{/if}
+        <Reimport projektId={projekt.id} {akte} {dokumente} {darf} onakte={a => { akte = a; stand++; void modellLaden(); }}/>
       {/if}
     </aside>
   </div>
@@ -267,4 +271,5 @@
   .liste td,.liste th{border-bottom:1px solid var(--border-innen);padding:2px 4px;text-align:left;vertical-align:top}
   .zahl{text-align:right;white-space:nowrap}
   h4{margin:8px 0 4px;font-size:.85rem}
+  .hinweis{color:var(--warning-text,#6b4a00);text-align:left;padding:0}
 </style>

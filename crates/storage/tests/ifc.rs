@@ -534,3 +534,122 @@ async fn nacharbeit_gespeichert_und_in_uebernahme_wirksam() {
     assert_eq!(rb.raeume[0].bezeichnung, "0.01 Wohnen und Essen");
     assert_eq!(rb.raeume[0].hoehe_m, Some(2.5), "Höhe des gebildeten Raums");
 }
+
+/// Reimport: neue Dokumentversion abgleichen, Akte umstellen; überholte und
+/// verwaiste Nacharbeit wahlweise streichen.
+#[tokio::test]
+async fn reimport_neue_version_mit_nacharbeit() {
+    use core_lib::ifc::{Modellaenderung, Nacharbeitsstand, Reimportwunsch};
+    let u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let roh = u.core.ifc_auszug(u.projekt.id, &d).await.unwrap();
+    let gid = |k: &str| {
+        roh.elemente
+            .iter()
+            .find(|e| e.klasse == k)
+            .unwrap()
+            .global_id
+            .clone()
+    };
+    let raum = gid("IFCSPACE");
+    let akte_id = Uuid::new_v4();
+    let akte = ifc::Modellakte {
+        bezeichnung: "Entwurf".into(),
+        dokument: d.clone(),
+        uebernahme: None,
+        nacharbeit: vec![
+            Modellaenderung::Klassifizieren {
+                global_id: gid("IFCBUILDINGELEMENTPROXY"),
+                klasse: "IFCWALL".into(),
+                vordefiniert: None,
+            },
+            Modellaenderung::Ausblenden {
+                global_id: gid("IFCCHIMNEY"),
+            },
+            Modellaenderung::Benennen {
+                global_id: raum.clone(),
+                name: "0.01".into(),
+                langname: Some("Wohnzimmer".into()),
+            },
+        ],
+    };
+    let f = u
+        .core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Ifcmodell,
+            akte_id,
+            0,
+            serde_json::to_value(&akte).unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let v2 = u
+        .core
+        .store_document(
+            u.projekt.id,
+            Some(d.dokument_id),
+            Some(1),
+            "EFH.ifc",
+            bytes::Bytes::from(testdaten::efh_ifc4_v2()),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let neu = Dokumentbezug {
+        dokument_id: v2.document_id,
+        version: v2.version,
+    };
+    assert_eq!(neu.version, 2);
+    let a = u
+        .core
+        .ifc_abgleich(u.projekt.id, akte_id, &neu)
+        .await
+        .unwrap();
+    assert_eq!(a.entfernt.len(), 1);
+    assert_eq!(
+        a.nacharbeit,
+        [
+            Nacharbeitsstand::Ueberholt,
+            Nacharbeitsstand::Verwaist,
+            Nacharbeitsstand::Wirksam
+        ]
+    );
+    let mut w = Reimportwunsch {
+        akte_id,
+        revision: f.revision,
+        dokument: neu.clone(),
+        ueberholte_entfernen: true,
+        verwaiste_entfernen: true,
+    };
+    let f2 = u
+        .core
+        .ifc_reimport(u.projekt.id, &w, &u.user)
+        .await
+        .unwrap();
+    let akte2: ifc::Modellakte = serde_json::from_value(f2.daten).unwrap();
+    assert_eq!(akte2.dokument, neu);
+    assert_eq!(akte2.nacharbeit.len(), 1);
+    let a2 = u.core.ifc_akte_auszug(u.projekt.id, &akte2).await.unwrap();
+    assert_eq!(
+        a2.element(&raum).unwrap().langname.as_deref(),
+        Some("Wohnzimmer")
+    );
+    // Gleiche Version oder veraltete Revision: abgewiesen.
+    w.revision = f2.revision;
+    assert!(
+        u.core
+            .ifc_reimport(u.projekt.id, &w, &u.user)
+            .await
+            .is_err()
+    );
+    w.dokument = d;
+    w.revision = f.revision;
+    assert!(
+        u.core
+            .ifc_reimport(u.projekt.id, &w, &u.user)
+            .await
+            .is_err()
+    );
+}

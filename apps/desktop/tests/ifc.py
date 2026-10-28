@@ -99,6 +99,21 @@ with sync_playwright() as pw:
  expect(aenderungen.locator('li')).to_have_count(1)
  assert page.evaluate('window.ifcAkten[0].daten.nacharbeit.length')==1
  assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_akte_auszug').length")>=4
+ # Reimport: neue Version V2 wird angeboten, abgeglichen und übernommen.
+ struktur.get_by_role('button',name='Neue Version V2 vorhanden: abgleichen').click()
+ re=details.get_by_role('region',name='Neue Modellversion')
+ expect(re.get_by_label('Neue Modellversion')).to_have_value(page.evaluate('window.ifcDok.document_id')+'|2')
+ re.get_by_role('button',name='Abgleichen').click()
+ ab=ifc['abgleich_v2']
+ expect(re.get_by_role('status',name='Abgleich')).to_contain_text(f"{len(ab['neu'])} neu, {len(ab['entfernt'])} entfernt, {len(ab['geaendert'])} geändert")
+ expect(re.get_by_role('status',name='Abgleich')).to_contain_text('Nacharbeit: 1 wirkt weiter')
+ re.get_by_role('button',name='Auf diese Version umstellen').click()
+ expect(re.get_by_text('Modellakte auf die neue Version umgestellt',exact=False)).to_be_visible()
+ assert page.evaluate('window.ifcAkten[0].daten.dokument.version')==2
+ w=page.evaluate("window.ifcAufrufe.find(a=>a.cmd==='ifc_reimport').args.wunsch")
+ assert w['ueberholte_entfernen'] is True and w['verwaiste_entfernen'] is False, w
+ expect(struktur.get_by_role('button',name='Neue Version V2 vorhanden: abgleichen')).to_have_count(0)
+ expect(struktur).to_contain_text('V2')
  # 3D: web-ifc lädt die Datei, Klick wählt ein Element.
  mitte.get_by_role('radio',name='3D').click()
  leinwand=scope.get_by_role('img',name='3D-Ansicht des Modells')

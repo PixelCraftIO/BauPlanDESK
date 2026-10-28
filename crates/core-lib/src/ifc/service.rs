@@ -199,6 +199,71 @@ impl CoreServices {
         super::pruefen(&a, &text)
     }
 
+    /// Gleicht eine neue Modellversion gegen das Modell der Akte ab.
+    pub async fn ifc_abgleich(
+        &self,
+        p: ProjectId,
+        akte_id: uuid::Uuid,
+        neu: &Dokumentbezug,
+    ) -> CoreResult<super::Modellabgleich> {
+        let akte = self.modellakte(p, akte_id).await?;
+        let alt = self.ifc_modell(p, &akte.dokument).await?;
+        let neu = self.ifc_modell(p, neu).await?;
+        Ok(super::abgleichen(
+            &alt.auszug,
+            &neu.auszug,
+            &akte.nacharbeit,
+        ))
+    }
+
+    /// Stellt die Modellakte auf die neue Version um; die Nacharbeit wandert
+    /// mit, auf Wunsch ohne überholte oder verwaiste Einträge.
+    pub async fn ifc_reimport(
+        &self,
+        p: ProjectId,
+        w: &super::Reimportwunsch,
+        wer: &crate::benutzer::Benutzer,
+    ) -> CoreResult<crate::commit::Fachstand> {
+        let f = self
+            .fachobjekt_lesen(p, crate::plattform::ObjektArt::Ifcmodell, w.akte_id)
+            .await?
+            .ok_or_else(|| CoreError::InvalidInput("Modellakte fehlt im Projekt".into()))?;
+        if f.revision != w.revision {
+            return Err(CoreError::InvalidInput(
+                "Modellakte wurde inzwischen geändert. Bitte neu laden.".into(),
+            ));
+        }
+        let mut akte: Modellakte =
+            serde_json::from_value(f.daten).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+        if akte.dokument == w.dokument {
+            return Err(CoreError::InvalidInput(
+                "Die Modellakte verwendet diese Version bereits".into(),
+            ));
+        }
+        let v = self.ifc_abgleich(p, w.akte_id, &w.dokument).await?;
+        let alt = std::mem::take(&mut akte.nacharbeit);
+        akte.nacharbeit = alt
+            .into_iter()
+            .zip(v.nacharbeit)
+            .filter(|(_, s)| match s {
+                super::Nacharbeitsstand::Ueberholt => !w.ueberholte_entfernen,
+                super::Nacharbeitsstand::Verwaist => !w.verwaiste_entfernen,
+                super::Nacharbeitsstand::Wirksam => true,
+            })
+            .map(|(c, _)| c)
+            .collect();
+        akte.dokument = w.dokument.clone();
+        self.fachobjekt_speichern(
+            p,
+            crate::plattform::ObjektArt::Ifcmodell,
+            w.akte_id,
+            w.revision,
+            serde_json::to_value(&akte).map_err(|e| CoreError::InvalidInput(e.to_string()))?,
+            wer,
+        )
+        .await
+    }
+
     /// Modellakte lesen.
     pub async fn modellakte(&self, p: ProjectId, id: uuid::Uuid) -> CoreResult<Modellakte> {
         let f = self

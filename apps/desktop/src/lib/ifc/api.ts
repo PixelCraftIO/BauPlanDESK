@@ -1,6 +1,6 @@
 /** IFC-Modelle: dünne Aufrufe der Core-Befehle (`apps/desktop/src-tauri/src/ifc.rs`). */
 import { invoke } from "@tauri-apps/api/core";
-import type { Dokumentbezug, Modellauszug, Modellgeschoss, Modellgrundriss, Modellpruefung, Modelluebernahmeergebnis, Modelluebernahmewunsch, Raumvorschlag } from "../generated/plattform";
+import type { Dokumentbezug, Modellauszug, Modellgeschoss, Modellgrundriss, Modellpruefung, Modelluebernahmeergebnis, Modelluebernahmewunsch, Raumvorschlag, Modellabgleich, Reimportwunsch, Fachstand } from "../generated/plattform";
 import { nachErfolg } from "../projektEreignisse";
 import type { Plan } from "../api";
 export const ifcApi = {
@@ -19,6 +19,9 @@ export const ifcApi = {
     invoke<Modellgrundriss>("ifc_akte_grundriss", { projektId, akteId, geschoss, schnitthoeheM }),
   raumvorschlaege: (projektId: string, akteId: string, geschoss: string) =>
     invoke<Raumvorschlag[]>("ifc_raumvorschlaege", { projektId, akteId, geschoss }),
+  abgleich: (projektId: string, akteId: string, dokument: Dokumentbezug) => invoke<Modellabgleich>("ifc_abgleich", { projektId, akteId, dokument }),
+  reimport: (projektId: string, wunsch: Reimportwunsch) =>
+    nachErfolg(invoke<Fachstand>("ifc_reimport", { projektId, wunsch }), { projektId, bereich: "fachobjekte" }),
   /** Prüfung gegen das mitgelieferte IDS oder ein IDS aus den Projektdateien. */
   pruefen: (projektId: string, akteId: string, ids: Dokumentbezug | null = null) =>
     invoke<Modellpruefung>("ifc_pruefen", { projektId, akteId, ids }),
