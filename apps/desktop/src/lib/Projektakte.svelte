@@ -644,7 +644,7 @@
     </section>
     {#if ansicht === "protokoll"}
       <section>
-        <h2>Protokoll</h2>
+        <h2>Chronik</h2>
         <p class="meta">
           Wer hat wann was im Projekt geändert. Die neuesten Einträge stehen
           oben.

@@ -149,6 +149,7 @@ window.__TAURI_INTERNALS__ = {
     // Eigenes Projektrecht (core-lib zugriff.rs); je Projekt überschreibbar.
     if (cmd === "projekt_recht")
       return window.testProjektRecht?.[args.id] ?? "leitung";
+    if (cmd === "protokoll") return copy(window.testProtokoll ?? []);
     if (
       [
         "bauherren",
@@ -156,7 +157,6 @@ window.__TAURI_INTERNALS__ = {
         "dokumente_auflisten",
         "sperren_auflisten",
         "xbau_codelisten",
-        "protokoll",
         "kunden_auflisten",
       ].includes(cmd)
     )

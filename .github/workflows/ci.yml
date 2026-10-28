@@ -171,6 +171,7 @@ jobs:
           python apps/desktop/tests/handbuch-ui.py
           python apps/desktop/tests/beispielprojekt.py
           python apps/desktop/tests/zeichnung.py
+          python apps/desktop/tests/chronik.py
       - name: Editor- und Entwurfssicherung unter Fehlern prüfen
         run: |
           npm --prefix apps/desktop run dev -- --host 127.0.0.1 --port 1467 > /tmp/bauplan-stabilitaet-vite.log 2>&1 &

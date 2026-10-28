@@ -154,8 +154,18 @@ impl CoreServices {
                     Some(p),
                     Some(a.dokument_id),
                     format!(
-                        "Ausgabeauftrag {}: {:?}, Versuch {}",
-                        a.id, a.status, a.versuche
+                        "{}: {}, Versuch {}{}",
+                        a.relativer_pfad,
+                        match a.status {
+                            AusgabeStatus::Laeuft => "wird in den Projektordner geschrieben",
+                            AusgabeStatus::Fertig => "in den Projektordner geschrieben",
+                            AusgabeStatus::Fehler => "Ausgabe fehlgeschlagen",
+                        },
+                        a.versuche,
+                        a.fehler
+                            .as_deref()
+                            .map(|f| format!(" – {f}"))
+                            .unwrap_or_default()
                     ),
                 ),
             )
