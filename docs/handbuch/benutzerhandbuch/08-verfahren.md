@@ -139,6 +139,13 @@ abbilden kann (z. B. fehlende Landes-Verfahrensart-Codeliste; „Codeliste
 einspielen“). Die Antragsmaske ersetzt nicht das amtliche Landesformular –
 dieses zusätzlich unter „Formulare“ ausfüllen.
 
+Ein IFC-Gebäudemodell wird wie jede andere Bauvorlage beigefügt. Im
+IFC-Modell unter „Export“ ordnet **Modelldatei dem Bauantrag beifügen** die
+Datei mit der Anlagenart 2010 „BIM-Gebäudemodell“ zu
+([Kapitel 5](05-ermittlung.md#ifc-datei-schreiben-und-dem-bauantrag-beifügen)).
+IFC-Dateien ohne eigene Kategorie bekommen diese Anlagenart vorgeschlagen.
+Übermittelt wird die neueste Version der Datei.
+
 ## Einreichen / Portal
 
 ![Einreichen / Portal](bilder/verfahren-portal.png)

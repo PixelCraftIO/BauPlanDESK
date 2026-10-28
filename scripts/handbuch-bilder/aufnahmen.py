@@ -175,10 +175,34 @@ SZENEN = [
     ("verfahren-portal", 'await register("Nachweis und Einreichung"); await bereich("Einreichen / Portal")'),
     ("verfahren-xbau", 'await register("Nachweis und Einreichung"); await bereich("XBau-Nachrichten")'),
     ("verfahren-aktensuche", 'await register("Nachweis und Einreichung"); await bereich("Suche / Wiedervorlagen")'),
+    # IFC-Modell (Kapitel 5): die Testmodelle aus ifc_vorbereiten().
+    ("ifc-modell-waehlen", 'await register("Ermittlung"); await bereich("Aufmaß"); await klick("IFC-Modell","button"); await sleep(1500); await waehle("IFC-Datei","EFH-Mustermann.ifc"); await tippe("Bezeichnung des Modells","Entwurf Architekt")'),
+    ("ifc-modell-struktur", 'await klick("Modell öffnen"); await sleep(4000); const st=document.querySelector("[aria-label=Modellstruktur]"); const w=[...st.querySelectorAll("summary")].find(s=>txt(s).startsWith("Wand")); w.click(); await sleep(400); w.parentElement.querySelector("button.blatt").click(); await sleep(1200)'),
+    ("ifc-modell-3d", 'await ifcModell(); await klick("3D","[role=radio]"); await sleep(8000)'),
+    ("ifc-modell-bericht", 'await ifcModell(); await klick("Grundriss","[role=radio]"); await ifcReiter("Modellbericht")'),
+    ("ifc-modell-pruefung", 'await ifcModell(); await ifcReiter("Prüfung"); await sleep(1500)'),
+    ("ifc-modell-nacharbeit", 'await ifcModell(); await ifcReiter("Prüfung"); await sleep(1500); await klick("Klassifizieren","[aria-label=Details] button"); await sleep(1500)'),
+    ("ifc-modell-auswertung", 'await ifcModell(); await ifcReiter("Auswertung"); await sleep(1500)'),
+    ("ifc-modell-uebernahme", 'await ifcModell(); await ifcReiter("Übernahme"); await klick("In Projekt übernehmen"); await sleep(6000)'),
+    ("ifc-modell-export", 'await ifcModell(); await ifcReiter("Export"); await klick("Modelldatei dem Bauantrag beifügen"); await sleep(2500); await waehle("Gebäude für das Modell","(Entwurf Architekt)"); await sleep(1000); await klick("IFC4-Modell schreiben"); await sleep(5000); ifcDetailsEnde()'),
+    ("ifc-modell-abgleich", 'await ifcModell(); await klick("Entwurf Architekt schließen","button"); await sleep(800); const p=(await window.__TAURI_INTERNALS__.invoke("projekte_auflisten")).find(x=>x.name==="Neubau Einfamilienhaus Mustermann"); const d=(await window.__TAURI_INTERNALS__.invoke("dokumente_auflisten",{projektId:p.id})).find(x=>x.file_name==="EFH-Mustermann.ifc"); await window.__TAURI_INTERNALS__.invoke("dokument_importieren",{projektId:p.id,dokumentId:d.document_id,basis:d.version,kategorie:null,pfad:IFC_ORDNER+"/v2/EFH-Mustermann.ifc"}); await klick("IFC-Modell","button"); await sleep(1500); await klick("Entwurf Architekt","section[aria-label^=IFC-Modell] button"); await sleep(4000); await klick("Neue Version","button"); await sleep(1500); await klick("Abgleichen","[aria-label=Details] button"); await sleep(3000); await aufklappen("Geändert"); ifcDetailsEnde()'),
     # Zuletzt: Das Verlassen des Formulareditors fragt nativ nach und würde
     # spätere Aufnahmen verdecken.
     ("nachweis-formular-ausfuellen", 'await register("Nachweis und Einreichung"); await bereich("Formulare"); await klick("Ausfüllen"); await sleep(8000)'),
 ]
+
+
+IFC_ORDNER = "/tmp/handbuch-ifc"
+
+
+def ifc_vorbereiten():
+    """Legt das IFC-Testmodell (erste Fassung) in die Projektdateien des
+    Beispielprojekts; die zweite Fassung liegt für den Abgleich bereit."""
+    subprocess.run(["cargo", "run", "-q", "-p", "core-lib", "--features", "testdaten", "--example", "ifc_dateien", "--", IFC_ORDNER], cwd=WURZEL, check=True)
+    (Path(IFC_ORDNER) / "v2").mkdir(exist_ok=True)
+    shutil.move(f"{IFC_ORDNER}/EFH-Mustermann-V2.ifc", f"{IFC_ORDNER}/v2/EFH-Mustermann.ifc")
+    subprocess.run(["chmod", "-R", "a+rX", IFC_ORDNER], check=True)
+    js(f'const p=(await window.__TAURI_INTERNALS__.invoke("projekte_auflisten")).find(x=>x.name==="Neubau Einfamilienhaus Mustermann"); await window.__TAURI_INTERNALS__.invoke("dokument_importieren",{{projektId:p.id,dokumentId:null,basis:null,kategorie:null,pfad:"{IFC_ORDNER}/EFH-Mustermann.ifc"}}); return 1')
 
 
 def main(argumente):
@@ -188,11 +212,13 @@ def main(argumente):
         umgebung_starten()
         app_starten(frisch=True)
         beispielprojekt_oeffnen()
+        if not auswahl or any(a.startswith("ifc-") for a in auswahl):
+            ifc_vorbereiten()
     for name, code in SZENEN:
         if auswahl and name not in auswahl:
             continue
         try:
-            js("await dialogeSchliessen(); " + code + "; aufraeumen(); await sleep(700); return 1")
+            js(f"const IFC_ORDNER={json.dumps(IFC_ORDNER)}; await dialogeSchliessen(); " + code + "; aufraeumen(); await sleep(700); return 1")
             foto(name)
             print("ok   ", name)
         except Exception as fehler:

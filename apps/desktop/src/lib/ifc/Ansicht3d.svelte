@@ -93,8 +93,11 @@
     const zeichnen = () => renderer.render(szene, kamera);
     steuer.addEventListener("change", zeichnen);
     const blick = (art: "gesamt" | "oben" | "sued") => {
-      // web-ifc liefert y nach oben.
-      const d = groesse * 0.9;
+      // web-ifc liefert y nach oben. Abstand so, dass die Umkugel des Modells
+      // in den engeren der beiden Öffnungswinkel passt.
+      const halb = THREE.MathUtils.degToRad(kamera.fov / 2);
+      const eng = Math.min(halb, Math.atan(Math.tan(halb) * kamera.aspect));
+      const d = (groesse / 2) / Math.sin(eng) * 1.05;
       const richtung = art === "oben" ? new THREE.Vector3(0, 1, 0.0001) : art === "sued" ? new THREE.Vector3(0, 0.25, 1) : new THREE.Vector3(1, 0.8, 1.2);
       kamera.position.copy(mitte).add(richtung.normalize().multiplyScalar(d));
       steuer.target.copy(mitte); steuer.update(); zeichnen();

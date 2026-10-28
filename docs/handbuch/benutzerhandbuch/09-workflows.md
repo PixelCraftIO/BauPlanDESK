@@ -122,3 +122,25 @@ Wenn sich der Entwurf ändert, nachdem schon gemessen und gerechnet wurde:
 8. Zum Üben das Beispielprojekt öffnen.
 
 Einzelheiten: [Kapitel 3](03-einrichtung.md).
+
+## Workflow 6: IFC-Modell des Planers für den Bauantrag nutzen
+
+**Ziel:** aus dem IFC-Modell der Planungssoftware verlässliche Flächen und
+Höhen für Gebäude, Raumbuch und Nachweise, ohne die Datei des Planers zu
+verändern.
+
+| # | Schritt | Wo in der App | Kapitel |
+| --- | --- | --- | --- |
+| 1 | IFC-Datei importieren | Ermittlung → Projektdateien | [5](05-ermittlung.md#projektdateien) |
+| 2 | Modellakte anlegen: „IFC-Modell“, Datei und Bezeichnung, „Modell öffnen“ | Aufmaß → IFC-Modell | [5](05-ermittlung.md#modell-öffnen) |
+| 3 | Modellbericht lesen (Einheit, Georeferenz, Klassen) | IFC-Modell → Modellbericht | [5](05-ermittlung.md#modellbericht-und-prüfung) |
+| 4 | Prüfen; Befunde über ihre Aktion nacharbeiten, bis keine Fehler mehr bleiben | IFC-Modell → Prüfung / Nacharbeit | [5](05-ermittlung.md#nacharbeit) |
+| 5 | Auswertung plausibilisieren (Grundfläche, BGF, Höhen, GRZ/GFZ) | IFC-Modell → Auswertung | [5](05-ermittlung.md#auswertung) |
+| 6 | In Gebäude, Zeichnungen und Raumbücher übernehmen | IFC-Modell → Übernahme | [5](05-ermittlung.md#ins-projekt-übernehmen) |
+| 7 | In den Zeichnungen Markierungen zuordnen und Werte übernehmen, dann wie in Workflow 1 ab Schritt 10 weiter | Aufmaß, Gebäude, Raumbuch, Nachweise | [5](05-ermittlung.md#zeichnen-und-zuordnen), [6](06-nachweise.md) |
+| 8 | Nachgearbeitete IFC-Datei schreiben und an den Planer zurückgeben | IFC-Modell → Export | [5](05-ermittlung.md#ifc-datei-schreiben-und-dem-bauantrag-beifügen) |
+| 9 | Modelldatei dem Bauantrag beifügen (Anlage „BIM-Gebäudemodell“) | IFC-Modell → Export | [8](08-verfahren.md#bauantrag--xbau) |
+
+**Neue Fassung vom Planer:** als neue Version derselben Projektdatei
+importieren, im Modellbericht abgleichen, auf die neue Version umstellen,
+Übernahme aktualisieren, dann wie in Workflow 4 ab Schritt 3.

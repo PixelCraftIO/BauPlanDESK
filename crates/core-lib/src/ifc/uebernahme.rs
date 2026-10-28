@@ -321,9 +321,26 @@ impl CoreServices {
             return Err(CoreError::InvalidInput("Gebäude fehlt im Projekt".into()));
         }
         let basis = vorhanden.as_ref().map_or(0, |f| f.revision);
+        let mut name = a
+            .gebaeude
+            .first()
+            .map(|b| b.name.clone())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| akte.bezeichnung.clone());
+        if vorhanden.is_none() {
+            // Ein neues Gebäude soll in Auswahllisten unterscheidbar sein.
+            let andere = self.fachobjekte(p, ObjektArt::Gebaeude).await?;
+            if andere
+                .iter()
+                .any(|f| f.daten["bezeichnung"].as_str() == Some(name.as_str()))
+                && name != akte.bezeichnung
+            {
+                name = format!("{name} ({})", akte.bezeichnung);
+            }
+        }
         let mut haus: Value = vorhanden.map(|f| f.daten).unwrap_or_else(|| {
             json!({
-                "bezeichnung": a.gebaeude.first().map(|b| if b.name.is_empty() { akte.bezeichnung.clone() } else { b.name.clone() }).unwrap_or_else(|| akte.bezeichnung.clone()),
+                "bezeichnung": name,
                 "grundstueck_ids": [],
                 "geschosse": [],
                 "quelle": akte.dokument,

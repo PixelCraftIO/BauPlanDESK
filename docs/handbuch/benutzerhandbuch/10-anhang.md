@@ -96,6 +96,11 @@ oder Datenbank auf Verdacht löschen.
 | Portalbereitstellung | Exportierte Dateien für die manuelle Übergabe – noch kein Versand |
 | Versand / Eingang | Dokumentierte Übermittlung bzw. bestätigter Zugang |
 | Genehmigter Stand | Die im Bescheid ausdrücklich zugeordneten Versionen |
+| IFC | Offenes Austauschformat für Gebäudemodelle (BIM), ISO 16739 |
+| Modellakte | Ein IFC-Modell im Projekt: Dokumentversion plus Prüfung, Nacharbeit und Übernahme |
+| GlobalId | Dauerhafte Kennung eines Elements im IFC-Modell; bleibt über neue Fassungen gleich |
+| Nacharbeit | Korrektur eines IFC-Modells in BauPlanIO, an die GlobalId gebunden; die Datei bleibt unverändert |
+| IDS | Information Delivery Specification: maschinenlesbare Anforderungen an ein IFC-Modell |
 
 ## Abschlusscheckliste
 

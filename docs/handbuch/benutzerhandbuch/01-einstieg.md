@@ -12,7 +12,8 @@ in einer Projektakte zusammen:
   und Grundbuch.
 - **Werte ermitteln:** Projektdateien versionieren, Flächen, Längen und Höhen
   auf PDF-Plänen, DXF-Zeichnungen oder eigenen Zeichnungen aufmessen und mit
-  Gebäudemodell und Raumbuch verknüpfen.
+  Gebäudemodell und Raumbuch verknüpfen; IFC-Modelle (BIM) prüfen,
+  nacharbeiten, auswerten und als IFC-Datei weitergeben.
 - **Nachweisen:** Baugrundstück, GRZ I/II, GFZ, Geschossigkeit, BMZ,
   überbaubare Fläche, Abstandsflächen, Stellplätze, Wohnflächen, DIN 277,
   Vollgeschosse, Höhen, Freiflächen und Regenwasser berechnen und als

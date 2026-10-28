@@ -81,8 +81,15 @@ fn unterschiede(
             y.vordefiniert.as_deref().unwrap_or("–")
         ));
     }
-    if x.name != y.name || x.langname != y.langname {
+    if x.name != y.name {
         d.push(format!("Name „{}“ → „{}“", x.name, y.name));
+    }
+    if x.langname != y.langname {
+        d.push(format!(
+            "Langname „{}“ → „{}“",
+            x.langname.as_deref().unwrap_or(""),
+            y.langname.as_deref().unwrap_or("")
+        ));
     }
     let gname = |m: &Modellauszug, g: &Option<String>| {
         g.as_deref()

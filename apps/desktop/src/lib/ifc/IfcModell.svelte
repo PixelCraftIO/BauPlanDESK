@@ -273,7 +273,7 @@
   .akten{margin:0 0 8px;padding-left:18px}
   .entwurfwahl{margin-top:12px;max-width:520px}
   .entwurfwahl summary{cursor:pointer;font-weight:600}
-  .modell{display:grid;grid-template-columns:260px minmax(0,1fr) 340px;gap:0;border:1px solid var(--border);background:var(--panel);height:calc(100vh - 210px);min-height:520px}
+  .modell{display:grid;grid-template-columns:260px minmax(0,1fr) 340px;gap:0;border:1px solid var(--border);background:var(--panel);height:max(32rem, calc(100vh - 23rem))}
   .struktur,.rechts{overflow:auto;padding:6px 8px;border-right:1px solid var(--border)}
   .rechts{border-right:0;border-left:1px solid var(--border)}
   .struktur header{display:flex;flex-direction:column;gap:2px;padding:2px 0 6px;border-bottom:1px solid var(--border-innen);margin-bottom:4px}

@@ -63,3 +63,7 @@ required-features = ["testdaten"]
 [[example]]
 name = "ifc_fixture"
 required-features = ["testdaten"]
+
+[[example]]
+name = "ifc_dateien"
+required-features = ["testdaten"]

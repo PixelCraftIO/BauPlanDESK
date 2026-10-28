@@ -262,4 +262,7 @@ Schornstein entfernt, Raum umbenannt). `wand_ifc2x3()` ist ein minimales
 IFC2X3-Modell. Tests: `crates/core-lib/src/ifc/tests.rs`,
 `crates/storage/tests/ifc.rs`, UI: `apps/desktop/tests/ifc.py` mit der Fixture
 `apps/desktop/tests/fixtures/ifc-efh.json`, erzeugt mit
-`cargo run -p core-lib --features testdaten --example ifc_fixture`.
+`cargo run -p core-lib --features testdaten --example ifc_fixture`. Als
+Dateien schreibt beide Fassungen
+`cargo run -p core-lib --features testdaten --example ifc_dateien -- <Ordner>`
+(für die Bildschirmfotos des Benutzerhandbuchs).
