@@ -27,6 +27,8 @@
   import GrundstueckFormular from "./GrundstueckFormular.svelte";
   import FlaechenFormular from "./FlaechenFormular.svelte";
   import { planApi } from "./planaufmass/api";
+  import { Abgleich } from "./planaufmass/Abgleich.svelte";
+  import AbgleichDialog from "./planaufmass/AbgleichDialog.svelte";
   import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
   import { bereichAktiv, ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
   import type { Aufmassstand, BaugrundstuecksErmittlung } from "./generated/plattform";
@@ -386,6 +388,7 @@
   ansichtsAbfrage(() => projekt.id, ["fachobjekte"], aufmasseAktualisieren);
   const aufmassQuelle = (id: string | undefined) =>
     aufmasse.find((a) => a.stand.objekt === id);
+  const abgleich = new Abgleich();
   async function abzuegeAusAufmass(
     stand: Aufmassstand | null,
     aendern?: (e: BaugrundstuecksErmittlung) => void,
@@ -398,7 +401,12 @@
       const plan = request();
       const e = berechnungsansaetze(plan);
       aendern?.(e);
-      const neu = await planApi.abzuege(projekt.id, stand, e);
+      // Gezeichnete Flächen, die schon von Hand erfasst sind, nicht verdoppeln.
+      const zuordnung = stand
+        ? await abgleich.fragen(await planApi.abzuegeAbgleich(projekt.id, stand, e))
+        : [];
+      if (!zuordnung) return;
+      const neu = await planApi.abzuege(projekt.id, stand, e, zuordnung);
       eingabe = {
         ...plan,
         flurstuecke: plan.flurstuecke.map((f) => {
@@ -651,6 +659,7 @@
   });
 </script>
 
+<AbgleichDialog a={abgleich} />
 {#if voraussetzung}<aside
     class="hinweisbox"
     aria-label="Voraussetzungen der Berechnung"

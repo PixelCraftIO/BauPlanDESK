@@ -345,6 +345,18 @@ weitergegebenen Fachwerte.
   die Positivlisten erfasster Zeilen mit Kennung;
   `Planbedeutung::abzugsart`/`fuer_abzugsart` und `bauteiltyp`/`fuer_bauteiltyp`
   sind die einzige Zuordnung zwischen Bedeutung, Abzugsart und Bauteiltyp.
+- Abgleich mit Handzeilen (`planaufmass/abgleich.rs`): Eine Übernahme legt nie
+  stillschweigend eine zweite Zeile für eine schon von Hand erfasste Fläche an.
+  `planaufmass_abzuege_abgleich` / `planaufmass_bauteile_abgleich` liefern je
+  Markierung ohne eigene Zeile eine `Abgleichsfrage`, wenn am selben Flurstück
+  bzw. Baugrundstück ungebundene Zeilen gleicher Art (Abzug) oder passender
+  Bedeutung (Bauteil, `fuer_bauteiltyp`) existieren, mit Kandidaten, gezeichneter
+  Fläche und Vorbelegung (geringste Flächendifferenz). Die Übernahme erhält die
+  Entscheidungen als `Zeilenzuordnung` (Zeilenschlüssel oder leer = neue Zeile);
+  fehlt eine Entscheidung trotz Kandidaten, lehnt der Core ab. Eine verknüpfte
+  Handzeile behält Kennung, Art und Grundlage; Altzeilen ohne Kennung erhalten
+  dabei eine. Bereits verknüpfte Zeilen werden über `planbindung.markierung_id`
+  wiedergefunden.
 - `planziele`: Positivliste fachlich unterstützter Zielfelder.
 - `abstandsziele`: entsprechende Positivliste für manuelle Wände.
 - `gebaeudeziele`: entsprechende Positivliste für Gebäude und explizite Geschosse.

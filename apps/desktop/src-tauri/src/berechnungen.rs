@@ -161,6 +161,7 @@ pub async fn planaufmass_abzuege(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
     aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    zuordnung: Option<Vec<core_lib::planaufmass::Zeilenzuordnung>>,
     ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
 ) -> Result<core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung, CmdError> {
     state
@@ -169,7 +170,28 @@ pub async fn planaufmass_abzuege(
         .await?;
     Ok(state
         .core
-        .planaufmass_abzuege(projekt_id, aufmass, ermittlung)
+        .planaufmass_abzuege(
+            projekt_id,
+            aufmass,
+            &zuordnung.unwrap_or_default(),
+            ermittlung,
+        )
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_abzuege_abgleich(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+    ermittlung: core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
+) -> Result<Vec<core_lib::planaufmass::Abgleichsfrage>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_abzuege_abgleich(projekt_id, aufmass, &ermittlung)
         .await?)
 }
 #[tauri::command]
@@ -178,6 +200,7 @@ pub async fn planaufmass_bauteile(
     projekt_id: ProjectId,
     schluessel: String,
     aufmass: Option<core_lib::planaufmass::Aufmassstand>,
+    zuordnung: Option<Vec<core_lib::planaufmass::Zeilenzuordnung>>,
     aufstellung: core_lib::flaechen::FlaechenAufstellung,
 ) -> Result<core_lib::flaechen::FlaechenAufstellung, CmdError> {
     state
@@ -186,7 +209,30 @@ pub async fn planaufmass_bauteile(
         .await?;
     Ok(state
         .core
-        .planaufmass_bauteile(projekt_id, &schluessel, aufmass, aufstellung)
+        .planaufmass_bauteile(
+            projekt_id,
+            &schluessel,
+            aufmass,
+            &zuordnung.unwrap_or_default(),
+            aufstellung,
+        )
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_bauteile_abgleich(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    schluessel: String,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+    aufstellung: core_lib::flaechen::FlaechenAufstellung,
+) -> Result<Vec<core_lib::planaufmass::Abgleichsfrage>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_bauteile_abgleich(projekt_id, &schluessel, aufmass, &aufstellung)
         .await?)
 }
 #[tauri::command]
