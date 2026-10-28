@@ -52,10 +52,37 @@ Weltsystem des Modells (x, y waagerecht, z nach oben).
 Geometrie, Näherungen, Räume mit Flächenmenge und offene Darstellungsarten.
 Hinweise nennen fehlende Einheiten, fehlende Geschosse und doppelte GlobalIds.
 
+## Modellansicht
+
+Im Aufmaß öffnet **IFC-Modell** einen eigenen Tab: Modellakte aus einer
+IFC-Datei der Projektdateien anlegen oder wählen, links die Struktur
+(Gebäude → Geschoss → Klasse → Element), in der Mitte Grundriss oder 3D,
+rechts Eigenschaften und Modellbericht. Der Tab merkt sich die Modellakte.
+
+- **Grundriss** (`ifc::grundriss`, Befehl `ifc_grundriss`): der Core schneidet
+  alle Körperteile, deren Höhenbereich die Ebene Geschosshöhe + Schnitthöhe
+  (Standard 1,0 m) enthält; Hüllen gehen mit ihrer Projektion ein und sind als
+  solche gekennzeichnet. Räume kommen aus ihrem Geschoss. Der Umfang ist der
+  des ganzen Modells, damit alle Geschosse deckungsgleich liegen.
+- **3D** (`apps/desktop/src/lib/ifc/Ansicht3d.svelte`): web-ifc 0.0.78
+  (MPL-2.0, unverändert, Quelle https://github.com/ThatOpen/engine_web-ifc) und
+  Three.js (MIT), erst beim Öffnen der Ansicht geladen; `web-ifc.wasm` kopiert
+  `scripts/pdf-assets.mjs` nach `public/web-ifc/`. Nur Darstellung und
+  Auswahl über die GlobalId; alle Zahlen rechnet der Core. Modelle ohne
+  Darstellungsstil werden nach Klasse eingefärbt.
+- **Hintergrund einer eigenen Zeichnung**: Ein Geschoss eines IFC-Modells kann
+  wie eine DXF als Hintergrund dienen (`Planhintergrund.geschoss`,
+  `ifc::als_plan`, Befehl `ifc_grundriss_plan`): eine Zeichnungsebene je
+  Klasse und „Räume“, Meter, Fang an allen Kanten. Der Core prüft beim
+  Speichern, dass das Geschoss im Modell steht; PDF- und DXF-Hintergründe
+  tragen kein Geschoss.
+
 ## Testdaten
 
 `core_lib::ifc::testdaten::efh_ifc4()` erzeugt ein vollständig bekanntes
 zweigeschossiges Einfamilienhaus (Millimeter, Georeferenz, Proxy, Flächenmodell,
 absichtlich abweichende Raummengen). `wand_ifc2x3()` ist ein minimales
 IFC2X3-Modell. Tests: `crates/core-lib/src/ifc/tests.rs`,
-`crates/storage/tests/ifc.rs`.
+`crates/storage/tests/ifc.rs`, UI: `apps/desktop/tests/ifc.py` mit der Fixture
+`apps/desktop/tests/fixtures/ifc-efh.json`, erzeugt mit
+`cargo run -p core-lib --features testdaten --example ifc_fixture`.

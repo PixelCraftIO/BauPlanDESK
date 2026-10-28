@@ -18,6 +18,7 @@ In einer zweiten Shell:
 python apps/desktop/tests/projekttabs.py
 python apps/desktop/tests/gebaeude-flurstuecke.py
 python apps/desktop/tests/beispielprojekt.py
+python apps/desktop/tests/ifc.py
 ```
 
 Unter Windows `PYTHONUTF8=1` setzen, damit Fixtures mit Umlauten korrekt gelesen werden; `BAUPROJEKT_CHROMIUM` zeigt auf die Chromium-Programmdatei.

@@ -710,6 +710,7 @@ fn hintergrund() -> Planhintergrund {
         meter_pro_punkt: 0.01,
         deckkraft: 0.6,
         sichtbar: true,
+        geschoss: None,
     }
 }
 

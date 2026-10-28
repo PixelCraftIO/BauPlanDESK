@@ -130,6 +130,52 @@ impl CoreServices {
         Ok(self.ifc_modell(p, d).await?.auszug.clone())
     }
 
+    /// Grundriss-Schnitt eines Geschosses (Meter, Weltsystem des Modells).
+    pub async fn ifc_grundriss(
+        &self,
+        p: ProjectId,
+        d: &Dokumentbezug,
+        geschoss: &str,
+        schnitthoehe_m: Option<f64>,
+    ) -> CoreResult<super::Modellgrundriss> {
+        super::grundriss::grundriss(
+            &self.ifc_modell(p, d).await?.auszug,
+            geschoss,
+            schnitthoehe_m,
+        )
+    }
+
+    pub async fn ifc_geschosse(
+        &self,
+        p: ProjectId,
+        d: &Dokumentbezug,
+    ) -> CoreResult<Vec<super::Modellgeschoss>> {
+        Ok(super::geschossliste(&self.ifc_modell(p, d).await?.auszug))
+    }
+
+    /// Grundriss-Schnitt als Plan in Metern für IFC-Hintergründe im Zeicheneditor.
+    pub async fn ifc_grundriss_plan(
+        &self,
+        p: ProjectId,
+        d: &Dokumentbezug,
+        geschoss: &str,
+    ) -> CoreResult<crate::cad::Plan> {
+        Ok(super::grundriss::als_plan(
+            &self.ifc_grundriss(p, d, geschoss, None).await?,
+        ))
+    }
+
+    /// STEP-Text der Modelldatei (bei `.ifczip` entpackt) für die 3D-Ansicht.
+    pub async fn ifc_datei(&self, p: ProjectId, d: &Dokumentbezug) -> CoreResult<Vec<u8>> {
+        let name = self.ifc_dokument_pruefen(p, d).await?;
+        let (_, daten) = self.load_version(d.dokument_id, d.version).await?;
+        if name.to_lowercase().ends_with(".ifczip") || daten.starts_with(b"PK\x03\x04") {
+            entpacken(&daten)
+        } else {
+            Ok(daten.to_vec())
+        }
+    }
+
     /// Prüfung beim Speichern einer Modellakte: Bezeichnung, lesbares Modell.
     pub(crate) async fn modellakte_pruefen(&self, p: ProjectId, a: &Modellakte) -> CoreResult<()> {
         crate::plattform::text(&a.bezeichnung, 200)?;

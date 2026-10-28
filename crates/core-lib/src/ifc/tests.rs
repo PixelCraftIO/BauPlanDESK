@@ -236,3 +236,38 @@ fn bogen_und_indizierte_kurven() {
         g.grundflaeche_m2
     );
 }
+
+#[test]
+fn grundriss_schnitt_je_geschoss() {
+    let m = modell(&efh_ifc4());
+    let a = &m.auszug;
+    let eg = grundriss(a, &a.geschosse[0].global_id, None).unwrap();
+    let klassen: Vec<&str> = eg.teile.iter().map(|t| t.klasse.as_str()).collect();
+    assert_eq!(klassen.iter().filter(|k| **k == "IFCWALL").count(), 5);
+    assert_eq!(klassen.iter().filter(|k| **k == "IFCSPACE").count(), 2);
+    assert!(klassen.contains(&"IFCCHIMNEY"));
+    // Lichtschacht liegt unter der Geschossebene, Decke über der Schnitthöhe.
+    assert!(!klassen.contains(&"IFCBUILDINGELEMENTPROXY") && !klassen.contains(&"IFCSLAB"));
+    let og = grundriss(a, &a.geschosse[1].global_id, Some(1.2)).unwrap();
+    assert!(
+        og.teile
+            .iter()
+            .any(|t| t.klasse == "IFCCHIMNEY" && t.projektion)
+    );
+    assert_eq!(og.min, eg.min);
+    assert!(nah(eg.max[0] - eg.min[0], efh::LAENGE));
+    // Als Plan in Metern: eine Ebene je Klasse, geschlossene Ringe.
+    let p = als_plan(&eg);
+    let namen: Vec<&str> = p.ebenen.iter().map(|e| e.name.as_str()).collect();
+    assert!(
+        namen.contains(&"Wand") && namen.contains(&"Räume"),
+        "{namen:?}"
+    );
+    assert!(
+        p.linien
+            .iter()
+            .all(|l| l.geschlossen && l.punkte.len() >= 4)
+    );
+    assert!(grundriss(a, "gibt-es-nicht", None).is_err());
+    assert!(grundriss(a, &a.geschosse[0].global_id, Some(f64::NAN)).is_err());
+}

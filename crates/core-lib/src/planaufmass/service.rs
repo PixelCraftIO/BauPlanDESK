@@ -231,15 +231,20 @@ impl CoreServices {
         plan: &Planaufmass,
     ) -> CoreResult<Pruefkontext> {
         if let Some(dokument) = &plan.dokument {
-            let name = self.unterlage_name(pid, dokument).await?;
+            let name = self.unterlage_name(pid, dokument, false).await?;
             kalibrierung_passend(name.ends_with(".dxf"), plan)?;
         } else {
             // Eigene Zeichnung: Hintergründe müssen Unterlagen dieses Projekts sein.
             for h in &plan.hintergruende {
-                let name = self.unterlage_name(pid, &h.dokument).await?;
-                if name.ends_with(".dxf") && h.seite != 1 {
+                let name = self.unterlage_name(pid, &h.dokument, true).await?;
+                if (name.ends_with(".dxf") || crate::ifc::ist_ifc(&name)) && h.seite != 1 {
                     return Err(fehler(
-                        "DXF-Hintergründe haben nur eine Zeichnung (Seite 1)",
+                        "DXF- und IFC-Hintergründe haben nur eine Zeichnung (Seite 1)",
+                    ));
+                }
+                if crate::ifc::ist_ifc(&name) != h.geschoss.is_some() {
+                    return Err(fehler(
+                        "Ein IFC-Hintergrund benötigt ein Geschoss; andere Hintergründe haben keines",
                     ));
                 }
             }
@@ -390,6 +395,7 @@ impl CoreServices {
         &self,
         pid: ProjectId,
         d: &crate::plattform::objekte::Dokumentbezug,
+        ifc_erlaubt: bool,
     ) -> CoreResult<String> {
         let dokument = self
             .document_history(d.dokument_id)
@@ -398,6 +404,9 @@ impl CoreServices {
             .find(|x| x.project_id == pid && x.version == d.version)
             .ok_or_else(|| fehler("Dokumentversion gehört nicht zum Projekt"))?;
         let name = dokument.file_name.to_lowercase();
+        if ifc_erlaubt && crate::ifc::ist_ifc(&name) {
+            return Ok(name);
+        }
         if !name.ends_with(".dxf") && !name.ends_with(".pdf") {
             return Err(fehler("Aufmaß benötigt eine PDF- oder DXF-Unterlage"));
         }

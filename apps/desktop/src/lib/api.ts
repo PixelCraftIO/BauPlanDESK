@@ -1014,6 +1014,8 @@ export const EINHEITEN: { code: Laengeneinheit; name: string }[] = [
 
 /** Unterlagen, die das Aufmaß öffnen kann (PDF-Blätter und DXF-Zeichnungen). */
 export const istPlan = (dateiname: string) => /\.(pdf|dxf)$/i.test(dateiname);
+/** IFC-Modell (STEP oder gepackt); IFC-XML wird nicht gelesen. */
+export const istIfc = (dateiname: string) => /\.(ifc|ifczip)$/i.test(dateiname);
 export const istDxf = (dateiname: string) => /\.dxf$/i.test(dateiname);
 
 export interface CmdError {

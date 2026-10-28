@@ -392,6 +392,11 @@ pub struct Planhintergrund {
     /// 0 … 1.
     pub deckkraft: f64,
     pub sichtbar: bool,
+    /// IFC-Hintergrund: Geschoss (GlobalId), dessen Grundriss-Schnitt gezeigt
+    /// wird; Seitenpunkte sind dann Meter des Modells (wie eine DXF in Metern).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub geschoss: Option<String>,
 }
 /// Zeichenelemente ohne Messwert: Wand mit Dicke, Maßkette, Text. Sie
 /// gehören zur Darstellung und zum Fang, nicht zu den Messwerten.

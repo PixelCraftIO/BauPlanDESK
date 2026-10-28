@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { ask, save } from "@tauri-apps/plugin-dialog";
-  import { api, fehlertext, EINHEITEN, istDxf, istPlan, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext, type CadPlan, type BaugrenzenPruefung } from "../api";
+  import { api, fehlertext, EINHEITEN, istDxf, istIfc, istPlan, type Project, type DocumentVersion, type PdfVorschauDaten, type GrundstueckKontext, type CadPlan, type BaugrenzenPruefung } from "../api";
   import type { Planaufmass, Planmarkierung, Planbedeutung, Planmesswert, Plangeometrie, Planausschnitt, Ausschnittart, Planaufgabe, Werkzeugvorlage, Gebaeude, Laengeneinheit, Planhintergrund, Zeichenelement, Zeichenform } from "../generated/plattform";
+  import { ifcApi } from "../ifc/api";
+  import type { Modellgeschoss } from "../generated/plattform";
   import { hgSkalieren, hgVerschieben, hgDrehen, hintergrundNeu, mppAusMassstab, elementPunkte, type Hintergrundansicht } from "./zeichnung";
   import { EINHEIT_METER } from "./pdfGeometry";
   import { FachSitzung } from "../FachSitzung.svelte";
@@ -31,7 +33,7 @@
     onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(start?:Tabstart)=>void;onstatus?:(st:{titel:string;geaendert:boolean;id?:string|null})=>void;onschliessen?:()=>void}=$props();
   // Flurstücke des Projekts für die Zuordnung von Flurstücksmarkierungen; Stand der Akte.
   const flurstuecke=$derived(grundstuecksinformationen(projekt.planungsrecht).flurstuecke);
-  let dateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
+  let dateien=$state<DocumentVersion[]>([]), ifcDateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
   let gebaeude=$state<Datensatz<Gebaeude>[]>([]),listenFehler=$state(""),laedt=$state(false);
   // DXF-Unterlage: Zeichnung samt Ebenensichtbarkeit (nur Anzeige und Fang).
   let dxf=$state<CadPlan|null>(null), dxfSichtbar=$state<boolean[]>([]);
@@ -80,14 +82,26 @@
   let elementAuswahl=$state(""),wanddicke=$state(.24);
   let hgQuellen=$state<Record<string,{pdfBase64?:string;plan?:import("../api").CadPlan["plan"]|null;name:string}>>({});
   const hgLaeuft=new Set<string>();
+  // IFC-Hintergründe: Grundriss-Schnitt eines Geschosses, schon in Metern.
+  let hgGeschosse=$state<Modellgeschoss[]>([]),hgGeschoss=$state("");
+  const hgSchluessel=(h:Planhintergrund)=>`${h.dokument.dokument_id}|${h.dokument.version}${h.geschoss?`|${h.geschoss}`:""}`;
+  const hgDateien=$derived([...dateien,...ifcDateien]);
+  const hgDateiIfc=$derived(istIfc(ifcDateien.find(d=>`${d.document_id}|${d.version}`===hgDatei)?.file_name??""));
+  $effect(()=>{
+    const key=hgDatei,ifc=hgDateiIfc;hgGeschosse=[];hgGeschoss="";
+    if(!ifc)return;const d=ifcDateien.find(d=>`${d.document_id}|${d.version}`===key);if(!d)return;
+    let weg=false;
+    void ifcApi.geschosse(s.projektId,{dokument_id:d.document_id,version:d.version}).then(g=>{if(!weg){hgGeschosse=g;hgGeschoss=g[0]?.global_id??""}}).catch(e=>{if(!weg)s.fehler=fehlertext(e)});
+    return()=>{weg=true};
+  });
   let hgDatei=$state(""),hgSeite=$state(1),hgStrecke=$state(10),hgZiel=$state(""),hgWinkel=$state(0);
   const el=$derived(s.eingabe?.elemente?.find(e=>e.id===elementAuswahl));
   const elementGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===el?.ebene_id)?.gesperrt);
   const istZeichnung=$derived(!!s.eingabe&&!s.eingabe.dokument);
   const einheitText=$derived(istZeichnung?"m":"Seitenpunkte");
   const hintergruende=$derived(s.eingabe?.hintergruende??[]);
-  const hgAnsichten=$derived<Hintergrundansicht[]>(hintergruende.map(h=>{const q=hgQuellen[`${h.dokument.dokument_id}|${h.dokument.version}`];return {h,pdfBase64:q?.pdfBase64,plan:q?.plan??null}}));
-  const hgName=(h:Planhintergrund)=>{const d=dateien.find(d=>d.document_id===h.dokument.dokument_id&&d.version===h.dokument.version);return d?`${d.file_name}${istDxf(d.file_name)?"":` · Seite ${h.seite}`}`:"Unterlage fehlt"};
+  const hgAnsichten=$derived<Hintergrundansicht[]>(hintergruende.map(h=>{const q=hgQuellen[hgSchluessel(h)];return {h,pdfBase64:q?.pdfBase64,plan:q?.plan??null}}));
+  const hgName=(h:Planhintergrund)=>{const d=hgDateien.find(d=>d.document_id===h.dokument.dokument_id&&d.version===h.dokument.version);return d?`${d.file_name}${h.geschoss?` · ${hgQuellen[hgSchluessel(h)]?.name??"Geschoss"}`:istDxf(d.file_name)?"":` · Seite ${h.seite}`}`:"Unterlage fehlt"};
   // Aus den Aufgaben vorbelegte Bedeutung und Zuordnung für die nächste Markierung.
   let vorbelegung=$state<Planaufgabe|null>(null);
   // Werkzeugkiste: Vorlagen aus dem Core; die gewählte Vorlage belegt Bedeutung, Namen und Zeichenebene der nächsten Markierung vor.
@@ -145,7 +159,8 @@
     const [d,g,b,v]=await Promise.allSettled([api.dokumente(s.projektId),api.grundstueckskontext(s.projektId),plattformApi.liste<Gebaeude>(s.projektId,"gebaeude"),verwendungenLaden(projekt)]);
     if(n!==listenGeneration)return;
     if(v.status==="fulfilled")verwendungen=v.value;
-    if(d.status==="fulfilled")dateien=d.value.filter(d=>istPlan(d.file_name)).sort((a,b)=>a.file_name.localeCompare(b.file_name,"de")||b.version-a.version);
+    const ordnen=(a:DocumentVersion,b:DocumentVersion)=>a.file_name.localeCompare(b.file_name,"de")||b.version-a.version;
+    if(d.status==="fulfilled"){dateien=d.value.filter(d=>istPlan(d.file_name)).sort(ordnen);ifcDateien=d.value.filter(d=>istIfc(d.file_name)).sort(ordnen)}
     grund=g.status==="fulfilled"?g.value:[];
     gebaeude=b.status==="fulfilled"?b.value:[];
     listenFehler=[...extra,...[d,g,b].flatMap(r=>r.status==="rejected"?[fehlertext(r.reason)]:[])].join(" · ");
@@ -242,13 +257,13 @@
   });
   // Unterlagen der Hintergründe laden (einmal je Dokumentversion); Fehler erscheinen als Blattfehler.
   $effect(()=>{
-    const hs=hintergruende, liste=dateien; if(!sichtbar)return;
+    const hs=hintergruende, liste=hgDateien; if(!sichtbar)return;
     for(const h of hs){
-      const key=`${h.dokument.dokument_id}|${h.dokument.version}`;
+      const key=hgSchluessel(h);
       if(hgQuellen[key]||hgLaeuft.has(key))continue;
       const d=liste.find(x=>x.document_id===h.dokument.dokument_id&&x.version===h.dokument.version); if(!d)continue;
       hgLaeuft.add(key);
-      const lauf=istDxf(d.file_name)?api.cadPlan(d.document_id,d.version).then(c=>{hgQuellen={...hgQuellen,[key]:{plan:c.plan,name:d.file_name}}}):api.pdfVorschau(d.document_id,d.version).then(p=>{hgQuellen={...hgQuellen,[key]:{pdfBase64:p.pdf_base64,name:d.file_name}}});
+      const lauf=h.geschoss?Promise.all([ifcApi.grundrissPlan(s.projektId,h.dokument,h.geschoss),ifcApi.geschosse(s.projektId,h.dokument)]).then(([plan,gs])=>{hgQuellen={...hgQuellen,[key]:{plan,name:gs.find(g=>g.global_id===h.geschoss)?.name??"Geschoss"}}}):istDxf(d.file_name)?api.cadPlan(d.document_id,d.version).then(c=>{hgQuellen={...hgQuellen,[key]:{plan:c.plan,name:d.file_name}}}):api.pdfVorschau(d.document_id,d.version).then(p=>{hgQuellen={...hgQuellen,[key]:{pdfBase64:p.pdf_base64,name:d.file_name}}});
       void lauf.catch(e=>{pdfFehler=`Hintergrund ${d.file_name}: ${fehlertext(e)}`}).finally(()=>hgLaeuft.delete(key));
     }
   });
@@ -381,10 +396,13 @@
   // Hintergründe eigener Zeichnungen.
   function hintergrundHinzufuegen(){
     const p=s.eingabe;if(!p||!darf||!istZeichnung)return;
-    const d=dateien.find(d=>`${d.document_id}|${d.version}`===hgDatei);if(!d){s.fehler="Eine Unterlage für den Hintergrund wählen.";return}
+    const d=hgDateien.find(d=>`${d.document_id}|${d.version}`===hgDatei);if(!d){s.fehler="Eine Unterlage für den Hintergrund wählen.";return}
+    const ifc=istIfc(d.file_name);
+    if(ifc&&!hgGeschoss){s.fehler="Ein Geschoss des IFC-Modells wählen.";return}
     merken();
-    const dxfDatei=istDxf(d.file_name);
+    const dxfDatei=istDxf(d.file_name)||ifc;
     const h=hintergrundNeu({dokument_id:d.document_id,version:d.version},dxfDatei?1:Math.max(1,Math.round(hgSeite)),dxfDatei?1:mppAusMassstab(nenner));
+    if(ifc){h.geschoss=hgGeschoss;p.hintergruende=[...hintergruende,h];hgZiel=h.id;s.meldung="IFC-Grundriss eingefügt: Er liegt in Modellkoordinaten (Meter); Geschosse desselben Modells liegen deckungsgleich.";return}
     // Neue Hintergründe liegen versetzt, damit sie nicht übereinander verschwinden.
     h.lage=[hintergruende.length*2,hintergruende.length*2];
     p.hintergruende=[...hintergruende,h];hgZiel=h.id;
@@ -820,12 +838,13 @@
             </fieldset>
             {#if istZeichnung}
               <h3>Hintergründe <span class="meta">({hintergruende.length})</span></h3>
-              <p class="meta">PDF-Seiten oder DXF-Zeichnungen als Unterlage unter die Zeichnung legen und einpassen: Maßstab setzen oder über eine bekannte Strecke skalieren, verschieben, drehen. Fang greift an ihren Vektoren.</p>
+              <p class="meta">PDF-Seiten, DXF-Zeichnungen oder Geschosse eines IFC-Modells als Unterlage unter die Zeichnung legen und einpassen: Maßstab setzen oder über eine bekannte Strecke skalieren, verschieben, drehen. Fang greift an ihren Vektoren.</p>
               <fieldset disabled={!darf||s.laeuft} class="quellzeile">
-                <label>Unterlage<select aria-label="Hintergrund-Unterlage" bind:value={hgDatei}><option value="">Unterlage wählen</option>{#each dateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
+                <label>Unterlage<select aria-label="Hintergrund-Unterlage" bind:value={hgDatei}><option value="">Unterlage wählen</option>{#each hgDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
                 <div class="kalibrierung">
-                  {#if hgDatei&&!istDxf(dateien.find(d=>`${d.document_id}|${d.version}`===hgDatei)?.file_name??"")}<label>Seite<input type="number" min="1" step="1" bind:value={hgSeite}/></label><label>Maßstab 1 :<input type="number" min=".001" step="any" bind:value={nenner}/></label>{/if}
-                  <button type="button" class="sekundaer" disabled={!hgDatei} onclick={hintergrundHinzufuegen}>Hintergrund hinzufügen</button>
+                  {#if hgDateiIfc}<label>Geschoss<select aria-label="Geschoss des IFC-Modells" bind:value={hgGeschoss}>{#each hgGeschosse as g (g.global_id)}<option value={g.global_id}>{g.name}</option>{/each}</select></label>
+                  {:else if hgDatei&&!istDxf(dateien.find(d=>`${d.document_id}|${d.version}`===hgDatei)?.file_name??"")}<label>Seite<input type="number" min="1" step="1" bind:value={hgSeite}/></label><label>Maßstab 1 :<input type="number" min=".001" step="any" bind:value={nenner}/></label>{/if}
+                  <button type="button" class="sekundaer" disabled={!hgDatei||(hgDateiIfc&&!hgGeschoss)} onclick={hintergrundHinzufuegen}>Hintergrund hinzufügen</button>
                 </div>
               </fieldset>
               {#each hintergruende as h (h.id)}
@@ -839,7 +858,8 @@
                     <label>Lage X (m)<input type="number" step="any" value={Math.round(h.lage[0]*1000)/1000} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,lage:[v,x.lage[1]]}))}}/></label>
                     <label>Lage Y (m)<input type="number" step="any" value={Math.round(h.lage[1]*1000)/1000} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,lage:[x.lage[0],v]}))}}/></label>
                     <label>Drehung (°)<input type="number" step="any" value={Math.round(h.drehung_grad*100)/100} onchange={e=>{const v=Number(e.currentTarget.value);hintergrundAendern(h.id,x=>({...x,drehung_grad:v}))}}/></label>
-                    {#if istDxf(hgName(h))}<label>Zeichnungseinheit<select aria-label="Zeichnungseinheit des Hintergrunds" value={hgEinheit(h)} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit;if(v)hintergrundAendern(h.id,x=>({...x,meter_pro_punkt:EINHEIT_METER[v]??x.meter_pro_punkt}))}}><option value="">Eigener Faktor</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
+                    {#if h.geschoss}<span class="meta">IFC-Modell in Metern</span>
+                    {:else if istDxf(hgName(h))}<label>Zeichnungseinheit<select aria-label="Zeichnungseinheit des Hintergrunds" value={hgEinheit(h)} onchange={e=>{const v=e.currentTarget.value as Laengeneinheit;if(v)hintergrundAendern(h.id,x=>({...x,meter_pro_punkt:EINHEIT_METER[v]??x.meter_pro_punkt}))}}><option value="">Eigener Faktor</option>{#each EINHEITEN as e}<option value={e.code}>{e.name}</option>{/each}</select></label>
                     {:else}<label>Maßstab 1 :<input type="number" min=".001" step="any" value={Math.round(h.meter_pro_punkt*72/0.0254*1000)/1000} onchange={e=>{const v=Number(e.currentTarget.value);if(v>0)hintergrundAendern(h.id,x=>({...x,meter_pro_punkt:mppAusMassstab(v)}))}}/></label>{/if}
                   </div>
                   <div class="kalibrierung">

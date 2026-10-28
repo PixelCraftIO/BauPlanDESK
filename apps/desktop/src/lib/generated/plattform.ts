@@ -73,7 +73,12 @@ seite: number, ursprung: [number, number], lage: [number, number], drehung_grad:
 /**
  * 0 … 1.
  */
-deckkraft: number, sichtbar: boolean, };
+deckkraft: number, sichtbar: boolean,
+/**
+ * IFC-Hintergrund: Geschoss (GlobalId), dessen Grundriss-Schnitt gezeigt
+ * wird; Seitenpunkte sind dann Meter des Modells (wie eine DXF in Metern).
+ */
+geschoss?: string, };
 export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
@@ -247,6 +252,22 @@ einheit: string, meter_je_einheit: number, georeferenz: Georeferenz | null, grun
  * Geschosse nach Höhe sortiert.
  */
 geschosse: Array<Strukturelement>, elemente: Array<Modellelement>, bericht: Modellbericht, };
+export type Grundrissteil = { global_id: string, klasse: string, titel: string, name: string,
+/**
+ * Meter im Weltsystem des Modells (y nach Modell-y, nicht gespiegelt).
+ */
+polygone: Array<Planpolygon>, raum: boolean,
+/**
+ * Projektion statt Schnitt (Flächenmodell oder schräger Körper).
+ */
+projektion: boolean, };
+export type Modellgrundriss = { geschoss: string, schnitthoehe_m: number, teile: Array<Grundrissteil>,
+/**
+ * Umfang aller Elemente des Modells (nicht nur dieses Geschosses), damit
+ * die Grundrisse aller Geschosse deckungsgleich liegen.
+ */
+min: [number, number], max: [number, number], };
+export type Modellgeschoss = { global_id: string, name: string, hoehe_m: number | null, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
