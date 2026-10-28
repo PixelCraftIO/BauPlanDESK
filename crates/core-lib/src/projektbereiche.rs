@@ -225,12 +225,22 @@ impl CoreServices {
             }
             let version = aktuell.version;
             aktuell.updated_at = chrono::Utc::now();
+            let aufmass = match (
+                serde_json::to_value(&vorher),
+                serde_json::to_value(&aktuell.planungsrecht),
+            ) {
+                (Ok(a), Ok(n)) => crate::planaufmass::planaenderungen(Some(&a), &n),
+                _ => None,
+            };
             let audit = Self::audit(
                 wer,
                 Aktion::ProjektGeaendert,
                 Some(aktuell.id),
                 None,
-                format!("Fachbereich {bereich:?} geändert"),
+                match aufmass {
+                    Some(a) => format!("Fachbereich {bereich:?} geändert · {a}"),
+                    None => format!("Fachbereich {bereich:?} geändert"),
+                },
             );
             match self
                 .repos

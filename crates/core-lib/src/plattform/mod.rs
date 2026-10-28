@@ -195,23 +195,28 @@ impl CoreServices {
                 ));
             }
         }
-        if let Some(alt) = self
+        let vorher = self
             .repos
             .commit
             .fachstaende(p, art.modul())
             .await?
             .into_iter()
-            .find(|f| f.objekt == id.to_string())
-        {
+            .find(|f| f.objekt == id.to_string());
+        if let Some(alt) = &vorher {
             if alt.schema_version > 1 {
                 return Err(CoreError::InvalidInput(
                     "Fachdatensatz wurde mit einer neueren Anwendung erstellt".into(),
                 ));
             }
             if alt.daten == daten {
-                return Ok(alt);
+                return Ok(alt.clone());
             }
         }
+        // Verknüpfungen mit dem Aufmaß (neu, aktualisiert, gelöst) samt altem
+        // und neuem Wert gehören ins Protokoll; der Datensatz selbst behält nur
+        // den aktuellen Wert.
+        let aufmass =
+            crate::planaufmass::planaenderungen(vorher.as_ref().map(|f| &f.daten), &daten);
         let f = Fachstand {
             projekt_id: p,
             modul: art.modul().into(),
@@ -225,7 +230,10 @@ impl CoreServices {
             Aktion::ProjektGeaendert,
             Some(p),
             None,
-            format!("{} {} gespeichert", art.modul(), id),
+            match aufmass {
+                Some(a) => format!("{} {} gespeichert · {a}", art.modul(), id),
+                None => format!("{} {} gespeichert", art.modul(), id),
+            },
         );
         self.repos.commit.fachstand(f, basis, audit).await
     }

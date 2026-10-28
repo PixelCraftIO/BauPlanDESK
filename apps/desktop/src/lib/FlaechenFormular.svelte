@@ -448,6 +448,7 @@
       class="sekundaer"
       onclick={() =>
         aufstellung.bauteile.push({
+          id: crypto.randomUUID(),
           bezeichnung: "",
           typ: "hauptanlage",
           flaeche_m2: 0,
