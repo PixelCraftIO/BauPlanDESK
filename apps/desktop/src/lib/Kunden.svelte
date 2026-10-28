@@ -249,7 +249,7 @@
           onuebernehmen={aktuellUebernehmen}
         />
         {#if gewaehlt}
-          <p class="meta">Angelegt {new Date(gewaehlt.created_at).toLocaleDateString("de-DE")}, zuletzt geändert {new Date(gewaehlt.updated_at).toLocaleString("de-DE")}.</p>
+          <p class="meta">Angelegt {new Date(gewaehlt.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}, zuletzt geändert {new Date(gewaehlt.updated_at).toLocaleString("de-DE")}.</p>
         {/if}
         <div class="knoepfe links">
           {#if darf}<button type="submit" disabled={laeuft || !geaendert}>{gewaehlt ? "Speichern" : "Anlegen"}</button>{/if}
@@ -267,7 +267,7 @@
             {#each projekte as p (p.id)}
               <li>
                 <button class="link" onclick={() => projektOeffnen(p.id)}>{p.name}</button>
-                <span class="meta">{landName(p.bundesland)} · geändert {new Date(p.updated_at).toLocaleDateString("de-DE")}</span>
+                <span class="meta">{landName(p.bundesland)} · geändert {new Date(p.updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
               </li>
             {/each}
           </ul>

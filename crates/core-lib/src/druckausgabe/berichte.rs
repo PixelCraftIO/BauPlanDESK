@@ -450,11 +450,7 @@ pub(super) async fn erstellen(
                             quellen.push(vec![
                                 Bezuege::anlage(bezuege.nachweise.get(&u.nachweis_id)),
                                 quelle.stand.bezeichnung.clone(),
-                                quelle
-                                    .stand
-                                    .erstellt_am
-                                    .format("%d.%m.%Y %H:%M UTC")
-                                    .to_string(),
+                                crate::kalender::zeit_deutsch(quelle.stand.erstellt_am),
                                 k.bezeichnung.clone(),
                                 format!(
                                     "{} {}",

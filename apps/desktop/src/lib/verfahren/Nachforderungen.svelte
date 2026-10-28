@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import { projektNavigation } from "../projektNavigation.svelte";
   import type { Nachforderung, Verfahrensakte } from "../generated/plattform";
   import type { DocumentVersion, Benutzer } from "../api";
@@ -49,7 +50,7 @@
   >Eingegangenes Schreiben / Gesprächsnotiz<select bind:value={original}
     ><option value="">Kommunikation auswählen</option
     >{#each akte.kommunikation.filter((c) => c.eingehend) as c}<option
-        value={c.id}>{c.datum} · {c.betreff}</option
+        value={c.id}>{datumDe(c.datum)} · {c.betreff}</option
       >{/each}</select
   ></label
 ><button type="button" class="sekundaer" disabled={!original} onclick={neu}
@@ -64,7 +65,7 @@
         "Nachforderung"}
     </h4>
     {#if kommunikation}<p class="meta">
-        Originaleingang: {kommunikation.datum} · {kommunikation.betreff}
+        Originaleingang: {datumDe(kommunikation.datum)} · {kommunikation.betreff}
       </p>
       {#if kommunikation.original}<button
           type="button"
@@ -151,7 +152,7 @@
           >Behördliche Bestätigung<select bind:value={p.bestaetigung}
             ><option value={null}>Noch keine Rückmeldung</option
             >{#each akte.kommunikation.filter((c) => c.eingehend) as c}<option
-                value={c.id}>{c.datum} · {c.betreff}</option
+                value={c.id}>{datumDe(c.datum)} · {c.betreff}</option
               >{/each}</select
           ></label
         >

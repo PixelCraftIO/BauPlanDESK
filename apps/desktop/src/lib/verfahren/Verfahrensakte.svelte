@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import Arbeitsliste from "./Arbeitsliste.svelte";
   import { bereichAktiv } from "../ansichtsAbfrage.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
@@ -704,7 +705,7 @@
             >Berichtigt früheren Eintrag<select bind:value={notizBerichtigt}
               ><option value={null}>Keinen</option
               >{#each a.ereignisse as e}<option value={e.id}
-                  >{e.datum} · {e.text}</option
+                  >{datumDe(e.datum)} · {e.text}</option
                 >{/each}</select
             ></label
           ><button
@@ -745,7 +746,7 @@
             >{#each [...a.ereignisse]
               .reverse()
               .filter((e) => !chronikArt || (e.arten ?? []).includes(chronikArt)) as e (e.id)}<tr
-                ><td>{e.datum}</td><td
+                ><td>{datumDe(e.datum)}</td><td
                   >{new Date(e.erfasst_am).toLocaleString("de-DE")}</td
                 ><td
                   >{(e.arten ?? []).length

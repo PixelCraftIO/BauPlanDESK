@@ -241,7 +241,7 @@ impl CoreServices {
                     titel: format!(
                         "{} · {}",
                         n.stand.bezeichnung,
-                        n.stand.erstellt_am.format("%d.%m.%Y %H:%M UTC")
+                        crate::kalender::zeit_deutsch(n.stand.erstellt_am)
                     ),
                     quelle: Druckquelle::Nachweis { id: n.stand.id },
                     verfuegbar: true,
@@ -534,7 +534,7 @@ impl CoreServices {
                             .map(|n| {
                                 format!(
                                     "Nachweis vom {}",
-                                    n.stand.erstellt_am.format("%d.%m.%Y %H:%M UTC")
+                                    crate::kalender::zeit_deutsch(n.stand.erstellt_am)
                                 )
                             })
                             .unwrap_or_else(|| "Nachweisstand".into()),

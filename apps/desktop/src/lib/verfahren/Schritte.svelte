@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     Abweichung,
     Kommunikation,
@@ -60,7 +61,7 @@
   }
   const betreff = (id: string | null) => {
     const k = kommunikation.find((k) => k.id === id);
-    return k ? `${k.datum} · ${k.betreff}` : "Schreiben fehlt";
+    return k ? `${datumDe(k.datum)} · ${k.betreff}` : "Schreiben fehlt";
   };
 </script>
 
@@ -81,7 +82,7 @@
       >Schreiben der Behörde<select bind:value={schreiben}
         ><option value="">Kommunikation auswählen</option
         >{#each eingehend as k (k.id)}<option value={k.id}
-            >{k.datum} · {k.betreff}</option
+            >{datumDe(k.datum)} · {k.betreff}</option
           >{/each}</select
       ></label
     >
@@ -114,7 +115,7 @@
           >Stellungnahme<select bind:value={v.stellungnahme}
             ><option value={null}>Noch keine</option
             >{#each ausgehend as k (k.id)}<option value={k.id}
-                >{k.datum} · {k.betreff}</option
+                >{datumDe(k.datum)} · {k.betreff}</option
               >{/each}</select
           ></label
         >{:else if v.art === "zurueckstellung"}<label
@@ -124,7 +125,7 @@
               (v.folgeschreiben = e.currentTarget.value || undefined)}
             ><option value="">Noch keines</option
             >{#each eingehend.filter((k) => k.id !== v.kommunikation) as k (k.id)}<option
-                value={k.id}>{k.datum} · {k.betreff}</option
+                value={k.id}>{datumDe(k.datum)} · {k.betreff}</option
               >{/each}</select
           ></label
         >{/if}<Zustaendigkeit {benutzer} bind:wert={v.verantwortlich} />

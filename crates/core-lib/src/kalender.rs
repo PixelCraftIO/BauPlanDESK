@@ -9,6 +9,15 @@ pub fn datum_deutsch(zeitpunkt: DateTime<Utc>) -> NaiveDate {
         .date_naive()
 }
 
+/// Zeitpunkt für Ausdrucke und Listen in deutscher Ortszeit
+/// („21.10.2026, 18:15 Uhr“), wie die Oberfläche ihn zeigt.
+pub fn zeit_deutsch(zeitpunkt: DateTime<Utc>) -> String {
+    zeitpunkt
+        .with_timezone(&chrono_tz::Europe::Berlin)
+        .format("%d.%m.%Y, %H:%M Uhr")
+        .to_string()
+}
+
 pub fn heute() -> NaiveDate {
     datum_deutsch(Utc::now())
 }
@@ -79,6 +88,19 @@ mod tests {
 
     fn tag(s: &str) -> NaiveDate {
         s.parse().unwrap()
+    }
+
+    #[test]
+    fn zeit_in_deutscher_ortszeit() {
+        let z = |s: &str| s.parse::<DateTime<Utc>>().unwrap();
+        assert_eq!(
+            zeit_deutsch(z("2026-10-21T16:15:00Z")),
+            "21.10.2026, 18:15 Uhr"
+        );
+        assert_eq!(
+            zeit_deutsch(z("2026-12-31T23:30:00Z")),
+            "01.01.2027, 00:30 Uhr"
+        );
     }
 
     #[test]

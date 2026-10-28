@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import { untrack } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import {
@@ -1199,7 +1200,7 @@
               ><option value="">Neues Ereignis</option
               >{#each portalabgabe.ereignisse.filter((e) => !portalabgabe?.ereignisse.some((n) => n.berichtigt === e.id)) as e}<option
                   value={e.id}
-                  >{e.datum} · {ereignisNamen[e.art]} · {e.referenz}</option
+                  >{datumDe(e.datum)} · {ereignisNamen[e.art]} · {e.referenz}</option
                 >{/each}</select
             ></label
           >
@@ -1215,7 +1216,7 @@
         </fieldset>
         <h3>Ereignischronik</h3>
         {#each portalabgabe.ereignisse as e}<article class="chronik">
-            <strong>{ereignisNamen[e.art]}</strong> · {e.datum} · {e.referenz ||
+            <strong>{ereignisNamen[e.art]}</strong> · {datumDe(e.datum)} · {e.referenz ||
               "Keine Portalreferenz"}{#if portalabgabe.ereignisse.some((n) => n.berichtigt === e.id)}
               · berichtigt{/if}
             <p>{e.notiz}</p>
@@ -1318,7 +1319,7 @@
         >
       </div>
       {#each vorgang.rueckmeldungen as r}<article class="chronik">
-          <strong>{r.betreff}</strong> · {r.datum} · {r.referenz}
+          <strong>{r.betreff}</strong> · {datumDe(r.datum)} · {r.referenz}
           <p class="inhalt">{r.inhalt}</p>
         </article>{:else}<p>
           Noch keine Portalrückmeldungen zugeordnet.

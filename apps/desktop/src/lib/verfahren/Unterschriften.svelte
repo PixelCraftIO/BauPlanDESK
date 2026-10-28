@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     Unterschrift,
     Unterschriftsart,
@@ -89,7 +90,7 @@
           >{b.kategorie}<span class="meta"> · {b.quelle}</span></td
         ><td
           >{#each b.erforderlich as r}{@const u = vorhanden(b, r)}<div>
-              {#if u}✓ {UNTERSCHRIFTSROLLE[r]}: {u.name} ({u.datum}){:else}<button
+              {#if u}✓ {UNTERSCHRIFTSROLLE[r]}: {u.name} ({datumDe(u.datum)}){:else}<button
                   type="button"
                   class="link"
                   onclick={() => erfassen(b, r)}

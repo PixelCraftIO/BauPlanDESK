@@ -139,7 +139,7 @@ Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten u
               {p.grundstuecksflaeche_m2 == null
                 ? ""
                 : "m² (noch nicht aufgeschlüsselt)"}{/if}</td
-          ><td>{new Date(p.updated_at).toLocaleDateString("de-DE")}</td><td
+          ><td>{new Date(p.updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}</td><td
             ><button class="sekundaer" onclick={() => onoeffnen(p.id)}
               >Öffnen</button
             >{#if darfLoeschen}

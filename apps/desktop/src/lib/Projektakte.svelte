@@ -301,7 +301,7 @@
       <dd>
         Version {projekt.version}, {new Date(
           projekt.updated_at,
-        ).toLocaleDateString("de-DE")}
+        ).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
       </dd>
     </div>
   </dl>

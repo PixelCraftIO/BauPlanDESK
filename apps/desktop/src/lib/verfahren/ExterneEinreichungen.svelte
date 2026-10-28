@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type { DocumentVersion } from "../api";
   import type {
     Dokumentbezug,
@@ -89,7 +90,7 @@
     ><tbody
       >{#each eintraege as e (e.id)}<tr data-uebersicht-eintrag={e.id}
           ><td
-            >{e.datum}{berichtigtVon(e.id) ? " (berichtigt)" : ""}<br /><span
+            >{datumDe(e.datum)}{berichtigtVon(e.id) ? " (berichtigt)" : ""}<br /><span
               class="meta">extern</span
             ></td
           ><td>{EINREICHUNGSWEG[e.weg]}</td><td>{name(e.beleg)}</td><td
@@ -134,7 +135,7 @@
             bind:value={berichtigt}
             ><option value={null}>Keinen</option
             >{#each eintraege.filter((e) => !berichtigtVon(e.id)) as e}<option
-                value={e.id}>{e.datum} · {EINREICHUNGSWEG[e.weg]}</option
+                value={e.id}>{datumDe(e.datum)} · {EINREICHUNGSWEG[e.weg]}</option
               >{/each}</select
           ></label
         >

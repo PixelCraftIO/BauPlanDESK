@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     Handlungsoption,
     Verfahrensart,
@@ -55,7 +56,7 @@
     <h3>Lage: {lage.lage}</h3>
     <ul>
       {#each lage.optionen as o}<li>
-          <strong>{o.titel}</strong>{o.frist ? ` · bis ${o.frist}` : ""}{o.rechtsgrundlage
+          <strong>{o.titel}</strong>{o.frist ? ` · bis ${datumDe(o.frist)}` : ""}{o.rechtsgrundlage
             ? ` · ${o.rechtsgrundlage}`
             : ""}
           <p class="meta">{o.beschreibung}</p>

@@ -12,6 +12,7 @@
     type Bundesland,
     type Planungsrecht,
     type Project,
+    datumDe,
   } from "./api";
 
   let {
@@ -356,7 +357,7 @@
     </fieldset>
   {/if}
   {#if mitPlan && bereich !== "stammdaten"}
-    {#if bereich === 'festsetzungen'}<div class="planbezug"><strong>{projekt.planungsrecht.plan_bezeichnung || 'Bebauungsplan noch nicht bezeichnet'}</strong><p class="meta">{projekt.planungsrecht.plan_nummer || 'Fassung noch nicht angegeben'} · Rechtskraft: {projekt.planungsrecht.plan_rechtskraft || 'noch nicht angegeben'}</p><button type="button" class="link" onclick={()=>navigation?.springen({bereich:'rechtsgrundlagen',objekt:null,register:null,eintrag:null})}>Rechtsgrundlagen bearbeiten</button></div>{/if}
+    {#if bereich === 'festsetzungen'}<div class="planbezug"><strong>{projekt.planungsrecht.plan_bezeichnung || 'Bebauungsplan noch nicht bezeichnet'}</strong><p class="meta">{projekt.planungsrecht.plan_nummer || 'Fassung noch nicht angegeben'} · Rechtskraft: {projekt.planungsrecht.plan_rechtskraft ? datumDe(projekt.planungsrecht.plan_rechtskraft) : 'noch nicht angegeben'}</p><button type="button" class="link" onclick={()=>navigation?.springen({bereich:'rechtsgrundlagen',objekt:null,register:null,eintrag:null})}>Rechtsgrundlagen bearbeiten</button></div>{/if}
     <fieldset disabled={!darf || laeuft}>
       <legend>Angaben zum Bebauungsplan</legend>
       {#if bereich === 'grundlagen'}

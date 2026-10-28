@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "./api";
   import { kategorieStandText } from "./kategorien";
   import PaketPruefstand from "./PaketPruefstand.svelte";
   import { projektNavigation } from "./projektNavigation.svelte";
@@ -106,7 +107,7 @@
 {#each chronik as e (e.stand.id)}<details class="paket" data-paket={e.stand.id}>
     <summary
       >{e.stand.titel} · {e.stand.empfaenger} · {e.einreichung
-        ? `Eingereicht am ${e.einreichung.datum}`
+        ? `Eingereicht am ${datumDe(e.einreichung.datum)}`
         : "Ohne bestätigte Einreichung"} · {e.stand.dokumente.length} Unterlagen</summary
     >
     <p class="meta">

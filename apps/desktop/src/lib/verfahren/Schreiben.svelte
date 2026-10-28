@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import { save } from "@tauri-apps/plugin-dialog";
   import type {
     Schreibenart,
@@ -41,13 +42,13 @@
     ...akte.nachforderungen.flatMap((n) =>
       n.punkte
         .filter((p) => p.frist)
-        .map((p) => ({ id: p.id, titel: `${p.titel} (bis ${p.frist!.datum})` })),
+        .map((p) => ({ id: p.id, titel: `${p.titel} (bis ${datumDe(p.frist!.datum)})` })),
     ),
     ...akte.schritte
       .filter((s) => s.frist)
       .map((s) => ({
         id: s.id,
-        titel: `${SCHRITTART[s.art]} (bis ${s.frist!.datum})`,
+        titel: `${SCHRITTART[s.art]} (bis ${datumDe(s.frist!.datum)})`,
       })),
   ]);
   function auftrag(): Schreibenart | null {
@@ -128,7 +129,7 @@
       >Anhörung<select bind:value={schritt}
         ><option value="">Auswählen</option
         >{#each anhoerungen as s (s.id)}<option value={s.id}
-            >{s.frist ? `Frist ${s.frist.datum}` : "ohne Frist"} · {s.gruende
+            >{s.frist ? `Frist ${datumDe(s.frist.datum)}` : "ohne Frist"} · {s.gruende
               ?.length ?? 0} Beanstandungen</option
           >{/each}</select
       ></label
