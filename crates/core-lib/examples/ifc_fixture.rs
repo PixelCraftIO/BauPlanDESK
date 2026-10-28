@@ -14,10 +14,15 @@ fn main() {
     let m = Modell::lesen("EFH.ifc", text.as_bytes()).expect("Testmodell lesbar");
     let mut grundrisse = Map::new();
     let mut plaene = Map::new();
+    let mut vorschlaege = Map::new();
     for g in &m.auszug.geschosse {
         let gr = ifc::grundriss(&m.auszug, &g.global_id, None).expect("Grundriss");
         plaene.insert(g.global_id.clone(), json!(ifc::als_plan(&gr)));
         grundrisse.insert(g.global_id.clone(), json!(gr));
+        vorschlaege.insert(
+            g.global_id.clone(),
+            json!(ifc::raumvorschlaege(&m.auszug, &g.global_id).expect("Vorschläge")),
+        );
     }
     let v = json!({
         "datei_name": "EFH-Mustermann.ifc",
@@ -26,6 +31,7 @@ fn main() {
         "geschosse": ifc::geschossliste(&m.auszug),
         "grundrisse": Value::Object(grundrisse),
         "plaene": Value::Object(plaene),
+        "raumvorschlaege": Value::Object(vorschlaege),
         "pruefung": ifc::pruefen(&m.auszug, ifc::BAUANTRAG_IDS).expect("Prüfung"),
     });
     println!("{}", serde_json::to_string(&v).expect("JSON"));

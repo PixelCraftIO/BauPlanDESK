@@ -4,11 +4,12 @@
   import { untrack } from "svelte";
   import { api, fehlertext, istIfc, type DocumentVersion, type Project } from "../api";
   import { plattformApi, type Datensatz } from "../plattformApi";
-  import type { Modellakte, Modellauszug, Modellelement, Modellgrundriss, Strukturelement } from "../generated/plattform";
+  import type { Befund, Modellakte, Modellauszug, Modellelement, Modellgrundriss, Planpolygon, Strukturelement } from "../generated/plattform";
   import { ifcApi } from "./api";
   import Grundriss from "./Grundriss.svelte";
   import Uebernahme from "./Uebernahme.svelte";
   import Pruefung from "./Pruefung.svelte";
+  import Nacharbeit from "./Nacharbeit.svelte";
   import { zahl, flaeche, laenge, klassentitel, elementtitel } from "./format";
   let { projekt, darf, start, onstatus, onzeichnung }: {
     projekt: Project;
@@ -28,7 +29,8 @@
   let geschoss = $state(""), schnitt = $state(1);
   let grundriss = $state<Modellgrundriss | null>(null);
   let auswahl = $state("");
-  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "uebernahme">("eigenschaften");
+  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "nacharbeit" | "uebernahme">("eigenschaften");
+  let vorgabe = $state<Befund | null>(null), vorschau = $state<Planpolygon[]>([]);
   // Von der Prüfung hervorgehobene Elemente; Stand zählt Änderungen am Modell.
   let markiert = $state<string[]>([]), stand = $state(0);
   const element = $derived(auszug?.elemente.find(e => e.global_id === auswahl) ?? null);
@@ -56,7 +58,7 @@
     if (!akte) return;
     laedt = true;
     try {
-      auszug = await ifcApi.auszug(projekt.id, akte.daten.dokument);
+      auszug = await ifcApi.akteAuszug(projekt.id, akte.objekt);
       if (!auszug.geschosse.some(g => g.global_id === geschoss)) geschoss = auszug.geschosse[0]?.global_id ?? "";
     } catch (e) { fehler = fehlertext(e); auszug = null; } finally { laedt = false; }
   }
@@ -76,10 +78,10 @@
   $effect(() => { const id = start.modell; untrack(() => { if (id && id === akte?.objekt) return; void listen(); if (id) void oeffnen(id); }); });
   // Grundriss neu schneiden, wenn Geschoss oder Schnitthöhe wechseln.
   $effect(() => {
-    const a = akte, g = geschoss, h = schnitt, da = !!auszug;
+    const a = akte, g = geschoss, h = schnitt, da = !!auszug, _ = stand;
     if (!a || !g || !da || ansicht !== "grundriss") return;
     let weg = false;
-    void ifcApi.grundriss(projekt.id, a.daten.dokument, g, Number.isFinite(h) ? h : null).then(r => { if (!weg) grundriss = r; }).catch(e => { if (!weg) fehler = fehlertext(e); });
+    void ifcApi.akteGrundriss(projekt.id, a.objekt, g, Number.isFinite(h) ? h : null).then(r => { if (!weg) grundriss = r; }).catch(e => { if (!weg) fehler = fehlertext(e); });
     return () => { weg = true; };
   });
   function waehlen(gid: string) {
@@ -167,7 +169,7 @@
             <m.default laden={() => ifcApi.datei(projekt.id, akte!.daten.dokument)} {auswahl} {markiert} onauswahl={waehlen}/>
           {/await}
         {:else if grundriss}
-          <Grundriss {grundriss} {auswahl} {markiert} onauswahl={waehlen}/>
+          <Grundriss {grundriss} {auswahl} {markiert} zusatz={rechts === "nacharbeit" ? vorschau : []} onauswahl={gid => { const r = rechts; waehlen(gid); if (r === "nacharbeit" || r === "pruefung") rechts = r; }}/>
         {:else if auszug && !auszug.geschosse.length}<p class="meta">Das Modell hat keine Geschosse; die 3D-Ansicht zeigt alle Elemente.</p>{/if}
       </div>
     </section>
@@ -176,6 +178,7 @@
         <button type="button" role="tab" aria-selected={rechts === "eigenschaften"} onclick={() => (rechts = "eigenschaften")}>Eigenschaften</button>
         <button type="button" role="tab" aria-selected={rechts === "bericht"} onclick={() => (rechts = "bericht")}>Modellbericht</button>
         <button type="button" role="tab" aria-selected={rechts === "pruefung"} onclick={() => (rechts = "pruefung")}>Prüfung</button>
+        <button type="button" role="tab" aria-selected={rechts === "nacharbeit"} onclick={() => (rechts = "nacharbeit")}>Nacharbeit</button>
         <button type="button" role="tab" aria-selected={rechts === "uebernahme"} onclick={() => (rechts = "uebernahme")}>Übernahme</button>
       </div>
       {#if rechts === "eigenschaften"}
@@ -208,7 +211,9 @@
           {#if struktur.eigenschaften.length}<table class="liste"><tbody>{#each struktur.eigenschaften as p}<tr><td>{p.satz}</td><td>{p.name}</td><td>{p.wert}</td></tr>{/each}</tbody></table>{/if}
         {:else}<p class="meta">Ein Element in der Struktur, im Grundriss oder in der 3D-Ansicht wählen.</p>{/if}
       {:else if rechts === "pruefung" && auszug}
-        <Pruefung projektId={projekt.id} akteId={akte.objekt} {auszug} {stand} onauswahl={gid => { waehlen(gid); rechts = "pruefung"; }} onmarkieren={g => (markiert = g)}/>
+        <Pruefung projektId={projekt.id} akteId={akte.objekt} {auszug} {stand} onauswahl={gid => { waehlen(gid); rechts = "pruefung"; }} onmarkieren={g => (markiert = g)} onaktion={b => { markiert = b.elemente; vorgabe = b; rechts = "nacharbeit"; }}/>
+      {:else if rechts === "nacharbeit" && auszug}
+        <Nacharbeit projektId={projekt.id} {akte} {auszug} {auswahl} {markiert} {geschoss} {darf} {vorgabe} onakte={a => { akte = a; stand++; void modellLaden(); }} onvorschau={p => (vorschau = p)} onmarkieren={g => { markiert = g; vorgabe = null; }} onauswahl={gid => { waehlen(gid); rechts = "nacharbeit"; }}/>
       {:else if rechts === "uebernahme"}
         <Uebernahme projektId={projekt.id} akte={akte} {darf} onakte={a => (akte = a)} {onzeichnung}/>
       {:else if auszug}

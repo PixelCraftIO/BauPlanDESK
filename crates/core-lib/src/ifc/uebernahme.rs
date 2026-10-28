@@ -568,7 +568,13 @@ impl CoreServices {
                     if let Some(raum) = r.raeume.iter_mut().find(|x| Some(x.id) == raum_id)
                         && raum.hoehe_m.is_none()
                     {
-                        raum.hoehe_m = raumhoehe(e);
+                        // In der Nacharbeit gebildete Räume: Höhe ihres Körpers.
+                        raum.hoehe_m = raumhoehe(e).or_else(|| {
+                            e.geometrie
+                                .as_ref()
+                                .filter(|_| e.step_id == 0)
+                                .map(|g| ((g.oben_m - g.unten_m) * 1e3).round() / 1e3)
+                        });
                     }
                 }
                 let gespeichert = self

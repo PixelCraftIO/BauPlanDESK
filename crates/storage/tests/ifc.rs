@@ -79,6 +79,7 @@ async fn modell_lesen_und_modellakte_speichern() {
         bezeichnung: "Entwurf Architekt".into(),
         dokument: d.clone(),
         uebernahme: None,
+        nacharbeit: Vec::new(),
     };
     let f = u
         .core
@@ -123,6 +124,7 @@ async fn modell_lesen_und_modellakte_speichern() {
         bezeichnung: "Kaputt".into(),
         dokument: kaputt,
         uebernahme: None,
+        nacharbeit: Vec::new(),
     };
     assert!(
         u.core
@@ -243,6 +245,7 @@ async fn uebernahme_in_gebaeude_zeichnungen_und_raumbuch() {
         bezeichnung: "Entwurf".into(),
         dokument: d.clone(),
         uebernahme: None,
+        nacharbeit: Vec::new(),
     };
     let f = u
         .core
@@ -398,6 +401,7 @@ async fn pruefung_mit_mitgeliefertem_und_eigenem_ids() {
                 bezeichnung: "Entwurf".into(),
                 dokument: d,
                 uebernahme: None,
+                nacharbeit: Vec::new(),
             })
             .unwrap(),
             &u.user,
@@ -436,4 +440,97 @@ async fn pruefung_mit_mitgeliefertem_und_eigenem_ids() {
         .unwrap_err()
         .to_string();
     assert!(e.contains("keine IDS-Datei"), "{e}");
+}
+
+/// Nacharbeit in der Modellakte: geprüft beim Speichern, angewendet im Auszug
+/// der Akte und in der Übernahme (neuer Raum aus Wänden).
+#[tokio::test]
+async fn nacharbeit_gespeichert_und_in_uebernahme_wirksam() {
+    use core_lib::ifc::{Eigenschaftswert, Modellaenderung};
+    let u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let roh = u.core.ifc_auszug(u.projekt.id, &d).await.unwrap();
+    let eg = roh.geschosse[0].global_id.clone();
+    let akte_id = Uuid::new_v4();
+    let mut akte = ifc::Modellakte {
+        bezeichnung: "Entwurf".into(),
+        dokument: d,
+        uebernahme: None,
+        nacharbeit: Vec::new(),
+    };
+    let speichern = |a: &ifc::Modellakte, basis: i64| {
+        u.core.fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Ifcmodell,
+            akte_id,
+            basis,
+            serde_json::to_value(a).unwrap(),
+            &u.user,
+        )
+    };
+    let f = speichern(&akte, 0).await.unwrap();
+    // Räume des EG ausblenden, einen aus den Wänden neu bilden.
+    let mut liste: Vec<Modellaenderung> = roh
+        .elemente
+        .iter()
+        .filter(|e| e.klasse == "IFCSPACE" && e.geschoss.as_deref() == Some(eg.as_str()))
+        .map(|e| Modellaenderung::Ausblenden {
+            global_id: e.global_id.clone(),
+        })
+        .collect();
+    akte.nacharbeit = liste.clone();
+    let f = speichern(&akte, f.revision).await.unwrap();
+    let v = u
+        .core
+        .ifc_raumvorschlaege(u.projekt.id, akte_id, &eg)
+        .await
+        .unwrap();
+    assert_eq!(v.len(), 2);
+    assert!(v.iter().all(|r| r.vorhanden.is_none()));
+    liste.push(Modellaenderung::RaumBilden {
+        global_id: v[0].global_id.clone(),
+        geschoss: eg.clone(),
+        name: "0.01".into(),
+        langname: Some("Wohnen und Essen".into()),
+        umriss: v[0].umriss.clone(),
+        hoehe_m: Some(2.5),
+    });
+    liste.push(Modellaenderung::EigenschaftSetzen {
+        global_id: v[0].global_id.clone(),
+        satz: "Pset_SpaceCommon".into(),
+        name: "IsExternal".into(),
+        wert: Eigenschaftswert::Logisch { wert: false },
+    });
+    akte.nacharbeit = liste;
+    let f = speichern(&akte, f.revision).await.unwrap();
+    let a = u.core.ifc_akte_auszug(u.projekt.id, &akte).await.unwrap();
+    assert_eq!(a.bericht.raeume, 3);
+    assert!(a.element(&v[0].global_id).unwrap().eigenschaften.len() == 1);
+    // Ungültige Nacharbeit wird abgewiesen.
+    let mut falsch = akte.clone();
+    falsch.nacharbeit.push(Modellaenderung::GeschossZuordnen {
+        global_id: v[0].global_id.clone(),
+        geschoss: "1111111111111111111111".into(),
+    });
+    assert!(speichern(&falsch, f.revision).await.is_err());
+
+    let r = u
+        .core
+        .ifc_uebernehmen(
+            u.projekt.id,
+            &ifc::Modelluebernahmewunsch {
+                akte_id,
+                revision: f.revision,
+                gebaeude_id: None,
+                raumbuch: true,
+            },
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let rb: core_lib::plattform::objekte::Raumbuch =
+        serde_json::from_value(r.raumbuecher[0].daten.clone()).unwrap();
+    assert_eq!(rb.raeume.len(), 1);
+    assert_eq!(rb.raeume[0].bezeichnung, "0.01 Wohnen und Essen");
+    assert_eq!(rb.raeume[0].hoehe_m, Some(2.5), "Höhe des gebildeten Raums");
 }

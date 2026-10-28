@@ -132,7 +132,34 @@ impl CoreServices {
         p: ProjectId,
         akte: &Modellakte,
     ) -> CoreResult<Modellauszug> {
-        Ok(self.ifc_modell(p, &akte.dokument).await?.auszug.clone())
+        let mut a = self.ifc_modell(p, &akte.dokument).await?.auszug.clone();
+        super::nacharbeit::anwenden(&mut a, &akte.nacharbeit);
+        Ok(a)
+    }
+
+    /// Grundriss-Schnitt der Modellakte (mit Nacharbeit).
+    pub async fn ifc_akte_grundriss(
+        &self,
+        p: ProjectId,
+        akte_id: uuid::Uuid,
+        geschoss: &str,
+        schnitthoehe_m: Option<f64>,
+    ) -> CoreResult<super::Modellgrundriss> {
+        let akte = self.modellakte(p, akte_id).await?;
+        let a = self.ifc_akte_auszug(p, &akte).await?;
+        super::grundriss(&a, geschoss, schnitthoehe_m)
+    }
+
+    /// Raumvorschläge aus den Wänden eines Geschosses der Modellakte.
+    pub async fn ifc_raumvorschlaege(
+        &self,
+        p: ProjectId,
+        akte_id: uuid::Uuid,
+        geschoss: &str,
+    ) -> CoreResult<Vec<super::Raumvorschlag>> {
+        let akte = self.modellakte(p, akte_id).await?;
+        let a = self.ifc_akte_auszug(p, &akte).await?;
+        super::raumvorschlaege(&a, geschoss)
     }
 
     /// Prüft die Modellakte gegen das mitgelieferte IDS oder ein IDS aus den
@@ -235,7 +262,7 @@ impl CoreServices {
     /// Prüfung beim Speichern einer Modellakte: Bezeichnung, lesbares Modell.
     pub(crate) async fn modellakte_pruefen(&self, p: ProjectId, a: &Modellakte) -> CoreResult<()> {
         crate::plattform::text(&a.bezeichnung, 200)?;
-        self.ifc_modell(p, &a.dokument).await?;
-        Ok(())
+        let m = self.ifc_modell(p, &a.dokument).await?;
+        super::nacharbeit::pruefen(&m.auszug, &a.nacharbeit)
     }
 }

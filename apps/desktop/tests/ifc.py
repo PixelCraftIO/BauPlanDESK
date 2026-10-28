@@ -47,7 +47,7 @@ with sync_playwright() as pw:
  mitte=scope.get_by_role('region',name='Modellansicht')
  mitte.get_by_label('Geschoss',exact=True).select_option(og['global_id'])
  mitte.get_by_label('Schnitthöhe').fill('1.5')
- page.wait_for_function("window.ifcAufrufe.some(a=>a.cmd==='ifc_grundriss'&&a.args.schnitthoeheM===1.5)")
+ page.wait_for_function("window.ifcAufrufe.some(a=>a.cmd==='ifc_akte_grundriss'&&a.args.schnitthoeheM===1.5)")
  expect(scope.get_by_text('Schnitt 1,5 m über Geschossebene')).to_be_visible()
  # Modellbericht.
  details.get_by_role('tab',name='Modellbericht').click()
@@ -71,6 +71,34 @@ with sync_playwright() as pw:
  expect(pruef.get_by_role('status',name='Prüfergebnis')).to_contain_text('Büro: 1 Fehler')
  assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_pruefen').at(-1).args.ids.dokument_id")=='d416da8b-cbfb-4ae6-931b-8765fb6454d1'
  page.screenshot(path=str(out/'ifc-pruefung.png'))
+ # Nacharbeit aus dem Befund: Proxy als Wand klassifizieren, Raum aus Wänden bilden, zurücknehmen.
+ pruef.get_by_label('Regelwerk der Prüfung').select_option(index=0)
+ befund=pruef.get_by_role('list',name='Befunde').locator('li.warnung')
+ befund.get_by_role('button',name='Klassifizieren …').click()
+ nach=details.get_by_role('region',name='Nacharbeit')
+ expect(nach).to_contain_text(f"Auswahl: {proxy['name']}")
+ nach.get_by_label('Neue Klasse').select_option('IFCWALL')
+ nach.get_by_role('button',name='Klassifizieren',exact=True).click()
+ aenderungen=nach.get_by_role('list',name='Änderungen')
+ expect(aenderungen).to_contain_text(f"{proxy['name']}: Klasse Wand")
+ akte=page.evaluate('window.ifcAkten[0]')
+ assert akte['daten']['nacharbeit']==[{'art':'klassifizieren','global_id':proxy['global_id'],'klasse':'IFCWALL','vordefiniert':None}], akte
+ nach.get_by_role('button',name='Hervorhebung aufheben').click()
+ mitte.get_by_label('Geschoss',exact=True).select_option(eg['global_id'])
+ nach.get_by_role('button',name='Geschlossene Flächen suchen').click()
+ vorschl=nach.get_by_role('list',name='Raumvorschläge')
+ expect(vorschl.locator('li')).to_have_count(len(ifc['raumvorschlaege'][eg['global_id']]))
+ expect(grundriss.locator('path.zusatz')).to_have_count(1)
+ vorschl.get_by_label('Name des Raums 1').fill('0.03 Bad')
+ vorschl.get_by_role('button',name='Raum bilden').click()
+ expect(aenderungen.locator('li')).to_have_count(2)
+ neu=page.evaluate('window.ifcAkten[0].daten.nacharbeit[1]')
+ assert neu['art']=='raum_bilden' and neu['name']=='0.03' and neu['langname']=='Bad' and neu['geschoss']==eg['global_id'] and len(neu['umriss'])>=4, neu
+ page.screenshot(path=str(out/'ifc-nacharbeit.png'))
+ aenderungen.locator('li').first.get_by_role('button',name='Zurücknehmen').click()
+ expect(aenderungen.locator('li')).to_have_count(1)
+ assert page.evaluate('window.ifcAkten[0].daten.nacharbeit.length')==1
+ assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_akte_auszug').length")>=4
  # 3D: web-ifc lädt die Datei, Klick wählt ein Element.
  mitte.get_by_role('radio',name='3D').click()
  leinwand=scope.get_by_role('img',name='3D-Ansicht des Modells')
@@ -91,11 +119,12 @@ with sync_playwright() as pw:
  details.get_by_role('tab',name='Übernahme').click()
  ueb=details.get_by_role('region',name='Übernahme ins Projekt')
  expect(ueb.get_by_label('Zielgebäude')).to_have_value('')
+ rev=page.evaluate('window.ifcAkten[0].revision')
  ueb.get_by_role('button',name='In Projekt übernehmen').click()
  ergebnis=ueb.get_by_role('status',name='Übernahmeergebnis')
  expect(ergebnis).to_contain_text('2 Zeichnung(en), 2 Raumbuch/Raumbücher')
  aufruf=page.evaluate("window.ifcAufrufe.find(a=>a.cmd==='ifc_uebernehmen').args.wunsch")
- assert aufruf['gebaeude_id'] is None and aufruf['raumbuch'] is True and aufruf['revision']==1, aufruf
+ assert aufruf['gebaeude_id'] is None and aufruf['raumbuch'] is True and aufruf['revision']==rev, aufruf
  expect(ueb.get_by_role('button',name='Übernahme aktualisieren')).to_be_visible()
  expect(ueb).to_contain_text('Zuletzt übernommen')
  page.screenshot(path=str(out/'ifc-uebernahme.png'))
@@ -107,7 +136,7 @@ with sync_playwright() as pw:
  ueb.get_by_role('button',name='Übernahme aktualisieren').click()
  page.wait_for_function("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen').length===2")
  expect(ueb.get_by_role('alert')).to_have_count(0)
- assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen')[1].args.wunsch.revision")==2
+ assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_uebernehmen')[1].args.wunsch.revision")==rev+1
  # IFC-Geschoss als Hintergrund einer eigenen Zeichnung.
  scope.get_by_role('button',name='Neue Zeichnung',exact=True).click()
  tab=scope.locator('section[aria-label="Neue Zeichnung"]:visible')

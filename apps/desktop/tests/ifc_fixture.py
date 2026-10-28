@@ -19,7 +19,7 @@ const istIfcDok=d=>d&&d.dokument_id===ifcDok.document_id&&d.version===ifcDok.ver
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  const c=({fachobjektseite:'fachobjekte'})[cmd]??cmd;
  if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok,idsDok];}
- if(c.startsWith("ifc_")&&!["ifc_uebernehmen","ifc_pruefen"].includes(c)){
+ if(c.startsWith("ifc_")&&!["ifc_uebernehmen","ifc_pruefen","ifc_akte_auszug","ifc_akte_grundriss","ifc_raumvorschlaege"].includes(c)){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});
    if(!istIfcDok(args.dokument))throw "Dokument ist kein IFC-Modell des Projekts";
    if(c==="ifc_auszug")return structuredClone(IFC.auszug);
@@ -27,6 +27,13 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(c==="ifc_grundriss"){const g=structuredClone(IFC.grundrisse[args.geschoss]);if(!g)throw "Geschoss ist nicht im Modell";if(args.schnitthoeheM!=null)g.schnitthoehe_m=args.schnitthoeheM;return g;}
    if(c==="ifc_grundriss_plan")return structuredClone(IFC.plaene[args.geschoss]);
    if(c==="ifc_datei")return IFC.datei_base64;
+ }
+ if(c==="ifc_akte_auszug"||c==="ifc_akte_grundriss"||c==="ifc_raumvorschlaege"){
+   window.ifcAufrufe.push({cmd:c,args:kopie(args)});
+   if(!window.ifcAkten.some(a=>a.objekt===args.akteId))throw "Modellakte fehlt im Projekt";
+   if(c==="ifc_akte_auszug")return kopie(IFC.auszug);
+   if(c==="ifc_raumvorschlaege")return kopie((IFC.raumvorschlaege[args.geschoss]??[]).map((v,i)=>i===0?{...v,vorhanden:null}:v));
+   const g=kopie(IFC.grundrisse[args.geschoss]);if(!g)throw "Geschoss ist nicht im Modell";if(args.schnitthoeheM!=null)g.schnitthoehe_m=args.schnitthoeheM;return g;
  }
  if(c==="ifc_pruefen"){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});

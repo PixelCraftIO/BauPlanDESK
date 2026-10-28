@@ -14,6 +14,7 @@
 mod auszug;
 pub mod geometrie;
 mod grundriss;
+pub mod nacharbeit;
 mod pruefung;
 mod service;
 pub mod step;
@@ -28,6 +29,7 @@ pub use grundriss::{
     Grundrissteil, Modellgeschoss, Modellgrundriss, SCHNITTHOEHE_M, als_plan, geschossliste,
     grundriss, modellumfang,
 };
+pub use nacharbeit::{Eigenschaftswert, Modellaenderung, Raumvorschlag, raumvorschlaege};
 pub use pruefung::{
     BAUANTRAG_IDS, Befund, Befundaktion, Befundstufe, Modellpruefung, eingebaute_regeln,
     ids_pruefen, pruefen,
@@ -55,6 +57,10 @@ pub struct Modellakte {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub uebernahme: Option<Modelluebernahme>,
+    /// Nacharbeit: Änderungen über die GlobalId, in dieser Reihenfolge angewendet.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Modellaenderung>>")]
+    pub nacharbeit: Vec<Modellaenderung>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]

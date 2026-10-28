@@ -161,7 +161,11 @@ dokument: Dokumentbezug,
 /**
  * Letzte Übernahme in Gebäude, Zeichnungen und Raumbücher.
  */
-uebernahme?: Modelluebernahme, };
+uebernahme?: Modelluebernahme,
+/**
+ * Nacharbeit: Änderungen über die GlobalId, in dieser Reihenfolge angewendet.
+ */
+nacharbeit?: Array<Modellaenderung>, };
 export type Georeferenz = {
 /**
  * Koordinatenreferenzsystem, z. B. `EPSG:25832`.
@@ -334,6 +338,25 @@ regelwerk: string, befunde: Array<Befund>, fehler: number, warnungen: number, hi
  * IDS-Teile, die nicht ausgewertet werden konnten.
  */
 nicht_geprueft: Array<string>, };
+export type Eigenschaftswert = { "typ": "text", wert: string, } | { "typ": "zahl", wert: number, } | { "typ": "logisch", wert: boolean, };
+export type Modellaenderung = { "art": "klassifizieren", global_id: string, klasse: string, vordefiniert: string | null, } | { "art": "geschoss_zuordnen", global_id: string, geschoss: string, } | { "art": "eigenschaft_setzen", global_id: string, satz: string, name: string, wert: Eigenschaftswert, } | { "art": "benennen", global_id: string, name: string, langname: string | null, } | { "art": "raum_bilden", global_id: string, geschoss: string, name: string, langname: string | null, umriss: Array<[number, number]>,
+/**
+ * Lichte Höhe; ohne Angabe bis zur nächsten Geschossebene.
+ */
+hoehe_m: number | null, } | { "art": "ausblenden", global_id: string, };
+export type Raumvorschlag = {
+/**
+ * Neue GlobalId für den Raum, falls er gebildet wird.
+ */
+global_id: string,
+/**
+ * Umriss in Modellkoordinaten (m).
+ */
+umriss: Array<[number, number]>, flaeche_m2: number,
+/**
+ * Vorhandener Raum, der diesen Umriss schon abdeckt.
+ */
+vorhanden: string | null, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

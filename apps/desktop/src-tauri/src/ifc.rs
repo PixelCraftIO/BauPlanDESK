@@ -113,3 +113,52 @@ pub async fn ifc_pruefen(
         .ifc_pruefen(projekt_id, akte_id, ids.as_ref())
         .await?)
 }
+
+#[tauri::command]
+pub async fn ifc_raumvorschlaege(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    akte_id: uuid::Uuid,
+    geschoss: String,
+) -> Result<Vec<core_lib::ifc::Raumvorschlag>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .ifc_raumvorschlaege(projekt_id, akte_id, &geschoss)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn ifc_akte_auszug(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    akte_id: uuid::Uuid,
+) -> Result<core_lib::ifc::Modellauszug, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    let akte = state.core.modellakte(projekt_id, akte_id).await?;
+    Ok(state.core.ifc_akte_auszug(projekt_id, &akte).await?)
+}
+
+#[tauri::command]
+pub async fn ifc_akte_grundriss(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    akte_id: uuid::Uuid,
+    geschoss: String,
+    schnitthoehe_m: Option<f64>,
+) -> Result<core_lib::ifc::Modellgrundriss, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .ifc_akte_grundriss(projekt_id, akte_id, &geschoss, schnitthoehe_m)
+        .await?)
+}

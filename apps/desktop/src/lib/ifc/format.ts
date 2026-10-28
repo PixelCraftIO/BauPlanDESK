@@ -20,3 +20,15 @@ export function klassentitel(klasse: string): string {
 }
 export const elementtitel = (e: Pick<Modellelement, "name" | "langname" | "klasse" | "global_id">) =>
   e.name || e.langname || `${klassentitel(e.klasse)} ${e.global_id.slice(0, 6)}`;
+/** Zielklassen der Nacharbeit (Spiegel von core-lib ifc::nacharbeit::KLASSEN). */
+export const NACHARBEIT_KLASSEN = ["IFCWALL", "IFCSLAB", "IFCROOF", "IFCCOLUMN", "IFCBEAM", "IFCSTAIR", "IFCRAMP", "IFCRAILING", "IFCCOVERING", "IFCCURTAINWALL", "IFCWINDOW", "IFCDOOR", "IFCPLATE", "IFCMEMBER", "IFCFOOTING", "IFCCHIMNEY", "IFCSHADINGDEVICE", "IFCFURNISHINGELEMENT", "IFCBUILDINGELEMENTPROXY"];
+/** Übliche Arten (PredefinedType) je Klasse. */
+export const ARTEN: Record<string, string[]> = {
+  IFCSLAB: ["FLOOR", "ROOF", "BASESLAB", "LANDING"],
+  IFCWALL: ["STANDARD", "PARTITIONING", "PARAPET", "SHEAR", "SOLIDWALL"],
+  IFCROOF: ["FLAT_ROOF", "GABLE_ROOF", "HIP_ROOF", "SHED_ROOF", "MANSARD_ROOF", "BARREL_ROOF"],
+  IFCCOVERING: ["CEILING", "FLOORING", "CLADDING", "ROOFING", "INSULATION"],
+  IFCCOLUMN: ["COLUMN", "PILASTER"],
+  IFCBEAM: ["BEAM", "JOIST", "LINTEL"],
+  IFCPLATE: ["CURTAIN_PANEL", "SHEET"],
+};

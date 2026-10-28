@@ -399,7 +399,7 @@ fn produkt(i: &Instanz) -> bool {
             && i.attribute.len() < 8)
 }
 
-fn geometrie_aus(teile: &[Teil], naeherung: bool) -> Option<Modellgeometrie> {
+pub(super) fn geometrie_aus(teile: &[Teil], naeherung: bool) -> Option<Modellgeometrie> {
     if teile.is_empty() {
         return None;
     }

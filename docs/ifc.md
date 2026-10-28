@@ -107,6 +107,36 @@ den Auszug der Modellakte gegen eine Information Delivery Specification
   die passende Nacharbeit (klassifizieren, Geschoss zuordnen, Eigenschaft
   setzen, Raum bilden, benennen).
 
+## Nacharbeit
+
+Importierte Modelle brauchen fast immer Nacharbeit. Sie steht als Liste
+`Modellakte.nacharbeit` (`Modellaenderung`) in der Modellakte, gebunden an
+die GlobalId, und wird in dieser Reihenfolge auf den gelesenen Auszug
+angewendet (`ifc::nacharbeit::anwenden`, `CoreServices::ifc_akte_auszug`).
+Die IFC-Datei bleibt unverändert; Prüfung, Übernahme, Auswertung und Export
+sehen das nachgearbeitete Modell.
+
+| Änderung | Wirkung |
+| --- | --- |
+| `klassifizieren` | Klasse und Art (`PredefinedType`), z. B. Proxy → Wand, Platte → Dach; Zielklassen `nacharbeit::KLASSEN` |
+| `geschoss_zuordnen` | Element einem Geschoss (und dessen Gebäude) zuordnen |
+| `eigenschaft_setzen` | Eigenschaft mit Typ Text, Zahl oder Ja/Nein setzen oder ersetzen |
+| `benennen` | Name und Langname (Räume: Nummer und Nutzung), auch Geschosse und Gebäude |
+| `raum_bilden` | neuer Raum (neue GlobalId) aus einem Umriss in Modellkoordinaten, Höhe bis zur nächsten Geschossebene oder angegeben |
+| `ausblenden` | Element aus Prüfung, Übernahme und Auswertung nehmen |
+
+**Räume aus Wänden** (`ifc::raumvorschlaege`, Befehl
+`ifc_raumvorschlaege`): Die Wände, Stützen und Vorhangfassaden im
+Grundriss-Schnitt werden vereinigt; jede geschlossene Fläche über 1 m² ist ein
+Vorschlag. Türen zählen als geschlossen, weil Öffnungen nicht abgezogen
+werden. Vorschläge, die ein vorhandener Raum schon abdeckt, sind markiert.
+
+Beim Speichern prüft der Core jede Änderung (GlobalId-Format, Zielklasse,
+Geschoss, Umriss ≥ 0,1 m², Textlängen). Änderungen für Elemente, die nach
+einem Reimport fehlen, bleiben gespeichert, wirken nicht und erscheinen als
+Hinweis im Modellbericht. Im Reiter „Prüfung“ öffnet die Aktion eines Befunds
+die Nacharbeit mit den betroffenen Elementen.
+
 ## Übernahme ins Projekt
 
 `CoreServices::ifc_uebernehmen` (Befehl `ifc_uebernehmen`, Reiter

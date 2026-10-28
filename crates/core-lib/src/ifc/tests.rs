@@ -379,3 +379,199 @@ fn pruefung_ifc2x3_ohne_raeume_und_eigene_ids() {
     assert!(ids_pruefen(&efh.auszug, "<kein/>").is_err());
     assert!(ids_pruefen(&efh.auszug, "<ids><specifications>").is_err());
 }
+
+#[test]
+fn nacharbeit_klassifizieren_zuordnen_ausblenden_und_raum_bilden() {
+    use nacharbeit::{anwenden, pruefen as liste_pruefen};
+    let m = modell(&efh_ifc4());
+    let roh = &m.auszug;
+    let gid = |k: &str| {
+        roh.elemente
+            .iter()
+            .find(|e| e.klasse == k)
+            .unwrap()
+            .global_id
+            .clone()
+    };
+    let (eg, og) = (
+        roh.geschosse[0].global_id.clone(),
+        roh.geschosse[1].global_id.clone(),
+    );
+    let proxy = gid("IFCBUILDINGELEMENTPROXY");
+    let kamin = gid("IFCCHIMNEY");
+    let innen = roh
+        .elemente
+        .iter()
+        .find(|e| {
+            e.klasse == "IFCWALL"
+                && e.eigenschaften
+                    .iter()
+                    .any(|p| p.name == "IsExternal" && p.wert == "Nein")
+        })
+        .unwrap()
+        .global_id
+        .clone();
+    let raum = roh
+        .elemente
+        .iter()
+        .find(|e| e.klasse == "IFCSPACE")
+        .unwrap()
+        .global_id
+        .clone();
+    let liste = vec![
+        Modellaenderung::Klassifizieren {
+            global_id: proxy.clone(),
+            klasse: "IFCWALL".into(),
+            vordefiniert: None,
+        },
+        Modellaenderung::GeschossZuordnen {
+            global_id: proxy.clone(),
+            geschoss: og.clone(),
+        },
+        Modellaenderung::EigenschaftSetzen {
+            global_id: innen.clone(),
+            satz: "Pset_WallCommon".into(),
+            name: "IsExternal".into(),
+            wert: Eigenschaftswert::Logisch { wert: true },
+        },
+        Modellaenderung::Benennen {
+            global_id: raum.clone(),
+            name: "0.01".into(),
+            langname: Some("Wohnzimmer".into()),
+        },
+        Modellaenderung::Ausblenden {
+            global_id: kamin.clone(),
+        },
+        Modellaenderung::Ausblenden {
+            global_id: "0000000000000000000000".into(),
+        },
+    ];
+    liste_pruefen(roh, &liste).unwrap();
+    let mut a = roh.clone();
+    let verwaist = anwenden(&mut a, &liste);
+    assert_eq!(verwaist, ["0000000000000000000000"]);
+    let p = a.element(&proxy).unwrap();
+    assert_eq!(
+        (p.klasse.as_str(), p.geschoss.as_deref()),
+        ("IFCWALL", Some(og.as_str()))
+    );
+    assert!(a.element(&kamin).is_none());
+    assert!(
+        a.bericht
+            .klassen
+            .iter()
+            .all(|k| k.klasse != "IFCBUILDINGELEMENTPROXY" && k.klasse != "IFCCHIMNEY")
+    );
+    assert_eq!(a.bericht.elemente, roh.bericht.elemente - 1);
+    let w = a.element(&innen).unwrap();
+    assert_eq!(
+        w.eigenschaften
+            .iter()
+            .filter(|p| p.name == "IsExternal")
+            .map(|p| p.wert.as_str())
+            .collect::<Vec<_>>(),
+        ["Ja"]
+    );
+    assert_eq!(
+        a.element(&raum).unwrap().langname.as_deref(),
+        Some("Wohnzimmer")
+    );
+    assert!(
+        a.bericht
+            .hinweise
+            .iter()
+            .any(|h| h.contains("nicht enthält"))
+    );
+    assert!(
+        super::pruefen(&a, BAUANTRAG_IDS)
+            .unwrap()
+            .befunde
+            .iter()
+            .all(|b| b.regel != "proxy")
+    );
+
+    // Räume aus Wänden: zwei Flächen je Geschoss, vorhanden erkannt.
+    let v = raumvorschlaege(roh, &eg).unwrap();
+    assert_eq!(v.len(), 2, "{v:?}");
+    assert!(
+        v.iter()
+            .all(|r| (r.flaeche_m2 - efh::raumflaeche()).abs() < 1e-3 && r.vorhanden.is_some())
+    );
+    // Räume ausblenden und neu bilden.
+    let mut ohne = roh.clone();
+    let raeume: Vec<_> = roh
+        .elemente
+        .iter()
+        .filter(|e| e.klasse == "IFCSPACE" && e.geschoss.as_deref() == Some(eg.as_str()))
+        .map(|e| Modellaenderung::Ausblenden {
+            global_id: e.global_id.clone(),
+        })
+        .collect();
+    anwenden(&mut ohne, &raeume);
+    let v = raumvorschlaege(&ohne, &eg).unwrap();
+    assert!(v.iter().all(|r| r.vorhanden.is_none()));
+    let mut liste = raeume.clone();
+    liste.push(Modellaenderung::RaumBilden {
+        global_id: v[0].global_id.clone(),
+        geschoss: eg.clone(),
+        name: "0.01".into(),
+        langname: Some("Wohnen".into()),
+        umriss: v[0].umriss.clone(),
+        hoehe_m: None,
+    });
+    liste_pruefen(roh, &liste).unwrap();
+    let mut b = roh.clone();
+    anwenden(&mut b, &liste);
+    let neu = b.element(&v[0].global_id).unwrap();
+    let g = neu.geometrie.as_ref().unwrap();
+    assert!((g.grundflaeche_m2 - efh::raumflaeche()).abs() < 1e-3);
+    assert!(nah(g.oben_m - g.unten_m, efh::GESCHOSSHOEHE));
+    assert_eq!(neu.geschoss.as_deref(), Some(eg.as_str()));
+    assert_eq!(b.bericht.raeume, 3);
+
+    // Ungültige Nacharbeit.
+    let falsch = |c: Modellaenderung| liste_pruefen(roh, &[c]).unwrap_err().to_string();
+    assert!(
+        falsch(Modellaenderung::Klassifizieren {
+            global_id: proxy.clone(),
+            klasse: "IFCSPACE".into(),
+            vordefiniert: None
+        })
+        .contains("nicht vorgesehen")
+    );
+    assert!(
+        falsch(Modellaenderung::GeschossZuordnen {
+            global_id: proxy.clone(),
+            geschoss: "1111111111111111111111".into()
+        })
+        .contains("Geschoss")
+    );
+    assert!(
+        falsch(Modellaenderung::Ausblenden {
+            global_id: "kurz".into()
+        })
+        .contains("GlobalId")
+    );
+    assert!(
+        falsch(Modellaenderung::RaumBilden {
+            global_id: raum.clone(),
+            geschoss: eg.clone(),
+            name: "x".into(),
+            langname: None,
+            umriss: v[0].umriss.clone(),
+            hoehe_m: None
+        })
+        .contains("neue GlobalId")
+    );
+    assert!(
+        falsch(Modellaenderung::RaumBilden {
+            global_id: v[1].global_id.clone(),
+            geschoss: eg.clone(),
+            name: "x".into(),
+            langname: None,
+            umriss: vec![[0., 0.], [0.1, 0.], [0., 0.1]],
+            hoehe_m: None
+        })
+        .contains("0,1 m²")
+    );
+}
