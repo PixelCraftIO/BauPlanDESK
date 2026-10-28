@@ -1,0 +1,68 @@
+# BauPlanIO – Benutzerhandbuch
+
+Bebildertes Handbuch für Architektinnen, Architekten, Entwurfsverfasser und
+die Projektorganisation im Büro. Es erklärt die Oberfläche, alle Funktionen
+und die Standardabläufe vom ersten Projekt bis zur Bauausführung.
+
+Alle Bildschirmfotos stammen aus der echten Anwendung mit dem mitgelieferten
+Beispielprojekt **„Neubau Einfamilienhaus Mustermann“** (Nordrhein-Westfalen).
+Sie können jeden Schritt dort nachvollziehen: **Hilfe → Beispielprojekt öffnen**
+(siehe [Kapitel 1](01-einstieg.md#beispielprojekt-öffnen)).
+
+**Stand:** 28.10.2026 · Programmstand `main` 3c66d55 (inkl. neuem Zeicheneditor
+und Abgleich von Hand- und Zeichnungswerten).
+
+## Inhalt
+
+| Nr. | Kapitel | Worum es geht |
+| --- | --- | --- |
+| 1 | [Einstieg](01-einstieg.md) | Was BauPlanIO leistet, Begriffe, Beispielprojekt |
+| 2 | [Oberfläche und Bedienung](02-oberflaeche.md) | Arbeitsplatz, Projekttabs, die drei Register, Speichern, Status |
+| 3 | [Büro einrichten](03-einrichtung.md) | Einstellungen, Büroangaben, Benutzer, Kunden, Formularbibliothek |
+| 4 | [Projekt anlegen und Grundlagen](04-projekt-grundlagen.md) | Neues Projekt, Stammdaten, Rechtsgrundlagen, B-Plan, Flurstücke |
+| 5 | [Unterlagen, Aufmaß und Gebäudemodell](05-ermittlung.md) | Projektdateien, Zeicheneditor, Messwerte, Gebäude, Raumbuch |
+| 6 | [Berechnungen und Nachweise](06-nachweise.md) | Baugrundstück, GRZ/GFZ/BMZ, Fachberechnungen, Nachweisstände |
+| 7 | [Formulare und Druckausgabe](07-formulare-druck.md) | PDF-Formulare ausfüllen, Berechnungsheft, Behördenausgabe |
+| 8 | [Verfahren und Einreichung](08-verfahren.md) | Verfahrensakte, Abgabestände, Portal, XBau, Bescheid, Bauausführung |
+| 9 | [Standard-Workflows](09-workflows.md) | Schritt-für-Schritt-Abläufe für die typischen Aufgaben |
+| 10 | [Tastatur, Fragen und Begriffe](10-anhang.md) | Kurzbefehle, häufige Meldungen, Glossar, Abschlusscheckliste |
+
+Wer zum ersten Mal mit BauPlanIO arbeitet, liest Kapitel 1 und 2 und folgt
+dann dem Workflow [„Vom Grundstück zur Erstabgabe“](09-workflows.md#workflow-1-vom-grundstück-zur-erstabgabe).
+
+> Die fachliche Verantwortung bleibt beim Planungsteam. Mitgelieferte
+> Regelpakete und Beispielwerte sind keine geprüften Satzungen oder
+> Rechtsauskünfte; Rechtsangaben sind bis zur fachlichen Abnahme durch das
+> Büro als ungeprüft gekennzeichnet.
+
+## Pflege dieses Handbuchs
+
+Das Handbuch ist so aufgebaut, dass es nicht neu geschrieben, sondern nur
+fortgeschrieben wird:
+
+- **Ein Kapitel je Arbeitsbereich.** Eine neue Funktion wird in dem Kapitel
+  ergänzt, zu dessen Bereich sie in der Projektakte gehört (Gliederung wie in
+  der App: Übersicht, Bereich 1 Ermittlung, Bereich 2 Nachweis und Einreichung).
+  Ein neuer Projektbereich bekommt einen eigenen Abschnitt `## <Titel wie in der
+  Navigation>`.
+- **Bilder neu erzeugen statt nachbearbeiten.** Alle Bilder entstehen mit
+  `scripts/handbuch-bilder/aufnahmen.py` aus der laufenden App und dem
+  Beispielprojekt (Anleitung in [scripts/handbuch-bilder/README.md](../../../scripts/handbuch-bilder/README.md)).
+  Für eine neue Ansicht eine Szene in `SZENEN` ergänzen; der Dateiname ist der
+  Bildname in `bilder/`. Nach einer Oberflächenänderung genügt ein erneuter Lauf,
+  einzelne Szenen lassen sich gezielt wiederholen.
+- **Bezeichnungen aus der Oberfläche übernehmen.** Knöpfe und Bereiche stehen
+  in „Anführungszeichen“ genau so, wie sie in der App heißen. Wird ein Knopf
+  umbenannt, nach dem alten Text im Ordner suchen und ersetzen.
+- **Änderungen unten im Verlauf eintragen** (Datum, Programmstand, was neu ist).
+
+Daneben gibt es die in die App eingebaute Hilfe (Taste F1, Quelle
+`apps/desktop/src/lib/hilfe/handbuch.json`, Ausgaben unter
+[docs/handbuch/](../README.md)). Sie ist ein kurzes Nachschlagewerk ohne Bilder
+und wird beim Ergänzen neuer Module ebenfalls gepflegt.
+
+## Änderungsverlauf
+
+| Datum | Programmstand | Änderung |
+| --- | --- | --- |
+| 28.10.2026 | main 3c66d55 | Erstfassung mit 48 Bildschirmfotos aus dem Beispielprojekt. Berücksichtigt den neuen Zeicheneditor (Zeichnungs-Tabs, eigenes Fenster, eigene Zeichnungen, Werkzeugkiste), die Gliederung der Projektakte in zwei Bereiche und den Abgleich von Hand- und Zeichnungswerten. |

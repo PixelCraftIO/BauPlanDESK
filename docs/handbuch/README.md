@@ -1,5 +1,11 @@
 # Bedienhandbuch und integrierte Hilfe
 
+> **Bebildertes Benutzerhandbuch:** [benutzerhandbuch/](benutzerhandbuch/README.md)
+> erklärt alle Funktionen und Standard-Workflows mit Bildschirmfotos aus dem
+> Beispielprojekt. Es wird kapitelweise fortgeschrieben; die Bilder erzeugt
+> `scripts/handbuch-bilder/aufnahmen.py`. Die folgende Kurzhilfe ist die in die
+> App eingebaute Hilfe (F1).
+
 Für Architekten, Entwurfsverfasser und Planer:
 
 - [Bedienhandbuch als Markdown](Bedienhandbuch.md)
