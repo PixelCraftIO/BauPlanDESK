@@ -514,13 +514,85 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         serde_json::json!({"bezeichnung":"Räume","gebaeude_id":gid,"geschoss_id":null,"raeume":[]}),
     )
     .unwrap();
-    let mut r = core.planaufmass_raumbuch(p.id, aid, 1, alt).await.unwrap();
+    // Ein von Hand erfasster Raum gleicher Bezeichnung wird nicht verdoppelt.
+    let mut hand = alt.clone();
+    let markierung = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], alt.clone())
+        .await
+        .unwrap()
+        .raeume[0]
+        .bezeichnung
+        .clone();
+    let hand_id = Uuid::new_v4();
+    hand.raeume.push(core_lib::plattform::objekte::Raum {
+        id: hand_id,
+        nummer: "1".into(),
+        bezeichnung: markierung.to_uppercase(),
+        nutzung: "Wohnen".into(),
+        flaeche_m2: 48.,
+        hoehe_m: Some(2.5),
+        hoehenzonen: vec![],
+    });
+    let fragen = core
+        .planaufmass_raumbuch_abgleich(p.id, aid, 1, &hand)
+        .await
+        .unwrap();
+    assert_eq!(fragen.len(), 1);
+    assert_eq!(fragen[0].vorschlag, Some(hand_id.to_string()));
+    assert_eq!(fragen[0].flaeche_m2, Some(50.));
+    assert!(
+        core.planaufmass_raumbuch(p.id, aid, 1, &[], hand.clone())
+            .await
+            .is_err()
+    );
+    let wahl = [Zeilenzuordnung {
+        markierung_id: fragen[0].markierung_id,
+        zeile: Some(hand_id.to_string()),
+    }];
+    let verknuepft = core
+        .planaufmass_raumbuch(p.id, aid, 1, &wahl, hand.clone())
+        .await
+        .unwrap();
+    assert_eq!(verknuepft.raeume.len(), 1);
+    assert_eq!(verknuepft.raeume[0].id, hand_id);
+    assert_eq!(verknuepft.raeume[0].flaeche_m2, 50.);
+    assert_eq!(
+        verknuepft.raeume[0].nutzung, "Wohnen",
+        "Nutzung bleibt Eingabe"
+    );
+    assert!(
+        core.planaufmass_raumbuch_abgleich(p.id, aid, 1, &verknuepft)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let getrennt = core
+        .planaufmass_raumbuch(
+            p.id,
+            aid,
+            1,
+            &[Zeilenzuordnung {
+                markierung_id: fragen[0].markierung_id,
+                zeile: None,
+            }],
+            hand,
+        )
+        .await
+        .unwrap();
+    assert_eq!(getrennt.raeume.len(), 2);
+    let mut r = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], alt)
+        .await
+        .unwrap();
     assert_eq!(r.raeume.len(), 1);
     assert_eq!(r.raeume[0].flaeche_m2, 50.);
     assert_eq!(r.raeume[0].nutzung, "Aufenthaltsraum");
     r.raeume[0].nummer = "EG-01".into();
     r.raeume[0].hoehe_m = Some(2.8);
-    r = core.planaufmass_raumbuch(p.id, aid, 1, r).await.unwrap();
+    r = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], r)
+        .await
+        .unwrap();
     assert_eq!(
         r.raeume.len(),
         1,
@@ -716,7 +788,10 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
     assert!(u.punkte.iter().any(|x| x.ziel.bereich == "raumbuch"));
     assert!(u.punkte.iter().any(|x| x.ziel.bereich == "gebaeude"));
     assert!(u.punkte.iter().any(|x| x.ziel.bereich == "abstand"));
-    let r = core.planaufmass_raumbuch(p.id, aid, 2, r).await.unwrap();
+    let r = core
+        .planaufmass_raumbuch(p.id, aid, 2, &[], r)
+        .await
+        .unwrap();
     assert_eq!(r.raeume[0].flaeche_m2, 60.);
     assert_eq!(r.raeume[0].nummer, "EG-01");
 }
@@ -1170,7 +1245,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
         raeume: vec![],
     };
     let r = core
-        .planaufmass_raumbuch(p.id, aid, f.revision, leer)
+        .planaufmass_raumbuch(p.id, aid, f.revision, &[], leer)
         .await
         .unwrap();
     let rid = Uuid::new_v4();
@@ -1348,7 +1423,10 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
         serde_json::json!({"bezeichnung":"DG","gebaeude_id":gid,"geschoss_id":null,"raeume":[]}),
     )
     .unwrap();
-    let mut r = core.planaufmass_raumbuch(p.id, aid, 1, leer).await.unwrap();
+    let mut r = core
+        .planaufmass_raumbuch(p.id, aid, 1, &[], leer)
+        .await
+        .unwrap();
     assert_eq!(r.raeume.len(), 2);
     r.raeume.iter_mut().find(|x| x.id == zone).unwrap().hoehe_m = Some(1.0);
     r.raeume.iter_mut().find(|x| x.id == raum).unwrap().hoehe_m = Some(2.5);
@@ -1364,7 +1442,10 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
     )
     .await
     .unwrap();
-    let r = core.planaufmass_raumbuch(p.id, aid, 2, r).await.unwrap();
+    let r = core
+        .planaufmass_raumbuch(p.id, aid, 2, &[], r)
+        .await
+        .unwrap();
     assert_eq!(r.raeume.len(), 1);
     let z = &r.raeume[0].hoehenzonen[0];
     assert_eq!(

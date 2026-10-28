@@ -272,6 +272,7 @@ fn main() {
             berechnungen::planaufmass_ziele,
             berechnungen::planaufmass_einsetzen,
             berechnungen::planaufmass_raumbuch,
+            berechnungen::planaufmass_raumbuch_abgleich,
             berechnungen::planaufmass_abstand,
             berechnungen::planaufmass_abstandsziele,
             berechnungen::planaufmass_gebaeude,

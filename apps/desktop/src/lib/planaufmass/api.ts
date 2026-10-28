@@ -30,8 +30,11 @@ export const planApi = {
     invoke<import("../generated/plattform").Abgleichsfrage[]>("planaufmass_bauteile_abgleich", { projektId, schluessel, aufmass, aufstellung }),
   ziele: (plan: FachPlan) => invoke<Planziel[]>("planaufmass_ziele", { plan }),
   einsetzen: (projektId: string, plan: FachPlan) => invoke<FachPlan>("planaufmass_einsetzen", { projektId, plan }),
-  raumbuch: (projektId: string, aufmassId: string, revision: number, raumbuch: import("../generated/plattform").Raumbuch) =>
-    invoke<import("../generated/plattform").Raumbuch>("planaufmass_raumbuch", { projektId, aufmassId, revision, raumbuch }),
+  raumbuch: (projektId: string, aufmassId: string, revision: number, raumbuch: import("../generated/plattform").Raumbuch, zuordnung: import("../generated/plattform").Zeilenzuordnung[] = []) =>
+    invoke<import("../generated/plattform").Raumbuch>("planaufmass_raumbuch", { projektId, aufmassId, revision, zuordnung, raumbuch }),
+  /** Rückfragen, wenn eine Raumkontur zu einem gleich benannten Handraum passt (vor `raumbuch`). */
+  raumbuchAbgleich: (projektId: string, aufmassId: string, revision: number, raumbuch: import("../generated/plattform").Raumbuch) =>
+    invoke<import("../generated/plattform").Abgleichsfrage[]>("planaufmass_raumbuch_abgleich", { projektId, aufmassId, revision, raumbuch }),
   /** Löst die Planbindungen eines Raumbuchentwurfs auf und setzt die Raumflächen ein (Entwurf; Speichern über die Fachgrenze). */
   raumbuchEinsetzen: (projektId: string, raumbuch: import("../generated/plattform").Raumbuch) =>
     invoke<import("../generated/plattform").Raumbuch>("planaufmass_raumbuch_einsetzen", { projektId, raumbuch }),

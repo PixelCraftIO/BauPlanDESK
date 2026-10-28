@@ -356,7 +356,10 @@ weitergegebenen Fachwerte.
   fehlt eine Entscheidung trotz Kandidaten, lehnt der Core ab. Eine verknüpfte
   Handzeile behält Kennung, Art und Grundlage; Altzeilen ohne Kennung erhalten
   dabei eine. Bereits verknüpfte Zeilen werden über `planbindung.markierung_id`
-  wiedergefunden.
+  wiedergefunden. Im Raumbuch gilt dasselbe für Raumkonturen
+  (`planaufmass_raumbuch_abgleich`): Kandidaten sind ungebundene Räume, deren
+  Nummer oder Bezeichnung der Markierungsbezeichnung entspricht; ein verknüpfter
+  Raum behält Nummer, Nutzung und Höhe.
 - Doppelerfassung (`abzugsdubletten`, `bauteildubletten`): Eine gezeichnete
   Zeile und eine Handzeile gleicher Art am selben Flurstück bzw. Baugrundstück,
   deren Flächen höchstens 1 m² oder 2 % auseinanderliegen (`fast_gleich`),

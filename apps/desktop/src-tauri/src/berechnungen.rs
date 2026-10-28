@@ -77,6 +77,7 @@ pub async fn planaufmass_raumbuch(
     projekt_id: ProjectId,
     aufmass_id: uuid::Uuid,
     revision: i64,
+    zuordnung: Option<Vec<core_lib::planaufmass::Zeilenzuordnung>>,
     raumbuch: core_lib::plattform::objekte::Raumbuch,
 ) -> Result<core_lib::plattform::objekte::Raumbuch, CmdError> {
     state
@@ -85,7 +86,30 @@ pub async fn planaufmass_raumbuch(
         .await?;
     Ok(state
         .core
-        .planaufmass_raumbuch(projekt_id, aufmass_id, revision, raumbuch)
+        .planaufmass_raumbuch(
+            projekt_id,
+            aufmass_id,
+            revision,
+            &zuordnung.unwrap_or_default(),
+            raumbuch,
+        )
+        .await?)
+}
+#[tauri::command]
+pub async fn planaufmass_raumbuch_abgleich(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass_id: uuid::Uuid,
+    revision: i64,
+    raumbuch: core_lib::plattform::objekte::Raumbuch,
+) -> Result<Vec<core_lib::planaufmass::Abgleichsfrage>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .planaufmass_raumbuch_abgleich(projekt_id, aufmass_id, revision, &raumbuch)
         .await?)
 }
 #[tauri::command]
