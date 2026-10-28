@@ -5,6 +5,7 @@
   import type { Datensatz } from "../plattformApi";
   import type { Planaufmass as PlanaufmassDaten } from "../generated/plattform";
   import Planaufmass from "./Planaufmass.svelte";
+  import IfcModell from "../ifc/IfcModell.svelte";
   import Symbolknopf from "../Symbolknopf.svelte";
   import { tabsLesen, tabsMerken, type Tabstart, type Zeichnungstab } from "./tabs";
   import { api, fehlertext } from "../api";
@@ -31,7 +32,7 @@
     tabAnlegen({ id: f.objekt }, f.daten.bezeichnung);
   }
   function neu(start?: Tabstart) {
-    tabAnlegen(start ?? {}, start?.zeichnung ? "Neue Zeichnung" : "Neues Aufmaß");
+    tabAnlegen(start ?? {}, start?.ifc ? "IFC-Modell" : start?.zeichnung ? "Neue Zeichnung" : "Neues Aufmaß");
   }
   function tabAnlegen(start: Tabstart, titel: string) {
     const key = crypto.randomUUID();
@@ -44,7 +45,8 @@
     if (st.titel) t.titel = st.titel;
     t.geaendert = st.geaendert;
     // Nach dem ersten Speichern kennt der Tab sein Aufmaß; erneutes Öffnen springt ihn dann an.
-    if (st.id && t.start.id !== st.id) t.start = { ...t.start, id: st.id };
+    if (st.id && t.start.ifc && t.start.modell !== st.id) t.start = { ...t.start, modell: st.id };
+    else if (st.id && !t.start.ifc && t.start.id !== st.id) t.start = { ...t.start, id: st.id };
   }
   function entfernen(key: string) {
     const i = tabs.findIndex(t => t.key === key);
@@ -76,6 +78,7 @@
     </div>
   {/each}
   {#if darf}<button type="button" class="sekundaer neuezeichnung" title="Eigene Zeichnung in Metern anlegen; PDF oder DXF als Hintergrund einpassbar" onclick={() => neu({ zeichnung: true })}>Neue Zeichnung</button>{/if}
+  <button type="button" class="sekundaer neuezeichnung ifcknopf" title="IFC-Modell aus den Projektdateien ansehen, prüfen, nacharbeiten und auswerten" onclick={() => neu({ ifc: true })}>IFC-Modell</button>
   {#if imHauptfenster}<Symbolknopf klasse="fensterknopf" titel="Aufmaß in eigenem Fenster öffnen" onclick={() => void fensterOeffnen()}><WerkzeugIcon art="fenster"/></Symbolknopf>{/if}
 </div>
 {#if fensterFehler}<p class="fehlertext" role="alert">{fensterFehler}</p>{/if}
@@ -84,7 +87,11 @@
 </section>
 {#each tabs as t (t.key)}
   <section hidden={aktiv !== t.key} aria-label={t.titel || "Aufmaß"}>
+    {#if t.start.ifc}
+      <IfcModell {projekt} {darf} start={t.start} onstatus={st => status(t.key, st)} onzeichnung={(id, titel) => { const da = tabs.find(x => x.start.id === id); if (da) aktiv = da.key; else tabAnlegen({ id }, titel); }} />
+    {:else}
     <Planaufmass bind:this={instanzen[t.key]} {projekt} {benutzerId} {darf} {onprojekt} modus="tab" start={t.start} entwurfObjekt={t.key} sichtbar={aktiv === t.key} onstatus={st => status(t.key, st)} onschliessen={() => entfernen(t.key)} />
+    {/if}
   </section>
 {/each}
 
@@ -98,6 +105,7 @@
   .zeichnungstab :global(.tab-schliessen){width:22px;min-height:22px;margin-right:3px}
   .zeichnungstab :global(.tab-schliessen svg){width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
   .zeichnungstabs .neuezeichnung{margin-left:auto;margin-bottom:2px;align-self:center;min-height:26px;padding:0 10px;font-size:.85rem;white-space:nowrap}
+  .zeichnungstabs .neuezeichnung + .ifcknopf{margin-left:4px}
   .zeichnungstabs .neuezeichnung + :global(.fensterknopf){margin-left:4px}
   .zeichnungstabs :global(.fensterknopf){margin-left:auto;margin-bottom:2px;align-self:center}
   .zeichnungstabs :global(.fensterknopf svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}

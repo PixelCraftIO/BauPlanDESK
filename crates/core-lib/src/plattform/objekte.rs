@@ -285,6 +285,11 @@ pub(super) async fn validieren(
             core.cadaufmass_pruefen(p.id, &a).await?;
             serde_json::to_value(a)
         }
+        ObjektArt::Ifcmodell => {
+            let a: crate::ifc::Modellakte = serde_json::from_value(daten).map_err(json_err)?;
+            core.modellakte_pruefen(p.id, &a).await?;
+            serde_json::to_value(a)
+        }
         ObjektArt::Planaufmass => {
             let plan: crate::planaufmass::Planaufmass =
                 serde_json::from_value(daten).map_err(json_err)?;
@@ -293,9 +298,22 @@ pub(super) async fn validieren(
             let unterlagen = plan
                 .dokument
                 .iter()
-                .map(|d| (d, plan.seite))
-                .chain(plan.hintergruende.iter().map(|h| (&h.dokument, h.seite)));
-            for (d, seite) in unterlagen {
+                .map(|d| (d, plan.seite, None))
+                .chain(
+                    plan.hintergruende
+                        .iter()
+                        .map(|h| (&h.dokument, h.seite, h.geschoss.as_deref())),
+                );
+            for (d, seite, geschoss) in unterlagen {
+                if let Some(g) = geschoss {
+                    // IFC-Hintergrund: Modell lesbar, Geschoss vorhanden.
+                    if core.ifc_modell(p.id, d).await?.auszug.geschoss(g).is_none() {
+                        return Err(CoreError::InvalidInput(
+                            "Geschoss des IFC-Hintergrunds fehlt in dieser Modellversion".into(),
+                        ));
+                    }
+                    continue;
+                }
                 let (version, bytes) = core.load_version(d.dokument_id, d.version).await?;
                 if version.file_name.to_lowercase().ends_with(".dxf") {
                     // Die Unterlage muss als Zeichnung lesbar sein (Seite 1 prüft die Fachprüfung).

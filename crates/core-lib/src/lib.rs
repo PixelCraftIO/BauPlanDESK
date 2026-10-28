@@ -27,6 +27,7 @@ pub mod exportgrenze;
 pub mod festsetzungen;
 pub mod flaechen;
 pub mod formular;
+pub mod ifc;
 pub mod kalender;
 pub mod kennwort;
 pub mod kunden;

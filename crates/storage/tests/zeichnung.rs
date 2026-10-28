@@ -257,6 +257,7 @@ async fn eigene_zeichnung_in_metern_neben_altem_aufmass() {
         meter_pro_punkt: 0.01,
         deckkraft: 0.5,
         sichtbar: true,
+        geschoss: None,
     };
     z.hintergruende.push(hintergrund.clone());
     let f = core

@@ -16,6 +16,7 @@ mod druckausgabe;
 mod druckjobs;
 mod einreichungen;
 mod emails;
+mod ifc;
 mod kategorien;
 mod lizenzdienst;
 mod menu;
@@ -276,6 +277,21 @@ fn main() {
             berechnungen::planaufmass_abstand,
             berechnungen::planaufmass_abstandsziele,
             berechnungen::planaufmass_gebaeude,
+            ifc::ifc_auszug,
+            ifc::ifc_geschosse,
+            ifc::ifc_grundriss,
+            ifc::ifc_grundriss_plan,
+            ifc::ifc_datei,
+            ifc::ifc_uebernehmen,
+            ifc::ifc_pruefen,
+            ifc::ifc_raumvorschlaege,
+            ifc::ifc_akte_auszug,
+            ifc::ifc_akte_grundriss,
+            ifc::ifc_abgleich,
+            ifc::ifc_reimport,
+            ifc::ifc_auswerten,
+            ifc::ifc_exportieren,
+            ifc::ifc_dem_bauantrag_beifuegen,
             berechnungen::planaufmass_gebaeudeziele,
             berechnungen::planaufmass_flurstuecke,
             berechnungen::planaufmass_abzuege,

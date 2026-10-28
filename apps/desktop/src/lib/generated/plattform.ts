@@ -73,7 +73,12 @@ seite: number, ursprung: [number, number], lage: [number, number], drehung_grad:
 /**
  * 0 … 1.
  */
-deckkraft: number, sichtbar: boolean, };
+deckkraft: number, sichtbar: boolean,
+/**
+ * IFC-Hintergrund: Geschoss (GlobalId), dessen Grundriss-Schnitt gezeigt
+ * wird; Seitenpunkte sind dann Meter des Modells (wie eine DXF in Metern).
+ */
+geschoss?: string, };
 export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
@@ -196,6 +201,343 @@ gruppe: string, titel: string, bedeutung: Planbedeutung, geometrie: Aufgabengeom
  * Zeichenebene, die beim ersten Gebrauch angelegt wird.
  */
 ebene: string, hinweis: string, };
+export type Modellakte = { bezeichnung: string,
+/**
+ * IFC-Datei (`.ifc` oder `.ifczip`) im DMS.
+ */
+dokument: Dokumentbezug,
+/**
+ * Letzte Übernahme in Gebäude, Zeichnungen und Raumbücher.
+ */
+uebernahme?: Modelluebernahme,
+/**
+ * Nacharbeit: Änderungen über die GlobalId, in dieser Reihenfolge angewendet.
+ */
+nacharbeit?: Array<Modellaenderung>, };
+export type Georeferenz = {
+/**
+ * Koordinatenreferenzsystem, z. B. `EPSG:25832`.
+ */
+crs: string | null, ostwert: number | null, nordwert: number | null, hoehe: number | null,
+/**
+ * Drehung der Modell-x-Achse gegen Ost, Grad gegen den Uhrzeigersinn.
+ */
+drehung_grad: number | null,
+/**
+ * IFC2X3: geographische Lage des Grundstücks in Dezimalgrad.
+ */
+breite: number | null, laenge: number | null, };
+export type Mengenart = "laenge" | "flaeche" | "volumen" | "anzahl" | "gewicht" | "zeit";
+export type Modelleigenschaft = { satz: string, name: string,
+/**
+ * Anzeigewert (z. B. „Ja“, „2,50 m“, „Wohnen“).
+ */
+wert: string,
+/**
+ * Zahlenwert in SI-Einheit (m, m², m³), sofern es eine Zahl ist.
+ */
+zahl: number | null,
+/**
+ * Vom Typ (`IfcRelDefinesByType`) geerbt statt am Element gesetzt.
+ */
+vom_typ: boolean, };
+export type Modellmenge = { satz: string, name: string, art: Mengenart, wert: number, };
+export type Modellgeometrie = {
+/**
+ * Senkrechte Projektion (Grundriss) aller Körperteile.
+ */
+grundriss: Array<Planpolygon>, grundflaeche_m2: number, unten_m: number, oben_m: number, volumen_m3: number | null,
+/**
+ * Boolesche Operationen oder schräge Körper angenähert.
+ */
+naeherung: boolean, };
+export type Strukturelement = { global_id: string, name: string, langname: string | null,
+/**
+ * Übergeordnetes Strukturelement (Grundstück → Gebäude → Geschoss).
+ */
+teil_von: string | null,
+/**
+ * Geschosse: Höhe der Geschossebene über dem Projektnullpunkt (m).
+ */
+hoehe_m: number | null, eigenschaften: Array<Modelleigenschaft>, mengen: Array<Modellmenge>, geometrie: Modellgeometrie | null, };
+export type Modellelement = { global_id: string,
+/**
+ * Entitätsname in Großbuchstaben, z. B. `IFCWALL`, `IFCSPACE`.
+ */
+klasse: string, name: string, langname: string | null, objekttyp: string | null,
+/**
+ * `PredefinedType` (z. B. `FLOOR`, `ROOF`) oder Innen/Außen bei IFC2X3-Räumen.
+ */
+vordefiniert: string | null,
+/**
+ * Geschoss (GlobalId), dem das Element über die räumliche Struktur angehört.
+ */
+geschoss: string | null,
+/**
+ * Gebäude (GlobalId) des Elements, auch ohne Geschoss.
+ */
+gebaeude: string | null,
+/**
+ * Übergeordnetes Element (z. B. Dach → Dachplatten) oder Raum.
+ */
+teil_von: string | null, eigenschaften: Array<Modelleigenschaft>, mengen: Array<Modellmenge>, geometrie: Modellgeometrie | null,
+/**
+ * Nicht ausgewertete Darstellungsarten der Geometrie.
+ */
+geometrie_offen: Array<string>, };
+export type Klassenzahl = { klasse: string, titel: string, anzahl: number, };
+export type Modellbericht = { klassen: Array<Klassenzahl>, elemente: number, mit_geometrie: number, ohne_geometrie: number, naeherungen: number, raeume: number, raeume_mit_flaechenmenge: number,
+/**
+ * Darstellungsarten, die nicht ausgewertet wurden, mit Anzahl Elemente.
+ */
+offene_darstellungen: Array<Klassenzahl>, hinweise: Array<string>, };
+export type Modellauszug = { rechenstand: string,
+/**
+ * `IFC2X3`, `IFC4`, `IFC4X3_ADD2` …
+ */
+schema: string,
+/**
+ * Erzeugende Software laut Dateikopf.
+ */
+system: string | null, projekt: string | null,
+/**
+ * Längeneinheit der Datei, z. B. „Millimeter“.
+ */
+einheit: string, meter_je_einheit: number, georeferenz: Georeferenz | null, grundstuecke: Array<Strukturelement>, gebaeude: Array<Strukturelement>,
+/**
+ * Geschosse nach Höhe sortiert.
+ */
+geschosse: Array<Strukturelement>, elemente: Array<Modellelement>, bericht: Modellbericht, };
+export type Grundrissteil = { global_id: string, klasse: string, titel: string, name: string,
+/**
+ * Meter im Weltsystem des Modells (y nach Modell-y, nicht gespiegelt).
+ */
+polygone: Array<Planpolygon>, raum: boolean,
+/**
+ * Projektion statt Schnitt (Flächenmodell oder schräger Körper).
+ */
+projektion: boolean, };
+export type Modellgrundriss = { geschoss: string, schnitthoehe_m: number, teile: Array<Grundrissteil>,
+/**
+ * Umfang aller Elemente des Modells (nicht nur dieses Geschosses), damit
+ * die Grundrisse aller Geschosse deckungsgleich liegen.
+ */
+min: [number, number], max: [number, number], };
+export type Modellgeschoss = { global_id: string, name: string, hoehe_m: number | null, };
+export type Modelluebernahme = { gebaeude_id: string,
+/**
+ * Dokumentversion, aus der übernommen wurde.
+ */
+dokument: Dokumentbezug, geschosse: Array<Geschossuebernahme>, };
+export type Geschossuebernahme = {
+/**
+ * GlobalId des IFC-Geschosses.
+ */
+global_id: string,
+/**
+ * Geschoss im Gebäude.
+ */
+geschoss_id: string,
+/**
+ * Eigene Zeichnung (Fachobjekt `planaufmass`) des Geschosses.
+ */
+aufmass_id: string,
+/**
+ * Raumbuch des Geschosses, sofern mit übernommen.
+ */
+raumbuch_id?: string,
+/**
+ * Übernommene Markierungen und ihre Herkunft im Modell.
+ */
+markierungen: Array<Modellbezug>, };
+export type Modellbezug = { markierung_id: string, global_id: string, };
+export type Modelluebernahmewunsch = { akte_id: string, revision: number,
+/**
+ * Vorhandenes Gebäude, in das übernommen wird; ohne Angabe das Gebäude
+ * der letzten Übernahme oder ein neues.
+ */
+gebaeude_id: string | null,
+/**
+ * Je Geschoss ein Raumbuch aus den Räumen füllen.
+ */
+raumbuch: boolean, };
+export type Modelluebernahmeergebnis = { akte: Fachstand, gebaeude: Fachstand, zeichnungen: Array<Fachstand>, raumbuecher: Array<Fachstand>, hinweise: Array<string>, };
+export type Befundstufe = "fehler" | "warnung" | "hinweis";
+export type Befundaktion = "klassifizieren" | "geschoss_zuordnen" | "eigenschaft_setzen" | "raum_bilden" | "benennen";
+export type Befund = {
+/**
+ * Regelkennzeichen, z. B. `proxy` oder `IDS:W-AUSSENWAND`.
+ */
+regel: string, stufe: Befundstufe, titel: string, text: string,
+/**
+ * Betroffene Elemente (GlobalIds), leer bei Modellbefunden.
+ */
+elemente: Array<string>, aktion: Befundaktion | null,
+/**
+ * Bei IDS-Befunden: fehlende Eigenschaft (`Pset.Name`) für die Nacharbeit.
+ */
+eigenschaft: string | null, };
+export type Modellpruefung = {
+/**
+ * Titel des IDS, gegen das geprüft wurde.
+ */
+regelwerk: string, befunde: Array<Befund>, fehler: number, warnungen: number, hinweise: number,
+/**
+ * IDS-Teile, die nicht ausgewertet werden konnten.
+ */
+nicht_geprueft: Array<string>, };
+export type Eigenschaftswert = { "typ": "text", wert: string, } | { "typ": "zahl", wert: number, } | { "typ": "logisch", wert: boolean, };
+export type Modellaenderung = { "art": "klassifizieren", global_id: string, klasse: string, vordefiniert: string | null, } | { "art": "geschoss_zuordnen", global_id: string, geschoss: string, } | { "art": "eigenschaft_setzen", global_id: string, satz: string, name: string, wert: Eigenschaftswert, } | { "art": "benennen", global_id: string, name: string, langname: string | null, } | { "art": "raum_bilden", global_id: string, geschoss: string, name: string, langname: string | null, umriss: Array<[number, number]>,
+/**
+ * Lichte Höhe; ohne Angabe bis zur nächsten Geschossebene.
+ */
+hoehe_m: number | null, } | { "art": "ausblenden", global_id: string, } | { "art": "hoehe_setzen", global_id: string, unten_m: number | null, oben_m: number | null, } | { "art": "umriss_setzen", global_id: string, umriss: Array<[number, number]>, };
+export type Raumvorschlag = {
+/**
+ * Neue GlobalId für den Raum, falls er gebildet wird.
+ */
+global_id: string,
+/**
+ * Umriss in Modellkoordinaten (m).
+ */
+umriss: Array<[number, number]>, flaeche_m2: number,
+/**
+ * Vorhandener Raum, der diesen Umriss schon abdeckt.
+ */
+vorhanden: string | null, };
+export type Nacharbeitsstand = "wirksam" | "verwaist" | "ueberholt";
+export type Elementaenderung = { global_id: string, titel: string,
+/**
+ * Was sich geändert hat, z. B. „Klasse Proxy → Wand“, „Fläche +1,20 m²“.
+ */
+aenderungen: Array<string>, };
+export type Elementverweis = { global_id: string, titel: string, };
+export type Modellabgleich = { alt_schema: string, neu_schema: string, neu: Array<Elementverweis>, entfernt: Array<Elementverweis>, geaendert: Array<Elementaenderung>, unveraendert: number,
+/**
+ * Geschosse: hinzugekommen, entfallen, Höhe geändert (Texte).
+ */
+geschosse: Array<string>,
+/**
+ * Stand jeder Nacharbeit, in der Reihenfolge der Liste.
+ */
+nacharbeit: Array<Nacharbeitsstand>, hinweise: Array<string>, };
+export type Reimportwunsch = { akte_id: string, revision: number,
+/**
+ * Neue IFC-Datei (neue Version derselben Datei oder eine andere).
+ */
+dokument: Dokumentbezug,
+/**
+ * Überholte Nacharbeit (die neue Version hat den Zustand selbst) streichen.
+ */
+ueberholte_entfernen: boolean,
+/**
+ * Verwaiste Nacharbeit (Element fehlt in der neuen Version) streichen.
+ */
+verwaiste_entfernen: boolean, };
+export type Geschossauswertung = { global_id: string, name: string,
+/**
+ * Geschossebene über dem Projektnullpunkt (m).
+ */
+ebene_m: number,
+/**
+ * Rechnerische Höhe für den Rauminhalt: bis zur nächsten Geschossebene,
+ * im obersten Geschoss bis zur Oberkante der Bauteile, im untersten ab
+ * der Unterkante der Bodenplatte.
+ */
+hoehe_m: number,
+/**
+ * Liegt auf oder über der Ebene des Erdgeschosses.
+ */
+oberirdisch: boolean,
+/**
+ * Brutto-Grundfläche (Außenkante von Wänden, Stützen und Decken).
+ */
+bgf_m2: number, bri_m3: number,
+/**
+ * Netto-Raumfläche (Summe der Raumgeometrie).
+ */
+nrf_m2: number,
+/**
+ * Summe `NetFloorArea` der Räume, soweit eingetragen.
+ */
+nrf_menge_m2: number | null, raeume: number, aussenkante: Array<Planpolygon>, };
+export type Nutzungsflaeche = {
+/**
+ * Langname des Raums (Nutzung) oder „ohne Nutzung“.
+ */
+nutzung: string, raeume: number, flaeche_m2: number, };
+export type Modellhoehen = {
+/**
+ * Ebene des Erdgeschosses über dem Projektnullpunkt (m).
+ */
+bezug_m: number,
+/**
+ * Bezugshöhe in m über NHN, wenn das Modell georeferenziert ist.
+ */
+bezug_nhn_m: number | null,
+/**
+ * Höchster Punkt der Dachbauteile.
+ */
+first_m: number | null,
+/**
+ * Flachdach: Oberkante Dach; geneigtes Dach: tiefste Unterkante der Dachbauteile.
+ */
+traufe_m: number | null,
+/**
+ * Höchster Punkt aller Bauteile (auch Schornsteine, Aufbauten).
+ */
+oberkante_m: number | null, flachdach: boolean, };
+export type Bezugsflaeche = { grundstueck_id: string, bezeichnung: string, flaeche_m2: number, };
+export type Modellauswertung = { rechenstand: string,
+/**
+ * Gebäudegrundfläche: Projektion der Außenkanten aller oberirdischen Geschosse.
+ */
+grundflaeche_m2: number, grundflaeche: Array<Planpolygon>, bgf_m2: number, bgf_oberirdisch_m2: number, bri_m3: number, nrf_m2: number, geschosse: Array<Geschossauswertung>, nutzungen: Array<Nutzungsflaeche>, hoehen: Modellhoehen, grundstueck: Bezugsflaeche | null,
+/**
+ * Gebäudegrundfläche / Bezugsfläche (rechnerisch).
+ */
+grz: number | null,
+/**
+ * BGF der oberirdischen Geschosse / Bezugsfläche (rechnerisch).
+ */
+gfz: number | null, hinweise: Array<string>, };
+export type Exportbericht = { dateiname: string, schema: string,
+/**
+ * Elemente der geschriebenen Datei (wie der Auszug sie zählt).
+ */
+elemente: number, geaendert: number, neu: number, entfernt: number, hinweise: Array<string>,
+/**
+ * Abweichungen der wieder eingelesenen Datei vom erwarteten Modell.
+ */
+abweichungen: Array<string>, };
+export type Entwurfszuordnung = {
+/**
+ * Geschoss des Gebäudes (Fachobjekt `gebaeude`).
+ */
+geschoss_id: string,
+/**
+ * Eigene Zeichnung (Planaufmaß ohne Unterlage, Meter) dieses Geschosses.
+ */
+zeichnung_id: string, };
+export type Exportwunsch = { "art": "nacharbeit", akte_id: string, } | { "art": "entwurf", gebaeude_id: string, geschosse: Array<Entwurfszuordnung>, };
+export type Exportergebnis = {
+/**
+ * Abgelegte IFC-Datei (neue Version, wenn es den Namen schon gibt).
+ */
+dokument: Dokumentbezug, bericht: Exportbericht, };
+export type Bauantragsanlage = {
+/**
+ * `false`: Die Datei lag dem Bauantrag schon bei.
+ */
+neu: boolean,
+/**
+ * Anlagenart (leer, wenn die Anlagenliste fehlt oder 2010 nicht kennt).
+ */
+anlageart: string,
+/**
+ * Zahl der Anlagen des Bauantrags.
+ */
+anlagen: number, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };
@@ -1087,7 +1429,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };

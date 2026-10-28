@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mindestangaben eines IFC-Modells für die Auswertung zum Bauantrag in
+     BauPlanIO (IDS 1.0, buildingSMART). Stufe über das Kennzeichen:
+     „F-…“ Fehler (Auswertung unvollständig), „W-…“ Warnung (Nacharbeit
+     empfohlen). Dazu kommen die eingebauten Regeln (docs/ifc.md). -->
+<ids xmlns="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
+  <info>
+    <title>BauPlanIO – Modell für den Bauantrag</title>
+    <version>1.0</version>
+    <author>info@bauplanio.de</author>
+    <purpose>Flächen, Geschosse und Höhen eines Gebäudemodells für Bauantrag, GRZ/GFZ und Raumbuch auswerten</purpose>
+  </info>
+  <specifications>
+    <specification name="Gebäude mit Namen" identifier="F-GEBAEUDE" ifcVersion="IFC2X3 IFC4 IFC4X3_ADD2" description="Das Modell enthält mindestens ein Gebäude mit Namen." instructions="Gebäude im Autorenwerkzeug benennen oder in der Nacharbeit umbenennen.">
+      <applicability minOccurs="1" maxOccurs="unbounded">
+        <entity><name><simpleValue>IFCBUILDING</simpleValue></name></entity>
+      </applicability>
+      <requirements>
+        <attribute cardinality="required"><name><simpleValue>Name</simpleValue></name></attribute>
+      </requirements>
+    </specification>
+    <specification name="Geschosse mit Namen" identifier="F-GESCHOSS" ifcVersion="IFC2X3 IFC4 IFC4X3_ADD2" description="Das Modell gliedert sich in benannte Geschosse." instructions="Elemente in der Nacharbeit einem Geschoss zuordnen; Geschosse benennen (z. B. EG, OG, DG).">
+      <applicability minOccurs="1" maxOccurs="unbounded">
+        <entity><name><simpleValue>IFCBUILDINGSTOREY</simpleValue></name></entity>
+      </applicability>
+      <requirements>
+        <attribute cardinality="required"><name><simpleValue>Name</simpleValue></name></attribute>
+      </requirements>
+    </specification>
+    <specification name="Räume mit Nutzung" identifier="W-RAUM" ifcVersion="IFC2X3 IFC4 IFC4X3_ADD2" description="Räume sind modelliert und tragen eine Nutzung (Langname, z. B. „Wohnen“)." instructions="Fehlende Räume in der Nacharbeit aus den Wänden bilden; Nutzung als Name eintragen.">
+      <applicability minOccurs="1" maxOccurs="unbounded">
+        <entity><name><simpleValue>IFCSPACE</simpleValue></name></entity>
+      </applicability>
+      <requirements>
+        <attribute cardinality="required"><name><simpleValue>LongName</simpleValue></name></attribute>
+      </requirements>
+    </specification>
+    <specification name="Wände als Außen- oder Innenwand gekennzeichnet" identifier="W-AUSSENWAND" ifcVersion="IFC2X3 IFC4 IFC4X3_ADD2" description="Wände tragen Pset_WallCommon.IsExternal; Grundlage der Außenkante und Abstandsflächen." instructions="In der Nacharbeit die Eigenschaft IsExternal setzen.">
+      <applicability minOccurs="0" maxOccurs="unbounded">
+        <entity><name><simpleValue>IFCWALL</simpleValue></name></entity>
+      </applicability>
+      <requirements>
+        <property cardinality="required" dataType="IFCBOOLEAN">
+          <propertySet><simpleValue>Pset_WallCommon</simpleValue></propertySet>
+          <baseName><simpleValue>IsExternal</simpleValue></baseName>
+        </property>
+      </requirements>
+    </specification>
+    <specification name="Decken und Platten mit Art" identifier="W-PLATTE" ifcVersion="IFC2X3 IFC4 IFC4X3_ADD2" description="Decken und Platten unterscheiden Decke, Bodenplatte und Dach (PredefinedType)." instructions="In der Nacharbeit die Art der Platte setzen (FLOOR, BASESLAB, ROOF, LANDING).">
+      <applicability minOccurs="0" maxOccurs="unbounded">
+        <entity><name><simpleValue>IFCSLAB</simpleValue></name></entity>
+      </applicability>
+      <requirements>
+        <attribute cardinality="required">
+          <name><simpleValue>PredefinedType</simpleValue></name>
+          <value>
+            <xs:restriction base="xs:string">
+              <xs:enumeration value="FLOOR"/>
+              <xs:enumeration value="ROOF"/>
+              <xs:enumeration value="LANDING"/>
+              <xs:enumeration value="BASESLAB"/>
+              <xs:enumeration value="APPROACH_SLAB"/>
+              <xs:enumeration value="PAVING"/>
+              <xs:enumeration value="WEARING"/>
+              <xs:enumeration value="SIDEWALK"/>
+            </xs:restriction>
+          </value>
+        </attribute>
+      </requirements>
+    </specification>
+  </specifications>
+</ids>
