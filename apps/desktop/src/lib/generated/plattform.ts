@@ -310,6 +310,30 @@ gebaeude_id: string | null,
  */
 raumbuch: boolean, };
 export type Modelluebernahmeergebnis = { akte: Fachstand, gebaeude: Fachstand, zeichnungen: Array<Fachstand>, raumbuecher: Array<Fachstand>, hinweise: Array<string>, };
+export type Befundstufe = "fehler" | "warnung" | "hinweis";
+export type Befundaktion = "klassifizieren" | "geschoss_zuordnen" | "eigenschaft_setzen" | "raum_bilden" | "benennen";
+export type Befund = {
+/**
+ * Regelkennzeichen, z. B. `proxy` oder `IDS:W-AUSSENWAND`.
+ */
+regel: string, stufe: Befundstufe, titel: string, text: string,
+/**
+ * Betroffene Elemente (GlobalIds), leer bei Modellbefunden.
+ */
+elemente: Array<string>, aktion: Befundaktion | null,
+/**
+ * Bei IDS-Befunden: fehlende Eigenschaft (`Pset.Name`) für die Nacharbeit.
+ */
+eigenschaft: string | null, };
+export type Modellpruefung = {
+/**
+ * Titel des IDS, gegen das geprüft wurde.
+ */
+regelwerk: string, befunde: Array<Befund>, fehler: number, warnungen: number, hinweise: number,
+/**
+ * IDS-Teile, die nicht ausgewertet werden konnten.
+ */
+nicht_geprueft: Array<string>, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

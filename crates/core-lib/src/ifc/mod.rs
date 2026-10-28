@@ -14,6 +14,7 @@
 mod auszug;
 pub mod geometrie;
 mod grundriss;
+mod pruefung;
 mod service;
 pub mod step;
 #[cfg(any(test, feature = "testdaten"))]
@@ -26,6 +27,10 @@ pub use auszug::{auszug, klassentitel};
 pub use grundriss::{
     Grundrissteil, Modellgeschoss, Modellgrundriss, SCHNITTHOEHE_M, als_plan, geschossliste,
     grundriss, modellumfang,
+};
+pub use pruefung::{
+    BAUANTRAG_IDS, Befund, Befundaktion, Befundstufe, Modellpruefung, eingebaute_regeln,
+    ids_pruefen, pruefen,
 };
 pub use service::{Modell, ist_ifc};
 pub use uebernahme::{

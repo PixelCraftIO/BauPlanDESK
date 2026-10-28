@@ -26,6 +26,7 @@ fn main() {
         "geschosse": ifc::geschossliste(&m.auszug),
         "grundrisse": Value::Object(grundrisse),
         "plaene": Value::Object(plaene),
+        "pruefung": ifc::pruefen(&m.auszug, ifc::BAUANTRAG_IDS).expect("Prüfung"),
     });
     println!("{}", serde_json::to_string(&v).expect("JSON"));
 }

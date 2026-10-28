@@ -381,3 +381,59 @@ async fn uebernahme_in_gebaeude_zeichnungen_und_raumbuch() {
 fn haus_id(r: &ifc::Modelluebernahmeergebnis) -> Uuid {
     r.gebaeude.objekt.parse().unwrap()
 }
+
+/// Prüfung gegen das mitgelieferte IDS und gegen ein IDS aus den Projektdateien.
+#[tokio::test]
+async fn pruefung_mit_mitgeliefertem_und_eigenem_ids() {
+    let u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let akte_id = Uuid::new_v4();
+    u.core
+        .fachobjekt_speichern(
+            u.projekt.id,
+            ObjektArt::Ifcmodell,
+            akte_id,
+            0,
+            serde_json::to_value(ifc::Modellakte {
+                bezeichnung: "Entwurf".into(),
+                dokument: d,
+                uebernahme: None,
+            })
+            .unwrap(),
+            &u.user,
+        )
+        .await
+        .unwrap();
+    let p = u
+        .core
+        .ifc_pruefen(u.projekt.id, akte_id, None)
+        .await
+        .unwrap();
+    assert_eq!(p.regelwerk, "BauPlanIO – Modell für den Bauantrag");
+    assert_eq!(p.fehler, 0);
+    let ids = ablegen(
+        &u,
+        "buero.ids",
+        r#"<ids xmlns="http://standards.buildingsmart.org/IDS"><info><title>Büro</title></info><specifications>
+<specification name="Fenster" identifier="F-FENSTER" ifcVersion="IFC4"><applicability minOccurs="1"><entity><name><simpleValue>IFCWINDOW</simpleValue></name></entity></applicability></specification>
+</specifications></ids>"#
+            .into(),
+    )
+    .await;
+    let p = u
+        .core
+        .ifc_pruefen(u.projekt.id, akte_id, Some(&ids))
+        .await
+        .unwrap();
+    assert_eq!(p.regelwerk, "Büro");
+    assert_eq!(p.befunde[0].regel, "IDS:F-FENSTER");
+    assert_eq!(p.fehler, 1);
+    let pdf = ablegen(&u, "Plan.pdf", "%PDF-1.4".into()).await;
+    let e = u
+        .core
+        .ifc_pruefen(u.projekt.id, akte_id, Some(&pdf))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("keine IDS-Datei"), "{e}");
+}

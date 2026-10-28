@@ -55,6 +55,22 @@ with sync_playwright() as pw:
  expect(bericht).to_contain_text('EPSG:25832')
  expect(bericht).to_contain_text(f"{ifc['auszug']['bericht']['elemente']} (")
  expect(details.get_by_label('Klassen')).to_contain_text('Unklassifiziertes Bauteil')
+ # Prüfung: mitgeliefertes IDS, Befund mit Elementen; eigenes IDS aus den Projektdateien.
+ details.get_by_role('tab',name='Prüfung').click()
+ pruef=details.get_by_role('region',name='Modellprüfung')
+ expect(pruef.get_by_role('status',name='Prüfergebnis')).to_contain_text('0 Fehler, 1 Warnungen, 0 Hinweise')
+ befund=pruef.get_by_role('list',name='Befunde').locator('li.warnung')
+ expect(befund).to_contain_text('Unklassifizierte Bauteile')
+ befund.get_by_role('button',name='Elemente').click()
+ proxy=next(e for e in ifc['auszug']['elemente'] if e['klasse']=='IFCBUILDINGELEMENTPROXY')
+ befund.get_by_role('button',name=proxy['name']).click()
+ details.get_by_role('tab',name='Eigenschaften').click()
+ expect(details.get_by_label('Element')).to_contain_text(proxy['global_id'])
+ details.get_by_role('tab',name='Prüfung').click()
+ pruef.get_by_label('Regelwerk der Prüfung').select_option(label='buero.ids · V1')
+ expect(pruef.get_by_role('status',name='Prüfergebnis')).to_contain_text('Büro: 1 Fehler')
+ assert page.evaluate("window.ifcAufrufe.filter(a=>a.cmd==='ifc_pruefen').at(-1).args.ids.dokument_id")=='d416da8b-cbfb-4ae6-931b-8765fb6454d1'
+ page.screenshot(path=str(out/'ifc-pruefung.png'))
  # 3D: web-ifc lädt die Datei, Klick wählt ein Element.
  mitte.get_by_role('radio',name='3D').click()
  leinwand=scope.get_by_role('img',name='3D-Ansicht des Modells')

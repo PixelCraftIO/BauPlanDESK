@@ -282,6 +282,7 @@ fn main() {
             ifc::ifc_grundriss_plan,
             ifc::ifc_datei,
             ifc::ifc_uebernehmen,
+            ifc::ifc_pruefen,
             berechnungen::planaufmass_gebaeudeziele,
             berechnungen::planaufmass_flurstuecke,
             berechnungen::planaufmass_abzuege,

@@ -135,6 +135,52 @@ impl CoreServices {
         Ok(self.ifc_modell(p, &akte.dokument).await?.auszug.clone())
     }
 
+    /// Prüft die Modellakte gegen das mitgelieferte IDS oder ein IDS aus den
+    /// Projektdateien, dazu die eingebauten Regeln.
+    pub async fn ifc_pruefen(
+        &self,
+        p: ProjectId,
+        akte_id: uuid::Uuid,
+        ids: Option<&Dokumentbezug>,
+    ) -> CoreResult<super::Modellpruefung> {
+        let akte = self.modellakte(p, akte_id).await?;
+        let a = self.ifc_akte_auszug(p, &akte).await?;
+        let text = match ids {
+            None => super::BAUANTRAG_IDS.to_string(),
+            Some(d) => {
+                let v = self
+                    .repos
+                    .documents
+                    .history(d.dokument_id)
+                    .await?
+                    .into_iter()
+                    .find(|v| v.version == d.version && v.project_id == p)
+                    .ok_or_else(|| {
+                        CoreError::InvalidInput("IDS-Datei gehört nicht zu diesem Projekt".into())
+                    })?;
+                if !v.file_name.to_ascii_lowercase().ends_with(".ids") {
+                    return Err(CoreError::InvalidInput(format!(
+                        "„{}“ ist keine IDS-Datei (.ids)",
+                        v.file_name
+                    )));
+                }
+                let (_, daten) = self.load_version(d.dokument_id, d.version).await?;
+                String::from_utf8(daten.to_vec())
+                    .map_err(|_| CoreError::InvalidInput("IDS-Datei ist kein UTF-8".into()))?
+            }
+        };
+        super::pruefen(&a, &text)
+    }
+
+    /// Modellakte lesen.
+    pub async fn modellakte(&self, p: ProjectId, id: uuid::Uuid) -> CoreResult<Modellakte> {
+        let f = self
+            .fachobjekt_lesen(p, crate::plattform::ObjektArt::Ifcmodell, id)
+            .await?
+            .ok_or_else(|| CoreError::InvalidInput("Modellakte fehlt im Projekt".into()))?;
+        serde_json::from_value(f.daten).map_err(|e| CoreError::InvalidInput(e.to_string()))
+    }
+
     /// Modellauszug einer Dokumentversion (Struktur, Eigenschaften, Geometrie).
     pub async fn ifc_auszug(&self, p: ProjectId, d: &Dokumentbezug) -> CoreResult<Modellauszug> {
         Ok(self.ifc_modell(p, d).await?.auszug.clone())

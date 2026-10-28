@@ -96,3 +96,20 @@ pub async fn ifc_uebernehmen(
         .ifc_uebernehmen(projekt_id, &wunsch, &wer)
         .await?)
 }
+
+#[tauri::command]
+pub async fn ifc_pruefen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    akte_id: uuid::Uuid,
+    ids: Option<Dokumentbezug>,
+) -> Result<core_lib::ifc::Modellpruefung, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .ifc_pruefen(projekt_id, akte_id, ids.as_ref())
+        .await?)
+}

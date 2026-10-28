@@ -14,11 +14,12 @@ const IFC=window.ifcFixture;
 window.ifcAkten=window.ifcAkten??[];window.ifcAufrufe=[];
 const ifcDok={document_id:"c416da8b-cbfb-4ae6-931b-8765fb6454c1",project_id:window.fixture.id,version:1,file_name:IFC.datei_name,sha256:"0".repeat(64),size_bytes:40000,created_at:window.fixture.created_at,created_by:"Test",storage_key:"efh.ifc"};
 window.ifcDok=ifcDok;
+const idsDok={...ifcDok,document_id:"d416da8b-cbfb-4ae6-931b-8765fb6454d1",file_name:"buero.ids",storage_key:"buero.ids"};
 const istIfcDok=d=>d&&d.dokument_id===ifcDok.document_id&&d.version===ifcDok.version;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  const c=({fachobjektseite:'fachobjekte'})[cmd]??cmd;
- if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok];}
- if(c.startsWith("ifc_")&&c!=="ifc_uebernehmen"){
+ if(c==="dokumente_auflisten"){const r=await ifcBasis(cmd,args);return [...(Array.isArray(r)?r:[]),ifcDok,idsDok];}
+ if(c.startsWith("ifc_")&&!["ifc_uebernehmen","ifc_pruefen"].includes(c)){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});
    if(!istIfcDok(args.dokument))throw "Dokument ist kein IFC-Modell des Projekts";
    if(c==="ifc_auszug")return structuredClone(IFC.auszug);
@@ -26,6 +27,11 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    if(c==="ifc_grundriss"){const g=structuredClone(IFC.grundrisse[args.geschoss]);if(!g)throw "Geschoss ist nicht im Modell";if(args.schnitthoeheM!=null)g.schnitthoehe_m=args.schnitthoeheM;return g;}
    if(c==="ifc_grundriss_plan")return structuredClone(IFC.plaene[args.geschoss]);
    if(c==="ifc_datei")return IFC.datei_base64;
+ }
+ if(c==="ifc_pruefen"){
+   window.ifcAufrufe.push({cmd:c,args:kopie(args)});
+   if(args.ids)return {regelwerk:"Büro",befunde:[{regel:"IDS:F-FENSTER",stufe:"fehler",titel:"Fenster",text:"Im Modell fehlt ein solches Element.",elemente:[],aktion:null,eigenschaft:null}],fehler:1,warnungen:0,hinweise:0,nicht_geprueft:[]};
+   return kopie(IFC.pruefung);
  }
  if(c==="ifc_uebernehmen"){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});

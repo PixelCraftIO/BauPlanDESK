@@ -8,6 +8,7 @@
   import { ifcApi } from "./api";
   import Grundriss from "./Grundriss.svelte";
   import Uebernahme from "./Uebernahme.svelte";
+  import Pruefung from "./Pruefung.svelte";
   import { zahl, flaeche, laenge, klassentitel, elementtitel } from "./format";
   let { projekt, darf, start, onstatus, onzeichnung }: {
     projekt: Project;
@@ -27,7 +28,9 @@
   let geschoss = $state(""), schnitt = $state(1);
   let grundriss = $state<Modellgrundriss | null>(null);
   let auswahl = $state("");
-  let rechts = $state<"eigenschaften" | "bericht" | "uebernahme">("eigenschaften");
+  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "uebernahme">("eigenschaften");
+  // Von der Prüfung hervorgehobene Elemente; Stand zählt Änderungen am Modell.
+  let markiert = $state<string[]>([]), stand = $state(0);
   const element = $derived(auszug?.elemente.find(e => e.global_id === auswahl) ?? null);
   const struktur = $derived(auszug?.geschosse.find(g => g.global_id === auswahl) ?? auszug?.gebaeude.find(g => g.global_id === auswahl) ?? null);
   const geschossName = (gid: string | null | undefined) => auszug?.geschosse.find(g => g.global_id === gid)?.name || "ohne Geschoss";
@@ -161,10 +164,10 @@
       <div class="flaeche">
         {#if ansicht === "3d" && akte}
           {#await import("./Ansicht3d.svelte") then m}
-            <m.default laden={() => ifcApi.datei(projekt.id, akte!.daten.dokument)} {auswahl} onauswahl={waehlen}/>
+            <m.default laden={() => ifcApi.datei(projekt.id, akte!.daten.dokument)} {auswahl} {markiert} onauswahl={waehlen}/>
           {/await}
         {:else if grundriss}
-          <Grundriss {grundriss} {auswahl} onauswahl={waehlen}/>
+          <Grundriss {grundriss} {auswahl} {markiert} onauswahl={waehlen}/>
         {:else if auszug && !auszug.geschosse.length}<p class="meta">Das Modell hat keine Geschosse; die 3D-Ansicht zeigt alle Elemente.</p>{/if}
       </div>
     </section>
@@ -172,6 +175,7 @@
       <div class="segment" role="tablist" aria-label="Detailbereich">
         <button type="button" role="tab" aria-selected={rechts === "eigenschaften"} onclick={() => (rechts = "eigenschaften")}>Eigenschaften</button>
         <button type="button" role="tab" aria-selected={rechts === "bericht"} onclick={() => (rechts = "bericht")}>Modellbericht</button>
+        <button type="button" role="tab" aria-selected={rechts === "pruefung"} onclick={() => (rechts = "pruefung")}>Prüfung</button>
         <button type="button" role="tab" aria-selected={rechts === "uebernahme"} onclick={() => (rechts = "uebernahme")}>Übernahme</button>
       </div>
       {#if rechts === "eigenschaften"}
@@ -203,6 +207,8 @@
           <dl class="werte"><dt>Name</dt><dd>{struktur.name || "—"}</dd>{#if struktur.langname}<dt>Langname</dt><dd>{struktur.langname}</dd>{/if}{#if struktur.hoehe_m != null}<dt>Höhe Geschossebene</dt><dd>{laenge(struktur.hoehe_m)}</dd>{/if}<dt>GlobalId</dt><dd class="gid">{struktur.global_id}</dd></dl>
           {#if struktur.eigenschaften.length}<table class="liste"><tbody>{#each struktur.eigenschaften as p}<tr><td>{p.satz}</td><td>{p.name}</td><td>{p.wert}</td></tr>{/each}</tbody></table>{/if}
         {:else}<p class="meta">Ein Element in der Struktur, im Grundriss oder in der 3D-Ansicht wählen.</p>{/if}
+      {:else if rechts === "pruefung" && auszug}
+        <Pruefung projektId={projekt.id} akteId={akte.objekt} {auszug} {stand} onauswahl={gid => { waehlen(gid); rechts = "pruefung"; }} onmarkieren={g => (markiert = g)}/>
       {:else if rechts === "uebernahme"}
         <Uebernahme projektId={projekt.id} akte={akte} {darf} onakte={a => (akte = a)} {onzeichnung}/>
       {:else if auszug}
@@ -227,7 +233,7 @@
   .modellwahl{background:var(--panel);border:1px solid var(--border);padding:12px 16px;max-width:900px}
   .modellwahl .zeile{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
   .akten{margin:0 0 8px;padding-left:18px}
-  .modell{display:grid;grid-template-columns:260px minmax(0,1fr) 320px;gap:0;border:1px solid var(--border);background:var(--panel);height:calc(100vh - 210px);min-height:520px}
+  .modell{display:grid;grid-template-columns:260px minmax(0,1fr) 340px;gap:0;border:1px solid var(--border);background:var(--panel);height:calc(100vh - 210px);min-height:520px}
   .struktur,.rechts{overflow:auto;padding:6px 8px;border-right:1px solid var(--border)}
   .rechts{border-right:0;border-left:1px solid var(--border)}
   .struktur header{display:flex;flex-direction:column;gap:2px;padding:2px 0 6px;border-bottom:1px solid var(--border-innen);margin-bottom:4px}
@@ -246,7 +252,8 @@
   .segment{display:inline-flex;border:1px solid var(--control-border)}
   .segment button{border:0;border-radius:0;min-height:24px;padding:0 10px;background:var(--knopf-bg);color:var(--fg);font:inherit;cursor:pointer}
   .segment button[aria-checked=true],.segment button[aria-selected=true]{background:var(--accent);color:var(--on-action)}
-  .rechts .segment{margin-bottom:6px}
+  .rechts .segment{display:flex;flex-wrap:wrap;margin-bottom:6px}
+  .rechts .segment button{flex:1 0 auto}
   .werte{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin:0 0 8px}
   .werte dt{color:var(--muted)}
   .werte dd{margin:0}

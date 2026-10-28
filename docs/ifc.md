@@ -77,6 +77,36 @@ rechts Eigenschaften und Modellbericht. Der Tab merkt sich die Modellakte.
   Speichern, dass das Geschoss im Modell steht; PDF- und DXF-Hintergründe
   tragen kein Geschoss.
 
+## Prüfung (IDS)
+
+`CoreServices::ifc_pruefen` (Befehl `ifc_pruefen`, Reiter „Prüfung“) prüft
+den Auszug der Modellakte gegen eine Information Delivery Specification
+(IDS 1.0) und die eingebauten Regeln.
+
+- Mitgeliefert: `regelwerke/ifc/bauantrag.ids` (Gebäude und Geschosse mit
+  Namen, Räume mit Nutzung, Wände mit `Pset_WallCommon.IsExternal`, Platten
+  mit Art). Ein eigenes IDS des Büros (`.ids` in den Projektdateien) kann
+  stattdessen gewählt werden.
+- Ausgewertet werden die Facetten `entity` (mit `predefinedType`;
+  `…StandardCase` zählt zur Grundklasse), `attribute` (Name, LongName,
+  ObjectType, PredefinedType, GlobalId) und `property` (Eigenschaften und
+  Mengen) mit `simpleValue`, Aufzählung und Zahlengrenzen, die
+  Kardinalitäten `required`/`prohibited` und `minOccurs`/`maxOccurs`.
+  Muster, `classification`, `material` und `partOf` erscheinen unter „Nicht
+  geprüft“, Spezifikationen für ein anderes Schema ebenso.
+- Stufe aus dem Kennzeichen der Spezifikation: `W-…` Warnung, `H-…` Hinweis,
+  sonst Fehler.
+- Eingebaute Regeln: fehlende Einheiten und doppelte GlobalIds (Fehler),
+  keine Geschosse (Fehler), Elemente ohne Geschoss, unklassifizierte Bauteile
+  (Proxy), Elemente ohne auswertbare Geometrie (Aggregate mit Teilen zählen
+  nicht), Geschosse ohne Räume, Raummengen (`NetFloorArea`/`GrossFloorArea`),
+  die mehr als 0,5 m² und 2 % von der Geometrie abweichen (Warnungen), keine
+  Georeferenz, Näherungen, offene Darstellungen, Räume ohne Namen und
+  Geschosshöhen außerhalb 2–6 m (Hinweise).
+- Jeder Befund nennt die Elemente (im Grundriss und in 3D hervorhebbar) und
+  die passende Nacharbeit (klassifizieren, Geschoss zuordnen, Eigenschaft
+  setzen, Raum bilden, benennen).
+
 ## Übernahme ins Projekt
 
 `CoreServices::ifc_uebernehmen` (Befehl `ifc_uebernehmen`, Reiter

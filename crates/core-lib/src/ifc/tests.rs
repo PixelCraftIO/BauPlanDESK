@@ -271,3 +271,111 @@ fn grundriss_schnitt_je_geschoss() {
     assert!(grundriss(a, "gibt-es-nicht", None).is_err());
     assert!(grundriss(a, &a.geschosse[0].global_id, Some(f64::NAN)).is_err());
 }
+
+fn regeln(p: &Modellpruefung) -> Vec<&str> {
+    p.befunde.iter().map(|b| b.regel.as_str()).collect()
+}
+
+#[test]
+fn pruefung_efh_gegen_bauantrag_ids() {
+    let m = modell(&efh_ifc4());
+    let p = pruefen(&m.auszug, BAUANTRAG_IDS).unwrap();
+    assert_eq!(p.regelwerk, "BauPlanIO – Modell für den Bauantrag");
+    // Das Testhaus erfüllt das IDS; eingebaute Regeln finden Proxy und Mengen.
+    assert!(
+        p.befunde.iter().all(|b| !b.regel.starts_with("IDS:")),
+        "{:#?}",
+        p.befunde
+    );
+    // NetFloorArea 33,00 gegen 33,28 m² Geometrie liegt in der Toleranz.
+    assert_eq!(regeln(&p), ["proxy"], "{:#?}", p.befunde);
+    let proxy = &p.befunde[0];
+    assert_eq!(proxy.stufe, Befundstufe::Warnung);
+    assert_eq!(proxy.aktion, Some(Befundaktion::Klassifizieren));
+    assert_eq!(proxy.elemente.len(), 1);
+    assert!(p.nicht_geprueft.is_empty(), "{:?}", p.nicht_geprueft);
+    assert_eq!((p.fehler, p.warnungen, p.hinweise), (0, 1, 0));
+
+    // Veraltete Raummenge (30 m²) und fehlender Raumname.
+    let mut a = m.auszug.clone();
+    let r = a
+        .elemente
+        .iter_mut()
+        .find(|e| e.klasse == "IFCSPACE")
+        .unwrap();
+    r.mengen
+        .iter_mut()
+        .find(|q| q.name == "NetFloorArea")
+        .unwrap()
+        .wert = 30.;
+    r.name.clear();
+    r.langname = None;
+    let p = pruefen(&a, BAUANTRAG_IDS).unwrap();
+    let menge = p.befunde.iter().find(|b| b.regel == "raummenge").unwrap();
+    assert_eq!(menge.elemente.len(), 1);
+    assert!(
+        menge.text.contains("NetFloorArea 30,00 m²"),
+        "{}",
+        menge.text
+    );
+    assert!(regeln(&p).contains(&"raumname"));
+    assert!(regeln(&p).contains(&"IDS:W-RAUM"));
+}
+
+#[test]
+fn pruefung_ifc2x3_ohne_raeume_und_eigene_ids() {
+    let m = modell(&wand_ifc2x3());
+    let p = pruefen(&m.auszug, BAUANTRAG_IDS).unwrap();
+    let r = regeln(&p);
+    assert!(r.contains(&"IDS:W-RAUM"), "{r:?}");
+    assert!(r.contains(&"IDS:W-AUSSENWAND"), "{r:?}");
+    assert!(r.contains(&"georeferenz") == m.auszug.georeferenz.is_none());
+    let wand = p
+        .befunde
+        .iter()
+        .find(|b| b.regel == "IDS:W-AUSSENWAND")
+        .unwrap();
+    assert_eq!(wand.aktion, Some(Befundaktion::EigenschaftSetzen));
+    assert_eq!(
+        wand.eigenschaft.as_deref(),
+        Some("Pset_WallCommon.IsExternal")
+    );
+
+    // Eigenes IDS: Wert, Verbot, Muster (nicht geprüft), fremdes Schema.
+    let ids = r#"<?xml version="1.0"?>
+<ids xmlns="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+ <info><title>Büro &amp; Test</title></info>
+ <specifications>
+  <specification name="Außenwände" identifier="F-1" ifcVersion="IFC4">
+   <applicability><entity><name><simpleValue>IFCWALL</simpleValue></name></entity></applicability>
+   <requirements><property><propertySet><simpleValue>Pset_WallCommon</simpleValue></propertySet><baseName><simpleValue>IsExternal</simpleValue></baseName><value><simpleValue>TRUE</simpleValue></value></property></requirements>
+  </specification>
+  <specification name="Keine Proxies" identifier="F-2" ifcVersion="IFC4">
+   <applicability maxOccurs="0"><entity><name><simpleValue>IFCBUILDINGELEMENTPROXY</simpleValue></name></entity></applicability>
+  </specification>
+  <specification name="Raumnummern" identifier="H-3" ifcVersion="IFC4">
+   <applicability><entity><name><simpleValue>IFCSPACE</simpleValue></name></entity></applicability>
+   <requirements><attribute><name><simpleValue>Name</simpleValue></name><value><xs:restriction base="xs:string"><xs:pattern value="[0-9]\.[0-9]{2}"/></xs:restriction></value></attribute>
+   <attribute cardinality="prohibited"><name><simpleValue>ObjectType</simpleValue></name></attribute></requirements>
+  </specification>
+  <specification name="Nur IFC2X3" identifier="F-4" ifcVersion="IFC2X3">
+   <applicability minOccurs="1"><entity><name><simpleValue>IFCROOF</simpleValue></name></entity></applicability>
+  </specification>
+ </specifications>
+</ids>"#;
+    let efh = modell(&efh_ifc4());
+    let (titel, befunde, offen) = ids_pruefen(&efh.auszug, ids).unwrap();
+    assert_eq!(titel, "Büro & Test");
+    let r: Vec<_> = befunde.iter().map(|b| b.regel.as_str()).collect();
+    // Innenwände: IsExternal = FALSE verletzt die Wertvorgabe.
+    assert_eq!(r, ["IDS:F-1", "IDS:F-2"], "{befunde:#?}");
+    assert_eq!(befunde[0].elemente.len(), 2, "zwei Innenwände");
+    assert_eq!(befunde[1].elemente.len(), 1);
+    assert!(offen.iter().any(|o| o.contains("pattern")), "{offen:?}");
+    assert!(
+        offen.iter().any(|o| o.contains("gilt nicht für IFC4")),
+        "{offen:?}"
+    );
+    assert!(ids_pruefen(&efh.auszug, "<kein/>").is_err());
+    assert!(ids_pruefen(&efh.auszug, "<ids><specifications>").is_err());
+}
