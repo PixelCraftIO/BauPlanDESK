@@ -653,3 +653,70 @@ async fn reimport_neue_version_mit_nacharbeit() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn auswertung_mit_bezugsflaeche_des_projekts() {
+    let mut u = umgebung().await;
+    let d = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let akte_id = Uuid::new_v4();
+    let akte = ifc::Modellakte {
+        bezeichnung: "Entwurf".into(),
+        dokument: d.clone(),
+        uebernahme: None,
+        nacharbeit: Vec::new(),
+    };
+    let speichern = |p: core_lib::domain::ProjectId, a: &ifc::Modellakte| {
+        u.core.fachobjekt_speichern(
+            p,
+            ObjektArt::Ifcmodell,
+            akte_id,
+            0,
+            serde_json::to_value(a).unwrap(),
+            &u.user,
+        )
+    };
+    speichern(u.projekt.id, &akte).await.unwrap();
+    // Projekt ohne Grundstücksfläche: Auswertung ohne GRZ/GFZ.
+    let v = u
+        .core
+        .ifc_auswerten(u.projekt.id, akte_id, None)
+        .await
+        .unwrap();
+    assert!((v.grundflaeche_m2 - 80.).abs() < 1e-3);
+    assert_eq!((v.grz, v.gfz), (None, None));
+
+    // Projekt mit noch nicht aufgeschlüsselter Fläche 400 m² als Bezugsfläche.
+    let p = u
+        .core
+        .create_project(
+            core_lib::domain::NewProject {
+                name: "Mit Grundstück".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: Some(400.),
+                planungsrecht: Default::default(),
+            },
+            &u.user,
+        )
+        .await
+        .unwrap();
+    u.projekt = p.clone();
+    let d2 = ablegen(&u, "EFH.ifc", testdaten::efh_ifc4()).await;
+    let akte2 = ifc::Modellakte {
+        dokument: d2,
+        ..akte.clone()
+    };
+    speichern(p.id, &akte2).await.unwrap();
+    let v = u.core.ifc_auswerten(p.id, akte_id, None).await.unwrap();
+    let g = v.grundstueck.as_ref().expect("Bezugsfläche");
+    assert_eq!(g.flaeche_m2, 400.);
+    assert_eq!((v.grz, v.gfz), (Some(0.2), Some(0.4)));
+    assert!(
+        u.core
+            .ifc_auswerten(p.id, akte_id, Some(Uuid::new_v4()))
+            .await
+            .is_err()
+    );
+    // Akte eines fremden Projekts ist nicht auswertbar.
+    let fremd = neues_projekt(&u.core, &u.user, "Fremd").await;
+    assert!(u.core.ifc_auswerten(fremd.id, akte_id, None).await.is_err());
+}

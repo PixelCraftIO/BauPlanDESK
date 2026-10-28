@@ -386,6 +386,73 @@ ueberholte_entfernen: boolean,
  * Verwaiste Nacharbeit (Element fehlt in der neuen Version) streichen.
  */
 verwaiste_entfernen: boolean, };
+export type Geschossauswertung = { global_id: string, name: string,
+/**
+ * Geschossebene über dem Projektnullpunkt (m).
+ */
+ebene_m: number,
+/**
+ * Rechnerische Höhe für den Rauminhalt: bis zur nächsten Geschossebene,
+ * im obersten Geschoss bis zur Oberkante der Bauteile, im untersten ab
+ * der Unterkante der Bodenplatte.
+ */
+hoehe_m: number,
+/**
+ * Liegt auf oder über der Ebene des Erdgeschosses.
+ */
+oberirdisch: boolean,
+/**
+ * Brutto-Grundfläche (Außenkante von Wänden, Stützen und Decken).
+ */
+bgf_m2: number, bri_m3: number,
+/**
+ * Netto-Raumfläche (Summe der Raumgeometrie).
+ */
+nrf_m2: number,
+/**
+ * Summe `NetFloorArea` der Räume, soweit eingetragen.
+ */
+nrf_menge_m2: number | null, raeume: number, aussenkante: Array<Planpolygon>, };
+export type Nutzungsflaeche = {
+/**
+ * Langname des Raums (Nutzung) oder „ohne Nutzung“.
+ */
+nutzung: string, raeume: number, flaeche_m2: number, };
+export type Modellhoehen = {
+/**
+ * Ebene des Erdgeschosses über dem Projektnullpunkt (m).
+ */
+bezug_m: number,
+/**
+ * Bezugshöhe in m über NHN, wenn das Modell georeferenziert ist.
+ */
+bezug_nhn_m: number | null,
+/**
+ * Höchster Punkt der Dachbauteile.
+ */
+first_m: number | null,
+/**
+ * Flachdach: Oberkante Dach; geneigtes Dach: tiefste Unterkante der Dachbauteile.
+ */
+traufe_m: number | null,
+/**
+ * Höchster Punkt aller Bauteile (auch Schornsteine, Aufbauten).
+ */
+oberkante_m: number | null, flachdach: boolean, };
+export type Bezugsflaeche = { grundstueck_id: string, bezeichnung: string, flaeche_m2: number, };
+export type Modellauswertung = { rechenstand: string,
+/**
+ * Gebäudegrundfläche: Projektion der Außenkanten aller oberirdischen Geschosse.
+ */
+grundflaeche_m2: number, grundflaeche: Array<Planpolygon>, bgf_m2: number, bgf_oberirdisch_m2: number, bri_m3: number, nrf_m2: number, geschosse: Array<Geschossauswertung>, nutzungen: Array<Nutzungsflaeche>, hoehen: Modellhoehen, grundstueck: Bezugsflaeche | null,
+/**
+ * Gebäudegrundfläche / Bezugsfläche (rechnerisch).
+ */
+grz: number | null,
+/**
+ * BGF der oberirdischen Geschosse / Bezugsfläche (rechnerisch).
+ */
+gfz: number | null, hinweise: Array<string>, };
 export type Profilfreigabe = "allgemein" | "entwurf" | "fachlich_geprueft";
 export type PortalUnterlagenart = { code: string, name: string, erforderlich: boolean, kategorien: Array<string>, };
 export type Portalprofil = { id: string, version: string, titel: string, bundesland: Bundesland | null, verfahren: Array<Verfahrensart>, freigabe: Profilfreigabe, quelle: string, stand: string, portal_url: string | null, max_datei_bytes: number | null, max_gesamt_bytes: number | null, erlaubte_endungen: Array<string>, unterlagenarten: Array<PortalUnterlagenart>, hinweise: Array<string>, };

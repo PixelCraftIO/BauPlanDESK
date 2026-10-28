@@ -43,6 +43,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
    const neu={...kopie(akte),revision:akte.revision+1};neu.daten.dokument=kopie(w.dokument);
    window.ifcAkten=[...window.ifcAkten.filter(a=>a.objekt!==akte.objekt),neu];return kopie(neu);
  }
+ if(c==="ifc_auswerten"){window.ifcAufrufe.push({cmd:c,args:kopie(args)});return kopie(IFC.auswertung);}
  if(c==="ifc_pruefen"){
    window.ifcAufrufe.push({cmd:c,args:kopie(args)});
    if(args.ids)return {regelwerk:"Büro",befunde:[{regel:"IDS:F-FENSTER",stufe:"fehler",titel:"Fenster",text:"Im Modell fehlt ein solches Element.",elemente:[],aktion:null,eigenschaft:null}],fehler:1,warnungen:0,hinweise:0,nicht_geprueft:[]};

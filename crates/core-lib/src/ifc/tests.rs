@@ -638,3 +638,59 @@ fn reimport_abgleich_ueber_global_id() {
     assert!(v.geschosse.is_empty());
     assert_eq!(v.hinweise.len(), 1);
 }
+
+#[test]
+fn auswertung_grundflaeche_bgf_bri_und_hoehen() {
+    let a = modell(&efh_ifc4()).auszug;
+    let g = Bezugsflaeche {
+        grundstueck_id: uuid::Uuid::nil(),
+        bezeichnung: "Baugrundstück".into(),
+        flaeche_m2: 400.,
+    };
+    let v = auswerten(&a, Some(g));
+    let aussen = efh::LAENGE * efh::BREITE;
+    assert!(nah(v.grundflaeche_m2, aussen), "{}", v.grundflaeche_m2);
+    assert_eq!(v.geschosse.len(), 2);
+    let (eg, og) = (&v.geschosse[0], &v.geschosse[1]);
+    assert!(eg.oberirdisch && og.oberirdisch);
+    assert!(nah(eg.bgf_m2, aussen) && nah(og.bgf_m2, aussen));
+    // EG ab Unterkante Bodenplatte (−0,25 m) bis Ebene OG; OG bis Oberkante Dach.
+    assert!(nah(eg.hoehe_m, efh::GESCHOSSHOEHE + 0.25), "{}", eg.hoehe_m);
+    assert!(
+        nah(og.hoehe_m, efh::FIRST - efh::GESCHOSSHOEHE),
+        "{}",
+        og.hoehe_m
+    );
+    assert!(nah(v.bri_m3, aussen * (efh::FIRST + 0.25)), "{}", v.bri_m3);
+    assert!(nah(v.bgf_m2, 2. * aussen) && nah(v.bgf_oberirdisch_m2, 2. * aussen));
+    // Netto-Raumfläche aus der Geometrie, die Mengen der Datei daneben.
+    assert!(nah(v.nrf_m2, 4. * efh::raumflaeche()), "{}", v.nrf_m2);
+    assert_eq!(eg.nrf_menge_m2, Some(2. * efh::RAUM_MENGE));
+    assert_eq!(eg.raeume, 2);
+    let n: Vec<&str> = v.nutzungen.iter().map(|n| n.nutzung.as_str()).collect();
+    assert_eq!(n, ["Kind", "Küche", "Schlafen", "Wohnen"]);
+    // Höhen über EG: Flachdach, Schornstein ragt 0,9 m darüber.
+    assert!(v.hoehen.flachdach);
+    assert_eq!(v.hoehen.first_m, Some(efh::FIRST));
+    assert_eq!(v.hoehen.traufe_m, Some(efh::FIRST));
+    assert!(nah(v.hoehen.oberkante_m.unwrap(), efh::FIRST + 0.9));
+    assert_eq!(v.hoehen.bezug_nhn_m, Some(92.5));
+    assert_eq!(v.grz, Some(0.2));
+    assert_eq!(v.gfz, Some(0.4));
+
+    // Ohne Baugrundstück keine Verhältniszahlen; ausgeblendete Räume fehlen.
+    let mut b = a.clone();
+    let raum = b
+        .elemente
+        .iter()
+        .find(|e| e.klasse == "IFCSPACE")
+        .unwrap()
+        .global_id
+        .clone();
+    nacharbeit::anwenden(&mut b, &[Modellaenderung::Ausblenden { global_id: raum }]);
+    let w = auswerten(&b, None);
+    assert_eq!((w.grz, w.gfz), (None, None));
+    assert!(w.hinweise.iter().any(|h| h.contains("Kein Baugrundstück")));
+    assert!(nah(w.nrf_m2, 3. * efh::raumflaeche()));
+    assert!(nah(w.bgf_m2, v.bgf_m2));
+}

@@ -288,6 +288,7 @@ fn main() {
             ifc::ifc_akte_grundriss,
             ifc::ifc_abgleich,
             ifc::ifc_reimport,
+            ifc::ifc_auswerten,
             berechnungen::planaufmass_gebaeudeziele,
             berechnungen::planaufmass_flurstuecke,
             berechnungen::planaufmass_abzuege,

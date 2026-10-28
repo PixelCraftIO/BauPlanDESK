@@ -137,6 +137,25 @@ einem Reimport fehlen, bleiben gespeichert, wirken nicht und erscheinen als
 Hinweis im Modellbericht. Im Reiter „Prüfung“ öffnet die Aktion eines Befunds
 die Nacharbeit mit den betroffenen Elementen.
 
+## Auswertung
+
+`CoreServices::ifc_auswerten` (Befehl `ifc_auswerten`, Reiter „Auswertung“)
+rechnet aus der Geometrie des Modells mit Nacharbeit (`ifc::auswerten`):
+
+| Wert | Ermittlung |
+| --- | --- |
+| Gebäudegrundfläche | Projektion der Außenkanten (Wände, Stützen, Vorhangfassaden, Decken ohne Dach) aller Geschosse ab dem Erdgeschoss; im Grundriss blau gezeigt |
+| BGF je Geschoss | Fläche der Außenkante des Geschosses, ohne Innenhöfe |
+| BRI je Geschoss | BGF × Höhe: bis zur nächsten Geschossebene, im obersten Geschoss bis zur Oberkante der Bauteile, im untersten ab Unterkante Bodenplatte |
+| NRF | Summe der Raumgeometrie je Geschoss und nach Nutzung (Langname); die `NetFloorArea` der Datei steht daneben |
+| Höhen | über der Ebene des Erdgeschosses: Oberkante Flachdach bzw. First und Traufe (Näherung: tiefste Unterkante der Dachbauteile), höchster Punkt aller Bauteile, Bezug in m ü. NHN bei Georeferenz |
+| GRZ, GFZ | rechnerisch: Gebäudegrundfläche bzw. BGF der oberirdischen Geschosse durch die Bezugsfläche des gewählten (oder einzigen) Baugrundstücks |
+
+GRZ und GFZ der Auswertung sind Orientierungswerte. Vollgeschosse,
+Anrechnungen nach § 19 Abs. 4 BauNVO und Abstandsflächen rechnen weiter die
+Fachmodule; dafür das Modell über „Übernahme“ in Gebäude und Zeichnungen
+übernehmen.
+
 ## Reimport
 
 Kommt eine neue Fassung vom Planer (neue Dokumentversion derselben Datei oder

@@ -264,6 +264,54 @@ impl CoreServices {
         .await
     }
 
+    /// Auswertung der Modellakte (mit Nacharbeit). Bezugsfläche für GRZ/GFZ:
+    /// das gewählte Baugrundstück, sonst das einzige des Projekts.
+    pub async fn ifc_auswerten(
+        &self,
+        p: ProjectId,
+        akte_id: uuid::Uuid,
+        grundstueck_id: Option<uuid::Uuid>,
+    ) -> CoreResult<super::Modellauswertung> {
+        let akte = self.modellakte(p, akte_id).await?;
+        let a = self.ifc_akte_auszug(p, &akte).await?;
+        let projekt = self.get_project(p).await?;
+        let mut hinweis = None;
+        let grund = match crate::grundstueckskontext::ermitteln(&projekt) {
+            Ok(k) => {
+                let g = match grundstueck_id {
+                    Some(id) => Some(k.iter().find(|g| g.id == id).ok_or_else(|| {
+                        CoreError::InvalidInput(
+                            "Baugrundstück gehört nicht zur aktuellen Ermittlung".into(),
+                        )
+                    })?),
+                    None if k.len() == 1 => k.first(),
+                    None => {
+                        if k.len() > 1 {
+                            hinweis = Some(
+                                "Mehrere Baugrundstücke: für GRZ und GFZ eines wählen.".to_string(),
+                            );
+                        }
+                        None
+                    }
+                };
+                g.and_then(|g| {
+                    g.bezugsflaeche_m2.map(|f| super::Bezugsflaeche {
+                        grundstueck_id: g.id,
+                        bezeichnung: g.bezeichnung.clone(),
+                        flaeche_m2: f,
+                    })
+                })
+            }
+            Err(e) => {
+                hinweis = Some(format!("Baugrundstück: {e}"));
+                None
+            }
+        };
+        let mut v = super::auswerten(&a, grund);
+        v.hinweise.extend(hinweis);
+        Ok(v)
+    }
+
     /// Modellakte lesen.
     pub async fn modellakte(&self, p: ProjectId, id: uuid::Uuid) -> CoreResult<Modellakte> {
         let f = self

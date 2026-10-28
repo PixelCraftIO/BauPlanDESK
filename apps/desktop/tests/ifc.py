@@ -114,6 +114,19 @@ with sync_playwright() as pw:
  assert w['ueberholte_entfernen'] is True and w['verwaiste_entfernen'] is False, w
  expect(struktur.get_by_role('button',name='Neue Version V2 vorhanden: abgleichen')).to_have_count(0)
  expect(struktur).to_contain_text('V2')
+ # Auswertung: Kennwerte, Geschosse, Nutzungen, Höhen; Gebäudegrundfläche im Grundriss.
+ details.get_by_role('tab',name='Auswertung').click()
+ aus=details.get_by_role('region',name='Auswertung')
+ kw=aus.get_by_label('Kennwerte')
+ expect(kw).to_contain_text('Gebäudegrundfläche80 m²')
+ expect(kw).to_contain_text('GRZ (rechnerisch)0,2')
+ expect(kw).to_contain_text('GFZ (rechnerisch)0,4')
+ expect(aus.get_by_label('Geschosse').locator('tbody tr')).to_have_count(2)
+ expect(aus.get_by_label('Nutzungen')).to_contain_text('Wohnen')
+ expect(aus.get_by_label('Höhen')).to_contain_text('Oberkante Flachdach5,6 m')
+ expect(mitte.locator('path.zusatz')).to_have_count(1)
+ assert page.evaluate("window.ifcAufrufe.some(a=>a.cmd==='ifc_auswerten' && a.args.grundstueckId===null)")
+ page.screenshot(path=str(out/'ifc-auswertung.png'))
  # 3D: web-ifc lädt die Datei, Klick wählt ein Element.
  mitte.get_by_role('radio',name='3D').click()
  leinwand=scope.get_by_role('img',name='3D-Ansicht des Modells')

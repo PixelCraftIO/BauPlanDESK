@@ -193,3 +193,20 @@ pub async fn ifc_reimport(
         .await?;
     Ok(state.core.ifc_reimport(projekt_id, &wunsch, &wer).await?)
 }
+
+#[tauri::command]
+pub async fn ifc_auswerten(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    akte_id: uuid::Uuid,
+    grundstueck_id: Option<uuid::Uuid>,
+) -> Result<core_lib::ifc::Modellauswertung, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .ifc_auswerten(projekt_id, akte_id, grundstueck_id)
+        .await?)
+}

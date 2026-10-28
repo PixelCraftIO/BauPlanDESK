@@ -11,6 +11,7 @@
   import Pruefung from "./Pruefung.svelte";
   import Nacharbeit from "./Nacharbeit.svelte";
   import Reimport from "./Reimport.svelte";
+  import Auswertung from "./Auswertung.svelte";
   import { zahl, flaeche, laenge, klassentitel, elementtitel } from "./format";
   let { projekt, darf, start, onstatus, onzeichnung }: {
     projekt: Project;
@@ -30,8 +31,8 @@
   let geschoss = $state(""), schnitt = $state(1);
   let grundriss = $state<Modellgrundriss | null>(null);
   let auswahl = $state("");
-  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "nacharbeit" | "uebernahme">("eigenschaften");
-  let vorgabe = $state<Befund | null>(null), vorschau = $state<Planpolygon[]>([]);
+  let rechts = $state<"eigenschaften" | "bericht" | "pruefung" | "nacharbeit" | "auswertung" | "uebernahme">("eigenschaften");
+  let vorgabe = $state<Befund | null>(null), vorschau = $state<Planpolygon[]>([]), grundflaeche = $state<Planpolygon[]>([]);
   // Von der Prüfung hervorgehobene Elemente; Stand zählt Änderungen am Modell.
   let markiert = $state<string[]>([]), stand = $state(0);
   const element = $derived(auszug?.elemente.find(e => e.global_id === auswahl) ?? null);
@@ -172,7 +173,7 @@
             <m.default laden={() => ifcApi.datei(projekt.id, akte!.daten.dokument)} {auswahl} {markiert} onauswahl={waehlen}/>
           {/await}
         {:else if grundriss}
-          <Grundriss {grundriss} {auswahl} {markiert} zusatz={rechts === "nacharbeit" ? vorschau : []} onauswahl={gid => { const r = rechts; waehlen(gid); if (r === "nacharbeit" || r === "pruefung") rechts = r; }}/>
+          <Grundriss {grundriss} {auswahl} {markiert} zusatz={rechts === "nacharbeit" ? vorschau : rechts === "auswertung" ? grundflaeche : []} onauswahl={gid => { const r = rechts; waehlen(gid); if (r === "nacharbeit" || r === "pruefung") rechts = r; }}/>
         {:else if auszug && !auszug.geschosse.length}<p class="meta">Das Modell hat keine Geschosse; die 3D-Ansicht zeigt alle Elemente.</p>{/if}
       </div>
     </section>
@@ -182,6 +183,7 @@
         <button type="button" role="tab" aria-selected={rechts === "bericht"} onclick={() => (rechts = "bericht")}>Modellbericht</button>
         <button type="button" role="tab" aria-selected={rechts === "pruefung"} onclick={() => (rechts = "pruefung")}>Prüfung</button>
         <button type="button" role="tab" aria-selected={rechts === "nacharbeit"} onclick={() => (rechts = "nacharbeit")}>Nacharbeit</button>
+        <button type="button" role="tab" aria-selected={rechts === "auswertung"} onclick={() => (rechts = "auswertung")}>Auswertung</button>
         <button type="button" role="tab" aria-selected={rechts === "uebernahme"} onclick={() => (rechts = "uebernahme")}>Übernahme</button>
       </div>
       {#if rechts === "eigenschaften"}
@@ -217,6 +219,8 @@
         <Pruefung projektId={projekt.id} akteId={akte.objekt} {auszug} {stand} onauswahl={gid => { waehlen(gid); rechts = "pruefung"; }} onmarkieren={g => (markiert = g)} onaktion={b => { markiert = b.elemente; vorgabe = b; rechts = "nacharbeit"; }}/>
       {:else if rechts === "nacharbeit" && auszug}
         <Nacharbeit projektId={projekt.id} {akte} {auszug} {auswahl} {markiert} {geschoss} {darf} {vorgabe} onakte={a => { akte = a; stand++; void modellLaden(); }} onvorschau={p => (vorschau = p)} onmarkieren={g => { markiert = g; vorgabe = null; }} onauswahl={gid => { waehlen(gid); rechts = "nacharbeit"; }}/>
+      {:else if rechts === "auswertung"}
+        <Auswertung projektId={projekt.id} akteId={akte.objekt} {stand} onvorschau={p => (grundflaeche = p)}/>
       {:else if rechts === "uebernahme"}
         <Uebernahme projektId={projekt.id} akte={akte} {darf} onakte={a => (akte = a)} {onzeichnung}/>
       {:else if auszug}

@@ -104,7 +104,7 @@ fn zeichnungspolygone(ps: &[Planpolygon], min: [f64; 2], max: [f64; 2]) -> Vec<P
 }
 
 /// Bauteile, deren Grundriss die Außenkante eines Geschosses bildet.
-fn traegt_aussenkante(e: &Modellelement) -> bool {
+pub(super) fn traegt_aussenkante(e: &Modellelement) -> bool {
     let k = e
         .klasse
         .trim_end_matches("STANDARDCASE")
@@ -118,7 +118,7 @@ fn traegt_aussenkante(e: &Modellelement) -> bool {
 
 /// Äußere Umrisse (ohne Innenhöfe und Lichthöfe kleiner Bauteillücken) der
 /// vereinigten Grundrisse.
-fn umriss<'a>(els: impl Iterator<Item = &'a Modellelement>) -> Vec<Planpolygon> {
+pub(super) fn umriss<'a>(els: impl Iterator<Item = &'a Modellelement>) -> Vec<Planpolygon> {
     let polys: Vec<_> = els
         .filter_map(|e| e.geometrie.as_ref())
         .flat_map(|g| multipolygon(&g.grundriss).0)
@@ -135,7 +135,7 @@ fn umriss<'a>(els: impl Iterator<Item = &'a Modellelement>) -> Vec<Planpolygon> 
         .collect()
 }
 
-fn geschossname(g: &Strukturelement) -> String {
+pub(super) fn geschossname(g: &Strukturelement) -> String {
     if g.name.is_empty() {
         g.langname.clone().unwrap_or_else(|| "Geschoss".into())
     } else {
@@ -173,7 +173,7 @@ pub fn raumhoehe(e: &Modellelement) -> Option<f64> {
 
 /// Geschoss, dessen Ebene der Geländeoberfläche am nächsten liegt (Träger der
 /// Gebäudegrundfläche).
-fn erdgeschoss(a: &Modellauszug) -> Option<&Strukturelement> {
+pub(super) fn erdgeschoss(a: &Modellauszug) -> Option<&Strukturelement> {
     a.geschosse.iter().min_by(|x, y| {
         let h = |g: &Strukturelement| g.hoehe_m.unwrap_or(0.).abs();
         h(x).total_cmp(&h(y))

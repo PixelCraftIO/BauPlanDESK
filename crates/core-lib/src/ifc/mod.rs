@@ -12,6 +12,7 @@
 //! * Rechtliche Anrechnungen (Vollgeschoss, GRZ/GFZ, Abstandsflächen) bleiben
 //!   bei ihren Fachmodulen. Das Modell liefert Flächen, Höhen und Herkunft.
 mod abgleich;
+mod auswertung;
 mod auszug;
 pub mod geometrie;
 mod grundriss;
@@ -27,6 +28,9 @@ mod uebernahme;
 
 pub use abgleich::{
     Elementaenderung, Elementverweis, Modellabgleich, Nacharbeitsstand, Reimportwunsch, abgleichen,
+};
+pub use auswertung::{
+    Bezugsflaeche, Geschossauswertung, Modellauswertung, Modellhoehen, Nutzungsflaeche, auswerten,
 };
 pub use auszug::{auszug, klassentitel};
 pub use grundriss::{
