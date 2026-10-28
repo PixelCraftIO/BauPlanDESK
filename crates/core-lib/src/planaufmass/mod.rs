@@ -17,7 +17,10 @@ mod grundstueck;
 mod pruefung;
 mod raumbuch;
 mod service;
-pub use abgleich::{Abgleichsfrage, Abgleichskandidat, Zeilenzuordnung};
+pub use abgleich::{
+    Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
+    bauteildubletten, fast_gleich,
+};
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;

@@ -357,6 +357,15 @@ weitergegebenen Fachwerte.
   Handzeile behält Kennung, Art und Grundlage; Altzeilen ohne Kennung erhalten
   dabei eine. Bereits verknüpfte Zeilen werden über `planbindung.markierung_id`
   wiedergefunden.
+- Doppelerfassung (`abzugsdubletten`, `bauteildubletten`): Eine gezeichnete
+  Zeile und eine Handzeile gleicher Art am selben Flurstück bzw. Baugrundstück,
+  deren Flächen höchstens 1 m² oder 2 % auseinanderliegen (`fast_gleich`),
+  erscheinen als Hinweis in der Baugrundstücksprüfung
+  (`BaugrundstueckNachweis.doppelerfassungen`, Text auch in
+  `pruefung.hinweise` und damit in der Druckausgabe). Kein Fehler, weil gleich
+  große getrennte Flächen zulässig sind; die Maske bietet „Handzeile
+  entfernen“. Eine Markierung, die mit mehreren Zeilen verknüpft ist, ist
+  dagegen ein Fehler beim Auflösen und Speichern.
 - `planziele`: Positivliste fachlich unterstützter Zielfelder.
 - `abstandsziele`: entsprechende Positivliste für manuelle Wände.
 - `gebaeudeziele`: entsprechende Positivliste für Gebäude und explizite Geschosse.

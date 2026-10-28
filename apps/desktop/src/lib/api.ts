@@ -723,6 +723,8 @@ export interface BaugrundstuecksPruefung {
   baugrundstuecke: {
     grundstueck: BaugrundstueckGruppe;
     pruefung: NutzungsPruefung;
+    /** Gezeichnete und von Hand erfasste Zeilen derselben Fläche (Texte auch in `pruefung.hinweise`). */
+    doppelerfassungen?: import("./generated/plattform").Doppelerfassung[];
   }[];
 }
 export interface NutzungsEingabe {

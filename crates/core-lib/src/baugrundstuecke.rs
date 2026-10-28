@@ -129,6 +129,10 @@ pub struct BaugrundstueckGruppe {
 pub struct BaugrundstueckNachweis {
     pub grundstueck: BaugrundstueckGruppe,
     pub pruefung: NutzungsPruefung,
+    /// Gezeichnete und von Hand erfasste Zeilen derselben Fläche; ihre Texte
+    /// stehen auch in `pruefung.hinweise`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub doppelerfassungen: Vec<crate::planaufmass::Doppelerfassung>,
 }
 #[derive(Debug, Serialize)]
 pub struct BaugrundstuecksPruefung {
@@ -407,6 +411,7 @@ impl BaugrundstuecksPlan {
                     "Baugrundstücke benötigen eine Bauteil- und Geschossaufstellung".into(),
                 )
             })?;
+            let a_bauteile = a.bauteile.clone();
             let grond = a.grundstueck.get_or_insert_with(|| GrundstueckAufstellung {
                 basisflaeche_m2: 0.0,
                 nicht_massgebend_m2: 0.0,
@@ -444,9 +449,26 @@ impl BaugrundstuecksPlan {
                     _ => "Lage im Baufenster nicht geprüft: Der Vorhabenumriss ist keinem aktuellen Baugrundstück zugeordnet. Unter Pläne → Baugrenzenprüfung das Baugrundstück wählen und speichern.".into(),
                 });
             }
+            let mut doppelt = Vec::new();
+            for f in self
+                .flurstuecke
+                .iter()
+                .filter(|f| g.flurstueck_ids.contains(&f.id))
+            {
+                let name = format!("{} {}", f.gemarkung.trim(), f.nummer.trim());
+                doppelt.extend(crate::planaufmass::abzugsdubletten(
+                    &f.id, &name, &f.abzuege,
+                ));
+            }
+            doppelt.extend(crate::planaufmass::bauteildubletten(
+                &g.schluessel,
+                &a_bauteile,
+            ));
+            r.hinweise.extend(doppelt.iter().map(|d| d.text.clone()));
             ergebnisse.push(BaugrundstueckNachweis {
                 grundstueck: g,
                 pruefung: r,
+                doppelerfassungen: doppelt,
             });
         }
         // Eine externe Gemeinschaftsanlage darf über mehrere Grundstücke insgesamt nicht über 100 % zugeordnet werden.

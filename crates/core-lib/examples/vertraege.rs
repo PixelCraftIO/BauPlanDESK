@@ -41,6 +41,7 @@ fn main() {
         core_lib::planaufmass::Zeilenzuordnung,
         core_lib::planaufmass::Abgleichskandidat,
         core_lib::planaufmass::Abgleichsfrage,
+        core_lib::planaufmass::Doppelerfassung,
         core_lib::planaufmass::CadUebernahme,
         core_lib::planaufmass::Planziel,
         core_lib::planaufmass::Aufgabengeometrie,
