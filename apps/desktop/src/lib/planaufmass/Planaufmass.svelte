@@ -219,6 +219,9 @@
       try{const v=JSON.parse(localStorage.getItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`)??"null");if(v){panel=["aufgaben","objekte","eigenschaften"].includes(v.panel)?v.panel:"aufgaben";suche=typeof v.suche==="string"?v.suche.slice(0,500):"";aktiv=v.aktiv??"";auswahl=v.auswahl??"";auswahlIds=auswahl?[auswahl]:[];bedeutungFilter=v.bedeutungFilter??"";gebaeudeFilter=v.gebaeudeFilter??"";geschossFilter=v.geschossFilter??"";nurFehler=v.nurFehler===true}}catch{}
     });
   });
+  // Ein gespeicherter Stand ist eine eigene Rückgängig-Stufe: Eingaben danach
+  // werden nicht mit den Eingaben davor zusammengefasst.
+  $effect(()=>{void s.revision;untrack(()=>{verlaufGruppe="";verlauf.gruppeBeenden()})});
   $effect(()=>{const sig=signatur;if(!sig||sig==="null")return;untrack(()=>{verlauf.beobachtenSignatur(sig,verlaufGruppe);undo=verlauf.zurueck;redo=verlauf.vor})});
   $effect(()=>{const v={panel,suche,aktiv,auswahl,bedeutungFilter,gebaeudeFilter,geschossFilter,nurFehler},id=s.id;try{localStorage.setItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`,JSON.stringify(v))}catch{}});
   $effect(()=>{const q=vergleich;let gone=false;vergleichPdf=null;if(q){const [id,v]=q.split("|");void api.pdfVorschau(id,Number(v)).then(p=>{if(!gone)vergleichPdf=p}).catch(e=>{if(!gone)s.fehler=fehlertext(e)})}return()=>{gone=true}});
@@ -280,16 +283,19 @@
   // Tastaturkürzel für Werkzeuge und Auswahl; Eingabefelder bleiben unberührt.
   // Kürzel gelten, solange die letzte Bedienung im Editor war, auch wenn der
   // Fokus danach auf das Dokument fiel (z. B. nach dem Entfernen eines Eintrags).
-  let imEditor=false;
+  let imEditor=false,werkzeugleiste=$state<HTMLElement>();
+  // Editor und seine Werkzeugleiste (liegt in der Kopfzeile der Liste) gelten
+  // gemeinsam als Editor: nach „Rückgängig“ per Knopf wirkt Strg+Umschalt+Z.
+  const imBereich=(n:EventTarget|null)=>!!n&&(!!editor?.contains(n as Node)||!!werkzeugleiste?.contains(n as Node));
   $effect(()=>{
-    const merke=(e:Event)=>{imEditor=!!editor?.contains(e.target as Node)};
+    const merke=(e:Event)=>{imEditor=imBereich(e.target)};
     document.addEventListener("pointerdown",merke,true);document.addEventListener("focusin",merke,true);
     return()=>{document.removeEventListener("pointerdown",merke,true);document.removeEventListener("focusin",merke,true)};
   });
   $effect(()=>{
     const taste=(e:KeyboardEvent)=>{
       if(!sichtbar||!s.eingabe||(e.target as Element).closest("input,select,textarea,[contenteditable]"))return;
-      const drin=editor?.contains(e.target as Node)||(e.target===document.body&&imEditor);
+      const drin=imBereich(e.target)||(e.target===document.body&&imEditor);
       if(!drin&&!vollbild)return;
       const k=e.key.toLowerCase();
       if(e.ctrlKey||e.metaKey){
@@ -913,7 +919,7 @@
   {/snippet}
 </Fachliste>
 
-  {#snippet editorwerkzeuge()}
+  {#snippet editorwerkzeuge()}<span class="editorwerkzeuge" bind:this={werkzeugleiste}>
     <Symbolknopf titel="Rückgängig" kuerzel="Strg+Z" disabled={!darf||!undo} onclick={rueckwaerts}><WerkzeugIcon art="undo"/></Symbolknopf>
     <Symbolknopf titel="Wiederholen" kuerzel="Strg+Y" disabled={!darf||!redo} onclick={vorwaerts}><WerkzeugIcon art="redo"/></Symbolknopf>
     <span class="trenner" aria-hidden="true"></span>
@@ -923,9 +929,10 @@
     <Symbolknopf titel="Maße anzeigen" aktiv={masse} onclick={()=>masse=!masse}><WerkzeugIcon art="masse"/></Symbolknopf>
     <Symbolknopf titel={vollbild?"Vollbild beenden":"Vollbild"} kuerzel="F11" aktiv={vollbild} onclick={()=>vollbild=!vollbild}><WerkzeugIcon art="vollbild"/></Symbolknopf>
     <Symbolknopf titel="Kurzbefehle" kuerzel="F1" aktiv={hilfe} aria-expanded={hilfe} onclick={()=>hilfe=!hilfe}><WerkzeugIcon art="hilfe"/></Symbolknopf>
-  {/snippet}
+  </span>{/snippet}
 
 <style>
+  .editorwerkzeuge{display:contents}
   /* Zeichenarbeitsplatz: Schnellleiste oben, Symbolleiste links, Zeichenfläche in der Mitte, Paletten rechts. */
   .editor{display:flex;flex-direction:column;min-height:480px;border:1px solid var(--border);background:var(--panel)}
   .editor.vollbild{position:fixed;inset:0;z-index:40;height:auto;border:0}

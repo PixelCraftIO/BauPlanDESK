@@ -18,7 +18,7 @@ with sync_playwright() as p:
     page.add_init_script("window.fixture="+json.dumps(fixture)+";window.planPdf="+json.dumps(pdf_fixture())+";"+(root/"tauri-mock.js").read_text(encoding="utf-8")+custom)
     page.goto(os.environ.get("BAUPROJEKT_UI_URL","http://127.0.0.1:1420"))
     page.locator(".projekttabelle").get_by_role("button",name=fixture["name"],exact=True).click()
-    bereich(page,"PDF-Aufmaß")
+    bereich(page,"Aufmaß")
     scope=page.locator(".projekt-sitzung:visible")
     scope.get_by_role("button",name="Neu anlegen",exact=True).click()
     svg=scope.get_by_role("application")
@@ -75,12 +75,14 @@ with sync_playwright() as p:
     # Mehrfachauswahl und gemeinsame Verschiebung.
     tab("Objekte")
     scope.get_by_label("Büro EG zur Auswahl hinzufügen",exact=True).check()
+    # Die Paletten rechts sind einzeln aufgeklappt; die Mehrfachauswahl steht unter „Eigenschaften“.
+    tab("Eigenschaften")
     expect(scope.get_by_role("heading",name="2 Markierungen ausgewählt")).to_be_visible()
     old=page.evaluate("window.planSaved.daten.markierungen.map(m=>m.geometrie.von[0])")
     svg.focus();page.keyboard.press("ArrowRight");speichern()
     assert page.evaluate("window.planSaved.daten.markierungen.map(m=>m.geometrie.von[0])")==[x+1 for x in old]
     # Ausschnitt anlegen und eine darin gebundene Kontur speichern.
-    tab("Objekte");scope.get_by_role("button",name="Ausschnitt anlegen",exact=True).click();click(50,40);click(550,350)
+    tab("Objekte");scope.locator("aside").get_by_role("button",name="Ausschnitt anlegen",exact=True).click();click(50,40);click(550,350)
     scope.get_by_label("Ausschnittname",exact=True).fill("Schnitt B-B")
     scope.locator(".ausschnitt").get_by_role("button",name="Öffnen",exact=True).click()
     scope.get_by_role("button",name="1:1",exact=True).click()
@@ -137,7 +139,8 @@ with sync_playwright() as p:
     scope.get_by_role("button",name="Vollbild beenden",exact=True).click()
     # Vergleich und Übertragung erhalten die ursprüngliche Markierung/Verknüpfung.
     original_marker=page.evaluate("window.planSaved.daten.markierungen[0].id")
-    scope.get_by_text("Planstände vergleichen",exact=True).click()
+    scope.locator("aside summary").filter(has_text="Prüfen und Ausgabe").click()
+    expect(scope.get_by_text("Planstände vergleichen",exact=True)).to_be_visible()
     scope.get_by_label("Vergleichsunterlage",exact=True).select_option("d316da8b-cbfb-4ae6-931b-8765fb6454b2|1")
     scope.get_by_label("Blattlage und Konturen anhand der Überlagerung geprüft",exact=True).check()
     transfer=scope.get_by_role("button",name="Als neues Aufmaß auf Vergleichsunterlage übertragen …",exact=True)
@@ -154,10 +157,10 @@ with sync_playwright() as p:
     read.on("pageerror",lambda e:errors.append(str(e)))
     read.add_init_script("window.fixture="+json.dumps(fixture)+";window.planPdf="+json.dumps(pdf_fixture())+";"+(root/"tauri-mock.js").read_text(encoding="utf-8")+custom+";window.planSaved="+json.dumps(seed)+";window.planSaves=[window.planSaved];window.testUser.rolle='lesen';")
     read.goto(os.environ.get("BAUPROJEKT_UI_URL","http://127.0.0.1:1420"))
-    read.locator(".projekttabelle").get_by_role("button",name=fixture["name"],exact=True).click();bereich(read,"PDF-Aufmaß")
+    read.locator(".projekttabelle").get_by_role("button",name=fixture["name"],exact=True).click();bereich(read,"Aufmaß")
     rs=read.locator(".projekt-sitzung:visible");rs.get_by_role("button",name="Öffnen",exact=True).click()
     expect(rs.get_by_role("button",name="1:1",exact=True)).to_be_enabled()
-    expect(rs.get_by_role("button",name="Aufmaß speichern",exact=True)).to_be_disabled()
+    expect(rs.get_by_role("button",name="Speichern",exact=True)).to_be_disabled()
     rs.get_by_role("navigation",name="Planpanel").get_by_role("button",name="Objekte",exact=True).click()
     rs.locator(".ebene").get_by_label("An",exact=True).uncheck()
     expect(rs.get_by_role("button",name="Speichern",exact=True)).to_be_disabled()

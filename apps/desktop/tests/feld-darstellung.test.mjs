@@ -32,6 +32,6 @@ test('Darstellungskonfiguration passt zu den tatsächlichen Formularverträgen',
 test('Neue Module werden automatisch in die passende Navigation aufgenommen',async()=>{
  const {navigationMitModulen}=await import('../src/lib/navigation.ts');
  const nav=navigationMitModulen([{id:'neuer_nachweis',gruppe:'Berechnungen'},{id:'neue_unterlage',gruppe:'Unterlagen'}]);
- assert.ok(nav.find(z=>z.id==='berechnungen').kinder.find(k=>k.id==='weitere').module.includes('neuer_nachweis'));
- assert.ok(nav.find(z=>z.id==='unterlagen').module.includes('neue_unterlage'));
+ assert.ok(nav.find(z=>z.id==='nachweis').kinder.find(k=>k.id==='weitere').module.includes('neuer_nachweis'));
+ assert.ok(nav.find(z=>z.id==='ermittlung').kinder.find(k=>k.id==='unterlagen').module.includes('neue_unterlage'));
 });
