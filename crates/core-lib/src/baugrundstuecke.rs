@@ -449,6 +449,15 @@ impl BaugrundstuecksPlan {
                     _ => "Lage im Baufenster nicht geprüft: Der Vorhabenumriss ist keinem aktuellen Baugrundstück zugeordnet. Unter Pläne → Baugrenzenprüfung das Baugrundstück wählen und speichern.".into(),
                 });
             }
+            let infos = crate::grundstuecksinformationen::informationen(plan);
+            r.hinweise.extend(
+                infos
+                    .flurstuecke
+                    .iter()
+                    .filter(|f| g.flurstueck_ids.contains(&f.id))
+                    .filter_map(|f| f.flaechenabweichung_hinweis())
+                    .map(|(_, t)| t),
+            );
             let mut doppelt = Vec::new();
             for f in self
                 .flurstuecke

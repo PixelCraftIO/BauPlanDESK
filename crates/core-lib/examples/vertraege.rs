@@ -132,6 +132,7 @@ fn main() {
         core_lib::grundstuecksinformationen::Grundstuecksinformationen,
         core_lib::grundstuecksinformationen::FlurstuecksInfo,
         core_lib::grundstuecksinformationen::FlurstuecksRolle,
+        core_lib::grundstuecksinformationen::Flaechenabweichung,
         core_lib::grundstuecksinformationen::FlurstuecksAnsatz,
         core_lib::grundstuecksinformationen::BaugrundstuecksErmittlung,
         core_lib::calc::Baugebiet,

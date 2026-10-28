@@ -21,6 +21,7 @@ pub use abgleich::{
     Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
     bauteildubletten, fast_gleich,
 };
+pub(crate) use abgleich::toleranzen;
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;

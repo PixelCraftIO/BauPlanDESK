@@ -18,6 +18,9 @@
   import { editorAnmelden } from "./editoren";
   import { plattformApi } from "./plattformApi";
   import { planApi } from "./planaufmass/api";
+  import { Uebernahme } from "./planaufmass/Uebernahme.svelte";
+  import UebernahmeVorschau from "./planaufmass/UebernahmeVorschau.svelte";
+  import TOLERANZ from "../../../../regelwerke/aufmass-toleranzen.json";
   import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
   import { ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
@@ -72,8 +75,29 @@
   ansichtsAbfrage(() => projekt.id, ["fachobjekte"], aufmasseAktualisieren);
   const z = (v: number | undefined) =>
     v == null ? "—" : v.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+  // Nur Anzeige; Hinweise und Einreichungsprüfung stuft der Core ein
+  // (FlurstuecksInfo::flaechenabweichung, gleiche Schwellen).
+  function abweichungsstufe(f: FlurstuecksInfo) {
+    if (f.flaeche_aus_plan || f.planflaeche_m2 == null) return null;
+    const d = Math.abs(f.planflaeche_m2 - f.flaeche_m2),
+      t = TOLERANZ.flurstueck,
+      basis = Math.abs(f.flaeche_m2);
+    if (d <= Math.max(t.unauffaellig_m2, (basis * t.unauffaellig_prozent) / 100))
+      return null;
+    return d <= (basis * t.fehler_prozent) / 100 ? "warnung" : "fehler";
+  }
+  const vorschau = new Uebernahme();
+  const flaechentext = (f: FlurstuecksInfo | undefined) =>
+    !f
+      ? "—"
+      : f.flaeche_aus_plan
+        ? `${z(f.flaeche_m2)} m² (aus Plan)`
+        : f.planflaeche_m2 == null
+          ? `${z(f.flaeche_m2)} m²`
+          : `${z(f.flaeche_m2)} m² Kataster · gezeichnet ${z(f.planflaeche_m2)} m²`;
   // Änderungen an Bindung oder „Fläche aus Plan“ setzt der Core ein; die
-  // Oberfläche trägt keine gezeichnete Fläche selbst ein.
+  // Oberfläche trägt keine gezeichnete Fläche selbst ein. Vor dem Einsetzen
+  // zeigt die Vorschau bisherigen und neuen Wert.
   async function planwerte(
     f: FlurstuecksInfo,
     aendern: (f: FlurstuecksInfo) => void,
@@ -86,7 +110,26 @@
     fehler = null;
     meldung = null;
     try {
-      eingabe = await planApi.flurstuecke(projekt.id, infos);
+      const vorher = $state.snapshot(eingabe);
+      const neu = await planApi.flurstuecke(projekt.id, infos);
+      const alt = vorher.flurstuecke.find((x) => x.id === f.id);
+      const danach = neu.flurstuecke.find((x) => x.id === f.id);
+      if (
+        !(await vorschau.fragen([
+          {
+            ziel: `Flurstück ${f.gemarkung} ${f.nummer} · Fläche`,
+            vorher: flaechentext(alt),
+            nachher: flaechentext(danach),
+            quelle: "Aufmaß",
+          },
+        ]))
+      )
+        return;
+      if (JSON.stringify($state.snapshot(eingabe)) !== JSON.stringify(vorher))
+        throw Error(
+          "Eingaben wurden zwischenzeitlich geändert. Übernahme erneut ausführen.",
+        );
+      eingabe = neu;
       meldung =
         "Werte aus dem Aufmaß eingesetzt. Bitte prüfen und Grundstücksinformationen speichern.";
     } catch (e) {
@@ -285,6 +328,7 @@
     speichern: async () => !laeuft && (!geaendert || (await speichern())),
   });
 </script>
+<UebernahmeVorschau v={vorschau} />
 
 <p class="meta">
   Katasterangaben und tatsächliche Flurstücksflächen. Grundbuchangaben und
@@ -465,6 +509,14 @@
             > (Stand R{f.planbindung.revision}) · gezeichnet {z(f.planflaeche_m2)} m²{#if !f.flaeche_aus_plan && f.planflaeche_m2 != null}
               · Abweichung zur Katasterfläche {z(f.planflaeche_m2 - f.flaeche_m2)} m²{/if}</span
           >
+          {@const stufe = abweichungsstufe(f)}
+          {#if stufe}<span
+              class={stufe === "fehler" ? "fehlertext" : "hinweistext"}
+              role="status"
+              >{stufe === "fehler"
+                ? `Abweichung über ${TOLERANZ.flurstueck.fehler_prozent} %: Kataster oder Zeichnung klären; die Einreichung bleibt bis dahin gesperrt.`
+                : `Abweichung über ${TOLERANZ.flurstueck.unauffaellig_prozent} %: Kataster oder Zeichnung prüfen. Gerechnet wird mit der Katasterfläche.`}</span
+            >{/if}
           <label class="inline"
             ><input
               type="checkbox"
