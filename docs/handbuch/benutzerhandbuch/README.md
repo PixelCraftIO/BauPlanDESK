@@ -57,6 +57,9 @@ fortgeschrieben wird:
 - **Bezeichnungen aus der Oberfläche übernehmen.** Knöpfe und Bereiche stehen
   in „Anführungszeichen“ genau so, wie sie in der App heißen. Wird ein Knopf
   umbenannt, nach dem alten Text im Ordner suchen und ersetzen.
+- **Web-Handbuch:** Die Webseite (`web/`, bauplanio.de/handbuch) zeigt genau
+  diese Dateien. Kapitel heißen `NN-name.md`, Bilder liegen in `bilder/`;
+  `npm test` in `web/` prüft, dass alle Verweise und Bilder auflösbar sind.
 - **Änderungen unten im Verlauf eintragen** (Datum, Programmstand, was neu ist).
 - **PDF neu erzeugen.** Nach jeder Änderung `python3 scripts/benutzerhandbuch-pdf.py`
   ausführen (braucht pandoc und Playwright mit Chromium; ein anderes Chromium

@@ -1,0 +1,39 @@
+{
+  "name": "bauplanio-web",
+  "private": true,
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "check": "tsc --noEmit",
+    "licenses": "node ../apps/desktop/scripts/check-licenses.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "better-auth": "1.7.10",
+    "better-sqlite3": "13.0.3",
+    "next": "16.4.2",
+    "react": "19.2.9",
+    "react-dom": "19.2.9",
+    "rehype-slug": "6.0.0",
+    "rehype-stringify": "10.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
+    "unified": "11.0.5",
+    "unist-util-visit": "5.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/hast": "3.0.5",
+    "@types/node": "22.19.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "sharp": "file:./vendor/kein-sharp"
+  }
+}

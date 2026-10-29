@@ -1,0 +1,7 @@
+{
+  "name": "sharp",
+  "version": "0.0.0-kein-sharp",
+  "description": "Platzhalter: Next.js bringt sharp (libvips, LGPL) als optionale Abhängigkeit mit. Die Seite nutzt keine Bildoptimierung (images.unoptimized), daher wird sharp durch dieses leere Paket ersetzt.",
+  "license": "MIT",
+  "main": "index.js"
+}
