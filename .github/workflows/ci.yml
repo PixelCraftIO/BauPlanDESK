@@ -78,6 +78,16 @@ jobs:
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
 
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - working-directory: web
+        run: npm ci && npm run licenses && npm test && npm run build
+
   ui:
     runs-on: ubuntu-24.04
     env:

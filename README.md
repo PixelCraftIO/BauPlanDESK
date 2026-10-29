@@ -80,6 +80,7 @@ crates/server              axum-Server (NAS/Büro/Cloud)
 crates/lizenz-server       Lizenzserver des Herstellers (Abo-Tickets, Stripe, Updates)
 apps/desktop               Svelte-Frontend
 apps/desktop/src-tauri     Tauri-App (Fenster, Updater, Bootstrap, Commands)
+web                        Webseite bauplanio.de: Landingpage + Web-Handbuch (Next.js, Better Auth, siehe web/README.md)
 lbo-rules                  LBO-Regelpakete (Rhai); ausgeliefert für BW, BY und NW
 ```
 
