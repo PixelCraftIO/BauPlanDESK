@@ -33,6 +33,7 @@ fn main() {
         core_lib::planlayout::Blattformat,
         core_lib::planlayout::Layoutwunsch,
         core_lib::planlayout::Stempelwunsch,
+        core_lib::planlayout::Wolkenwunsch,
         core_lib::druckausgabe::planlayout::Plankopf,
         core_lib::cad::Laengeneinheit,
         core_lib::cad::projektaufmass::CadMarkierung,

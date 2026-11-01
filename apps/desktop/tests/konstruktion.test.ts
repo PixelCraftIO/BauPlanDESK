@@ -90,3 +90,20 @@ test("Öffnung mittig um den Klick, ohne Überlappung", () => {
   assert.equal(oeffnungLage([0, 0], [6, 0], [2, 0], 1, 1, [{ art: "tuer", lage_m: 1.8, breite_m: 0.9 }]), null);
   assert.equal(oeffnungLage([0, 0], [0.5, 0], [0.2, 0], 1, 1, []), null);
 });
+
+import { differenz, bereiche } from "../src/lib/planaufmass/planvergleich.ts";
+test("Planvergleich: entfallen, neu, Bereiche", () => {
+  const w = 60, h = 40;
+  const leer = () => new Uint8ClampedArray(w * h * 4).fill(255);
+  const strich = (d: Uint8ClampedArray, x0: number, x1: number, y: number) => { for (let x = x0; x < x1; x++) { const o = (y * w + x) * 4; d[o] = d[o + 1] = d[o + 2] = 0; } };
+  const alt = leer(), neu = leer();
+  strich(alt, 5, 25, 5); strich(neu, 5, 25, 5);   // gleich
+  strich(alt, 5, 25, 30);                           // entfallen
+  strich(neu, 40, 55, 20);                          // neu
+  const { maske } = differenz(alt, neu, w, h);
+  assert.equal(maske[30 * w + 10], 1);
+  assert.equal(maske[20 * w + 45], 2);
+  assert.equal(maske[5 * w + 10], 0);
+  const bs = bereiche(maske, w, h, 4, 0, 4);
+  assert.equal(bs.length, 2);
+});

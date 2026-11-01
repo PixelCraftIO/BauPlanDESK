@@ -182,6 +182,46 @@ pub async fn planlayout_exportieren(
     Ok(abgelegt)
 }
 #[tauri::command]
+pub async fn planaufmass_dxf(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass_id: uuid::Uuid,
+    revision: i64,
+    nur_sichtbare_ebenen: bool,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let dxf = state
+        .core
+        .planaufmass_dxf(
+            projekt_id,
+            aufmass_id,
+            revision,
+            nur_sichtbare_ebenen,
+            &state.benutzer(),
+        )
+        .await?;
+    tokio::fs::write(ziel, dxf)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn plan_revisionswolken(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planlayout::Wolkenwunsch,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .plan_revisionswolken(projekt_id, &wunsch, &state.benutzer())
+        .await?;
+    tokio::fs::write(ziel, pdf)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
 pub async fn plankopf_stempeln(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

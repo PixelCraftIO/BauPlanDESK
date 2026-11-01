@@ -191,6 +191,8 @@ fn main() {
             commands::planliste,
             commands::planlayout_exportieren,
             commands::plankopf_stempeln,
+            commands::planaufmass_dxf,
+            commands::plan_revisionswolken,
             commands::plannummernschema,
             commands::plannummernschema_speichern,
             commands::projekt_anlegen,

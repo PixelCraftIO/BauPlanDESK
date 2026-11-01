@@ -16,6 +16,7 @@
   import { plattformApi } from "../plattformApi";
   import { ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { editorAnmelden } from "../editoren";
+  import PlanVergleich from "./PlanVergleich.svelte";
   let {
     projekt,
     darf,
@@ -391,6 +392,11 @@
       <button type="button" class="sekundaer" disabled={laeuft || geaendert || !zeile?.aktuelle_version} title={geaendert ? "Zuerst speichern" : "Plankopf unten rechts auf Seite 1 setzen"} onclick={() => void stempeln()}
         >Plankopf stempeln …</button
       >
+      {#if zeile?.aktuelle_version && zeile.dateiname.toLowerCase().endsWith(".pdf")}
+        <PlanVergleich projektId={projekt.id} dokumentId={eingabe.dokument_id} plannummer={eingabe.plannummer}
+          versionen={[...new Set(dateien.filter((d) => d.document_id === eingabe?.dokument_id).map((d) => d.version))].sort((a, b) => a - b)}
+          aktuell={zeile.aktuelle_version} onindex={(t) => (neuerIndex.aenderung = t)} />
+      {/if}
       <h3>Planverteiler</h3>
       <table class="ergebnistabelle">
         <thead

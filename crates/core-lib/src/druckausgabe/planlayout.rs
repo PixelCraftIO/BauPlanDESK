@@ -46,6 +46,8 @@ pub enum Fuellung {
 /// Linienzug in Blattmetern (y nach unten, wie im Zeicheneditor).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Planlinie {
+    /// Zeichenebene (für DXF-Layer); im PDF ohne Bedeutung.
+    pub ebene: String,
     pub punkte: Vec<[f64; 2]>,
     pub geschlossen: bool,
     pub stift: Stift,
@@ -54,6 +56,7 @@ pub struct Planlinie {
 /// Text in Blattmetern; Höhe in mm auf dem Papier.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plantext {
+    pub ebene: String,
     pub punkt: [f64; 2],
     pub text: String,
     pub hoehe_mm: f64,
@@ -633,6 +636,70 @@ pub fn stempeln(original: &[u8], seite: u32, kopf: &Plankopf) -> CoreResult<Vec<
     pdf::speichern(d)
 }
 
+/// Revisionswolken (Bogenkette um jedes Rechteck) mit Indexdreieck auf einer
+/// Seite; Bereiche in sichtbaren Seitenpunkten (links oben, y nach unten).
+pub fn wolken(
+    original: &[u8],
+    seite: u32,
+    bereiche: &[[f64; 4]],
+    index: &str,
+) -> CoreResult<Vec<u8>> {
+    let mut d = pdf::auswahl(original, &[])?;
+    let page = *d
+        .get_pages()
+        .get(&seite)
+        .ok_or_else(|| fehler("Seite nicht vorhanden"))?;
+    let matrix = crate::formular::editor::seitenabbildung(&d, page)?;
+    let texte = vec![index.to_string()];
+    zeichnen(&mut d, page, matrix, &texte, |z| {
+        let rot = Stift {
+            breite_mm: 0.5,
+            farbe: [0.8, 0.05, 0.1],
+            muster: vec![],
+        };
+        for b in bereiche {
+            let (x, y, w, h) = (b[0], b[1], b[2].abs().max(4.), b[3].abs().max(4.));
+            // Bögen etwa alle 8 mm, mindestens zwei je Seite.
+            let bogen = 8. * PT_MM;
+            let ecken = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+            z.stift(&rot);
+            z.op("m", vec![r(x), r(y)]);
+            for i in 0..4 {
+                let (a, e) = (ecken[i], ecken[(i + 1) % 4]);
+                let l = (e[0] - a[0]).hypot(e[1] - a[1]);
+                let n = ((l / bogen).round() as usize).clamp(2, 400);
+                let u = [(e[0] - a[0]) / n as f64, (e[1] - a[1]) / n as f64];
+                // Außen liegt links der Laufrichtung im Uhrzeigersinn (y nach unten).
+                let aussen = [u[1], -u[0]];
+                for k in 0..n {
+                    let p0 = [a[0] + u[0] * k as f64, a[1] + u[1] * k as f64];
+                    let p1 = [p0[0] + u[0], p0[1] + u[1]];
+                    let c1 = [p0[0] + aussen[0] * 0.55, p0[1] + aussen[1] * 0.55];
+                    let c2 = [p1[0] + aussen[0] * 0.55, p1[1] + aussen[1] * 0.55];
+                    z.op(
+                        "c",
+                        vec![r(c1[0]), r(c1[1]), r(c2[0]), r(c2[1]), r(p1[0]), r(p1[1])],
+                    );
+                }
+            }
+            z.op("S", vec![]);
+            // Indexdreieck rechts oben an der Wolke.
+            if !index.trim().is_empty() {
+                let (tx, ty, s) = (x + w + 3. * PT_MM, y - 3. * PT_MM, 7. * PT_MM);
+                z.stift(&rot);
+                z.pfad(
+                    &[[tx, ty], [tx + s, ty], [tx + s / 2., ty - s * 0.87]],
+                    true,
+                );
+                z.op("S", vec![]);
+                z.text(index, tx + s * 0.28, ty - 0.6 * PT_MM, 9., 0.)?;
+            }
+        }
+        Ok(())
+    })?;
+    pdf::speichern(d)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,6 +724,7 @@ mod tests {
             hoehe_mm: 297.,
             massstab: 100.,
             linien: vec![Planlinie {
+                ebene: String::new(),
                 punkte: vec![[0., 0.], [breite, 0.], [breite, 8.], [0., 8.]],
                 geschlossen: true,
                 stift: Stift {
@@ -670,6 +738,7 @@ mod tests {
                 },
             }],
             texte: vec![Plantext {
+                ebene: String::new(),
                 punkt: [1., 4.],
                 text: "Wohnen".into(),
                 hoehe_mm: 3.5,
@@ -724,5 +793,7 @@ mod tests {
         let aus = stempeln(&b, 1, &kopf()).unwrap();
         assert!(aus.len() > b.len());
         assert!(stempeln(&b, 2, &kopf()).is_err());
+        let w = wolken(&b, 1, &[[100., 100., 200., 80.]], "b").unwrap();
+        assert!(w.len() > b.len());
     }
 }

@@ -147,6 +147,32 @@ async fn planlayout_mit_plankopf_ablage_und_stempel() {
         .await
         .unwrap();
     assert!(gestempelt.len() > 1000);
+    // Revisionswolke um einen geänderten Bereich.
+    let gewoelkt = core
+        .plan_revisionswolken(
+            p.id,
+            &core_lib::planlayout::Wolkenwunsch {
+                dokument_id: doc.document_id,
+                version: doc.version,
+                seite: 1,
+                bereiche: vec![[200., 150., 120., 60.]],
+                index: "b".into(),
+            },
+            &u,
+        )
+        .await
+        .unwrap();
+    assert!(gewoelkt.starts_with(b"%PDF"));
+    // DXF der Zeichnung: Meter, Ebene „Wände“.
+    let dxf = core
+        .planaufmass_dxf(p.id, aid, f.revision, true, &u)
+        .await
+        .unwrap();
+    let text = String::from_utf8_lossy(&dxf);
+    assert!(
+        text.contains("Wände") && text.contains("LWPOLYLINE"),
+        "DXF mit Ebene und Polylinien"
+    );
     // PDF-Unterlage statt Zeichnung: Layout verweist auf den Stempel.
     let auf_pdf = serde_json::json!({
         "bezeichnung": "Aufmaß", "dokument": {"dokument_id": doc.document_id, "version": 1},

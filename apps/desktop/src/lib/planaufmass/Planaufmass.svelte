@@ -88,6 +88,14 @@
   let layout=$state({format:"a3" as import("../generated/plattform").Blattformat,hochformat:false,massstab:100,nord:true,nordwinkel:0,planinhalt:"",dokument:"",legende:true,ablegen:false});
   let planlisteZeilen=$state<import("../generated/plattform").Planzeile[]>([]);
   async function planlisteLaden(){try{planlisteZeilen=(await api.planliste(s.projektId)).zeilen}catch{planlisteZeilen=[]}}
+  async function dxfAusgeben(){
+    if(!s.eingabe||!s.id||exportLaeuft)return;
+    if(s.hatAenderungen()){
+      if(!darf||!(await ask("Für die DXF-Ausgabe zuerst speichern?",{title:"DXF ausgeben",okLabel:"Speichern und ausgeben",cancelLabel:"Abbrechen"}))||!(await s.speichern()))return;
+    }
+    const ziel=await save({defaultPath:`${s.eingabe.bezeichnung.replace(/[<>:"/\\|?*]/g,"_")}.dxf`,filters:[{name:"DXF",extensions:["dxf"]}]});if(!ziel)return;
+    exportLaeuft=true;try{await api.planaufmassDxf(s.projektId,s.id,s.revision,nurSichtbare,ziel);s.meldung=`DXF ausgegeben (Meter, eine DXF-Ebene je Zeichenebene): ${ziel}`}catch(e){s.fehler=fehlertext(e)}finally{exportLaeuft=false}
+  }
   async function layoutAusgeben(){
     if(!s.eingabe||!s.id||exportLaeuft)return;
     if(s.hatAenderungen()){
@@ -1154,7 +1162,7 @@
             {/if}
             <h3>Ausgabe</h3>
             <label><input type="checkbox" bind:checked={nurSichtbare}/>Nur sichtbare Ebenen ausgeben</label>
-            <div class="aktionen"><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}>Aufmaßblatt PDF …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}>Messwerte CSV …</button></div>
+            <div class="aktionen"><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}>Aufmaßblatt PDF …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}>Messwerte CSV …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} title="Zeichnung und Markierungen in Metern für das Büro-CAD (Ebenen, Farben, Strichstärken)" onclick={()=>void dxfAusgeben()}>DXF fürs CAD …</button></div>
             {#if istZeichnung}
               <details class="planlayout" ontoggle={e=>{if(e.currentTarget.open)void planlisteLaden()}}><summary><h3>Planlayout (maßstäbliches Planblatt)</h3></summary>
                 <div class="kalibrierung">

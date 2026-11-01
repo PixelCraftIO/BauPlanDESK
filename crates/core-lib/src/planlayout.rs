@@ -83,6 +83,19 @@ pub struct Stempelwunsch {
     pub seite: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Wolkenwunsch {
+    pub dokument_id: DocumentId,
+    #[ts(type = "number")]
+    pub version: i64,
+    pub seite: u32,
+    /// Bereiche als [x, y, Breite, Höhe] in Seitenpunkten (links oben, y nach unten).
+    pub bereiche: Vec<[f64; 4]>,
+    /// Index im Dreieck neben jeder Wolke, z. B. „b“.
+    pub index: String,
+}
+
 const MM_JE_M: f64 = 1000.;
 
 fn farbe(hex: Option<&str>, standard: [f64; 3]) -> [f64; 3] {
@@ -317,6 +330,8 @@ fn zahl(v: f64) -> String {
 pub fn inhalte(
     p: &Planaufmass,
     massstab: f64,
+    // Meter je Blatteinheit: 1 bei eigenen Zeichnungen, sonst aus der Kalibrierung.
+    faktor: f64,
     nur_sichtbare: bool,
     raeume: &std::collections::HashMap<Uuid, (String, String, f64)>,
 ) -> (Vec<Planlinie>, Vec<Plantext>, Vec<Legendeneintrag>) {
@@ -324,11 +339,14 @@ pub fn inhalte(
     let zeigen = |id: Uuid| ebene(id).is_some_and(|e| !nur_sichtbare || e.sichtbar);
     let mut linien = Vec::new();
     let mut texte = Vec::new();
+    let ebenenname = |id: Uuid| ebene(id).map(|e| e.bezeichnung.clone()).unwrap_or_default();
     for m in p.markierungen.iter().filter(|m| zeigen(m.ebene_id)) {
+        let name = ebenenname(m.ebene_id);
         let d = ebene(m.ebene_id).and_then(|e| e.darstellung.as_ref());
         let (rs, zu) = ringe(&m.geometrie);
         for r in rs {
             linien.push(Planlinie {
+                ebene: name.clone(),
                 punkte: r,
                 geschlossen: zu,
                 stift: stift(None, d, 0.35),
@@ -341,6 +359,7 @@ pub fn inhalte(
         }
     }
     for e in p.elemente.iter().filter(|e| zeigen(e.ebene_id)) {
+        let name = ebenenname(e.ebene_id);
         let d = ebene(e.ebene_id).and_then(|l| l.darstellung.as_ref());
         let s = stift(e.darstellung.as_ref(), d, 0.5);
         match &e.form {
@@ -350,9 +369,10 @@ pub fn inhalte(
                 dicke_m,
                 oeffnungen,
             } => {
-                let w = wandbild(*von, *bis, *dicke_m, oeffnungen, 1.);
+                let w = wandbild(*von, *bis, *dicke_m, oeffnungen, faktor);
                 for k in w.stuecke {
                     linien.push(Planlinie {
+                        ebene: name.clone(),
                         punkte: k,
                         geschlossen: true,
                         stift: s.clone(),
@@ -361,6 +381,7 @@ pub fn inhalte(
                 }
                 for l in w.linien {
                     linien.push(Planlinie {
+                        ebene: name.clone(),
                         punkte: l,
                         geschlossen: false,
                         stift: Stift {
@@ -383,15 +404,17 @@ pub fn inhalte(
                     ..s.clone()
                 };
                 linien.push(Planlinie {
+                    ebene: name.clone(),
                     punkte: vec![a, b],
                     geschlossen: false,
                     stift: fein.clone(),
                     fuellung: Fuellung::Keine,
                 });
                 // Hilfslinien und Schrägstriche (1,5 mm auf dem Papier).
-                let t = 1.5 / MM_JE_M * massstab;
+                let t = 1.5 / MM_JE_M * massstab / faktor;
                 for (q, h) in [(von, a), (bis, b)] {
                     linien.push(Planlinie {
+                        ebene: name.clone(),
                         punkte: vec![*q, h],
                         geschlossen: false,
                         stift: fein.clone(),
@@ -399,6 +422,7 @@ pub fn inhalte(
                     });
                     let w = [(u[0] - u[1]) * t, (u[1] + u[0]) * t];
                     linien.push(Planlinie {
+                        ebene: name.clone(),
                         punkte: vec![[h[0] - w[0], h[1] - w[1]], [h[0] + w[0], h[1] + w[1]]],
                         geschlossen: false,
                         stift: Stift {
@@ -414,8 +438,9 @@ pub fn inhalte(
                 }
                 let mitte = [(a[0] + b[0]) / 2., (a[1] + b[1]) / 2.];
                 texte.push(Plantext {
+                    ebene: name.clone(),
                     punkt: [mitte[0] - u[0] * t * 4., mitte[1] - u[1] * t * 4.],
-                    text: zahl(l),
+                    text: zahl(l * faktor),
                     hoehe_mm: 2.5,
                     drehung_grad: grad,
                     farbe: s.farbe,
@@ -427,9 +452,10 @@ pub fn inhalte(
                 hoehe,
                 drehung_grad,
             } => texte.push(Plantext {
+                ebene: name.clone(),
                 punkt: *punkt,
                 text: inhalt.clone(),
-                hoehe_mm: hoehe * MM_JE_M / massstab,
+                hoehe_mm: hoehe * faktor * MM_JE_M / massstab,
                 drehung_grad: *drehung_grad,
                 farbe: s.farbe,
             }),
@@ -441,6 +467,7 @@ pub fn inhalte(
             } => {
                 for (ps, zu, voll) in symbolbild(*symbol, *punkt, *groesse, *drehung_grad) {
                     linien.push(Planlinie {
+                        ebene: name.clone(),
                         punkte: ps,
                         geschlossen: zu,
                         stift: s.clone(),
@@ -469,8 +496,9 @@ pub fn inhalte(
                     ),
                     None => ("Raum fehlt im Raumbuch".into(), String::new()),
                 };
-                let h = hoehe * MM_JE_M / massstab;
+                let h = hoehe * faktor * MM_JE_M / massstab;
                 texte.push(Plantext {
+                    ebene: name.clone(),
                     punkt: *punkt,
                     text: kopf,
                     hoehe_mm: h,
@@ -478,6 +506,7 @@ pub fn inhalte(
                     farbe: s.farbe,
                 });
                 texte.push(Plantext {
+                    ebene: name.clone(),
                     punkt: [punkt[0], punkt[1] + hoehe * 1.4],
                     text: flaeche,
                     hoehe_mm: h * 0.85,
@@ -655,7 +684,7 @@ impl CoreServices {
         let (breite_mm, hoehe_mm) = if w.hochformat { (b, h) } else { (h, b) };
         let massstab = w.massstab as f64;
         let raeume = self.raumstempel_daten(pid).await?;
-        let (linien, texte, legende) = inhalte(&p, massstab, w.nur_sichtbare_ebenen, &raeume);
+        let (linien, texte, legende) = inhalte(&p, massstab, 1., w.nur_sichtbare_ebenen, &raeume);
         let planinhalt = if w.planinhalt.trim().is_empty() && w.dokument_id.is_none() {
             p.bezeichnung.clone()
         } else {
@@ -718,6 +747,67 @@ impl CoreServices {
         Ok((pdf, abgelegt))
     }
 
+    /// DXF einer eigenen Zeichnung oder eines kalibrierten Aufmaßes (Meter, y nach oben).
+    pub async fn planaufmass_dxf(
+        &self,
+        pid: ProjectId,
+        aufmass_id: Uuid,
+        revision: i64,
+        nur_sichtbare_ebenen: bool,
+        wer: &Benutzer,
+    ) -> CoreResult<Vec<u8>> {
+        self.projekt_zugriff(pid, wer, ProjektRecht::Lesen).await?;
+        let f = self
+            .fachobjekt_lesen(pid, ObjektArt::Planaufmass, aufmass_id)
+            .await?
+            .ok_or_else(|| CoreError::NotFound("Aufmaß nicht vorhanden".into()))?;
+        if f.revision != revision {
+            return Err(CoreError::VersionConflict {
+                expected: revision,
+                actual: f.revision,
+            });
+        }
+        let p: Planaufmass =
+            serde_json::from_value(f.daten).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+        p.messen()?;
+        let faktor = if p.ist_zeichnung() {
+            1.
+        } else {
+            p.kalibrierung_wirksam()
+                .ok_or_else(|| {
+                    CoreError::InvalidInput("Für die DXF-Ausgabe zuerst den Maßstab setzen".into())
+                })?
+                .meter_pro_punkt()?
+        };
+        let raeume = self.raumstempel_daten(pid).await?;
+        let (linien, texte, _) = inhalte(&p, 100., faktor, nur_sichtbare_ebenen, &raeume);
+        crate::cad::dxfexport::schreiben(&linien, &texte, faktor, 100.)
+    }
+    /// Revisionswolken um geänderte Bereiche einer Planseite (Seitenpunkte, links
+    /// oben, y nach unten) mit Indexdreieck; liefert die markierte Datei.
+    pub async fn plan_revisionswolken(
+        &self,
+        pid: ProjectId,
+        w: &Wolkenwunsch,
+        wer: &Benutzer,
+    ) -> CoreResult<Vec<u8>> {
+        self.projekt_zugriff(pid, wer, ProjektRecht::Lesen).await?;
+        if w.bereiche.is_empty() || w.bereiche.len() > 200 {
+            return Err(CoreError::InvalidInput(
+                "1 bis 200 Änderungsbereiche angeben".into(),
+            ));
+        }
+        if w.bereiche.iter().flatten().any(|v| !v.is_finite()) || w.index.chars().count() > 10 {
+            return Err(CoreError::InvalidInput(
+                "Ungültiger Bereich oder Index".into(),
+            ));
+        }
+        let (d, bytes) = self.load_version(w.dokument_id, w.version).await?;
+        if d.project_id != pid {
+            return Err(CoreError::NotFound("Dokument nicht im Projekt".into()));
+        }
+        crate::druckausgabe::planlayout::wolken(&bytes, w.seite.max(1), &w.bereiche, &w.index)
+    }
     /// Plankopf auf einer Seite eines PDF-Plans; liefert die gestempelte Datei.
     /// Das Original im DMS bleibt unverändert.
     pub async fn plankopf_stempeln(

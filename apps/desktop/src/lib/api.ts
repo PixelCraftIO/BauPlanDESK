@@ -1383,6 +1383,10 @@ export const api = {
     }),
   planlayoutExportieren: (projektId: string, wunsch: import("./generated/plattform").Layoutwunsch, ziel: string | null) =>
     invoke<DocumentVersion | null>("planlayout_exportieren", { projektId, wunsch, ziel }),
+  planaufmassDxf: (projektId: string, aufmassId: string, revision: number, nurSichtbareEbenen: boolean, ziel: string) =>
+    invoke<void>("planaufmass_dxf", { projektId, aufmassId, revision, nurSichtbareEbenen, ziel }),
+  planRevisionswolken: (projektId: string, wunsch: import("./generated/plattform").Wolkenwunsch, ziel: string) =>
+    invoke<void>("plan_revisionswolken", { projektId, wunsch, ziel }),
   plankopfStempeln: (projektId: string, wunsch: import("./generated/plattform").Stempelwunsch, ziel: string) =>
     invoke<void>("plankopf_stempeln", { projektId, wunsch, ziel }),
   plannummernschema: () =>

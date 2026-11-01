@@ -149,6 +149,15 @@ dokument_id: DocumentId | null, legende: boolean, nur_sichtbare_ebenen: boolean,
  */
 ablegen: boolean, };
 export type Stempelwunsch = { dokument_id: DocumentId, version: number, seite: number, };
+export type Wolkenwunsch = { dokument_id: DocumentId, version: number, seite: number,
+/**
+ * Bereiche als [x, y, Breite, Höhe] in Seitenpunkten (links oben, y nach unten).
+ */
+bereiche: Array<[number, number, number, number]>,
+/**
+ * Index im Dreieck neben jeder Wolke, z. B. „b“.
+ */
+index: string, };
 export type Plankopf = { bauherr: string, vorhaben: string, grundstueck: string, planinhalt: string, planverfasser: string, plannummer: string, index: string, massstab: string, datum: string, format: string, };
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
