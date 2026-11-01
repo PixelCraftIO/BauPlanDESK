@@ -2,13 +2,16 @@
  * Darstellung im Zeicheneditor: Stift, Linienart, Farbe, Schraffur. Element
  * überschreibt Ebene, Ebene überschreibt Standard. Nur Anzeige und Planausgabe.
  */
-import type { Darstellung, Linienart, Schraffur } from "../generated/plattform";
+import type { Bauzustand, Darstellung, Linienart, Schraffur } from "../generated/plattform";
 
 /** Stiftstärken nach DIN ISO 128 (mm). */
 export const STIFTE = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0, 1.4, 2.0];
 export const LINIENARTEN: [Linienart, string][] = [["volllinie", "Volllinie"], ["strichlinie", "Strichlinie"], ["strichpunktlinie", "Strichpunktlinie"], ["punktlinie", "Punktlinie"]];
 export const SCHRAFFUREN: [Schraffur, string][] = [["keine", "Keine"], ["voll", "Vollfläche"], ["diagonal", "Diagonal"], ["kreuz", "Kreuz"], ["mauerwerk", "Mauerwerk"], ["beton", "Beton"], ["daemmung", "Dämmung"], ["erdreich", "Erdreich"]];
 
+/** Bauzustand nach BauVorlV/BauPrüfVO: Bestand grau, Abbruch gelb, Neubau rot (wie im Core). */
+export const BAUZUSTAENDE: [Bauzustand, string, string][] = [["bestand", "Bestand", "#7f7f7f"], ["abbruch", "Abbruch", "#e0b000"], ["neubau", "Neubau", "#c8102e"]];
+export const zustandsfarbe = (b?: Bauzustand | null) => BAUZUSTAENDE.find(([k]) => k === b)?.[2] ?? null;
 export type Wirksam = { stift_mm: number | null; linienart: Linienart | null; farbe: string | null; schraffur: Schraffur | null };
 
 /** Fasst Element- und Ebenendarstellung zusammen; `null` = Standard des Editors. */
@@ -16,11 +19,22 @@ export function wirksam(element?: Darstellung | null, ebene?: Darstellung | null
   return {
     stift_mm: element?.stift_mm ?? ebene?.stift_mm ?? null,
     linienart: element?.linienart ?? ebene?.linienart ?? null,
-    farbe: element?.farbe ?? ebene?.farbe ?? null,
+    farbe: element?.farbe ?? ebene?.farbe ?? zustandsfarbe(element?.bauzustand ?? ebene?.bauzustand),
     schraffur: element?.schraffur ?? ebene?.schraffur ?? null,
   };
 }
-export const leer = (d?: Darstellung | null) => !d || (d.stift_mm == null && d.linienart == null && d.farbe == null && d.schraffur == null);
+export const leer = (d?: Darstellung | null) => !d || (d.stift_mm == null && d.linienart == null && d.farbe == null && d.schraffur == null && d.bauzustand == null);
+/** Ebenen eines Bauantrags-Lageplans (PlanZV/BauVorlV), anlegbar per Knopfdruck. */
+export const LAGEPLAN_EBENEN: [string, Darstellung][] = [
+  ["Grundstücksgrenze", { stift_mm: 0.7, linienart: "strichpunktlinie", farbe: "#000000" }],
+  ["Bestand", { stift_mm: 0.35, bauzustand: "bestand", schraffur: "voll" }],
+  ["Abbruch", { stift_mm: 0.35, bauzustand: "abbruch", schraffur: "kreuz" }],
+  ["Neubau", { stift_mm: 0.5, bauzustand: "neubau", schraffur: "voll" }],
+  ["Baugrenze / Baulinie", { stift_mm: 0.5, linienart: "strichpunktlinie", farbe: "#1f4fa3" }],
+  ["Abstandsflächen", { stift_mm: 0.25, linienart: "strichlinie", farbe: "#1a7f37" }],
+  ["Freiflächen und Bäume", { stift_mm: 0.25, farbe: "#2f7d32" }],
+  ["Stellplätze und Zufahrten", { stift_mm: 0.25, farbe: "#4a4a4a" }],
+];
 
 /** Strichmuster relativ zur Strichbreite (Bildschirm-Pixel, da die Linien nicht mitskalieren). */
 export function strichmuster(art: Linienart | null, breite: number): string | null {

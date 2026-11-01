@@ -43,16 +43,18 @@ export function hgDrehen(h: Planhintergrund, p: Point, grad: number): Planhinter
   return { ...h, drehung_grad: h.drehung_grad + grad, lage: [p[0] + dx * c - dy * s, p[1] + dx * s + dy * c] };
 }
 
+/** Text, Planzeichen und Raumstempel haben einen Einfügepunkt, Wand und Maßkette eine Achse. */
+export const punktform = (f: Zeichenform): f is Extract<Zeichenform, { punkt: [number, number] }> => "punkt" in f;
 export function elementPunkte(f: Zeichenform): Point[] {
-  return f.art === "text" ? [f.punkt] : [f.von, f.bis];
+  return punktform(f) ? [f.punkt] : [f.von, f.bis];
 }
 export function elementSetzen<T extends Zeichenform>(f: T, index: number, p: Point): T {
-  if (f.art === "text") return { ...f, punkt: p };
+  if (punktform(f)) return { ...f, punkt: p };
   return index === 0 ? { ...f, von: p } : { ...f, bis: p };
 }
 export function elementVerschieben<T extends Zeichenform>(f: T, dx: number, dy: number): T {
   const v = (p: Point): Point => [p[0] + dx, p[1] + dy];
-  if (f.art === "text") return { ...f, punkt: v(f.punkt) };
+  if (punktform(f)) return { ...f, punkt: v(f.punkt) };
   return { ...f, von: v(f.von), bis: v(f.bis) };
 }
 /** Wandkontur (vier Ecken) in Seitenpunkten; `dicke` ebenfalls in Seitenpunkten. */

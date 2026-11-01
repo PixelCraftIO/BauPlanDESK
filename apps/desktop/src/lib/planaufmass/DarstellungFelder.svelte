@@ -1,7 +1,7 @@
 <script lang="ts">
   /** Stift, Linienart, Farbe und Schraffur; leere Felder erben (Element → Ebene → Standard). */
   import type { Darstellung } from "../generated/plattform";
-  import { STIFTE, LINIENARTEN, SCHRAFFUREN, leer } from "./darstellung";
+  import { STIFTE, LINIENARTEN, SCHRAFFUREN, BAUZUSTAENDE, leer } from "./darstellung";
   let { wert, onaendern, erbe = "Standard", schraffur = true, gemischt = false, disabled = false }:
     { wert: Darstellung | null | undefined; onaendern: (d: Darstellung | undefined) => void; erbe?: string; schraffur?: boolean; gemischt?: boolean; disabled?: boolean } = $props();
   function setzen<K extends keyof Darstellung>(k: K, v: Darstellung[K] | undefined) {
@@ -20,6 +20,8 @@
     <option value="">{ohne}</option>{#each LINIENARTEN as [v, t]}<option value={v}>{t}</option>{/each}</select></label>
   <label>Farbe<span class="farbe"><input type="color" value={wert?.farbe ?? "#2b3138"} onchange={e => setzen("farbe", e.currentTarget.value)} aria-label="Farbe wählen"/>
     {#if wert?.farbe}<button type="button" class="link" onclick={() => setzen("farbe", undefined)}>{ohne}</button>{:else}<span class="meta">{ohne}</span>{/if}</span></label>
+  <label>Bauzustand<select value={wert?.bauzustand ?? ""} onchange={e => setzen("bauzustand", (e.currentTarget.value || undefined) as Darstellung["bauzustand"])} title="Farbe nach BauVorlV: Bestand grau, Abbruch gelb, Neubau rot (eigene Farbe hat Vorrang)">
+    <option value="">{ohne}</option>{#each BAUZUSTAENDE as [v, t]}<option value={v}>{t}</option>{/each}</select></label>
   {#if schraffur}<label>Schraffur<select value={wert?.schraffur ?? ""} onchange={e => setzen("schraffur", (e.currentTarget.value || undefined) as Darstellung["schraffur"])}>
     <option value="">{ohne}</option>{#each SCHRAFFUREN as [v, t]}<option value={v}>{t}</option>{/each}</select></label>{/if}
 </fieldset>

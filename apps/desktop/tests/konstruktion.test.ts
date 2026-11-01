@@ -75,3 +75,18 @@ test("Befehlszeile", () => {
   assert.deepEqual(befehlAuswerten("PL"), { befehl: "polygon", zahlen: [] });
   assert.equal(befehlAuswerten("xyz"), null);
 });
+
+import { wandbild, oeffnungLage } from "../src/lib/planaufmass/planzeichen.ts";
+test("Wand mit Fenster und Tür", () => {
+  const w = wandbild([0, 0], [6, 0], 0.24, [{ art: "fenster", lage_m: 1, breite_m: 1 }, { art: "tuer", lage_m: 3, breite_m: 0.9, links: true }], 1);
+  assert.equal(w.stuecke.length, 3);
+  assert.equal(w.linien.length, 5);
+  assert.equal(w.boegen.length, 1);
+  nah(w.stuecke[1][0], [2, 0.12]);
+});
+test("Öffnung mittig um den Klick, ohne Überlappung", () => {
+  assert.equal(oeffnungLage([0, 0], [6, 0], [2, 0.1], 1, 1, []), 1.5);
+  assert.equal(oeffnungLage([0, 0], [6, 0], [5.9, 0], 1, 1, []), 5);
+  assert.equal(oeffnungLage([0, 0], [6, 0], [2, 0], 1, 1, [{ art: "tuer", lage_m: 1.8, breite_m: 0.9 }]), null);
+  assert.equal(oeffnungLage([0, 0], [0.5, 0], [0.2, 0], 1, 1, []), null);
+});

@@ -35,7 +35,7 @@ export function kantenVon(g: Plangeometrie): [Punkt, Punkt][] {
 }
 
 /** Punkte eines Zeichenelements (Wand, Maßkette: Achse; Text: Einfügepunkt). */
-export const elementpunkte = (f: Zeichenform): Punkt[] => (f.art === "text" ? [f.punkt as Punkt] : [f.von as Punkt, f.bis as Punkt]);
+export const elementpunkte = (f: Zeichenform): Punkt[] => ("punkt" in f ? [f.punkt as Punkt] : [f.von as Punkt, f.bis as Punkt]);
 
 /** Wendet `punkt` auf jede Koordinate an; Rechtecke werden dabei zu Polygonen (gedrehte Lage bleibt erhalten). */
 export function abbildenGeometrie(g: Plangeometrie, punkt: (p: Punkt) => Punkt): Plangeometrie {
@@ -47,7 +47,7 @@ export function abbildenGeometrie(g: Plangeometrie, punkt: (p: Punkt) => Punkt):
   return { ...g, von: punkt(g.von as Punkt), bis: punkt(g.bis as Punkt) };
 }
 export function abbildenElement<T extends Zeichenform>(f: T, punkt: (p: Punkt) => Punkt): T {
-  if (f.art === "text") return { ...f, punkt: punkt(f.punkt as Punkt) };
+  if ("punkt" in f) return { ...f, punkt: punkt(f.punkt as Punkt) };
   return { ...f, von: punkt(f.von as Punkt), bis: punkt(f.bis as Punkt) };
 }
 
@@ -67,7 +67,11 @@ export function spiegelung(a: Punkt, b: Punkt): (p: Punkt) => Punkt {
 export function elementSpiegeln<T extends Zeichenform>(f: T, a: Punkt, b: Punkt): T {
   const s = abbildenElement(f, spiegelung(a, b));
   if (s.art === "masskette") return { ...s, abstand: -s.abstand };
-  if (s.art === "text") {
+  if (s.art === "wand" && s.oeffnungen?.length) {
+    // Achse läuft gespiegelt weiter; Türanschlag wechselt die Seite.
+    return { ...s, oeffnungen: s.oeffnungen.map(o => ({ ...o, links: !o.links })) };
+  }
+  if (s.art === "text" || s.art === "symbol") {
     // Text bleibt lesbar: nur die Richtung wird gespiegelt.
     const w = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
     return { ...s, drehung_grad: ((-2 * w - s.drehung_grad) % 360 + 360) % 360 };
@@ -119,7 +123,7 @@ export function versatz(g: Plangeometrie, d: number): Plangeometrie | null {
   return { art: "polygon", punkte: neu };
 }
 export function elementVersatz<T extends Zeichenform>(f: T, d: number): T | null {
-  if (f.art === "text" || !Number.isFinite(d) || d === 0) return null;
+  if ("punkt" in f || !Number.isFinite(d) || d === 0) return null;
   const [von, bis] = parallele(f.von as Punkt, f.bis as Punkt, -d);
   return { ...f, von, bis };
 }
@@ -142,7 +146,7 @@ export function geometrieStutzen(g: Plangeometrie, a: Punkt, b: Punkt): Plangeom
   return r ? { ...g, von: r[0], bis: r[1] } : null;
 }
 export function elementStutzen<T extends Zeichenform>(f: T, a: Punkt, b: Punkt): T | null {
-  if (f.art === "text") return null;
+  if ("punkt" in f) return null;
   const r = stutzen(f.von as Punkt, f.bis as Punkt, a, b);
   return r ? { ...f, von: r[0], bis: r[1] } : null;
 }
@@ -295,6 +299,9 @@ export const BEFEHLE: Record<string, string> = {
   RH: "reihe", AR: "reihe", REIHE: "reihe",
   E: "entfernen", DEL: "entfernen", ENTF: "entfernen", LOESCHEN: "entfernen",
   U: "zurueck", Z: "zoomfenster", ZE: "einpassen",
+  FE: "oeffnung", TU: "oeffnung", OEFFNUNG: "oeffnung",
+  SY: "symbol", PZ: "symbol", SYMBOL: "symbol",
+  RS: "raumstempel", RAUM: "raumstempel",
   OR: "ortho", ORTHO: "ortho", WR: "winkelraster",
 };
 /** Zerlegt `VS 0,5` in Befehl und Zahlen; unbekannte Kürzel → null. */

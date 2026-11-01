@@ -9,7 +9,10 @@ use crate::{
     druckausgabe::planlayout::{
         Fuellung, Legendeneintrag, Planblatt, Plankopf, Planlinie, Plantext, Stift, blatt, stempeln,
     },
-    planaufmass::{Darstellung, Linienart, Planaufmass, Plangeometrie, Schraffur, Zeichenform},
+    planaufmass::{
+        Darstellung, Linienart, Oeffnung, Oeffnungsart, Planaufmass, Plangeometrie, Plansymbol,
+        Schraffur, Zeichenform,
+    },
     plattform::ObjektArt,
     zugriff::ProjektRecht,
 };
@@ -104,7 +107,9 @@ fn stift(element: Option<&Darstellung>, ebene: Option<&Darstellung>, standard_mm
         .unwrap_or(standard_mm);
     let f = element
         .and_then(|d| d.farbe.as_deref())
-        .or_else(|| ebene.and_then(|d| d.farbe.as_deref()));
+        .or_else(|| ebene.and_then(|d| d.farbe.as_deref()))
+        .or_else(|| element.and_then(|d| d.bauzustand).map(|b| b.farbe()))
+        .or_else(|| ebene.and_then(|d| d.bauzustand).map(|b| b.farbe()));
     let muster = match feld(|d| d.linienart.as_ref()) {
         Some(Linienart::Strichlinie) => vec![3., 1.5],
         Some(Linienart::Strichpunktlinie) => vec![6., 1.2, 0.3, 1.2],
@@ -174,6 +179,136 @@ fn ringe(g: &Plangeometrie) -> (Vec<Vec<[f64; 2]>>, bool) {
         ),
     }
 }
+/// Wand mit Öffnungen: geschlossene Wandstücke zwischen den Öffnungen sowie
+/// Linien für Fensterglas, Türblatt und Öffnungsbogen. `m_je_einheit` rechnet
+/// Öffnungsmaße (m) in Seitenkoordinaten um (eigene Zeichnung: 1).
+pub struct Wandbild {
+    pub stuecke: Vec<Vec<[f64; 2]>>,
+    pub linien: Vec<Vec<[f64; 2]>>,
+}
+pub fn wandbild(
+    von: [f64; 2],
+    bis: [f64; 2],
+    dicke_m: f64,
+    oeffnungen: &[Oeffnung],
+    m_je_einheit: f64,
+) -> Wandbild {
+    let l = (bis[0] - von[0]).hypot(bis[1] - von[1]).max(1e-9);
+    let u = [(bis[0] - von[0]) / l, (bis[1] - von[1]) / l];
+    let d = dicke_m / m_je_einheit / 2.;
+    let n = [-u[1] * d, u[0] * d];
+    let at = |t: f64, s: f64| [von[0] + u[0] * t + n[0] * s, von[1] + u[1] * t + n[1] * s];
+    let mut os: Vec<_> = oeffnungen.iter().collect();
+    os.sort_by(|a, b| a.lage_m.total_cmp(&b.lage_m));
+    let mut stuecke = Vec::new();
+    let mut linien = Vec::new();
+    let mut t0 = 0.;
+    for o in os {
+        let a = (o.lage_m / m_je_einheit).clamp(t0, l);
+        let b = ((o.lage_m + o.breite_m) / m_je_einheit).clamp(a, l);
+        if a > t0 + 1e-9 {
+            stuecke.push(vec![at(t0, 1.), at(a, 1.), at(a, -1.), at(t0, -1.)]);
+        }
+        match o.art {
+            Oeffnungsart::Fenster => {
+                for s in [1., 0.25, -0.25, -1.] {
+                    linien.push(vec![at(a, s), at(b, s)]);
+                }
+            }
+            Oeffnungsart::Tuer => {
+                // Drehflügel am Öffnungsanfang, Bogen bis zum Öffnungsende.
+                let s = if o.links { 1. } else { -1. };
+                let w = b - a;
+                let ns = [n[0] / d.max(1e-12) * s, n[1] / d.max(1e-12) * s];
+                let h = at(a, s);
+                linien.push(vec![h, [h[0] + ns[0] * w, h[1] + ns[1] * w]]);
+                linien.push(
+                    (0..=16)
+                        .map(|i| {
+                            let phi = i as f64 / 16. * std::f64::consts::FRAC_PI_2;
+                            [
+                                h[0] + (ns[0] * phi.cos() + u[0] * phi.sin()) * w,
+                                h[1] + (ns[1] * phi.cos() + u[1] * phi.sin()) * w,
+                            ]
+                        })
+                        .collect(),
+                );
+            }
+        }
+        t0 = b;
+    }
+    if l > t0 + 1e-9 {
+        stuecke.push(vec![at(t0, 1.), at(l, 1.), at(l, -1.), at(t0, -1.)]);
+    }
+    Wandbild { stuecke, linien }
+}
+/// Linienzüge eines Planzeichens: (Punkte, geschlossen, gefüllt).
+pub fn symbolbild(
+    s: Plansymbol,
+    p: [f64; 2],
+    g: f64,
+    grad: f64,
+) -> Vec<(Vec<[f64; 2]>, bool, bool)> {
+    let (sn, cs) = (-grad.to_radians()).sin_cos();
+    let at = |x: f64, y: f64| [p[0] + (x * cs - y * sn) * g, p[1] + (x * sn + y * cs) * g];
+    let kreis = |r: f64| {
+        (0..32)
+            .map(|i| {
+                let a = i as f64 / 32. * std::f64::consts::TAU;
+                at(r * a.cos(), r * a.sin())
+            })
+            .collect::<Vec<_>>()
+    };
+    match s {
+        Plansymbol::BaumBestand => vec![(kreis(0.5), true, false), (kreis(0.05), true, true)],
+        Plansymbol::BaumNeu => vec![(kreis(0.5), true, false), (kreis(0.2), true, false)],
+        Plansymbol::BaumFaellung => vec![
+            (kreis(0.5), true, false),
+            (vec![at(-0.45, -0.45), at(0.45, 0.45)], false, false),
+            (vec![at(-0.45, 0.45), at(0.45, -0.45)], false, false),
+        ],
+        Plansymbol::Stellplatz => vec![
+            (
+                vec![
+                    at(-0.25, -0.5),
+                    at(0.25, -0.5),
+                    at(0.25, 0.5),
+                    at(-0.25, 0.5),
+                ],
+                true,
+                false,
+            ),
+            (
+                vec![
+                    at(-0.08, 0.15),
+                    at(-0.08, -0.15),
+                    at(0.05, -0.15),
+                    at(0.1, -0.08),
+                    at(0.05, 0.),
+                    at(-0.08, 0.),
+                ],
+                false,
+                false,
+            ),
+        ],
+        Plansymbol::Zufahrt => vec![
+            (vec![at(0., 0.5), at(0., -0.5)], false, false),
+            (
+                vec![at(-0.2, -0.25), at(0., -0.5), at(0.2, -0.25)],
+                true,
+                true,
+            ),
+        ],
+        Plansymbol::Hauseingang => {
+            vec![(
+                vec![at(-0.3, 0.25), at(0.3, 0.25), at(0., -0.25)],
+                true,
+                true,
+            )]
+        }
+        Plansymbol::Grenzpunkt => vec![(kreis(0.15), true, false), (kreis(0.04), true, true)],
+    }
+}
 fn zahl(v: f64) -> String {
     let s = format!("{v:.2}");
     s.replace('.', ",")
@@ -183,6 +318,7 @@ pub fn inhalte(
     p: &Planaufmass,
     massstab: f64,
     nur_sichtbare: bool,
+    raeume: &std::collections::HashMap<Uuid, (String, String, f64)>,
 ) -> (Vec<Planlinie>, Vec<Plantext>, Vec<Legendeneintrag>) {
     let ebene = |id: Uuid| p.ebenen.iter().find(|e| e.id == id);
     let zeigen = |id: Uuid| ebene(id).is_some_and(|e| !nur_sichtbare || e.sichtbar);
@@ -208,23 +344,32 @@ pub fn inhalte(
         let d = ebene(e.ebene_id).and_then(|l| l.darstellung.as_ref());
         let s = stift(e.darstellung.as_ref(), d, 0.5);
         match &e.form {
-            Zeichenform::Wand { von, bis, dicke_m } => {
-                let l = (bis[0] - von[0]).hypot(bis[1] - von[1]).max(1e-9);
-                let n = [
-                    -(bis[1] - von[1]) / l * dicke_m / 2.,
-                    (bis[0] - von[0]) / l * dicke_m / 2.,
-                ];
-                linien.push(Planlinie {
-                    punkte: vec![
-                        [von[0] + n[0], von[1] + n[1]],
-                        [bis[0] + n[0], bis[1] + n[1]],
-                        [bis[0] - n[0], bis[1] - n[1]],
-                        [von[0] - n[0], von[1] - n[1]],
-                    ],
-                    geschlossen: true,
-                    stift: s,
-                    fuellung: fuellung(e.darstellung.as_ref(), d),
-                });
+            Zeichenform::Wand {
+                von,
+                bis,
+                dicke_m,
+                oeffnungen,
+            } => {
+                let w = wandbild(*von, *bis, *dicke_m, oeffnungen, 1.);
+                for k in w.stuecke {
+                    linien.push(Planlinie {
+                        punkte: k,
+                        geschlossen: true,
+                        stift: s.clone(),
+                        fuellung: fuellung(e.darstellung.as_ref(), d),
+                    });
+                }
+                for l in w.linien {
+                    linien.push(Planlinie {
+                        punkte: l,
+                        geschlossen: false,
+                        stift: Stift {
+                            breite_mm: 0.18,
+                            ..s.clone()
+                        },
+                        fuellung: Fuellung::Keine,
+                    });
+                }
             }
             Zeichenform::Masskette { von, bis, abstand } => {
                 // Abstand in Seitenpunkten der Zeichnung = Meter.
@@ -288,6 +433,58 @@ pub fn inhalte(
                 drehung_grad: *drehung_grad,
                 farbe: s.farbe,
             }),
+            Zeichenform::Symbol {
+                punkt,
+                symbol,
+                groesse,
+                drehung_grad,
+            } => {
+                for (ps, zu, voll) in symbolbild(*symbol, *punkt, *groesse, *drehung_grad) {
+                    linien.push(Planlinie {
+                        punkte: ps,
+                        geschlossen: zu,
+                        stift: s.clone(),
+                        fuellung: if voll {
+                            Fuellung::Voll(1.)
+                        } else {
+                            Fuellung::Keine
+                        },
+                    });
+                }
+            }
+            Zeichenform::Raumstempel {
+                punkt,
+                raum_id,
+                hoehe,
+                ..
+            } => {
+                let (kopf, flaeche) = match raeume.get(raum_id) {
+                    Some((nr, name, f)) => (
+                        [nr.as_str(), name.as_str()]
+                            .into_iter()
+                            .filter(|t| !t.is_empty())
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                        format!("{} m²", zahl(*f)),
+                    ),
+                    None => ("Raum fehlt im Raumbuch".into(), String::new()),
+                };
+                let h = hoehe * MM_JE_M / massstab;
+                texte.push(Plantext {
+                    punkt: *punkt,
+                    text: kopf,
+                    hoehe_mm: h,
+                    drehung_grad: 0.,
+                    farbe: s.farbe,
+                });
+                texte.push(Plantext {
+                    punkt: [punkt[0], punkt[1] + hoehe * 1.4],
+                    text: flaeche,
+                    hoehe_mm: h * 0.85,
+                    drehung_grad: 0.,
+                    farbe: s.farbe,
+                });
+            }
         }
     }
     let legende = p
@@ -308,6 +505,21 @@ pub fn inhalte(
 }
 
 impl CoreServices {
+    /// Raumnummer, Name und Fläche aller Räume der Raumbücher (für Raumstempel).
+    pub async fn raumstempel_daten(
+        &self,
+        pid: ProjectId,
+    ) -> CoreResult<std::collections::HashMap<Uuid, (String, String, f64)>> {
+        let mut m = std::collections::HashMap::new();
+        for f in self.fachobjekte(pid, ObjektArt::Raumbuch).await? {
+            if let Ok(r) = serde_json::from_value::<crate::plattform::objekte::Raumbuch>(f.daten) {
+                for raum in r.raeume {
+                    m.insert(raum.id, (raum.nummer, raum.bezeichnung, raum.flaeche_m2));
+                }
+            }
+        }
+        Ok(m)
+    }
     /// Plankopf aus Projekt, Bauherren, Flurstücken, Büro und Planliste.
     pub async fn plankopf(
         &self,
@@ -442,7 +654,8 @@ impl CoreServices {
         let (b, h) = w.format.mm();
         let (breite_mm, hoehe_mm) = if w.hochformat { (b, h) } else { (h, b) };
         let massstab = w.massstab as f64;
-        let (linien, texte, legende) = inhalte(&p, massstab, w.nur_sichtbare_ebenen);
+        let raeume = self.raumstempel_daten(pid).await?;
+        let (linien, texte, legende) = inhalte(&p, massstab, w.nur_sichtbare_ebenen, &raeume);
         let planinhalt = if w.planinhalt.trim().is_empty() && w.dokument_id.is_none() {
             p.bezeichnung.clone()
         } else {

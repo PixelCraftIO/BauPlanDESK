@@ -42,7 +42,11 @@ async fn planlayout_mit_plankopf_ablage_und_stempel() {
             "darstellung": {"stift_mm": 0.5, "schraffur": "mauerwerk"}}],
         "markierungen": [],
         "elemente": [
-            {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "wand", "von": [10.0, 10.0], "bis": [22.0, 10.0], "dicke_m": 0.365},
+            {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "wand", "von": [10.0, 10.0], "bis": [22.0, 10.0], "dicke_m": 0.365,
+             "oeffnungen": [{"art": "fenster", "lage_m": 2.0, "breite_m": 1.51}, {"art": "tuer", "lage_m": 6.0, "breite_m": 1.01, "links": true}]},
+            {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "symbol", "punkt": [30.0, 12.0], "symbol": "baum_bestand", "groesse": 5.0, "drehung_grad": 0.0},
+            {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "symbol", "punkt": [30.0, 20.0], "symbol": "stellplatz", "groesse": 5.0, "drehung_grad": 90.0},
+            {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "raumstempel", "punkt": [12.0, 17.0], "raumbuch_id": Uuid::new_v4(), "raum_id": Uuid::new_v4(), "hoehe": 0.3},
             {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "wand", "von": [22.0, 10.0], "bis": [22.0, 20.0], "dicke_m": 0.365,
              "darstellung": {"farbe": "#aa3300", "linienart": "strichlinie"}},
             {"id": Uuid::new_v4(), "ebene_id": ebene, "art": "masskette", "von": [10.0, 10.0], "bis": [22.0, 10.0], "abstand": -1.0},

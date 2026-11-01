@@ -28,6 +28,9 @@
   import { verwendungenLaden, type Verwendung } from "./verwendung";
   import Quellenzustand from "./Quellenzustand.svelte";
   import DarstellungFelder from "./DarstellungFelder.svelte";
+  import { LAGEPLAN_EBENEN } from "./darstellung";
+  import { PLANSYMBOLE, oeffnungLage } from "./planzeichen";
+  import type { Raumbuch, Plansymbol, Oeffnungsart } from "../generated/plattform";
   import { projektNavigation } from "../projektNavigation.svelte";
   import { tick } from "svelte";
   let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
@@ -59,6 +62,7 @@
     [["auswahl","Auswählen","V"],["verschieben","Verschieben","M"]],
     [["polygon","Polygon","P"],["rechteck","Rechteck","R"],["kreis","Kreis","K"],["strecke","Strecke / Dach","S"]],
     [["wand","Wand","W"],["masskette","Maßkette","L"],["text","Text","X"]],
+    [["oeffnung","Fenster / Tür","F"],["symbol","Planzeichen","G"],["raumstempel","Raumstempel","N"]],
     [["kopieren","Kopieren","C"],["spiegeln","Spiegeln","I"],["stutzen","Stutzen / Dehnen","D"]],
     [["hoehenpunkt","Höhenpunkt","H"],["bezugslinie","Bezugslinie setzen","B"]],
     [["ausschnitt","Ausschnitt anlegen","A"],["kalibrieren","Zwei Punkte kalibrieren","Q"],["kontrolle","Kontrollstrecke messen","T"]],
@@ -106,6 +110,46 @@
   // Befehlszeile (F2): Kürzel wie L, PL, KO, SP, VS 0,5; Enter auf der Zeichenfläche wiederholt den letzten Befehl.
   let befehl=$state(""),letzterBefehl=$state(""),befehlFeld=$state<HTMLInputElement>();
   const befehlsliste=Object.entries(BEFEHLE);
+  // Planzeichen, Raumstempel und Öffnungen: Vorwahl für den nächsten Klick.
+  let planzeichen=$state<{symbol:Plansymbol;oeffnung:Oeffnungsart;raum:string}>({symbol:"baum_bestand",oeffnung:"fenster",raum:""});
+  let raumbuecher=$state<Datensatz<Raumbuch>[]>([]);
+  async function raumbuecherLaden(){try{raumbuecher=await plattformApi.liste<Raumbuch>(s.projektId,"raumbuch")}catch{raumbuecher=[]}}
+  const raeume=$derived(Object.fromEntries(raumbuecher.flatMap(r=>r.daten.raeume.map(x=>[x.id,{nummer:x.nummer,bezeichnung:x.bezeichnung,flaeche_m2:x.flaeche_m2}]))));
+  $effect(()=>{void s.projektId;untrack(()=>void raumbuecherLaden())});
+  function lageplanEbenen(){
+    const p=s.eingabe;if(!p||!darf||s.laeuft)return;
+    merken();let n=0;
+    for(const [name,d] of LAGEPLAN_EBENEN)if(!p.ebenen.some(e=>e.bezeichnung===name)){p.ebenen.push({id:crypto.randomUUID(),bezeichnung:name,sichtbar:true,gesperrt:false,darstellung:structuredClone(d)});n++}
+    s.meldung=n?`${n} Lageplan-Ebenen angelegt (PlanZV/BauVorlV-Farben: Bestand grau, Abbruch gelb, Neubau rot).`:"Alle Lageplan-Ebenen sind schon vorhanden.";
+  }
+  // Einpunkt-Werkzeuge für Zeichenelemente: Klick setzt Planzeichen, Raumstempel oder Öffnung.
+  function einpunktElement(w:string,punkt:Punkt){
+    const p=s.eingabe;if(!p)return;
+    const f=blattFaktor()??1;
+    if(w==="symbol"){elementAnlegen({art:"symbol",punkt,symbol:planzeichen.symbol,groesse:(planzeichen.symbol.startsWith("baum")?5:planzeichen.symbol==="stellplatz"?5:1.5)/f,drehung_grad:0});werkzeug="symbol";return}
+    if(w==="raumstempel"){
+      const [rb,raum]=planzeichen.raum.split("|");
+      if(!raum){s.fehler="Zuerst den Raum aus dem Raumbuch wählen (Hinweisleiste über der Zeichenfläche).";return}
+      elementAnlegen({art:"raumstempel",punkt,raumbuch_id:rb,raum_id:raum,hoehe:.3/f});werkzeug="raumstempel";return;
+    }
+    // Öffnung: nächste Wand unter dem Klick.
+    const breite=planzeichen.oeffnung==="fenster"?1.01:.885;
+    let best:{e:Zeichenelement&{art:"wand"};d:number}|null=null;
+    for(const e of p.elemente??[]){
+      if(e.art!=="wand")continue;
+      const dx=e.bis[0]-e.von[0],dy=e.bis[1]-e.von[1],l2=dx*dx+dy*dy;if(!l2)continue;
+      const t=Math.max(0,Math.min(1,((punkt[0]-e.von[0])*dx+(punkt[1]-e.von[1])*dy)/l2));
+      const d=Math.hypot(punkt[0]-(e.von[0]+t*dx),punkt[1]-(e.von[1]+t*dy));
+      if(d<=e.dicke_m/f&&(!best||d<best.d))best={e:e as Zeichenelement&{art:"wand"},d};
+    }
+    if(!best){s.fehler="Für Fenster und Türen in eine Wand klicken.";return}
+    if(p.ebenen.find(x=>x.id===best!.e.ebene_id)?.gesperrt){s.fehler="Die Ebene der Wand ist gesperrt.";return}
+    const lage=oeffnungLage(best.e.von,best.e.bis,punkt,breite,f,best.e.oeffnungen);
+    if(lage===null){s.fehler="Hier ist kein Platz für die Öffnung (Wand zu kurz oder schon belegt).";return}
+    merken();
+    best.e.oeffnungen=[...(best.e.oeffnungen??[]),planzeichen.oeffnung==="fenster"?{art:"fenster",lage_m:lage,breite_m:breite,hoehe_m:1.385,bruestung_m:.885,links:false}:{art:"tuer",lage_m:lage,breite_m:breite,hoehe_m:2.01,links:false}];
+    elementWaehlen(best.e.id);werkzeug="oeffnung";panel="eigenschaften";
+  }
   let hgQuellen=$state<Record<string,{pdfBase64?:string;plan?:import("../api").CadPlan["plan"]|null;name:string}>>({});
   const hgLaeuft=new Set<string>();
   // IFC-Hintergründe: Grundriss-Schnitt eines Geschosses, schon in Metern.
@@ -531,6 +575,8 @@
     if(id==="kontrolle")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     if(id==="wand"||id==="masskette"||id==="text")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     if(id==="kopieren"||id==="spiegeln"||id==="stutzen")return !auswahlAnzahl?"Zuerst Objekte auswählen":"";
+    if(id==="symbol"||id==="raumstempel")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
+    if(id==="oeffnung")return !s.eingabe?.elemente?.some(e=>e.art==="wand")?"Zuerst Wände zeichnen":"";
     return "";
   }
   function werkzeugWaehlen(id:string){
@@ -614,6 +660,10 @@
     }
     if(werkzeug==="ausschnitt"&&g.art==="rechteck"){
       ausschnittAnlegen(g.von,g.bis);werkzeug="auswahl";return;
+    }
+    if((werkzeug==="symbol"||werkzeug==="raumstempel"||werkzeug==="oeffnung")&&g.art==="hoehenpunkt"){
+      if(!layer||layer.gesperrt||!layer.sichtbar){if(werkzeug!=="oeffnung"){s.fehler="Eine sichtbare, ungesperrte Zeichenebene auswählen.";return}}
+      einpunktElement(werkzeug,g.punkt as Punkt);return;
     }
     if((werkzeug==="kopieren"||werkzeug==="spiegeln"||werkzeug==="stutzen")&&g.art==="strecke"){
       const a=g.von as Punkt,b=g.bis as Punkt,w=werkzeug;werkzeug="auswahl";
@@ -763,6 +813,11 @@
       {#if vorlage}<p role="status" class="hinweisbox schmal">Vorlage <strong>{vorlage.titel}</strong> ({bedeutungen.find(b=>b[0]===vorlage!.bedeutung)?.[1]}) auf Ebene „{aktiv?layer?.bezeichnung??vorlage.ebene:vorlage.ebene}“ · {vorlage.hinweis}. <button type="button" class="link" onclick={()=>{vorlage=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if werkzeug==="hgstrecke"||werkzeug==="hgverschieben"||werkzeug==="hgdrehen"}<p role="status" class="hinweisbox schmal">{werkzeug==="hgstrecke"?`Auf dem Hintergrund Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken; der Hintergrund wird darauf skaliert.`:werkzeug==="hgverschieben"?"Einen Punkt des Hintergrunds und dann seine Zielposition anklicken.":`Den Drehpunkt anklicken; der Hintergrund dreht sich um ${z(hgWinkel)}°.`}</p>{/if}
+      {#if werkzeug==="symbol"||werkzeug==="raumstempel"||werkzeug==="oeffnung"}<div role="status" class="hinweisbox schmal planzeichenwahl">
+        {#if werkzeug==="symbol"}<label>Planzeichen<select bind:value={planzeichen.symbol}>{#each PLANSYMBOLE as [v,t]}<option value={v}>{t}</option>{/each}</select></label><span>Klick setzt das Planzeichen; Größe und Drehung unter Eigenschaften.</span>
+        {:else if werkzeug==="raumstempel"}<label>Raum<select bind:value={planzeichen.raum}><option value="">Raum wählen …</option>{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung} · {z(r.flaeche_m2)} m²</option>{/each}</optgroup>{/each}</select></label><span>{raumbuecher.length?"Nummer, Name und Fläche kommen bei jeder Anzeige aus dem Raumbuch.":"Noch kein Raumbuch: Berechnungen → Flächen- und Raumbuch anlegen."}</span>
+        {:else}<label>Öffnung<select bind:value={planzeichen.oeffnung}><option value="fenster">Fenster 1,01 m</option><option value="tuer">Tür 0,885 m</option></select></label><span>In eine Wand klicken; Lage, Breite und Anschlag unter Eigenschaften.</span>{/if}
+      </div>{/if}
       {#if werkzeug==="kopieren"||werkzeug==="spiegeln"||werkzeug==="stutzen"}<p role="status" class="hinweisbox schmal">{werkzeug==="kopieren"?`Basispunkt und Zielpunkt anklicken (Ziffern öffnen die Maßeingabe); ${auswahlAnzahl} Objekt(e) werden kopiert.`:werkzeug==="spiegeln"?`Zwei Punkte der Spiegelachse anklicken; ${konstruktion.spiegelKopie?"das Original bleibt erhalten":"das Original wird gespiegelt"} (umschaltbar unter Eigenschaften → Konstruieren).`:"Grenzkante mit zwei Punkten abgreifen (Fang an Kanten und Endpunkten). Gewählte Strecken, Wände und Maßketten enden dann an dieser Kante: zu lange werden gekürzt, zu kurze verlängert."}</p>{/if}
       {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"||werkzeug==="kontrolle"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?`Anfang und Ende der bekannten Referenzstrecke (${z(referenz)} m) anklicken.`:werkzeug==="bezug"?`Den Punkt mit der Bezugshöhe ${z(hwert)} ${hsystem} auf der Unterlage anklicken.`:werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:werkzeug==="kontrolle"?`Anfang und Ende einer bekannten Strecke (${z(kontrollMeter)} m) anklicken; die Abweichung erscheint unter „Blatt und Einrichtung“.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
       <div class="arbeitsplatz">
@@ -792,7 +847,7 @@
             <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
-              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen} onwiederholen={wiederholen}
+              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen} onwiederholen={wiederholen} {raeume}
               onelement={elementAnlegen} onelementauswahl={elementWaehlen} onelementedit={elementSetzen}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
               onfertig={fertig} onauswahl={waehlen} onverschieben={gemeinsamVerschieben} onpunkt={i=>{punktIndex=i;panelOeffnen("eigenschaften")}} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
@@ -808,13 +863,23 @@
             <summary><h3>Eigenschaften</h3> <span class="meta">{m?`· ${m.bezeichnung}`:auswahlIds.length>1?`· ${auswahlIds.length} ausgewählt`:"· keine Auswahl"}</span></summary>
             {#if el}
               <fieldset disabled={elementGesperrt} class="element-eigenschaften" aria-label="Zeichenelement">
-                <legend>{el.art==="wand"?"Wand":el.art==="masskette"?"Maßkette":"Text"}</legend>
+                <legend>{el.art==="wand"?"Wand":el.art==="masskette"?"Maßkette":el.art==="symbol"?"Planzeichen":el.art==="raumstempel"?"Raumstempel":"Text"}</legend>
                 {#if el.art==="wand"}<label>Wanddicke (m)<input type="number" min=".01" max="10" step=".01" bind:value={el.dicke_m}/></label>
+                  {#if el.oeffnungen?.length}<table class="oeffnungen"><thead><tr><th>Art</th><th>ab (m)</th><th>Breite</th><th>Höhe</th><th>Brüstung</th><th>Anschlag</th><th></th></tr></thead><tbody>
+                    {#each el.oeffnungen as o,i}<tr><td><select aria-label="Art" bind:value={o.art}><option value="fenster">Fenster</option><option value="tuer">Tür</option></select></td>
+                      <td><input type="number" min="0" step=".01" aria-label="Lage ab Wandanfang" bind:value={o.lage_m}/></td><td><input type="number" min=".1" step=".005" aria-label="Breite" bind:value={o.breite_m}/></td>
+                      <td><input type="number" min="0" step=".005" aria-label="Höhe" value={o.hoehe_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.hoehe_m=Number(v);else delete o.hoehe_m}}/></td>
+                      <td>{#if o.art==="fenster"}<input type="number" min="0" step=".005" aria-label="Brüstung" value={o.bruestung_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.bruestung_m=Number(v);else delete o.bruestung_m}}/>{/if}</td>
+                      <td>{#if o.art==="tuer"}<select aria-label="Anschlag" bind:value={o.links}><option value={false}>rechts</option><option value={true}>links</option></select>{/if}</td>
+                      <td><button type="button" class="link" onclick={()=>{if(el?.art==="wand"){merken();el.oeffnungen=el.oeffnungen!.filter((_,j)=>j!==i)}}}>Entfernen</button></td></tr>{/each}
+                  </tbody></table>{:else}<p class="meta">Fenster und Türen mit dem Werkzeug „Fenster / Tür“ (F) in die Wand klicken.</p>{/if}
+                {:else if el.art==="symbol"}<label>Planzeichen<select bind:value={el.symbol}>{#each PLANSYMBOLE as [v,t]}<option value={v}>{t}</option>{/each}</select></label><label>Größe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.groesse}/></label><label>Drehung (°)<input type="number" step="any" bind:value={el.drehung_grad}/></label>
+                {:else if el.art==="raumstempel"}<label>Raum<select value={`${el.raumbuch_id}|${el.raum_id}`} onchange={e=>{const [a,b]=e.currentTarget.value.split("|");if(el?.art==="raumstempel"&&b){el.raumbuch_id=a;el.raum_id=b}}}>{#if !raeume[el.raum_id]}<option value={`${el.raumbuch_id}|${el.raum_id}`}>Raum fehlt im Raumbuch</option>{/if}{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung}</option>{/each}</optgroup>{/each}</select></label><label>Schrifthöhe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.hoehe}/></label>
                 {:else if el.art==="masskette"}<label>Abstand der Maßlinie ({einheitText})<input type="number" step="any" bind:value={el.abstand}/></label>
                 {:else}<label>Text<input bind:value={el.inhalt} maxlength="500" required/></label><label>Schrifthöhe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.hoehe}/></label><label>Drehung (°)<input type="number" step="any" bind:value={el.drehung_grad}/></label>{/if}
                 <label>Zeichenebene<select aria-label="Zeichenebene des Elements" bind:value={el.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
-                <p class="meta">{el.art==="text"?`Bei ${z(el.punkt[0])}; ${z(el.punkt[1])} ${einheitText}.`:`Von ${z(el.von[0])}; ${z(el.von[1])} bis ${z(el.bis[0])}; ${z(el.bis[1])} ${einheitText}${(()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);const [a,b]=elementPunkte(el);return f?` · ${z(Math.hypot(b[0]-a[0],b[1]-a[1])*f)} m`:""})()}.`} Zeichenelemente liefern keine Messwerte; Endpunkte lassen sich mit „Auswählen“ ziehen.</p>
-                <DarstellungFelder wert={el.darstellung} erbe={`Ebene „${p.ebenen.find(x=>x.id===el!.ebene_id)?.bezeichnung??""}“`} schraffur={el.art==="wand"} onaendern={d=>{merken();if(d)el!.darstellung=d;else delete el!.darstellung}}/>
+                <p class="meta">{"punkt" in el?`Bei ${z(el.punkt[0])}; ${z(el.punkt[1])} ${einheitText}.`:`Von ${z(el.von[0])}; ${z(el.von[1])} bis ${z(el.bis[0])}; ${z(el.bis[1])} ${einheitText}${(()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);const [a,b]=elementPunkte(el);return f?` · ${z(Math.hypot(b[0]-a[0],b[1]-a[1])*f)} m`:""})()}.`} Zeichenelemente liefern keine Messwerte; Endpunkte lassen sich mit „Auswählen“ ziehen.</p>
+                <DarstellungFelder wert={el.darstellung} erbe={`Ebene „${p.ebenen.find(x=>x.id===el!.ebene_id)?.bezeichnung??""}“`} schraffur={el.art==="wand"||el.art==="symbol"} onaendern={d=>{merken();if(d)el!.darstellung=d;else delete el!.darstellung}}/>
                 <div class="aktionen"><button type="button" class="sekundaer" title="Entf" onclick={elementEntfernen}>Element entfernen</button></div>
               </fieldset>
             {:else if !m&&!auswahlAnzahl}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen. Fenster aufziehen: von links nach rechts wählt Enthaltenes, von rechts nach links auch Berührtes.</p>{/if}
@@ -973,6 +1038,7 @@
             {/each}
             <div class="aktionen">
               <button type="button" class="sekundaer" disabled={!darf||s.laeuft} onclick={()=>{const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id}}>Ebene hinzufügen</button>
+              <button type="button" class="sekundaer" disabled={!darf||s.laeuft} title="Grundstücksgrenze, Bestand, Abbruch, Neubau, Baugrenze, Abstandsflächen …" onclick={lageplanEbenen}>Lageplan-Ebenen anlegen</button>
               <button type="button" class="sekundaer" disabled={!darf||s.laeuft||!layer} title="Alle anderen Ebenen sperren" onclick={()=>{merken();for(const e of p.ebenen)e.gesperrt=e.id!==ebene}}>Nur aktive Ebene bearbeiten</button>
               <button type="button" class="sekundaer" disabled={!darf||s.laeuft||!p.ebenen.some(e=>e.gesperrt)} onclick={()=>{merken();for(const e of p.ebenen)e.gesperrt=false}}>Alle entsperren</button>
             </div>
@@ -989,7 +1055,7 @@
             {#if p.elemente?.length}
               <h3>Zeichenelemente <span class="meta">({p.elemente.length})</span></h3>
               <div class="markierungen">
-                {#each p.elemente as e (e.id)}<div class="objektzeile"><button type="button" class:aktiv={e.id===elementAuswahl} onclick={()=>{elementWaehlen(e.id);panelOeffnen("eigenschaften")}}>{e.art==="wand"?"Wand":e.art==="masskette"?"Maßkette":`Text „${e.inhalt}“`}<span>{p.ebenen.find(x=>x.id===e.ebene_id)?.bezeichnung??"Ebene fehlt"}</span></button></div>{/each}
+                {#each p.elemente as e (e.id)}<div class="objektzeile"><button type="button" class:aktiv={e.id===elementAuswahl} onclick={()=>{elementWaehlen(e.id);panelOeffnen("eigenschaften")}}>{e.art==="wand"?`Wand${e.oeffnungen?.length?` · ${e.oeffnungen.length} Öffnung(en)`:""}`:e.art==="masskette"?"Maßkette":e.art==="symbol"?`Planzeichen ${PLANSYMBOLE.find(([k])=>k===e.symbol)?.[1]??""}`:e.art==="raumstempel"?`Raumstempel ${raeume[e.raum_id]?.nummer??"(Raum fehlt)"}`:`Text „${e.inhalt}“`}<span>{p.ebenen.find(x=>x.id===e.ebene_id)?.bezeichnung??"Ebene fehlt"}</span></button></div>{/each}
               </div>
             {/if}
           </details>
@@ -1179,6 +1245,10 @@
   .objektzeile{display:flex;gap:.4rem;align-items:center;content-visibility:auto;contain-intrinsic-size:auto 48px}
   .objektzeile button{flex:1}
   .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
+  .planzeichenwahl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+  .planzeichenwahl label{display:flex;gap:.3rem;align-items:center}
+  .oeffnungen{width:100%;font-size:.8rem;border-collapse:collapse}
+  .oeffnungen input,.oeffnungen select{width:100%;min-width:3.2rem;font-size:.8rem}
   .ebenendarstellung{margin:0 0 .3rem 1.6rem;font-size:.85rem}
   .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}

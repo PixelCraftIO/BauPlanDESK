@@ -860,6 +860,7 @@ async fn export_nacharbeit_und_eigenes_modell_aus_zeichnungen() {
                 von,
                 bis,
                 dicke_m: 0.24,
+                oeffnungen: vec![],
             },
         });
     }

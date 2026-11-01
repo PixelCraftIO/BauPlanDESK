@@ -117,7 +117,9 @@ fn elementkonturen(p: &Planaufmass, skalierung: f64) -> Vec<Plankontur> {
         .iter()
         .filter(|e| p.ebenen.iter().any(|l| l.id == e.ebene_id && l.sichtbar))
         .map(|e| match &e.form {
-            Zeichenform::Wand { von, bis, dicke_m } => {
+            Zeichenform::Wand {
+                von, bis, dicke_m, ..
+            } => {
                 let l = abstand(von, bis).max(1e-9);
                 let n = [
                     -(bis[1] - von[1]) / l * dicke_m / 2.,
@@ -154,6 +156,16 @@ fn elementkonturen(p: &Planaufmass, skalierung: f64) -> Vec<Plankontur> {
                 ringe: vec![vec![s(punkt), s(punkt)]],
                 geschlossen: false,
                 beschriftung: inhalt.clone(),
+            },
+            Zeichenform::Symbol { punkt, symbol, .. } => Plankontur {
+                ringe: vec![vec![s(punkt), s(punkt)]],
+                geschlossen: false,
+                beschriftung: format!("{symbol:?}"),
+            },
+            Zeichenform::Raumstempel { punkt, .. } => Plankontur {
+                ringe: vec![vec![s(punkt), s(punkt)]],
+                geschlossen: false,
+                beschriftung: "Raumstempel".into(),
             },
         })
         .collect()

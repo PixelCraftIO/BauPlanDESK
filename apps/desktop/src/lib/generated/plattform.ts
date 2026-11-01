@@ -167,9 +167,26 @@ stift_mm?: number, linienart?: Linienart,
 /**
  * Farbe als `#rrggbb`.
  */
-farbe?: string, schraffur?: Schraffur, };
+farbe?: string, schraffur?: Schraffur,
+/**
+ * Bauzustand nach BauVorlV/BauPrüfVO: Bestand grau, Abbruch gelb, Neubau rot
+ * (gilt, wenn keine eigene Farbe gesetzt ist).
+ */
+bauzustand?: Bauzustand, };
 export type Linienart = "volllinie" | "strichlinie" | "strichpunktlinie" | "punktlinie";
 export type Schraffur = "keine" | "voll" | "diagonal" | "kreuz" | "mauerwerk" | "beton" | "daemmung" | "erdreich";
+export type Bauzustand = "bestand" | "abbruch" | "neubau";
+export type Oeffnung = { art: Oeffnungsart,
+/**
+ * Abstand des Öffnungsanfangs vom Wandanfang (m).
+ */
+lage_m: number, breite_m: number, hoehe_m?: number, bruestung_m?: number,
+/**
+ * Türanschlag: Drehflügel öffnet zur linken Wandseite (in Richtung von→bis gesehen).
+ */
+links: boolean, };
+export type Oeffnungsart = "fenster" | "tuer";
+export type Plansymbol = "baum_bestand" | "baum_neu" | "baum_faellung" | "stellplatz" | "zufahrt" | "hauseingang" | "grenzpunkt";
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], } | { "art": "flaeche", polygone: Array<Planpolygon>, };
 export type Planpolygon = { aussen: Array<[number, number]>, innen?: Array<Array<[number, number]>>, };
 export type Flaechenoperation = "vereinen" | "abziehen" | "schneiden" | "teilen";
@@ -244,7 +261,11 @@ deckkraft: number, sichtbar: boolean,
  * wird; Seitenpunkte sind dann Meter des Modells (wie eine DXF in Metern).
  */
 geschoss?: string, };
-export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number,
+/**
+ * Fenster und Türen, entlang der Achse ab `von`.
+ */
+oeffnungen?: Array<Oeffnung>, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
  * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
@@ -253,12 +274,24 @@ abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
 /**
  * Schrifthöhe in Seitenpunkten.
  */
-hoehe: number, drehung_grad: number, };
+hoehe: number, drehung_grad: number, } | { "art": "symbol", punkt: [number, number], symbol: Plansymbol,
+/**
+ * Größe in Seitenpunkten (bei eigenen Zeichnungen Meter).
+ */
+groesse: number, drehung_grad: number, } | { "art": "raumstempel", punkt: [number, number], raumbuch_id: string, raum_id: string,
+/**
+ * Schrifthöhe in Seitenpunkten.
+ */
+hoehe: number, };
 export type Zeichenelement = { id: string, ebene_id: string,
 /**
  * Abweichende Darstellung des Elements; fehlende Felder erben von der Ebene.
  */
-darstellung?: Darstellung, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+darstellung?: Darstellung, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number,
+/**
+ * Fenster und Türen, entlang der Achse ab `von`.
+ */
+oeffnungen?: Array<Oeffnung>, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
  * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
@@ -267,7 +300,15 @@ abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
 /**
  * Schrifthöhe in Seitenpunkten.
  */
-hoehe: number, drehung_grad: number, });
+hoehe: number, drehung_grad: number, } | { "art": "symbol", punkt: [number, number], symbol: Plansymbol,
+/**
+ * Größe in Seitenpunkten (bei eigenen Zeichnungen Meter).
+ */
+groesse: number, drehung_grad: number, } | { "art": "raumstempel", punkt: [number, number], raumbuch_id: string, raum_id: string,
+/**
+ * Schrifthöhe in Seitenpunkten.
+ */
+hoehe: number, });
 export type Planmesswert = { id: string, laenge_m: number | null, flaeche_m2: number | null, horizontale_m: number | null, hoehe_m: number | null, neigung_grad: number | null, offen: Array<string>, };
 export type Planmessgroesse = "flaeche" | "laenge" | "horizontale" | "hoehe" | "neigung";
 export type Planbindung = { aufmass_id: string, revision: number, markierung_id: string, groesse: Planmessgroesse,

@@ -132,6 +132,7 @@ async fn eigene_zeichnung_in_metern_neben_altem_aufmass() {
                     von: [0., 0.],
                     bis: [12.5, 0.],
                     dicke_m: 0.24,
+                    oeffnungen: vec![],
                 },
             },
             Zeichenelement {

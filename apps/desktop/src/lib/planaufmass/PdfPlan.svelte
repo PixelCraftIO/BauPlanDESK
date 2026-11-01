@@ -12,6 +12,7 @@
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
   import { wirksam, stil, musterId, musterInhalt } from "./darstellung";
+  import { wandbild, symbolbild } from "./planzeichen";
   import { fenster, imFenster, punkteVon, kantenVon, elementpunkte, winkelRasten, lotfang, verlaengerungsfang, eingabeAuswerten, eingabePunkt, type Punkt } from "./konstruktion";
   import { dxfBlatt, dxfPfade, dxfTexte, dxfGeometrie } from "./dxf";
   import type { Plan } from "../api";
@@ -23,7 +24,7 @@
   let { pdfBase64 = "", seite, plan = null, planSichtbar = [], markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
     auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
-    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", elementAuswahlIds = [], wanddicke = .24, onfenster = () => {}, onwiederholen = () => {},
+    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", elementAuswahlIds = [], wanddicke = .24, onfenster = () => {}, onwiederholen = () => {}, raeume = {},
     onelement = () => {}, onelementauswahl = () => {}, onelementedit = () => {},
     onverschieben = () => {}, onpunkt = () => {},
     onfertig, onauswahl, onedit, onfehler, onrahmen = () => {}, onrahmenauswahl = () => {}, onoeffnen = () => {}, onseite = () => {} }:
@@ -41,6 +42,8 @@
     onfenster?:(ids:string[],elementIds:string[],mehrfach:boolean)=>void;
     /** Enter ohne laufende Eingabe: letzten Befehl wiederholen. */
     onwiederholen?:()=>void;
+    /** Raumbuchdaten für Raumstempel (Raum-ID → Nummer, Name, Fläche). */
+    raeume?:Record<string,{nummer:string;bezeichnung:string;flaeche_m2:number}>;
     onelement?:(f:Zeichenform)=>void;onelementauswahl?:(id:string)=>void;onelementedit?:(id:string,e:Zeichenelement)=>void;
     onverschieben?:(ids:string[],dx:number,dy:number)=>void;onpunkt?:(index:number)=>void;
     onedit:(id:string,g:Plangeometrie)=>void;onfehler:(s:string)=>void;
@@ -377,7 +380,7 @@
     if(raster){p=winkelRasten(a,p,raster);if(!e.shiftKey)fangart=ortho?"Ortho":`Winkelraster ${winkelraster}°`}
     return p;
   }
-  function elementKanten():[Point,Point][]{return angezeigteElemente.filter(e=>e.id!==elementAuswahl&&e.art!=="text").flatMap(e=>{
+  function elementKanten():[Point,Point][]{return angezeigteElemente.filter(e=>e.id!==elementAuswahl&&!("punkt" in e)).flatMap(e=>{
     if(e.art==="wand"&&faktor!==null){const k=wandKontur(e.von,e.bis,e.dicke_m/faktor);return k.map((p,i)=>[p,k[(i+1)%4]] as [Point,Point])}
     return [[elementPunkte(e)[0],elementPunkte(e)[1]] as [Point,Point]];
   })}
@@ -394,8 +397,10 @@
     for(const e of angezeigteElemente)if(e.id!==elementAuswahl){ps.push(...elementPunkte(e));if(e.art==="wand"&&faktor!==null)ps.push(...wandKontur(e.von,e.bis,e.dicke_m/faktor))}
     return ps;
   }
+  // Werkzeuge mit einem Klick: Höhenpunkt, Bezug, Text, Planzeichen, Raumstempel, Öffnung.
+  const EINPUNKT=["hoehenpunkt","bezug","text","symbol","raumstempel","oeffnung"];
   function shape(ps:Point[]):Plangeometrie|null {
-    if((werkzeug==="hoehenpunkt"||werkzeug==="bezug"||werkzeug==="text") && ps.length)return{art:"hoehenpunkt",punkt:ps[0]};
+    if(EINPUNKT.includes(werkzeug) && ps.length)return{art:"hoehenpunkt",punkt:ps[0]};
     if(werkzeug==="polygon")return ps.length>=3?{art:"polygon",punkte:ps}:null;
     if(ps.length<2)return null;
     if(werkzeug==="rechteck"||werkzeug==="ausschnitt")return{art:"rechteck",von:ps[0],bis:ps[1]};
@@ -416,7 +421,7 @@
   function punktSetzen(p:Point){
     if(werkzeug==="polygon"&&punkte.length>=3&&Math.hypot(p[0]-punkte[0][0],p[1]-punkte[0][1])<8/zoom){finish();return}
     punkte=[...punkte,p];
-    if(werkzeug!=="polygon" && (punkte.length===2||werkzeug==="hoehenpunkt"||werkzeug==="bezug"||werkzeug==="text"))finish();
+    if(werkzeug!=="polygon" && (punkte.length===2||EINPUNKT.includes(werkzeug)))finish();
   }
   // Maßeingabe: „5,20“ (Länge in m, Richtung wie zuletzt bzw. nach rechts),
   // „5,20;90“ (Länge; Winkel in Grad, 90 = nach oben), beim Rechteck „Breite;Höhe“.
@@ -785,7 +790,13 @@
 {#snippet element(e:Zeichenelement,gewaehlt:boolean=false)}
   {@const st=gewaehlt?"":elementStil(e)}
   {#if e.art==="wand"}
-    {#if faktor!==null}<polygon points={wandKontur(e.von,e.bis,e.dicke_m/faktor).map(p=>p.join(",")).join(" ")} class="wand" style={st||undefined}/>
+    {#if faktor!==null&&e.oeffnungen?.length}{@const w=wandbild(e.von,e.bis,e.dicke_m,e.oeffnungen,faktor)}
+      <!-- Unsichtbare Gesamtkontur: Treffer zum Auswählen auch in Öffnungen. -->
+      <polygon points={wandKontur(e.von,e.bis,e.dicke_m/faktor).map(p=>p.join(",")).join(" ")} class="treffer"/>
+      {#each w.stuecke as k}<polygon points={k.map(p=>p.join(",")).join(" ")} class="wand" style={st||undefined}/>{/each}
+      {#each w.linien as l}<polyline points={l.map(p=>p.join(",")).join(" ")} class="wandlinie"/>{/each}
+      {#each w.boegen as d}<path {d} class="wandlinie"/>{/each}
+    {:else if faktor!==null}<polygon points={wandKontur(e.von,e.bis,e.dicke_m/faktor).map(p=>p.join(",")).join(" ")} class="wand" style={st||undefined}/>
     {:else}<line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wand" style={st||undefined}/>{/if}
     <line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wandachse"/>
   {:else if e.art==="masskette"}
@@ -794,6 +805,17 @@
     <line x1={k.linie[0][0]} y1={k.linie[0][1]} x2={k.linie[1][0]} y2={k.linie[1][1]} class="masslinie" style={st||undefined}/>
     {#each k.linie as p}<line x1={p[0]-4/zoom} y1={p[1]+4/zoom} x2={p[0]+4/zoom} y2={p[1]-4/zoom} class="masslinie" transform={`rotate(${k.winkel} ${p[0]} ${p[1]})`}/>{/each}
     <text class="masstext" x={k.mitte[0]} y={k.mitte[1]-3/zoom} font-size={11/zoom} text-anchor="middle" transform={`rotate(${k.winkel} ${k.mitte[0]} ${k.mitte[1]})`}>{faktor===null?"— m":`${z(k.laenge*faktor)} m`}</text>
+  {:else if e.art==="symbol"}
+    {#each symbolbild(e.symbol,e.punkt,e.groesse,e.drehung_grad) as [ps,zu,voll]}
+      {#if zu}<polygon points={ps.map(p=>p.join(",")).join(" ")} class="symbol" class:voll style={st||undefined}/>{:else}<polyline points={ps.map(p=>p.join(",")).join(" ")} class="symbol" style={st||undefined}/>{/if}
+    {/each}
+    <circle cx={e.punkt[0]} cy={e.punkt[1]} r={e.groesse/2} class="treffer"/>
+  {:else if e.art==="raumstempel"}
+    {@const r=raeume[e.raum_id]}
+    {@const farbe=gewaehlt?undefined:wirksam(e.darstellung,ebenenMap.get(e.ebene_id)?.darstellung).farbe??undefined}
+    <text class="freitext raumstempel" style:fill={farbe} x={e.punkt[0]} y={e.punkt[1]} font-size={e.hoehe}>{r?[r.nummer,r.bezeichnung].filter(Boolean).join(" "):"Raum fehlt im Raumbuch"}</text>
+    {#if r}<text class="freitext" style:fill={farbe} x={e.punkt[0]} y={e.punkt[1]+e.hoehe*1.4} font-size={e.hoehe*.85}>{z(r.flaeche_m2)} m²</text>{/if}
+    <rect x={e.punkt[0]} y={e.punkt[1]-e.hoehe} width={e.hoehe*8} height={e.hoehe*2.6} class="treffer"/>
   {:else}
     <text class="freitext" style:fill={gewaehlt?undefined:wirksam(e.darstellung,ebenenMap.get(e.ebene_id)?.darstellung).farbe??undefined} x={e.punkt[0]} y={e.punkt[1]} font-size={e.hoehe} transform={e.drehung_grad?`rotate(${-e.drehung_grad} ${e.punkt[0]} ${e.punkt[1]})`:undefined}>{e.inhalt}</text>
   {/if}
@@ -861,6 +883,11 @@
   svg .hintergrund{pointer-events:none}
   svg .hintergrund path{fill:none;stroke-width:1}
   svg .element .wand{fill:#6b747d33;stroke:#2b3138;stroke-width:1.4}
+  svg .element .wandlinie{stroke:#2b3138;stroke-width:.9;fill:none}
+  svg .element .symbol{stroke:#2b3138;stroke-width:1.2;fill:none}
+  svg .element .symbol.voll{fill:#2b3138}
+  svg .element .raumstempel{font-weight:600}
+  svg .element .treffer{fill:transparent;stroke:none}
   svg .element .wandachse{stroke:#2b3138;stroke-width:.8;stroke-dasharray:6 3;opacity:.5;fill:none}
   svg .element .masslinie,svg .element .masshilfe{stroke:#1d4e89;stroke-width:1;fill:none}
   svg .element .masshilfe{opacity:.7}
