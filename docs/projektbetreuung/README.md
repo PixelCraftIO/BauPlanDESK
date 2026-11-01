@@ -28,3 +28,25 @@ Technik: `core_lib::cockpit` (reines Lesemodell, rechnet keine Fristen selbst,
 sondern verwendet `verfahren::termine::termine`), Tauri-Befehl `buero_cockpit`,
 Server `GET /api/cockpit`. Projekte, deren Akten nicht lesbar sind, erscheinen
 mit Meldung statt still zu fehlen.
+
+## Kalender-Abo
+
+Unter **Einstellungen → Kalender-Abo** erzeugt jeder Benutzer im
+Netzwerkbetrieb eine persönliche Kalenderadresse auf dem BauPlanIO-Server.
+Outlook, Apple- und Google-Kalender abonnieren sie und zeigen die Fristen aller
+lesbaren Projekte; der Kalender ist bei jedem Abruf aktuell.
+
+- Umfang **Nur meine Zuständigkeit** (Termine mit dem Benutzer als
+  Zuständigem) oder **Alle Fristen**.
+- Die Adresse enthält einen zufälligen Schlüssel (256 Bit) und wird nur beim
+  Anlegen angezeigt. Gespeichert wird nur sein SHA-256-Wert
+  (`kalenderabo.<Benutzer>` in den Einstellungen). **Neue Adresse erzeugen**
+  macht die alte ungültig, **Abo widerrufen** entfernt sie.
+- Projektrechte werden bei jedem Abruf geprüft; ein deaktiviertes Konto oder
+  eine entzogene Mitgliedschaft wirkt sofort.
+- Im Einzelplatz gibt es kein Abo; dort bleibt der ICS-Export je Projekt.
+
+Technik: `core_lib::kalenderabo`, Tauri `kalenderabo_*`, Server
+`GET/POST/DELETE /api/kalenderabo` (angemeldet) und
+`GET /kalender/{benutzer}/{schluessel}.ics` ohne Sitzung (falscher Schlüssel,
+fremdes Konto oder ungültige Form: immer 404).

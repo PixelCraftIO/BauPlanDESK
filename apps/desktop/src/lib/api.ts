@@ -1369,6 +1369,14 @@ export const api = {
     }),
   appInfo: () => invoke<AppInfo>("app_info"),
   projekte: () => invoke<Project[]>("projekte_auflisten"),
+  kalenderaboAuskunft: () =>
+    invoke<import("./generated/plattform").Aboauskunft>("kalenderabo_auskunft"),
+  kalenderaboAnlegen: (umfang: import("./generated/plattform").Aboumfang) =>
+    invoke<import("./generated/plattform").Aboschluessel>(
+      "kalenderabo_anlegen",
+      { umfang },
+    ),
+  kalenderaboWiderrufen: () => invoke<void>("kalenderabo_widerrufen"),
   bueroCockpit: () =>
     invoke<import("./generated/plattform").Buerocockpit>("buero_cockpit"),
   projektAnlegen: (projekt: Projektwerte) =>

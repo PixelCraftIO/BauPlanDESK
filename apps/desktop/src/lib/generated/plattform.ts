@@ -41,6 +41,13 @@ termine: Array<CockpitTermin>,
  * Projekte nach Friststufe (überfällig, nächste Frist, Name).
  */
 projekte: Array<CockpitProjekt>, fehler: Array<CockpitFehler>, };
+export type Aboumfang = "alle" | "meine";
+export type Aboauskunft = { aktiv: boolean, umfang: Aboumfang | null, erstellt_am: string | null, };
+export type Aboschluessel = { umfang: Aboumfang,
+/**
+ * Pfad relativ zur Serveradresse, z. B. `/kalender/<benutzer>/<schluessel>.ics`.
+ */
+pfad: string, };
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };

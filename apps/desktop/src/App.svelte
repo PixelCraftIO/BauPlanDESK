@@ -33,6 +33,7 @@
   import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
   import Buerocockpit from "./lib/Buerocockpit.svelte";
+  import KalenderAbo from "./lib/KalenderAbo.svelte";
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
   import { type Ansicht } from "./lib/projektSitzung";
   import BauherrenDialog from "./lib/Bauherren.svelte";
@@ -1068,6 +1069,7 @@
       >
         <h1>Einstellungen</h1>
         <Darstellung />
+        <KalenderAbo modus={info?.modus ?? "Einzelplatz"} />
         <Speicherorte {ich} bind:this={speicherortEditor} />
         <AblageEinstellungen bind:this={ablageEditor} />
         <KategorienEinstellungen {ich} bind:this={kategorienEditor} />

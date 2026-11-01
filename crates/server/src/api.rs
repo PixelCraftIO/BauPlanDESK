@@ -268,6 +268,12 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
         .route("/cockpit", get(buero_cockpit))
+        .route(
+            "/kalenderabo",
+            get(kalenderabo_auskunft)
+                .post(kalenderabo_anlegen)
+                .delete(kalenderabo_widerrufen),
+        )
         .route("/projekte", get(list_projects).post(create_project))
         .route(
             "/projekte/{id}",
@@ -468,6 +474,8 @@ fn routen(core: CoreServices) -> Router {
                 None::<(std::time::Instant, bool, bool)>,
             )))),
         )
+        // Kalender-Abo: ohne Sitzung, der Schlüssel im Pfad ist der Zugang.
+        .route("/kalender/{benutzer}/{datei}", get(kalenderabo_ics))
         .nest("/api", api.clone())
         .nest("/api/v1", api)
         .with_state(ApiState { core })
@@ -489,6 +497,55 @@ async fn buero_cockpit(
         core.buero_cockpit(&akteur, core_lib::kalender::heute())
             .await?,
     ))
+}
+
+async fn kalenderabo_auskunft(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<core_lib::kalenderabo::Aboauskunft> {
+    Ok(Json(core.kalenderabo_auskunft(&akteur).await?))
+}
+#[derive(Deserialize)]
+struct Abowunsch {
+    umfang: core_lib::kalenderabo::Aboumfang,
+}
+async fn kalenderabo_anlegen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+    Json(w): Json<Abowunsch>,
+) -> ApiResult<core_lib::kalenderabo::Aboschluessel> {
+    Ok(Json(core.kalenderabo_anlegen(&akteur, w.umfang).await?))
+}
+async fn kalenderabo_widerrufen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<()> {
+    Ok(Json(core.kalenderabo_widerrufen(&akteur).await?))
+}
+/// Abonnierter Kalender (RFC 5545). Jeder Fehler beim Schlüssel ergibt 404.
+async fn kalenderabo_ics(
+    State(ApiState { core }): State<ApiState>,
+    Path((benutzer, datei)): Path<(Uuid, String)>,
+) -> Result<Response, ApiError> {
+    let schluessel = datei.strip_suffix(".ics").unwrap_or("");
+    let ics = core
+        .kalenderabo_ics(
+            core_lib::benutzer::BenutzerId(benutzer),
+            schluessel,
+            core_lib::kalender::heute(),
+        )
+        .await?;
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "text/calendar; charset=utf-8",
+            ),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        ics,
+    )
+        .into_response())
 }
 
 async fn create_project(

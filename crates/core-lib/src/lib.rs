@@ -30,6 +30,7 @@ pub mod flaechen;
 pub mod formular;
 pub mod ifc;
 pub mod kalender;
+pub mod kalenderabo;
 pub mod kennwort;
 pub mod kunden;
 pub mod lbo;

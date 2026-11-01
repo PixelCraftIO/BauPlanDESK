@@ -135,6 +135,27 @@ pub async fn buero_cockpit(
 }
 
 #[tauri::command]
+pub async fn kalenderabo_auskunft(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::kalenderabo::Aboauskunft> {
+    Ok(state.core.kalenderabo_auskunft(&state.benutzer()).await?)
+}
+#[tauri::command]
+pub async fn kalenderabo_anlegen(
+    state: State<'_, AppState>,
+    umfang: core_lib::kalenderabo::Aboumfang,
+) -> CmdResult<core_lib::kalenderabo::Aboschluessel> {
+    Ok(state
+        .core
+        .kalenderabo_anlegen(&state.benutzer(), umfang)
+        .await?)
+}
+#[tauri::command]
+pub async fn kalenderabo_widerrufen(state: State<'_, AppState>) -> CmdResult<()> {
+    Ok(state.core.kalenderabo_widerrufen(&state.benutzer()).await?)
+}
+
+#[tauri::command]
 pub async fn projekt_anlegen(
     state: State<'_, AppState>,
     projekt: NewProject,
