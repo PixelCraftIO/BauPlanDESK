@@ -12,6 +12,13 @@ use core_lib::{
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Sichtprüfung: BAUKENNWERTE_AUSGABE=/verzeichnis cargo test --test baukennwerte
+fn ausgabe(name: &str, pdf: &[u8]) {
+    if let Ok(d) = std::env::var("BAUKENNWERTE_AUSGABE") {
+        std::fs::write(std::path::Path::new(&d).join(format!("{name}.pdf")), pdf).unwrap();
+    }
+}
+
 #[tokio::test]
 async fn kennwerte_bericht_und_tagesmail() {
     let dir = tempfile::tempdir().unwrap();
@@ -86,6 +93,7 @@ async fn kennwerte_bericht_und_tagesmail() {
     for statistik in [false, true] {
         let pdf = core.baukennwerte_pdf(p.id, statistik, &u).await.unwrap();
         assert!(pdf.starts_with(b"%PDF"));
+        ausgabe(if statistik { "baustatistik" } else { "gebuehr" }, &pdf);
     }
 
     // Sachstandsbericht: Verfahren und offene Nachforderung, keine Aufgaben.
@@ -127,12 +135,9 @@ async fn kennwerte_bericht_und_tagesmail() {
         !text.contains("Interne Notiz Honorar"),
         "Aufgaben sind bürointern"
     );
-    assert!(
-        core.sachstandsbericht_pdf(p.id, &u)
-            .await
-            .unwrap()
-            .starts_with(b"%PDF")
-    );
+    let pdf = core.sachstandsbericht_pdf(p.id, &u).await.unwrap();
+    assert!(pdf.starts_with(b"%PDF"));
+    ausgabe("sachstandsbericht", &pdf);
 
     // Tagesmail: Anna ist abwesend, Bernd vertritt.
     let bernd = core

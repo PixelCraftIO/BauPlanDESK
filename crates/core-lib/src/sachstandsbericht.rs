@@ -77,13 +77,18 @@ impl CoreServices {
                 .to_string()
             })
             .unwrap_or_default();
-        let mut b = vec![Briefblock::Absatz {
-            text: format!(
-                "wir informieren Sie über den Stand Ihres Bauvorhabens „{}“ zum {}.",
-                projekt.name,
-                datum(heute)
-            ),
-        }];
+        let mut b = vec![
+            Briefblock::Absatz {
+                text: "Sehr geehrte Damen und Herren,".into(),
+            },
+            Briefblock::Absatz {
+                text: format!(
+                    "wir informieren Sie über den Stand Ihres Bauvorhabens „{}“ zum {}.",
+                    projekt.name,
+                    datum(heute)
+                ),
+            },
+        ];
 
         b.push(Briefblock::Abschnitt {
             titel: "Verfahrensstand".into(),
