@@ -99,3 +99,82 @@ Plannummer, Büroindex und Planverteiler.
 Technik: `core_lib::planliste`, `ObjektArt::Planliste` (Objektkennung =
 Dokument-ID), Tauri `planliste`, `plannummernschema[_speichern]`, Server
 `GET /api/projekte/{id}/planliste`, `GET/PUT /api/plannummernschema`.
+
+## Einreichungsprüfung
+
+**Nachweis und Einreichung → Verfahren → Einreichungsprüfung** fasst vor dem
+Absenden alle Prüfpunkte in einer Liste mit Ampel zusammen, wahlweise für ein
+Verfahren:
+
+| Bereich | Quelle |
+|---|---|
+| Grundlagen und Aufmaß, Bauvorlagen, Nachweise | Punkte der Projektübersicht (Unterlagenregister, Anforderungen der Verfahrensakte, Nachweisstände, Aufmaße) |
+| Pläne und Planindex | Planliste: kein Index oder Datei entfernt (rot), neuere Datei ohne Index (rot), Behörde hat älteren Index (gelb) |
+| Formulare | Formularinstanzen: Werte weichen von den Projektdaten ab (gelb); noch kein Formular (gelb) |
+| Fachplaner | Lieferlisten: überfällig, ohne Termin oder binnen 7 Tagen fällig (rot), später fällig oder geliefert und ungeprüft (gelb) |
+| Verfahren | Anforderungen fehlen, offene Nachforderungen (rot), Vorhabenprofil unbestätigt, Antwort eingereicht (gelb) |
+
+Rot heißt „vor dem Einreichen erledigen“, gelb „bewusst prüfen“. Die Prüfung
+liest nur und trifft keine Einreichungsentscheidung. Technik:
+`core_lib::einreichungspruefung`, Tauri `einreichungspruefung`, Server
+`GET /api/projekte/{id}/einreichungspruefung?verfahren=…`.
+
+## Fachplaner und Lieferungen
+
+**Übersicht → Fachplaner / Lieferungen** führt je Fachplaner eine Lieferliste
+(`ObjektArt::Fachplanerlieferung`, Modul `fachplanerlieferung`): Disziplin,
+Büro, Kontakt, angeforderte Unterlagen (abhakbar), Anfragedatum, zugesagter
+Termin, Stand (offen, angefragt, teilweise, geliefert, geprüft, entfallen),
+Zuständigkeit, gelieferte Dokumentversionen und optional ein Verfahren.
+Ausstehende Lieferungen mit Termin erscheinen in Projektübersicht, Büro-Cockpit
+und Kalender-Abo (`cockpit::lieferungstermine`).
+
+## Rohbauwert, Gebühr und Baustatistik
+
+**Formulare und Ausgabe → Rohbauwert, Gebühr, Baustatistik**. Projektwerte
+stehen in `ObjektArt::Baukennwerte` (ein Datensatz je Projekt, Objektkennung =
+Projekt-ID); Brutto-Rauminhalt, Nutzungsfläche, Wohnfläche, Wohnungen und
+Vollgeschosse kommen aus den Berechnungen, eine Eingabe überschreibt sichtbar.
+
+- Regelpaket `workflow-regeln/gebuehren.json`: Rohbauwert je m³ BRI nach
+  Gebäudeart, Gebührensatz in Promille und Mindestgebühr je Land. Zunächst nur
+  NRW, **`geprueft: false`**: die Werte sind Schätzwerte und vor der Nutzung
+  gegen den Runderlass zu den Rohbauwerten und die AVerwGebO NRW zu prüfen; nur
+  das Büro setzt `geprueft` auf `true`.
+- Baustatistik: Arbeitshilfe für den Erhebungsbogen nach dem
+  Hochbaustatistikgesetz mit Quelle je Merkmal; Bauherrenart aus der
+  Kundenkategorie des ersten Bauherrn.
+- Beide als PDF im Briefbogen (`baukennwerte_pdf`). Server
+  `GET /api/projekte/{id}/gebuehrenschaetzung`, `…/baustatistik`.
+
+## Sachstandsbericht
+
+**Projektübersicht → Sachstandsbericht für Bauherrn …** setzt ein Schreiben im
+Briefbogen an den ersten Bauherrn: Verfahrensstand je Verfahren, eingereichte
+Abgaben, offene Nachforderungen, nächste Behördenfristen (höchstens zwölf) und
+Bescheide. Aufgaben, Projekttagebuch und Fachplanerlieferungen sind bürointern
+und fehlen bewusst. Technik: `core_lib::sachstandsbericht`, Tauri
+`sachstandsbericht_pdf`, Server `GET /api/projekte/{id}/sachstandsbericht`
+(liefert das Schreiben als Daten).
+
+## Tägliche E-Mail
+
+**Einstellungen → Tägliche E-Mail** (nur Netzwerkbetrieb): Adresse, Umfang
+(nur eigene / alle Fristen), Abwesenheit bis und Vertretung. Gespeichert unter
+`tagesmail.<Benutzer>`. Der Server stellt morgens je Empfänger die
+überfälligen und in sieben Tagen fälligen Termine aus dem Büro-Cockpit
+zusammen; ohne fällige Termine geht keine Nachricht. Während der Abwesenheit
+erhält die Vertretung die Termine mit Vermerk, der Abwesende nichts.
+
+Serverkonfiguration (fehlt `BAUPROJEKT_SMTP_URL`, ist der Versand aus):
+
+| Variable | Beispiel |
+|---|---|
+| `BAUPROJEKT_SMTP_URL` | `smtps://benutzer:kennwort@mail.buero.de:465` oder `smtp://…:587?tls=required` |
+| `BAUPROJEKT_MAIL_ABSENDER` | `BauPlanIO <fristen@buero.de>` |
+| `BAUPROJEKT_MAIL_UHRZEIT` | `06:30` (deutsche Ortszeit, Vorgabe) |
+
+Der Versand eines Tages wird in der Datenbank beansprucht
+(`tagesmail.versandtag`), damit mehrere Serverinstanzen nicht doppelt senden.
+SMTP über `lettre` (MIT) mit rustls; `quoted_printable` (0BSD) ist in
+`deny.toml` einzeln freigegeben.

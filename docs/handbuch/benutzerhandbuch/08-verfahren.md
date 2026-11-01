@@ -124,6 +124,14 @@ Eingangsbelege. Darunter führen fünf Schritte zu den zuständigen Bereichen:
 4. **Abgabe** – Portalziel bestätigen, Abgabestand festhalten, bereitstellen.
 5. **Eingangsbeleg** – Portalbeleg, Kommunikation, Nachforderungen.
 
+## Einreichungsprüfung
+
+„Verfahren → Einreichungsprüfung“ fasst vor dem Absenden alles in einer Liste
+mit Ampel zusammen: Bauvorlagen, Nachweise, Pläne und Planindex, Formulare,
+Lieferungen der Fachplaner und offene Punkte der Verfahrensakte. Rot ist vor
+dem Einreichen zu erledigen, Gelb bewusst zu prüfen. Ein Klick auf einen Punkt
+öffnet die Stelle in der Akte; die Bereichskacheln filtern die Liste.
+
 ## Bauantrag / XBau
 
 ![Bauantrag (XBau)](bilder/verfahren-bauantrag.png)
@@ -219,3 +227,28 @@ Im Register **Übersicht**:
   Details, einschließlich Aufmaßübernahmen mit altem und neuem Wert.
 
 ![Chronik](bilder/akte-chronik.png)
+
+## Projekttagebuch und Fachplaner
+
+Das **Projekttagebuch** hält Telefonate, Besprechungen, Ortstermine, Mängel und
+Entscheidungen des Bauherrn fest, mit Anhängen und Wiedervorlage.
+
+Unter **Fachplaner / Lieferungen** führt das Büro je Statiker, Vermesser,
+Brandschutz- oder Wärmeschutzplaner eine Lieferliste: angeforderte Unterlagen,
+Anfrage, zugesagter Termin, Stand und gelieferte Dateien. Ausstehende
+Lieferungen erscheinen im Büro-Cockpit, im Kalender-Abo und in der
+Einreichungsprüfung.
+
+## Büro-Cockpit, Kalender-Abo und tägliche E-Mail
+
+Die Startseite zeigt alle laufenden Fristen und Verfahren der lesbaren
+Projekte. Im Netzwerkbetrieb gibt es unter Einstellungen ein persönliches
+**Kalender-Abo** und die **tägliche E-Mail** mit überfälligen und in sieben
+Tagen fälligen Terminen, mit Abwesenheit und Vertretung.
+
+## Sachstandsbericht
+
+„Sachstandsbericht für Bauherrn …“ in der Projektübersicht gibt ein Schreiben
+mit Verfahrensstand, eingereichten Unterlagen, offenen Nachforderungen,
+nächsten Fristen und Bescheiden aus. Bürointerne Aufgaben, Tagebuch und
+Fachplaner stehen nicht darin.
