@@ -16,7 +16,7 @@ use crate::{
     domain::{Bundesland, Project, ProjectId},
     plattform::{
         ObjektArt,
-        objekte::{Aufgabe, AufgabenStatus, Tagebucheintrag},
+        objekte::{Aufgabe, AufgabenStatus, Fachplanerlieferung, Tagebucheintrag},
     },
     projektuebersicht::UebersichtsZiel,
     verfahren::{
@@ -77,7 +77,7 @@ pub fn register(art: Terminart) -> &'static str {
 pub struct CockpitTermin {
     pub projekt_id: ProjectId,
     pub projekt: String,
-    /// Verfahrensbezeichnung, „Aufgabe“ oder „Projekttagebuch“.
+    /// Verfahrensbezeichnung, „Aufgabe“, „Projekttagebuch“ oder „Fachplaner“.
     pub bezug: String,
     /// Art eines Verfahrenstermins; `None` bei Aufgaben und Wiedervorlagen des
     /// Projekttagebuchs.
@@ -325,6 +325,54 @@ pub fn weitere_termine(
     r
 }
 
+/// Ausstehende Fachplanerlieferungen mit Liefertermin.
+pub fn lieferungstermine(
+    p: &Project,
+    lieferungen: &[(Uuid, Fachplanerlieferung)],
+    heute: NaiveDate,
+) -> Vec<CockpitTermin> {
+    lieferungen
+        .iter()
+        .filter(|(_, l)| l.status.ausstehend())
+        .filter_map(|(id, l)| {
+            let datum = l.faellig?;
+            let offen: Vec<&str> = l
+                .positionen
+                .iter()
+                .filter(|q| !q.geliefert)
+                .map(|q| q.bezeichnung.as_str())
+                .collect();
+            Some(CockpitTermin {
+                projekt_id: p.id,
+                projekt: p.name.clone(),
+                bezug: "Fachplaner".into(),
+                art: None,
+                art_bezeichnung: "Lieferung Fachplaner".into(),
+                titel: format!("{}: {}", l.disziplin.bezeichnung(), l.fachplaner),
+                datum,
+                faellig_ab: datum,
+                verantwortlich: l.verantwortlich.map(|b| b.0),
+                hinweis: if offen.is_empty() {
+                    l.status.bezeichnung().into()
+                } else {
+                    format!(
+                        "{} · ausstehend: {}",
+                        l.status.bezeichnung(),
+                        offen.join(", ")
+                    )
+                },
+                stufe: Friststufe::fuer(datum, datum < heute, heute),
+                ziel: UebersichtsZiel {
+                    bereich: "fachplaner".into(),
+                    objekt: Some(*id),
+                    register: None,
+                    eintrag: None,
+                },
+            })
+        })
+        .collect()
+}
+
 /// Fügt die Projektauswertungen zum Cockpit zusammen und sortiert.
 pub fn zusammenfassen(
     heute: NaiveDate,
@@ -363,7 +411,8 @@ pub fn zusammenfassen(
 }
 
 impl CoreServices {
-    /// Verfahrensakten sowie Termine aus Aufgaben und Projekttagebuch eines Projekts.
+    /// Verfahrensakten sowie Termine aus Aufgaben, Projekttagebuch und
+    /// Fachplanerlieferungen eines Projekts.
     pub(crate) async fn cockpit_quellen(
         &self,
         p: &Project,
@@ -391,7 +440,15 @@ impl CoreServices {
             .into_iter()
             .map(lesen::<Tagebucheintrag>)
             .collect::<CoreResult<Vec<_>>>()?;
-        Ok((akten, weitere_termine(p, &aufgaben, &tagebuch, heute)))
+        let lieferungen = self
+            .fachobjekte(p.id, ObjektArt::Fachplanerlieferung)
+            .await?
+            .into_iter()
+            .map(lesen::<Fachplanerlieferung>)
+            .collect::<CoreResult<Vec<_>>>()?;
+        let mut weitere = weitere_termine(p, &aufgaben, &tagebuch, heute);
+        weitere.extend(lieferungstermine(p, &lieferungen, heute));
+        Ok((akten, weitere))
     }
     /// Büro-Cockpit über alle Projekte, die `wer` lesen darf.
     pub async fn buero_cockpit(

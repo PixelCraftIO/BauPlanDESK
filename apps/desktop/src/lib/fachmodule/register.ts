@@ -113,6 +113,18 @@ export const FACHMODULE = [
     laden: () => import("./Projekttagebuch.svelte"),
   },
   {
+    id: "fachplaner",
+    titel: "Fachplaner / Lieferungen",
+    gruppe: "Organisation",
+    laden: () => import("./Fachplaner.svelte"),
+  },
+  {
+    id: "einreichungspruefung",
+    titel: "Einreichungsprüfung",
+    gruppe: "Unterlagen",
+    laden: () => import("./Einreichungspruefung.svelte"),
+  },
+  {
     id: "planliste",
     titel: "Planliste",
     gruppe: "Unterlagen",

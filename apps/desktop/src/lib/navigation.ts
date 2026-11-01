@@ -19,7 +19,13 @@ export const NAVIGATION: NavZweig[] = [
     id: "akte",
     titel: "Übersicht",
     untertitel: "Stand, offene Punkte",
-    module: ["projektuebersicht", "aufgaben", "projekttagebuch", "protokoll"],
+    module: [
+      "projektuebersicht",
+      "aufgaben",
+      "projekttagebuch",
+      "fachplaner",
+      "protokoll",
+    ],
   },
   {
     id: "ermittlung",
@@ -31,12 +37,23 @@ export const NAVIGATION: NavZweig[] = [
       {
         id: "grundlagen",
         titel: "Grundlagen",
-        module: ["uebersicht", "rechtsgrundlagen", "festsetzungen", "flurstuecke"],
+        module: [
+          "uebersicht",
+          "rechtsgrundlagen",
+          "festsetzungen",
+          "flurstuecke",
+        ],
       },
       {
         id: "unterlagen",
         titel: "Unterlagen",
-        module: ["dokumente", "planaufmass", "messwerte", "planliste", "unterlagen"],
+        module: [
+          "dokumente",
+          "planaufmass",
+          "messwerte",
+          "planliste",
+          "unterlagen",
+        ],
       },
       {
         id: "gebaeudemodell",
@@ -88,7 +105,12 @@ export const NAVIGATION: NavZweig[] = [
       {
         id: "verfahren",
         titel: "Verfahren",
-        module: ["verfahren", "einreichen", "aktensuche"],
+        module: [
+          "verfahren",
+          "einreichungspruefung",
+          "einreichen",
+          "aktensuche",
+        ],
       },
       {
         id: "einreichungswerkzeuge",

@@ -161,6 +161,10 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/status", get(projektstatus))
         .route("/projekte/{id}/uebersicht", get(projektuebersicht))
         .route(
+            "/projekte/{id}/einreichungspruefung",
+            get(einreichungspruefung),
+        )
+        .route(
             "/projekte/{id}/checkliste",
             axum::routing::post(checkliste_anwenden),
         )
@@ -1946,6 +1950,22 @@ async fn projektuebersicht(
     Extension(wer): Extension<Benutzer>,
 ) -> ApiResult<core_lib::projektuebersicht::Projektuebersicht> {
     Ok(Json(core.projektuebersicht(ProjectId(id), &wer).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct EinreichungspruefungQuery {
+    verfahren: Option<Uuid>,
+}
+async fn einreichungspruefung(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<EinreichungspruefungQuery>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::einreichungspruefung::Einreichungspruefung> {
+    Ok(Json(
+        core.einreichungspruefung(ProjectId(id), q.verfahren, &wer)
+            .await?,
+    ))
 }
 
 // XBau-Dateiaustausch. Diese Endpunkte versenden nichts an eine Behörde.

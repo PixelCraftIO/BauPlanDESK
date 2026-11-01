@@ -22,6 +22,7 @@ pub mod dateiverwaltung;
 pub mod dokumentkategorien;
 pub mod domain;
 pub mod einreichung;
+pub mod einreichungspruefung;
 pub mod email;
 pub mod error;
 pub mod exportgrenze;

@@ -3,7 +3,7 @@ import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Plan
 export type Friststufe = "ueberfaellig" | "diese_woche" | "monat" | "spaeter";
 export type CockpitTermin = { projekt_id: ProjectId, projekt: string,
 /**
- * Verfahrensbezeichnung, „Aufgabe“ oder „Projekttagebuch“.
+ * Verfahrensbezeichnung, „Aufgabe“, „Projekttagebuch“ oder „Fachplaner“.
  */
 bezug: string,
 /**
@@ -1648,7 +1648,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste" | "fachplanerlieferung";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
@@ -1735,6 +1735,30 @@ anhaenge: Array<Dokumentbezug>,
  * Optionaler Bezug auf eine Verfahrensakte des Projekts.
  */
 verfahren: string | null, wiedervorlage: Wiedervorlage | null, };
+export type Fachdisziplin = "tragwerksplanung" | "brandschutz" | "waermeschutz" | "schallschutz" | "vermessung" | "entwaesserung" | "baugrund" | "haustechnik" | "freianlagen" | "sonstiges";
+export type Lieferstatus = "offen" | "angefragt" | "teilweise" | "geliefert" | "geprueft" | "entfallen";
+export type Lieferposition = { bezeichnung: string, geliefert: boolean, };
+export type Fachplanerlieferung = { disziplin: Fachdisziplin,
+/**
+ * Büro oder Person des Fachplaners.
+ */
+fachplaner: string, kontakt: string, positionen: Array<Lieferposition>, angefragt_am: string | null,
+/**
+ * Zugesagter Liefertermin.
+ */
+faellig: string | null, status: Lieferstatus,
+/**
+ * Wer im Büro die Lieferung nachhält.
+ */
+verantwortlich: BenutzerId | null,
+/**
+ * Gelieferte Unterlagen aus den Projektdateien.
+ */
+dokumente: Array<Dokumentbezug>,
+/**
+ * Verfahren, für das geliefert wird; leer = alle Verfahren des Projekts.
+ */
+verfahren: string | null, bemerkung: string, };
 export type UnterlagenStatus = "entwurf" | "pruefung" | "freigegeben";
 export type Unterlage = { vorlage: ChecklistenQuelle | null, bezeichnung: string, erforderlich: boolean, dokument: Dokumentbezug | null, status: UnterlagenStatus, bemerkung: string, };
 export type ChecklistenQuelle = { id: string, version: string, punkt: string, };
@@ -1751,6 +1775,15 @@ export type VerfahrensUeberblick = { id: string, bezeichnung: string, behoerde: 
 export type AbgabeUeberblick = { id: string, titel: string, empfaenger: string, quelle: string, status: string, datum: string | null, dokumente: number, ziel: UebersichtsZiel, };
 export type EmpfaengerDokument = { dokument_id: string, dateiname: string, eingereichte_version: bigint, aktuelle_version: bigint | null, eingereicht_am: string, status: string, };
 export type EmpfaengerUeberblick = { empfaenger: string, dokumente: Array<EmpfaengerDokument>, ziel: UebersichtsZiel, };
+export type Ampel = "rot" | "gelb" | "gruen";
+export type Pruefbereich = "grundlagen" | "unterlagen" | "nachweise" | "plaene" | "formulare" | "fachplaner" | "verfahren";
+export type Pruefpunkt = { id: string, bereich: Pruefbereich, ampel: Ampel, titel: string, hinweis: string, faellig: string | null, verantwortlich: string | null, ziel: UebersichtsZiel, };
+export type Bereichsstand = { bereich: Pruefbereich, bezeichnung: string, ampel: Ampel, rot: number, gelb: number, };
+export type Einreichungspruefung = { stichtag: string, verfahren: string | null, gesamt: Ampel, bereiche: Array<Bereichsstand>,
+/**
+ * Rot vor Gelb, innerhalb nach Bereich.
+ */
+punkte: Array<Pruefpunkt>, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };

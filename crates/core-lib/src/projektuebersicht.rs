@@ -400,6 +400,24 @@ impl CoreServices {
             );
             s.termin(Some(w.datum), w.verantwortlich.map(|p| p.0));
         }
+        // Ausstehende Lieferungen der Fachplaner zählen wie Aufgaben.
+        for f in self.fachobjekte(p, ObjektArt::Fachplanerlieferung).await? {
+            let l: crate::plattform::objekte::Fachplanerlieferung = decode(f.daten)?;
+            if !l.status.ausstehend() {
+                continue;
+            }
+            let lid = id(&f.objekt)?;
+            s.zahlen.offene_aufgaben += 1;
+            s.punkt(
+                format!("fachplaner:{lid}"),
+                Aufgaben,
+                frist(l.faellig, heute, Warten),
+                format!("Lieferung {}: {}", l.disziplin.bezeichnung(), l.fachplaner),
+                l.status.bezeichnung(),
+                UebersichtsZiel::neu("fachplaner").objekt(lid),
+            );
+            s.termin(l.faellig, l.verantwortlich.map(|p| p.0));
+        }
         let doc_aktuell = |d: &crate::plattform::objekte::Dokumentbezug| {
             aktuell
                 .get(&d.dokument_id.0)

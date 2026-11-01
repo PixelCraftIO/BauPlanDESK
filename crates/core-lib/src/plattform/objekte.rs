@@ -146,6 +146,105 @@ pub struct Tagebucheintrag {
     #[serde(default)]
     pub wiedervorlage: Option<Wiedervorlage>,
 }
+/// Fachdisziplin eines Fachplaners oder Gutachters.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Fachdisziplin {
+    Tragwerksplanung,
+    Brandschutz,
+    Waermeschutz,
+    Schallschutz,
+    Vermessung,
+    Entwaesserung,
+    Baugrund,
+    Haustechnik,
+    Freianlagen,
+    Sonstiges,
+}
+impl Fachdisziplin {
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Tragwerksplanung => "Tragwerksplanung / Statik",
+            Self::Brandschutz => "Brandschutz",
+            Self::Waermeschutz => "Wärmeschutz / GEG",
+            Self::Schallschutz => "Schallschutz",
+            Self::Vermessung => "Vermessung / Lageplan",
+            Self::Entwaesserung => "Entwässerung",
+            Self::Baugrund => "Baugrund / Bodengutachten",
+            Self::Haustechnik => "Haustechnik",
+            Self::Freianlagen => "Freianlagen",
+            Self::Sonstiges => "Sonstiges",
+        }
+    }
+}
+/// Stand einer Lieferung, die beim Fachplaner angefragt ist.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Lieferstatus {
+    /// Noch nicht beauftragt oder angefragt.
+    Offen,
+    Angefragt,
+    /// Teillieferung oder Entwurf liegt vor.
+    Teilweise,
+    Geliefert,
+    /// Vom Büro geprüft und für die Einreichung übernommen.
+    Geprueft,
+    Entfallen,
+}
+impl Lieferstatus {
+    /// Wartet das Büro noch auf den Fachplaner?
+    pub fn ausstehend(self) -> bool {
+        matches!(self, Self::Offen | Self::Angefragt | Self::Teilweise)
+    }
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Offen => "Offen",
+            Self::Angefragt => "Angefragt",
+            Self::Teilweise => "Teilweise geliefert",
+            Self::Geliefert => "Geliefert, Prüfung offen",
+            Self::Geprueft => "Geprüft",
+            Self::Entfallen => "Entfallen",
+        }
+    }
+}
+/// Einzelne angeforderte Unterlage (z. B. „Standsicherheitsnachweis“).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Lieferposition {
+    pub bezeichnung: String,
+    pub geliefert: bool,
+}
+/// Lieferliste je Fachplaner: was angefordert ist, bis wann, und in welchem
+/// Stand. Ausstehende Lieferungen mit Termin erscheinen im Büro-Cockpit, im
+/// Kalender-Abo und in der Einreichungsprüfung.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Fachplanerlieferung {
+    pub disziplin: Fachdisziplin,
+    /// Büro oder Person des Fachplaners.
+    pub fachplaner: String,
+    #[serde(default)]
+    pub kontakt: String,
+    #[serde(default)]
+    pub positionen: Vec<Lieferposition>,
+    #[serde(default)]
+    pub angefragt_am: Option<NaiveDate>,
+    /// Zugesagter Liefertermin.
+    #[serde(default)]
+    pub faellig: Option<NaiveDate>,
+    pub status: Lieferstatus,
+    /// Wer im Büro die Lieferung nachhält.
+    #[serde(default)]
+    pub verantwortlich: Option<BenutzerId>,
+    /// Gelieferte Unterlagen aus den Projektdateien.
+    #[serde(default)]
+    pub dokumente: Vec<Dokumentbezug>,
+    /// Verfahren, für das geliefert wird; leer = alle Verfahren des Projekts.
+    #[serde(default)]
+    pub verfahren: Option<Uuid>,
+    #[serde(default)]
+    pub bemerkung: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum UnterlagenStatus {
@@ -542,6 +641,50 @@ pub(super) async fn validieren(
                 }
             }
             serde_json::to_value(e)
+        }
+        ObjektArt::Fachplanerlieferung => {
+            let l: Fachplanerlieferung = serde_json::from_value(daten).map_err(json_err)?;
+            text(&l.fachplaner, 300)?;
+            if l.kontakt.chars().count() > 1000 || l.bemerkung.chars().count() > 10000 {
+                return Err(CoreError::InvalidInput("Lieferliste: Text zu lang".into()));
+            }
+            if l.positionen.len() > 200 || l.dokumente.len() > 200 {
+                return Err(CoreError::InvalidInput("Lieferliste zu lang".into()));
+            }
+            for p in &l.positionen {
+                text(&p.bezeichnung, 300)?;
+            }
+            if let (Some(a), Some(f)) = (l.angefragt_am, l.faellig)
+                && f < a
+            {
+                return Err(CoreError::InvalidInput(
+                    "Der Liefertermin liegt vor dem Anfragedatum".into(),
+                ));
+            }
+            for d in &l.dokumente {
+                dokument(core, p.id, d).await?;
+            }
+            if let Some(v) = l.verfahren
+                && core
+                    .repos
+                    .commit
+                    .fachobjekt(p.id, "verfahren", &v.to_string())
+                    .await?
+                    .is_none()
+            {
+                return Err(CoreError::InvalidInput(
+                    "Verfahrensakte gehört nicht zu diesem Projekt".into(),
+                ));
+            }
+            if let Some(id) = l.verantwortlich {
+                let b = core.repos.benutzer.get(id).await?;
+                if !b.aktiv {
+                    return Err(CoreError::InvalidInput(
+                        "Verantwortlicher Benutzer ist inaktiv".into(),
+                    ));
+                }
+            }
+            serde_json::to_value(l)
         }
         ObjektArt::Aufgaben => {
             let a: Aufgabe = serde_json::from_value(daten).map_err(json_err)?;

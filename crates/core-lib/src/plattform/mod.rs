@@ -42,6 +42,8 @@ pub enum ObjektArt {
     Projekttagebuch,
     /// Planliste ([`crate::planliste::Planeintrag`]), ein Datensatz je Dokument.
     Planliste,
+    /// Lieferliste eines Fachplaners ([`objekte::Fachplanerlieferung`]).
+    Fachplanerlieferung,
 }
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
@@ -67,6 +69,7 @@ impl ObjektArt {
             Self::Ifcmodell => "ifcmodell",
             Self::Projekttagebuch => "projekttagebuch",
             Self::Planliste => "planliste",
+            Self::Fachplanerlieferung => "fachplanerlieferung",
         }
     }
 }
@@ -282,6 +285,7 @@ pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
         ObjektArt::Ifcmodell => rund::<crate::ifc::Modellakte>(&f.daten),
         ObjektArt::Projekttagebuch => rund::<objekte::Tagebucheintrag>(&f.daten),
         ObjektArt::Planliste => rund::<crate::planliste::Planeintrag>(&f.daten),
+        ObjektArt::Fachplanerlieferung => rund::<objekte::Fachplanerlieferung>(&f.daten),
     };
     if let Some(neu) = neu {
         f.daten = neu;
