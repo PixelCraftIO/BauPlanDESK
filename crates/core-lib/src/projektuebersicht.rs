@@ -37,7 +37,7 @@ pub enum Themenbereich {
     Verfahren,
     Einreichungen,
 }
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct UebersichtsZiel {
     pub bereich: String,
     pub objekt: Option<Uuid>,
@@ -381,6 +381,24 @@ impl CoreServices {
                 UebersichtsZiel::neu("aufgaben").objekt(aid),
             );
             s.termin(a.faellig, a.verantwortlich.map(|p| p.0));
+        }
+        // Wiedervorlagen aus dem Projekttagebuch zählen wie Aufgaben.
+        for f in self.fachobjekte(p, ObjektArt::Projekttagebuch).await? {
+            let e: crate::plattform::objekte::Tagebucheintrag = decode(f.daten)?;
+            let Some(w) = e.wiedervorlage.as_ref().filter(|w| !w.erledigt) else {
+                continue;
+            };
+            let eid = id(&f.objekt)?;
+            s.zahlen.offene_aufgaben += 1;
+            s.punkt(
+                format!("tagebuch:{eid}"),
+                Aufgaben,
+                frist(Some(w.datum), heute, Handeln),
+                format!("Wiedervorlage: {}", e.titel),
+                e.text.clone(),
+                UebersichtsZiel::neu("projekttagebuch").objekt(eid),
+            );
+            s.termin(Some(w.datum), w.verantwortlich.map(|p| p.0));
         }
         let doc_aktuell = |d: &crate::plattform::objekte::Dokumentbezug| {
             aktuell

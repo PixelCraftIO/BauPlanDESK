@@ -107,6 +107,12 @@ export const FACHMODULE = [
     laden: () => import("./Aufgaben.svelte"),
   },
   {
+    id: "projekttagebuch",
+    titel: "Projekttagebuch",
+    gruppe: "Organisation",
+    laden: () => import("./Projekttagebuch.svelte"),
+  },
+  {
     id: "unterlagen",
     titel: "Unterlagenregister",
     gruppe: "Unterlagen",

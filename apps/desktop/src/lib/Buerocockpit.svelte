@@ -42,13 +42,13 @@
     id ? (benutzer.find((b) => b.id === id)?.anzeigename ?? "unbekannt") : "—";
   const imZeitraum = (t: CockpitTermin) =>
     zeitraum === "alle" ||
-    t.dringlichkeit === "ueberfaellig" ||
-    t.dringlichkeit === "diese_woche" ||
-    (zeitraum === "monat" && t.dringlichkeit === "monat");
+    t.stufe === "ueberfaellig" ||
+    t.stufe === "diese_woche" ||
+    (zeitraum === "monat" && t.stufe === "monat");
   const passt = (t: CockpitTermin) =>
     (!nurMeine || t.verantwortlich === ich?.id) &&
     imZeitraum(t) &&
-    (t.projekt + " " + t.titel + " " + t.verfahrensbezeichnung + " " + t.art_bezeichnung)
+    (t.projekt + " " + t.titel + " " + t.bezug + " " + t.art_bezeichnung)
       .toLowerCase()
       .includes(suche.trim().toLowerCase());
   const termine = $derived(daten?.termine.filter(passt) ?? []);
@@ -58,7 +58,7 @@
       n:
         daten?.termine.filter(
           (t) =>
-            t.dringlichkeit === d &&
+            t.stufe === d &&
             (!nurMeine || t.verantwortlich === ich?.id),
         ).length ?? 0,
     })),
@@ -101,12 +101,7 @@
     }
   }
   function zuTermin(t: CockpitTermin) {
-    onoeffnen(t.projekt_id, {
-      bereich: "verfahren",
-      objekt: t.verfahren,
-      register: t.register,
-      eintrag: t.objekt,
-    });
+    onoeffnen(t.projekt_id, t.ziel);
   }
   $effect(() => {
     void aktualisieren;
@@ -180,19 +175,19 @@
     <table class="ergebnistabelle cockpit-termine">
       <thead
         ><tr
-          ><th>Datum</th><th>Stand</th><th>Projekt</th><th>Verfahren</th><th
+          ><th>Datum</th><th>Stand</th><th>Projekt</th><th>Bezug</th><th
             >Art</th
           ><th>Betreff</th><th>Zuständig</th></tr
         ></thead
       >
       <tbody>
-        {#each termine as t (t.projekt_id + t.verfahren + t.objekt + t.art + t.datum)}<tr
-            class:zeile-ueberfaellig={t.dringlichkeit === "ueberfaellig"}
+        {#each termine as t, i (i + t.projekt_id + JSON.stringify(t.ziel) + t.art_bezeichnung + t.datum)}<tr
+            class:zeile-ueberfaellig={t.stufe === "ueberfaellig"}
             ><td class="zahl">{datum(t.datum)}</td><td
-              ><span class="stufe stufe-{t.dringlichkeit}"
-                >{STUFEN[t.dringlichkeit]}</span
+              ><span class="stufe stufe-{t.stufe}"
+                >{STUFEN[t.stufe]}</span
               ></td
-            ><td>{t.projekt}</td><td>{t.verfahrensbezeichnung}</td><td
+            ><td>{t.projekt}</td><td>{t.bezug}</td><td
               >{t.art_bezeichnung}</td
             ><td
               ><button

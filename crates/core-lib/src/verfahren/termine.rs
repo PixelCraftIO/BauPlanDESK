@@ -426,6 +426,51 @@ fn ics_zeile(ziel: &mut String, zeile: &str) {
 /// stabile UID, damit ein erneuter Import ihn aktualisiert statt verdoppelt,
 /// und eine Erinnerung mit dem Vorlauf.
 pub fn ics(kalendername: &str, termine: &[Termin], erzeugt: DateTime<Utc>) -> String {
+    let eintraege: Vec<Kalendereintrag> = termine
+        .iter()
+        .map(|t| {
+            let art = serde_json::to_value(t.art)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_default();
+            let mut beschreibung = format!("{}\n{}", t.art.bezeichnung(), t.hinweis);
+            if !t.endet_mit_ablauf {
+                beschreibung.push_str("\nBleibt bis zur Erledigung in den Wiedervorlagen.");
+            }
+            Kalendereintrag {
+                uid: format!("{}-{art}-{}", t.objekt, t.verfahren),
+                datum: t.datum,
+                zusammenfassung: format!("{} · {}", t.verfahrensbezeichnung, t.titel),
+                beschreibung,
+                kategorie: t.art.bezeichnung().into(),
+                erinnerung: t.titel.clone(),
+                vorlauf_tage: t.vorlauf_tage,
+            }
+        })
+        .collect();
+    kalender(kalendername, &eintraege, erzeugt)
+}
+
+/// Ganztägiger Kalendereintrag für [`kalender`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Kalendereintrag {
+    /// Eindeutig und stabil über Abrufe; `@bauprojektio` wird angehängt.
+    pub uid: String,
+    pub datum: NaiveDate,
+    pub zusammenfassung: String,
+    pub beschreibung: String,
+    pub kategorie: String,
+    /// Text der Erinnerung.
+    pub erinnerung: String,
+    pub vorlauf_tage: u32,
+}
+
+/// Kalenderdatei (RFC 5545) aus ganztägigen Einträgen.
+pub fn kalender(
+    kalendername: &str,
+    eintraege: &[Kalendereintrag],
+    erzeugt: DateTime<Utc>,
+) -> String {
     let mut s = String::new();
     let stempel = erzeugt.format("%Y%m%dT%H%M%SZ").to_string();
     for z in [
@@ -438,20 +483,9 @@ pub fn ics(kalendername: &str, termine: &[Termin], erzeugt: DateTime<Utc>) -> St
         ics_zeile(&mut s, z);
     }
     ics_zeile(&mut s, &format!("X-WR-CALNAME:{}", ics_text(kalendername)));
-    for t in termine {
-        let art = serde_json::to_value(t.art)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_default();
-        let mut beschreibung = format!("{}\n{}", t.art.bezeichnung(), t.hinweis);
-        if !t.endet_mit_ablauf {
-            beschreibung.push_str("\nBleibt bis zur Erledigung in den Wiedervorlagen.");
-        }
+    for t in eintraege {
         ics_zeile(&mut s, "BEGIN:VEVENT");
-        ics_zeile(
-            &mut s,
-            &format!("UID:{}-{art}-{}@bauprojektio", t.objekt, t.verfahren),
-        );
+        ics_zeile(&mut s, &format!("UID:{}@bauprojektio", t.uid));
         ics_zeile(&mut s, &format!("DTSTAMP:{stempel}"));
         ics_zeile(
             &mut s,
@@ -462,22 +496,16 @@ pub fn ics(kalendername: &str, termine: &[Termin], erzeugt: DateTime<Utc>) -> St
             &mut s,
             &format!("DTEND;VALUE=DATE:{}", ende.format("%Y%m%d")),
         );
+        ics_zeile(&mut s, &format!("SUMMARY:{}", ics_text(&t.zusammenfassung)));
         ics_zeile(
             &mut s,
-            &format!(
-                "SUMMARY:{}",
-                ics_text(&format!("{} · {}", t.verfahrensbezeichnung, t.titel))
-            ),
+            &format!("DESCRIPTION:{}", ics_text(&t.beschreibung)),
         );
-        ics_zeile(&mut s, &format!("DESCRIPTION:{}", ics_text(&beschreibung)));
-        ics_zeile(
-            &mut s,
-            &format!("CATEGORIES:{}", ics_text(t.art.bezeichnung())),
-        );
+        ics_zeile(&mut s, &format!("CATEGORIES:{}", ics_text(&t.kategorie)));
         ics_zeile(&mut s, "TRANSP:TRANSPARENT");
         ics_zeile(&mut s, "BEGIN:VALARM");
         ics_zeile(&mut s, "ACTION:DISPLAY");
-        ics_zeile(&mut s, &format!("DESCRIPTION:{}", ics_text(&t.titel)));
+        ics_zeile(&mut s, &format!("DESCRIPTION:{}", ics_text(&t.erinnerung)));
         ics_zeile(
             &mut s,
             &if t.vorlauf_tage == 0 {

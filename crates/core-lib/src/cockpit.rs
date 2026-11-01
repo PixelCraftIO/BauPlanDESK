@@ -11,9 +11,14 @@
 //! - Ein Projekt, dessen Akten nicht gelesen werden können, verschwindet nicht
 //!   still: es erscheint unter [`Buerocockpit::fehler`].
 use crate::{
-    CoreResult, CoreServices,
+    CoreError, CoreResult, CoreServices,
     benutzer::Benutzer,
     domain::{Bundesland, Project, ProjectId},
+    plattform::{
+        ObjektArt,
+        objekte::{Aufgabe, AufgabenStatus, Tagebucheintrag},
+    },
+    projektuebersicht::UebersichtsZiel,
     verfahren::{
         Entscheidung, Punktstatus, Verfahrensakte, Verfahrensart, Verfahrensstatus,
         abgabe::Versandstatus,
@@ -39,10 +44,14 @@ pub enum Friststufe {
 }
 impl Friststufe {
     pub fn von(t: &Termin, heute: NaiveDate) -> Self {
-        if t.ueberfaellig(heute) {
+        Self::fuer(t.datum, t.ueberfaellig(heute), heute)
+    }
+    /// Stufe eines Datums; `ueberfaellig` sagt, ob ein vergangenes Datum offen ist.
+    pub fn fuer(datum: NaiveDate, ueberfaellig: bool, heute: NaiveDate) -> Self {
+        if ueberfaellig {
             return Self::Ueberfaellig;
         }
-        match (t.datum - heute).num_days() {
+        match (datum - heute).num_days() {
             ..=7 => Self::DieseWoche,
             8..=30 => Self::Monat,
             _ => Self::Spaeter,
@@ -68,10 +77,11 @@ pub fn register(art: Terminart) -> &'static str {
 pub struct CockpitTermin {
     pub projekt_id: ProjectId,
     pub projekt: String,
-    pub verfahren: Uuid,
-    pub verfahrensbezeichnung: String,
-    pub objekt: Uuid,
-    pub art: Terminart,
+    /// Verfahrensbezeichnung, „Aufgabe“ oder „Projekttagebuch“.
+    pub bezug: String,
+    /// Art eines Verfahrenstermins; `None` bei Aufgaben und Wiedervorlagen des
+    /// Projekttagebuchs.
+    pub art: Option<Terminart>,
     pub art_bezeichnung: String,
     pub titel: String,
     pub datum: NaiveDate,
@@ -79,9 +89,9 @@ pub struct CockpitTermin {
     pub faellig_ab: NaiveDate,
     pub verantwortlich: Option<Uuid>,
     pub hinweis: String,
-    pub dringlichkeit: Friststufe,
-    /// Register der Verfahrensakte für den Sprung.
-    pub register: String,
+    pub stufe: Friststufe,
+    /// Sprungziel in der Projektakte.
+    pub ziel: UebersichtsZiel,
 }
 
 /// Kurzstand eines Verfahrens im Cockpit.
@@ -200,6 +210,7 @@ fn verfahren_auswerten(
 pub fn projekt_auswerten(
     p: &Project,
     akten: &[(Uuid, Verfahrensakte)],
+    weitere: Vec<CockpitTermin>,
     heute: NaiveDate,
 ) -> (CockpitProjekt, Vec<CockpitTermin>) {
     let mut ts: Vec<CockpitTermin> = akten
@@ -209,25 +220,25 @@ pub fn projekt_auswerten(
         .map(|t| CockpitTermin {
             projekt_id: p.id,
             projekt: p.name.clone(),
-            verfahren: t.verfahren,
-            verfahrensbezeichnung: t.verfahrensbezeichnung.clone(),
-            objekt: t.objekt,
-            art: t.art,
+            bezug: t.verfahrensbezeichnung.clone(),
+            art: Some(t.art),
             art_bezeichnung: t.art.bezeichnung().into(),
             titel: t.titel.clone(),
             datum: t.datum,
             faellig_ab: t.faellig_ab(),
             verantwortlich: t.verantwortlich,
             hinweis: t.hinweis.clone(),
-            dringlichkeit: Friststufe::von(&t, heute),
-            register: register(t.art).into(),
+            stufe: Friststufe::von(&t, heute),
+            ziel: UebersichtsZiel {
+                bereich: "verfahren".into(),
+                objekt: Some(t.verfahren),
+                register: Some(register(t.art).into()),
+                eintrag: Some(t.objekt),
+            },
         })
+        .chain(weitere)
         .collect();
-    ts.sort_by(|a, b| {
-        a.dringlichkeit
-            .cmp(&b.dringlichkeit)
-            .then(a.datum.cmp(&b.datum))
-    });
+    ts.sort_by(|a, b| a.stufe.cmp(&b.stufe).then(a.datum.cmp(&b.datum)));
     let verfahren: Vec<CockpitVerfahren> = akten
         .iter()
         .map(|(id, a)| verfahren_auswerten(*id, a, akten))
@@ -239,12 +250,79 @@ pub fn projekt_auswerten(
         naechste_frist: ts.iter().map(|t| t.datum).filter(|d| *d >= heute).min(),
         ueberfaellig: ts
             .iter()
-            .filter(|t| t.dringlichkeit == Friststufe::Ueberfaellig)
+            .filter(|t| t.stufe == Friststufe::Ueberfaellig)
             .count() as u32,
         offene_punkte: verfahren.iter().map(|v| v.offene_punkte).sum(),
         verfahren,
     };
     (projekt, ts)
+}
+
+/// Offene Aufgaben mit Frist und offene Wiedervorlagen des Projekttagebuchs.
+pub fn weitere_termine(
+    p: &Project,
+    aufgaben: &[(Uuid, Aufgabe)],
+    tagebuch: &[(Uuid, Tagebucheintrag)],
+    heute: NaiveDate,
+) -> Vec<CockpitTermin> {
+    let termin = |bezug: &str,
+                  art: &str,
+                  titel: &str,
+                  datum: NaiveDate,
+                  wer: Option<Uuid>,
+                  hinweis: &str,
+                  ziel: UebersichtsZiel| CockpitTermin {
+        projekt_id: p.id,
+        projekt: p.name.clone(),
+        bezug: bezug.into(),
+        art: None,
+        art_bezeichnung: art.into(),
+        titel: titel.into(),
+        datum,
+        faellig_ab: datum,
+        verantwortlich: wer,
+        hinweis: hinweis.into(),
+        stufe: Friststufe::fuer(datum, datum < heute, heute),
+        ziel,
+    };
+    let mut r = Vec::new();
+    for (id, a) in aufgaben {
+        if let (Some(d), false) = (a.faellig, a.status == AufgabenStatus::Erledigt) {
+            r.push(termin(
+                "Aufgabe",
+                "Aufgabe",
+                &a.titel,
+                d,
+                a.verantwortlich.map(|b| b.0),
+                &a.beschreibung,
+                UebersichtsZiel {
+                    bereich: "aufgaben".into(),
+                    objekt: Some(*id),
+                    register: None,
+                    eintrag: None,
+                },
+            ));
+        }
+    }
+    for (id, e) in tagebuch {
+        if let Some(w) = e.wiedervorlage.as_ref().filter(|w| !w.erledigt) {
+            r.push(termin(
+                "Projekttagebuch",
+                "Wiedervorlage",
+                &format!("{}: {}", e.art.bezeichnung(), e.titel),
+                w.datum,
+                w.verantwortlich.map(|b| b.0),
+                &e.text,
+                UebersichtsZiel {
+                    bereich: "projekttagebuch".into(),
+                    objekt: Some(*id),
+                    register: None,
+                    eintrag: None,
+                },
+            ));
+        }
+    }
+    r
 }
 
 /// Fügt die Projektauswertungen zum Cockpit zusammen und sortiert.
@@ -260,8 +338,8 @@ pub fn zusammenfassen(
         termine.extend(t);
     }
     termine.sort_by(|a, b| {
-        a.dringlichkeit
-            .cmp(&b.dringlichkeit)
+        a.stufe
+            .cmp(&b.stufe)
             .then(a.datum.cmp(&b.datum))
             .then(a.projekt.cmp(&b.projekt))
     });
@@ -285,6 +363,36 @@ pub fn zusammenfassen(
 }
 
 impl CoreServices {
+    /// Verfahrensakten sowie Termine aus Aufgaben und Projekttagebuch eines Projekts.
+    pub(crate) async fn cockpit_quellen(
+        &self,
+        p: &Project,
+        heute: NaiveDate,
+    ) -> CoreResult<(Vec<(Uuid, Verfahrensakte)>, Vec<CockpitTermin>)> {
+        fn lesen<T: serde::de::DeserializeOwned>(
+            f: crate::commit::Fachstand,
+        ) -> CoreResult<(Uuid, T)> {
+            let id =
+                Uuid::parse_str(&f.objekt).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+            let d = serde_json::from_value(f.daten)
+                .map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+            Ok((id, d))
+        }
+        let akten = self.verfahrensakten_lesen(p.id).await?;
+        let aufgaben = self
+            .fachobjekte(p.id, ObjektArt::Aufgaben)
+            .await?
+            .into_iter()
+            .map(lesen::<Aufgabe>)
+            .collect::<CoreResult<Vec<_>>>()?;
+        let tagebuch = self
+            .fachobjekte(p.id, ObjektArt::Projekttagebuch)
+            .await?
+            .into_iter()
+            .map(lesen::<Tagebucheintrag>)
+            .collect::<CoreResult<Vec<_>>>()?;
+        Ok((akten, weitere_termine(p, &aufgaben, &tagebuch, heute)))
+    }
     /// Büro-Cockpit über alle Projekte, die `wer` lesen darf.
     pub async fn buero_cockpit(
         &self,
@@ -294,8 +402,8 @@ impl CoreServices {
         let mut teile = Vec::new();
         let mut fehler = Vec::new();
         for p in self.projekte_fuer_benutzer(wer).await? {
-            match self.verfahrensakten_lesen(p.id).await {
-                Ok(akten) => teile.push(projekt_auswerten(&p, &akten, heute)),
+            match self.cockpit_quellen(&p, heute).await {
+                Ok((akten, weitere)) => teile.push(projekt_auswerten(&p, &akten, weitere, heute)),
                 Err(e) => fehler.push(CockpitFehler {
                     projekt_id: p.id,
                     projekt: p.name.clone(),
@@ -378,19 +486,20 @@ mod tests {
         let (p, t) = projekt_auswerten(
             &projekt("Haus A"),
             &[(Uuid::new_v4(), a)],
+            vec![],
             tag("2026-11-05"),
         );
-        let d: Vec<_> = t
-            .iter()
-            .map(|t| (t.titel.as_str(), t.dringlichkeit))
-            .collect();
+        let d: Vec<_> = t.iter().map(|t| (t.titel.as_str(), t.stufe)).collect();
         assert_eq!(d.len(), 4, "{d:?}");
         assert_eq!(d[0].1, Friststufe::Ueberfaellig);
         assert!(d[0].0.contains("Statik"));
         assert_eq!(d[1].1, Friststufe::Monat);
         assert_eq!(d[2].1, Friststufe::Monat);
         assert_eq!(d[3].1, Friststufe::Spaeter);
-        assert!(t.iter().all(|t| t.register == "nachforderungen"));
+        assert!(
+            t.iter()
+                .all(|t| t.ziel.register.as_deref() == Some("nachforderungen"))
+        );
         assert_eq!(p.ueberfaellig, 1);
         assert_eq!(p.offene_punkte, 4);
         assert_eq!(p.naechste_frist, Some(tag("2026-11-14")));
@@ -399,8 +508,13 @@ mod tests {
     #[test]
     fn diese_woche_bis_sieben_tage() {
         let a = mit_punkten(vec![punkt("A", Some("2026-11-12"), Punktstatus::Offen)]);
-        let (_, t) = projekt_auswerten(&projekt("P"), &[(Uuid::new_v4(), a)], tag("2026-11-05"));
-        assert_eq!(t[0].dringlichkeit, Friststufe::DieseWoche);
+        let (_, t) = projekt_auswerten(
+            &projekt("P"),
+            &[(Uuid::new_v4(), a)],
+            vec![],
+            tag("2026-11-05"),
+        );
+        assert_eq!(t[0].stufe, Friststufe::DieseWoche);
     }
 
     #[test]
@@ -410,7 +524,8 @@ mod tests {
             "id": Uuid::new_v4(), "entscheidung": "abgelehnt", "datum": "2026-10-01", "zugestellt": null,
             "original": {"dokument_id": Uuid::new_v4(), "version": 1}, "genehmigte_unterlagen": [],
             "auflagen": [], "ersetzt": null}]}));
-        let (p, _) = projekt_auswerten(&projekt("P"), &[(id, a.clone())], tag("2026-10-05"));
+        let (p, _) =
+            projekt_auswerten(&projekt("P"), &[(id, a.clone())], vec![], tag("2026-10-05"));
         assert!(p.verfahren[0].ablehnung_offen);
         assert_eq!(
             p.verfahren[0]
@@ -425,6 +540,7 @@ mod tests {
         let (p, _) = projekt_auswerten(
             &projekt("P"),
             &[(id, a), (Uuid::new_v4(), w)],
+            vec![],
             tag("2026-10-05"),
         );
         assert!(!p.verfahren[0].ablehnung_offen);
@@ -432,12 +548,82 @@ mod tests {
 
     #[test]
     fn projekte_mit_ueberfaelligen_zuerst() {
-        let ruhig = projekt_auswerten(&projekt("Aaa"), &[], tag("2026-11-05"));
+        let ruhig = projekt_auswerten(&projekt("Aaa"), &[], vec![], tag("2026-11-05"));
         let a = mit_punkten(vec![punkt("X", Some("2026-11-01"), Punktstatus::Offen)]);
-        let eilig = projekt_auswerten(&projekt("Zzz"), &[(Uuid::new_v4(), a)], tag("2026-11-05"));
+        let eilig = projekt_auswerten(
+            &projekt("Zzz"),
+            &[(Uuid::new_v4(), a)],
+            vec![],
+            tag("2026-11-05"),
+        );
         let c = zusammenfassen(tag("2026-11-05"), vec![ruhig, eilig], vec![]);
         assert_eq!(c.projekte[0].name, "Zzz");
         assert_eq!(c.termine.len(), 1);
+    }
+
+    #[test]
+    fn aufgaben_und_wiedervorlagen_werden_termine() {
+        use crate::plattform::objekte::{Tagebuchart, Wiedervorlage};
+        let p = projekt("P");
+        let aufgabe = |titel: &str, faellig: Option<&str>, status| Aufgabe {
+            titel: titel.into(),
+            beschreibung: String::new(),
+            faellig: faellig.map(tag),
+            verantwortlich: None,
+            status,
+            bezug: None,
+        };
+        let eintrag = |erledigt| Tagebucheintrag {
+            datum: tag("2026-10-30"),
+            art: Tagebuchart::Telefonat,
+            titel: "Rückruf Statiker".into(),
+            text: String::new(),
+            beteiligte: String::new(),
+            anhaenge: vec![],
+            verfahren: None,
+            wiedervorlage: Some(Wiedervorlage {
+                datum: tag("2026-11-03"),
+                verantwortlich: None,
+                erledigt,
+            }),
+        };
+        let t = weitere_termine(
+            &p,
+            &[
+                (
+                    Uuid::new_v4(),
+                    aufgabe(
+                        "Statik anfordern",
+                        Some("2026-11-20"),
+                        AufgabenStatus::Offen,
+                    ),
+                ),
+                (
+                    Uuid::new_v4(),
+                    aufgabe("Ohne Frist", None, AufgabenStatus::Offen),
+                ),
+                (
+                    Uuid::new_v4(),
+                    aufgabe("Erledigt", Some("2026-10-01"), AufgabenStatus::Erledigt),
+                ),
+            ],
+            &[
+                (Uuid::new_v4(), eintrag(false)),
+                (Uuid::new_v4(), eintrag(true)),
+            ],
+            tag("2026-11-05"),
+        );
+        assert_eq!(t.len(), 2);
+        let wv = t.iter().find(|t| t.bezug == "Projekttagebuch").unwrap();
+        assert_eq!(wv.stufe, Friststufe::Ueberfaellig);
+        assert_eq!(wv.titel, "Telefonat: Rückruf Statiker");
+        assert_eq!(wv.ziel.bereich, "projekttagebuch");
+        let a = t.iter().find(|t| t.bezug == "Aufgabe").unwrap();
+        assert_eq!(a.stufe, Friststufe::DieseWoche.max(Friststufe::Monat));
+        assert_eq!(a.ziel.bereich, "aufgaben");
+        let (pr, alle) = projekt_auswerten(&p, &[], t, tag("2026-11-05"));
+        assert_eq!(alle[0].bezug, "Projekttagebuch", "überfällig zuerst");
+        assert_eq!(pr.ueberfaellig, 1);
     }
 
     #[test]

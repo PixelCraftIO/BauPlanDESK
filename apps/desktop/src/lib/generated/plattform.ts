@@ -1,15 +1,24 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
 export type Friststufe = "ueberfaellig" | "diese_woche" | "monat" | "spaeter";
-export type CockpitTermin = { projekt_id: ProjectId, projekt: string, verfahren: string, verfahrensbezeichnung: string, objekt: string, art: Terminart, art_bezeichnung: string, titel: string, datum: string,
+export type CockpitTermin = { projekt_id: ProjectId, projekt: string,
+/**
+ * Verfahrensbezeichnung, „Aufgabe“ oder „Projekttagebuch“.
+ */
+bezug: string,
+/**
+ * Art eines Verfahrenstermins; `None` bei Aufgaben und Wiedervorlagen des
+ * Projekttagebuchs.
+ */
+art: Terminart | null, art_bezeichnung: string, titel: string, datum: string,
 /**
  * Beginn der Wiedervorlage (Datum abzüglich Vorlauf).
  */
-faellig_ab: string, verantwortlich: string | null, hinweis: string, dringlichkeit: Friststufe,
+faellig_ab: string, verantwortlich: string | null, hinweis: string, stufe: Friststufe,
 /**
- * Register der Verfahrensakte für den Sprung.
+ * Sprungziel in der Projektakte.
  */
-register: string, };
+ziel: UebersichtsZiel, };
 export type CockpitVerfahren = { id: string, bezeichnung: string, art: Verfahrensart, status: Verfahrensstatus, status_bezeichnung: string, aktenzeichen: string, behoerde: string, verantwortlich: string | null,
 /**
  * Datum des jüngsten Versands oder Eingangs eines Abgabestands bzw. einer
@@ -1477,7 +1486,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
@@ -1545,6 +1554,25 @@ export type Flurstuecksverweis = { flurstueck_id: string,
 bereich: string, objekt: string, bezeichnung: string, };
 export type AufgabenStatus = "offen" | "in_arbeit" | "erledigt";
 export type Aufgabe = { titel: string, beschreibung: string, faellig: string | null, verantwortlich: BenutzerId | null, status: AufgabenStatus, bezug: string | null, };
+export type Tagebuchart = "notiz" | "telefonat" | "besprechung" | "ortstermin" | "vorfall" | "entscheidung_bauherr" | "sonstiges";
+export type Wiedervorlage = { datum: string, verantwortlich: BenutzerId | null, erledigt: boolean, };
+export type Tagebucheintrag = {
+/**
+ * Tag des Ereignisses (Ortsdatum), nicht nach heute.
+ */
+datum: string, art: Tagebuchart, titel: string, text: string,
+/**
+ * Beteiligte Personen oder Firmen als freie Angabe.
+ */
+beteiligte: string,
+/**
+ * Fotos, Protokolle oder Schreiben aus den Projektdateien.
+ */
+anhaenge: Array<Dokumentbezug>,
+/**
+ * Optionaler Bezug auf eine Verfahrensakte des Projekts.
+ */
+verfahren: string | null, wiedervorlage: Wiedervorlage | null, };
 export type UnterlagenStatus = "entwurf" | "pruefung" | "freigegeben";
 export type Unterlage = { vorlage: ChecklistenQuelle | null, bezeichnung: string, erforderlich: boolean, dokument: Dokumentbezug | null, status: UnterlagenStatus, bemerkung: string, };
 export type ChecklistenQuelle = { id: string, version: string, punkt: string, };

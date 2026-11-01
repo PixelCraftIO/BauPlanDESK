@@ -19,7 +19,7 @@ export const NAVIGATION: NavZweig[] = [
     id: "akte",
     titel: "Übersicht",
     untertitel: "Stand, offene Punkte",
-    module: ["projektuebersicht", "aufgaben", "protokoll"],
+    module: ["projektuebersicht", "aufgaben", "projekttagebuch", "protokoll"],
   },
   {
     id: "ermittlung",

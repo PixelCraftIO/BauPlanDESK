@@ -50,3 +50,23 @@ Technik: `core_lib::kalenderabo`, Tauri `kalenderabo_*`, Server
 `GET/POST/DELETE /api/kalenderabo` (angemeldet) und
 `GET /kalender/{benutzer}/{schluessel}.ics` ohne Sitzung (falscher Schlüssel,
 fremdes Konto oder ungültige Form: immer 404).
+
+## Projekttagebuch
+
+**Übersicht → Projekttagebuch** hält fest, was nicht als Behördenpost in die
+Verfahrensakte gehört: Notizen, Telefonate, Besprechungen, Ortstermine,
+Vorfälle/Mängel und Entscheidungen des Bauherrn.
+
+- Ein Eintrag hat Datum (nicht in der Zukunft), Art, Betreff, Inhalt,
+  Beteiligte, Anhänge (exakte Dokumentversionen aus den Projektdateien) und
+  optional einen Bezug zu einer Verfahrensakte des Projekts.
+- **Wiedervorlage:** Datum und Zuständigkeit. Offene Wiedervorlagen erscheinen
+  in der Projektübersicht (Bereich Aufgaben), im Büro-Cockpit und im
+  Kalender-Abo, bis sie als erledigt markiert sind.
+- Jeder Eintrag ist ein eigener Fachdatensatz (`ObjektArt::Projekttagebuch`,
+  Modul `projekttagebuch`) mit Revisionen und Protokolleintrag; parallele
+  Einträge mehrerer Personen stören sich nicht.
+
+Das Büro-Cockpit und das Kalender-Abo zeigen außerdem offene **Aufgaben** mit
+Frist. Kalenderdateien werden einheitlich über
+`verfahren::termine::kalender` erzeugt.

@@ -14,7 +14,8 @@
 use crate::{
     CoreError, CoreResult, CoreServices,
     benutzer::{Benutzer, BenutzerId},
-    verfahren::termine::{Termin, ics, termine},
+    cockpit::{CockpitTermin, projekt_auswerten},
+    verfahren::termine::{Kalendereintrag, kalender},
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -75,6 +76,29 @@ fn neuer_schluessel() -> CoreResult<String> {
 /// Nur Hex-Zeichen, 64 lang: alles andere wird ohne Datenbankzugriff abgewiesen.
 fn schluessel_form(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit())
+}
+/// Kalendereintrag eines Cockpit-Termins; die UID bleibt über Abrufe stabil.
+fn eintrag(t: &CockpitTermin) -> Kalendereintrag {
+    let art = t
+        .art
+        .and_then(|a| serde_json::to_value(a).ok())
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_else(|| t.ziel.bereich.clone());
+    let mut beschreibung = format!("{} · {}\n{}", t.projekt, t.art_bezeichnung, t.hinweis);
+    beschreibung.push_str("\nBleibt bis zur Erledigung im Büro-Cockpit.");
+    Kalendereintrag {
+        uid: format!(
+            "{}-{art}-{}",
+            t.ziel.eintrag.or(t.ziel.objekt).unwrap_or_default(),
+            t.ziel.objekt.unwrap_or_default()
+        ),
+        datum: t.datum,
+        zusammenfassung: format!("{} · {} · {}", t.projekt, t.bezug, t.titel),
+        beschreibung,
+        kategorie: t.art_bezeichnung.clone(),
+        erinnerung: t.titel.clone(),
+        vorlauf_tage: (t.datum - t.faellig_ab).num_days().max(0) as u32,
+    }
 }
 fn nicht_gefunden() -> CoreError {
     CoreError::NotFound("Kalender nicht gefunden".into())
@@ -157,30 +181,22 @@ impl CoreServices {
         if !wer.aktiv {
             return Err(nicht_gefunden());
         }
-        let mut alle: Vec<Termin> = Vec::new();
+        let mut alle: Vec<CockpitTermin> = Vec::new();
         for p in self.projekte_fuer_benutzer(&wer).await? {
-            for (id, a) in self.verfahrensakten_lesen(p.id).await? {
-                alle.extend(
-                    termine(&a, id, p.bundesland)
-                        .into_iter()
-                        .filter(|t| t.aktiv(heute))
-                        .filter(|t| {
-                            d.umfang == Aboumfang::Alle || t.verantwortlich == Some(wer.id.0)
-                        })
-                        .map(|mut t| {
-                            t.verfahrensbezeichnung =
-                                format!("{} · {}", p.name, t.verfahrensbezeichnung);
-                            t
-                        }),
-                );
-            }
+            let (akten, weitere) = self.cockpit_quellen(&p, heute).await?;
+            let (_, ts) = projekt_auswerten(&p, &akten, weitere, heute);
+            alle.extend(
+                ts.into_iter()
+                    .filter(|t| d.umfang == Aboumfang::Alle || t.verantwortlich == Some(wer.id.0)),
+            );
         }
         alle.sort_by(|a, b| a.datum.cmp(&b.datum).then(a.titel.cmp(&b.titel)));
+        let eintraege: Vec<Kalendereintrag> = alle.iter().map(eintrag).collect();
         let name = match d.umfang {
             Aboumfang::Alle => "BauPlanIO · Fristen".to_string(),
             Aboumfang::Meine => format!("BauPlanIO · Meine Fristen ({})", wer.anzeigename),
         };
-        Ok(ics(&name, &alle, Utc::now()))
+        Ok(kalender(&name, &eintraege, Utc::now()))
     }
 }
 
