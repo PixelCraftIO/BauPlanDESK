@@ -458,6 +458,7 @@ impl CoreServices {
                     bezeichnung: name.into(),
                     sichtbar: true,
                     gesperrt: false,
+                    darstellung: None,
                 });
                 id
             };

@@ -76,6 +76,7 @@ fn plan(g: Plangeometrie) -> Planaufmass {
             bezeichnung: "Räume".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![Planmarkierung {
             id: Uuid::from_u128(3),
@@ -755,6 +756,7 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     z.elemente.push(Zeichenelement {
         id: Uuid::from_u128(50),
         ebene_id: ebene,
+        darstellung: None,
         form: Zeichenform::Wand {
             von: [0., 0.],
             bis: [10., 0.],
@@ -764,6 +766,7 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     z.elemente.push(Zeichenelement {
         id: Uuid::from_u128(51),
         ebene_id: ebene,
+        darstellung: None,
         form: Zeichenform::Masskette {
             von: [0., 0.],
             bis: [10., 0.],
@@ -773,6 +776,7 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     z.elemente.push(Zeichenelement {
         id: Uuid::from_u128(52),
         ebene_id: ebene,
+        darstellung: None,
         form: Zeichenform::Text {
             punkt: [1., 1.],
             inhalt: "Wohnen".into(),
@@ -807,4 +811,45 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     });
     aufmass.elemente.push(z.elemente[2].clone());
     assert!(aufmass.messen().is_ok());
+}
+
+#[test]
+fn darstellung_von_ebene_und_element_wird_geprueft() {
+    let mut z = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    z.ebenen[0].darstellung = Some(Darstellung {
+        stift_mm: Some(0.5),
+        linienart: Some(Linienart::Strichlinie),
+        farbe: Some("#aa3300".into()),
+        schraffur: Some(Schraffur::Mauerwerk),
+    });
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(60),
+        ebene_id: z.ebenen[0].id,
+        darstellung: Some(Darstellung {
+            stift_mm: Some(0.25),
+            ..Default::default()
+        }),
+        form: Zeichenform::Wand {
+            von: [0., 0.],
+            bis: [5., 0.],
+            dicke_m: 0.365,
+        },
+    });
+    assert!(z.messen().is_ok());
+    let json = serde_json::to_value(&z).unwrap();
+    assert_eq!(json["ebenen"][0]["darstellung"]["schraffur"], "mauerwerk");
+    assert_eq!(json["elemente"][0]["darstellung"]["stift_mm"], 0.25);
+    assert_eq!(json["elemente"][0]["art"], "wand");
+    let wieder: Planaufmass = serde_json::from_value(json).unwrap();
+    assert_eq!(wieder, z);
+
+    let mut falsch = z.clone();
+    falsch.ebenen[0].darstellung.as_mut().unwrap().farbe = Some("rot".into());
+    assert!(falsch.messen().is_err());
+    let mut falsch = z.clone();
+    falsch.elemente[0].darstellung.as_mut().unwrap().stift_mm = Some(7.);
+    assert!(falsch.messen().is_err());
 }

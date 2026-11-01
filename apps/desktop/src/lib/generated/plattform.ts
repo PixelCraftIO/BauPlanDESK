@@ -125,7 +125,22 @@ export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter"
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };
 export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, } | { "art": "einheit", einheit: Laengeneinheit, };
-export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
+export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean,
+/**
+ * Stift, Linienart, Farbe und Schraffur der Ebene; Elemente können sie überschreiben.
+ */
+darstellung?: Darstellung, };
+export type Darstellung = {
+/**
+ * Stiftstärke in mm auf dem Papier (0,1 … 2,5).
+ */
+stift_mm?: number, linienart?: Linienart,
+/**
+ * Farbe als `#rrggbb`.
+ */
+farbe?: string, schraffur?: Schraffur, };
+export type Linienart = "volllinie" | "strichlinie" | "strichpunktlinie" | "punktlinie";
+export type Schraffur = "keine" | "voll" | "diagonal" | "kreuz" | "mauerwerk" | "beton" | "daemmung" | "erdreich";
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], } | { "art": "flaeche", polygone: Array<Planpolygon>, };
 export type Planpolygon = { aussen: Array<[number, number]>, innen?: Array<Array<[number, number]>>, };
 export type Flaechenoperation = "vereinen" | "abziehen" | "schneiden" | "teilen";
@@ -210,7 +225,11 @@ abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
  * Schrifthöhe in Seitenpunkten.
  */
 hoehe: number, drehung_grad: number, };
-export type Zeichenelement = { id: string, ebene_id: string, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+export type Zeichenelement = { id: string, ebene_id: string,
+/**
+ * Abweichende Darstellung des Elements; fehlende Felder erben von der Ebene.
+ */
+darstellung?: Darstellung, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
  * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).

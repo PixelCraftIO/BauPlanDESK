@@ -19,11 +19,11 @@ mod pruefung;
 mod raumbuch;
 mod service;
 mod zustand;
+pub(crate) use abgleich::toleranzen;
 pub use abgleich::{
     Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
     bauteildubletten, fast_gleich,
 };
-pub(crate) use abgleich::toleranzen;
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;
@@ -92,6 +92,69 @@ pub struct Planebene {
     pub bezeichnung: String,
     pub sichtbar: bool,
     pub gesperrt: bool,
+    /// Stift, Linienart, Farbe und Schraffur der Ebene; Elemente können sie überschreiben.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub darstellung: Option<Darstellung>,
+}
+/// Linienart nach DIN ISO 128 (vereinfacht).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Linienart {
+    Volllinie,
+    Strichlinie,
+    Strichpunktlinie,
+    Punktlinie,
+}
+/// Flächenfüllung geschlossener Konturen und Wände (Darstellung, kein Fachwert).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Schraffur {
+    Keine,
+    Voll,
+    Diagonal,
+    Kreuz,
+    Mauerwerk,
+    Beton,
+    Daemmung,
+    Erdreich,
+}
+/// Darstellung von Ebene oder Element. Leere Felder erben (Element → Ebene → Standard).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Darstellung {
+    /// Stiftstärke in mm auf dem Papier (0,1 … 2,5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub stift_mm: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub linienart: Option<Linienart>,
+    /// Farbe als `#rrggbb`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub farbe: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub schraffur: Option<Schraffur>,
+}
+impl Darstellung {
+    pub fn pruefen(&self) -> CoreResult<()> {
+        if self
+            .stift_mm
+            .is_some_and(|s| !s.is_finite() || !(0.1..=2.5).contains(&s))
+        {
+            return Err(fehler("Stiftstärke zwischen 0,1 und 2,5 mm angeben"));
+        }
+        if let Some(f) = &self.farbe
+            && !(f.len() == 7
+                && f.starts_with('#')
+                && f[1..].bytes().all(|c| c.is_ascii_hexdigit()))
+        {
+            return Err(fehler("Farbe als #rrggbb angeben"));
+        }
+        Ok(())
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
@@ -439,6 +502,10 @@ pub enum Zeichenform {
 pub struct Zeichenelement {
     pub id: Uuid,
     pub ebene_id: Uuid,
+    /// Abweichende Darstellung des Elements; fehlende Felder erben von der Ebene.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub darstellung: Option<Darstellung>,
     #[serde(flatten)]
     #[ts(flatten)]
     pub form: Zeichenform,
@@ -632,6 +699,11 @@ impl Planaufmass {
                 "Hintergründe gibt es nur in eigenen Zeichnungen; ein Aufmaß zeichnet direkt auf seiner Unterlage",
             ));
         }
+        for e in &self.ebenen {
+            if let Some(d) = &e.darstellung {
+                d.pruefen()?;
+            }
+        }
         if self.elemente.len() > 2000 {
             return Err(fehler("Zu viele Zeichenelemente"));
         }
@@ -640,6 +712,9 @@ impl Planaufmass {
         for e in &self.elemente {
             if !ids.insert(e.id) || !ebenen.contains(&e.ebene_id) {
                 return Err(fehler("Zeichenelement doppelt oder Zeichenebene fehlt"));
+            }
+            if let Some(d) = &e.darstellung {
+                d.pruefen()?;
             }
             for p in e.form.punkte() {
                 punkt(&p)?;

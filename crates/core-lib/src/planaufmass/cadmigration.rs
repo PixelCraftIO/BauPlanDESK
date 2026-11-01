@@ -108,6 +108,7 @@ pub fn umwandeln(a: &CadProjektaufmass, datei: &str, grenzen: &Rechteck) -> Plan
             bezeichnung: "CAD-Aufmaß (übernommen)".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen,
         ausschnitte: vec![],

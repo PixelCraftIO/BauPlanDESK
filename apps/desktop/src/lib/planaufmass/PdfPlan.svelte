@@ -11,6 +11,7 @@
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
+  import { wirksam, stil, musterId, musterInhalt } from "./darstellung";
   import { fenster, imFenster, punkteVon, kantenVon, elementpunkte, winkelRasten, lotfang, verlaengerungsfang, eingabeAuswerten, eingabePunkt, type Punkt } from "./konstruktion";
   import { dxfBlatt, dxfPfade, dxfTexte, dxfGeometrie } from "./dxf";
   import type { Plan } from "../api";
@@ -85,6 +86,11 @@
   const angezeigt=$derived(markierungen.filter(m=>ebenenMap.get(m.ebene_id)?.sichtbar));
   const gewaehlt=$derived(angezeigt.find(m=>m.id===auswahl));
   const angezeigteElemente=$derived(elemente.filter(e=>ebenenMap.get(e.ebene_id)?.sichtbar));
+  // Darstellung: Element überschreibt Ebene; Schraffurmuster je benutztem Paar aus Art und Farbe.
+  const ebenenStil=(id:string,flaeche=true)=>stil(wirksam(null,ebenenMap.get(id)?.darstellung),rasterId,flaeche);
+  const elementStil=(e:Zeichenelement,flaeche=true)=>stil(wirksam(e.darstellung,ebenenMap.get(e.ebene_id)?.darstellung),rasterId,flaeche);
+  const muster=$derived([...new Map([...angezeigt.map(m=>wirksam(null,ebenenMap.get(m.ebene_id)?.darstellung)),...angezeigteElemente.map(e=>wirksam(e.darstellung,ebenenMap.get(e.ebene_id)?.darstellung))]
+    .filter(w=>w.schraffur&&w.schraffur!=="keine"&&w.schraffur!=="voll").map(w=>{const f=w.farbe??"#2b3138";return [musterId(rasterId,w.schraffur!,f),musterInhalt(w.schraffur!,f)] as const})).entries()]);
   const gewaehltesElement=$derived(angezeigteElemente.find(e=>e.id===elementAuswahl));
   const elementGesperrt=$derived(!darf||!!ebenen.find(e=>e.id===gewaehltesElement?.ebene_id)?.gesperrt);
   const elementWerkzeug=$derived(werkzeug==="wand"||werkzeug==="masskette"||werkzeug==="text");
@@ -681,6 +687,7 @@
           <svg bind:this={svg} viewBox={`0 0 ${breite} ${hoehe}`} role="application" class={cursorKlasse}
             aria-label="Zeichenfläche. Punkte anklicken, Enter beendet, Escape bricht ab. Strg+Mausrad zoomt, Leertaste oder mittlere Maustaste verschiebt. Ziffern öffnen die Maßeingabe." tabindex="0"
             onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={abbrechen} onkeydown={key}>
+            {#if muster.length}<defs>{#each muster as [id,inhalt] (id)}<pattern {id} patternUnits="userSpaceOnUse" width="8" height="8" patternTransform={`scale(${1.4/zoom})`}>{@html inhalt}</pattern>{/each}</defs>{/if}
             {#if zeichnung}
               <defs>
                 <pattern id={`${rasterId}f`} width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0V1M0 1H1" class="raster"/></pattern>
@@ -723,13 +730,13 @@
             {/each}
             {#each angezeigt as m (m.id)}
               <g data-markierung={m.id} class:gewaehlt={m.id===auswahl||auswahlIds.includes(m.id)} class:fehler={fehlerIds.includes(m.id)} class:fremd={fremd(m)}>
-                {@render figur(edit&&(drag?.id===m.id||schieben?.id===m.id)?edit:m.geometrie,m.id===auswahl)}
+                {@render figur(edit&&(drag?.id===m.id||schieben?.id===m.id)?edit:m.geometrie,m.id===auswahl,m.id===auswahl||auswahlIds.includes(m.id)?"":ebenenStil(m.ebene_id))}
                 <text x={eckpunkte(m.geometrie)[0][0]+5/zoom} y={eckpunkte(m.geometrie)[0][1]-5/zoom} font-size={12/zoom}>{m.bezeichnung}{beschriftung(m)?` · ${beschriftung(m)}`:""}</text>
               </g>
             {/each}
             {#each angezeigteElemente as e (e.id)}
               <g data-element={e.id} class="element" class:gewaehlt={e.id===elementAuswahl||elementAuswahlIds.includes(e.id)}>
-                {@render element(elementEdit&&elementDrag?.id===e.id?elementEdit:e)}
+                {@render element(elementEdit&&elementDrag?.id===e.id?elementEdit:e,e.id===elementAuswahl||elementAuswahlIds.includes(e.id))}
               </g>
             {/each}
             {#if gewaehltesElement&&werkzeug==="auswahl"&&!elementGesperrt}
@@ -766,28 +773,29 @@
     {geometry.limited?" · Vektorumfang begrenzt":""}{drehung?` · Ansicht ${drehung}° gedreht`:""} · Strg+Rad zoomt, Leertaste verschiebt, Shift rastet 45°, F8 Ortho, Alt setzt den Fang aus, Ziffern oder @ öffnen die Koordinateneingabe. Enter schließt bzw. wiederholt den letzten Befehl, Escape bricht ab.</p>
 </div>
 
-{#snippet figur(g:Plangeometrie,selected:boolean)}
-  {#if g.art==="flaeche"}<path d={flaechenpfad(g)} fill-rule="evenodd" class:aktiv={selected}/>
-  {:else if g.art==="polygon"}<polygon points={g.punkte.map(p=>p.join(",")).join(" ")} class:aktiv={selected}/>
-  {:else if g.art==="rechteck"}<rect x={Math.min(g.von[0],g.bis[0])} y={Math.min(g.von[1],g.bis[1])} width={Math.abs(g.von[0]-g.bis[0])} height={Math.abs(g.von[1]-g.bis[1])} class:aktiv={selected}/>
-  {:else if g.art==="kreis"}<circle cx={g.mitte[0]} cy={g.mitte[1]} r={Math.hypot(g.rand[0]-g.mitte[0],g.rand[1]-g.mitte[1])} class:aktiv={selected}/>
-  {:else if g.art==="strecke"}<line x1={g.von[0]} y1={g.von[1]} x2={g.bis[0]} y2={g.bis[1]} class:aktiv={selected}/>
+{#snippet figur(g:Plangeometrie,selected:boolean,st:string="")}
+  {#if g.art==="flaeche"}<path d={flaechenpfad(g)} fill-rule="evenodd" class:aktiv={selected} style={st||undefined}/>
+  {:else if g.art==="polygon"}<polygon points={g.punkte.map(p=>p.join(",")).join(" ")} class:aktiv={selected} style={st||undefined}/>
+  {:else if g.art==="rechteck"}<rect x={Math.min(g.von[0],g.bis[0])} y={Math.min(g.von[1],g.bis[1])} width={Math.abs(g.von[0]-g.bis[0])} height={Math.abs(g.von[1]-g.bis[1])} class:aktiv={selected} style={st||undefined}/>
+  {:else if g.art==="kreis"}<circle cx={g.mitte[0]} cy={g.mitte[1]} r={Math.hypot(g.rand[0]-g.mitte[0],g.rand[1]-g.mitte[1])} class:aktiv={selected} style={st||undefined}/>
+  {:else if g.art==="strecke"}<line x1={g.von[0]} y1={g.von[1]} x2={g.bis[0]} y2={g.bis[1]} class:aktiv={selected} style={st||undefined}/>
   {:else}<circle cx={g.punkt[0]} cy={g.punkt[1]} r={4/zoom} class:aktiv={selected}/>{/if}
 {/snippet}
 
-{#snippet element(e:Zeichenelement)}
+{#snippet element(e:Zeichenelement,gewaehlt:boolean=false)}
+  {@const st=gewaehlt?"":elementStil(e)}
   {#if e.art==="wand"}
-    {#if faktor!==null}<polygon points={wandKontur(e.von,e.bis,e.dicke_m/faktor).map(p=>p.join(",")).join(" ")} class="wand"/>
-    {:else}<line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wand"/>{/if}
+    {#if faktor!==null}<polygon points={wandKontur(e.von,e.bis,e.dicke_m/faktor).map(p=>p.join(",")).join(" ")} class="wand" style={st||undefined}/>
+    {:else}<line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wand" style={st||undefined}/>{/if}
     <line x1={e.von[0]} y1={e.von[1]} x2={e.bis[0]} y2={e.bis[1]} class="wandachse"/>
   {:else if e.art==="masskette"}
     {@const k=masskette(e.von,e.bis,e.abstand)}
     {#each k.hilfen as [a,b]}<line x1={a[0]} y1={a[1]} x2={b[0]+k.ueber[0]*4/zoom} y2={b[1]+k.ueber[1]*4/zoom} class="masshilfe"/>{/each}
-    <line x1={k.linie[0][0]} y1={k.linie[0][1]} x2={k.linie[1][0]} y2={k.linie[1][1]} class="masslinie"/>
+    <line x1={k.linie[0][0]} y1={k.linie[0][1]} x2={k.linie[1][0]} y2={k.linie[1][1]} class="masslinie" style={st||undefined}/>
     {#each k.linie as p}<line x1={p[0]-4/zoom} y1={p[1]+4/zoom} x2={p[0]+4/zoom} y2={p[1]-4/zoom} class="masslinie" transform={`rotate(${k.winkel} ${p[0]} ${p[1]})`}/>{/each}
     <text class="masstext" x={k.mitte[0]} y={k.mitte[1]-3/zoom} font-size={11/zoom} text-anchor="middle" transform={`rotate(${k.winkel} ${k.mitte[0]} ${k.mitte[1]})`}>{faktor===null?"— m":`${z(k.laenge*faktor)} m`}</text>
   {:else}
-    <text class="freitext" x={e.punkt[0]} y={e.punkt[1]} font-size={e.hoehe} transform={e.drehung_grad?`rotate(${-e.drehung_grad} ${e.punkt[0]} ${e.punkt[1]})`:undefined}>{e.inhalt}</text>
+    <text class="freitext" style:fill={gewaehlt?undefined:wirksam(e.darstellung,ebenenMap.get(e.ebene_id)?.darstellung).farbe??undefined} x={e.punkt[0]} y={e.punkt[1]} font-size={e.hoehe} transform={e.drehung_grad?`rotate(${-e.drehung_grad} ${e.punkt[0]} ${e.punkt[1]})`:undefined}>{e.inhalt}</text>
   {/if}
 {/snippet}
 

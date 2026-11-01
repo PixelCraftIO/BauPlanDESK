@@ -27,6 +27,7 @@
   import { BEDEUTUNGEN } from "./bedeutungen";
   import { verwendungenLaden, type Verwendung } from "./verwendung";
   import Quellenzustand from "./Quellenzustand.svelte";
+  import DarstellungFelder from "./DarstellungFelder.svelte";
   import { projektNavigation } from "../projektNavigation.svelte";
   import { tick } from "svelte";
   let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
@@ -796,9 +797,16 @@
                 {:else}<label>Text<input bind:value={el.inhalt} maxlength="500" required/></label><label>Schrifthöhe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.hoehe}/></label><label>Drehung (°)<input type="number" step="any" bind:value={el.drehung_grad}/></label>{/if}
                 <label>Zeichenebene<select aria-label="Zeichenebene des Elements" bind:value={el.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
                 <p class="meta">{el.art==="text"?`Bei ${z(el.punkt[0])}; ${z(el.punkt[1])} ${einheitText}.`:`Von ${z(el.von[0])}; ${z(el.von[1])} bis ${z(el.bis[0])}; ${z(el.bis[1])} ${einheitText}${(()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);const [a,b]=elementPunkte(el);return f?` · ${z(Math.hypot(b[0]-a[0],b[1]-a[1])*f)} m`:""})()}.`} Zeichenelemente liefern keine Messwerte; Endpunkte lassen sich mit „Auswählen“ ziehen.</p>
+                <DarstellungFelder wert={el.darstellung} erbe={`Ebene „${p.ebenen.find(x=>x.id===el!.ebene_id)?.bezeichnung??""}“`} schraffur={el.art==="wand"} onaendern={d=>{merken();if(d)el!.darstellung=d;else delete el!.darstellung}}/>
                 <div class="aktionen"><button type="button" class="sekundaer" title="Entf" onclick={elementEntfernen}>Element entfernen</button></div>
               </fieldset>
             {:else if !m&&!auswahlAnzahl}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen. Fenster aufziehen: von links nach rechts wählt Enthaltenes, von rechts nach links auch Berührtes.</p>{/if}
+            {#if auswahlElemente.length>1}{@const ds=auswahlElemente.map(e=>JSON.stringify(e.darstellung??{}))}
+              <section class="konstruieren" aria-label="Darstellung der gewählten Elemente"><h3>{auswahlElemente.length} Zeichenelemente</h3>
+                <DarstellungFelder wert={new Set(ds).size===1?auswahlElemente[0].darstellung:undefined} gemischt={new Set(ds).size>1} erbe="Ebene" disabled={!darf||s.laeuft}
+                  onaendern={d=>{if(auswahlElemente.some(e=>p.ebenen.find(x=>x.id===e.ebene_id)?.gesperrt)){s.fehler="Gesperrte Ebenen zuerst entsperren.";return}merken();for(const e of auswahlElemente){if(d)e.darstellung=structuredClone(d);else delete e.darstellung}}}/>
+                <label>Zeichenebene<select aria-label="Zeichenebene der gewählten Elemente" value="" onchange={ev=>{const v=ev.currentTarget.value;if(!v)return;merken();for(const e of auswahlElemente)e.ebene_id=v}}><option value="">– beibehalten –</option>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
+              </section>{/if}
             {#if auswahlAnzahl}<section class="konstruieren" aria-label="Konstruieren">
               <h3>Konstruieren · {auswahlAnzahl} Objekt(e)</h3>
               <fieldset disabled={!darf||s.laeuft}>
@@ -942,8 +950,15 @@
                 <label title="Sichtbar"><input type="checkbox" checked={sichtbarkeit[e.id]??e.sichtbar} onchange={ev=>{if(darf)e.sichtbar=ev.currentTarget.checked;else sichtbarkeit={...sichtbarkeit,[e.id]:ev.currentTarget.checked}}}/>An</label>
                 <label title="Gesperrt"><input type="checkbox" bind:checked={e.gesperrt} disabled={!darf||s.laeuft}/>Sperre</label>
               </div>
+              <details class="ebenendarstellung"><summary>Darstellung{e.darstellung?" · eigene":""}</summary>
+                <DarstellungFelder wert={e.darstellung} disabled={!darf||s.laeuft} onaendern={d=>{merken();if(d)e.darstellung=d;else delete e.darstellung}}/>
+              </details>
             {/each}
-            <button type="button" class="sekundaer" disabled={!darf||s.laeuft} onclick={()=>{const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id}}>Ebene hinzufügen</button>
+            <div class="aktionen">
+              <button type="button" class="sekundaer" disabled={!darf||s.laeuft} onclick={()=>{const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id}}>Ebene hinzufügen</button>
+              <button type="button" class="sekundaer" disabled={!darf||s.laeuft||!layer} title="Alle anderen Ebenen sperren" onclick={()=>{merken();for(const e of p.ebenen)e.gesperrt=e.id!==ebene}}>Nur aktive Ebene bearbeiten</button>
+              <button type="button" class="sekundaer" disabled={!darf||s.laeuft||!p.ebenen.some(e=>e.gesperrt)} onclick={()=>{merken();for(const e of p.ebenen)e.gesperrt=false}}>Alle entsperren</button>
+            </div>
             <h3>Markierungen <span class="meta">({aktiv?`${anzahl(aktueller!).length} von `:""}{p.markierungen.length})</span></h3>
             <label>Suchen<input type="search" aria-label="Markierungen suchen" bind:value={suche}/></label>
             <label>Bedeutung filtern<select aria-label="Bedeutung filtern" bind:value={bedeutungFilter}><option value="">Alle Bedeutungen</option>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
@@ -1132,6 +1147,7 @@
   .objektzeile{display:flex;gap:.4rem;align-items:center;content-visibility:auto;contain-intrinsic-size:auto 48px}
   .objektzeile button{flex:1}
   .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
+  .ebenendarstellung{margin:0 0 .3rem 1.6rem;font-size:.85rem}
   .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}
   .konstruktionszeile{display:flex;flex-wrap:wrap;gap:.4rem;align-items:end;margin-top:.4rem}
