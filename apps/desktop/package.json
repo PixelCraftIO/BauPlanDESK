@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:geometrie": "node --experimental-strip-types --no-warnings --test tests/*.test.ts",
     "handbuch:export": "node --experimental-strip-types scripts/handbuch.mjs",
     "handbuch:check": "node --experimental-strip-types scripts/handbuch.mjs --check",
     "tauri": "tauri",

@@ -11,6 +11,7 @@
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
+  import { fenster, imFenster, punkteVon, kantenVon, elementpunkte, type Punkt } from "./konstruktion";
   import { dxfBlatt, dxfPfade, dxfTexte, dxfGeometrie } from "./dxf";
   import type { Plan } from "../api";
   // Zeichenfläche: Anzeige, Fang, Zoom, Drehung und Eingabe. Fachwerte (Längen,
@@ -21,7 +22,7 @@
   let { pdfBase64 = "", seite, plan = null, planSichtbar = [], markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
     auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
-    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", wanddicke = .24,
+    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", elementAuswahlIds = [], wanddicke = .24, onfenster = () => {},
     onelement = () => {}, onelementauswahl = () => {}, onelementedit = () => {},
     onverschieben = () => {}, onpunkt = () => {},
     onfertig, onauswahl, onedit, onfehler, onrahmen = () => {}, onrahmenauswahl = () => {}, onoeffnen = () => {}, onseite = () => {} }:
@@ -33,6 +34,10 @@
     vergleichAusrichtung?:{dx:number;dy:number;grad:number;faktor:number};
     /** Eigene Zeichnung: Blatt in Metern, Unterlagen als eingepasste Hintergründe. */
     zeichnung?:boolean;hintergruende?:Hintergrundansicht[];elemente?:Zeichenelement[];elementAuswahl?:string;wanddicke?:number;
+    /** Mehrfachauswahl von Zeichenelementen (Fensterauswahl). */
+    elementAuswahlIds?:string[];
+    /** Fensterauswahl: Markierungen und Elemente im Rahmen; `mehrfach` ergänzt die bisherige Auswahl. */
+    onfenster?:(ids:string[],elementIds:string[],mehrfach:boolean)=>void;
     onelement?:(f:Zeichenform)=>void;onelementauswahl?:(id:string)=>void;onelementedit?:(id:string,e:Zeichenelement)=>void;
     onverschieben?:(ids:string[],dx:number,dy:number)=>void;onpunkt?:(index:number)=>void;
     onedit:(id:string,g:Plangeometrie)=>void;onfehler:(s:string)=>void;
@@ -65,6 +70,8 @@
   const hgKey=(h:Hintergrundansicht)=>`${h.h.dokument.dokument_id}|${h.h.dokument.version}|${h.h.seite}`;
   let elementDrag=$state<{id:string;index:number;e:Zeichenelement;start:Point;bewegt:boolean}|null>(null);
   let elementEdit=$state<Zeichenelement|null>(null);
+  // Fensterauswahl im Auswahlwerkzeug: links→rechts = enthalten, rechts→links = berührt (Bildschirmrichtung).
+  let fensterzug=$state<{start:Point;ende:Point;x:number;kreuzend:boolean;mehrfach:boolean;bewegt:boolean}|null>(null);
   const rasterId=`r${Math.random().toString(36).slice(2,8)}`;
   const fangindex=$derived(new Fangindex(geometry));
   const wertMap=$derived(new Map(werte.map(w=>[w.id,w])));
@@ -255,7 +262,7 @@
   onDestroy(()=>{ansichtGeneration++;clearTimeout(ansichtTimer);ansichtSchreiben()});
   $effect(()=>{void zoom;void drehung;if(bereit)untrack(ansichtSichern)});
   export function abbrechen(){
-    punkte=[];cursor=null;drag=null;edit=null;schieben=null;rahmenDrag=null;rahmenVorschau=null;pan=null;pinch=null;touchPunkt=null;leertaste=false;masseingabe=null;elementDrag=null;elementEdit=null;
+    punkte=[];cursor=null;drag=null;edit=null;schieben=null;rahmenDrag=null;rahmenVorschau=null;pan=null;pinch=null;touchPunkt=null;leertaste=false;masseingabe=null;elementDrag=null;elementEdit=null;fensterzug=null;
     for(const id of zeiger.keys())if(svg?.hasPointerCapture(id))svg.releasePointerCapture(id);zeiger.clear();
   }
   $effect(()=>{window.addEventListener("blur",abbrechen);return()=>window.removeEventListener("blur",abbrechen)});
@@ -477,7 +484,8 @@
         }
         return;
       }
-      onauswahl("");onrahmenauswahl("");onelementauswahl("");
+      fensterzug={start:roh(e),ende:roh(e),x:e.clientX,kreuzend:false,mehrfach:e.shiftKey||e.ctrlKey||e.metaKey,bewegt:false};
+      svg?.setPointerCapture(e.pointerId);
       return;
     }
     if(!darf)return;
@@ -494,6 +502,11 @@
     }
     if(pan){scroll!.scrollLeft=pan.left-(e.clientX-pan.x);scroll!.scrollTop=pan.top-(e.clientY-pan.y);return}
     if(!bereit)return;
+    if(fensterzug){
+      const p=roh(e);fensterzug.ende=p;fensterzug.kreuzend=e.clientX<fensterzug.x;
+      if(Math.hypot(p[0]-fensterzug.start[0],p[1]-fensterzug.start[1])*zoom>3)fensterzug.bewegt=true;
+      return;
+    }
     if(rahmenDrag){
       const p=roh(e), dx=p[0]-rahmenDrag.start[0], dy=p[1]-rahmenDrag.start[1];
       if(Math.hypot(dx,dy)*zoom>3)rahmenDrag.bewegt=true;
@@ -526,6 +539,11 @@
     if(touchPunkt&&zeiger.size===1&&!pan&&!pinch){punktSetzen(touchPunkt);touchPunkt=null}
     zeiger.delete(e.pointerId);
     if(zeiger.size<2)pinch=null;
+    if(fensterzug){
+      if(fensterzug.bewegt)fensterAuswerten(fensterzug.start,fensterzug.ende,fensterzug.kreuzend,fensterzug.mehrfach);
+      else if(!fensterzug.mehrfach){onauswahl("");onrahmenauswahl("");onelementauswahl("")}
+      fensterzug=null;
+    }
     if(drag&&edit)onedit(drag.id,edit);
     if(schieben?.bewegt&&edit){
       if(auswahlIds.length>1&&auswahlIds.includes(schieben.id)){const a=eckpunkte(schieben.g)[0],b=eckpunkte(edit)[0];onverschieben(auswahlIds,b[0]-a[0],b[1]-a[1])}
@@ -537,15 +555,25 @@
     drag=null;edit=null;pan=null;schieben=null;rahmenDrag=null;
     if(svg?.hasPointerCapture(e.pointerId))svg.releasePointerCapture(e.pointerId);
   }
+  function fensterAuswerten(a:Point,b:Point,kreuzend:boolean,mehrfach:boolean){
+    const f=fenster(a,b);
+    const ids=angezeigt.filter(m=>!fremd(m)&&imFenster(f,punkteVon(m.geometrie),kantenVon(m.geometrie),kreuzend)).map(m=>m.id);
+    const eids=angezeigteElemente.filter(x=>{
+      const ps:Punkt[]=x.art==="wand"&&faktor!==null?wandKontur(x.von,x.bis,x.dicke_m/faktor):elementpunkte(x);
+      const ks=ps.length>2?ps.map((p,i)=>[p,ps[(i+1)%ps.length]] as [Punkt,Punkt]):ps.length===2?[[ps[0],ps[1]] as [Punkt,Punkt]]:[];
+      return imFenster(f,ps,ks,kreuzend);
+    }).map(x=>x.id);
+    onfenster(ids,eids,mehrfach);
+  }
   function key(e:KeyboardEvent){
     if((e.target as Element).closest("input,select,textarea,button"))return;
     if(e.key==="Escape"){
       if(zoomfenster){e.stopPropagation();zoomfenster=false;zf=null}
-      else if(punkte.length||drag||schieben||rahmenDrag||elementDrag){e.stopPropagation();abbrechen()}
+      else if(punkte.length||drag||schieben||rahmenDrag||elementDrag||fensterzug){e.stopPropagation();abbrechen()}
     }
     else if(e.key==="Enter"){e.preventDefault();finish()}
     else if(e.key==="Backspace"){e.preventDefault();punkte=punkte.slice(0,-1)}
-    else if(/^[0-9,.]$/.test(e.key)&&punkte.length&&["polygon","strecke","rechteck","wand","masskette"].includes(werkzeug)){e.preventDefault();masseingabe=e.key}
+    else if(/^[0-9,.]$/.test(e.key)&&punkte.length&&["polygon","strecke","rechteck","wand","masskette","kopieren"].includes(werkzeug)){e.preventDefault();masseingabe=e.key}
   }
   const preview=$derived(punkte.length&&cursor?shape([...punkte,cursor]):null);
   // Höhenvorschau am Cursor: Bezugslinie des Ausschnitts, sonst Seitenvertikale (nur Anzeige).
@@ -694,7 +722,7 @@
               </g>
             {/each}
             {#each angezeigteElemente as e (e.id)}
-              <g data-element={e.id} class="element" class:gewaehlt={e.id===elementAuswahl}>
+              <g data-element={e.id} class="element" class:gewaehlt={e.id===elementAuswahl||elementAuswahlIds.includes(e.id)}>
                 {@render element(elementEdit&&elementDrag?.id===e.id?elementEdit:e)}
               </g>
             {/each}
@@ -706,6 +734,7 @@
             {#if hoehenHilfe}<line x1={hoehenHilfe.x1} y1={hoehenHilfe.y1} x2={hoehenHilfe.x2} y2={hoehenHilfe.y2} class="hoehenhilfe"/>{/if}
             {#if preview&&werkzeug==="wand"&&preview.art==="strecke"&&faktor!==null}<g class="entwurf"><polygon points={wandKontur(preview.von,preview.bis,wanddicke/faktor).map(p=>p.join(",")).join(" ")} class="wand"/></g>
             {:else if preview}<g class="entwurf" class:rahmenentwurf={werkzeug==="ausschnitt"}>{@render figur(preview,false)}</g>{/if}
+            {#if fensterzug?.bewegt}{@const r=umgrenzung([fensterzug.start,fensterzug.ende])}<rect x={r.x} y={r.y} width={r.w} height={r.h} class="fensterrahmen" class:kreuzend={fensterzug.kreuzend}/>{/if}
             {#if zoomfenster&&zf&&cursor}{@const r=umgrenzung([zf,cursor])}<rect x={r.x} y={r.y} width={r.w} height={r.h} class="zoomrahmen"/>{/if}
             {#if punkte.length}<polyline points={[...punkte,...(cursor?[cursor]:[])].map(p=>p.join(",")).join(" ")} class="vorschau"/>{/if}
             {#each punkte as p}<circle cx={p[0]} cy={p[1]} r={4/zoom} class="ecke"/>{/each}
@@ -793,6 +822,8 @@
   svg text{fill:#174864;paint-order:stroke;stroke:white;stroke-width:3px;stroke-linejoin:round;pointer-events:none}
   svg .livemass{fill:#ad530a;font-weight:600}
   svg .hoehenhilfe{stroke:#1a7f37;stroke-dasharray:3 5;fill:none;pointer-events:none;opacity:.8}
+  svg .fensterrahmen{fill:#126d9714;stroke:#126d97;pointer-events:none}
+  svg .fensterrahmen.kreuzend{fill:#1a7f3714;stroke:#1a7f37;stroke-dasharray:5 3}
   svg .zoomrahmen{fill:#126d9714;stroke:#126d97;stroke-dasharray:4 3;pointer-events:none}
   .entwurf{opacity:.6;pointer-events:none}
   .rahmenentwurf :is(rect){fill:none;stroke:#5a3d8f;stroke-dasharray:6 4}

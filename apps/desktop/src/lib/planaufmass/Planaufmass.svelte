@@ -19,6 +19,7 @@
   import { verschieben, eckpunkte, meterProPunkt, type Point } from "./pdfGeometry";
   import { Bearbeitungsverlauf } from "./verlauf";
   import { drehen, punktAendern, punktEinfuegen, punktEntfernen, kantenmass, ausrichten } from "./bearbeitung";
+  import { abbildenGeometrie, abbildenElement, verschiebung, spiegelung, elementSpiegeln, versatz, elementVersatz, geometrieStutzen, elementStutzen, reihe, type Punkt } from "./konstruktion";
   import { aufmassUebertragen } from "./uebertragung";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
@@ -57,6 +58,7 @@
     [["auswahl","Auswählen","V"],["verschieben","Verschieben","M"]],
     [["polygon","Polygon","P"],["rechteck","Rechteck","R"],["kreis","Kreis","K"],["strecke","Strecke / Dach","S"]],
     [["wand","Wand","W"],["masskette","Maßkette","L"],["text","Text","X"]],
+    [["kopieren","Kopieren","C"],["spiegeln","Spiegeln","I"],["stutzen","Stutzen / Dehnen","D"]],
     [["hoehenpunkt","Höhenpunkt","H"],["bezugslinie","Bezugslinie setzen","B"]],
     [["ausschnitt","Ausschnitt anlegen","A"],["kalibrieren","Zwei Punkte kalibrieren","Q"],["kontrolle","Kontrollstrecke messen","T"]],
   ];
@@ -80,7 +82,9 @@
   let betrachterSeite=$state<number|null>(null),sichtbarkeit=$state<Record<string,boolean>>({});
   let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560);
   // Zeichenelemente und Hintergründe eigener Zeichnungen.
-  let elementAuswahl=$state(""),wanddicke=$state(.24);
+  let elementAuswahl=$state(""),wanddicke=$state(.24),elementAuswahlIds=$state<string[]>([]);
+  // Konstruktionsbefehle: Versatz und Reihe in Metern, Spiegeln wahlweise als Kopie.
+  let konstruktion=$state({versatz:.5,anzahl:3,dx:1,dy:0,spiegelKopie:true});
   let hgQuellen=$state<Record<string,{pdfBase64?:string;plan?:import("../api").CadPlan["plan"]|null;name:string}>>({});
   const hgLaeuft=new Set<string>();
   // IFC-Hintergründe: Grundriss-Schnitt eines Geschosses, schon in Metern.
@@ -230,7 +234,7 @@
   });
   $effect(()=>{
     const id=s.id;
-    untrack(()=>{auswahl="";auswahlIds=[];elementAuswahl="";hgZiel="";betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";offen.blatt=!s.eingabe?.kalibrierung;
+    untrack(()=>{auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[];hgZiel="";betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";offen.blatt=!s.eingabe?.kalibrierung;
       try{const v=JSON.parse(localStorage.getItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`)??"null");if(v){panel=["aufgaben","objekte","eigenschaften"].includes(v.panel)?v.panel:"aufgaben";suche=typeof v.suche==="string"?v.suche.slice(0,500):"";aktiv=v.aktiv??"";auswahl=v.auswahl??"";auswahlIds=auswahl?[auswahl]:[];bedeutungFilter=v.bedeutungFilter??"";gebaeudeFilter=v.gebaeudeFilter??"";geschossFilter=v.geschossFilter??"";nurFehler=v.nurFehler===true}}catch{}
     });
   });
@@ -330,7 +334,7 @@
       const w=werkzeuge.find(w=>w[2].toLowerCase()===k);
       if(w&&!werkzeugGesperrt(w[0])){e.preventDefault();werkzeugWaehlen(w[0]);return}
       if(k==="z"){e.preventDefault();plan?.zoomfensterStarten();return}
-      if(e.key==="Delete"&&el&&!elementGesperrt){e.preventDefault();elementEntfernen()}
+      if(e.key==="Delete"&&!m&&auswahlElemente.length&&darf){e.preventDefault();elementEntfernen()}
       else if(e.key==="Delete"&&m&&!objektGesperrt){e.preventDefault();void entfernen()}
       else if(e.key.startsWith("Arrow")&&m&&!objektGesperrt){
         e.preventDefault();
@@ -399,10 +403,79 @@
     merken();p.elemente![i]=e;
   }
   function elementEntfernen(){
-    const p=s.eingabe;if(!p||!el||elementGesperrt)return;
-    merken();p.elemente=(p.elemente??[]).filter(e=>e.id!==el!.id);elementAuswahl="";
+    const p=s.eingabe;if(!p||!darf||s.laeuft)return;
+    const ids=new Set(auswahlElemente.map(e=>e.id));if(!ids.size)return;
+    if(auswahlElemente.some(e=>p.ebenen.find(x=>x.id===e.ebene_id)?.gesperrt)){s.fehler="Gesperrte Ebenen zuerst entsperren.";return}
+    merken();p.elemente=(p.elemente??[]).filter(e=>!ids.has(e.id));elementAuswahl="";elementAuswahlIds=[];
   }
-  function elementWaehlen(id:string){elementAuswahl=id;if(id){auswahl="";auswahlIds=[];werkzeug="auswahl"}}
+  function elementWaehlen(id:string){elementAuswahl=id;elementAuswahlIds=id?[id]:[];if(id){auswahl="";auswahlIds=[];werkzeug="auswahl"}}
+  // Fensterauswahl: Markierungen und Zeichenelemente gemeinsam; Shift/Strg ergänzt.
+  function fensterWaehlen(ids:string[],eids:string[],mehrfach:boolean){
+    betrachterSeite=null;
+    if(mehrfach){ids=[...new Set([...auswahlIds,...ids])];eids=[...new Set([...elementAuswahlIds,...eids])]}
+    auswahlIds=ids;auswahl=ids.at(-1)??"";elementAuswahlIds=eids;elementAuswahl=!ids.length&&eids.length===1?eids[0]:"";punktIndex=0;
+    if(ids.length+eids.length)panelOeffnen("eigenschaften");
+  }
+  // Ziel der Konstruktionsbefehle: alle gewählten Markierungen und Elemente.
+  const auswahlMarkierungen=$derived.by(()=>{const ids=auswahlIds.length?auswahlIds:auswahl?[auswahl]:[];return s.eingabe?.markierungen.filter(x=>ids.includes(x.id))??[]});
+  const auswahlElemente=$derived.by(()=>{const ids=elementAuswahlIds.length?elementAuswahlIds:elementAuswahl?[elementAuswahl]:[];return (s.eingabe?.elemente??[]).filter(x=>ids.includes(x.id))});
+  const auswahlAnzahl=$derived(auswahlMarkierungen.length+auswahlElemente.length);
+  type Abbild={g:(x:Plangeometrie)=>Plangeometrie|null;e:(x:Zeichenelement)=>Zeichenelement|null};
+  /**
+   * Wendet Abbildungen auf die Auswahl an. `kopie`: jede Abbildung erzeugt Kopien
+   * (Reihe = mehrere Abbildungen), sonst wird die Auswahl selbst geändert.
+   * Nicht anwendbare Objekte (z. B. Stutzen eines Polygons) bleiben unverändert.
+   */
+  function konstruieren(titel:string,abbilder:Abbild[],kopie:boolean){
+    const p=s.eingabe;if(!p||!darf||s.laeuft)return;
+    const ms=auswahlMarkierungen,es=auswahlElemente;
+    if(!ms.length&&!es.length){s.fehler="Zuerst Objekte auswählen (Klick, Shift+Klick oder Fenster aufziehen).";return}
+    if([...ms,...es].some(x=>p.ebenen.find(e=>e.id===x.ebene_id)?.gesperrt)){s.fehler="Gesperrte Ebenen zuerst entsperren.";return}
+    let geaendert=0,ausgelassen=0;
+    const neueM:Planmarkierung[]=[],neueE:Zeichenelement[]=[];
+    const plan=abbilder.map(a=>({m:ms.map(m=>a.g($state.snapshot(m.geometrie))),e:es.map(e=>a.e($state.snapshot(e)))}));
+    if(plan.every(x=>x.m.every(g=>!g)&&x.e.every(e=>!e))){s.fehler=`${titel}: Für die gewählten Objekte nicht möglich.`;return}
+    merken();
+    plan.forEach((x,n)=>{
+      const ids=new Map(ms.map(m=>[m.id,crypto.randomUUID()]));
+      ms.forEach((m,i)=>{const g=x.m[i];if(!g){ausgelassen++;return}geaendert++;
+        if(!kopie){m.geometrie=g;return}
+        const k=structuredClone($state.snapshot(m));
+        neueM.push({...k,id:ids.get(m.id)!,bezeichnung:`${m.bezeichnung} (${titel}${abbilder.length>1?` ${n+1}`:""})`,geometrie:g,hoehenzone_von:m.hoehenzone_von?ids.get(m.hoehenzone_von)??m.hoehenzone_von:undefined});
+      });
+      es.forEach((e,i)=>{const r=x.e[i];if(!r){ausgelassen++;return}geaendert++;
+        if(!kopie){const j=(p.elemente??[]).findIndex(y=>y.id===e.id);if(j>=0)p.elemente![j]=r;return}
+        neueE.push({...r,id:crypto.randomUUID()});
+      });
+    });
+    if(kopie){
+      p.markierungen.push(...neueM);p.elemente=[...(p.elemente??[]),...neueE];
+      auswahlIds=neueM.map(m=>m.id);auswahl=auswahlIds.at(-1)??"";elementAuswahlIds=neueE.map(e=>e.id);elementAuswahl=!neueM.length&&neueE.length===1?neueE[0].id:"";
+    }
+    s.meldung=`${titel}: ${geaendert} ${kopie?"Kopie(n) angelegt":"Objekt(e) geändert"}${ausgelassen?`, ${ausgelassen} nicht anwendbar übersprungen`:""}.${neueM.length?" Kopierte Markierungen behalten Bedeutung und Zuordnung; Verknüpfungen in Berechnungen gelten weiter nur für das Original.":""}`;
+  }
+  const blattFaktor=()=>meterProPunkt(aktueller?.kalibrierung??s.eingabe?.kalibrierung??null);
+  function auswahlKopieren(von:Punkt,bis:Punkt){
+    const dx=bis[0]-von[0],dy=bis[1]-von[1];
+    konstruieren("Kopie",[{g:x=>verschieben(x,dx,dy),e:x=>abbildenElement(x,verschiebung(dx,dy))}],true);
+  }
+  function auswahlSpiegeln(a:Punkt,b:Punkt){
+    konstruieren(konstruktion.spiegelKopie?"Spiegelung":"gespiegelt",[{g:x=>abbildenGeometrie(x,spiegelung(a,b)),e:x=>elementSpiegeln(x,a,b)}],konstruktion.spiegelKopie);
+  }
+  function auswahlStutzen(a:Punkt,b:Punkt){
+    konstruieren("Stutzen / Dehnen",[{g:x=>geometrieStutzen(x,a,b),e:x=>elementStutzen(x,a,b)}],false);
+  }
+  function auswahlVersatz(){
+    const f=blattFaktor();if(f===null){s.fehler="Versatz benötigt einen Maßstab.";return}
+    const d=konstruktion.versatz/f;
+    konstruieren("Versatz",[{g:x=>versatz(x,d),e:x=>elementVersatz(x,d)}],true);
+  }
+  function auswahlReihe(){
+    const f=blattFaktor();if(f===null){s.fehler="Reihe benötigt einen Maßstab.";return}
+    const vs=reihe(konstruktion.anzahl,konstruktion.dx/f,-konstruktion.dy/f);
+    if(!vs.length){s.fehler="Reihe: Anzahl ab 2 und einen Abstand angeben.";return}
+    konstruieren("Reihe",vs.map(([dx,dy])=>({g:(x:Plangeometrie)=>verschieben(x,dx,dy),e:(x:Zeichenelement)=>abbildenElement(x,verschiebung(dx,dy))})),true);
+  }
   // Hintergründe eigener Zeichnungen.
   function hintergrundHinzufuegen(){
     const p=s.eingabe;if(!p||!darf||!istZeichnung)return;
@@ -435,6 +508,7 @@
     if(id==="kalibrieren")return istZeichnung?"Eigene Zeichnungen rechnen in Metern":!(pdf||dxf)?"Keine Unterlage geladen":"";
     if(id==="kontrolle")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     if(id==="wand"||id==="masskette"||id==="text")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
+    if(id==="kopieren"||id==="spiegeln"||id==="stutzen")return !auswahlAnzahl?"Zuerst Objekte auswählen":"";
     return "";
   }
   function werkzeugWaehlen(id:string){
@@ -444,7 +518,7 @@
     if((id==="bezugslinie"||id==="kalibrieren")&&bearbeiteter&&aktiv!==bearbeiteter.id&&id==="bezugslinie")oeffnen(bearbeiteter.id);
     werkzeug=id;
   }
-  function verlaufStatus(){undo=verlauf.zurueck;redo=verlauf.vor;const ids=new Set(s.eingabe?.markierungen.map(m=>m.id));auswahlIds=auswahlIds.filter(id=>ids.has(id));if(!ids.has(auswahl))auswahl="";if(!s.eingabe?.elemente?.some(e=>e.id===elementAuswahl))elementAuswahl="";if(!s.eingabe?.ausschnitte?.some(a=>a.id===aktiv))aktiv="";plan?.abbrechen()}
+  function verlaufStatus(){const eids=new Set(s.eingabe?.elemente?.map(e=>e.id));elementAuswahlIds=elementAuswahlIds.filter(id=>eids.has(id));undo=verlauf.zurueck;redo=verlauf.vor;const ids=new Set(s.eingabe?.markierungen.map(m=>m.id));auswahlIds=auswahlIds.filter(id=>ids.has(id));if(!ids.has(auswahl))auswahl="";if(!s.eingabe?.elemente?.some(e=>e.id===elementAuswahl))elementAuswahl="";if(!s.eingabe?.ausschnitte?.some(a=>a.id===aktiv))aktiv="";plan?.abbrechen()}
   function rueckwaerts(){
     if(!s.eingabe||!darf||s.laeuft)return;
     const p=verlauf.rueckwaerts($state.snapshot(s.eingabe));if(p)s.eingabe=p;verlaufStatus();
@@ -453,7 +527,7 @@
     if(!s.eingabe||!darf||s.laeuft)return;
     const p=verlauf.vorwaerts($state.snapshot(s.eingabe));if(p)s.eingabe=p;verlaufStatus();
   }
-  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id)elementAuswahl="";if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;werkzeug="auswahl"}
+  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id){elementAuswahl="";if(!mehrfach)elementAuswahlIds=[]}else if(!mehrfach)elementAuswahlIds=[];if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;werkzeug="auswahl"}
   function gemeinsamVerschieben(ids:string[],dx:number,dy:number){if(!s.eingabe||!darf||s.laeuft)return;const ms=s.eingabe.markierungen.filter(m=>ids.includes(m.id));if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;merken();for(const m of ms)m.geometrie=verschieben(m.geometrie,dx,dy)}
   function geometrieSetzen(g:Plangeometrie){if(!m||objektGesperrt)return;merken();m.geometrie=g}
   async function flaechenAktion(operation:import("../generated/plattform").Flaechenoperation){
@@ -494,6 +568,11 @@
     }
     if(werkzeug==="ausschnitt"&&g.art==="rechteck"){
       ausschnittAnlegen(g.von,g.bis);werkzeug="auswahl";return;
+    }
+    if((werkzeug==="kopieren"||werkzeug==="spiegeln"||werkzeug==="stutzen")&&g.art==="strecke"){
+      const a=g.von as Punkt,b=g.bis as Punkt,w=werkzeug;werkzeug="auswahl";
+      if(w==="kopieren")auswahlKopieren(a,b);else if(w==="spiegeln")auswahlSpiegeln(a,b);else auswahlStutzen(a,b);
+      return;
     }
     if(!layer||layer.gesperrt||!layer.sichtbar){s.fehler="Eine sichtbare, ungesperrte Zeichenebene auswählen.";return}
     merken();
@@ -638,6 +717,7 @@
       {#if vorlage}<p role="status" class="hinweisbox schmal">Vorlage <strong>{vorlage.titel}</strong> ({bedeutungen.find(b=>b[0]===vorlage!.bedeutung)?.[1]}) auf Ebene „{aktiv?layer?.bezeichnung??vorlage.ebene:vorlage.ebene}“ · {vorlage.hinweis}. <button type="button" class="link" onclick={()=>{vorlage=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if werkzeug==="hgstrecke"||werkzeug==="hgverschieben"||werkzeug==="hgdrehen"}<p role="status" class="hinweisbox schmal">{werkzeug==="hgstrecke"?`Auf dem Hintergrund Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken; der Hintergrund wird darauf skaliert.`:werkzeug==="hgverschieben"?"Einen Punkt des Hintergrunds und dann seine Zielposition anklicken.":`Den Drehpunkt anklicken; der Hintergrund dreht sich um ${z(hgWinkel)}°.`}</p>{/if}
+      {#if werkzeug==="kopieren"||werkzeug==="spiegeln"||werkzeug==="stutzen"}<p role="status" class="hinweisbox schmal">{werkzeug==="kopieren"?`Basispunkt und Zielpunkt anklicken (Ziffern öffnen die Maßeingabe); ${auswahlAnzahl} Objekt(e) werden kopiert.`:werkzeug==="spiegeln"?`Zwei Punkte der Spiegelachse anklicken; ${konstruktion.spiegelKopie?"das Original bleibt erhalten":"das Original wird gespiegelt"} (umschaltbar unter Eigenschaften → Konstruieren).`:"Grenzkante mit zwei Punkten abgreifen (Fang an Kanten und Endpunkten). Gewählte Strecken, Wände und Maßketten enden dann an dieser Kante: zu lange werden gekürzt, zu kurze verlängert."}</p>{/if}
       {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"||werkzeug==="kontrolle"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?`Anfang und Ende der bekannten Referenzstrecke (${z(referenz)} m) anklicken.`:werkzeug==="bezug"?`Den Punkt mit der Bezugshöhe ${z(hwert)} ${hsystem} auf der Unterlage anklicken.`:werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:werkzeug==="kontrolle"?`Anfang und Ende einer bekannten Strecke (${z(kontrollMeter)} m) anklicken; die Abweichung erscheint unter „Blatt und Einrichtung“.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
       <div class="arbeitsplatz">
         <div class="werkzeugleiste" role="toolbar" aria-label="PDF-Zeichenwerkzeuge" aria-orientation="vertical">
@@ -650,7 +730,7 @@
           {/each}
           <span class="gruppentrenner" role="separator" aria-hidden="true"></span>
           <Symbolknopf titel="Duplizieren" kuerzel="Strg+D" tip="rechts" disabled={!m||objektGesperrt} onclick={duplizieren}><WerkzeugIcon art="duplizieren"/></Symbolknopf>
-          <Symbolknopf titel={el?"Element entfernen":"Markierung entfernen"} kuerzel="Entf" tip="rechts" disabled={el?elementGesperrt:(!m||objektGesperrt)} onclick={()=>el?elementEntfernen():entfernen()}><WerkzeugIcon art="entfernen"/></Symbolknopf>
+          <Symbolknopf titel={auswahlElemente.length&&!m?"Element entfernen":"Markierung entfernen"} kuerzel="Entf" tip="rechts" disabled={auswahlElemente.length&&!m?(!darf||s.laeuft):(!m||objektGesperrt)} onclick={()=>auswahlElemente.length&&!m?elementEntfernen():entfernen()}><WerkzeugIcon art="entfernen"/></Symbolknopf>
         </div>
         <div class="flaeche">
           <div class="pfad" aria-label="Arbeitsbereich">
@@ -662,7 +742,7 @@
             <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
-              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {wanddicke}
+              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen}
               onelement={elementAnlegen} onelementauswahl={elementWaehlen} onelementedit={elementSetzen}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
               onfertig={fertig} onauswahl={waehlen} onverschieben={gemeinsamVerschieben} onpunkt={i=>{punktIndex=i;panelOeffnen("eigenschaften")}} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
@@ -686,7 +766,20 @@
                 <p class="meta">{el.art==="text"?`Bei ${z(el.punkt[0])}; ${z(el.punkt[1])} ${einheitText}.`:`Von ${z(el.von[0])}; ${z(el.von[1])} bis ${z(el.bis[0])}; ${z(el.bis[1])} ${einheitText}${(()=>{const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);const [a,b]=elementPunkte(el);return f?` · ${z(Math.hypot(b[0]-a[0],b[1]-a[1])*f)} m`:""})()}.`} Zeichenelemente liefern keine Messwerte; Endpunkte lassen sich mit „Auswählen“ ziehen.</p>
                 <div class="aktionen"><button type="button" class="sekundaer" title="Entf" onclick={elementEntfernen}>Element entfernen</button></div>
               </fieldset>
-            {:else if !m}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen.</p>{/if}
+            {:else if !m&&!auswahlAnzahl}<p class="meta">Eine Markierung auf dem Plan oder unter „Objekte“ auswählen. Fenster aufziehen: von links nach rechts wählt Enthaltenes, von rechts nach links auch Berührtes.</p>{/if}
+            {#if auswahlAnzahl}<section class="konstruieren" aria-label="Konstruieren">
+              <h3>Konstruieren · {auswahlAnzahl} Objekt(e)</h3>
+              <fieldset disabled={!darf||s.laeuft}>
+                <div class="aktionen">
+                  <button type="button" class="sekundaer" class:aktiv={werkzeug==="kopieren"} onclick={()=>werkzeugWaehlen("kopieren")} title="C">Kopieren</button>
+                  <button type="button" class="sekundaer" class:aktiv={werkzeug==="spiegeln"} onclick={()=>werkzeugWaehlen("spiegeln")} title="I">Spiegeln</button>
+                  <button type="button" class="sekundaer" class:aktiv={werkzeug==="stutzen"} onclick={()=>werkzeugWaehlen("stutzen")} title="D">Stutzen / Dehnen</button>
+                </div>
+                <label class="zeile"><input type="checkbox" bind:checked={konstruktion.spiegelKopie}/>Beim Spiegeln Original behalten</label>
+                <div class="konstruktionszeile"><label>Versatz (m, + außen/links)<input type="number" step="any" bind:value={konstruktion.versatz}/></label><button type="button" class="sekundaer" onclick={auswahlVersatz}>Parallele anlegen</button></div>
+                <div class="konstruktionszeile"><label>Anzahl<input type="number" min="2" max="200" step="1" bind:value={konstruktion.anzahl}/></label><label>Abstand x (m)<input type="number" step="any" bind:value={konstruktion.dx}/></label><label>Abstand y (m, nach oben)<input type="number" step="any" bind:value={konstruktion.dy}/></label><button type="button" class="sekundaer" onclick={auswahlReihe}>Reihe anlegen</button></div>
+              </fieldset>
+            </section>{/if}
             {#if auswahlIds.length>1}<section class="mehrfach"><h3>{auswahlIds.length} Markierungen ausgewählt</h3><fieldset disabled={!darf||s.laeuft}><div class="aktionen">{#each ["links","rechts","oben","unten"] as art}<button type="button" class="sekundaer" onclick={()=>auswahlAusrichten(art as "links"|"rechts"|"oben"|"unten")}>{art} ausrichten</button>{/each}</div>
               {#if auswahlIds.length===2}<div class="aktionen">{#each [["vereinen","Vereinen"],["abziehen","Zweite Fläche abziehen"],["schneiden","Schnittfläche"],["teilen","An zweiter Fläche teilen"]] as [op,t]}<button type="button" onclick={()=>void flaechenAktion(op as import("../generated/plattform").Flaechenoperation)}>{t}</button>{/each}</div>{/if}</fieldset></section>{/if}
             {#if m}
@@ -1005,6 +1098,11 @@
   .objektzeile{display:flex;gap:.4rem;align-items:center;content-visibility:auto;contain-intrinsic-size:auto 48px}
   .objektzeile button{flex:1}
   .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
+  .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
+  .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}
+  .konstruktionszeile{display:flex;flex-wrap:wrap;gap:.4rem;align-items:end;margin-top:.4rem}
+  .konstruktionszeile label{flex:1 1 6rem}
+  .konstruieren .zeile{display:flex;gap:.35rem;align-items:center;margin-top:.4rem}
   .quellzeile{display:grid;gap:.5rem}
   .kalibrierung{display:flex;gap:.5rem;flex-wrap:wrap;align-items:end;margin:.3rem 0}
   .kalibrierung label{flex:1 1 7rem}
