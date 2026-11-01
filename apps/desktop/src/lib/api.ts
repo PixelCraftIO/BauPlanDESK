@@ -1377,6 +1377,21 @@ export const api = {
       { umfang },
     ),
   kalenderaboWiderrufen: () => invoke<void>("kalenderabo_widerrufen"),
+  planliste: (projektId: string) =>
+    invoke<import("./generated/plattform").Planliste>("planliste", {
+      projektId,
+    }),
+  plannummernschema: () =>
+    invoke<import("./generated/plattform").Plannummernschema>(
+      "plannummernschema",
+    ),
+  plannummernschemaSpeichern: (
+    schema: import("./generated/plattform").Plannummernschema,
+  ) =>
+    invoke<import("./generated/plattform").Plannummernschema>(
+      "plannummernschema_speichern",
+      { schema },
+    ),
   bueroCockpit: () =>
     invoke<import("./generated/plattform").Buerocockpit>("buero_cockpit"),
   projektAnlegen: (projekt: Projektwerte) =>

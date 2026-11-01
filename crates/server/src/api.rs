@@ -269,6 +269,11 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
         .route("/cockpit", get(buero_cockpit))
         .route(
+            "/plannummernschema",
+            get(plannummernschema).put(plannummernschema_speichern),
+        )
+        .route("/projekte/{id}/planliste", get(planliste))
+        .route(
             "/kalenderabo",
             get(kalenderabo_auskunft)
                 .post(kalenderabo_anlegen)
@@ -499,6 +504,25 @@ async fn buero_cockpit(
     ))
 }
 
+async fn plannummernschema(
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<core_lib::planliste::Plannummernschema> {
+    Ok(Json(core.plannummernschema().await?))
+}
+async fn plannummernschema_speichern(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+    Json(s): Json<core_lib::planliste::Plannummernschema>,
+) -> ApiResult<core_lib::planliste::Plannummernschema> {
+    Ok(Json(core.plannummernschema_speichern(s, &akteur).await?))
+}
+async fn planliste(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(p): Path<Uuid>,
+) -> ApiResult<core_lib::planliste::Planliste> {
+    Ok(Json(core.planliste(ProjectId(p), &akteur).await?))
+}
 async fn kalenderabo_auskunft(
     Extension(akteur): Extension<Benutzer>,
     State(ApiState { core, .. }): State<ApiState>,

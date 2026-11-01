@@ -36,7 +36,7 @@ export const NAVIGATION: NavZweig[] = [
       {
         id: "unterlagen",
         titel: "Unterlagen",
-        module: ["dokumente", "planaufmass", "messwerte", "unterlagen"],
+        module: ["dokumente", "planaufmass", "messwerte", "planliste", "unterlagen"],
       },
       {
         id: "gebaeudemodell",

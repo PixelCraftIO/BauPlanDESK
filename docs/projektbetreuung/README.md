@@ -70,3 +70,32 @@ Vorfälle/Mängel und Entscheidungen des Bauherrn.
 Das Büro-Cockpit und das Kalender-Abo zeigen außerdem offene **Aufgaben** mit
 Frist. Kalenderdateien werden einheitlich über
 `verfahren::termine::kalender` erzeugt.
+
+## Planliste
+
+**Ermittlung → Unterlagen → Planliste** führt die Pläne des Projekts mit
+Plannummer, Büroindex und Planverteiler.
+
+- **Aufnehmen:** Eine PDF-, DXF- oder IFC-Datei aus den Projektdateien wird mit
+  Planart (LP, GR, SN, AN, DT, EW, FF, BS, SO), Geschoss/Bereich, laufender
+  Nummer, Titel und Maßstab in die Liste übernommen. Ein Plan entspricht genau
+  einem Dokument im DMS.
+- **Plannummer:** setzt der Core beim Speichern nach dem Büroschema
+  (**Einstellungen → Plannummern**, Vorgabe `{projekt}-{planart}-{geschoss}-{nr:2}`,
+  z. B. `2026-014-GR-EG-03`). `{projekt}` ist das Kennzeichen der
+  Projektorganisation, ersatzweise der Projektname. Leere Teile entfallen samt
+  Trennzeichen. Eine Plannummer ist im Projekt eindeutig.
+- **Büroindex:** Revisionen a, b, c … mit Datum, Änderungstext und der
+  Dokumentversion, die den Index trägt. Liegt im DMS eine neuere Version ohne
+  Index, zeigt die Liste „neuere Version ohne Index“.
+- **Behördenindex:** Spalte „Behörde“ zeigt je Verfahren den aus versendeten
+  Abgaben abgeleiteten Index A, B, C … und den Einreichungsstatus (Entwurf,
+  eingereicht, nachgereicht, genehmigt, ersetzt). Büro- und Behördenindex
+  werden nicht ineinander umgerechnet.
+- **Planverteiler:** erfasste Weitergaben (Empfänger, Datum, Index, Weg) und
+  automatisch alle versendeten oder eingegangenen Abgaben an die Behörde aus
+  der Verfahrensakte.
+
+Technik: `core_lib::planliste`, `ObjektArt::Planliste` (Objektkennung =
+Dokument-ID), Tauri `planliste`, `plannummernschema[_speichern]`, Server
+`GET /api/projekte/{id}/planliste`, `GET/PUT /api/plannummernschema`.

@@ -503,6 +503,7 @@ pub(super) async fn validieren(
             }
             serde_json::to_value(g)
         }
+        ObjektArt::Planliste => return core.planeintrag_pruefen(p, objekt, daten).await,
         ObjektArt::Projekttagebuch => {
             let e: Tagebucheintrag = serde_json::from_value(daten).map_err(json_err)?;
             text(&e.titel, 300)?;

@@ -156,6 +156,30 @@ pub async fn kalenderabo_widerrufen(state: State<'_, AppState>) -> CmdResult<()>
 }
 
 #[tauri::command]
+pub async fn planliste(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::planliste::Planliste> {
+    Ok(state.core.planliste(projekt_id, &state.benutzer()).await?)
+}
+#[tauri::command]
+pub async fn plannummernschema(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::planliste::Plannummernschema> {
+    Ok(state.core.plannummernschema().await?)
+}
+#[tauri::command]
+pub async fn plannummernschema_speichern(
+    state: State<'_, AppState>,
+    schema: core_lib::planliste::Plannummernschema,
+) -> CmdResult<core_lib::planliste::Plannummernschema> {
+    Ok(state
+        .core
+        .plannummernschema_speichern(schema, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
 pub async fn projekt_anlegen(
     state: State<'_, AppState>,
     projekt: NewProject,

@@ -57,6 +57,70 @@ export type Aboschluessel = { umfang: Aboumfang,
  * Pfad relativ zur Serveradresse, z. B. `/kalender/<benutzer>/<schluessel>.ics`.
  */
 pfad: string, };
+export type Planart = "lageplan" | "grundriss" | "schnitt" | "ansicht" | "detail" | "entwaesserung" | "freiflaechen" | "brandschutz" | "sonstiges";
+export type Plannummernschema = { muster: string, };
+export type Planrevision = {
+/**
+ * Büroindex, z. B. „a“, „b“ oder „01“.
+ */
+index: string, datum: string,
+/**
+ * Was sich gegenüber dem vorigen Index geändert hat.
+ */
+aenderung: string,
+/**
+ * Dokumentversion im DMS, die diesen Index trägt.
+ */
+version: number, };
+export type Planversand = { id: string, empfaenger: string, datum: string,
+/**
+ * Weitergegebener Büroindex.
+ */
+index: string,
+/**
+ * E-Mail, Post, Plattform, persönlich …
+ */
+weg: string, bemerkung: string, };
+export type Planeintrag = { dokument_id: DocumentId, planart: Planart,
+/**
+ * Geschoss oder Bereich, z. B. „EG“, „OG1“, „Nord“; darf leer sein.
+ */
+geschoss: string,
+/**
+ * Laufende Nummer, ab 1.
+ */
+nummer: number, titel: string,
+/**
+ * Maßstab als Nenner (100 für 1:100); `None` ohne Maßstab.
+ */
+massstab: number | null,
+/**
+ * Vom Core beim Speichern gesetzt.
+ */
+plannummer: string,
+/**
+ * Aufsteigend nach Datum.
+ */
+revisionen: Array<Planrevision>, verteiler: Array<Planversand>, };
+export type Behoerdenstand = { verfahren: string, bezeichnung: string, planindex: string | null, status: Einreichungsstatus, };
+export type Planzeile = { eintrag: Planeintrag, revision: number, dateiname: string,
+/**
+ * Neueste Version im DMS; `None`, wenn das Dokument entfernt wurde.
+ */
+aktuelle_version: number | null,
+/**
+ * Neueste Planrevision des Büros.
+ */
+index: Planrevision | null,
+/**
+ * Im DMS liegt eine neuere Version als die des letzten Index.
+ */
+ohne_index: boolean, behoerde: Array<Behoerdenstand>,
+/**
+ * Erfasste Versendungen und Abgaben an die Behörde, neueste zuerst.
+ */
+versand: Array<Planversand>, };
+export type Planliste = { schema: Plannummernschema, kennzeichen: string, zeilen: Array<Planzeile>, };
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };
@@ -1486,7 +1550,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
