@@ -100,7 +100,7 @@ export const NAVIGATION: NavZweig[] = [
       {
         id: "ausgabe",
         titel: "Formulare und Ausgabe",
-        module: ["formulare", "druck"],
+        module: ["formulare", "baukennwerte", "druck"],
       },
       {
         id: "verfahren",

@@ -34,6 +34,7 @@
   import Projektakte from "./lib/Projektakte.svelte";
   import Buerocockpit from "./lib/Buerocockpit.svelte";
   import KalenderAbo from "./lib/KalenderAbo.svelte";
+  import TagesMail from "./lib/TagesMail.svelte";
   import PlannummernSchema from "./lib/PlannummernSchema.svelte";
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
   import { type Ansicht } from "./lib/projektSitzung";
@@ -1071,6 +1072,7 @@
         <h1>Einstellungen</h1>
         <Darstellung />
         <KalenderAbo modus={info?.modus ?? "Einzelplatz"} />
+        <TagesMail modus={info?.modus ?? "Einzelplatz"} {ich} />
         <PlannummernSchema darf={darf("projektleitung")} />
         <Speicherorte {ich} bind:this={speicherortEditor} />
         <AblageEinstellungen bind:this={ablageEditor} />

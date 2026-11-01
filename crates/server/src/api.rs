@@ -165,6 +165,12 @@ fn routen(core: CoreServices) -> Router {
             get(einreichungspruefung),
         )
         .route(
+            "/projekte/{id}/gebuehrenschaetzung",
+            get(gebuehrenschaetzung),
+        )
+        .route("/projekte/{id}/baustatistik", get(baustatistik))
+        .route("/projekte/{id}/sachstandsbericht", get(sachstandsbericht))
+        .route(
             "/projekte/{id}/checkliste",
             axum::routing::post(checkliste_anwenden),
         )
@@ -1966,6 +1972,28 @@ async fn einreichungspruefung(
         core.einreichungspruefung(ProjectId(id), q.verfahren, &wer)
             .await?,
     ))
+}
+
+async fn gebuehrenschaetzung(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::baukennwerte::Gebuehrenschaetzung> {
+    Ok(Json(core.gebuehrenschaetzung(ProjectId(id), &wer).await?))
+}
+async fn baustatistik(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::baukennwerte::Baustatistikbogen> {
+    Ok(Json(core.baustatistik(ProjectId(id), &wer).await?))
+}
+async fn sachstandsbericht(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::druckausgabe::brief::Brief> {
+    Ok(Json(core.sachstandsbericht(ProjectId(id), &wer).await?))
 }
 
 // XBau-Dateiaustausch. Diese Endpunkte versenden nichts an eine Behörde.

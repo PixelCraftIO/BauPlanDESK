@@ -119,6 +119,12 @@ export const FACHMODULE = [
     laden: () => import("./Fachplaner.svelte"),
   },
   {
+    id: "baukennwerte",
+    titel: "Rohbauwert, Gebühr, Baustatistik",
+    gruppe: "Berechnungen",
+    laden: () => import("./Baukennwerte.svelte"),
+  },
+  {
     id: "einreichungspruefung",
     titel: "Einreichungsprüfung",
     gruppe: "Unterlagen",

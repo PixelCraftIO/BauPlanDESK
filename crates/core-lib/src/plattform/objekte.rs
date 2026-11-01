@@ -642,6 +642,17 @@ pub(super) async fn validieren(
             }
             serde_json::to_value(e)
         }
+        ObjektArt::Baukennwerte => {
+            if objekt != p.id.0 {
+                return Err(CoreError::InvalidInput(
+                    "Baukennwerte gehören zum Projekt (Objektkennung = Projekt-ID)".into(),
+                ));
+            }
+            let k: crate::baukennwerte::Baukennwerte =
+                serde_json::from_value(daten).map_err(json_err)?;
+            k.pruefen()?;
+            serde_json::to_value(k)
+        }
         ObjektArt::Fachplanerlieferung => {
             let l: Fachplanerlieferung = serde_json::from_value(daten).map_err(json_err)?;
             text(&l.fachplaner, 300)?;

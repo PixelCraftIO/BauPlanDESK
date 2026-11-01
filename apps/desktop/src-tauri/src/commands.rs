@@ -1421,3 +1421,71 @@ pub async fn grundstueckskontext(
         .await?;
     Ok(state.core.grundstueckskontext(projekt_id).await?)
 }
+
+#[tauri::command]
+pub async fn gebuehrenschaetzung(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::baukennwerte::Gebuehrenschaetzung> {
+    Ok(state
+        .core
+        .gebuehrenschaetzung(projekt_id, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn baustatistik(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::baukennwerte::Baustatistikbogen> {
+    Ok(state
+        .core
+        .baustatistik(projekt_id, &state.benutzer())
+        .await?)
+}
+async fn schreiben(ziel: std::path::PathBuf, daten: Vec<u8>) -> CmdResult<()> {
+    tokio::fs::write(ziel, daten)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn baukennwerte_pdf(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    statistik: bool,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .baukennwerte_pdf(projekt_id, statistik, &state.benutzer())
+        .await?;
+    schreiben(ziel, pdf).await
+}
+#[tauri::command]
+pub async fn sachstandsbericht_pdf(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .sachstandsbericht_pdf(projekt_id, &state.benutzer())
+        .await?;
+    schreiben(ziel, pdf).await
+}
+#[tauri::command]
+pub async fn tagesmail_einstellung(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::tagesmail::Tagesmaileinstellung> {
+    Ok(state.core.tagesmail_einstellung(&state.benutzer()).await?)
+}
+#[tauri::command]
+pub async fn tagesmail_setzen(
+    state: State<'_, AppState>,
+    einstellung: core_lib::tagesmail::Tagesmaileinstellung,
+) -> CmdResult<core_lib::tagesmail::Tagesmaileinstellung> {
+    Ok(state
+        .core
+        .tagesmail_setzen(&state.benutzer(), einstellung)
+        .await?)
+}

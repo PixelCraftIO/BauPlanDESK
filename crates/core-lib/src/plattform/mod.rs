@@ -44,6 +44,9 @@ pub enum ObjektArt {
     Planliste,
     /// Lieferliste eines Fachplaners ([`objekte::Fachplanerlieferung`]).
     Fachplanerlieferung,
+    /// Kosten- und Statistikangaben ([`crate::baukennwerte::Baukennwerte`]),
+    /// ein Datensatz je Projekt (Objektkennung = Projekt-ID).
+    Baukennwerte,
 }
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
@@ -70,6 +73,7 @@ impl ObjektArt {
             Self::Projekttagebuch => "projekttagebuch",
             Self::Planliste => "planliste",
             Self::Fachplanerlieferung => "fachplanerlieferung",
+            Self::Baukennwerte => "baukennwerte",
         }
     }
 }
@@ -286,6 +290,7 @@ pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
         ObjektArt::Projekttagebuch => rund::<objekte::Tagebucheintrag>(&f.daten),
         ObjektArt::Planliste => rund::<crate::planliste::Planeintrag>(&f.daten),
         ObjektArt::Fachplanerlieferung => rund::<objekte::Fachplanerlieferung>(&f.daten),
+        ObjektArt::Baukennwerte => rund::<crate::baukennwerte::Baukennwerte>(&f.daten),
     };
     if let Some(neu) = neu {
         f.daten = neu;

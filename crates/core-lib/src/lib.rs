@@ -12,6 +12,7 @@
 
 pub mod anmeldung;
 pub mod baugrundstuecke;
+pub mod baukennwerte;
 pub mod baunvo;
 pub mod benutzer;
 pub mod cad;
@@ -37,8 +38,10 @@ pub mod kunden;
 pub mod lbo;
 pub mod license;
 pub mod repository;
+pub mod sachstandsbericht;
 pub mod service;
 pub mod storage;
+pub mod tagesmail;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testsuite;
 pub mod xbau;

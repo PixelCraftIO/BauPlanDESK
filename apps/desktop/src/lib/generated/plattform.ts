@@ -1648,7 +1648,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste" | "fachplanerlieferung";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste" | "fachplanerlieferung" | "baukennwerte";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
@@ -1784,6 +1784,64 @@ export type Einreichungspruefung = { stichtag: string, verfahren: string | null,
  * Rot vor Gelb, innerhalb nach Bereich.
  */
 punkte: Array<Pruefpunkt>, };
+export type Regelquelle = { titel: string, url: string | null, };
+export type Gebaeudeartwert = { id: string, bezeichnung: string, euro_je_m3: number | null, };
+export type Bautaetigkeit = "neubau" | "bestand";
+export type Bauherrenart = "privater_haushalt" | "unternehmen" | "oeffentliche_hand" | "organisation_ohne_erwerbszweck";
+export type Baukennwerte = {
+/**
+ * Kennung einer Gebäudeart aus dem Regelpaket.
+ */
+gebaeudeart: string,
+/**
+ * Brutto-Rauminhalt; leer = aus der DIN-277-Berechnung.
+ */
+bri_m3: number | null,
+/**
+ * Rohbauwert je m³; leer = Wert des Regelpakets.
+ */
+euro_je_m3: number | null,
+/**
+ * Gebührensatz in Promille des Rohbauwerts; leer = Regelpaket.
+ */
+promille: number | null, bautaetigkeit: Bautaetigkeit,
+/**
+ * Leer = aus der Kundenkategorie des ersten Bauherrn.
+ */
+bauherrenart: Bauherrenart | null,
+/**
+ * Leer = Wohneinheiten der Wohnflächenberechnung.
+ */
+wohnungen: number | null, heizung: string, energie_primaer: string, energie_sekundaer: string, baustoff: string, fertigteilbau: boolean,
+/**
+ * Veranschlagte Kosten des Bauwerks (Kostengruppen 300 und 400).
+ */
+kosten_bauwerk_euro: number | null, };
+export type Kennwert = { wert: number | null,
+/**
+ * „Eingabe“, Berechnungsname oder Regelpaket.
+ */
+quelle: string, };
+export type Gebuehrenschaetzung = { land: string, gebaeudeart: string, bri_m3: Kennwert, euro_je_m3: Kennwert, rohbauwert_euro: number | null, promille: Kennwert, mindestgebuehr_euro: number, gebuehr_euro: number | null, rechtsgrundlage: string,
+/**
+ * `false` = Regelwerte ohne fachliche Abnahme.
+ */
+geprueft: boolean, stand: string, offen: Array<string>, hinweise: Array<string>, quellen: Array<Regelquelle>, gebaeudearten: Array<Gebaeudeartwert>, };
+export type Statistikmerkmal = { gruppe: string, bezeichnung: string,
+/**
+ * Leer = noch keine Angabe.
+ */
+wert: string, quelle: string, };
+export type Baustatistikbogen = { merkmale: Array<Statistikmerkmal>,
+/**
+ * Bezeichnungen ohne Angabe.
+ */
+offen: Array<string>, hinweis: string, };
+export type Tagesmaileinstellung = { aktiv: boolean, adresse: string, umfang: Aboumfang,
+/**
+ * Abwesend bis einschließlich; während dessen gehen eigene Termine an die Vertretung.
+ */
+abwesend_bis: string | null, vertretung: BenutzerId | null, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
