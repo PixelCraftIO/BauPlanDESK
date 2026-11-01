@@ -1381,6 +1381,10 @@ export const api = {
     invoke<import("./generated/plattform").Planliste>("planliste", {
       projektId,
     }),
+  planlayoutExportieren: (projektId: string, wunsch: import("./generated/plattform").Layoutwunsch, ziel: string | null) =>
+    invoke<DocumentVersion | null>("planlayout_exportieren", { projektId, wunsch, ziel }),
+  plankopfStempeln: (projektId: string, wunsch: import("./generated/plattform").Stempelwunsch, ziel: string) =>
+    invoke<void>("plankopf_stempeln", { projektId, wunsch, ziel }),
   plannummernschema: () =>
     invoke<import("./generated/plattform").Plannummernschema>(
       "plannummernschema",

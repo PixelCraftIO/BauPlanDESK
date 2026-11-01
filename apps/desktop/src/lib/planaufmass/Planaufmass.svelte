@@ -80,6 +80,23 @@
   let vergleichAusrichtung=$state({dx:0,dy:0,grad:0,faktor:1}),vergleichBestaetigt=$state(false);
   let standardGebaeude=$state<string|null>(null),standardGeschoss=$state<string|null>(null),standardBedeutung=$state<Planbedeutung>("unbestimmt");
   let exportLaeuft=$state(false),nurSichtbare=$state(true);
+  // Planlayout eigener Zeichnungen: Blatt, Maßstab, Nordpfeil, Plankopf aus der Planliste.
+  let layout=$state({format:"a3" as import("../generated/plattform").Blattformat,hochformat:false,massstab:100,nord:true,nordwinkel:0,planinhalt:"",dokument:"",legende:true,ablegen:false});
+  let planlisteZeilen=$state<import("../generated/plattform").Planzeile[]>([]);
+  async function planlisteLaden(){try{planlisteZeilen=(await api.planliste(s.projektId)).zeilen}catch{planlisteZeilen=[]}}
+  async function layoutAusgeben(){
+    if(!s.eingabe||!s.id||exportLaeuft)return;
+    if(s.hatAenderungen()){
+      if(!darf||!(await ask("Für das Planlayout die Zeichnung zuerst speichern?",{title:"Planlayout",okLabel:"Speichern und ausgeben",cancelLabel:"Abbrechen"}))||!(await s.speichern()))return;
+    }
+    const zeile=planlisteZeilen.find(z=>z.eintrag.dokument_id===layout.dokument);
+    const ziel=await save({defaultPath:`${(zeile?.eintrag.plannummer||s.eingabe.bezeichnung).replace(/[<>:"/\\|?*]/g,"_")}.pdf`,filters:[{name:"Planblatt PDF",extensions:["pdf"]}]});if(!ziel)return;
+    exportLaeuft=true;
+    try{
+      const v=await api.planlayoutExportieren(s.projektId,{aufmass_id:s.id,revision:s.revision,format:layout.format,hochformat:layout.hochformat,massstab:Math.round(layout.massstab),nordwinkel_grad:layout.nord?layout.nordwinkel:null,planinhalt:layout.planinhalt,dokument_id:layout.dokument||null,legende:layout.legende,nur_sichtbare_ebenen:nurSichtbare,ablegen:layout.ablegen&&darf},ziel);
+      s.meldung=`Planblatt ausgegeben: ${ziel}${v?`. Im Projekt abgelegt als ${v.file_name}, Version ${v.version}${layout.dokument?"; in der Planliste den neuen Index setzen":""}.`:"."}`;
+    }catch(e){s.fehler=fehlertext(e)}finally{exportLaeuft=false}
+  }
   let betrachterSeite=$state<number|null>(null),sichtbarkeit=$state<Record<string,boolean>>({});
   let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560);
   // Zeichenelemente und Hintergründe eigener Zeichnungen.
@@ -1072,6 +1089,21 @@
             <h3>Ausgabe</h3>
             <label><input type="checkbox" bind:checked={nurSichtbare}/>Nur sichtbare Ebenen ausgeben</label>
             <div class="aktionen"><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}>Aufmaßblatt PDF …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}>Messwerte CSV …</button></div>
+            {#if istZeichnung}
+              <details class="planlayout" ontoggle={e=>{if(e.currentTarget.open)void planlisteLaden()}}><summary><h3>Planlayout (maßstäbliches Planblatt)</h3></summary>
+                <div class="kalibrierung">
+                  <label>Format<select bind:value={layout.format}>{#each ["a4","a3","a2","a1","a0"] as f}<option value={f}>{f.toUpperCase()}</option>{/each}</select></label>
+                  <label>Lage<select bind:value={layout.hochformat}><option value={false}>Quer</option><option value={true}>Hoch</option></select></label>
+                  <label>Maßstab 1 :<select bind:value={layout.massstab}>{#each [20,50,100,200,250,500,1000] as m}<option value={m}>{m}</option>{/each}</select></label>
+                </div>
+                <label>Plan der Planliste (Nummer und Index im Plankopf)<select bind:value={layout.dokument}><option value="">Ohne Planlisteneintrag</option>{#each planlisteZeilen as z (z.eintrag.dokument_id)}<option value={z.eintrag.dokument_id}>{z.eintrag.plannummer} · {z.eintrag.titel}</option>{/each}</select></label>
+                <label>Planinhalt<input bind:value={layout.planinhalt} maxlength="300" placeholder={layout.dokument?"Titel aus der Planliste":s.eingabe?.bezeichnung}/></label>
+                <div class="kalibrierung"><label><input type="checkbox" bind:checked={layout.nord}/>Nordpfeil</label>{#if layout.nord}<label>Richtung Nord (° gegen Uhrzeiger)<input type="number" step="any" bind:value={layout.nordwinkel}/></label>{/if}<label><input type="checkbox" bind:checked={layout.legende}/>Legende der Ebenen</label></div>
+                <label><input type="checkbox" bind:checked={layout.ablegen} disabled={!darf}/>Im Projekt ablegen{layout.dokument?" (als neue Version des gewählten Plans)":""}</label>
+                <p class="meta">Bauherr, Vorhaben, Grundstück und Entwurfsverfasser kommen aus Projekt, Bauantrag und Büroangaben. Passt die Zeichnung nicht auf das Blatt, wird kein Plan erzeugt: größeres Format oder kleineren Maßstab wählen.</p>
+                <button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void layoutAusgeben()}>Planblatt PDF …</button>
+              </details>
+            {/if}
           </details>
         </aside>
       </div>

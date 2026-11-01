@@ -121,6 +121,35 @@ ohne_index: boolean, behoerde: Array<Behoerdenstand>,
  */
 versand: Array<Planversand>, };
 export type Planliste = { schema: Plannummernschema, kennzeichen: string, zeilen: Array<Planzeile>, };
+export type Blattformat = "a4" | "a3" | "a2" | "a1" | "a0";
+export type Layoutwunsch = {
+/**
+ * Eigene Zeichnung (Planaufmaß ohne Unterlage).
+ */
+aufmass_id: string, revision: number, format: Blattformat, hochformat: boolean,
+/**
+ * Maßstabszahl, z. B. 100 für 1 : 100.
+ */
+massstab: number,
+/**
+ * Nordpfeil: Richtung Norden in Grad gegen den Uhrzeigersinn; `None` = ohne.
+ */
+nordwinkel_grad: number | null,
+/**
+ * Planinhalt im Plankopf; leer = Titel aus der Planliste bzw. Name der Zeichnung.
+ */
+planinhalt: string,
+/**
+ * Plan der Planliste, dessen Nummer und Index der Plankopf trägt; mit
+ * `ablegen` wird die Ausgabe neue Version dieses Dokuments.
+ */
+dokument_id: DocumentId | null, legende: boolean, nur_sichtbare_ebenen: boolean,
+/**
+ * Ausgabe zusätzlich im Projekt ablegen.
+ */
+ablegen: boolean, };
+export type Stempelwunsch = { dokument_id: DocumentId, version: number, seite: number, };
+export type Plankopf = { bauherr: string, vorhaben: string, grundstueck: string, planinhalt: string, planverfasser: string, plannummer: string, index: string, massstab: string, datum: string, format: string, };
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };

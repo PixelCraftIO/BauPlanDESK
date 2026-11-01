@@ -407,7 +407,7 @@ impl CoreServices {
             .filter(|k| !k.trim().is_empty())
             .unwrap_or_else(|| p.name.clone()))
     }
-    async fn planeintraege(&self, p: ProjectId) -> CoreResult<Vec<(i64, Planeintrag)>> {
+    pub(crate) async fn planeintraege(&self, p: ProjectId) -> CoreResult<Vec<(i64, Planeintrag)>> {
         self.repos
             .commit
             .fachstaende(p, ObjektArt::Planliste.modul())

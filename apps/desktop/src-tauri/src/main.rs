@@ -189,6 +189,8 @@ fn main() {
             commands::kalenderabo_anlegen,
             commands::kalenderabo_widerrufen,
             commands::planliste,
+            commands::planlayout_exportieren,
+            commands::plankopf_stempeln,
             commands::plannummernschema,
             commands::plannummernschema_speichern,
             commands::projekt_anlegen,

@@ -162,6 +162,41 @@ pub async fn planliste(
 ) -> CmdResult<core_lib::planliste::Planliste> {
     Ok(state.core.planliste(projekt_id, &state.benutzer()).await?)
 }
+/// Planblatt einer eigenen Zeichnung als PDF nach `ziel`; liefert die abgelegte Version.
+#[tauri::command]
+pub async fn planlayout_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planlayout::Layoutwunsch,
+    ziel: Option<std::path::PathBuf>,
+) -> CmdResult<Option<core_lib::domain::DocumentVersion>> {
+    let (pdf, abgelegt) = state
+        .core
+        .planlayout(projekt_id, &wunsch, &state.benutzer())
+        .await?;
+    if let Some(ziel) = ziel {
+        tokio::fs::write(ziel, pdf)
+            .await
+            .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    }
+    Ok(abgelegt)
+}
+#[tauri::command]
+pub async fn plankopf_stempeln(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planlayout::Stempelwunsch,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .plankopf_stempeln(projekt_id, &wunsch, &state.benutzer())
+        .await?;
+    tokio::fs::write(ziel, pdf)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
 #[tauri::command]
 pub async fn plannummernschema(
     state: State<'_, AppState>,

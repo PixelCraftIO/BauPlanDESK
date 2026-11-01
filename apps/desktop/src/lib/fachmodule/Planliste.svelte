@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { save } from "@tauri-apps/plugin-dialog";
   import {
     api,
     fehlertext,
@@ -168,6 +169,28 @@
     } catch (e) {
       fehler = fehlertext(e);
       return false;
+    } finally {
+      laeuft = false;
+    }
+  }
+  /** Plankopf (Projekt, Bauherr, Plannummer, Index) auf die aktuelle Dateiversion stempeln. */
+  async function stempeln() {
+    if (!eingabe || !zeile?.aktuelle_version) return;
+    if (!zeile.dateiname.toLowerCase().endsWith(".pdf")) {
+      fehler = "Der Plankopf lässt sich nur auf PDF-Pläne setzen.";
+      return;
+    }
+    const ziel = await save({
+      defaultPath: `${eingabe.plannummer || "Plan"} mit Plankopf.pdf`.replace(/[<>:"/\\|?*]/g, "_"),
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (!ziel) return;
+    laeuft = true;
+    try {
+      await api.plankopfStempeln(projekt.id, { dokument_id: eingabe.dokument_id, version: zeile.aktuelle_version, seite: 1 }, ziel);
+      meldung = `Plan mit Plankopf gespeichert: ${ziel}. Das Original im Projekt bleibt unverändert.`;
+    } catch (e) {
+      fehler = fehlertext(e);
     } finally {
       laeuft = false;
     }
@@ -364,6 +387,9 @@
       </div>
       <button type="button" class="sekundaer" onclick={indexSetzen}
         >Index für die aktuelle Dateiversion setzen</button
+      >
+      <button type="button" class="sekundaer" disabled={laeuft || geaendert || !zeile?.aktuelle_version} title={geaendert ? "Zuerst speichern" : "Plankopf unten rechts auf Seite 1 setzen"} onclick={() => void stempeln()}
+        >Plankopf stempeln …</button
       >
       <h3>Planverteiler</h3>
       <table class="ergebnistabelle">
