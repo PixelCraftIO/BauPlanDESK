@@ -494,6 +494,14 @@ pub fn ics(kalendername: &str, termine: &[Termin], erzeugt: DateTime<Utc>) -> St
 }
 
 impl CoreServices {
+    /// Verfahrensakten eines Projekts mit ihrer Kennung (für Lesemodelle
+    /// anderer Module wie das Büro-Cockpit).
+    pub(crate) async fn verfahrensakten_lesen(
+        &self,
+        p: ProjectId,
+    ) -> CoreResult<Vec<(Uuid, Verfahrensakte)>> {
+        self.verfahrensakten(p).await
+    }
     /// Verfahrensakten eines Projekts mit ihrer Kennung.
     async fn verfahrensakten(&self, p: ProjectId) -> CoreResult<Vec<(Uuid, Verfahrensakte)>> {
         self.repos

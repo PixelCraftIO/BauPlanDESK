@@ -1369,6 +1369,8 @@ export const api = {
     }),
   appInfo: () => invoke<AppInfo>("app_info"),
   projekte: () => invoke<Project[]>("projekte_auflisten"),
+  bueroCockpit: () =>
+    invoke<import("./generated/plattform").Buerocockpit>("buero_cockpit"),
   projektAnlegen: (projekt: Projektwerte) =>
     invoke<Project>("projekt_anlegen", { projekt }),
   projektOeffnen: (id: string) => invoke<Project>("projekt_laden", { id }),

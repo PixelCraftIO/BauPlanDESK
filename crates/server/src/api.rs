@@ -267,6 +267,7 @@ fn routen(core: CoreServices) -> Router {
             post(suchtext_speichern).layer(DefaultBodyLimit::max(JSON_MIT_KERNGRENZE)),
         )
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
+        .route("/cockpit", get(buero_cockpit))
         .route("/projekte", get(list_projects).post(create_project))
         .route(
             "/projekte/{id}",
@@ -477,6 +478,17 @@ async fn list_projects(
     State(ApiState { core, .. }): State<ApiState>,
 ) -> ApiResult<Vec<Project>> {
     Ok(Json(core.projekte_fuer_benutzer(&akteur).await?))
+}
+
+/// Büro-Cockpit über alle Projekte, die der angemeldete Benutzer lesen darf.
+async fn buero_cockpit(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<core_lib::cockpit::Buerocockpit> {
+    Ok(Json(
+        core.buero_cockpit(&akteur, core_lib::kalender::heute())
+            .await?,
+    ))
 }
 
 async fn create_project(

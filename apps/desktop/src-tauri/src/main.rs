@@ -184,6 +184,7 @@ fn main() {
             commands::ablage_wechseln,
             commands::projektordner_exportieren,
             commands::projekte_auflisten,
+            commands::buero_cockpit,
             commands::projekt_anlegen,
             commands::projekt_aktualisieren,
             commands::projekt_loeschen,

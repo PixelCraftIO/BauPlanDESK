@@ -12,6 +12,13 @@ fn main() {
     );
     macro_rules! ausgabe {($($t:ty),* $(,)?)=>{$(println!("export {}",<$t as TS>::decl().lines().map(str::trim_end).collect::<Vec<_>>().join("\n"));)*};}
     ausgabe!(
+        core_lib::cockpit::Friststufe,
+        core_lib::cockpit::CockpitTermin,
+        core_lib::cockpit::CockpitVerfahren,
+        core_lib::cockpit::CockpitBescheid,
+        core_lib::cockpit::CockpitProjekt,
+        core_lib::cockpit::CockpitFehler,
+        core_lib::cockpit::Buerocockpit,
         core_lib::cad::Laengeneinheit,
         core_lib::cad::projektaufmass::CadMarkierung,
         core_lib::cad::projektaufmass::CadProjektaufmass,

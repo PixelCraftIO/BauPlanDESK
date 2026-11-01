@@ -1,6 +1,7 @@
 <script lang="ts">
   import { initialisieren as darstellungInitialisieren } from "./lib/darstellung";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
+  import type { UebersichtsZiel } from "./lib/generated/plattform";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { listen } from "@tauri-apps/api/event";
   import type { ProjektRecht } from "./lib/generated/plattform";
@@ -31,6 +32,7 @@
   import KategorienEinstellungen from "./lib/KategorienEinstellungen.svelte";
   import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
+  import Buerocockpit from "./lib/Buerocockpit.svelte";
   import ProjektVerzeichnis from "./lib/ProjektVerzeichnis.svelte";
   import { type Ansicht } from "./lib/projektSitzung";
   import BauherrenDialog from "./lib/Bauherren.svelte";
@@ -271,6 +273,20 @@
       zuletzt = await api.zuletzt();
     } catch (e) {
       melde(e);
+    }
+  }
+  /** Öffnet ein Projekt und springt zu einem Eintrag (Büro-Cockpit). */
+  async function oeffnenMitZiel(id: string, ziel?: UebersichtsZiel) {
+    await oeffnen(id);
+    if (!ziel) return;
+    for (let i = 0; i < 20; i++) {
+      await tick();
+      const s = sitzungen.find((s) => s.projekt.id === id);
+      if (s?.editor) {
+        s.editor.springen(ziel);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 25));
     }
   }
   function schliessen(id = aktiveId) {
@@ -991,6 +1007,11 @@
       </div>
     </nav>
     <div class="globale-seite" hidden={globalAnsicht !== "projekte"}>
+      <Buerocockpit
+        ich={info?.benutzer ?? null}
+        aktualisieren={zuletzt.length + sitzungen.length}
+        onoeffnen={oeffnenMitZiel}
+      />
       <ProjektVerzeichnis
         {zuletzt}
         darfAnlegen={darf("projektleitung")}

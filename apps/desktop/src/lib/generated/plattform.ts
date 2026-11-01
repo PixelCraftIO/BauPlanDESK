@@ -1,5 +1,46 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Friststufe = "ueberfaellig" | "diese_woche" | "monat" | "spaeter";
+export type CockpitTermin = { projekt_id: ProjectId, projekt: string, verfahren: string, verfahrensbezeichnung: string, objekt: string, art: Terminart, art_bezeichnung: string, titel: string, datum: string,
+/**
+ * Beginn der Wiedervorlage (Datum abzüglich Vorlauf).
+ */
+faellig_ab: string, verantwortlich: string | null, hinweis: string, dringlichkeit: Friststufe,
+/**
+ * Register der Verfahrensakte für den Sprung.
+ */
+register: string, };
+export type CockpitVerfahren = { id: string, bezeichnung: string, art: Verfahrensart, status: Verfahrensstatus, status_bezeichnung: string, aktenzeichen: string, behoerde: string, verantwortlich: string | null,
+/**
+ * Datum des jüngsten Versands oder Eingangs eines Abgabestands bzw. einer
+ * externen Einreichung.
+ */
+letzte_abgabe: string | null,
+/**
+ * Forderungspunkte, die weder bestätigt noch entfallen sind.
+ */
+offene_punkte: number,
+/**
+ * Jüngster nicht ersetzter Bescheid.
+ */
+letzter_bescheid: CockpitBescheid | null,
+/**
+ * Abgelehnt und noch kein Folgeverfahren angelegt: Handlungsoptionen im
+ * Register „Lage“ der Akte prüfen.
+ */
+ablehnung_offen: boolean, };
+export type CockpitBescheid = { entscheidung: Entscheidung, datum: string, };
+export type CockpitProjekt = { projekt_id: ProjectId, name: string, bundesland: Bundesland, verfahren: Array<CockpitVerfahren>, naechste_frist: string | null, ueberfaellig: number, offene_punkte: number, };
+export type CockpitFehler = { projekt_id: ProjectId, projekt: string, meldung: string, };
+export type Buerocockpit = { stichtag: string,
+/**
+ * Laufende Termine aller Projekte, überfällige zuerst, dann nach Datum.
+ */
+termine: Array<CockpitTermin>,
+/**
+ * Projekte nach Friststufe (überfällig, nächste Frist, Name).
+ */
+projekte: Array<CockpitProjekt>, fehler: Array<CockpitFehler>, };
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };

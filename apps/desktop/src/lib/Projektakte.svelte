@@ -205,6 +205,10 @@
   export async function dokumenteAktualisieren() {
     melden({ projektId: projekt.id, bereich: "dokumente" });
   }
+  /** Sprung von außen, z. B. aus dem Büro-Cockpit. */
+  export function springen(ziel: UebersichtsZiel) {
+    oeffnen(ziel);
+  }
   export function hatAenderungen() {
     return editoren.hatAenderungen();
   }

@@ -123,6 +123,17 @@ pub async fn projekte_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Pro
     Ok(state.core.projekte_fuer_benutzer(&state.benutzer()).await?)
 }
 
+/// Büro-Cockpit: Fristen und Verfahrensstände aller lesbaren Projekte.
+#[tauri::command]
+pub async fn buero_cockpit(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::cockpit::Buerocockpit> {
+    Ok(state
+        .core
+        .buero_cockpit(&state.benutzer(), core_lib::kalender::heute())
+        .await?)
+}
+
 #[tauri::command]
 pub async fn projekt_anlegen(
     state: State<'_, AppState>,
