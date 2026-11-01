@@ -11,7 +11,7 @@
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
-  import { fenster, imFenster, punkteVon, kantenVon, elementpunkte, type Punkt } from "./konstruktion";
+  import { fenster, imFenster, punkteVon, kantenVon, elementpunkte, winkelRasten, lotfang, verlaengerungsfang, eingabeAuswerten, eingabePunkt, type Punkt } from "./konstruktion";
   import { dxfBlatt, dxfPfade, dxfTexte, dxfGeometrie } from "./dxf";
   import type { Plan } from "../api";
   // Zeichenfläche: Anzeige, Fang, Zoom, Drehung und Eingabe. Fachwerte (Längen,
@@ -22,7 +22,7 @@
   let { pdfBase64 = "", seite, plan = null, planSichtbar = [], markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
     auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
-    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", elementAuswahlIds = [], wanddicke = .24, onfenster = () => {},
+    zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", elementAuswahlIds = [], wanddicke = .24, onfenster = () => {}, onwiederholen = () => {},
     onelement = () => {}, onelementauswahl = () => {}, onelementedit = () => {},
     onverschieben = () => {}, onpunkt = () => {},
     onfertig, onauswahl, onedit, onfehler, onrahmen = () => {}, onrahmenauswahl = () => {}, onoeffnen = () => {}, onseite = () => {} }:
@@ -38,6 +38,8 @@
     elementAuswahlIds?:string[];
     /** Fensterauswahl: Markierungen und Elemente im Rahmen; `mehrfach` ergänzt die bisherige Auswahl. */
     onfenster?:(ids:string[],elementIds:string[],mehrfach:boolean)=>void;
+    /** Enter ohne laufende Eingabe: letzten Befehl wiederholen. */
+    onwiederholen?:()=>void;
     onelement?:(f:Zeichenform)=>void;onelementauswahl?:(id:string)=>void;onelementedit?:(id:string,e:Zeichenelement)=>void;
     onverschieben?:(ids:string[],dx:number,dy:number)=>void;onpunkt?:(index:number)=>void;
     onedit:(id:string,g:Plangeometrie)=>void;onfehler:(s:string)=>void;
@@ -61,6 +63,10 @@
   const zeiger=new Map<number,{x:number;y:number}>();
   let pinch:{abstand:number;mitte:{x:number;y:number}}|null=null;
   let fangoptionen=$state<Fangoptionen>({...standardFang}), fangOffen=$state(false);
+  // Ortho (F8) rastet auf 90°, das Winkelraster auf 15/30/45°; Shift rastet immer auf 45°.
+  let ortho=$state(false), winkelraster=$state(0);
+  export function orthoUmschalten(an?:boolean){ortho=an??!ortho}
+  export function winkelrasterSetzen(grad:number){winkelraster=[0,15,30,45,90].includes(grad)?grad:0}
   let rahmenVorschau=$state<{id:string;von:Point;bis:Point}|null>(null), touchPunkt:Point|null=null;
   let vergleichBild=$state("");
   let vergleichGroesse=$state({breite:0,hoehe:0});
@@ -294,6 +300,7 @@
   export function aufAuswahl(){
     if(gewaehlt)void aufBereich(umgrenzung(eckpunkte(gewaehlt.geometrie)));
   }
+  export function fokus(){svg?.focus({preventScroll:true})}
   export function zoomfensterStarten(){zoomfenster=!zoomfenster;zf=null}
   export function drehen(schritt:number){drehung=((drehung+schritt)%360+360)%360;punkte=[];cursor=null}
   async function zoomAn(clientX:number,clientY:number,faktorZoom:number){
@@ -349,12 +356,19 @@
     const f=fang&&!e.altKey?fangindex.suchen(p,8/zoom,fangoptionen):null;
     const eigene=fang&&fangoptionen.eigene&&!e.altKey?snap(p,{points:eigenePunkte(),segments:eigeneKanten(),limited:false},8/zoom):null;
     if(eigene&&(!f||Math.hypot(eigene.point[0]-p[0],eigene.point[1]-p[1])<Math.hypot(f.point[0]-p[0],f.point[1]-p[1]))){p=eigene.point;fangart=`Eigene ${eigene.kind}`}else{p=f?.point??p;fangart=f?.kind??""}
-    // Shift rastet auf Waagerechte/Senkrechte/45° zum letzten Punkt.
-    if(e.shiftKey&&punkte.length){
-      const a=punkte[punkte.length-1], dx=p[0]-a[0], dy=p[1]-a[1];
-      const winkel=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4), l=Math.hypot(dx,dy);
-      p=[a[0]+Math.cos(winkel)*l,a[1]+Math.sin(winkel)*l];
+    if(!punkte.length)return p;
+    const a=punkte[punkte.length-1];
+    // Lot und Verlängerung, wenn kein Punktfang greift.
+    if(fang&&!e.altKey&&!fangart&&(fangoptionen.lot||fangoptionen.verlaengerung)){
+      const tol=8/zoom,kanten:[Point,Point][]=[...eigeneKanten(),...fangindex.kantenNahe(p,tol)];
+      const lot=fangoptionen.lot?lotfang(p,a,kanten,tol):null;
+      if(lot){fangart="Lot";return lot}
+      const v=fangoptionen.verlaengerung?verlaengerungsfang(p,eigeneKanten(),tol,Math.max(breite,hoehe)):null;
+      if(v){fangart="Verlängerung";return v}
     }
+    // Shift rastet auf 45°, sonst Ortho/Winkelraster, solange kein Fang greift.
+    const raster=e.shiftKey?45:fangart?0:ortho?90:winkelraster;
+    if(raster){p=winkelRasten(a,p,raster);if(!e.shiftKey)fangart=ortho?"Ortho":`Winkelraster ${winkelraster}°`}
     return p;
   }
   function elementKanten():[Point,Point][]{return angezeigteElemente.filter(e=>e.id!==elementAuswahl&&e.art!=="text").flatMap(e=>{
@@ -404,20 +418,9 @@
     const text=(masseingabe??"").trim(); masseingabe=null;
     if(!text||!punkte.length)return;
     if(faktor===null){onfehler("Maßeingabe benötigt einen Maßstab.");return}
-    const zahl=(t:string)=>Number(t.replace(",","."));
-    const [a,b]=text.split(/[;\s]+/);
-    const letzter=punkte[punkte.length-1];
-    if(werkzeug==="rechteck"){
-      const w=zahl(a), h=zahl(b??a);
-      if(!(w>0&&h>0))return;
-      punktSetzen([letzter[0]+w/faktor,letzter[1]+h/faktor]);return;
-    }
-    const l=zahl(a); if(!(l>0))return;
-    let winkel:number;
-    if(b!==undefined&&b!=="")winkel=zahl(b)*Math.PI/180;
-    else if(cursor){winkel=-Math.atan2(cursor[1]-letzter[1],cursor[0]-letzter[0])}
-    else winkel=0;
-    punktSetzen([letzter[0]+Math.cos(winkel)*l/faktor,letzter[1]-Math.sin(winkel)*l/faktor]);
+    const eingabe=eingabeAuswerten(text,werkzeug==="rechteck");
+    if(!eingabe){onfehler("Eingabe nicht erkannt: Länge, Länge<Winkel oder @x;y in Metern.");return}
+    punktSetzen(eingabePunkt(eingabe,punkte[punkte.length-1],faktor,cursor));
   }
   function down(e:PointerEvent) {
     if(!bereit)return;
@@ -571,9 +574,10 @@
       if(zoomfenster){e.stopPropagation();zoomfenster=false;zf=null}
       else if(punkte.length||drag||schieben||rahmenDrag||elementDrag||fensterzug){e.stopPropagation();abbrechen()}
     }
-    else if(e.key==="Enter"){e.preventDefault();finish()}
+    else if(e.key==="Enter"){e.preventDefault();if(punkte.length)finish();else if(!drag&&!schieben)onwiederholen()}
+    else if(e.key==="F8"){e.preventDefault();ortho=!ortho}
     else if(e.key==="Backspace"){e.preventDefault();punkte=punkte.slice(0,-1)}
-    else if(/^[0-9,.]$/.test(e.key)&&punkte.length&&["polygon","strecke","rechteck","wand","masskette","kopieren"].includes(werkzeug)){e.preventDefault();masseingabe=e.key}
+    else if(/^[0-9,.@]$/.test(e.key)&&punkte.length&&["polygon","strecke","rechteck","wand","masskette","kopieren"].includes(werkzeug)){e.preventDefault();masseingabe=e.key}
   }
   const preview=$derived(punkte.length&&cursor?shape([...punkte,cursor]):null);
   // Höhenvorschau am Cursor: Bezugslinie des Ausschnitts, sonst Seitenvertikale (nur Anzeige).
@@ -647,10 +651,12 @@
     <span class="trenner" aria-hidden="true"></span>
     <label class="fangschalter" class:aktiv={fang} title="Punktfang"><input type="checkbox" bind:checked={fang}/><WerkzeugIcon art="fang"/><span>Punktfang</span></label>
     <button type="button" class="sekundaer text" aria-expanded={fangOffen} onclick={()=>fangOffen=!fangOffen}>Fangoptionen</button>
+    <label class="fangschalter" class:aktiv={ortho} title="Ortho (F8)"><input type="checkbox" bind:checked={ortho}/><span>Ortho</span></label>
+    <label class="winkelraster" title="Winkelraster beim Zeichnen">Winkel<select bind:value={winkelraster} aria-label="Winkelraster">{#each [[0,"frei"],[15,"15°"],[30,"30°"],[45,"45°"],[90,"90°"]] as [w,t]}<option value={w}>{t}</option>{/each}</select></label>
     {#if punkte.length}<span class="trenner" aria-hidden="true"></span><button type="button" class="text" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer text" onclick={()=>punkte=[]}>Abbrechen</button>{/if}
   </div>
   {#if fangOffen}<div class="fangoptionen" aria-label="Fangoptionen">
-    {#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"],["eigene","Eigene Konturen"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}
+    {#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"],["eigene","Eigene Konturen"],["lot","Lot"],["verlaengerung","Verlängerung"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}
   </div>{/if}
   <div class="plan-koerper">
     {#if miniaturen&&seitenzahl>1}
@@ -749,7 +755,7 @@
         </div>
         {#if masseingabe!==null&&eingabePos}
           <div class="masseingabe" style:left={`${eingabePos[0]*zoom+14}px`} style:top={`${eingabePos[1]*zoom+24}px`}>
-            <input bind:this={masseingabeFeld} bind:value={masseingabe} aria-label="Maßeingabe" placeholder={werkzeug==="rechteck"?"Breite;Höhe in m":"Länge in m[;Winkel°]"}
+            <input bind:this={masseingabeFeld} bind:value={masseingabe} aria-label="Maßeingabe" placeholder={werkzeug==="rechteck"?"Breite;Höhe in m":"Länge[<Winkel] oder @x;y in m"}
               onkeydown={e=>{if(e.key==="Escape"){e.preventDefault();e.stopPropagation();masseingabe=null;svg?.focus()}else if(e.key==="Enter"){e.preventDefault();e.stopPropagation();masseUebernehmen();svg?.focus()}}}/>
           </div>
         {/if}
@@ -757,7 +763,7 @@
     </div>
   </div>
   <p class="meta status" role="status">{vorschau?`Vorschau: ${vorschau} · `:""}{fangart || (zeichnung?`Eigene Zeichnung in Metern · Blatt ${z(breite,0)} × ${z(hoehe,0)} m${geometry.points.length?` · ${geometry.points.length} Fangpunkte der Hintergründe`:""}`:geometry.points.length?`${geometry.points.length} Vektorpunkte der Unterlage`:"Keine Vektorpunkte – manuell zeichnen")}
-    {geometry.limited?" · Vektorumfang begrenzt":""}{drehung?` · Ansicht ${drehung}° gedreht`:""} · Strg+Rad zoomt, Leertaste verschiebt, Shift rastet, Alt setzt den Fang aus, Ziffern öffnen die Maßeingabe. Enter schließt, Escape bricht ab.</p>
+    {geometry.limited?" · Vektorumfang begrenzt":""}{drehung?` · Ansicht ${drehung}° gedreht`:""} · Strg+Rad zoomt, Leertaste verschiebt, Shift rastet 45°, F8 Ortho, Alt setzt den Fang aus, Ziffern oder @ öffnen die Koordinateneingabe. Enter schließt bzw. wiederholt den letzten Befehl, Escape bricht ab.</p>
 </div>
 
 {#snippet figur(g:Plangeometrie,selected:boolean)}
@@ -796,6 +802,8 @@
   .fangschalter.aktiv{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
   .fangschalter input{margin:0;width:14px;height:14px}
   .fangschalter :global(svg){display:none}
+  .winkelraster{display:inline-flex;gap:4px;align-items:center;font-size:.85rem;color:var(--muted);margin-left:4px}
+  .winkelraster select{min-height:24px;padding:0 4px;font-size:.85rem}
   .fangoptionen{display:flex;flex-wrap:wrap;gap:.7rem;padding:4px 8px;font-size:.85rem;background:var(--kopfzeile);border-bottom:1px solid var(--border-innen)}
   .fangoptionen label{display:flex;gap:.3rem;align-items:center}
   .vergleich{pointer-events:none;mix-blend-mode:multiply;transform-origin:0 0}

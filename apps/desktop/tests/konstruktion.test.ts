@@ -47,3 +47,31 @@ test("Fenster: links→rechts nur enthalten, rechts→links auch berührt", () =
   assert.equal(imFenster(fenster([4, -1], [6, 1]), punkteVon(s), kantenVon(s), true), true);
   assert.equal(imFenster(fenster([4, 1], [6, 3]), punkteVon(s), kantenVon(s), true), false);
 });
+
+import { winkelRasten, lotfang, verlaengerungsfang, eingabeAuswerten, eingabePunkt, befehlAuswerten } from "../src/lib/planaufmass/konstruktion.ts";
+test("Winkelraster und Ortho", () => {
+  nah(winkelRasten([0, 0], [10, 1], 90), [Math.hypot(10, 1), 0]);
+  const p = winkelRasten([0, 0], [10, 9], 45);
+  nah([p[0] - p[1]], [0]);
+  nah(winkelRasten([0, 0], [10, 3], 15), [Math.hypot(10, 3) * Math.cos(Math.PI / 12), Math.hypot(10, 3) * Math.sin(Math.PI / 12)]);
+});
+test("Lot- und Verlängerungsfang", () => {
+  nah(lotfang([4.8, 10.3], [5, 0], [[[0, 10], [10, 10]]], 1)!, [5, 10]);
+  assert.equal(lotfang([0, 0], [5, 0], [[[0, 10], [10, 10]]], 1), null);
+  nah(verlaengerungsfang([14, 0.2], [[[0, 0], [10, 0]]], 0.5, 20)!, [14, 0]);
+  assert.equal(verlaengerungsfang([5, 0.2], [[[0, 0], [10, 0]]], 0.5, 20), null, "auf der Kante selbst");
+});
+test("Koordinateneingabe", () => {
+  assert.deepEqual(eingabeAuswerten("5,20<90"), { art: "polar", laenge: 5.2, winkel: 90 });
+  assert.deepEqual(eingabeAuswerten("5,20;90"), { art: "polar", laenge: 5.2, winkel: 90 });
+  assert.deepEqual(eingabeAuswerten("@3;4"), { art: "relativ", dx: 3, dy: 4 });
+  assert.deepEqual(eingabeAuswerten("4;2", true), { art: "rechteck", breite: 4, hoehe: 2 });
+  assert.equal(eingabeAuswerten("-1"), null);
+  nah(eingabePunkt({ art: "relativ", dx: 3, dy: 4 }, [10, 10], 0.5, null), [16, 2]);
+  nah(eingabePunkt({ art: "polar", laenge: 1, winkel: 90 }, [0, 0], 1, null), [0, -1]);
+});
+test("Befehlszeile", () => {
+  assert.deepEqual(befehlAuswerten("vs 0,5"), { befehl: "versatz", zahlen: [0.5] });
+  assert.deepEqual(befehlAuswerten("PL"), { befehl: "polygon", zahlen: [] });
+  assert.equal(befehlAuswerten("xyz"), null);
+});

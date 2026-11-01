@@ -19,7 +19,7 @@
   import { verschieben, eckpunkte, meterProPunkt, type Point } from "./pdfGeometry";
   import { Bearbeitungsverlauf } from "./verlauf";
   import { drehen, punktAendern, punktEinfuegen, punktEntfernen, kantenmass, ausrichten } from "./bearbeitung";
-  import { abbildenGeometrie, abbildenElement, verschiebung, spiegelung, elementSpiegeln, versatz, elementVersatz, geometrieStutzen, elementStutzen, reihe, type Punkt } from "./konstruktion";
+  import { abbildenGeometrie, abbildenElement, verschiebung, spiegelung, elementSpiegeln, versatz, elementVersatz, geometrieStutzen, elementStutzen, reihe, befehlAuswerten, BEFEHLE, type Punkt } from "./konstruktion";
   import { aufmassUebertragen } from "./uebertragung";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
@@ -85,6 +85,9 @@
   let elementAuswahl=$state(""),wanddicke=$state(.24),elementAuswahlIds=$state<string[]>([]);
   // Konstruktionsbefehle: Versatz und Reihe in Metern, Spiegeln wahlweise als Kopie.
   let konstruktion=$state({versatz:.5,anzahl:3,dx:1,dy:0,spiegelKopie:true});
+  // Befehlszeile (F2): Kürzel wie L, PL, KO, SP, VS 0,5; Enter auf der Zeichenfläche wiederholt den letzten Befehl.
+  let befehl=$state(""),letzterBefehl=$state(""),befehlFeld=$state<HTMLInputElement>();
+  const befehlsliste=Object.entries(BEFEHLE);
   let hgQuellen=$state<Record<string,{pdfBase64?:string;plan?:import("../api").CadPlan["plan"]|null;name:string}>>({});
   const hgLaeuft=new Set<string>();
   // IFC-Hintergründe: Grundriss-Schnitt eines Geschosses, schon in Metern.
@@ -325,6 +328,7 @@
       }
       if(e.altKey)return;
       if(e.key==="F1"){e.preventDefault();hilfe=!hilfe;return}
+      if(e.key==="F2"){e.preventDefault();befehlFeld?.focus();return}
       if(e.key==="Escape"){
         if(werkzeug!=="auswahl")werkzeug="auswahl";
         else if(aktiv)schliessen();
@@ -517,7 +521,31 @@
     if(id==="ausschnitt")rahmenAuswahl="";
     if((id==="bezugslinie"||id==="kalibrieren")&&bearbeiteter&&aktiv!==bearbeiteter.id&&id==="bezugslinie")oeffnen(bearbeiteter.id);
     werkzeug=id;
+    if(id!=="auswahl"&&id!=="verschieben"&&werkzeuge.some(w=>w[0]===id))letzterBefehl=id;
   }
+  function befehlAusfuehren(text:string){
+    const t=text.trim();if(!t)return;
+    const b=befehlAuswerten(t)??(werkzeuge.some(w=>w[0]===t)?{befehl:t,zahlen:[]}:null);
+    if(!b){s.fehler=`Unbekannter Befehl „${t}“. Kürzel: L Strecke, PL Polygon, R Rechteck, K Kreis, W Wand, BM Maßkette, T Text, KO Kopieren, SP Spiegeln, ST Stutzen/Dehnen, VS Versatz, RH Reihe, E Entfernen, U Rückgängig, OR Ortho, WR Winkelraster.`;return}
+    const [a,c,d]=b.zahlen;
+    switch(b.befehl){
+      case "versatz":if(a!==undefined)konstruktion.versatz=a;auswahlVersatz();break;
+      case "reihe":if(a!==undefined)konstruktion.anzahl=a;if(c!==undefined)konstruktion.dx=c;if(d!==undefined)konstruktion.dy=d;auswahlReihe();break;
+      case "entfernen":if(!m&&auswahlElemente.length)elementEntfernen();else void entfernen();return;
+      case "zurueck":rueckwaerts();return;
+      case "zoomfenster":plan?.zoomfensterStarten();return;
+      case "einpassen":plan?.einpassen();return;
+      case "ortho":plan?.orthoUmschalten();return;
+      case "winkelraster":plan?.winkelrasterSetzen(a??0);return;
+      default:{
+        const grund=werkzeugGesperrt(b.befehl);
+        if(grund){s.fehler=`${werkzeuge.find(w=>w[0]===b.befehl)?.[1]??b.befehl}: ${grund}.`;return}
+        werkzeugWaehlen(b.befehl);return;
+      }
+    }
+    letzterBefehl=t;
+  }
+  function wiederholen(){if(letzterBefehl&&werkzeug==="auswahl")befehlAusfuehren(letzterBefehl)}
   function verlaufStatus(){const eids=new Set(s.eingabe?.elemente?.map(e=>e.id));elementAuswahlIds=elementAuswahlIds.filter(id=>eids.has(id));undo=verlauf.zurueck;redo=verlauf.vor;const ids=new Set(s.eingabe?.markierungen.map(m=>m.id));auswahlIds=auswahlIds.filter(id=>ids.has(id));if(!ids.has(auswahl))auswahl="";if(!s.eingabe?.elemente?.some(e=>e.id===elementAuswahl))elementAuswahl="";if(!s.eingabe?.ausschnitte?.some(a=>a.id===aktiv))aktiv="";plan?.abbrechen()}
   function rueckwaerts(){
     if(!s.eingabe||!darf||s.laeuft)return;
@@ -736,13 +764,17 @@
           <div class="pfad" aria-label="Arbeitsbereich">
             <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{istZeichnung?"Eigene Zeichnung (Meter)":`${aktuelleDatei?.file_name??"Unterlage"}${istDxfUnterlage?"":` › Blatt ${p.seite}`}`}</button>
             {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{#if aktueller.bezugslinie}<span class="meta">· Bezug {z(aktueller.bezugslinie.hoehe_m)} {aktueller.bezugslinie.system}</span>{/if}{/if}
+            <label class="befehlszeile"><span>Befehl</span><input bind:this={befehlFeld} bind:value={befehl} list="cad-befehle" autocomplete="off" spellcheck="false" disabled={!darf||s.laeuft}
+              placeholder={letzterBefehl?`Enter wiederholt „${letzterBefehl}“`:"F2 · z. B. L, PL, KO, SP, VS 0,5, RH 4 1,2 0"} aria-label="Befehlszeile"
+              onkeydown={e=>{if(e.key==="Enter"){e.preventDefault();const t=befehl||letzterBefehl;befehl="";befehlAusfuehren(t);plan?.fokus()}else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();befehl="";plan?.fokus()}}}/></label>
+            <datalist id="cad-befehle">{#each befehlsliste as [k,b]}<option value={k}>{b}</option>{/each}</datalist>
           </div>
           {#if betrachterSeite!==null}<p class="hinweisbox betrachtung" role="status">Betrachtung von Seite {betrachterSeite}. Das Aufmaß gehört weiterhin zu Seite {p.seite}. <button type="button" class="link" onclick={()=>betrachterSeite=null}>Zum Aufmaßblatt zurück</button>{#if darf}<button type="button" onclick={()=>void seiteWechseln(betrachterSeite!)}>Eigenes Aufmaß für diese Seite anlegen …</button>{/if}</p>{/if}
           {#if pdf||dxf||istZeichnung}
             <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
-              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen}
+              zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen} onwiederholen={wiederholen}
               onelement={elementAnlegen} onelementauswahl={elementWaehlen} onelementedit={elementSetzen}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
               onfertig={fertig} onauswahl={waehlen} onverschieben={gemeinsamVerschieben} onpunkt={i=>{punktIndex=i;panelOeffnen("eigenschaften")}} onedit={(id,g)=>{if(!objektGesperrt){merken();const item=p.markierungen.find(m=>m.id===id);if(item)item.geometrie=g}}}
@@ -1061,6 +1093,8 @@
   .gruppentrenner{width:20px;border-top:1px solid var(--border);margin:4px 0}
   .flaeche{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
   .flaeche > :global(.pdf-plan){flex:1;min-height:0}
+  .befehlszeile{margin-left:auto;display:flex;gap:.3rem;align-items:center;color:var(--muted)}
+  .befehlszeile input{width:16rem;min-height:22px;padding:0 .4rem;font-family:ui-monospace,monospace;font-size:.82rem}
   .pfad{flex:none;display:flex;gap:.4rem;align-items:center;padding:2px 10px;min-height:26px;background:var(--leiste);border-bottom:1px solid var(--border-innen);font-size:.85rem;white-space:nowrap;overflow:hidden}
   .pfad .link{min-height:20px;padding:0;color:var(--muted)}
   .pfad .link:disabled{color:var(--muted);background:transparent}

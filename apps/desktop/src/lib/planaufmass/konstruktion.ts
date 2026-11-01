@@ -195,3 +195,114 @@ function innerhalb(p: Punkt, kanten: [Punkt, Punkt][]): boolean {
     if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]) x = !x;
   return x;
 }
+
+// ── Präzisionseingabe ────────────────────────────────────────────────────────
+
+/** Rastet die Richtung a→p auf Vielfache von `rasterGrad` (Länge bleibt). */
+export function winkelRasten(a: Punkt, p: Punkt, rasterGrad: number): Punkt {
+  if (!(rasterGrad > 0)) return p;
+  const l = abstand(a, p), schritt = (rasterGrad * Math.PI) / 180;
+  const w = Math.round(Math.atan2(p[1] - a[1], p[0] - a[0]) / schritt) * schritt;
+  return [a[0] + Math.cos(w) * l, a[1] + Math.sin(w) * l];
+}
+
+/** Lotfang: Fußpunkt des Lots vom letzten Punkt auf eine Kante, wenn der Zeiger nahe daran ist. */
+export function lotfang(p: Punkt, von: Punkt, kanten: [Punkt, Punkt][], toleranz: number): Punkt | null {
+  let best: Punkt | null = null, d = toleranz;
+  for (const [a, b] of kanten) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    if (!(l2 > 0)) continue;
+    const t = ((von[0] - a[0]) * dx + (von[1] - a[1]) * dy) / l2;
+    if (t < 0 || t > 1) continue;
+    const f: Punkt = [a[0] + t * dx, a[1] + t * dy];
+    if (abstand(f, von) < 1e-9) continue;
+    const n = abstand(f, p);
+    if (n < d) { d = n; best = f; }
+  }
+  return best;
+}
+
+/** Verlängerungsfang: Zeiger nahe der gedachten Verlängerung einer Kante (bis `weite` über das Ende hinaus). */
+export function verlaengerungsfang(p: Punkt, kanten: [Punkt, Punkt][], toleranz: number, weite: number): Punkt | null {
+  let best: Punkt | null = null, d = toleranz;
+  for (const [a, b] of kanten) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    if (!(l > 0)) continue;
+    const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (l * l);
+    const ueber = t < 0 ? -t * l : t > 1 ? (t - 1) * l : 0;
+    if (ueber <= toleranz || ueber > weite) continue;
+    const f: Punkt = [a[0] + t * dx, a[1] + t * dy], n = abstand(f, p);
+    if (n < d) { d = n; best = f; }
+  }
+  return best;
+}
+
+/**
+ * Koordinateneingabe in Metern (Komma oder Punkt als Dezimalzeichen):
+ * - `5,20` Länge in Zeigerrichtung, `5,20;90` oder `5,20<90` Länge und Winkel
+ *   (Grad, 0 = rechts, 90 = oben),
+ * - `@3;4` relativ zum letzten Punkt (x nach rechts, y nach oben),
+ * - beim Rechteck `Breite;Höhe`.
+ */
+export type Koordinateneingabe =
+  | { art: "polar"; laenge: number; winkel: number | null }
+  | { art: "relativ"; dx: number; dy: number }
+  | { art: "rechteck"; breite: number; hoehe: number };
+export function eingabeAuswerten(text: string, rechteck = false): Koordinateneingabe | null {
+  const t = text.trim().replace(/\s+/g, " ");
+  if (!t) return null;
+  const zahl = (s: string | undefined) => (s === undefined || s.trim() === "" ? NaN : Number(s.trim().replace(",", ".")));
+  if (t.startsWith("@")) {
+    const [x, y] = t.slice(1).split(/[;\s]+/);
+    const dx = zahl(x), dy = zahl(y ?? "0");
+    return Number.isFinite(dx) && Number.isFinite(dy) && (dx !== 0 || dy !== 0) ? { art: "relativ", dx, dy } : null;
+  }
+  const [a, b] = t.split(/[;<\s]+/);
+  if (rechteck) {
+    const breite = zahl(a), hoehe = zahl(b ?? a);
+    return breite > 0 && hoehe > 0 ? { art: "rechteck", breite, hoehe } : null;
+  }
+  const laenge = zahl(a);
+  if (!(laenge > 0)) return null;
+  const w = zahl(b);
+  return { art: "polar", laenge, winkel: Number.isFinite(w) ? w : null };
+}
+/** Zielpunkt einer Eingabe in Blattkoordinaten (y nach unten); `faktor` = Meter je Blatteinheit. */
+export function eingabePunkt(e: Koordinateneingabe, letzter: Punkt, faktor: number, zeiger: Punkt | null): Punkt {
+  if (e.art === "relativ") return [letzter[0] + e.dx / faktor, letzter[1] - e.dy / faktor];
+  if (e.art === "rechteck") return [letzter[0] + e.breite / faktor, letzter[1] + e.hoehe / faktor];
+  const w = e.winkel !== null ? (e.winkel * Math.PI) / 180 : zeiger ? -Math.atan2(zeiger[1] - letzter[1], zeiger[0] - letzter[0]) : 0;
+  return [letzter[0] + (Math.cos(w) * e.laenge) / faktor, letzter[1] - (Math.sin(w) * e.laenge) / faktor];
+}
+
+// ── Befehlszeile ─────────────────────────────────────────────────────────────
+
+/** Kürzel der Befehlszeile (deutsch und wie in gängigen CAD-Programmen) → Befehl. */
+export const BEFEHLE: Record<string, string> = {
+  V: "auswahl", AW: "auswahl", PAN: "verschieben",
+  L: "strecke", LI: "strecke", LINIE: "strecke", S: "strecke",
+  PL: "polygon", P: "polygon", POLYGON: "polygon",
+  R: "rechteck", REC: "rechteck", RECHTECK: "rechteck",
+  K: "kreis", C: "kreis", KREIS: "kreis",
+  W: "wand", WAND: "wand",
+  BM: "masskette", MK: "masskette", DIM: "masskette", MASS: "masskette",
+  T: "text", TX: "text", TEXT: "text",
+  H: "hoehenpunkt", HP: "hoehenpunkt",
+  KO: "kopieren", CO: "kopieren", CP: "kopieren", KOPIEREN: "kopieren",
+  SP: "spiegeln", MI: "spiegeln", SPIEGELN: "spiegeln",
+  ST: "stutzen", TR: "stutzen", DE: "stutzen", EX: "stutzen", STUTZEN: "stutzen", DEHNEN: "stutzen",
+  VS: "versatz", O: "versatz", OFFSET: "versatz", VERSATZ: "versatz",
+  RH: "reihe", AR: "reihe", REIHE: "reihe",
+  E: "entfernen", DEL: "entfernen", ENTF: "entfernen", LOESCHEN: "entfernen",
+  U: "zurueck", Z: "zoomfenster", ZE: "einpassen",
+  OR: "ortho", ORTHO: "ortho", WR: "winkelraster",
+};
+/** Zerlegt `VS 0,5` in Befehl und Zahlen; unbekannte Kürzel → null. */
+export function befehlAuswerten(text: string): { befehl: string; zahlen: number[] } | null {
+  const [kopf, ...rest] = text.trim().split(/\s+/);
+  if (!kopf) return null;
+  const befehl = BEFEHLE[kopf.toUpperCase().replace("Ö", "OE")];
+  if (!befehl) return null;
+  const zahlen = rest.map(z => Number(z.replace(",", "."))).filter(Number.isFinite);
+  return { befehl, zahlen };
+}
