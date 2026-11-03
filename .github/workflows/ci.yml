@@ -145,7 +145,7 @@ jobs:
               raise RuntimeError('UI-Testserver nicht erreichbar')
           PYCODE
           node --test apps/desktop/tests/live-pdf-vorschau.test.mjs
-          node --test apps/desktop/tests/planaufmass.test.mjs apps/desktop/tests/planbearbeitung.test.mjs
+          node --test apps/desktop/tests/planaufmass.test.mjs apps/desktop/tests/planbearbeitung.test.mjs apps/desktop/tests/beschriftungen.test.mjs
           python apps/desktop/tests/planbearbeitung.py
           python apps/desktop/tests/cadaufmass.py
           python apps/desktop/tests/projekttabs.py

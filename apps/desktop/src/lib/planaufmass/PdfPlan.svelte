@@ -8,6 +8,7 @@
   import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
   import type { Plangeometrie, Planmarkierung, Planebene, Planausschnitt, Planmesswert, Plankalibrierung, Zeichenelement, Zeichenform } from "../generated/plattform";
   import { hgTransform, hgPunkt, blattmass, elementPunkte, elementSetzen, elementVerschieben, wandKontur, masskette, type Hintergrundansicht } from "./zeichnung";
+  import { beschriftungenPlatzieren, textbreite } from "./beschriftungen";
   import { extractGeometry, snap, meterProPunkt, vorschauMass, verschieben, eckpunkte, rahmen as umgrenzung, type Matrix, type Point, type SnapGeometry } from "./pdfGeometry";
   import { Fangindex, standardFang, streckenachsen, type Fangoptionen } from "./fang";
   import { punktAendern } from "./bearbeitung";
@@ -584,6 +585,12 @@
     if(m.geometrie.art==="strecke")return w.laenge_m!==null?`${z(w.laenge_m)} m${w.hoehe_m?` · Δh ${z(w.hoehe_m)} m`:""}`:"";
     return w.flaeche_m2!==null?`${z(w.flaeche_m2)} m²`:"";
   }
+  function beschriftungstext(m:Planmarkierung){const b=beschriftung(m);return `${m.bezeichnung}${b?` · ${b}`:""}`}
+  // Beschriftungen ohne Überlappung; ausgeblendete stehen im Tooltip der Figur.
+  const beschriftungslagen=$derived(beschriftungenPlatzieren(angezeigt.map(m=>({id:m.id,text:beschriftungstext(m),
+    punkte:eckpunkte(edit&&(drag?.id===m.id||schieben?.id===m.id)?edit:m.geometrie),erzwingen:m.id===auswahl||auswahlIds.includes(m.id)})),12/zoom,5/zoom,
+    // Namen der Planausschnitte bleiben frei (gleiche Lage wie im Markup unten).
+    aktiv?[]:ausschnitte.map(a=>{const r=rect(a),f=13/zoom;return{x:r.x+6/zoom,y:r.y+16/zoom-f,w:textbreite(a.bezeichnung,f),h:f*1.2}})));
   function flaechenpfad(g:Extract<Plangeometrie,{art:"flaeche"}>){return g.polygone.flatMap(p=>[p.aussen,...(p.innen??[])]).map(r=>r.map((p,i)=>`${i?"L":"M"}${p[0]} ${p[1]}`).join(" ")+" Z").join(" ")}
   function miniatur(node:HTMLElement,n:number){
     const d=doc;let gone=false,task:RenderTask|undefined;
@@ -690,7 +697,8 @@
             {#each angezeigt as m (m.id)}
               <g data-markierung={m.id} class:gewaehlt={m.id===auswahl||auswahlIds.includes(m.id)} class:fehler={fehlerIds.includes(m.id)} class:fremd={fremd(m)}>
                 {@render figur(edit&&(drag?.id===m.id||schieben?.id===m.id)?edit:m.geometrie,m.id===auswahl)}
-                <text x={eckpunkte(m.geometrie)[0][0]+5/zoom} y={eckpunkte(m.geometrie)[0][1]-5/zoom} font-size={12/zoom}>{m.bezeichnung}{beschriftung(m)?` · ${beschriftung(m)}`:""}</text>
+                <title>{beschriftungstext(m)}</title>
+                {#if beschriftungslagen.get(m.id)}{@const l=beschriftungslagen.get(m.id)!}<text x={l.x} y={l.y} text-anchor={l.anker} font-size={12/zoom}>{beschriftungstext(m)}</text>{/if}
               </g>
             {/each}
             {#each angezeigteElemente as e (e.id)}

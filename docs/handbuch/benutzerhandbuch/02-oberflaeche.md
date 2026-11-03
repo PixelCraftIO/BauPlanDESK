@@ -45,8 +45,9 @@ ein eigener Vorgang im Projektverzeichnis.
 ![Projektakte mit Aktenkopf, Registern und Gliederung](bilder/akte-projektuebersicht.png)
 
 1. **Aktenkopf** mit Bundesland, Bauherr, Baugrundstück, Rechtsgrundlage und
-   Stand. „Projektdetails einklappen“ schafft Platz, „Hilfe zu diesem Bereich“
-   öffnet das passende Hilfekapitel.
+   Stand. „Projektdetails einklappen“ schafft Platz; im Aufmaß ist der Kopf
+   von vornherein eingeklappt. Die Wahl bleibt je Arbeitsplatz erhalten.
+   „Hilfe zu diesem Bereich“ öffnet das passende Hilfekapitel.
 2. **Drei Register:**
    - **Übersicht** – Projektübersicht, Aufgaben / Fristen, Chronik.
    - **Bereich 1 · Ermittlung** – alles, was Werte erzeugt: Grundlagen,

@@ -14,6 +14,10 @@
   --err-bg: #fbe9e7;
   --error-text: #b3261e;
   --hinweis-bg: #fff4d6;
+  --hinweis-rand: #b88a00;
+  --feld-rand: #8c969f;
+  --action-bg: #1f3a5f;
+  --action-bg-hover: #2d5384;
   --breite: 72rem;
   font-family: system-ui, "Segoe UI", "Source Sans 3", Cantarell, sans-serif;
   font-size: 16px;
@@ -30,6 +34,40 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 4.5rem;
+  color-scheme: light dark;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Dunkle Darstellung mit den Farbwerten der Desktop-Anwendung. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e242b;
+    --fg: #e4e9ee;
+    --muted: #a3aeb9;
+    --accent: #8fb8e8;
+    --accent-hell: #a9c8ee;
+    --accent-soft: #273646;
+    --panel: #262d35;
+    --border: #434d58;
+    --border-innen: #343d47;
+    --zebra: #2a3139;
+    --err-bg: #3a2522;
+    --error-text: #f2b8b5;
+    --hinweis-bg: #36321f;
+    --hinweis-rand: #d6aa2a;
+    --feld-rand: #6f7c8a;
+    --action-bg: #2d5d99;
+    --action-bg-hover: #3a6eae;
+  }
+  .formular input[type="email"],
+  .formular input[type="password"] {
+    background: var(--bg);
+    color: var(--fg);
+  }
 }
 
 body {
@@ -87,11 +125,11 @@ h3 {
   background: var(--accent-soft);
 }
 .knopf.primaer {
-  background: var(--accent);
+  background: var(--action-bg);
   color: #fff;
 }
 .knopf.primaer:hover {
-  background: var(--accent-hell);
+  background: var(--action-bg-hover);
 }
 .knopf.hell {
   border-color: #fff;
@@ -125,7 +163,7 @@ input:focus-visible {
 .marke svg {
   width: 1.6rem;
   height: 1.6rem;
-  background: var(--accent);
+  background: var(--action-bg);
   color: #fff;
   padding: 0.2rem;
 }
@@ -204,6 +242,9 @@ input:focus-visible {
 .held h1 {
   font-size: clamp(1.75rem, 3.2vw, 2.5rem);
   margin: 0 0 1rem;
+  /* Große Schrift: engere Laufweite und Zeilenhöhe. */
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 .einleitung {
   font-size: 1.1rem;
@@ -231,6 +272,7 @@ input:focus-visible {
 .abschnitt h2 {
   font-size: 1.75rem;
   margin: 0 0 0.5rem;
+  letter-spacing: -0.01em;
 }
 .abschnitt-einleitung {
   color: var(--muted);
@@ -303,7 +345,7 @@ input:focus-visible {
   place-items: center;
   width: 2rem;
   height: 2rem;
-  background: var(--accent);
+  background: var(--action-bg);
   color: #fff;
   font-weight: 700;
 }
@@ -330,7 +372,7 @@ input:focus-visible {
 }
 
 .abschnitt-band {
-  background: var(--accent);
+  background: var(--action-bg);
   color: #fff;
 }
 .abschnitt-band h2 {
@@ -398,7 +440,7 @@ input:focus-visible {
   font: inherit;
   font-weight: 400;
   padding: 0.55rem 0.65rem;
-  border: 1px solid #8c969f;
+  border: 1px solid var(--feld-rand);
   border-radius: 2px;
 }
 .formular .auswahl {
@@ -498,6 +540,8 @@ input:focus-visible {
 }
 .handbuch-text h1 {
   font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
   margin: 0 0 1rem;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid var(--accent);
@@ -542,7 +586,7 @@ input:focus-visible {
   margin: 1rem 0;
   padding: 0.6rem 1rem;
   background: var(--hinweis-bg);
-  border-left: 3px solid #b88a00;
+  border-left: 3px solid var(--hinweis-rand);
 }
 .handbuch-text blockquote p {
   margin: 0.25rem 0;

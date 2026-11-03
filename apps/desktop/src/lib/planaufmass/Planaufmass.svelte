@@ -292,8 +292,12 @@
       hoeheEditor=Math.min(window.innerHeight-16,Math.max(480,window.innerHeight-top-16));
     })};
     messen();
-    window.addEventListener("resize",messen);window.addEventListener("scroll",messen,{passive:true});
-    return()=>{cancelAnimationFrame(frame);window.removeEventListener("resize",messen);window.removeEventListener("scroll",messen)};
+    // Auch neu messen, wenn sich darüber etwas ändert (Aktenkopf ein-/ausgeklappt,
+    // Hinweisleisten) oder ein umgebender Bereich scrollt.
+    const beobachter=new ResizeObserver(messen);
+    for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement)beobachter.observe(p);
+    window.addEventListener("resize",messen);document.addEventListener("scroll",messen,{passive:true,capture:true});
+    return()=>{cancelAnimationFrame(frame);beobachter.disconnect();window.removeEventListener("resize",messen);document.removeEventListener("scroll",messen,{capture:true})};
   });
   // Tastaturkürzel für Werkzeuge und Auswahl; Eingabefelder bleiben unberührt.
   // Kürzel gelten, solange die letzte Bedienung im Editor war, auch wenn der

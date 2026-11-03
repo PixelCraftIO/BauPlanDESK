@@ -13,6 +13,8 @@
     type NavZweig,
   } from "./navigation";
   import Sidebar from "./Sidebar.svelte";
+  import Symbolknopf from "./Symbolknopf.svelte";
+  import NavIcon from "./NavIcon.svelte";
   import type { UebersichtsZiel } from "./generated/plattform";
   import Fachbereich from "./fachmodule/Fachbereich.svelte";
   import { FACHMODULE } from "./fachmodule/register";
@@ -91,7 +93,31 @@
     navigation.benutzerId = ich?.id ?? null;
     navigation.projektId = projekt.id;
   });
-  let kopfKompakt = $state(false);
+  // Aktenkopf: Im Aufmaß standardmäßig eingeklappt, damit die Zeichenfläche
+  // Platz bekommt; die Wahl wird je Arbeitsplatz für Aufmaß und übrige
+  // Bereiche getrennt gemerkt.
+  const KOPF_SCHLUESSEL = "bauprojekt.aktenkopf";
+  function kopfLesen(): { aufmass: boolean; sonst: boolean } {
+    try {
+      const v = JSON.parse(localStorage.getItem(KOPF_SCHLUESSEL) ?? "null");
+      if (v && typeof v.aufmass === "boolean" && typeof v.sonst === "boolean")
+        return v;
+    } catch {}
+    return { aufmass: true, sonst: false };
+  }
+  let kopfWahl = $state(kopfLesen());
+  const kopfKompakt = $derived(
+    ansicht === "planaufmass" ? kopfWahl.aufmass : kopfWahl.sonst,
+  );
+  function kopfUmschalten() {
+    kopfWahl =
+      ansicht === "planaufmass"
+        ? { ...kopfWahl, aufmass: !kopfKompakt }
+        : { ...kopfWahl, sonst: !kopfKompakt };
+    try {
+      localStorage.setItem(KOPF_SCHLUESSEL, JSON.stringify(kopfWahl));
+    } catch {}
+  }
   let navigationsNummer = 0;
   $effect(() => {
     const a = navigation.auftrag;
@@ -263,18 +289,20 @@
 <header class="projektkopf" aria-label="Aktenkopf">
   <div class="aktenkopf-titel">
     <h1>{projekt.name}</h1>
-    <button
-      type="button"
-      class="link"
-      aria-expanded={!kopfKompakt}
-      onclick={() => (kopfKompakt = !kopfKompakt)}
-      >{kopfKompakt
-        ? "Projektdetails anzeigen"
-        : "Projektdetails einklappen"}</button
-    >
-    {#if onhilfe}<button type="button" class="link" onclick={onhilfe}
-        >Hilfe zu diesem Bereich</button
-      >{/if}
+    <div class="kopfaktionen">
+      <Symbolknopf
+        titel={kopfKompakt ? "Projektdetails anzeigen" : "Projektdetails einklappen"}
+        tip="links"
+        aria-expanded={!kopfKompakt}
+        onclick={kopfUmschalten}
+        ><svg viewBox="0 0 16 16" aria-hidden="true"
+          ><path d={kopfKompakt ? "M4 6l4 4 4-4" : "M4 10l4-4 4 4"} /></svg
+        ></Symbolknopf
+      >
+      {#if onhilfe}<Symbolknopf titel="Hilfe zu diesem Bereich" tip="links" onclick={onhilfe}
+          ><NavIcon art="hilfe" /></Symbolknopf
+        >{/if}
+    </div>
   </div>
   <dl class="aktendaten" hidden={kopfKompakt}>
     <div>
@@ -650,10 +678,14 @@
 </div>
 
 <style>
+  .kopfaktionen {
+    display: flex;
+    gap: 2px;
+  }
   .aktenkopf-titel {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
   }

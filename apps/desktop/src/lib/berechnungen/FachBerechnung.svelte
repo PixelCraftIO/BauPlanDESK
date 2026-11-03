@@ -189,6 +189,8 @@
   }
   let bereichElement = $state<HTMLDivElement>();
   let pruefversuch = $state(false),
+    // Bezeichnung wird wie die Fachfelder schon nach dem Verlassen geprüft.
+    bezeichnungBeruehrt = $state(false),
     alleFelder = $state(false);
   let eingabefehler = $state<{ titel: string; gruppe: string; pfad: string }[]>(
     [],
@@ -198,6 +200,7 @@
     untrack(() => {
       eingabefehler = [];
       pruefversuch = false;
+      bezeichnungBeruehrt = false;
       // Der Prüfbericht gehört zum bisherigen Eintrag.
       result = null;
       resultSignatur = "";
@@ -720,9 +723,11 @@
                 ><input
                   aria-label="Bezeichnung"
                   required
-                  aria-invalid={pruefversuch && !p.bezeichnung.trim()
+                  aria-invalid={(pruefversuch || bezeichnungBeruehrt) &&
+                  !p.bezeichnung.trim()
                     ? "true"
                     : undefined}
+                  onblur={() => (bezeichnungBeruehrt = true)}
                   bind:value={p.bezeichnung}
                   maxlength="500"
                 /></label
