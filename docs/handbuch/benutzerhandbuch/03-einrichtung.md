@@ -12,7 +12,7 @@ Administrator.
 
 | Abschnitt | Wofür |
 | --- | --- |
-| Darstellung | Farbschema Hell, Dunkel oder „Wie Betriebssystem“ für diesen Arbeitsplatz |
+| Darstellung | Farbschema Hell, Dunkel oder „Wie Betriebssystem“ und Oberflächengröße (90 bis 150 %, auch mit Strg + Plus / Minus / 0) für diesen Arbeitsplatz |
 | Speicherorte | Ordner der **PDF-Formularvorlagen** (projektunabhängig, auch Serverfreigabe) und der **lesbaren Projektordner** (Ausgaben unter „Dokumente“ und „Pläne“) |
 | Sicherung und Wiederherstellung | „Sicherung erstellen …“, „Archiv prüfen …“, „In neues Profil wiederherstellen …“ |
 | Dateiablage prüfen | „Ablagekonsistenz prüfen“ vergleicht Dateien, Metadaten und Datenbankbezüge (löscht nichts) |

@@ -2,7 +2,7 @@
 //!
 //! Menüpunkte, die Dialoge im Frontend öffnen, werden als Event `menu` mit
 //! der Menü-ID an das Hauptfenster weitergereicht. Rein native Aktionen
-//! (Zwischenablage, Vollbild, Zoom, Beenden) erledigt das Betriebssystem bzw.
+//! (Zwischenablage, Vollbild, Beenden) erledigt das Betriebssystem bzw.
 //! dieses Modul selbst.
 
 use std::path::PathBuf;
@@ -81,7 +81,6 @@ pub struct MenuState {
     zuletzt_menu: Submenu<Wry>,
     pub zuletzt: Mutex<ZuletztListe>,
     zuletzt_pfad: PathBuf,
-    zoom: Mutex<f64>,
 }
 
 impl MenuState {
@@ -119,17 +118,20 @@ impl MenuState {
             tracing::warn!(fehler = %e, "Menü 'Zuletzt geöffnet' nicht aktualisiert");
         }
     }
+}
 
-    fn zoom_aendern(&self, app: &AppHandle, aenderung: Option<f64>) {
-        let mut zoom = self.zoom.lock().expect("Menü-Lock vergiftet");
-        *zoom = match aenderung {
-            Some(delta) => (*zoom + delta).clamp(0.5, 2.0),
-            None => 1.0,
-        };
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.set_zoom(*zoom);
-        }
-    }
+/// Oberflächengröße: Das Frontend des aktiven Fensters ändert den Faktor,
+/// speichert ihn für den Arbeitsplatz und überträgt ihn auf alle Fenster
+/// (`darstellung.ts`). So bleibt er nach einem Neustart erhalten und gilt
+/// auch für Editorfenster.
+fn zoom_anfordern(app: &AppHandle, schritt: &str) {
+    let ziel = app
+        .webview_windows()
+        .into_iter()
+        .find(|(_, w)| w.is_focused().unwrap_or(false))
+        .map(|(label, _)| label)
+        .unwrap_or_else(|| "main".to_owned());
+    let _ = app.emit_to(ziel.as_str(), "oberflaechengroesse", schritt.to_owned());
 }
 
 fn fuelle_zuletzt<R: Runtime>(
@@ -350,7 +352,6 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         zuletzt_menu,
         zuletzt: Mutex::new(zuletzt),
         zuletzt_pfad,
-        zoom: Mutex::new(1.0),
     });
     app.on_menu_event(on_menu_event);
     Ok(())
@@ -359,9 +360,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     let state = app.state::<MenuState>();
     match event.id().as_ref() {
-        id::ZOOM_PLUS => state.zoom_aendern(app, Some(0.1)),
-        id::ZOOM_MINUS => state.zoom_aendern(app, Some(-0.1)),
-        id::ZOOM_RESET => state.zoom_aendern(app, None),
+        id::ZOOM_PLUS => zoom_anfordern(app, "plus"),
+        id::ZOOM_MINUS => zoom_anfordern(app, "minus"),
+        id::ZOOM_RESET => zoom_anfordern(app, "reset"),
         id::ZULETZT_LEEREN => state.zuletzt_leeren(app),
         id::BEENDEN => {
             // Auch Menü/Shortcut müssen den Entwurfs- und Installationsschutz

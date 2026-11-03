@@ -19,17 +19,20 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.2rem 0.55rem;
-    border: 1px solid var(--border);
-    background: var(--leiste);
+    /* Status, kein Knopf: ohne Rahmen, damit es nicht wie ein
+       anklickbares Element aussieht. */
+    padding: 0.15rem 0.45rem;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
     color: var(--fg);
+    cursor: default;
     font-size: 0.92rem;
     font-weight: 600;
   }
   .warnung {
     background: var(--warn-bg);
     color: var(--warning-text);
-    border-color: var(--warning-text);
   }
   .erfolg {
     background: var(--ok-bg);

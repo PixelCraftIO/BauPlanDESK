@@ -127,6 +127,18 @@
     top: 0.5rem;
     padding: 0.15rem;
   }
+  /* Leerer Stern nur beim Überfahren oder per Tastatur; gemerkte Einträge
+     zeigen den gefüllten Stern dauerhaft. Bei Touch-Bedienung bleibt er da. */
+  @media (hover: hover) {
+    .favorit[aria-pressed="false"] {
+      opacity: 0;
+    }
+    .navigationseintrag:hover > .favorit,
+    .navigationseintrag:focus-within > .favorit,
+    .favorit:focus-visible {
+      opacity: 1;
+    }
+  }
   .info {
     position: absolute;
     right: 0;

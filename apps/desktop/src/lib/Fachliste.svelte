@@ -250,7 +250,26 @@
 {#if s.eingabe}<form
     bind:this={formular}
     novalidate
-    oninput={() => {
+    onfocusout={(e) => {
+      // Inline-Prüfung beim Verlassen eines Feldes, nicht erst beim Speichern.
+      const el = e.target;
+      if (
+        !(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) ||
+        el.matches(":disabled") ||
+        el.closest('[data-feldzustand="fehler"]')
+      )
+        return;
+      if (!el.validity.valid) el.setAttribute("aria-invalid", "true");
+      else el.removeAttribute("aria-invalid");
+    }}
+    oninput={(e) => {
+      const el = e.target as HTMLInputElement;
+      if (
+        el?.getAttribute?.("aria-invalid") === "true" &&
+        el.validity?.valid &&
+        !el.closest('[data-feldzustand="fehler"]')
+      )
+        el.removeAttribute("aria-invalid");
       for (const f of feldfehler)
         if ((f.element as HTMLInputElement).validity.valid) {
           f.element.removeAttribute("aria-invalid");
