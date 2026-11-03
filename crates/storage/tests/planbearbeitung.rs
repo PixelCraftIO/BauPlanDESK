@@ -81,6 +81,7 @@ async fn veraltete_planquelle_blockiert_nur_ihre_grundstueckseinheit() {
             bezeichnung: "Haus".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         ausschnitte: vec![],
         markierungen: vec![Planmarkierung {
@@ -292,6 +293,7 @@ async fn einzelpruefung_export_und_cad_aufmasse_erhalten_ihre_quellen() {
             bezeichnung: "Räume".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         ausschnitte: vec![],
         markierungen: vec![Planmarkierung {

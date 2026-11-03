@@ -13,6 +13,7 @@
 
 pub mod baugrenzen;
 pub mod dxf;
+pub mod dxfexport;
 pub mod projektaufmass;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testdaten;

@@ -19,11 +19,11 @@ mod pruefung;
 mod raumbuch;
 mod service;
 mod zustand;
+pub(crate) use abgleich::toleranzen;
 pub use abgleich::{
     Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
     bauteildubletten, fast_gleich,
 };
-pub(crate) use abgleich::toleranzen;
 pub use abstand::abstandsziele;
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;
@@ -92,6 +92,90 @@ pub struct Planebene {
     pub bezeichnung: String,
     pub sichtbar: bool,
     pub gesperrt: bool,
+    /// Stift, Linienart, Farbe und Schraffur der Ebene; Elemente können sie überschreiben.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub darstellung: Option<Darstellung>,
+}
+/// Linienart nach DIN ISO 128 (vereinfacht).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Linienart {
+    Volllinie,
+    Strichlinie,
+    Strichpunktlinie,
+    Punktlinie,
+}
+/// Flächenfüllung geschlossener Konturen und Wände (Darstellung, kein Fachwert).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Schraffur {
+    Keine,
+    Voll,
+    Diagonal,
+    Kreuz,
+    Mauerwerk,
+    Beton,
+    Daemmung,
+    Erdreich,
+}
+/// Darstellung von Ebene oder Element. Leere Felder erben (Element → Ebene → Standard).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Darstellung {
+    /// Stiftstärke in mm auf dem Papier (0,1 … 2,5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub stift_mm: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub linienart: Option<Linienart>,
+    /// Farbe als `#rrggbb`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub farbe: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub schraffur: Option<Schraffur>,
+    /// Bauzustand nach BauVorlV/BauPrüfVO: Bestand grau, Abbruch gelb, Neubau rot
+    /// (gilt, wenn keine eigene Farbe gesetzt ist).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bauzustand: Option<Bauzustand>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Bauzustand {
+    Bestand,
+    Abbruch,
+    Neubau,
+}
+impl Bauzustand {
+    pub fn farbe(self) -> &'static str {
+        match self {
+            Self::Bestand => "#7f7f7f",
+            Self::Abbruch => "#e0b000",
+            Self::Neubau => "#c8102e",
+        }
+    }
+}
+impl Darstellung {
+    pub fn pruefen(&self) -> CoreResult<()> {
+        if self
+            .stift_mm
+            .is_some_and(|s| !s.is_finite() || !(0.1..=2.5).contains(&s))
+        {
+            return Err(fehler("Stiftstärke zwischen 0,1 und 2,5 mm angeben"));
+        }
+        if let Some(f) = &self.farbe
+            && !(f.len() == 7
+                && f.starts_with('#')
+                && f[1..].bytes().all(|c| c.is_ascii_hexdigit()))
+        {
+            return Err(fehler("Farbe als #rrggbb angeben"));
+        }
+        Ok(())
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "art", rename_all = "snake_case", deny_unknown_fields)]
@@ -417,6 +501,10 @@ pub enum Zeichenform {
         von: Planpunkt,
         bis: Planpunkt,
         dicke_m: f64,
+        /// Fenster und Türen, entlang der Achse ab `von`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[ts(optional, as = "Option<Vec<Oeffnung>>")]
+        oeffnungen: Vec<Oeffnung>,
     },
     Masskette {
         von: Planpunkt,
@@ -432,6 +520,58 @@ pub enum Zeichenform {
         hoehe: f64,
         drehung_grad: f64,
     },
+    /// Planzeichen für Lagepläne (Bäume, Stellplatz, Zufahrt …).
+    Symbol {
+        punkt: Planpunkt,
+        symbol: Plansymbol,
+        /// Größe in Seitenpunkten (bei eigenen Zeichnungen Meter).
+        groesse: f64,
+        drehung_grad: f64,
+    },
+    /// Raumstempel: Nummer, Name und Fläche kommen bei jeder Anzeige aus dem Raumbuch.
+    Raumstempel {
+        punkt: Planpunkt,
+        raumbuch_id: Uuid,
+        raum_id: Uuid,
+        /// Schrifthöhe in Seitenpunkten.
+        hoehe: f64,
+    },
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Oeffnungsart {
+    Fenster,
+    Tuer,
+}
+/// Öffnung in einer Wand; Maße in Metern (Rohbaumaße).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Oeffnung {
+    pub art: Oeffnungsart,
+    /// Abstand des Öffnungsanfangs vom Wandanfang (m).
+    pub lage_m: f64,
+    pub breite_m: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub hoehe_m: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bruestung_m: Option<f64>,
+    /// Türanschlag: Drehflügel öffnet zur linken Wandseite (in Richtung von→bis gesehen).
+    #[serde(default)]
+    pub links: bool,
+}
+/// Planzeichen nach PlanZV/BauVorlV (Auswahl für Bauantrags-Lagepläne).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Plansymbol {
+    BaumBestand,
+    BaumNeu,
+    BaumFaellung,
+    Stellplatz,
+    Zufahrt,
+    Hauseingang,
+    Grenzpunkt,
 }
 // Kein `deny_unknown_fields`: serde kann es nicht mit `flatten` verbinden;
 // die Form selbst lehnt unbekannte Felder ab.
@@ -439,6 +579,10 @@ pub enum Zeichenform {
 pub struct Zeichenelement {
     pub id: Uuid,
     pub ebene_id: Uuid,
+    /// Abweichende Darstellung des Elements; fehlende Felder erben von der Ebene.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub darstellung: Option<Darstellung>,
     #[serde(flatten)]
     #[ts(flatten)]
     pub form: Zeichenform,
@@ -448,7 +592,9 @@ impl Zeichenform {
     pub fn punkte(&self) -> Vec<Planpunkt> {
         match self {
             Self::Wand { von, bis, .. } | Self::Masskette { von, bis, .. } => vec![*von, *bis],
-            Self::Text { punkt, .. } => vec![*punkt],
+            Self::Text { punkt, .. }
+            | Self::Symbol { punkt, .. }
+            | Self::Raumstempel { punkt, .. } => vec![*punkt],
         }
     }
 }
@@ -522,6 +668,32 @@ pub struct Planbindung {
     pub groesse: Planmessgroesse,
     /// Tabelle.Zeilen-ID.Feld; niemals Arraypositionen.
     pub ziel: String,
+}
+/// Öffnungen liegen in der Wand und überlappen sich nicht; `laenge_m` nur bei
+/// eigenen Zeichnungen (Meter), auf Unterlagen hängt die Länge vom Maßstab ab.
+fn oeffnungen_pruefen(os: &[Oeffnung], laenge_m: Option<f64>) -> CoreResult<()> {
+    if os.len() > 100 {
+        return Err(fehler("Zu viele Öffnungen in einer Wand"));
+    }
+    let mut belegt: Vec<(f64, f64)> = Vec::new();
+    for o in os {
+        let ok = |v: Option<f64>| v.is_none_or(|v| v.is_finite() && (0. ..=100.).contains(&v));
+        if !(o.lage_m.is_finite() && o.lage_m >= 0. && o.breite_m.is_finite() && o.breite_m > 0.)
+            || !ok(o.hoehe_m)
+            || !ok(o.bruestung_m)
+        {
+            return Err(fehler("Öffnung: Lage ab 0 m und Breite über 0 m angeben"));
+        }
+        if laenge_m.is_some_and(|l| o.lage_m + o.breite_m > l + 1e-6) {
+            return Err(fehler("Öffnung reicht über das Wandende hinaus"));
+        }
+        let (a, b) = (o.lage_m, o.lage_m + o.breite_m);
+        if belegt.iter().any(|(x, y)| a < *y - 1e-6 && *x < b - 1e-6) {
+            return Err(fehler("Öffnungen einer Wand überlappen sich"));
+        }
+        belegt.push((a, b));
+    }
+    Ok(())
 }
 pub(crate) fn fehler(s: impl Into<String>) -> CoreError {
     CoreError::InvalidInput(s.into())
@@ -632,6 +804,11 @@ impl Planaufmass {
                 "Hintergründe gibt es nur in eigenen Zeichnungen; ein Aufmaß zeichnet direkt auf seiner Unterlage",
             ));
         }
+        for e in &self.ebenen {
+            if let Some(d) = &e.darstellung {
+                d.pruefen()?;
+            }
+        }
         if self.elemente.len() > 2000 {
             return Err(fehler("Zu viele Zeichenelemente"));
         }
@@ -641,17 +818,40 @@ impl Planaufmass {
             if !ids.insert(e.id) || !ebenen.contains(&e.ebene_id) {
                 return Err(fehler("Zeichenelement doppelt oder Zeichenebene fehlt"));
             }
+            if let Some(d) = &e.darstellung {
+                d.pruefen()?;
+            }
             for p in e.form.punkte() {
                 punkt(&p)?;
             }
             match &e.form {
-                Zeichenform::Wand { von, bis, dicke_m } => {
+                Zeichenform::Wand {
+                    von,
+                    bis,
+                    dicke_m,
+                    oeffnungen,
+                } => {
                     positiv(abstand(von, bis))?;
                     positiv(*dicke_m)?;
                     if *dicke_m > 10. {
                         return Err(fehler("Wanddicke über 10 m"));
                     }
+                    oeffnungen_pruefen(
+                        oeffnungen,
+                        self.ist_zeichnung().then(|| abstand(von, bis)),
+                    )?;
                 }
+                Zeichenform::Symbol {
+                    groesse,
+                    drehung_grad,
+                    ..
+                } => {
+                    positiv(*groesse)?;
+                    if !drehung_grad.is_finite() {
+                        return Err(fehler("Ungültige Drehung des Planzeichens"));
+                    }
+                }
+                Zeichenform::Raumstempel { hoehe, .. } => positiv(*hoehe)?,
                 Zeichenform::Masskette {
                     von,
                     bis,

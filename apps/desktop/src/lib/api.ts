@@ -1369,6 +1369,39 @@ export const api = {
     }),
   appInfo: () => invoke<AppInfo>("app_info"),
   projekte: () => invoke<Project[]>("projekte_auflisten"),
+  kalenderaboAuskunft: () =>
+    invoke<import("./generated/plattform").Aboauskunft>("kalenderabo_auskunft"),
+  kalenderaboAnlegen: (umfang: import("./generated/plattform").Aboumfang) =>
+    invoke<import("./generated/plattform").Aboschluessel>(
+      "kalenderabo_anlegen",
+      { umfang },
+    ),
+  kalenderaboWiderrufen: () => invoke<void>("kalenderabo_widerrufen"),
+  planliste: (projektId: string) =>
+    invoke<import("./generated/plattform").Planliste>("planliste", {
+      projektId,
+    }),
+  planlayoutExportieren: (projektId: string, wunsch: import("./generated/plattform").Layoutwunsch, ziel: string | null) =>
+    invoke<DocumentVersion | null>("planlayout_exportieren", { projektId, wunsch, ziel }),
+  planaufmassDxf: (projektId: string, aufmassId: string, revision: number, nurSichtbareEbenen: boolean, ziel: string) =>
+    invoke<void>("planaufmass_dxf", { projektId, aufmassId, revision, nurSichtbareEbenen, ziel }),
+  planRevisionswolken: (projektId: string, wunsch: import("./generated/plattform").Wolkenwunsch, ziel: string) =>
+    invoke<void>("plan_revisionswolken", { projektId, wunsch, ziel }),
+  plankopfStempeln: (projektId: string, wunsch: import("./generated/plattform").Stempelwunsch, ziel: string) =>
+    invoke<void>("plankopf_stempeln", { projektId, wunsch, ziel }),
+  plannummernschema: () =>
+    invoke<import("./generated/plattform").Plannummernschema>(
+      "plannummernschema",
+    ),
+  plannummernschemaSpeichern: (
+    schema: import("./generated/plattform").Plannummernschema,
+  ) =>
+    invoke<import("./generated/plattform").Plannummernschema>(
+      "plannummernschema_speichern",
+      { schema },
+    ),
+  bueroCockpit: () =>
+    invoke<import("./generated/plattform").Buerocockpit>("buero_cockpit"),
   projektAnlegen: (projekt: Projektwerte) =>
     invoke<Project>("projekt_anlegen", { projekt }),
   projektOeffnen: (id: string) => invoke<Project>("projekt_laden", { id }),

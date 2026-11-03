@@ -116,6 +116,10 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
         }
         return next.run(r).await;
     }
+    // Kalender-Abo: der Handler prüft den persönlichen Schlüssel selbst.
+    if r.uri().path().starts_with("/kalender/") && r.method() == axum::http::Method::GET {
+        return next.run(r).await;
+    }
     let header = r
         .headers()
         .get("authorization")

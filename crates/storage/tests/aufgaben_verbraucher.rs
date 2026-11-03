@@ -82,9 +82,33 @@ async fn aufgaben_fuer_berechnung_und_raumbuch() {
 
     // Eigene Zeichnung in Metern: NUF „Wohnen“ (24 m²), Räume „Küche“ (12 m²) und „Flur“ (6 m²).
     let e = Uuid::new_v4();
-    let wohnen = markierung("Wohnen", Planbedeutung::Nuf, e, haus, eg, [0., 0.], [6., 4.]);
-    let kueche = markierung("Küche", Planbedeutung::Raum, e, haus, eg, [6., 0.], [10., 3.]);
-    let flur = markierung("Flur", Planbedeutung::Raum, e, haus, eg, [6., 3.], [10., 4.5]);
+    let wohnen = markierung(
+        "Wohnen",
+        Planbedeutung::Nuf,
+        e,
+        haus,
+        eg,
+        [0., 0.],
+        [6., 4.],
+    );
+    let kueche = markierung(
+        "Küche",
+        Planbedeutung::Raum,
+        e,
+        haus,
+        eg,
+        [6., 0.],
+        [10., 3.],
+    );
+    let flur = markierung(
+        "Flur",
+        Planbedeutung::Raum,
+        e,
+        haus,
+        eg,
+        [6., 3.],
+        [10., 4.5],
+    );
     let z = Planaufmass {
         bezeichnung: "Skizze EG".into(),
         dokument: None,
@@ -100,6 +124,7 @@ async fn aufgaben_fuer_berechnung_und_raumbuch() {
             bezeichnung: "Räume".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![wohnen.clone(), kueche.clone(), flur.clone()],
         ausschnitte: vec![],
@@ -257,7 +282,9 @@ async fn aufgaben_fuer_berechnung_und_raumbuch() {
     assert_eq!(nuf.gebunden, Some(wohnen.id));
     let k = aufgaben
         .iter()
-        .find(|a| a.verbraucher == "raumbuch" && a.ziel == format!("raeume.{kueche_raum}.flaeche_m2"))
+        .find(|a| {
+            a.verbraucher == "raumbuch" && a.ziel == format!("raeume.{kueche_raum}.flaeche_m2")
+        })
         .unwrap();
     assert_eq!(k.gebunden, Some(kueche.id));
     assert_eq!(
@@ -310,8 +337,16 @@ async fn aufgaben_fuer_berechnung_und_raumbuch() {
     let kiste = werkzeugkiste();
     let ids: std::collections::HashSet<_> = kiste.iter().map(|v| v.id.as_str()).collect();
     assert_eq!(ids.len(), kiste.len());
-    assert!(kiste.iter().all(|v| v.bedeutung != Planbedeutung::Unbestimmt));
-    assert!(kiste.iter().any(|v| v.titel == "DIN 277 NUF" && v.bedeutung == Planbedeutung::Nuf));
+    assert!(
+        kiste
+            .iter()
+            .all(|v| v.bedeutung != Planbedeutung::Unbestimmt)
+    );
+    assert!(
+        kiste
+            .iter()
+            .any(|v| v.titel == "DIN 277 NUF" && v.bedeutung == Planbedeutung::Nuf)
+    );
     assert!(kiste.iter().any(|v| v.titel == "Versiegelte Fläche"));
     assert!(
         kiste

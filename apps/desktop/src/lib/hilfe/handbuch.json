@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "titel": "BauPlanIO – Bedienhandbuch",
   "untertitel": "Für Architekten, Entwurfsverfasser und Planer",
-  "stand": "28.10.2026",
+  "stand": "01.11.2026",
   "basis": "e80717f + Workflow-Verbesserungen",
   "kapitel": [
     {
@@ -896,6 +896,53 @@
       "stichworte": []
     },
     {
+      "id": "baukennwerte",
+      "titel": "Rohbauwert, Gebühr, Baustatistik und Sachstandsbericht",
+      "gruppe": "Berechnungen",
+      "kurztext": "Gebühr schätzen, Statistikangaben sammeln und den Bauherrn über den Stand informieren.",
+      "bereiche": [
+        "baukennwerte"
+      ],
+      "abschnitte": [
+        {
+          "titel": "Gebührenschätzung",
+          "schritte": [
+            "„Formulare und Ausgabe → Rohbauwert, Gebühr, Baustatistik“ öffnen und die Gebäudeart wählen.",
+            "Der Brutto-Rauminhalt kommt aus der DIN-277-Berechnung. Ein eigener Wert überschreibt ihn und wird als „Eingabe im Projekt“ ausgewiesen.",
+            "Rohbauwert je m³ und Gebührensatz stammen aus dem Regelpaket des Landes; bei Bedarf eigene Werte eintragen.",
+            "Speichern und „Gebührenschätzung als PDF …“ für den Bauherrn ausgeben."
+          ],
+          "hinweis": "Die NRW-Werte sind ungeprüfte Schätzwerte (geprueft: false). Vor der Weitergabe mit dem aktuellen Runderlass zu den Rohbauwerten und dem Gebührentarif vergleichen. Maßgebend ist der Gebührenbescheid."
+        },
+        {
+          "titel": "Baustatistik",
+          "text": [
+            "Die Tabelle sammelt die Angaben für den Erhebungsbogen der Baugenehmigungsstatistik: Bautätigkeit, Bauherr (aus der Kundenkategorie), Gebäudeart, Vollgeschosse, Brutto-Rauminhalt, Nutzungs- und Wohnfläche, Wohnungen, Baustoff, Heizung, Energie und veranschlagte Kosten. Jede Angabe nennt ihre Quelle; offene Angaben sind markiert. Das PDF ist eine Arbeitshilfe und ersetzt den amtlichen Vordruck nicht."
+          ]
+        },
+        {
+          "titel": "Sachstandsbericht für den Bauherrn",
+          "text": [
+            "In der Projektübersicht gibt „Sachstandsbericht für Bauherrn …“ ein Schreiben im Briefbogen aus: Verfahrensstand mit Behörde und Aktenzeichen, eingereichte Unterlagen, offene Nachforderungen, die nächsten Fristen und Bescheide. Aufgaben, Projekttagebuch und Fachplanerlieferungen bleiben bürointern und stehen nicht im Bericht."
+          ]
+        }
+      ],
+      "siehe": [
+        "din277",
+        "wohnflaechen",
+        "uebersicht"
+      ],
+      "stichworte": [
+        "Rohbauwert",
+        "Gebühr",
+        "Baugenehmigungsgebühr",
+        "Baustatistik",
+        "Hochbaustatistik",
+        "Sachstand",
+        "Bauherr"
+      ]
+    },
+    {
       "id": "freiflaechen",
       "titel": "Freiflächen und Regenwasser",
       "gruppe": "Berechnungen",
@@ -1024,6 +1071,125 @@
         "ifc"
       ],
       "stichworte": []
+    },
+    {
+      "id": "konstruieren",
+      "titel": "Konstruieren, Präzisionszeichnen und Planlayout",
+      "gruppe": "Pläne und Unterlagen",
+      "kurztext": "Handgriffe wie im Büro-CAD: Auswahl, Kopieren, Spiegeln, Versatz, Ortho, Befehlszeile, Stifte und Planblatt mit Plankopf.",
+      "bereiche": [],
+      "abschnitte": [
+        {
+          "titel": "Ausrichtung",
+          "text": [
+            "Der Zeicheneditor bleibt ein Werkzeug für Genehmigungsplanung und Nachweise neben dem eigenen CAD. Gezeichnet wird weiter im Büro-CAD; BauPlanIO übernimmt PDF, DXF und IFC, ergänzt Lageplan, Nachweisflächen und Plankopf und gibt bauvorlagefähige Pläne aus. DWG, 3D-Modellierung und Bauteilfamilien gibt es bewusst nicht."
+          ]
+        },
+        {
+          "titel": "Auswahl per Fenster",
+          "liste": [
+            "Mit dem Auswahlwerkzeug ein Rechteck aufziehen. Von links nach rechts: nur vollständig enthaltene Objekte. Von rechts nach links (gestrichelt): auch berührte Objekte.",
+            "Mit gedrückter Umschalttaste wird die Auswahl ergänzt. Markierungen und Zeichenelemente lassen sich gemeinsam wählen.",
+            "Entf entfernt die gewählten Zeichenelemente; Rückgängig stellt sie wieder her."
+          ]
+        },
+        {
+          "titel": "Konstruktionsbefehle",
+          "tabelle": {
+            "spalten": [
+              "Befehl",
+              "Taste / Kürzel",
+              "Bedienung"
+            ],
+            "zeilen": [
+              [
+                "Kopieren",
+                "C, KO",
+                "Auswahl treffen, Basispunkt und Zielpunkt klicken. Die Kopie behält Ebene und Darstellung."
+              ],
+              [
+                "Spiegeln",
+                "I, SP",
+                "Spiegelachse mit zwei Punkten zeichnen. „Beim Spiegeln Original behalten“ erzeugt eine gespiegelte Kopie. Türanschläge und Texte werden richtig mitgespiegelt."
+              ],
+              [
+                "Stutzen / Dehnen",
+                "D, ST",
+                "Schneidekante als Linie ziehen; die nähere Kante jedes gewählten Objekts endet am Schnittpunkt (verkürzen oder verlängern)."
+              ],
+              [
+                "Versatz (Parallele)",
+                "VS",
+                "Abstand in Metern im Bereich „Konstruieren“ eingeben; erzeugt eine parallele Kopie der Auswahl."
+              ],
+              [
+                "Reihe",
+                "RH",
+                "Anzahl und Abstand dx/dy in Metern eingeben; höchstens 200 Kopien."
+              ]
+            ]
+          },
+          "hinweis": "Versatz und Reihe brauchen einen Maßstab (Kalibrierung oder eigene Zeichnung in Metern)."
+        },
+        {
+          "titel": "Präzise Eingabe",
+          "liste": [
+            "F8 schaltet Ortho ein und aus. Das Winkelraster (0, 15, 30, 45 oder 90°) rastet die Richtung beim Zeichnen.",
+            "Fang auf Lot und Verlängerung ergänzt End-, Mittel-, Kanten- und Schnittpunkt.",
+            "Die Taste @ öffnet die Koordinateneingabe: „5,20“ = Länge 5,20 m in Zeichenrichtung, „5,20<90“ oder „5,20;90“ = Länge und Winkel, „@3;4“ = relativ dx;dy, beim Rechteck „Breite;Höhe“.",
+            "F2 öffnet die Befehlszeile. Kürzel wie im CAD: L (Strecke), PL (Polygon), R (Rechteck), K (Kreis), W (Wand), BM (Maßkette), T (Text), KO, SP, ST, VS 0,5, RH, FE (Öffnung), SY (Planzeichen), RS (Raumstempel), E (Entfernen), OR (Ortho).",
+            "Enter ohne gesetzten Punkt wiederholt den letzten Befehl."
+          ]
+        },
+        {
+          "titel": "Stifte, Linienarten und Schraffuren",
+          "text": [
+            "Im Bereich „Darstellung“ der Eigenschaften gelten Stift (0,1 bis 2,5 mm), Linienart, Farbe, Schraffur und Bauzustand je Ebene oder je Element. Das Element überschreibt die Ebene. Bauzustand färbt nach Bauvorlagenverordnung: Bestand grau, Abbruch gelb, Neubau rot. Ebenen lassen sich sperren; „Nur aktive Ebene bearbeiten“ schützt die übrigen."
+          ]
+        },
+        {
+          "titel": "Wände, Öffnungen, Planzeichen und Raumstempel",
+          "liste": [
+            "Öffnung (F): in eine Wand klicken, Art (Fenster oder Tür), Breite, Höhe, Brüstung und Anschlagseite in der Eigenschaftentabelle setzen. Öffnungen überlappen nicht und enden innerhalb der Wand.",
+            "Planzeichen (G): Baum Bestand / neu / Fällung, Stellplatz, Zufahrt, Hauseingang, Grenzpunkt; Größe und Drehung einstellbar.",
+            "Raumstempel (N): zeigt Nummer, Bezeichnung und Fläche des Raums aus dem Raumbuch und folgt dessen Änderungen.",
+            "„Lageplan-Ebenen anlegen“ erzeugt Ebenen für Grundstücksgrenze, Bestand, Abbruch, Neubau, Baugrenze / Baulinie, Abstandsflächen, Freiflächen und Bäume sowie Stellplätze und Zufahrten mit passenden Stiften."
+          ]
+        },
+        {
+          "titel": "Planlayout mit Plankopf",
+          "schritte": [
+            "In der eigenen Zeichnung „Planlayout“ öffnen: Blattformat (A4 bis A0, hoch oder quer), Maßstab (z. B. 1:100, 1:200, 1:500), Nordpfeil und Legende wählen.",
+            "Den Plan aus der Planliste wählen. Plannummer, Index, Bauherr, Vorhaben, Grundstück und Planverfasser kommen aus Projekt und Planliste.",
+            "Ausgeben. Das PDF ist maßstäblich mit Maßstabsleiste; wahlweise als neue Version des Plandokuments ablegen und danach in der Planliste den neuen Index setzen."
+          ],
+          "hinweis": "Passt die Zeichnung im gewählten Maßstab nicht auf das Blatt, meldet BauPlanIO das und schlägt kein kleineres Format still vor."
+        },
+        {
+          "titel": "DXF für das Büro-CAD",
+          "text": [
+            "„DXF fürs CAD …“ gibt die eigene Zeichnung oder ein kalibriertes Aufmaß als DXF in Metern aus, eine DXF-Ebene je Zeichenebene, mit Farbe und Strichstärke. Linienarten und Schraffuren werden nicht übertragen."
+          ]
+        }
+      ],
+      "siehe": [
+        "aufmass",
+        "planliste"
+      ],
+      "stichworte": [
+        "CAD",
+        "Kopieren",
+        "Spiegeln",
+        "Versatz",
+        "Stutzen",
+        "Ortho",
+        "Befehlszeile",
+        "Plankopf",
+        "Nordpfeil",
+        "DXF",
+        "Schraffur",
+        "Stift"
+      ]
     },
     {
       "id": "ifc",
@@ -1188,6 +1354,56 @@
         "DWG",
         "Fotos",
         "Arbeitskopie"
+      ]
+    },
+    {
+      "id": "planliste",
+      "titel": "Planliste, Plankopf und Planvergleich",
+      "gruppe": "Pläne und Unterlagen",
+      "kurztext": "Plannummern nach Büroschema, Büroindex, Planverteiler, Plankopf-Stempel und Vergleich zweier Planstände.",
+      "bereiche": [
+        "planliste"
+      ],
+      "abschnitte": [
+        {
+          "titel": "Pläne aufnehmen",
+          "schritte": [
+            "„Ermittlung → Unterlagen → Planliste“ öffnen und eine PDF-, DXF- oder IFC-Datei aus den Projektdateien wählen.",
+            "Planart, Geschoss oder Bereich, laufende Nummer, Titel und Maßstab eintragen. Die Plannummer setzt BauPlanIO nach dem Büroschema (Einstellungen → Plannummern), z. B. 2026-014-GR-EG-03.",
+            "Index a, b, c … mit Datum und Änderungstext vergeben, wenn eine neue Fassung herausgeht. Liegt im DMS eine neuere Version ohne Index, zeigt die Liste das an."
+          ]
+        },
+        {
+          "titel": "Planverteiler",
+          "text": [
+            "Weitergaben an Bauherr, Fachplaner oder Firmen mit Datum, Index und Weg erfassen. Abgaben an die Behörde übernimmt die Liste automatisch aus der Verfahrensakte; daraus ergibt sich auch der Behördenindex A, B, C."
+          ]
+        },
+        {
+          "titel": "Plankopf auf fremde PDF-Pläne stempeln",
+          "text": [
+            "„Plankopf stempeln …“ setzt den Plankopf aus Projekt und Planliste unten rechts auf einen PDF-Plan aus dem Büro-CAD. Das Original bleibt unverändert; die gestempelte Fassung wird als Datei ausgegeben."
+          ]
+        },
+        {
+          "titel": "Planstände vergleichen",
+          "schritte": [
+            "In der Planliste einen Plan öffnen; im Abschnitt „Planvergleich“ die ältere Version wählen und „Vergleichen“ drücken (Seite 1 gegen die aktuelle Version).",
+            "Das Differenzbild zeigt Neues grün, Entfallenes rot und Unverändertes grau. Geänderte Bereiche werden umrandet.",
+            "„Revisionswolken als PDF …“ erzeugt eine Fassung mit Wolken und Indexdreieck; das Original im Projekt bleibt unverändert. „Als Änderung für den neuen Index übernehmen“ setzt den Änderungstext für den nächsten Index."
+          ]
+        }
+      ],
+      "siehe": [
+        "konstruieren",
+        "abgabe"
+      ],
+      "stichworte": [
+        "Plannummer",
+        "Index",
+        "Planverteiler",
+        "Revisionswolke",
+        "Plankopf"
       ]
     },
     {
@@ -1429,6 +1645,89 @@
         "stoerungen"
       ],
       "stichworte": []
+    },
+    {
+      "id": "buero",
+      "titel": "Büro-Cockpit, Kalender-Abo und tägliche E-Mail",
+      "gruppe": "Verfahren begleiten",
+      "kurztext": "Alle Fristen und Verfahren des Büros auf einen Blick, im Kalender und morgens per E-Mail.",
+      "bereiche": [],
+      "abschnitte": [
+        {
+          "titel": "Büro-Cockpit",
+          "text": [
+            "Die Startseite zeigt über dem Projektverzeichnis alle laufenden Fristen und Wiedervorlagen der Projekte, die Sie lesen dürfen: überfällig, diese Woche, 30 Tage und später. Dazu kommen offene Aufgaben mit Termin, Wiedervorlagen aus dem Projekttagebuch und Liefertermine der Fachplaner. Ein Klick öffnet die Stelle in der Projektakte. Die Projektliste zeigt je Verfahren Stand, letzte Abgabe, offene Nachforderungen, Bescheid und nächste Frist; Ablehnungen ohne Folgeverfahren werden hervorgehoben."
+          ]
+        },
+        {
+          "titel": "Kalender-Abo",
+          "text": [
+            "Unter „Einstellungen → Kalender-Abo“ erzeugt jeder Benutzer im Netzwerkbetrieb eine persönliche Kalenderadresse für Outlook, Apple- oder Google-Kalender (alle Fristen oder nur die eigenen). Die Adresse wird nur einmal angezeigt; eine neue Adresse macht die alte ungültig."
+          ]
+        },
+        {
+          "titel": "Tägliche E-Mail",
+          "schritte": [
+            "„Einstellungen → Tägliche E-Mail“ öffnen, Adresse eintragen und „Tägliche E-Mail erhalten“ wählen.",
+            "Umfang festlegen: nur eigene Zuständigkeit oder alle Fristen.",
+            "Vor einem Urlaub „Abwesend bis“ und eine Vertretung eintragen. Die Vertretung erhält Ihre Termine in ihrer Zusammenfassung."
+          ],
+          "hinweis": "Der Versand läuft über den BauPlanIO-Server mit dem SMTP-Zugang des Büros (BAUPROJEKT_SMTP_URL, BAUPROJEKT_MAIL_ABSENDER, BAUPROJEKT_MAIL_UHRZEIT). Ohne fällige Termine kommt keine Nachricht."
+        }
+      ],
+      "siehe": [
+        "uebersicht",
+        "projekttagebuch"
+      ],
+      "stichworte": [
+        "Cockpit",
+        "Fristen",
+        "Kalender",
+        "ICS",
+        "E-Mail",
+        "Vertretung",
+        "Urlaub"
+      ]
+    },
+    {
+      "id": "projekttagebuch",
+      "titel": "Projekttagebuch und Fachplaner",
+      "gruppe": "Verfahren begleiten",
+      "kurztext": "Vorfälle außerhalb der Behördenpost und Lieferungen der Fachplaner mit Termin nachhalten.",
+      "bereiche": [
+        "projekttagebuch",
+        "fachplaner"
+      ],
+      "abschnitte": [
+        {
+          "titel": "Projekttagebuch",
+          "text": [
+            "„Übersicht → Projekttagebuch“ hält Notizen, Telefonate, Besprechungen, Ortstermine, Mängel und Entscheidungen des Bauherrn fest, mit Beteiligten, Anhängen und optional einem Bezug zur Verfahrensakte. Eine Wiedervorlage erscheint in Projektübersicht, Büro-Cockpit und Kalender-Abo, bis sie erledigt ist. Schreiben der Behörde gehören weiter in die Verfahrensakte."
+          ]
+        },
+        {
+          "titel": "Lieferungen der Fachplaner",
+          "schritte": [
+            "„Übersicht → Fachplaner / Lieferungen“ öffnen und je Fachplaner eine Lieferliste anlegen: Disziplin, Büro, Kontakt.",
+            "Angeforderte Unterlagen eintragen oder „Übliche Unterlagen vorschlagen“ wählen (z. B. Standsicherheitsnachweis, Positionsplan, GEG-Nachweis).",
+            "Anfragedatum, zugesagten Liefertermin und Zuständigkeit im Büro setzen.",
+            "Bei Eingang die Positionen abhaken, die gelieferten Dateien zuordnen und den Stand auf „Geliefert“, nach der Prüfung auf „Geprüft“ setzen."
+          ],
+          "hinweis": "Ausstehende Lieferungen mit Termin erscheinen im Büro-Cockpit, im Kalender-Abo, in der Projektübersicht und in der Einreichungsprüfung."
+        }
+      ],
+      "siehe": [
+        "buero",
+        "einreichungspruefung"
+      ],
+      "stichworte": [
+        "Statiker",
+        "Vermesser",
+        "Brandschutz",
+        "Lieferliste",
+        "Tagebuch",
+        "Telefonat"
+      ]
     },
     {
       "id": "aktensuche",
@@ -1701,6 +2000,80 @@
         "nachforderungen"
       ],
       "stichworte": []
+    },
+    {
+      "id": "einreichungspruefung",
+      "titel": "Einreichungsprüfung mit Ampel",
+      "gruppe": "Einreichen",
+      "kurztext": "Eine Liste vor dem Absenden: was rot ist, wird vorher erledigt.",
+      "bereiche": [
+        "einreichungspruefung"
+      ],
+      "abschnitte": [
+        {
+          "titel": "Prüfen vor dem Einreichen",
+          "schritte": [
+            "„Nachweis und Einreichung → Verfahren → Einreichungsprüfung“ öffnen und das Verfahren wählen (oder alle Verfahren).",
+            "Die Bereichskacheln zeigen je Bereich Rot, Gelb oder Grün; ein Klick filtert die Liste.",
+            "Rote Punkte vor dem Einreichen erledigen, gelbe bewusst prüfen. Ein Klick auf den Punkt öffnet die Stelle in der Akte.",
+            "Mit „Neu prüfen“ den Stand nach Änderungen aktualisieren."
+          ]
+        },
+        {
+          "titel": "Was geprüft wird",
+          "tabelle": {
+            "spalten": [
+              "Bereich",
+              "Rot",
+              "Gelb"
+            ],
+            "zeilen": [
+              [
+                "Bauvorlagen",
+                "Erforderliche Unterlage fehlt, Erforderlichkeit ungeklärt",
+                "Fachliche Freigabe fehlt, Dokument geändert"
+              ],
+              [
+                "Nachweise",
+                "Angaben oder Prüfung der Berechnung offen",
+                "Nachweis veraltet, unvollständig oder nicht freigegeben"
+              ],
+              [
+                "Pläne und Planindex",
+                "Kein Index, neuere Datei ohne Index, Datei entfernt",
+                "Behörde hat einen älteren Index; Planliste leer"
+              ],
+              [
+                "Formulare",
+                "–",
+                "Formularwerte weichen von den Projektdaten ab; noch kein Formular"
+              ],
+              [
+                "Fachplaner",
+                "Lieferung überfällig, ohne Termin oder in den nächsten 7 Tagen fällig",
+                "Lieferung später fällig; geliefert, aber nicht geprüft"
+              ],
+              [
+                "Verfahren",
+                "Anforderungen fehlen, Nachforderung offen",
+                "Vorhabenprofil nicht bestätigt; Antwort eingereicht"
+              ]
+            ]
+          },
+          "hinweis": "Die Prüfung wertet gespeicherte Daten aus. Sie trifft keine Einreichungsentscheidung; die Freigabe bleibt beim Büro."
+        }
+      ],
+      "siehe": [
+        "erstabgabe",
+        "anforderungen",
+        "projekttagebuch"
+      ],
+      "stichworte": [
+        "Ampel",
+        "Abgabereife",
+        "Vollständigkeit",
+        "Checkliste"
+      ]
     },
     {
       "id": "abgabe",

@@ -161,6 +161,16 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/status", get(projektstatus))
         .route("/projekte/{id}/uebersicht", get(projektuebersicht))
         .route(
+            "/projekte/{id}/einreichungspruefung",
+            get(einreichungspruefung),
+        )
+        .route(
+            "/projekte/{id}/gebuehrenschaetzung",
+            get(gebuehrenschaetzung),
+        )
+        .route("/projekte/{id}/baustatistik", get(baustatistik))
+        .route("/projekte/{id}/sachstandsbericht", get(sachstandsbericht))
+        .route(
             "/projekte/{id}/checkliste",
             axum::routing::post(checkliste_anwenden),
         )
@@ -267,6 +277,18 @@ fn routen(core: CoreServices) -> Router {
             post(suchtext_speichern).layer(DefaultBodyLimit::max(JSON_MIT_KERNGRENZE)),
         )
         .route("/projekte/{id}/aktenexport", get(verfahren_aktenexport))
+        .route("/cockpit", get(buero_cockpit))
+        .route(
+            "/plannummernschema",
+            get(plannummernschema).put(plannummernschema_speichern),
+        )
+        .route("/projekte/{id}/planliste", get(planliste))
+        .route(
+            "/kalenderabo",
+            get(kalenderabo_auskunft)
+                .post(kalenderabo_anlegen)
+                .delete(kalenderabo_widerrufen),
+        )
         .route("/projekte", get(list_projects).post(create_project))
         .route(
             "/projekte/{id}",
@@ -467,6 +489,8 @@ fn routen(core: CoreServices) -> Router {
                 None::<(std::time::Instant, bool, bool)>,
             )))),
         )
+        // Kalender-Abo: ohne Sitzung, der Schlüssel im Pfad ist der Zugang.
+        .route("/kalender/{benutzer}/{datei}", get(kalenderabo_ics))
         .nest("/api", api.clone())
         .nest("/api/v1", api)
         .with_state(ApiState { core })
@@ -477,6 +501,85 @@ async fn list_projects(
     State(ApiState { core, .. }): State<ApiState>,
 ) -> ApiResult<Vec<Project>> {
     Ok(Json(core.projekte_fuer_benutzer(&akteur).await?))
+}
+
+/// Büro-Cockpit über alle Projekte, die der angemeldete Benutzer lesen darf.
+async fn buero_cockpit(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<core_lib::cockpit::Buerocockpit> {
+    Ok(Json(
+        core.buero_cockpit(&akteur, core_lib::kalender::heute())
+            .await?,
+    ))
+}
+
+async fn plannummernschema(
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<core_lib::planliste::Plannummernschema> {
+    Ok(Json(core.plannummernschema().await?))
+}
+async fn plannummernschema_speichern(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+    Json(s): Json<core_lib::planliste::Plannummernschema>,
+) -> ApiResult<core_lib::planliste::Plannummernschema> {
+    Ok(Json(core.plannummernschema_speichern(s, &akteur).await?))
+}
+async fn planliste(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+    Path(p): Path<Uuid>,
+) -> ApiResult<core_lib::planliste::Planliste> {
+    Ok(Json(core.planliste(ProjectId(p), &akteur).await?))
+}
+async fn kalenderabo_auskunft(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<core_lib::kalenderabo::Aboauskunft> {
+    Ok(Json(core.kalenderabo_auskunft(&akteur).await?))
+}
+#[derive(Deserialize)]
+struct Abowunsch {
+    umfang: core_lib::kalenderabo::Aboumfang,
+}
+async fn kalenderabo_anlegen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+    Json(w): Json<Abowunsch>,
+) -> ApiResult<core_lib::kalenderabo::Aboschluessel> {
+    Ok(Json(core.kalenderabo_anlegen(&akteur, w.umfang).await?))
+}
+async fn kalenderabo_widerrufen(
+    Extension(akteur): Extension<Benutzer>,
+    State(ApiState { core, .. }): State<ApiState>,
+) -> ApiResult<()> {
+    Ok(Json(core.kalenderabo_widerrufen(&akteur).await?))
+}
+/// Abonnierter Kalender (RFC 5545). Jeder Fehler beim Schlüssel ergibt 404.
+async fn kalenderabo_ics(
+    State(ApiState { core }): State<ApiState>,
+    Path((benutzer, datei)): Path<(Uuid, String)>,
+) -> Result<Response, ApiError> {
+    let schluessel = datei.strip_suffix(".ics").unwrap_or("");
+    let ics = core
+        .kalenderabo_ics(
+            core_lib::benutzer::BenutzerId(benutzer),
+            schluessel,
+            core_lib::kalender::heute(),
+        )
+        .await?;
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "text/calendar; charset=utf-8",
+            ),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        ics,
+    )
+        .into_response())
 }
 
 async fn create_project(
@@ -1853,6 +1956,44 @@ async fn projektuebersicht(
     Extension(wer): Extension<Benutzer>,
 ) -> ApiResult<core_lib::projektuebersicht::Projektuebersicht> {
     Ok(Json(core.projektuebersicht(ProjectId(id), &wer).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct EinreichungspruefungQuery {
+    verfahren: Option<Uuid>,
+}
+async fn einreichungspruefung(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<EinreichungspruefungQuery>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::einreichungspruefung::Einreichungspruefung> {
+    Ok(Json(
+        core.einreichungspruefung(ProjectId(id), q.verfahren, &wer)
+            .await?,
+    ))
+}
+
+async fn gebuehrenschaetzung(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::baukennwerte::Gebuehrenschaetzung> {
+    Ok(Json(core.gebuehrenschaetzung(ProjectId(id), &wer).await?))
+}
+async fn baustatistik(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::baukennwerte::Baustatistikbogen> {
+    Ok(Json(core.baustatistik(ProjectId(id), &wer).await?))
+}
+async fn sachstandsbericht(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::druckausgabe::brief::Brief> {
+    Ok(Json(core.sachstandsbericht(ProjectId(id), &wer).await?))
 }
 
 // XBau-Dateiaustausch. Diese Endpunkte versenden nichts an eine Behörde.

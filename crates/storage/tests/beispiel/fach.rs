@@ -855,6 +855,7 @@ pub async fn fach(b: &mut Beispiel) {
             bezeichnung: n.into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         })
         .collect(),
         markierungen: vec![],

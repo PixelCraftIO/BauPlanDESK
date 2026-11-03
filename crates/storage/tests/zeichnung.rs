@@ -21,6 +21,7 @@ fn ebene(id: Uuid) -> Planebene {
         bezeichnung: "Räume".into(),
         sichtbar: true,
         gesperrt: false,
+        darstellung: None,
     }
 }
 fn markierung(id: Uuid, ebene: Uuid, g: Plangeometrie) -> Planmarkierung {
@@ -126,15 +127,18 @@ async fn eigene_zeichnung_in_metern_neben_altem_aufmass() {
             Zeichenelement {
                 id: Uuid::new_v4(),
                 ebene_id: e,
+                darstellung: None,
                 form: Zeichenform::Wand {
                     von: [0., 0.],
                     bis: [12.5, 0.],
                     dicke_m: 0.24,
+                    oeffnungen: vec![],
                 },
             },
             Zeichenelement {
                 id: Uuid::new_v4(),
                 ebene_id: e,
+                darstellung: None,
                 form: Zeichenform::Masskette {
                     von: [0., 0.],
                     bis: [12.5, 0.],
@@ -144,6 +148,7 @@ async fn eigene_zeichnung_in_metern_neben_altem_aufmass() {
             Zeichenelement {
                 id: Uuid::new_v4(),
                 ebene_id: e,
+                darstellung: None,
                 form: Zeichenform::Text {
                     punkt: [1., 1.],
                     inhalt: "Wohnen".into(),

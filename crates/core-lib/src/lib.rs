@@ -12,15 +12,18 @@
 
 pub mod anmeldung;
 pub mod baugrundstuecke;
+pub mod baukennwerte;
 pub mod baunvo;
 pub mod benutzer;
 pub mod cad;
 pub mod calc;
+pub mod cockpit;
 pub mod dateiname;
 pub mod dateiverwaltung;
 pub mod dokumentkategorien;
 pub mod domain;
 pub mod einreichung;
+pub mod einreichungspruefung;
 pub mod email;
 pub mod error;
 pub mod exportgrenze;
@@ -29,13 +32,16 @@ pub mod flaechen;
 pub mod formular;
 pub mod ifc;
 pub mod kalender;
+pub mod kalenderabo;
 pub mod kennwort;
 pub mod kunden;
 pub mod lbo;
 pub mod license;
 pub mod repository;
+pub mod sachstandsbericht;
 pub mod service;
 pub mod storage;
+pub mod tagesmail;
 #[cfg(any(test, feature = "testdaten"))]
 pub mod testsuite;
 pub mod xbau;
@@ -53,6 +59,8 @@ pub mod commit;
 pub mod projektbereiche;
 
 pub mod planaufmass;
+pub mod planlayout;
+pub mod planliste;
 pub mod plattform;
 
 pub mod zugriff;

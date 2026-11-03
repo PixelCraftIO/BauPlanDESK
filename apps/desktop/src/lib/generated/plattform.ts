@@ -1,10 +1,201 @@
 // Automatisch erzeugt: cargo run -p core-lib --example vertraege. Nicht von Hand ändern.
 import type { BaugrundstuecksPlan, BaugrundstueckBerechnung, FlaechenAbzug, Planungsrecht } from '../api';
+export type Friststufe = "ueberfaellig" | "diese_woche" | "monat" | "spaeter";
+export type CockpitTermin = { projekt_id: ProjectId, projekt: string,
+/**
+ * Verfahrensbezeichnung, „Aufgabe“, „Projekttagebuch“ oder „Fachplaner“.
+ */
+bezug: string,
+/**
+ * Art eines Verfahrenstermins; `None` bei Aufgaben und Wiedervorlagen des
+ * Projekttagebuchs.
+ */
+art: Terminart | null, art_bezeichnung: string, titel: string, datum: string,
+/**
+ * Beginn der Wiedervorlage (Datum abzüglich Vorlauf).
+ */
+faellig_ab: string, verantwortlich: string | null, hinweis: string, stufe: Friststufe,
+/**
+ * Sprungziel in der Projektakte.
+ */
+ziel: UebersichtsZiel, };
+export type CockpitVerfahren = { id: string, bezeichnung: string, art: Verfahrensart, status: Verfahrensstatus, status_bezeichnung: string, aktenzeichen: string, behoerde: string, verantwortlich: string | null,
+/**
+ * Datum des jüngsten Versands oder Eingangs eines Abgabestands bzw. einer
+ * externen Einreichung.
+ */
+letzte_abgabe: string | null,
+/**
+ * Forderungspunkte, die weder bestätigt noch entfallen sind.
+ */
+offene_punkte: number,
+/**
+ * Jüngster nicht ersetzter Bescheid.
+ */
+letzter_bescheid: CockpitBescheid | null,
+/**
+ * Abgelehnt und noch kein Folgeverfahren angelegt: Handlungsoptionen im
+ * Register „Lage“ der Akte prüfen.
+ */
+ablehnung_offen: boolean, };
+export type CockpitBescheid = { entscheidung: Entscheidung, datum: string, };
+export type CockpitProjekt = { projekt_id: ProjectId, name: string, bundesland: Bundesland, verfahren: Array<CockpitVerfahren>, naechste_frist: string | null, ueberfaellig: number, offene_punkte: number, };
+export type CockpitFehler = { projekt_id: ProjectId, projekt: string, meldung: string, };
+export type Buerocockpit = { stichtag: string,
+/**
+ * Laufende Termine aller Projekte, überfällige zuerst, dann nach Datum.
+ */
+termine: Array<CockpitTermin>,
+/**
+ * Projekte nach Friststufe (überfällig, nächste Frist, Name).
+ */
+projekte: Array<CockpitProjekt>, fehler: Array<CockpitFehler>, };
+export type Aboumfang = "alle" | "meine";
+export type Aboauskunft = { aktiv: boolean, umfang: Aboumfang | null, erstellt_am: string | null, };
+export type Aboschluessel = { umfang: Aboumfang,
+/**
+ * Pfad relativ zur Serveradresse, z. B. `/kalender/<benutzer>/<schluessel>.ics`.
+ */
+pfad: string, };
+export type Planart = "lageplan" | "grundriss" | "schnitt" | "ansicht" | "detail" | "entwaesserung" | "freiflaechen" | "brandschutz" | "sonstiges";
+export type Plannummernschema = { muster: string, };
+export type Planrevision = {
+/**
+ * Büroindex, z. B. „a“, „b“ oder „01“.
+ */
+index: string, datum: string,
+/**
+ * Was sich gegenüber dem vorigen Index geändert hat.
+ */
+aenderung: string,
+/**
+ * Dokumentversion im DMS, die diesen Index trägt.
+ */
+version: number, };
+export type Planversand = { id: string, empfaenger: string, datum: string,
+/**
+ * Weitergegebener Büroindex.
+ */
+index: string,
+/**
+ * E-Mail, Post, Plattform, persönlich …
+ */
+weg: string, bemerkung: string, };
+export type Planeintrag = { dokument_id: DocumentId, planart: Planart,
+/**
+ * Geschoss oder Bereich, z. B. „EG“, „OG1“, „Nord“; darf leer sein.
+ */
+geschoss: string,
+/**
+ * Laufende Nummer, ab 1.
+ */
+nummer: number, titel: string,
+/**
+ * Maßstab als Nenner (100 für 1:100); `None` ohne Maßstab.
+ */
+massstab: number | null,
+/**
+ * Vom Core beim Speichern gesetzt.
+ */
+plannummer: string,
+/**
+ * Aufsteigend nach Datum.
+ */
+revisionen: Array<Planrevision>, verteiler: Array<Planversand>, };
+export type Behoerdenstand = { verfahren: string, bezeichnung: string, planindex: string | null, status: Einreichungsstatus, };
+export type Planzeile = { eintrag: Planeintrag, revision: number, dateiname: string,
+/**
+ * Neueste Version im DMS; `None`, wenn das Dokument entfernt wurde.
+ */
+aktuelle_version: number | null,
+/**
+ * Neueste Planrevision des Büros.
+ */
+index: Planrevision | null,
+/**
+ * Im DMS liegt eine neuere Version als die des letzten Index.
+ */
+ohne_index: boolean, behoerde: Array<Behoerdenstand>,
+/**
+ * Erfasste Versendungen und Abgaben an die Behörde, neueste zuerst.
+ */
+versand: Array<Planversand>, };
+export type Planliste = { schema: Plannummernschema, kennzeichen: string, zeilen: Array<Planzeile>, };
+export type Blattformat = "a4" | "a3" | "a2" | "a1" | "a0";
+export type Layoutwunsch = {
+/**
+ * Eigene Zeichnung (Planaufmaß ohne Unterlage).
+ */
+aufmass_id: string, revision: number, format: Blattformat, hochformat: boolean,
+/**
+ * Maßstabszahl, z. B. 100 für 1 : 100.
+ */
+massstab: number,
+/**
+ * Nordpfeil: Richtung Norden in Grad gegen den Uhrzeigersinn; `None` = ohne.
+ */
+nordwinkel_grad: number | null,
+/**
+ * Planinhalt im Plankopf; leer = Titel aus der Planliste bzw. Name der Zeichnung.
+ */
+planinhalt: string,
+/**
+ * Plan der Planliste, dessen Nummer und Index der Plankopf trägt; mit
+ * `ablegen` wird die Ausgabe neue Version dieses Dokuments.
+ */
+dokument_id: DocumentId | null, legende: boolean, nur_sichtbare_ebenen: boolean,
+/**
+ * Ausgabe zusätzlich im Projekt ablegen.
+ */
+ablegen: boolean, };
+export type Stempelwunsch = { dokument_id: DocumentId, version: number, seite: number, };
+export type Wolkenwunsch = { dokument_id: DocumentId, version: number, seite: number,
+/**
+ * Bereiche als [x, y, Breite, Höhe] in Seitenpunkten (links oben, y nach unten).
+ */
+bereiche: Array<[number, number, number, number]>,
+/**
+ * Index im Dreieck neben jeder Wolke, z. B. „b“.
+ */
+index: string, };
+export type Plankopf = { bauherr: string, vorhaben: string, grundstueck: string, planinhalt: string, planverfasser: string, plannummer: string, index: string, massstab: string, datum: string, format: string, };
 export type Laengeneinheit = "millimeter" | "zentimeter" | "dezimeter" | "meter" | "kilometer" | "zoll" | "fuss";
 export type CadMarkierung = { id: string, bezeichnung: string, punkte: Array<[number, number]>, geschlossen: boolean, };
 export type CadProjektaufmass = { dokument: Dokumentbezug, einheit: Laengeneinheit, markierungen: Array<CadMarkierung>, };
 export type Plankalibrierung = { "art": "massstab", nenner: number, } | { "art": "strecke", von: [number, number], bis: [number, number], meter: number, } | { "art": "einheit", einheit: Laengeneinheit, };
-export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean, };
+export type Planebene = { id: string, bezeichnung: string, sichtbar: boolean, gesperrt: boolean,
+/**
+ * Stift, Linienart, Farbe und Schraffur der Ebene; Elemente können sie überschreiben.
+ */
+darstellung?: Darstellung, };
+export type Darstellung = {
+/**
+ * Stiftstärke in mm auf dem Papier (0,1 … 2,5).
+ */
+stift_mm?: number, linienart?: Linienart,
+/**
+ * Farbe als `#rrggbb`.
+ */
+farbe?: string, schraffur?: Schraffur,
+/**
+ * Bauzustand nach BauVorlV/BauPrüfVO: Bestand grau, Abbruch gelb, Neubau rot
+ * (gilt, wenn keine eigene Farbe gesetzt ist).
+ */
+bauzustand?: Bauzustand, };
+export type Linienart = "volllinie" | "strichlinie" | "strichpunktlinie" | "punktlinie";
+export type Schraffur = "keine" | "voll" | "diagonal" | "kreuz" | "mauerwerk" | "beton" | "daemmung" | "erdreich";
+export type Bauzustand = "bestand" | "abbruch" | "neubau";
+export type Oeffnung = { art: Oeffnungsart,
+/**
+ * Abstand des Öffnungsanfangs vom Wandanfang (m).
+ */
+lage_m: number, breite_m: number, hoehe_m?: number, bruestung_m?: number,
+/**
+ * Türanschlag: Drehflügel öffnet zur linken Wandseite (in Richtung von→bis gesehen).
+ */
+links: boolean, };
+export type Oeffnungsart = "fenster" | "tuer";
+export type Plansymbol = "baum_bestand" | "baum_neu" | "baum_faellung" | "stellplatz" | "zufahrt" | "hauseingang" | "grenzpunkt";
 export type Plangeometrie = { "art": "polygon", punkte: Array<[number, number]>, } | { "art": "rechteck", von: [number, number], bis: [number, number], } | { "art": "kreis", mitte: [number, number], rand: [number, number], } | { "art": "strecke", von: [number, number], bis: [number, number], } | { "art": "hoehenpunkt", punkt: [number, number], } | { "art": "flaeche", polygone: Array<Planpolygon>, };
 export type Planpolygon = { aussen: Array<[number, number]>, innen?: Array<Array<[number, number]>>, };
 export type Flaechenoperation = "vereinen" | "abziehen" | "schneiden" | "teilen";
@@ -79,7 +270,11 @@ deckkraft: number, sichtbar: boolean,
  * wird; Seitenpunkte sind dann Meter des Modells (wie eine DXF in Metern).
  */
 geschoss?: string, };
-export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+export type Zeichenform = { "art": "wand", von: [number, number], bis: [number, number], dicke_m: number,
+/**
+ * Fenster und Türen, entlang der Achse ab `von`.
+ */
+oeffnungen?: Array<Oeffnung>, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
  * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
@@ -88,8 +283,24 @@ abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
 /**
  * Schrifthöhe in Seitenpunkten.
  */
-hoehe: number, drehung_grad: number, };
-export type Zeichenelement = { id: string, ebene_id: string, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number, } | { "art": "masskette", von: [number, number], bis: [number, number],
+hoehe: number, drehung_grad: number, } | { "art": "symbol", punkt: [number, number], symbol: Plansymbol,
+/**
+ * Größe in Seitenpunkten (bei eigenen Zeichnungen Meter).
+ */
+groesse: number, drehung_grad: number, } | { "art": "raumstempel", punkt: [number, number], raumbuch_id: string, raum_id: string,
+/**
+ * Schrifthöhe in Seitenpunkten.
+ */
+hoehe: number, };
+export type Zeichenelement = { id: string, ebene_id: string,
+/**
+ * Abweichende Darstellung des Elements; fehlende Felder erben von der Ebene.
+ */
+darstellung?: Darstellung, } & ({ "art": "wand", von: [number, number], bis: [number, number], dicke_m: number,
+/**
+ * Fenster und Türen, entlang der Achse ab `von`.
+ */
+oeffnungen?: Array<Oeffnung>, } | { "art": "masskette", von: [number, number], bis: [number, number],
 /**
  * Abstand der Maßlinie von der Strecke in Seitenpunkten; positiv = rechts
  * der Richtung von→bis (bei y nach unten also im Uhrzeigersinn gedreht).
@@ -98,7 +309,15 @@ abstand: number, } | { "art": "text", punkt: [number, number], inhalt: string,
 /**
  * Schrifthöhe in Seitenpunkten.
  */
-hoehe: number, drehung_grad: number, });
+hoehe: number, drehung_grad: number, } | { "art": "symbol", punkt: [number, number], symbol: Plansymbol,
+/**
+ * Größe in Seitenpunkten (bei eigenen Zeichnungen Meter).
+ */
+groesse: number, drehung_grad: number, } | { "art": "raumstempel", punkt: [number, number], raumbuch_id: string, raum_id: string,
+/**
+ * Schrifthöhe in Seitenpunkten.
+ */
+hoehe: number, });
 export type Planmesswert = { id: string, laenge_m: number | null, flaeche_m2: number | null, horizontale_m: number | null, hoehe_m: number | null, neigung_grad: number | null, offen: Array<string>, };
 export type Planmessgroesse = "flaeche" | "laenge" | "horizontale" | "hoehe" | "neigung";
 export type Planbindung = { aufmass_id: string, revision: number, markierung_id: string, groesse: Planmessgroesse,
@@ -1429,7 +1648,7 @@ regelstand: string, };
 export type Textquelle = "pdf" | "email" | "ocr" | "manuell";
 export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textquelle, text: string, indexiert_am: string, };
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
-export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell";
+export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste" | "fachplanerlieferung" | "baukennwerte";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
 export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
@@ -1497,6 +1716,49 @@ export type Flurstuecksverweis = { flurstueck_id: string,
 bereich: string, objekt: string, bezeichnung: string, };
 export type AufgabenStatus = "offen" | "in_arbeit" | "erledigt";
 export type Aufgabe = { titel: string, beschreibung: string, faellig: string | null, verantwortlich: BenutzerId | null, status: AufgabenStatus, bezug: string | null, };
+export type Tagebuchart = "notiz" | "telefonat" | "besprechung" | "ortstermin" | "vorfall" | "entscheidung_bauherr" | "sonstiges";
+export type Wiedervorlage = { datum: string, verantwortlich: BenutzerId | null, erledigt: boolean, };
+export type Tagebucheintrag = {
+/**
+ * Tag des Ereignisses (Ortsdatum), nicht nach heute.
+ */
+datum: string, art: Tagebuchart, titel: string, text: string,
+/**
+ * Beteiligte Personen oder Firmen als freie Angabe.
+ */
+beteiligte: string,
+/**
+ * Fotos, Protokolle oder Schreiben aus den Projektdateien.
+ */
+anhaenge: Array<Dokumentbezug>,
+/**
+ * Optionaler Bezug auf eine Verfahrensakte des Projekts.
+ */
+verfahren: string | null, wiedervorlage: Wiedervorlage | null, };
+export type Fachdisziplin = "tragwerksplanung" | "brandschutz" | "waermeschutz" | "schallschutz" | "vermessung" | "entwaesserung" | "baugrund" | "haustechnik" | "freianlagen" | "sonstiges";
+export type Lieferstatus = "offen" | "angefragt" | "teilweise" | "geliefert" | "geprueft" | "entfallen";
+export type Lieferposition = { bezeichnung: string, geliefert: boolean, };
+export type Fachplanerlieferung = { disziplin: Fachdisziplin,
+/**
+ * Büro oder Person des Fachplaners.
+ */
+fachplaner: string, kontakt: string, positionen: Array<Lieferposition>, angefragt_am: string | null,
+/**
+ * Zugesagter Liefertermin.
+ */
+faellig: string | null, status: Lieferstatus,
+/**
+ * Wer im Büro die Lieferung nachhält.
+ */
+verantwortlich: BenutzerId | null,
+/**
+ * Gelieferte Unterlagen aus den Projektdateien.
+ */
+dokumente: Array<Dokumentbezug>,
+/**
+ * Verfahren, für das geliefert wird; leer = alle Verfahren des Projekts.
+ */
+verfahren: string | null, bemerkung: string, };
 export type UnterlagenStatus = "entwurf" | "pruefung" | "freigegeben";
 export type Unterlage = { vorlage: ChecklistenQuelle | null, bezeichnung: string, erforderlich: boolean, dokument: Dokumentbezug | null, status: UnterlagenStatus, bemerkung: string, };
 export type ChecklistenQuelle = { id: string, version: string, punkt: string, };
@@ -1513,6 +1775,73 @@ export type VerfahrensUeberblick = { id: string, bezeichnung: string, behoerde: 
 export type AbgabeUeberblick = { id: string, titel: string, empfaenger: string, quelle: string, status: string, datum: string | null, dokumente: number, ziel: UebersichtsZiel, };
 export type EmpfaengerDokument = { dokument_id: string, dateiname: string, eingereichte_version: bigint, aktuelle_version: bigint | null, eingereicht_am: string, status: string, };
 export type EmpfaengerUeberblick = { empfaenger: string, dokumente: Array<EmpfaengerDokument>, ziel: UebersichtsZiel, };
+export type Ampel = "rot" | "gelb" | "gruen";
+export type Pruefbereich = "grundlagen" | "unterlagen" | "nachweise" | "plaene" | "formulare" | "fachplaner" | "verfahren";
+export type Pruefpunkt = { id: string, bereich: Pruefbereich, ampel: Ampel, titel: string, hinweis: string, faellig: string | null, verantwortlich: string | null, ziel: UebersichtsZiel, };
+export type Bereichsstand = { bereich: Pruefbereich, bezeichnung: string, ampel: Ampel, rot: number, gelb: number, };
+export type Einreichungspruefung = { stichtag: string, verfahren: string | null, gesamt: Ampel, bereiche: Array<Bereichsstand>,
+/**
+ * Rot vor Gelb, innerhalb nach Bereich.
+ */
+punkte: Array<Pruefpunkt>, };
+export type Regelquelle = { titel: string, url: string | null, };
+export type Gebaeudeartwert = { id: string, bezeichnung: string, euro_je_m3: number | null, };
+export type Bautaetigkeit = "neubau" | "bestand";
+export type Bauherrenart = "privater_haushalt" | "unternehmen" | "oeffentliche_hand" | "organisation_ohne_erwerbszweck";
+export type Baukennwerte = {
+/**
+ * Kennung einer Gebäudeart aus dem Regelpaket.
+ */
+gebaeudeart: string,
+/**
+ * Brutto-Rauminhalt; leer = aus der DIN-277-Berechnung.
+ */
+bri_m3: number | null,
+/**
+ * Rohbauwert je m³; leer = Wert des Regelpakets.
+ */
+euro_je_m3: number | null,
+/**
+ * Gebührensatz in Promille des Rohbauwerts; leer = Regelpaket.
+ */
+promille: number | null, bautaetigkeit: Bautaetigkeit,
+/**
+ * Leer = aus der Kundenkategorie des ersten Bauherrn.
+ */
+bauherrenart: Bauherrenart | null,
+/**
+ * Leer = Wohneinheiten der Wohnflächenberechnung.
+ */
+wohnungen: number | null, heizung: string, energie_primaer: string, energie_sekundaer: string, baustoff: string, fertigteilbau: boolean,
+/**
+ * Veranschlagte Kosten des Bauwerks (Kostengruppen 300 und 400).
+ */
+kosten_bauwerk_euro: number | null, };
+export type Kennwert = { wert: number | null,
+/**
+ * „Eingabe“, Berechnungsname oder Regelpaket.
+ */
+quelle: string, };
+export type Gebuehrenschaetzung = { land: string, gebaeudeart: string, bri_m3: Kennwert, euro_je_m3: Kennwert, rohbauwert_euro: number | null, promille: Kennwert, mindestgebuehr_euro: number, gebuehr_euro: number | null, rechtsgrundlage: string,
+/**
+ * `false` = Regelwerte ohne fachliche Abnahme.
+ */
+geprueft: boolean, stand: string, offen: Array<string>, hinweise: Array<string>, quellen: Array<Regelquelle>, gebaeudearten: Array<Gebaeudeartwert>, };
+export type Statistikmerkmal = { gruppe: string, bezeichnung: string,
+/**
+ * Leer = noch keine Angabe.
+ */
+wert: string, quelle: string, };
+export type Baustatistikbogen = { merkmale: Array<Statistikmerkmal>,
+/**
+ * Bezeichnungen ohne Angabe.
+ */
+offen: Array<string>, hinweis: string, };
+export type Tagesmaileinstellung = { aktiv: boolean, adresse: string, umfang: Aboumfang,
+/**
+ * Abwesend bis einschließlich; während dessen gehen eigene Termine an die Vertretung.
+ */
+abwesend_bis: string | null, vertretung: BenutzerId | null, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
