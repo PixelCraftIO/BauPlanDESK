@@ -88,6 +88,163 @@ pub struct Aufgabe {
     pub status: AufgabenStatus,
     pub bezug: Option<Uuid>,
 }
+/// Art eines Projekttagebucheintrags.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Tagebuchart {
+    Notiz,
+    Telefonat,
+    Besprechung,
+    Ortstermin,
+    /// Mangel oder Vorfall, etwa auf der Baustelle oder bei einer Lieferung.
+    Vorfall,
+    /// Entscheidung oder Weisung des Bauherrn.
+    EntscheidungBauherr,
+    Sonstiges,
+}
+impl Tagebuchart {
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Notiz => "Notiz",
+            Self::Telefonat => "Telefonat",
+            Self::Besprechung => "Besprechung",
+            Self::Ortstermin => "Ortstermin",
+            Self::Vorfall => "Vorfall / Mangel",
+            Self::EntscheidungBauherr => "Entscheidung Bauherr",
+            Self::Sonstiges => "Sonstiges",
+        }
+    }
+}
+/// Wiedervorlage eines Tagebucheintrags; erscheint im Büro-Cockpit und im
+/// Kalender-Abo, bis sie erledigt ist.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Wiedervorlage {
+    pub datum: NaiveDate,
+    pub verantwortlich: Option<BenutzerId>,
+    pub erledigt: bool,
+}
+/// Eintrag im Projekttagebuch: Vorfälle und Absprachen außerhalb der
+/// Behördenkommunikation (die bleibt in der Verfahrensakte).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Tagebucheintrag {
+    /// Tag des Ereignisses (Ortsdatum), nicht nach heute.
+    pub datum: NaiveDate,
+    pub art: Tagebuchart,
+    pub titel: String,
+    pub text: String,
+    /// Beteiligte Personen oder Firmen als freie Angabe.
+    #[serde(default)]
+    pub beteiligte: String,
+    /// Fotos, Protokolle oder Schreiben aus den Projektdateien.
+    #[serde(default)]
+    pub anhaenge: Vec<Dokumentbezug>,
+    /// Optionaler Bezug auf eine Verfahrensakte des Projekts.
+    #[serde(default)]
+    pub verfahren: Option<Uuid>,
+    #[serde(default)]
+    pub wiedervorlage: Option<Wiedervorlage>,
+}
+/// Fachdisziplin eines Fachplaners oder Gutachters.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Fachdisziplin {
+    Tragwerksplanung,
+    Brandschutz,
+    Waermeschutz,
+    Schallschutz,
+    Vermessung,
+    Entwaesserung,
+    Baugrund,
+    Haustechnik,
+    Freianlagen,
+    Sonstiges,
+}
+impl Fachdisziplin {
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Tragwerksplanung => "Tragwerksplanung / Statik",
+            Self::Brandschutz => "Brandschutz",
+            Self::Waermeschutz => "Wärmeschutz / GEG",
+            Self::Schallschutz => "Schallschutz",
+            Self::Vermessung => "Vermessung / Lageplan",
+            Self::Entwaesserung => "Entwässerung",
+            Self::Baugrund => "Baugrund / Bodengutachten",
+            Self::Haustechnik => "Haustechnik",
+            Self::Freianlagen => "Freianlagen",
+            Self::Sonstiges => "Sonstiges",
+        }
+    }
+}
+/// Stand einer Lieferung, die beim Fachplaner angefragt ist.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+pub enum Lieferstatus {
+    /// Noch nicht beauftragt oder angefragt.
+    Offen,
+    Angefragt,
+    /// Teillieferung oder Entwurf liegt vor.
+    Teilweise,
+    Geliefert,
+    /// Vom Büro geprüft und für die Einreichung übernommen.
+    Geprueft,
+    Entfallen,
+}
+impl Lieferstatus {
+    /// Wartet das Büro noch auf den Fachplaner?
+    pub fn ausstehend(self) -> bool {
+        matches!(self, Self::Offen | Self::Angefragt | Self::Teilweise)
+    }
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            Self::Offen => "Offen",
+            Self::Angefragt => "Angefragt",
+            Self::Teilweise => "Teilweise geliefert",
+            Self::Geliefert => "Geliefert, Prüfung offen",
+            Self::Geprueft => "Geprüft",
+            Self::Entfallen => "Entfallen",
+        }
+    }
+}
+/// Einzelne angeforderte Unterlage (z. B. „Standsicherheitsnachweis“).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Lieferposition {
+    pub bezeichnung: String,
+    pub geliefert: bool,
+}
+/// Lieferliste je Fachplaner: was angefordert ist, bis wann, und in welchem
+/// Stand. Ausstehende Lieferungen mit Termin erscheinen im Büro-Cockpit, im
+/// Kalender-Abo und in der Einreichungsprüfung.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Fachplanerlieferung {
+    pub disziplin: Fachdisziplin,
+    /// Büro oder Person des Fachplaners.
+    pub fachplaner: String,
+    #[serde(default)]
+    pub kontakt: String,
+    #[serde(default)]
+    pub positionen: Vec<Lieferposition>,
+    #[serde(default)]
+    pub angefragt_am: Option<NaiveDate>,
+    /// Zugesagter Liefertermin.
+    #[serde(default)]
+    pub faellig: Option<NaiveDate>,
+    pub status: Lieferstatus,
+    /// Wer im Büro die Lieferung nachhält.
+    #[serde(default)]
+    pub verantwortlich: Option<BenutzerId>,
+    /// Gelieferte Unterlagen aus den Projektdateien.
+    #[serde(default)]
+    pub dokumente: Vec<Dokumentbezug>,
+    /// Verfahren, für das geliefert wird; leer = alle Verfahren des Projekts.
+    #[serde(default)]
+    pub verfahren: Option<Uuid>,
+    #[serde(default)]
+    pub bemerkung: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum UnterlagenStatus {
@@ -295,15 +452,11 @@ pub(super) async fn validieren(
                 serde_json::from_value(daten).map_err(json_err)?;
             core.planaufmass_pruefen(p.id, &plan).await?;
             // Unterlage bzw. Hintergründe müssen lesbar sein und die Seite besitzen.
-            let unterlagen = plan
-                .dokument
-                .iter()
-                .map(|d| (d, plan.seite, None))
-                .chain(
-                    plan.hintergruende
-                        .iter()
-                        .map(|h| (&h.dokument, h.seite, h.geschoss.as_deref())),
-                );
+            let unterlagen = plan.dokument.iter().map(|d| (d, plan.seite, None)).chain(
+                plan.hintergruende
+                    .iter()
+                    .map(|h| (&h.dokument, h.seite, h.geschoss.as_deref())),
+            );
             for (d, seite, geschoss) in unterlagen {
                 if let Some(g) = geschoss {
                     // IFC-Hintergrund: Modell lesbar, Geschoss vorhanden.
@@ -448,6 +601,101 @@ pub(super) async fn validieren(
                 dokument(core, p.id, d).await?;
             }
             serde_json::to_value(g)
+        }
+        ObjektArt::Planliste => return core.planeintrag_pruefen(p, objekt, daten).await,
+        ObjektArt::Projekttagebuch => {
+            let e: Tagebucheintrag = serde_json::from_value(daten).map_err(json_err)?;
+            text(&e.titel, 300)?;
+            if e.text.chars().count() > 20000 || e.beteiligte.chars().count() > 2000 {
+                return Err(CoreError::InvalidInput("Tagebucheintrag zu lang".into()));
+            }
+            if e.datum > crate::kalender::heute() {
+                return Err(CoreError::InvalidInput(
+                    "Das Datum eines Tagebucheintrags liegt nicht in der Zukunft; Künftiges als Wiedervorlage erfassen".into(),
+                ));
+            }
+            if e.anhaenge.len() > 100 {
+                return Err(CoreError::InvalidInput("Zu viele Anhänge".into()));
+            }
+            for d in &e.anhaenge {
+                dokument(core, p.id, d).await?;
+            }
+            if let Some(v) = e.verfahren
+                && core
+                    .repos
+                    .commit
+                    .fachobjekt(p.id, "verfahren", &v.to_string())
+                    .await?
+                    .is_none()
+            {
+                return Err(CoreError::InvalidInput(
+                    "Verfahrensakte gehört nicht zu diesem Projekt".into(),
+                ));
+            }
+            if let Some(id) = e.wiedervorlage.as_ref().and_then(|w| w.verantwortlich) {
+                let b = core.repos.benutzer.get(id).await?;
+                if !b.aktiv {
+                    return Err(CoreError::InvalidInput(
+                        "Verantwortlicher Benutzer ist inaktiv".into(),
+                    ));
+                }
+            }
+            serde_json::to_value(e)
+        }
+        ObjektArt::Baukennwerte => {
+            if objekt != p.id.0 {
+                return Err(CoreError::InvalidInput(
+                    "Baukennwerte gehören zum Projekt (Objektkennung = Projekt-ID)".into(),
+                ));
+            }
+            let k: crate::baukennwerte::Baukennwerte =
+                serde_json::from_value(daten).map_err(json_err)?;
+            k.pruefen()?;
+            serde_json::to_value(k)
+        }
+        ObjektArt::Fachplanerlieferung => {
+            let l: Fachplanerlieferung = serde_json::from_value(daten).map_err(json_err)?;
+            text(&l.fachplaner, 300)?;
+            if l.kontakt.chars().count() > 1000 || l.bemerkung.chars().count() > 10000 {
+                return Err(CoreError::InvalidInput("Lieferliste: Text zu lang".into()));
+            }
+            if l.positionen.len() > 200 || l.dokumente.len() > 200 {
+                return Err(CoreError::InvalidInput("Lieferliste zu lang".into()));
+            }
+            for p in &l.positionen {
+                text(&p.bezeichnung, 300)?;
+            }
+            if let (Some(a), Some(f)) = (l.angefragt_am, l.faellig)
+                && f < a
+            {
+                return Err(CoreError::InvalidInput(
+                    "Der Liefertermin liegt vor dem Anfragedatum".into(),
+                ));
+            }
+            for d in &l.dokumente {
+                dokument(core, p.id, d).await?;
+            }
+            if let Some(v) = l.verfahren
+                && core
+                    .repos
+                    .commit
+                    .fachobjekt(p.id, "verfahren", &v.to_string())
+                    .await?
+                    .is_none()
+            {
+                return Err(CoreError::InvalidInput(
+                    "Verfahrensakte gehört nicht zu diesem Projekt".into(),
+                ));
+            }
+            if let Some(id) = l.verantwortlich {
+                let b = core.repos.benutzer.get(id).await?;
+                if !b.aktiv {
+                    return Err(CoreError::InvalidInput(
+                        "Verantwortlicher Benutzer ist inaktiv".into(),
+                    ));
+                }
+            }
+            serde_json::to_value(l)
         }
         ObjektArt::Aufgaben => {
             let a: Aufgabe = serde_json::from_value(daten).map_err(json_err)?;

@@ -76,6 +76,7 @@ fn plan(g: Plangeometrie) -> Planaufmass {
             bezeichnung: "Räume".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![Planmarkierung {
             id: Uuid::from_u128(3),
@@ -755,15 +756,18 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     z.elemente.push(Zeichenelement {
         id: Uuid::from_u128(50),
         ebene_id: ebene,
+        darstellung: None,
         form: Zeichenform::Wand {
             von: [0., 0.],
             bis: [10., 0.],
             dicke_m: 0.24,
+            oeffnungen: vec![],
         },
     });
     z.elemente.push(Zeichenelement {
         id: Uuid::from_u128(51),
         ebene_id: ebene,
+        darstellung: None,
         form: Zeichenform::Masskette {
             von: [0., 0.],
             bis: [10., 0.],
@@ -773,6 +777,7 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     z.elemente.push(Zeichenelement {
         id: Uuid::from_u128(52),
         ebene_id: ebene,
+        darstellung: None,
         form: Zeichenform::Text {
             punkt: [1., 1.],
             inhalt: "Wohnen".into(),
@@ -795,6 +800,7 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
         von: [0., 0.],
         bis: [10., 0.],
         dicke_m: 12.,
+        oeffnungen: vec![],
     };
     assert!(falsch.messen().is_err(), "Wanddicke");
     let mut falsch = z.clone();
@@ -807,4 +813,152 @@ fn zeichenelemente_werden_geprueft_und_gespeichert() {
     });
     aufmass.elemente.push(z.elemente[2].clone());
     assert!(aufmass.messen().is_ok());
+}
+
+#[test]
+fn darstellung_von_ebene_und_element_wird_geprueft() {
+    let mut z = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    z.ebenen[0].darstellung = Some(Darstellung {
+        stift_mm: Some(0.5),
+        linienart: Some(Linienart::Strichlinie),
+        farbe: Some("#aa3300".into()),
+        schraffur: Some(Schraffur::Mauerwerk),
+        bauzustand: None,
+    });
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(60),
+        ebene_id: z.ebenen[0].id,
+        darstellung: Some(Darstellung {
+            stift_mm: Some(0.25),
+            ..Default::default()
+        }),
+        form: Zeichenform::Wand {
+            von: [0., 0.],
+            bis: [5., 0.],
+            dicke_m: 0.365,
+            oeffnungen: vec![],
+        },
+    });
+    assert!(z.messen().is_ok());
+    let json = serde_json::to_value(&z).unwrap();
+    assert_eq!(json["ebenen"][0]["darstellung"]["schraffur"], "mauerwerk");
+    assert_eq!(json["elemente"][0]["darstellung"]["stift_mm"], 0.25);
+    assert_eq!(json["elemente"][0]["art"], "wand");
+    let wieder: Planaufmass = serde_json::from_value(json).unwrap();
+    assert_eq!(wieder, z);
+
+    let mut falsch = z.clone();
+    falsch.ebenen[0].darstellung.as_mut().unwrap().farbe = Some("rot".into());
+    assert!(falsch.messen().is_err());
+    let mut falsch = z.clone();
+    falsch.elemente[0].darstellung.as_mut().unwrap().stift_mm = Some(7.);
+    assert!(falsch.messen().is_err());
+}
+
+#[test]
+fn oeffnungen_planzeichen_und_raumstempel() {
+    let mut z = zeichnung(Plangeometrie::Rechteck {
+        von: [0., 0.],
+        bis: [1., 1.],
+    });
+    let ebene = z.ebenen[0].id;
+    let fenster = |lage_m: f64, breite_m: f64| Oeffnung {
+        art: Oeffnungsart::Fenster,
+        lage_m,
+        breite_m,
+        hoehe_m: Some(1.385),
+        bruestung_m: Some(0.885),
+        links: false,
+    };
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(70),
+        ebene_id: ebene,
+        darstellung: Some(Darstellung {
+            bauzustand: Some(Bauzustand::Neubau),
+            ..Default::default()
+        }),
+        form: Zeichenform::Wand {
+            von: [0., 0.],
+            bis: [6., 0.],
+            dicke_m: 0.24,
+            oeffnungen: vec![
+                fenster(1., 1.01),
+                Oeffnung {
+                    art: Oeffnungsart::Tuer,
+                    lage_m: 3.,
+                    breite_m: 0.885,
+                    hoehe_m: None,
+                    bruestung_m: None,
+                    links: true,
+                },
+            ],
+        },
+    });
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(71),
+        ebene_id: ebene,
+        darstellung: None,
+        form: Zeichenform::Symbol {
+            punkt: [8., 8.],
+            symbol: Plansymbol::BaumBestand,
+            groesse: 4.,
+            drehung_grad: 0.,
+        },
+    });
+    z.elemente.push(Zeichenelement {
+        id: Uuid::from_u128(72),
+        ebene_id: ebene,
+        darstellung: None,
+        form: Zeichenform::Raumstempel {
+            punkt: [2., 2.],
+            raumbuch_id: Uuid::from_u128(1),
+            raum_id: Uuid::from_u128(2),
+            hoehe: 0.3,
+        },
+    });
+    assert!(z.messen().is_ok());
+    let json = serde_json::to_value(&z).unwrap();
+    assert_eq!(json["elemente"][0]["oeffnungen"][1]["art"], "tuer");
+    assert_eq!(json["elemente"][1]["symbol"], "baum_bestand");
+    let wieder: Planaufmass = serde_json::from_value(json).unwrap();
+    assert_eq!(wieder.elemente.len(), 3);
+    // Wandstücke: vor dem Fenster, zwischen Fenster und Tür, nach der Tür.
+    let Zeichenform::Wand {
+        von,
+        bis,
+        dicke_m,
+        oeffnungen,
+    } = &z.elemente[0].form
+    else {
+        unreachable!()
+    };
+    let w = crate::planlayout::wandbild(*von, *bis, *dicke_m, oeffnungen, 1.);
+    assert_eq!(w.stuecke.len(), 3);
+    assert_eq!(w.linien.len(), 4 + 2);
+
+    let mut falsch = z.clone();
+    if let Zeichenform::Wand { oeffnungen, .. } = &mut falsch.elemente[0].form {
+        oeffnungen.push(fenster(1.5, 1.));
+    }
+    assert!(
+        falsch
+            .messen()
+            .unwrap_err()
+            .to_string()
+            .contains("überlappen")
+    );
+    let mut falsch = z.clone();
+    if let Zeichenform::Wand { oeffnungen, .. } = &mut falsch.elemente[0].form {
+        *oeffnungen = vec![fenster(5.5, 1.)];
+    }
+    assert!(
+        falsch
+            .messen()
+            .unwrap_err()
+            .to_string()
+            .contains("Wandende")
+    );
 }

@@ -1818,7 +1818,9 @@ impl crate::CoreServices {
                 .elemente
                 .iter()
                 .filter_map(|el| match &el.form {
-                    Zeichenform::Wand { von, bis, dicke_m } => {
+                    Zeichenform::Wand {
+                        von, bis, dicke_m, ..
+                    } => {
                         let (von, bis) = ([von[0], -von[1]], [bis[0], -bis[1]]);
                         Some(Entwurfswand {
                             id: el.id,

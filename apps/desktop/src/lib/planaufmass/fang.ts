@@ -1,6 +1,6 @@
 import type { Point, Segment, SnapGeometry } from "./pdfGeometry";
-export interface Fangoptionen { endpunkte:boolean; mittelpunkte:boolean; kanten:boolean; schnittpunkte:boolean; eigene:boolean }
-export const standardFang:Fangoptionen={endpunkte:true,mittelpunkte:true,kanten:true,schnittpunkte:false,eigene:true};
+export interface Fangoptionen { endpunkte:boolean; mittelpunkte:boolean; kanten:boolean; schnittpunkte:boolean; eigene:boolean; lot:boolean; verlaengerung:boolean }
+export const standardFang:Fangoptionen={endpunkte:true,mittelpunkte:true,kanten:true,schnittpunkte:false,eigene:true,lot:true,verlaengerung:true};
 type Kandidat={punkt:Point;art:string};
 /** Räumlicher Index wird je Geometriestand aufgebaut, nicht je Zeigerbewegung. */
 export class Fangindex {
@@ -24,6 +24,14 @@ export class Fangindex {
   }
   private key(p:Point){return `${Math.floor(p[0]/this.zelle)}:${Math.floor(p[1]/this.zelle)}`}
   private bereich(a:Point,b:Point){return [Math.floor(Math.min(a[0],b[0])/this.zelle),Math.floor(Math.min(a[1],b[1])/this.zelle),Math.floor(Math.max(a[0],b[0])/this.zelle),Math.floor(Math.max(a[1],b[1])/this.zelle)]}
+  /** Kanten der Unterlage in der Nähe von p (für Lotfang). */
+  kantenNahe(p:Point,toleranz:number):Segment[]{
+    const [x0,y0,x1,y1]=this.bereich([p[0]-toleranz,p[1]-toleranz],[p[0]+toleranz,p[1]+toleranz]);
+    if((x1-x0+1)*(y1-y0+1)>4096)return [];
+    const ss=new Set<Segment>(this.lange);
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(const s of this.segmente.get(`${x}:${y}`)??[])ss.add(s);
+    return [...ss].slice(0,512);
+  }
   suchen(p:Point,toleranz:number,o:Fangoptionen=standardFang):{point:Point;kind:string}|null{
     const [x0,y0,x1,y1]=this.bereich([p[0]-toleranz,p[1]-toleranz],[p[0]+toleranz,p[1]+toleranz]);
     let ps:Kandidat[]=[],ss=new Set<Segment>(this.lange);

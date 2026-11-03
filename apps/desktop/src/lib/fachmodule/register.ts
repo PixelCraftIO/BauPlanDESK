@@ -107,6 +107,36 @@ export const FACHMODULE = [
     laden: () => import("./Aufgaben.svelte"),
   },
   {
+    id: "projekttagebuch",
+    titel: "Projekttagebuch",
+    gruppe: "Organisation",
+    laden: () => import("./Projekttagebuch.svelte"),
+  },
+  {
+    id: "fachplaner",
+    titel: "Fachplaner / Lieferungen",
+    gruppe: "Organisation",
+    laden: () => import("./Fachplaner.svelte"),
+  },
+  {
+    id: "baukennwerte",
+    titel: "Rohbauwert, Gebühr, Baustatistik",
+    gruppe: "Berechnungen",
+    laden: () => import("./Baukennwerte.svelte"),
+  },
+  {
+    id: "einreichungspruefung",
+    titel: "Einreichungsprüfung",
+    gruppe: "Unterlagen",
+    laden: () => import("./Einreichungspruefung.svelte"),
+  },
+  {
+    id: "planliste",
+    titel: "Planliste",
+    gruppe: "Unterlagen",
+    laden: () => import("./Planliste.svelte"),
+  },
+  {
     id: "unterlagen",
     titel: "Unterlagenregister",
     gruppe: "Unterlagen",

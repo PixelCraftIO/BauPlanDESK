@@ -165,6 +165,45 @@ vermeidet dabei Doppelerfassungen:
 4. Flächen, Strecken und Höhen als Markierungen zeichnen und wie oben zuordnen.
    Der PDF-Export gibt die Zeichnung im Maßstab 1:100 aus.
 
+### Konstruieren wie im CAD
+
+Der Editor bleibt ein Werkzeug für Genehmigungsplanung und Nachweise neben dem
+Büro-CAD. Die gewohnten Handgriffe sind aber da:
+
+- **Fensterauswahl:** mit dem Auswahlwerkzeug ein Rechteck aufziehen. Von links
+  nach rechts werden nur vollständig enthaltene Objekte gewählt, von rechts nach
+  links auch berührte. Mit Umschalt wird die Auswahl ergänzt.
+- **Kopieren** (C), **Spiegeln** (I) und **Stutzen/Dehnen** (D) arbeiten mit
+  einer gezogenen Linie (Verschiebung, Spiegelachse oder Schneidekante).
+  „Beim Spiegeln Original behalten“ erzeugt eine Kopie.
+- **Versatz** und **Reihe** im Bereich „Konstruieren“ der Eigenschaften, Abstände
+  in Metern.
+- **Ortho** (F8) und **Winkelraster** (0/15/30/45/90°), Fang auf **Lot** und
+  **Verlängerung**.
+- **Koordinateneingabe** mit @: `5,20` (Länge), `5,20<90` (Länge und Winkel),
+  `@3;4` (relativ), beim Rechteck `Breite;Höhe`.
+- **Befehlszeile** (F2) mit Kürzeln wie im CAD: L, PL, R, K, W, BM, T, KO, SP,
+  ST, `VS 0,5`, RH, FE, SY, RS, E, OR. Enter wiederholt den letzten Befehl.
+
+### Darstellung, Öffnungen und Planzeichen
+
+- Stift (0,1–2,5 mm), Linienart, Farbe, Schraffur und **Bauzustand** (Bestand
+  grau, Abbruch gelb, Neubau rot) je Ebene oder Element; das Element hat
+  Vorrang. Ebenen lassen sich sperren, „Lageplan-Ebenen anlegen“ legt die
+  üblichen Lageplan-Ebenen an.
+- **Öffnung** (F) setzt Fenster oder Tür in eine Wand (Breite, Höhe,
+  Brüstung, Anschlag).
+- **Planzeichen** (G): Bäume (Bestand, neu, Fällung), Stellplatz, Zufahrt,
+  Hauseingang, Grenzpunkt.
+- **Raumstempel** (N) zeigt Nummer, Bezeichnung und Fläche aus dem Raumbuch.
+
+### Planlayout und DXF
+
+„Planlayout“ gibt die eigene Zeichnung maßstäblich auf A4 bis A0 aus, mit
+Plankopf aus Projekt und Planliste, Nordpfeil, Maßstabsleiste und Legende;
+wahlweise als neue Version des Plandokuments. „DXF fürs CAD …“ gibt Zeichnung
+oder kalibriertes Aufmaß in Metern mit einer DXF-Ebene je Zeichenebene aus.
+
 ## IFC-Modell (BIM)
 
 Liefert die Planungssoftware ein Gebäudemodell im IFC-Format, wertet BauPlanIO
@@ -352,6 +391,15 @@ sich mit **Als Modell öffnen** sofort prüfen.
 welche Berechnung eingeht. Oben stehen die Zähler (Markierungen, davon
 verwendet, mit älterem Aufmaßstand, offene Aufgaben). Filter nach Aufmaß,
 Status und Suchtext. **Im Editor zeigen** springt zur Markierung.
+
+## Planliste
+
+Die Planliste führt jeden Plan mit Plannummer nach Büroschema (Einstellungen →
+Plannummern, z. B. `2026-014-GR-EG-03`), Büroindex a, b, c mit Änderungstext,
+Behördenindex aus den Abgaben und Planverteiler. „Plankopf stempeln …“ setzt
+den Plankopf auf einen PDF-Plan aus dem Büro-CAD. Im Abschnitt
+„Planvergleich“ zeigt ein Differenzbild Neues grün und Entfallenes rot;
+„Revisionswolken als PDF …“ gibt die Fassung mit Wolken und Indexdreieck aus.
 
 ## Unterlagenregister
 

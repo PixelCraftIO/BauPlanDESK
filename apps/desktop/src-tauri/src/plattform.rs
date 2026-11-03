@@ -215,6 +215,18 @@ pub async fn projektuebersicht(
 }
 
 #[tauri::command]
+pub async fn einreichungspruefung(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    verfahren: Option<Uuid>,
+) -> Result<core_lib::einreichungspruefung::Einreichungspruefung, CmdError> {
+    Ok(state
+        .core
+        .einreichungspruefung(projekt_id, verfahren, &state.benutzer())
+        .await?)
+}
+
+#[tauri::command]
 pub async fn gebaeude_auswerten(
     state: State<'_, AppState>,
     projekt_id: ProjectId,

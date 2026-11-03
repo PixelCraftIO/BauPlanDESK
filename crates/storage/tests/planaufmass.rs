@@ -71,6 +71,7 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
             bezeichnung: "DIN 277".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![Planmarkierung {
             id: markierung,
@@ -346,6 +347,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
             bezeichnung: "Aufmaß".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![
             Planmarkierung {
@@ -995,6 +997,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
             bezeichnung: "Aufmaß".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen,
         ausschnitte: vec![
@@ -1397,6 +1400,7 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
             bezeichnung: "Räume".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![
             markierung(raum, "Schlafen", [100., 50.], None),
@@ -1642,6 +1646,7 @@ async fn flurstuecke_werden_aus_dem_pdf_aufmass_uebernommen() {
             bezeichnung: "Flurstücke".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         // 100 × 100 pt = 10 m × 10 m = 100 m²; 100 × 50 pt = 50 m².
         markierungen: vec![
@@ -1965,6 +1970,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
             bezeichnung: "Lageplan".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![gruen, zufahrt],
         ausschnitte: vec![],
@@ -2538,6 +2544,7 @@ async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
             bezeichnung: "Lageplan".into(),
             sichtbar: true,
             gesperrt: false,
+            darstellung: None,
         }],
         markierungen: vec![mark(
             1,

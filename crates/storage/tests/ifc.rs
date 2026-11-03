@@ -855,10 +855,12 @@ async fn export_nacharbeit_und_eigenes_modell_aus_zeichnungen() {
         eg.elemente.push(Zeichenelement {
             id: Uuid::new_v4(),
             ebene_id: ebene,
+            darstellung: None,
             form: Zeichenform::Wand {
                 von,
                 bis,
                 dicke_m: 0.24,
+                oeffnungen: vec![],
             },
         });
     }

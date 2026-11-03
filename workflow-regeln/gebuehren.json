@@ -1,0 +1,31 @@
+{
+ "id": "gebuehren",
+ "version": "2026-11-01",
+ "hinweis": "Regelpaket ohne fachliche Abnahme. Die Rohbauwerte je Kubikmeter Brutto-Rauminhalt und der Gebührensatz sind Schätzwerte für die Kostenauskunft an den Bauherrn, nicht aus dem amtlichen Runderlass übernommen. Vor der Nutzung mit der aktuellen Rohbauwerttabelle des Landes und dem Gebührentarif vergleichen und im Projekt überschreiben. Maßgebend ist allein der Gebührenbescheid der Bauaufsicht.",
+ "laender": [
+  {
+   "land": "NW",
+   "titel": "Rohbauwert und Baugenehmigungsgebühr Nordrhein-Westfalen",
+   "geprueft": false,
+   "stand": "Schätzwerte 2026, nicht gegen den Runderlass „Rohbauwerte“ geprüft",
+   "gebuehr": {
+    "promille": 13.0,
+    "mindestgebuehr_euro": 100.0,
+    "rechtsgrundlage": "AVerwGebO NRW, Allgemeiner Gebührentarif, Tarifstelle 2.4 (Baugenehmigung nach der BauO NRW); Satz und Mindestgebühr am Tarif prüfen"
+   },
+   "gebaeudearten": [
+    {"id": "wohngebaeude", "bezeichnung": "Wohngebäude", "euro_je_m3": 175.0},
+    {"id": "buero", "bezeichnung": "Büro- und Verwaltungsgebäude", "euro_je_m3": 205.0},
+    {"id": "gewerbe", "bezeichnung": "Gewerbe- und Werkstattgebäude", "euro_je_m3": 135.0},
+    {"id": "halle", "bezeichnung": "Lager- und Hallenbau", "euro_je_m3": 75.0},
+    {"id": "garage", "bezeichnung": "Garagen und Carports", "euro_je_m3": 95.0},
+    {"id": "landwirtschaft", "bezeichnung": "Landwirtschaftliche Betriebsgebäude", "euro_je_m3": 60.0},
+    {"id": "sonstiges", "bezeichnung": "Sonstiges Gebäude (Wert eingeben)", "euro_je_m3": null}
+   ],
+   "quellen": [
+    {"titel": "Allgemeine Verwaltungsgebührenordnung NRW (AVerwGebO NRW), Tarifstelle 2.4", "url": null},
+    {"titel": "Runderlass des für Bauen zuständigen Ministeriums NRW zu den Rohbauwerten (jährlich fortgeschrieben)", "url": null}
+   ]
+  }
+ ]
+}

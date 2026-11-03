@@ -38,6 +38,15 @@ pub enum ObjektArt {
     Cadaufmass,
     /// Importiertes IFC-Modell ([`crate::ifc::Modellakte`]).
     Ifcmodell,
+    /// Projekttagebuch ([`objekte::Tagebucheintrag`]), ein Datensatz je Eintrag.
+    Projekttagebuch,
+    /// Planliste ([`crate::planliste::Planeintrag`]), ein Datensatz je Dokument.
+    Planliste,
+    /// Lieferliste eines Fachplaners ([`objekte::Fachplanerlieferung`]).
+    Fachplanerlieferung,
+    /// Kosten- und Statistikangaben ([`crate::baukennwerte::Baukennwerte`]),
+    /// ein Datensatz je Projekt (Objektkennung = Projekt-ID).
+    Baukennwerte,
 }
 impl ObjektArt {
     pub fn modul(self) -> &'static str {
@@ -61,6 +70,10 @@ impl ObjektArt {
             Self::Planaufmass => "planaufmass",
             Self::Cadaufmass => "cadaufmass",
             Self::Ifcmodell => "ifcmodell",
+            Self::Projekttagebuch => "projekttagebuch",
+            Self::Planliste => "planliste",
+            Self::Fachplanerlieferung => "fachplanerlieferung",
+            Self::Baukennwerte => "baukennwerte",
         }
     }
 }
@@ -274,6 +287,10 @@ pub fn normalisiert(art: ObjektArt, mut f: Fachstand) -> Fachstand {
         ObjektArt::Planaufmass => rund::<crate::planaufmass::Planaufmass>(&f.daten),
         ObjektArt::Cadaufmass => rund::<crate::cad::projektaufmass::CadProjektaufmass>(&f.daten),
         ObjektArt::Ifcmodell => rund::<crate::ifc::Modellakte>(&f.daten),
+        ObjektArt::Projekttagebuch => rund::<objekte::Tagebucheintrag>(&f.daten),
+        ObjektArt::Planliste => rund::<crate::planliste::Planeintrag>(&f.daten),
+        ObjektArt::Fachplanerlieferung => rund::<objekte::Fachplanerlieferung>(&f.daten),
+        ObjektArt::Baukennwerte => rund::<crate::baukennwerte::Baukennwerte>(&f.daten),
     };
     if let Some(neu) = neu {
         f.daten = neu;

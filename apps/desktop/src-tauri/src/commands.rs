@@ -123,6 +123,137 @@ pub async fn projekte_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Pro
     Ok(state.core.projekte_fuer_benutzer(&state.benutzer()).await?)
 }
 
+/// Büro-Cockpit: Fristen und Verfahrensstände aller lesbaren Projekte.
+#[tauri::command]
+pub async fn buero_cockpit(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::cockpit::Buerocockpit> {
+    Ok(state
+        .core
+        .buero_cockpit(&state.benutzer(), core_lib::kalender::heute())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn kalenderabo_auskunft(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::kalenderabo::Aboauskunft> {
+    Ok(state.core.kalenderabo_auskunft(&state.benutzer()).await?)
+}
+#[tauri::command]
+pub async fn kalenderabo_anlegen(
+    state: State<'_, AppState>,
+    umfang: core_lib::kalenderabo::Aboumfang,
+) -> CmdResult<core_lib::kalenderabo::Aboschluessel> {
+    Ok(state
+        .core
+        .kalenderabo_anlegen(&state.benutzer(), umfang)
+        .await?)
+}
+#[tauri::command]
+pub async fn kalenderabo_widerrufen(state: State<'_, AppState>) -> CmdResult<()> {
+    Ok(state.core.kalenderabo_widerrufen(&state.benutzer()).await?)
+}
+
+#[tauri::command]
+pub async fn planliste(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::planliste::Planliste> {
+    Ok(state.core.planliste(projekt_id, &state.benutzer()).await?)
+}
+/// Planblatt einer eigenen Zeichnung als PDF nach `ziel`; liefert die abgelegte Version.
+#[tauri::command]
+pub async fn planlayout_exportieren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planlayout::Layoutwunsch,
+    ziel: Option<std::path::PathBuf>,
+) -> CmdResult<Option<core_lib::domain::DocumentVersion>> {
+    let (pdf, abgelegt) = state
+        .core
+        .planlayout(projekt_id, &wunsch, &state.benutzer())
+        .await?;
+    if let Some(ziel) = ziel {
+        tokio::fs::write(ziel, pdf)
+            .await
+            .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    }
+    Ok(abgelegt)
+}
+#[tauri::command]
+pub async fn planaufmass_dxf(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    aufmass_id: uuid::Uuid,
+    revision: i64,
+    nur_sichtbare_ebenen: bool,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let dxf = state
+        .core
+        .planaufmass_dxf(
+            projekt_id,
+            aufmass_id,
+            revision,
+            nur_sichtbare_ebenen,
+            &state.benutzer(),
+        )
+        .await?;
+    tokio::fs::write(ziel, dxf)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn plan_revisionswolken(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planlayout::Wolkenwunsch,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .plan_revisionswolken(projekt_id, &wunsch, &state.benutzer())
+        .await?;
+    tokio::fs::write(ziel, pdf)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn plankopf_stempeln(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    wunsch: core_lib::planlayout::Stempelwunsch,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .plankopf_stempeln(projekt_id, &wunsch, &state.benutzer())
+        .await?;
+    tokio::fs::write(ziel, pdf)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn plannummernschema(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::planliste::Plannummernschema> {
+    Ok(state.core.plannummernschema().await?)
+}
+#[tauri::command]
+pub async fn plannummernschema_speichern(
+    state: State<'_, AppState>,
+    schema: core_lib::planliste::Plannummernschema,
+) -> CmdResult<core_lib::planliste::Plannummernschema> {
+    Ok(state
+        .core
+        .plannummernschema_speichern(schema, &state.benutzer())
+        .await?)
+}
+
 #[tauri::command]
 pub async fn projekt_anlegen(
     state: State<'_, AppState>,
@@ -1289,4 +1420,72 @@ pub async fn grundstueckskontext(
         )
         .await?;
     Ok(state.core.grundstueckskontext(projekt_id).await?)
+}
+
+#[tauri::command]
+pub async fn gebuehrenschaetzung(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::baukennwerte::Gebuehrenschaetzung> {
+    Ok(state
+        .core
+        .gebuehrenschaetzung(projekt_id, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
+pub async fn baustatistik(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::baukennwerte::Baustatistikbogen> {
+    Ok(state
+        .core
+        .baustatistik(projekt_id, &state.benutzer())
+        .await?)
+}
+async fn schreiben(ziel: std::path::PathBuf, daten: Vec<u8>) -> CmdResult<()> {
+    tokio::fs::write(ziel, daten)
+        .await
+        .map_err(|e| core_lib::CoreError::Storage(e.to_string()))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn baukennwerte_pdf(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    statistik: bool,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .baukennwerte_pdf(projekt_id, statistik, &state.benutzer())
+        .await?;
+    schreiben(ziel, pdf).await
+}
+#[tauri::command]
+pub async fn sachstandsbericht_pdf(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    ziel: std::path::PathBuf,
+) -> CmdResult<()> {
+    let pdf = state
+        .core
+        .sachstandsbericht_pdf(projekt_id, &state.benutzer())
+        .await?;
+    schreiben(ziel, pdf).await
+}
+#[tauri::command]
+pub async fn tagesmail_einstellung(
+    state: State<'_, AppState>,
+) -> CmdResult<core_lib::tagesmail::Tagesmaileinstellung> {
+    Ok(state.core.tagesmail_einstellung(&state.benutzer()).await?)
+}
+#[tauri::command]
+pub async fn tagesmail_setzen(
+    state: State<'_, AppState>,
+    einstellung: core_lib::tagesmail::Tagesmaileinstellung,
+) -> CmdResult<core_lib::tagesmail::Tagesmaileinstellung> {
+    Ok(state
+        .core
+        .tagesmail_setzen(&state.benutzer(), einstellung)
+        .await?)
 }

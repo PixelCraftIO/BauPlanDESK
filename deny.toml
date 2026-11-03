@@ -30,6 +30,11 @@ allow = [
     # bleiben. Kommt über Tauri (cssparser, selectors, …) und Rhai (smartstring).
     "MPL-2.0",
 ]
+# 0BSD ist gemeinfrei-gleich (ohne Namensnennungspflicht); nur für dieses Crate
+# freigegeben (quoted_printable über lettre, tägliche Fristen-E-Mail des Servers).
+exceptions = [
+    { allow = ["0BSD"], crate = "quoted_printable" },
+]
 
 # Eigene Crates sind proprietär und werden nicht veröffentlicht.
 [licenses.private]

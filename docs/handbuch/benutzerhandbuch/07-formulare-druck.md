@@ -65,3 +65,14 @@ Abgabestand auswählen“).
 
 > Ungespeicherte Eingaben zuerst im Fachbereich speichern; GRZ, GFZ,
 > Geschossigkeit, BMZ und Abstandsflächen vorher als Nachweisstand sichern.
+
+## Rohbauwert, Gebühr und Baustatistik
+
+„Formulare und Ausgabe → Rohbauwert, Gebühr, Baustatistik“ schätzt die
+Baugenehmigungsgebühr aus dem Brutto-Rauminhalt der DIN-277-Berechnung, dem
+Rohbauwert je m³ und dem Gebührensatz des Landes. Eigene Werte überschreiben
+die abgeleiteten sichtbar. Für NRW sind die Werte ungeprüfte Schätzwerte; vor
+der Weitergabe mit dem aktuellen Runderlass und dem Gebührentarif vergleichen.
+
+Die Tabelle zur Baustatistik sammelt die Angaben für den Erhebungsbogen mit
+Quelle je Angabe. Beides lässt sich als PDF im Briefbogen ausgeben.

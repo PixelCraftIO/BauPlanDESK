@@ -10,6 +10,9 @@
 //! | `BAUPROJEKT_FORMULAR_DIR`  | `/opt/bauprojekt/formulare`                       |
 //! | `BAUPROJEKT_CODELISTEN_DIR`| `/opt/bauprojekt/codelisten` (XBau, Genericode)   |
 //! | `BAUPROJEKT_BIND`          | `0.0.0.0:8080`                                    |
+//! | `BAUPROJEKT_SMTP_URL`      | `smtps://user:pw@mail.example.de:465` (optional, tägliche Fristen-E-Mail) |
+//! | `BAUPROJEKT_MAIL_ABSENDER` | `BauPlanIO <fristen@buero.de>`                    |
+//! | `BAUPROJEKT_MAIL_UHRZEIT`  | `06:30` (deutsche Ortszeit)                       |
 
 use server::api;
 mod zugang_setup;
@@ -115,6 +118,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(n) => tracing::info!(projekte = n, "Bauherren in die Kundendatenbank übernommen"),
         // Speichern des Bauantrags übernimmt je Projekt erneut.
         Err(e) => tracing::error!(fehler = %e, "Bauherren nicht übernommen"),
+    }
+
+    match server::tagesmail::Mailversand::aus_umgebung() {
+        Ok(Some(m)) => {
+            m.starten(core.clone());
+            tracing::info!("Tägliche Fristen-E-Mail eingerichtet");
+        }
+        Ok(None) => {}
+        Err(e) => return Err(format!("E-Mail-Versand: {e}").into()),
     }
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;

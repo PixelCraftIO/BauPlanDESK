@@ -5,6 +5,8 @@
   import { onDestroy, untrack } from "svelte";
   import { plattformApi } from "./plattformApi";
   import { fehlertext } from "./api";
+  import { invoke } from "@tauri-apps/api/core";
+  import { save } from "@tauri-apps/plugin-dialog";
   import type {
     Projektuebersicht,
     UebersichtsZiel,
@@ -131,6 +133,21 @@
     dringlichkeit = d;
     anzahl = 20;
   }
+  let berichtMeldung = $state<string | null>(null);
+  /** Sachstandsbericht für den Bauherrn (ohne bürointerne Notizen). */
+  async function sachstandsbericht() {
+    const ziel = await save({
+      defaultPath: "Sachstandsbericht.pdf",
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (!ziel) return;
+    try {
+      await invoke("sachstandsbericht_pdf", { projektId, ziel });
+      berichtMeldung = `Sachstandsbericht ausgegeben: ${ziel}`;
+    } catch (e) {
+      berichtMeldung = fehlertext(e);
+    }
+  }
 </script>
 
 <section
@@ -145,10 +162,20 @@
         Arbeitsstand, nächste Schritte und dokumentierter Behördenstand
       </p>
     </div>
-    <button type="button" class="sekundaer" disabled={laeuft} onclick={laden}
-      >{laeuft ? "Wird aktualisiert …" : "Übersicht aktualisieren"}</button
-    >
+    <div class="knoepfe">
+      <button
+        type="button"
+        class="sekundaer"
+        onclick={sachstandsbericht}
+        title="Verfahrensstand, eingereichte Unterlagen, Nachforderungen und Fristen als PDF für den Bauherrn"
+        >Sachstandsbericht für Bauherrn …</button
+      >
+      <button type="button" class="sekundaer" disabled={laeuft} onclick={laden}
+        >{laeuft ? "Wird aktualisiert …" : "Übersicht aktualisieren"}</button
+      >
+    </div>
   </div>
+  {#if berichtMeldung}<p role="status">{berichtMeldung}</p>{/if}
   {#if fehler}<div class="fehler" role="alert">
       Übersicht konnte nicht aktualisiert werden: {fehler}{daten
         ? " Angezeigt wird der letzte erfolgreich geladene Stand."
