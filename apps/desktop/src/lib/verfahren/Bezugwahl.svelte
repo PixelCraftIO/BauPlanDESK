@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type { Verfahrensakte, Bezug } from "../generated/plattform";
   let { akte, werte = $bindable() }: { akte: Verfahrensakte; werte: Bezug[] } =
     $props();
@@ -19,7 +20,7 @@
       bezug: { art: "abgabe", id: a.id } as Bezug,
     })),
     ...akte.bescheide.map((a) => ({
-      name: `Bescheid: ${a.datum}`,
+      name: `Bescheid: ${datumDe(a.datum)}`,
       bezug: { art: "bescheid", id: a.id } as Bezug,
     })),
     ...akte.kommunikation.map((a) => ({

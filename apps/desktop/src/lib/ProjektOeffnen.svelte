@@ -47,7 +47,7 @@
         tabindex="0"
       >
         <strong>{p.name}</strong>
-        <span class="meta">{landName(p.bundesland)} · geändert {new Date(p.updated_at).toLocaleDateString("de-DE")}</span>
+        <span class="meta">{landName(p.bundesland)} · geändert {new Date(p.updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
       </li>
     {:else}
       <li class="meta">Keine Projekte gefunden.</li>

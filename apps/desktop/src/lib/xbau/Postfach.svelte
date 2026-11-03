@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import { untrack } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import {
@@ -563,12 +564,12 @@
           {#if x.art === "befundliste"}<p>
               {x.vollstaendig
                 ? "Unterlagen vollständig."
-                : `${x.befunde.length} Befunde${x.frist ? `, Frist bis ${x.frist}` : ""}.`}
+                : `${x.befunde.length} Befunde${x.frist ? `, Frist bis ${datumDe(x.frist)}` : ""}.`}
             </p>
             <ul>
               {#each x.befunde as b}<li>{b.text}</li>{/each}
             </ul>{:else if x.art === "anhoerung"}<p>
-              {x.aufforderung}{x.frist ? ` Frist zur Stellungnahme bis ${x.frist}.` : ""}
+              {x.aufforderung}{x.frist ? ` Frist zur Stellungnahme bis ${datumDe(x.frist)}.` : ""}
             </p>
             <ul>
               {#each x.befunde as b}<li>
@@ -600,7 +601,7 @@
               {x.vorauszahlung ? "Vorauszahlung" : "Gebühren"}{x.summe_cent !==
               null
                 ? `: ${(x.summe_cent / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`
-                : ""}{x.frist ? `, zahlbar bis ${x.frist}` : ""}
+                : ""}{x.frist ? `, zahlbar bis ${datumDe(x.frist)}` : ""}
             </p>{:else if x.art === "aktenzeichen"}<p>
               Aktenzeichen {x.aktenzeichen}
             </p>{:else if x.art === "eingangsbestaetigung"}<p>

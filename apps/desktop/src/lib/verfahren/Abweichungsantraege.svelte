@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     Abweichung,
     Abweichungsabgleich,
@@ -279,7 +280,7 @@
         /></label
       >{/if}
     {#each entscheidungen(e.id) as d}<p class="meta">
-        Bescheid vom {d.datum}: {d.zugelassen ? "zugelassen" : "nicht zugelassen"}{d.nebenbestimmung
+        Bescheid vom {datumDe(d.datum)}: {d.zugelassen ? "zugelassen" : "nicht zugelassen"}{d.nebenbestimmung
           ? ` · Nebenbestimmung: ${d.nebenbestimmung}`
           : ""}
       </p>{/each}

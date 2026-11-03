@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     Bauausfuehrung,
     Berichtigungsgegenstand,
@@ -71,7 +72,7 @@
                 vollstaendigkeit!.datum = datumVon(e.currentTarget.value);
             }}
             >{#each eingehend as k (k.id)}<option value={k.id}
-                >{k.datum} · {k.betreff}</option
+                >{datumDe(k.datum)} · {k.betreff}</option
               >{/each}</select
           ></label
         >
@@ -122,7 +123,7 @@
                 ruecknahme!.datum = datumVon(e.currentTarget.value);
             }}
             >{#each kommunikation as k (k.id)}<option value={k.id}
-                >{k.datum} · {k.betreff}</option
+                >{datumDe(k.datum)} · {k.betreff}</option
               >{/each}</select
           ></label
         >

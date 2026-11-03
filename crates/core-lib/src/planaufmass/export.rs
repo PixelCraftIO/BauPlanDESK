@@ -375,7 +375,7 @@ impl CoreServices {
                     ]);
                 }
                 konturen.extend(elementkonturen(&p, skalierung));
-                let mut herkunft=vec![quelle,format!("Aufmaß {} · Revision {}",w.aufmass_id,w.revision),format!("Ausgabe: {}",chrono::Utc::now().format("%d.%m.%Y %H:%M UTC")),"Planseite maßstäblich; Messwerte sind Rohmaße. Die fachliche Anrechnung erfolgt in der jeweiligen Berechnung.".into(),format!("Blattmaßstab: {}",kalibrierung(p.kalibrierung_wirksam().as_ref()))];
+                let mut herkunft=vec![quelle,format!("Aufmaß {} · Revision {}",w.aufmass_id,w.revision),format!("Ausgabe: {}",crate::kalender::zeit_deutsch(chrono::Utc::now())),"Planseite maßstäblich; Messwerte sind Rohmaße. Die fachliche Anrechnung erfolgt in der jeweiligen Berechnung.".into(),format!("Blattmaßstab: {}",kalibrierung(p.kalibrierung_wirksam().as_ref()))];
                 for a in &p.ausschnitte {
                     herkunft.push(format!(
                         "Ausschnitt {}: {}; Höhenbezug {}",

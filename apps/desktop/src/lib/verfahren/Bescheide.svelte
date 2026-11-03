@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     Abweichung,
     Ablehnungsgrund,
@@ -89,6 +90,12 @@
   }
   /** Bescheide, deren gespeichertes Zustelldatum gerade berichtigt wird. */
   let zustellungOffen = $state<Record<string, boolean>>({});
+  const ENTSCHEIDUNG: Record<string, string> = {
+    genehmigt: "Genehmigt",
+    teilweise_genehmigt: "Teilweise genehmigt",
+    abgelehnt: "Abgelehnt",
+    sonstiges: "Sonstige Entscheidung",
+  };
   const genehmigend = (b: Bescheid) =>
     b.entscheidung === "genehmigt" || b.entscheidung === "teilweise_genehmigt";
   // Fristen berechnet der Core aus Zustellung, Entscheidung und Bundesland,
@@ -139,7 +146,7 @@
 </p>
 {#snippet fristzeile(titel: string, w: Fristberechnung | null)}
   {#if w}<p>
-      <strong>{titel}: bis {w.ende}</strong> · {w.grundlage}
+      <strong>{titel}: bis {datumDe(w.ende)}</strong> · {w.grundlage}
     </p>
     <ul class="meta">
       {#each w.hinweise as h}<li>{h}</li>{/each}
@@ -148,7 +155,7 @@
 {#each eintraege as b (b.id)}{@const fest = alt.includes(b.id)}{@const f =
     fristen.find((f) => f.bescheid === b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
-      >{b.datum} · {b.entscheidung}{b.teilbaugenehmigung
+      >{datumDe(b.datum)} · {ENTSCHEIDUNG[b.entscheidung] ?? b.entscheidung}{b.teilbaugenehmigung
         ? " · Teilbaugenehmigung"
         : ""}{eintraege.some((n) => n.ersetzt === b.id)
         ? " · durch Folgebescheid ersetzt"
@@ -195,7 +202,7 @@
             bind:value={b.ersetzt}
             ><option value={null}>Keinen</option
             >{#each eintraege.filter((n) => n.id !== b.id) as n}<option
-                value={n.id}>{n.datum} · {n.entscheidung}</option
+                value={n.id}>{datumDe(n.datum)} · {ENTSCHEIDUNG[n.entscheidung] ?? n.entscheidung}</option
               >{/each}</select
           ></label
         >{#if !fest || b.verlaengerung}<label
@@ -211,7 +218,7 @@
                   : undefined)}
               ><option value="">Kein Verlängerungsbescheid</option
               >{#each eintraege.filter((n) => n.id !== b.id && genehmigend(n)) as n}<option
-                  value={n.id}>{n.datum} · {n.entscheidung}</option
+                  value={n.id}>{datumDe(n.datum)} · {ENTSCHEIDUNG[n.entscheidung] ?? n.entscheidung}</option
                 >{/each}</select
             ></label
           >{#if b.verlaengerung}<label
@@ -334,7 +341,7 @@
       {#each nachbarbekanntgaben.filter((n) => n.bescheid === b.id) as n (n.id)}<div
           class="raster"
         >
-          <span>{n.name} · bekanntgegeben am {n.datum}</span><label
+          <span>{n.name} · bekanntgegeben am {datumDe(n.datum)}</span><label
             >Angefochten am<input
               type="date"
               max={heute()}

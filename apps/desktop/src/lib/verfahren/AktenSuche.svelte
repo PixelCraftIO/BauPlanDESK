@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import { bereichAktiv, ansichtsAbfrage } from "../ansichtsAbfrage.svelte";
   import { onMount } from "svelte";
   import { save } from "@tauri-apps/plugin-dialog";
@@ -42,7 +43,7 @@
           )
         ) {
           new Notification("BauPlanIO – Wiedervorlage", {
-            body: `${e.titel}: ${e.datum}`,
+            body: `${e.titel}: ${datumDe(e.datum)}`,
           });
           sessionStorage.setItem(
             `erinnert.${projekt.id}.${e.objekt}.${e.datum}.${heute()}`,
@@ -177,7 +178,7 @@
     <thead><tr><th>Vorgang</th><th>Fristdatum</th><th>Stand</th></tr></thead
     ><tbody
       >{#each erinnerungen.filter((e) => !nurEigene || e.verantwortlich === benutzerId) as e}<tr
-          ><td>{e.titel}</td><td>{e.datum}</td><td
+          ><td>{e.titel}</td><td>{datumDe(e.datum)}</td><td
             >{e.ueberfaellig
               ? "Überfällig"
               : e.art === "ablauf" ||

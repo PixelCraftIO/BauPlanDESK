@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type { Gebuehrenbescheid, Kommunikation } from "../generated/plattform";
   import type { DocumentVersion, Benutzer } from "../api";
   import Fristfeld from "./Fristfeld.svelte";
@@ -53,7 +54,7 @@
       >Gebührenbescheid (Schreiben)<select bind:value={schreiben}
         ><option value="">Kommunikation auswählen</option
         >{#each eingehend as k (k.id)}<option value={k.id}
-            >{k.datum} · {k.betreff}</option
+            >{datumDe(k.datum)} · {k.betreff}</option
           >{/each}</select
       ></label
     >
@@ -63,7 +64,7 @@
   >{/if}
 {#each eintraege as g (g.id)}<fieldset data-uebersicht-eintrag={g.id}>
     <legend
-      >{g.vorauszahlung ? "Vorauszahlung" : "Gebühren"} vom {g.datum}{g.bezahlt
+      >{g.vorauszahlung ? "Vorauszahlung" : "Gebühren"} vom {datumDe(g.datum)}{g.bezahlt
         ? ` · bezahlt am ${g.bezahlt}`
         : ""}</legend
     >

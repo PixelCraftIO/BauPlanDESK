@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type {
     BautechnischerNachweis,
     Bauvorbereitung,
@@ -180,6 +181,6 @@
       <ul>
         {#each liste as a}<li>
             {a.erledigt ? "✓" : "○"}
-            {a.titel} <span class="meta">(Bescheid vom {a.datum})</span>
+            {a.titel} <span class="meta">(Bescheid vom {datumDe(a.datum)})</span>
           </li>{/each}
       </ul>{/if}{/each}{/if}

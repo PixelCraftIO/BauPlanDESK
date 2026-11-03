@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import { save } from "@tauri-apps/plugin-dialog";
   import { fehlertext, type DocumentVersion } from "../api";
   import type {
@@ -214,7 +215,7 @@
             )}</option
           >{/each}{#each anhoerungen as a (a.id)}<option
             value={`folge:stellungnahme:${a.id}`}
-            >Stellungnahme zur Anhörung{a.frist ? ` (Frist ${a.frist.datum})` : ""}</option
+            >Stellungnahme zur Anhörung{a.frist ? ` (Frist ${datumDe(a.frist.datum)})` : ""}</option
           >{/each}<option value="folge:abweichungsantrag"
           >Antrag auf Abweichung (isoliert)</option
         ><option value="folge:verlaengerung"
@@ -353,7 +354,7 @@
         ></thead
       ><tbody
         >{#each b.versand as e}<tr
-            ><td>{e.datum}</td><td
+            ><td>{datumDe(e.datum)}</td><td
               >{e.status}{b.versand.some((n) => n.berichtigt === e.id)
                 ? " (berichtigt)"
                 : ""}</td
@@ -400,7 +401,7 @@
           open={!gespeichert.some((b) => b.versand.some((v) => v.id === e.id))}
         >
           <summary
-            >{e.datum} · {e.status} · Ereignis bearbeiten / ansehen</summary
+            >{datumDe(e.datum)} · {e.status} · Ereignis bearbeiten / ansehen</summary
           >
           <fieldset
             disabled={gespeichert.some((b) =>
@@ -439,7 +440,7 @@
                 >Berichtigt früheres Ereignis<select bind:value={e.berichtigt}
                   ><option value={null}>Keines</option
                   >{#each b.versand.slice(0, b.versand.indexOf(e)) as alt}<option
-                      value={alt.id}>{alt.datum} · {alt.status}</option
+                      value={alt.id}>{datumDe(alt.datum)} · {alt.status}</option
                     >{/each}</select
                 ></label
               >

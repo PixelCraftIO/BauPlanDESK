@@ -566,9 +566,14 @@ export interface Lizenzstatus {
   abo: AboStatus | null;
 }
 
-/** Datum "JJJJ-MM-TT" deutsch anzeigen. */
-export const datumDe = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString("de-DE");
+/** Datum "JJJJ-MM-TT" (oder Zeitpunkt) deutsch anzeigen: „05.11.2026“. */
+export const datumDe = (d: string | null | undefined) => {
+  if (!d) return "";
+  const t = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T12:00:00`) : new Date(d);
+  return Number.isNaN(t.getTime())
+    ? d
+    : t.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+};
 
 export interface AppInfo {
   version: string;

@@ -81,7 +81,7 @@ with sync_playwright() as p:
  expect(page.get_by_text('Ein Hinweis begründet keine Pflicht',exact=False)).to_be_visible()
  # Fristen berechnet der Core aus Zustellung und Bundesland.
  ende=wf['fristen'][0]['rechtsbehelfsfrist']['ende']
- expect(page.get_by_role('region',name='Berechnete Fristen')).to_contain_text('Rechtsbehelfsfrist: bis '+ende)
+ expect(page.get_by_role('region',name='Berechnete Fristen')).to_contain_text('Rechtsbehelfsfrist: bis '+'.'.join(reversed(ende.split('-'))))
  expect(page.get_by_role('region',name='Berechnete Fristen')).to_contain_text('Geltungsdauer der Genehmigung')
  # Ein gespeicherter Bescheid mit Zustelldatum bleibt unveränderlich.
  expect(page.get_by_text('Zustelldatum',exact=True).locator('input')).to_be_disabled()

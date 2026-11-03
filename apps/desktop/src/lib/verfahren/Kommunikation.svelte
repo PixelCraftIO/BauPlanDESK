@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { datumDe } from "../api";
   import type { Kommunikation, Verfahrensakte } from "../generated/plattform";
   import type { DocumentVersion } from "../api";
   import Dokumentfeld from "./Dokumentfeld.svelte";
@@ -42,7 +43,7 @@
     ])}>Kommunikation erfassen</button
 >
 {#each eintraege as c (c.id)}<details open={!alt.includes(c.id)}>
-    <summary>{c.datum} · {c.betreff || "Neue Kommunikation"}</summary>
+    <summary>{datumDe(c.datum)} · {c.betreff || "Neue Kommunikation"}</summary>
     <fieldset disabled={alt.includes(c.id)}>
       <div class="raster">
         <label

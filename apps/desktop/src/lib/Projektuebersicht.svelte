@@ -60,7 +60,7 @@
     sonstiges: "Sonstige Entscheidung",
   };
   const datum = (s: string | null) =>
-    s ? new Date(`${s}T12:00:00`).toLocaleDateString("de-DE") : "—";
+    s ? new Date(`${s}T12:00:00`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
   const ziel = (bereich: string): UebersichtsZiel => ({
     bereich,
     objekt: null,
