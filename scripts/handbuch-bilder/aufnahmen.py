@@ -186,9 +186,18 @@ SZENEN = [
     ("ifc-modell-uebernahme", 'await ifcModell(); await ifcReiter("Übernahme"); await klick("In Projekt übernehmen"); await sleep(6000)'),
     ("ifc-modell-export", 'await ifcModell(); await ifcReiter("Export"); await klick("Modelldatei dem Bauantrag beifügen"); await sleep(2500); await waehle("Gebäude für das Modell","(Entwurf Architekt)"); await sleep(1000); await klick("IFC4-Modell schreiben"); await sleep(5000); ifcDetailsEnde()'),
     ("ifc-modell-abgleich", 'await ifcModell(); await klick("Entwurf Architekt schließen","button"); await sleep(800); const p=(await window.__TAURI_INTERNALS__.invoke("projekte_auflisten")).find(x=>x.name==="Neubau Einfamilienhaus Mustermann"); const d=(await window.__TAURI_INTERNALS__.invoke("dokumente_auflisten",{projektId:p.id})).find(x=>x.file_name==="EFH-Mustermann.ifc"); await window.__TAURI_INTERNALS__.invoke("dokument_importieren",{projektId:p.id,dokumentId:d.document_id,basis:d.version,kategorie:null,pfad:IFC_ORDNER+"/v2/EFH-Mustermann.ifc"}); await klick("IFC-Modell","button"); await sleep(1500); await klick("Entwurf Architekt","section[aria-label^=IFC-Modell] button"); await sleep(4000); await klick("Neue Version","button"); await sleep(1500); await klick("Abgleichen","[aria-label=Details] button"); await sleep(3000); await aufklappen("Geändert"); ifcDetailsEnde()'),
+    # Zeicheneditor (Webseite /zeicheneditor, Kapitel 5): EP-01 und die eigene
+    # Zeichnung „Entwurf Erdgeschoss“ aus zeichnung_vorbereiten().
+    ("editor-aufgaben", 'await aufmassTab("EP-01"); await vollbildAn(); await klick("Aufgaben","[role=tab],button"); await waehleText("Alle Flurst", "Wohnfläche"); await klick("Einpassen"); await sleep(800); await zoomAufText("Grundriss EG", 2.0)'),
+    ("editor-eigenschaften", 'await planKlick(640, 440); await klick("Eigenschaften","[role=tab],button"); await sleep(800); [...document.querySelectorAll("label")].filter(sichtbar).find(x=>txt(x).startsWith("Bezeichnung")).scrollIntoView({block:"start"}); await sleep(500)'),
+    ("editor-werkzeugkiste", 'await taste("Escape"); await palette("Werkzeugkiste")'),
+    ("editor-zeichnung", 'await aufmassTab("Entwurf Erdgeschoss"); await vollbildAn(); await klick("Einpassen"); await sleep(800); await zoomAufText("Grundriss Erdgeschoss", 2.0); await klick("Objekte","[role=tab],button"); await sleep(800); const h=[...document.querySelectorAll("h3")].filter(sichtbar).find(e=>txt(e).startsWith("Zeichenelemente")); h.nextElementSibling.querySelectorAll("button")[2].click(); await sleep(1500)'),
+    ("editor-konstruieren", 'const o=[...document.querySelectorAll("label")].filter(sichtbar).find(l=>txt(l)==="Ortho").querySelector("input"); if(!o.checked) o.click(); const w=[...document.querySelectorAll("select")].filter(sichtbar).find(x=>[...x.options].some(o=>o.text==="frei")); w.value="15"; w.dispatchEvent(new Event("change",{bubbles:true})); await klick("Fangoptionen"); await sleep(600); [...document.querySelectorAll("legend,h3,h4,strong,summary")].filter(sichtbar).find(e=>txt(e).startsWith("Konstruieren")).scrollIntoView({block:"start"}); await sleep(500)'),
+    ("editor-darstellung", 'await klick("Fangoptionen"); await taste("Escape"); await klick("Objekte","[role=tab],button"); await sleep(800); const d=[...document.querySelectorAll("summary")].filter(sichtbar).filter(e=>txt(e).startsWith("Darstellung")); for(const x of d.slice(0,2)) if(!x.parentElement.open){x.click(); await sleep(300)} await zeige("Zeichenebenen","h3,h4,strong")'),
+    ("editor-planlayout", 'await palette("Prüfen und Ausgabe"); const pl=[...document.querySelectorAll("details.planlayout > summary")].filter(sichtbar)[0]; if(!pl.parentElement.open) pl.click(); await sleep(1200); const i=[...document.querySelectorAll("details.planlayout input")].find(x=>x.maxLength===300); i.value="Grundriss Erdgeschoss"; i.dispatchEvent(new Event("input",{bubbles:true})); await zeige("Ausgabe","h3")'),
     # Zuletzt: Das Verlassen des Formulareditors fragt nativ nach und würde
     # spätere Aufnahmen verdecken.
-    ("nachweis-formular-ausfuellen", 'await register("Nachweis und Einreichung"); await bereich("Formulare"); await klick("Ausfüllen"); await sleep(8000)'),
+    ("nachweis-formular-ausfuellen", 'if(finde("Vollbild beenden")) await klick("Vollbild beenden"); await register("Nachweis und Einreichung"); await bereich("Formulare"); await klick("Ausfüllen"); await sleep(8000)'),
 ]
 
 
@@ -205,6 +214,13 @@ def ifc_vorbereiten():
     js(f'const p=(await window.__TAURI_INTERNALS__.invoke("projekte_auflisten")).find(x=>x.name==="Neubau Einfamilienhaus Mustermann"); await window.__TAURI_INTERNALS__.invoke("dokument_importieren",{{projektId:p.id,dokumentId:null,basis:null,kategorie:null,pfad:"{IFC_ORDNER}/EFH-Mustermann.ifc"}}); return 1')
 
 
+def zeichnung_vorbereiten():
+    """Legt die eigene Zeichnung „Entwurf Erdgeschoss“ an (helfer.js,
+    beispielzeichnung). Muss vor der ersten Aufmaßszene laufen, weil die
+    Aufmaßliste danach zwischengespeichert ist."""
+    js("await beispielzeichnung(); return 1")
+
+
 def main(argumente):
     laufend = "--laufend" in argumente
     auswahl = [a for a in argumente if not a.startswith("--")]
@@ -212,6 +228,7 @@ def main(argumente):
         umgebung_starten()
         app_starten(frisch=True)
         beispielprojekt_oeffnen()
+        zeichnung_vorbereiten()
         if not auswahl or any(a.startswith("ifc-") for a in auswahl):
             ifc_vorbereiten()
     for name, code in SZENEN:
