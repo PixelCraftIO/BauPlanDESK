@@ -108,6 +108,14 @@ Metern), kalibrieren, **Grenze zeichnen** und **Fläche übernehmen und zurück*
 Bedeutung „Flurstück“ und Zuordnung setzt die App selbst. Bei einem bereits
 verknüpften Flurstück heißt der Knopf **Im Zeicheneditor bearbeiten**.
 
+Ist die Katasterfläche noch nicht bekannt, **Fläche wird im Aufmaß ermittelt**
+wählen oder das Feld leer lassen und direkt **Im Zeicheneditor ermitteln**
+anklicken – die App speichert das Flurstück dann ohne Rückfrage mit diesem
+Vermerk. Bis zur Übernahme gilt die Fläche als fehlend, nicht als 0 m²:
+Grundstücksfläche, Baugrundstück, GRZ und GFZ werden nicht berechnet, und die
+Einreichung nennt die fehlende Fläche. Die Übernahme der Zeichnung setzt
+automatisch „Gezeichnete Fläche als Flurstücksfläche verwenden“.
+
 Dann gilt:
 
 - Die **Katasterfläche bleibt Rechenwert**. Die gezeichnete Fläche steht
