@@ -21,7 +21,8 @@ export default async function GeschuetztesLayout({ children }: { children: React
           </Link>
           <nav className="hauptnavigation">
             <Link href="/#funktionen" className="nur-breit">Funktionen</Link>
-            <Link href="/#ablauf" className="nur-breit">Ablauf</Link>
+            <Link href="/zeicheneditor" className="nur-breit">Zeicheneditor</Link>
+            <Link href="/ablaeufe" className="nur-breit">Abläufe</Link>
             <Link href="/handbuch">Handbuch</Link>
           </nav>
           <div className="konto">

@@ -9,6 +9,13 @@ und das PDF) leitet dorthin um.
   [`docs/handbuch/benutzerhandbuch/`](../docs/handbuch/benutzerhandbuch/) beim Aufruf.
   Wer dort ein Kapitel ändert, ändert nach dem nächsten Deployment auch die
   Webseite. Neue Kapitel (`NN-name.md`) erscheinen automatisch in der Navigation.
+- **Zeicheneditor und Abläufe:** `/zeicheneditor` ist ein Funktionsrundgang mit
+  Bildern aus dem Handbuch (Inhalte in `src/lib/zeicheneditor.ts`), `/ablaeufe`
+  zeigt als Ablaufdiagramme, wie die Funktionen in einem Projekt
+  ineinandergreifen. Die Diagramme sind Daten in `src/lib/ablaeufe.ts` (Kästen
+  mit Lage, Pfeile mit Beschriftung) und werden von `src/lib/diagramm.tsx` als
+  Inline-SVG gezeichnet, hell und dunkel. Neue Editorbilder entstehen mit der
+  Bildautomatik (`scripts/handbuch-bilder`, Szenen `editor-…`).
 - **Anmeldung:** E-Mail und Passwort, keine Selbstregistrierung
   (`disableSignUp`). Das Startkonto kommt aus den Umgebungsvariablen und wird
   beim Start angelegt; Rollen, Sperren und weitere Konten sind über das

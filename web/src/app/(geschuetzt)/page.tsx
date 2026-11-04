@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FUNKTIONEN as EDITOR } from "@/lib/zeicheneditor";
 
 // Inhalte nach dem Benutzerhandbuch (Kapitel 1 „Was BauPlanIO leistet“);
 // Bilder kommen aus docs/handbuch/benutzerhandbuch/bilder.
@@ -7,32 +8,42 @@ const FUNKTIONEN = [
   {
     titel: "Grundlagen erfassen",
     text: "Bauherrschaft, Rechtsgrundlagen nach §§ 30, 34, 35 BauGB, BauNVO-Fassung, Landesbauordnung, Bebauungsplan-Festsetzungen, Flurstücke und Grundbuch in einer Projektakte.",
-    kapitel: "04-projekt-grundlagen",
+    link: "/handbuch/04-projekt-grundlagen",
   },
   {
-    titel: "Aufmaß und Zeicheneditor",
-    text: "Flächen, Längen und Höhen auf PDF-Plänen, DXF-Zeichnungen oder eigenen Zeichnungen aufmessen und direkt mit Gebäudemodell und Raumbuch verknüpfen.",
-    kapitel: "05-ermittlung",
+    titel: "Zeicheneditor und Aufmaß",
+    text: "Auf PDF-Plänen, DXF-Zeichnungen oder eigenen Zeichnungen in Metern messen und konstruieren – mit Fang, Befehlszeile, Wänden, Öffnungen, Planzeichen und Planlayout. Jeder Messwert bleibt mit seinem Zielfeld verknüpft.",
+    link: "/zeicheneditor",
   },
   {
     titel: "IFC-Modelle (BIM)",
-    text: "IFC-Modelle des Planers prüfen, für den Bauantrag nacharbeiten, auswerten und wieder als IFC-Datei weitergeben.",
-    kapitel: "05-ermittlung",
+    text: "IFC-Modelle des Planers prüfen, für den Bauantrag nacharbeiten, auswerten, in Gebäude, Zeichnungen und Raumbücher übernehmen und wieder als IFC-Datei weitergeben.",
+    link: "/handbuch/05-ermittlung#ifc-modell-bim",
   },
   {
     titel: "Berechnungen und Nachweise",
     text: "Baugrundstück, GRZ I/II, GFZ, BMZ, Abstandsflächen, Stellplätze, Wohnflächen, DIN 277, Vollgeschosse und mehr – archiviert als unveränderliche Nachweisstände.",
-    kapitel: "06-nachweise",
+    link: "/handbuch/06-nachweise",
   },
   {
-    titel: "Formulare und Druckausgabe",
-    text: "Amtliche PDF-Formulare mit Projektdaten ausfüllen, Berechnungsheft und Behördenausgabe im eigenen Briefbogen drucken.",
-    kapitel: "07-formulare-druck",
+    titel: "Formulare, Planliste und Druck",
+    text: "Amtliche PDF-Formulare mit Projektdaten ausfüllen, Planliste mit Plannummern und Index führen, Berechnungsheft und Behördenausgabe im eigenen Briefbogen drucken.",
+    link: "/handbuch/07-formulare-druck",
   },
   {
     titel: "Verfahrensakte und XBau",
-    text: "Behörde, Aktenzeichen, Abgabestände, Portalübergabe, XBau-Nachrichten, Nachforderungen, Bescheide und Bauausführung lückenlos dokumentiert.",
-    kapitel: "08-verfahren",
+    text: "Behörde, Aktenzeichen, Abgabestände, Portalübergabe, XBau-Nachrichten, Nachforderungen, Bescheide und Bauausführung lückenlos dokumentiert – mit Einreichungsprüfung vor dem Absenden.",
+    link: "/handbuch/08-verfahren",
+  },
+  {
+    titel: "Fristen und Projektbetreuung",
+    text: "Büro-Cockpit über alle Projekte, Kalender-Abo und tägliche E-Mail im Netzwerkbetrieb, Projekttagebuch, Lieferlisten der Fachplaner und Sachstandsbericht für den Bauherrn.",
+    link: "/handbuch/08-verfahren#büro-cockpit-kalender-abo-und-tägliche-e-mail",
+  },
+  {
+    titel: "Abgleich statt Doppelerfassung",
+    text: "Ein Feld hat genau eine Quelle. Handwerte und gezeichnete Flächen werden abgeglichen, veraltete Verknüpfungen nach Planänderungen gemeldet, jede Übernahme in der Chronik vermerkt.",
+    link: "/ablaeufe#handwert",
   },
 ];
 
@@ -44,10 +55,13 @@ const ABLAUF = [
   { titel: "Einreichen", text: "Formulare ausfüllen, Abgabestand bilden, Verfahren führen." },
 ];
 
+// Vorschau auf den Funktionsrundgang /zeicheneditor.
+const EDITOR_VORSCHAU = ["zeichnung", "aufgaben", "konstruieren"].map((id) => EDITOR.find((f) => f.id === id)!);
+
 const ANSICHTEN = [
-  { bild: "ermittlung-aufmass", titel: "Aufmaß auf dem Lageplan" },
-  { bild: "nachweis-grz-ergebnis", titel: "GRZ/GFZ-Nachweis" },
-  { bild: "verfahren-akte", titel: "Verfahrensakte" },
+  { bild: "arbeitsplatz-projektverzeichnis", titel: "Büro-Cockpit mit Fristen aller Projekte", link: "/ablaeufe#betreuung" },
+  { bild: "nachweis-grz-ergebnis", titel: "GRZ/GFZ-Nachweis", link: "/handbuch/06-nachweise" },
+  { bild: "verfahren-akte", titel: "Verfahrensakte", link: "/handbuch/08-verfahren" },
 ];
 
 export default function Startseite() {
@@ -91,8 +105,8 @@ export default function Startseite() {
               <article key={f.titel} className="karte">
                 <h3>{f.titel}</h3>
                 <p>{f.text}</p>
-                <Link href={`/handbuch/${f.kapitel}`} className="mehr">
-                  Im Handbuch lesen →
+                <Link href={f.link} className="mehr">
+                  {f.link.startsWith("/handbuch") ? "Im Handbuch lesen →" : "Mehr erfahren →"}
                 </Link>
               </article>
             ))}
@@ -100,7 +114,31 @@ export default function Startseite() {
         </div>
       </section>
 
-      <section id="ablauf" className="abschnitt abschnitt-grau">
+      <section id="zeicheneditor" className="abschnitt abschnitt-grau">
+        <div className="breite">
+          <h2>Zeicheneditor</h2>
+          <p className="abschnitt-einleitung">
+            Auf PDF- und DXF-Plänen messen, eigene Grundrisse in Metern zeichnen und jeden Wert verknüpft übernehmen.
+          </p>
+          <div className="ansichten">
+            {EDITOR_VORSCHAU.map((f) => (
+              <figure key={f.id}>
+                <Link href={`/zeicheneditor#${f.id}`}>
+                  <img src={`/handbuch/bilder/${f.bild}.png`} alt={f.alt} width={1440} height={900} loading="lazy" />
+                </Link>
+                <figcaption>{f.titel}</figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="abschnitt-hinweis">
+            <Link href="/zeicheneditor" className="mehr">
+              Alle Funktionen des Zeicheneditors →
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      <section id="ablauf" className="abschnitt">
         <div className="breite">
           <h2>So läuft ein Projekt</h2>
           <ol className="ablauf">
@@ -113,19 +151,21 @@ export default function Startseite() {
             ))}
           </ol>
           <p className="abschnitt-hinweis">
-            Schritt für Schritt erklärt in den{" "}
-            <Link href="/handbuch/09-workflows">Standard-Workflows des Handbuchs</Link>.
+            Wie die Schritte ineinandergreifen, zeigen die <Link href="/ablaeufe">Ablaufdiagramme</Link>; Schritt für
+            Schritt erklärt in den <Link href="/handbuch/09-workflows">Standard-Workflows des Handbuchs</Link>.
           </p>
         </div>
       </section>
 
-      <section className="abschnitt">
+      <section className="abschnitt abschnitt-grau">
         <div className="breite">
           <h2>Einblicke</h2>
           <div className="ansichten">
             {ANSICHTEN.map((a) => (
               <figure key={a.bild}>
-                <img src={`/handbuch/bilder/${a.bild}.png`} alt={a.titel} width={1440} height={900} loading="lazy" />
+                <Link href={a.link}>
+                  <img src={`/handbuch/bilder/${a.bild}.png`} alt={a.titel} width={1440} height={900} loading="lazy" />
+                </Link>
                 <figcaption>{a.titel}</figcaption>
               </figure>
             ))}
