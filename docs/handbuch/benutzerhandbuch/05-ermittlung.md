@@ -95,6 +95,8 @@ im Projekt, die einen Messwert brauchen – Flurstücke, Abzugsflächen,
 GRZ-Bauteile, Gebäude und Geschosse, Abstandswände, Positionen der
 Fachberechnungen und Räume der Raumbücher.
 
+![Aufgaben, gefiltert auf die Wohnflächenberechnung: Handwerte mit passender Markierung](bilder/editor-aufgaben.png)
+
 1. Beim gewünschten Ziel **Zeichnen** wählen. Werkzeug, Bedeutung und
    Zuordnung sind damit voreingestellt.
 2. Auf dem Plan die Punkte setzen. Nach dem ersten Punkt öffnet eine Ziffer die
@@ -109,6 +111,13 @@ Alternativ eine Vorlage aus der **Werkzeugkiste** anklicken (z. B. „DIN 277
 NUF“, „Versiegelte Fläche“, „Gebäudegrundfläche“). Sie stellt Werkzeug,
 Bedeutung, Namen und Zeichenebene ein. Freie Markierungen erhalten ihre
 **Bedeutung** und Zuordnung in der Palette **Eigenschaften**.
+
+![Werkzeugkiste mit Vorlagen für Grundstück, GRZ-Bauteile, Gebäude, Räume, DIN 277 und Höhen](bilder/editor-werkzeugkiste.png)
+
+![Eigenschaften einer Markierung: Bedeutung, Zuordnung, Messwerte und Verwendung](bilder/editor-eigenschaften.png)
+
+Unter **Verwendung** steht, welche Felder die gewählte Markierung speisen –
+im Bild die Dachfläche als versiegelte Fläche in der Regenwasserberechnung.
 
 | Zu zeichnen | Bedeutung | Zuordnung |
 | --- | --- | --- |
@@ -165,6 +174,8 @@ vermeidet dabei Doppelerfassungen:
 4. Flächen, Strecken und Höhen als Markierungen zeichnen und wie oben zuordnen.
    Der PDF-Export gibt die Zeichnung im Maßstab 1:100 aus.
 
+![Eigene Zeichnung mit Wänden, Fenstern, Türen, Maßketten, Raumstempeln und Planzeichen; rechts die Öffnungen der gewählten Wand](bilder/editor-zeichnung.png)
+
 ### Konstruieren wie im CAD
 
 Der Editor bleibt ein Werkzeug für Genehmigungsplanung und Nachweise neben dem
@@ -185,6 +196,8 @@ Büro-CAD. Die gewohnten Handgriffe sind aber da:
 - **Befehlszeile** (F2) mit Kürzeln wie im CAD: L, PL, R, K, W, BM, T, KO, SP,
   ST, `VS 0,5`, RH, FE, SY, RS, E, OR. Enter wiederholt den letzten Befehl.
 
+![Fangoptionen, Ortho und Winkelraster; rechts Kopieren, Spiegeln, Stutzen/Dehnen, Versatz und Reihe](bilder/editor-konstruieren.png)
+
 ### Darstellung, Öffnungen und Planzeichen
 
 - Stift (0,1–2,5 mm), Linienart, Farbe, Schraffur und **Bauzustand** (Bestand
@@ -197,12 +210,16 @@ Büro-CAD. Die gewohnten Handgriffe sind aber da:
   Hauseingang, Grenzpunkt.
 - **Raumstempel** (N) zeigt Nummer, Bezeichnung und Fläche aus dem Raumbuch.
 
+![Zeichenebenen mit eigener Darstellung: Wände als Neubau mit Mauerwerksschraffur, Schuppen als Abbruch](bilder/editor-darstellung.png)
+
 ### Planlayout und DXF
 
 „Planlayout“ gibt die eigene Zeichnung maßstäblich auf A4 bis A0 aus, mit
 Plankopf aus Projekt und Planliste, Nordpfeil, Maßstabsleiste und Legende;
 wahlweise als neue Version des Plandokuments. „DXF fürs CAD …“ gibt Zeichnung
 oder kalibriertes Aufmaß in Metern mit einer DXF-Ebene je Zeichenebene aus.
+
+![Prüfen und Ausgabe mit Planlayout: Format, Maßstab, Planlisteneintrag, Nordpfeil und Legende](bilder/editor-planlayout.png)
 
 ## IFC-Modell (BIM)
 
