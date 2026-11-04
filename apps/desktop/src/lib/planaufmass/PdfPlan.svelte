@@ -865,7 +865,7 @@
   svg .ecke{fill:white;stroke:#ad530a;cursor:crosshair}
   svg .vorschau,svg .fang{fill:none;stroke:#ad530a;pointer-events:none}
   svg .vorschau{stroke-dasharray:5 4}
-  svg text{fill:#174864;paint-order:stroke;stroke:white;stroke-width:3px;stroke-linejoin:round;pointer-events:none}
+  svg text{fill:#174864;paint-order:stroke;stroke:white;stroke-width:.25em;stroke-linejoin:round;pointer-events:none}
   svg .livemass{fill:#ad530a;font-weight:600}
   svg .hoehenhilfe{stroke:#1a7f37;stroke-dasharray:3 5;fill:none;pointer-events:none;opacity:.8}
   svg .fensterrahmen{fill:#126d9714;stroke:#126d97;pointer-events:none}
