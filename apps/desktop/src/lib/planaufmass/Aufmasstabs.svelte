@@ -8,7 +8,9 @@
   import IfcModell from "../ifc/IfcModell.svelte";
   import Symbolknopf from "../Symbolknopf.svelte";
   import { tabsLesen, tabsMerken, type Tabstart, type Zeichnungstab } from "./tabs";
-  import { api, fehlertext } from "../api";
+  import { api, fehlertext, istPlan, type DocumentVersion } from "../api";
+  import { plattformApi } from "../plattformApi";
+  import { projektNavigation } from "../projektNavigation.svelte";
   import WerkzeugIcon from "./WerkzeugIcon.svelte";
   let { projekt, benutzerId, darf, onprojekt, unterlage = null }: FachProps = $props();
   const gemerkt = untrack(() => tabsLesen(benutzerId, projekt.id));
@@ -60,6 +62,58 @@
     if (inst && !(await inst.tabSchliessen())) return;
     entfernen(key);
   }
+  // Flurstücksauftrag aus den Grundstücksinformationen: Unterlage wählen, dann
+  // den Tab mit dem Auftrag öffnen. Gibt es genau eine Möglichkeit, gleich diese.
+  const navigation = projektNavigation();
+  let flur = $state<{ id: string; bezeichnung: string } | null>(null);
+  let flurAufmasse = $state<Datensatz<PlanaufmassDaten>[]>([]), flurDateien = $state<DocumentVersion[]>([]), flurWahl = $state(""), flurFehler = $state("");
+  let flurGeneration = 0;
+  $effect(() => {
+    const a = navigation?.flurstuecksauftrag;
+    if (!a) return;
+    untrack(() => {
+      navigation!.flurstuecksauftrag = null;
+      const n = ++flurGeneration, auftrag = { id: a.flurstueck_id, bezeichnung: a.bezeichnung };
+      flur = auftrag; flurWahl = ""; flurFehler = ""; flurAufmasse = []; flurDateien = [];
+      aktiv = "liste";
+      if (a.aufmass_id) { flurOeffnen(`a:${a.aufmass_id}`); return; }
+      void Promise.all([plattformApi.liste<PlanaufmassDaten>(projekt.id, "planaufmass"), api.dokumente(projekt.id), navigation?.kategorienLaden()])
+        .then(([liste, dokumente]) => {
+          if (n !== flurGeneration) return;
+          // Je Unterlage die neueste Version; Unterlagen mit eigenem Aufmaß erreicht man über dieses.
+          const neueste = new Map<string, DocumentVersion>();
+          for (const d of dokumente.filter((d) => istPlan(d.file_name)))
+            if ((neueste.get(d.document_id)?.version ?? 0) < d.version) neueste.set(d.document_id, d);
+          const mitAufmass = new Set(liste.map((x) => x.daten.dokument?.dokument_id));
+          const karte = (d: DocumentVersion) => /flurkarte|liegenschaft|lageplan/i.test(`${navigation?.kategorien[d.document_id] ?? ""} ${d.file_name}`) ? 0 : 1;
+          flurAufmasse = liste;
+          flurDateien = [...neueste.values()].filter((d) => !mitAufmass.has(d.document_id))
+            .sort((x, y) => karte(x) - karte(y) || x.file_name.localeCompare(y.file_name, "de"));
+          const wahl = [...flurAufmasse.map((x) => `a:${x.objekt}`), ...flurDateien.map((d) => `d:${d.document_id}`)];
+          if (wahl.length === 1) flurOeffnen(wahl[0]);
+          else flurWahl = wahl[0] ?? "z";
+        })
+        .catch((e) => { if (n === flurGeneration) flurFehler = fehlertext(e); });
+    });
+  });
+  function flurOeffnen(wahl: string) {
+    const flurstueck = flur;
+    if (!flurstueck) return;
+    flur = null;
+    const id = wahl.slice(2);
+    if (wahl.startsWith("a:")) {
+      const da = tabs.find((t) => t.start.id === id);
+      if (da) { da.start = { ...da.start, flurstueck }; aktiv = da.key; }
+      else tabAnlegen({ id, flurstueck }, flurAufmasse.find((x) => x.objekt === id)?.daten.bezeichnung ?? "Aufmaß");
+    } else if (wahl.startsWith("d:")) {
+      const d = flurDateien.find((x) => x.document_id === id);
+      if (d) tabAnlegen({ dokument: { id: d.document_id, version: d.version, name: d.file_name }, flurstueck }, "Neues Aufmaß");
+    } else tabAnlegen({ zeichnung: true, flurstueck }, "Neue Zeichnung");
+  }
+  function flurErledigt(key: string) {
+    const t = tabs.find((t) => t.key === key);
+    if (t?.start.flurstueck) { const { flurstueck: _f, ...rest } = t.start; void _f; t.start = rest; }
+  }
   function taste(e: KeyboardEvent, i: number) {
     const reihe = ["liste", ...tabs.map(t => t.key)];
     const j = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? reihe.length - 1 : -1;
@@ -82,6 +136,18 @@
   {#if imHauptfenster}<Symbolknopf klasse="fensterknopf" titel="Aufmaß in eigenem Fenster öffnen" onclick={() => void fensterOeffnen()}><WerkzeugIcon art="fenster"/></Symbolknopf>{/if}
 </div>
 {#if fensterFehler}<p class="fehlertext" role="alert">{fensterFehler}</p>{/if}
+{#if flur}<aside class="hinweisbox flurwahl" aria-label="Flurstücksfläche ermitteln">
+    <strong>Flurstück {flur.bezeichnung}: Fläche im Zeicheneditor ermitteln</strong>
+    <label>Zeichnen auf<select aria-label="Zeichnen auf" bind:value={flurWahl}>
+      {#if flurAufmasse.length}<optgroup label="Vorhandenes Aufmaß">{#each flurAufmasse as x (x.objekt)}<option value={`a:${x.objekt}`}>{x.daten.bezeichnung}</option>{/each}</optgroup>{/if}
+      {#if flurDateien.length}<optgroup label="Neues Aufmaß auf Projektdatei">{#each flurDateien as d (d.document_id)}<option value={`d:${d.document_id}`}>{d.file_name}{navigation?.kategorien[d.document_id] ? ` · ${navigation.kategorien[d.document_id]}` : ""}</option>{/each}</optgroup>{/if}
+      <option value="z">Eigene Zeichnung in Metern</option>
+    </select></label>
+    <button type="button" onclick={() => flurOeffnen(flurWahl)}>Öffnen</button>
+    <button type="button" class="link" onclick={() => (flur = null)}>Abbrechen</button>
+    {#if !flurAufmasse.length && !flurDateien.length}<span class="meta">Keine Flurkarte oder kein Lageplan in den Projektdateien. Unter Projektdateien eine PDF oder DXF hinzufügen oder die Grenze als eigene Zeichnung nach Maßen konstruieren.</span>{/if}
+    {#if flurFehler}<span class="fehlertext" role="alert">{flurFehler}</span>{/if}
+  </aside>{/if}
 <section hidden={aktiv !== "liste"} aria-label="Aufmaßliste">
   <Planaufmass {projekt} {benutzerId} {darf} {onprojekt} {unterlage} modus="liste" sichtbar={aktiv === "liste"} onoeffnen={oeffnen} onneu={neu} />
 </section>
@@ -90,7 +156,7 @@
     {#if t.start.ifc}
       <IfcModell {projekt} {darf} start={t.start} onstatus={st => status(t.key, st)} onzeichnung={(id, titel) => { const da = tabs.find(x => x.start.id === id); if (da) aktiv = da.key; else tabAnlegen({ id }, titel); }} />
     {:else}
-    <Planaufmass bind:this={instanzen[t.key]} {projekt} {benutzerId} {darf} {onprojekt} modus="tab" start={t.start} entwurfObjekt={t.key} sichtbar={aktiv === t.key} onstatus={st => status(t.key, st)} onschliessen={() => entfernen(t.key)} />
+    <Planaufmass bind:this={instanzen[t.key]} {projekt} {benutzerId} {darf} {onprojekt} modus="tab" start={t.start} entwurfObjekt={t.key} sichtbar={aktiv === t.key} onstatus={st => status(t.key, st)} onschliessen={() => entfernen(t.key)} onflurstueckfertig={() => flurErledigt(t.key)} />
     {/if}
   </section>
 {/each}
@@ -110,4 +176,6 @@
   .zeichnungstabs :global(.fensterknopf){margin-left:auto;margin-bottom:2px;align-self:center}
   .zeichnungstabs :global(.fensterknopf svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   section[hidden]{display:none}
+  .flurwahl{display:flex;flex-wrap:wrap;gap:.4rem .8rem;align-items:end;margin:0 0 8px}
+  .flurwahl > strong,.flurwahl > span{flex-basis:100%}
 </style>

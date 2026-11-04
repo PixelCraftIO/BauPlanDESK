@@ -33,6 +33,9 @@ export class ProjektNavigation {
     geschoss: string;
     bezeichnung: string;
   } | null>(null);
+  /** Aus den Flurstücken: Grenze dieses Flurstücks im Aufmaß zeichnen und die
+   * Fläche übernehmen; mit `aufmass_id` im bereits verknüpften Aufmaß. */
+  flurstuecksauftrag = $state<{ flurstueck_id: string; bezeichnung: string; aufmass_id?: string } | null>(null);
   verfahren = $state<string | null>(null);
   rueckweg = $state<UebersichtsZiel | null>(null);
   unterlagenauftrag = $state<{

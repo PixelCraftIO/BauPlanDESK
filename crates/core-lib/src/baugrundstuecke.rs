@@ -184,6 +184,14 @@ impl BaugrundstuecksPlan {
         let mut kataster = HashSet::new();
         let mut gruppen = BTreeMap::<String, BaugrundstueckGruppe>::new();
         for f in &self.flurstuecke {
+            // 0 m² steht für eine noch offene Fläche (wird im Aufmaß ermittelt),
+            // nicht für ein leeres Flurstück: keine Berechnung mit diesem Wert.
+            if f.flaeche_m2 == 0.0 {
+                return Err(CoreError::InvalidInput(format!(
+                    "Flurstück {}: Fläche noch nicht ermittelt. Unter Flurstücke „Im Zeicheneditor ermitteln“ abschließen oder die Katasterfläche eintragen; bis dahin lassen sich Baugrundstück, GRZ und GFZ nicht berechnen.",
+                    f.nummer.trim()
+                )));
+            }
             if !text_gueltig(&f.id)
                 || !text_gueltig(&f.gemarkung)
                 || !text_gueltig(&f.nummer)

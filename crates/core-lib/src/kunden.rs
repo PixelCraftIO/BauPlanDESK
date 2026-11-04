@@ -632,6 +632,7 @@ mod tests {
             planbindung: None,
             planflaeche_m2: None,
             flaeche_aus_plan: false,
+            flaeche_offen: false,
         };
         let mut projekt = crate::domain::Project {
             id: crate::domain::ProjectId::new(),

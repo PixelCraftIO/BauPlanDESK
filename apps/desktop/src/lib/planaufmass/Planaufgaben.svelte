@@ -10,6 +10,7 @@
   import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
   import { Abgleich } from "./Abgleich.svelte";
   import AbgleichDialog from "./AbgleichDialog.svelte";
+  import { flurText, flurstueckVorbereiten, flurstueckeSpeichern as flurstueckeAblegen } from "./flurstueck";
   const v=new Uebernahme();
   const abgleich=new Abgleich();
   const einheit=(a:Planaufgabe)=>a.groesse==="flaeche"?"m²":a.groesse==="neigung"?"°":"m";
@@ -52,14 +53,8 @@
   const name = (m: string | null) => plan.markierungen.find((x) => x.id === m)?.bezeichnung ?? "Markierung";
   // Flurstücke werden über die Projektgrenze gespeichert (wie unter Grundlagen → Flurstücke);
   // die gezeichnete Fläche setzt der Core ein, die Oberfläche trägt keine Werte selbst ein.
-  const flurText = (f: { flaeche_m2: number; planflaeche_m2?: number; flaeche_aus_plan?: boolean } | undefined) =>
-    !f ? "—" : f.flaeche_aus_plan ? `${werttext(f.flaeche_m2, "m²")} (aus Plan)` : f.planflaeche_m2 == null ? werttext(f.flaeche_m2, "m²") : `${werttext(f.flaeche_m2, "m²")} Kataster · gezeichnet ${werttext(f.planflaeche_m2, "m²")}`;
   async function flurstueckeSpeichern(basis: Project, infos: Grundstuecksinformationen) {
-    const p = await api.projektBereichSpeichern(basis, "grundstuecksinformationen", {
-      id: basis.id, expected_version: basis.version, name: basis.name, bundesland: basis.bundesland, grundstuecksflaeche_m2: basis.grundstuecksflaeche_m2,
-      planungsrecht: { ...basis.planungsrecht, grundstuecksinformationen: infos },
-    });
-    onprojekt?.(p);
+    onprojekt?.(await flurstueckeAblegen(basis, infos));
   }
   async function uebernehmen(a: Planaufgabe) {
     if (!a.markierung || busy) return;
@@ -70,17 +65,8 @@
       if (!aufmass) throw Error("Aufmaß zuerst speichern.");
       const bindung = { aufmass_id: aufmassId, revision: aufmass.revision, markierung_id: a.markierung, groesse: a.groesse, ziel: a.ziel };
       if (a.verbraucher === "flurstueck") {
-        const basis = JSON.parse(JSON.stringify(projekt)) as Project;
-        const infos = grundstuecksinformationen(basis.planungsrecht);
-        const f = infos.flurstuecke.find((x) => x.id === a.objekt);
-        if (!f) throw Error("Flurstück ist nicht mehr gespeichert.");
-        const vorher = { ...f };
-        f.planbindung = bindung;
-        // Ohne amtliche Fläche liefert die Zeichnung die Flurstücksfläche; sonst bleibt sie Kontrolle.
-        if (!(f.flaeche_m2 > 0)) f.flaeche_aus_plan = true;
-        const geprueft = await planApi.flurstuecke(projektId, infos);
-        const neu = geprueft.flurstuecke.find((x) => x.id === a.objekt);
-        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:flurText(vorher),nachher:flurText(neu),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
+        const { basis, geprueft, vorher, nachher } = await flurstueckVorbereiten(projekt, a.objekt, bindung);
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher,nachher,quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
         await flurstueckeSpeichern(basis, geprueft);
       } else if (a.verbraucher === "gebaeude") {
         const stand = (await plattformApi.liste<Gebaeude>(projektId, "gebaeude")).find((g) => g.objekt === a.objekt);

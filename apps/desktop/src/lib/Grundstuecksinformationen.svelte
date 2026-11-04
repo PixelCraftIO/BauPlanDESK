@@ -24,6 +24,7 @@
   import TOLERANZ from "../../../../regelwerke/aufmass-toleranzen.json";
   import { aufmasseLaden, type Aufmassquelle } from "./planaufmass/quellen";
   import { ansichtsAbfrage } from "./ansichtsAbfrage.svelte";
+  import { projektNavigation } from "./projektNavigation.svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   let {
     projekt,
@@ -91,7 +92,9 @@
   const flaechentext = (f: FlurstuecksInfo | undefined) =>
     !f
       ? "—"
-      : f.flaeche_aus_plan
+      : f.flaeche_offen
+        ? "noch nicht ermittelt"
+        : f.flaeche_aus_plan
         ? `${z(f.flaeche_m2)} m² (aus Plan)`
         : f.planflaeche_m2 == null
           ? `${z(f.flaeche_m2)} m²`
@@ -145,6 +148,16 @@
     delete f.planflaeche_m2;
     delete f.flaeche_aus_plan;
   }
+  // „Fläche wird im Aufmaß ermittelt“: Die Fläche fehlt bis zur Übernahme aus
+  // der Zeichnung; gespeichert wird 0 als Platzhalter, gerechnet wird damit nicht.
+  function offenSetzen(f: FlurstuecksInfo, an: boolean) {
+    if (an) {
+      f.flaeche_offen = true;
+      f.flaeche_m2 = 0;
+    } else delete f.flaeche_offen;
+  }
+  const ohneFlaeche = (f: FlurstuecksInfo) =>
+    !f.planbindung && !f.flaeche_aus_plan && !((f.flaeche_m2 ?? 0) > 0);
   $effect(() => {
     if (!aktiv) return;
     const id = projekt.id;
@@ -264,6 +277,11 @@
     fehler = null;
     meldung = null;
     try {
+      // Ein geleertes Zahlenfeld liefert null; der Vertrag erwartet eine Zahl,
+      // die Prüfung der fehlenden Fläche übernimmt der Core.
+      for (const f of eingabe.flurstuecke)
+        if (typeof f.flaeche_m2 !== "number" || Number.isNaN(f.flaeche_m2))
+          f.flaeche_m2 = 0;
       // Entfernte Flurstücke, auf die Gebäude, Abstandspläne oder Aufmaß-Markierungen verweisen,
       // nur nach ausdrücklicher Bestätigung; die Verweise werden dann bereinigt.
       const entfernt = gespeichert.flurstuecke
@@ -322,6 +340,34 @@
       laeuft = false;
     }
     return !geaendert;
+  }
+  // Fläche im Zeicheneditor ermitteln: Das Aufmaß arbeitet mit dem gespeicherten
+  // Flurstück; offene Änderungen werden deshalb zuerst gespeichert. Ohne
+  // Fläche gilt sie als „wird im Aufmaß ermittelt“.
+  const navigation = projektNavigation();
+  async function imZeicheneditor(f: FlurstuecksInfo) {
+    if (!navigation || laeuft) return;
+    if (ohneFlaeche(f)) offenSetzen(f, true);
+    if (geaendert && !(await speichern())) return;
+    const g = gespeichert.flurstuecke.find((x) => x.id === f.id);
+    if (!g) return;
+    navigation.rueckweg = {
+      bereich: "flurstuecke",
+      objekt: null,
+      register: null,
+      eintrag: g.id,
+    };
+    navigation.flurstuecksauftrag = {
+      flurstueck_id: g.id,
+      bezeichnung: `${g.gemarkung} ${g.nummer}`.trim(),
+      aufmass_id: g.planbindung?.aufmass_id,
+    };
+    navigation.springen({
+      bereich: "planaufmass",
+      objekt: null,
+      register: null,
+      eintrag: null,
+    });
   }
   editorAnmelden("flurstuecke", {
     hatAenderungen: () => geaendert,
@@ -401,18 +447,37 @@
                 maxlength="4"
               /></td
             ><td
-              ><input
-                aria-label="Flurstücksfläche"
-                type="number"
-                min="0.01"
-                step="any"
-                bind:value={f.flaeche_m2}
-                readonly={f.flaeche_aus_plan ?? false}
-                title={f.flaeche_aus_plan
-                  ? "Fläche aus dem Aufmaß; unten „Gezeichnete Fläche als Flurstücksfläche“ abwählen, um einen Katasterwert einzugeben"
-                  : ""}
-                required
-              /></td
+              >{#if f.flaeche_offen}<span
+                  class="meta offen"
+                  aria-label="Flurstücksfläche"
+                  role="status">Wird im Aufmaß ermittelt</span
+                >{:else}<input
+                  aria-label="Flurstücksfläche"
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  bind:value={f.flaeche_m2}
+                  readonly={f.flaeche_aus_plan ?? false}
+                  title={f.flaeche_aus_plan
+                    ? "Fläche aus dem Aufmaß; unten „Gezeichnete Fläche als Flurstücksfläche“ abwählen, um einen Katasterwert einzugeben"
+                    : ""}
+                  required
+                />{/if}{#if !f.planbindung && !f.flaeche_aus_plan}<label
+                  class="inline offenwahl"
+                  ><input
+                    type="checkbox"
+                    checked={f.flaeche_offen ?? false}
+                    onchange={(e) => offenSetzen(f, e.currentTarget.checked)}
+                  /> Fläche wird im Aufmaß ermittelt</label
+                >{/if}{#if navigation}<button
+                  type="button"
+                  class="link planknopf"
+                  title="Flurstücksgrenze auf Flurkarte, Lageplan oder als eigene Zeichnung erfassen; die gezeichnete Fläche lässt sich anschließend ins Flurstück übernehmen."
+                  onclick={() => void imZeicheneditor(f)}
+                  >{f.planbindung
+                    ? "Im Zeicheneditor bearbeiten"
+                    : "Im Zeicheneditor ermitteln"}</button
+                >{/if}</td
             ><td
               ><select
                 aria-label="Bezug zum Vorhaben"
@@ -555,10 +620,10 @@
           >
         {:else}
           <span class="meta"
-            >Flurstücksgrenze aus Flurkarte, Liegenschaftskarte oder Lageplan: unter
-            Unterlagen → Aufmaß die Grenze als „Flurstück“ zeichnen, dieses
-            Flurstück zuordnen und über „Aufgaben → Übernehmen“ verknüpfen. Ohne
-            amtliche Fläche kann die gezeichnete Fläche als Flurstücksfläche gelten.</span
+            >Flurstücksgrenze aus Flurkarte, Liegenschaftskarte oder Lageplan: neben
+            der Flurstücksfläche „Im Zeicheneditor ermitteln“ wählen, die Grenze
+            zeichnen und die Fläche übernehmen. Ohne amtliche Fläche kann die
+            gezeichnete Fläche als Flurstücksfläche gelten.</span
           >
         {/if}
       </div>
@@ -629,6 +694,25 @@
   }
   .eingabetabelle td {
     vertical-align: top;
+  }
+  .planknopf {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .offen,
+  .offenwahl {
+    display: block;
+    white-space: nowrap;
+  }
+  .offenwahl {
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+  }
+  .eingabetabelle .offenwahl input {
+    width: auto;
+    min-width: 0;
   }
   details {
     margin-top: 1rem;

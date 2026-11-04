@@ -156,8 +156,10 @@ impl CoreServices {
                     aktuell.name = ziel.name.clone();
                 }
                 if alt["grundstuecksflaeche_m2"] != neu["grundstuecksflaeche_m2"] {
+                    // Auch bei noch offener Flurstücksfläche: Sie wird übernommen, nicht von Hand gesetzt.
                     if crate::grundstuecksinformationen::informationen(&aktuell.planungsrecht)
-                        .vorhabenflaeche_m2()
+                        .vorhaben()
+                        .next()
                         .is_some()
                     {
                         return Err(CoreError::InvalidInput(

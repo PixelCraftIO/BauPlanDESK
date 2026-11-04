@@ -1575,6 +1575,7 @@ async fn flurstuecke_werden_aus_dem_pdf_aufmass_uebernommen() {
         planbindung: None,
         planflaeche_m2: None,
         flaeche_aus_plan: false,
+        flaeche_offen: false,
     };
     let mut p = core
         .create_project(
@@ -1875,6 +1876,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
                             planbindung: None,
                             planflaeche_m2: None,
                             flaeche_aus_plan: false,
+                            flaeche_offen: false,
                         }],
                     }),
                     ..Default::default()
@@ -2430,6 +2432,7 @@ async fn projektuebersicht_fuehrt_ohne_flurstuecke_ueber_die_planablage() {
             planbindung: None,
             planflaeche_m2: None,
             flaeche_aus_plan: false,
+            flaeche_offen: false,
         }],
     });
     let p = core
@@ -2764,4 +2767,178 @@ async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
             .is_some(),
         "Altbestand bleibt lesbar"
     );
+}
+
+#[tokio::test]
+async fn offene_flurstuecksflaeche_wird_aus_dem_aufmass_ermittelt() {
+    use core_lib::{
+        domain::{Project, ProjectUpdate},
+        grundstuecksinformationen::{FlurstuecksInfo, Grundstuecksinformationen, informationen},
+        projektbereiche::ProjektBereich,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let flurstueck = |id: &str, nummer: &str, flaeche: f64, offen: bool| FlurstuecksInfo {
+        id: id.into(),
+        gemarkung: "Linden".into(),
+        gemarkungsnummer: String::new(),
+        flur: "1".into(),
+        nummer: nummer.into(),
+        flaeche_m2: flaeche,
+        grundbuchbezirk: String::new(),
+        grundbuchblatt: String::new(),
+        laufende_nummer: None,
+        grundbuchauszug: None,
+        eigentuemer: String::new(),
+        eigentuemer_kunden: vec![],
+        bemerkung: String::new(),
+        rolle: Default::default(),
+        planbindung: None,
+        planflaeche_m2: None,
+        flaeche_aus_plan: false,
+        flaeche_offen: offen,
+    };
+    // Ein Flurstück ohne Katasterfläche lässt sich mit „Fläche wird im Aufmaß ermittelt“ speichern.
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Offene Fläche".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: Some(999.),
+                planungsrecht: core_lib::domain::Planungsrecht {
+                    grundstuecksinformationen: Some(Grundstuecksinformationen {
+                        flurstuecke: vec![
+                            flurstueck("a", "10/1", 1000., false),
+                            flurstueck("b", "10/2", 0., true),
+                        ],
+                    }),
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        p.grundstuecksflaeche_m2, None,
+        "keine Teilsumme als Grundstücksfläche"
+    );
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Flurkarte.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let (ebene, m_b, aufmass) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let a = Planaufmass {
+        bezeichnung: "Flurkarte".into(),
+        dokument: Some(Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        }),
+        seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Flurstücke".into(),
+            sichtbar: true,
+            gesperrt: false,
+            darstellung: None,
+        }],
+        // 100 × 50 pt = 10 m × 5 m = 50 m².
+        markierungen: vec![Planmarkierung {
+            id: m_b,
+            ebene_id: ebene,
+            bezeichnung: "Flurstück 10/2".into(),
+            bedeutung: Planbedeutung::Flurstueck,
+            geometrie: Plangeometrie::Rechteck {
+                von: [0., 0.],
+                bis: [100., 50.],
+            },
+            grundstueck_id: None,
+            gebaeude_id: None,
+            geschoss_id: None,
+            ausschnitt_id: None,
+            hoehenzone_von: None,
+            flurstueck_id: Some("b".into()),
+        }],
+        ausschnitte: vec![],
+    };
+    // Das Aufmaß arbeitet auch bei offener Fläche.
+    assert!(core.planaufmass_pruefen(p.id, &a).await.is_ok());
+    let f = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            0,
+            serde_json::to_value(&a).unwrap(),
+            &user,
+        )
+        .await
+        .unwrap();
+    let aufgaben = core.planaufmass_aufgaben(p.id, &a).await.unwrap();
+    let fb = aufgaben
+        .iter()
+        .find(|x| x.verbraucher == "flurstueck" && x.objekt == "b")
+        .unwrap();
+    assert_eq!(fb.markierung, Some(m_b));
+    assert!(
+        !fb.wert_vorhanden,
+        "offene Fläche ist kein vorhandener Wert"
+    );
+    // Übernahme wie in der Oberfläche: Bindung, ohne amtlichen Wert „aus Plan“.
+    let mut infos = informationen(&p.planungsrecht);
+    infos.flurstuecke[1].planbindung = Some(Planbindung {
+        aufmass_id: aufmass,
+        revision: f.revision,
+        markierung_id: m_b,
+        groesse: Planmessgroesse::Flaeche,
+        ziel: infos.flurstuecke[1].planziel(),
+    });
+    let infos = core.planaufmass_flurstuecke(p.id, infos).await.unwrap();
+    let b = &infos.flurstuecke[1];
+    assert!(!b.flaeche_offen && b.flaeche_aus_plan);
+    assert_eq!((b.flaeche_m2, b.planflaeche_m2), (50., Some(50.)));
+    let p: Project = core
+        .projekt_bereich_speichern(
+            p.clone(),
+            ProjektBereich::Grundstuecksinformationen,
+            ProjectUpdate {
+                id: p.id,
+                expected_version: p.version,
+                name: p.name.clone(),
+                bundesland: p.bundesland,
+                grundstuecksflaeche_m2: p.grundstuecksflaeche_m2,
+                planungsrecht: Some(core_lib::domain::Planungsrecht {
+                    grundstuecksinformationen: Some(infos),
+                    ..p.planungsrecht.clone()
+                }),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    assert_eq!(p.grundstuecksflaeche_m2, Some(1050.));
 }

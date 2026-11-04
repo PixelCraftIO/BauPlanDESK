@@ -1012,7 +1012,14 @@ planflaeche_m2?: number,
  * amtlicher Wert vorliegt; `flaeche_m2` wird dann aus `planflaeche_m2`
  * übernommen und ist nicht von Hand änderbar.
  */
-flaeche_aus_plan?: boolean, };
+flaeche_aus_plan?: boolean,
+/**
+ * Die Fläche wird im Aufmaß ermittelt; eine Katasterfläche liegt noch
+ * nicht vor. `flaeche_m2` ist dann 0 und gilt als **fehlend**, nicht als
+ * 0 m²: Baugrundstücke, GRZ/GFZ und die Projektfläche bleiben offen, bis
+ * die gezeichnete Fläche übernommen ist (danach „Fläche aus Plan“).
+ */
+flaeche_offen?: boolean, };
 export type FlurstuecksRolle = "vorhaben" | "nachbar" | "sonstiges";
 export type Flaechenabweichung = "unauffaellig" | "warnung" | "fehler";
 export type FlurstuecksAnsatz = { flurstueck_id: string, abzuege: Array<FlaechenAbzug>, abweichende_zuordnung: { kennung: string; grundlage: string } | null, };

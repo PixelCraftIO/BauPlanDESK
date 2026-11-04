@@ -82,6 +82,11 @@ impl CoreServices {
             }
             let wert = gerundet(wert);
             f.planflaeche_m2 = Some(wert);
+            // Eine noch offene Fläche liefert jetzt die Zeichnung.
+            if f.flaeche_offen {
+                f.flaeche_offen = false;
+                f.flaeche_aus_plan = true;
+            }
             if f.flaeche_aus_plan {
                 f.flaeche_m2 = wert;
             }
