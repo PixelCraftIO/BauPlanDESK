@@ -877,14 +877,14 @@
               <fieldset disabled={elementGesperrt} class="element-eigenschaften" aria-label="Zeichenelement">
                 <legend>{el.art==="wand"?"Wand":el.art==="masskette"?"Maßkette":el.art==="symbol"?"Planzeichen":el.art==="raumstempel"?"Raumstempel":"Text"}</legend>
                 {#if el.art==="wand"}<label>Wanddicke (m)<input type="number" min=".01" max="10" step=".01" bind:value={el.dicke_m}/></label>
-                  {#if el.oeffnungen?.length}<table class="oeffnungen"><thead><tr><th>Art</th><th>ab (m)</th><th>Breite</th><th>Höhe</th><th>Brüstung</th><th>Anschlag</th><th></th></tr></thead><tbody>
+                  {#if el.oeffnungen?.length}<div class="oeffnungen-rahmen"><table class="oeffnungen"><thead><tr><th>Art</th><th>ab (m)</th><th>Breite</th><th>Höhe</th><th>Brüstung</th><th>Anschlag</th><th></th></tr></thead><tbody>
                     {#each el.oeffnungen as o,i}<tr><td><select aria-label="Art" bind:value={o.art}><option value="fenster">Fenster</option><option value="tuer">Tür</option></select></td>
                       <td><input type="number" min="0" step=".01" aria-label="Lage ab Wandanfang" bind:value={o.lage_m}/></td><td><input type="number" min=".1" step=".005" aria-label="Breite" bind:value={o.breite_m}/></td>
                       <td><input type="number" min="0" step=".005" aria-label="Höhe" value={o.hoehe_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.hoehe_m=Number(v);else delete o.hoehe_m}}/></td>
                       <td>{#if o.art==="fenster"}<input type="number" min="0" step=".005" aria-label="Brüstung" value={o.bruestung_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.bruestung_m=Number(v);else delete o.bruestung_m}}/>{/if}</td>
                       <td>{#if o.art==="tuer"}<select aria-label="Anschlag" bind:value={o.links}><option value={false}>rechts</option><option value={true}>links</option></select>{/if}</td>
                       <td><button type="button" class="link" onclick={()=>{if(el?.art==="wand"){merken();el.oeffnungen=el.oeffnungen!.filter((_,j)=>j!==i)}}}>Entfernen</button></td></tr>{/each}
-                  </tbody></table>{:else}<p class="meta">Fenster und Türen mit dem Werkzeug „Fenster / Tür“ (F) in die Wand klicken.</p>{/if}
+                  </tbody></table></div>{:else}<p class="meta">Fenster und Türen mit dem Werkzeug „Fenster / Tür“ (F) in die Wand klicken.</p>{/if}
                 {:else if el.art==="symbol"}<label>Planzeichen<select bind:value={el.symbol}>{#each PLANSYMBOLE as [v,t]}<option value={v}>{t}</option>{/each}</select></label><label>Größe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.groesse}/></label><label>Drehung (°)<input type="number" step="any" bind:value={el.drehung_grad}/></label>
                 {:else if el.art==="raumstempel"}<label>Raum<select value={`${el.raumbuch_id}|${el.raum_id}`} onchange={e=>{const [a,b]=e.currentTarget.value.split("|");if(el?.art==="raumstempel"&&b){el.raumbuch_id=a;el.raum_id=b}}}>{#if !raeume[el.raum_id]}<option value={`${el.raumbuch_id}|${el.raum_id}`}>Raum fehlt im Raumbuch</option>{/if}{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung}</option>{/each}</optgroup>{/each}</select></label><label>Schrifthöhe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.hoehe}/></label>
                 {:else if el.art==="masskette"}<label>Abstand der Maßlinie ({einheitText})<input type="number" step="any" bind:value={el.abstand}/></label>
@@ -1237,6 +1237,12 @@
   .palette[open] > summary::before{transform:rotate(90deg)}
   .palette > summary .meta{text-transform:none;letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .palette > summary h3{margin:0;font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
+  /* Aufklappbares Planlayout: Pfeil und Überschrift in einer Zeile. */
+  .planlayout > summary{display:flex;gap:.4rem;align-items:baseline;cursor:pointer;list-style:none}
+  .planlayout > summary::-webkit-details-marker{display:none}
+  .planlayout > summary::before{content:"▸";font-size:.7rem;transition:transform .1s}
+  .planlayout[open] > summary::before{transform:rotate(90deg)}
+  .planlayout > summary h3{margin:.4rem 0}
   .palette h3{margin:.8rem 0 .3rem;font-size:.9rem}
   .palette h4{margin:.6rem 0 .2rem;font-size:.8rem;color:var(--muted)}
   .vorlagen{display:flex;flex-wrap:wrap;gap:4px}
@@ -1259,8 +1265,11 @@
   .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .planzeichenwahl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
   .planzeichenwahl label{display:flex;gap:.3rem;align-items:center}
+  /* Die Öffnungstabelle ist breiter als die Palette: sie rollt waagerecht, statt die ganze Palette zu verbreitern. */
+  .oeffnungen-rahmen{width:0;min-width:100%;overflow-x:auto}
   .oeffnungen{width:100%;font-size:.8rem;border-collapse:collapse}
-  .oeffnungen input,.oeffnungen select{width:100%;min-width:3.2rem;font-size:.8rem}
+  .oeffnungen input,.oeffnungen select{width:100%;min-width:4.4rem;font-size:.8rem}
+  .oeffnungen select{min-width:5.5rem}
   .ebenendarstellung{margin:0 0 .3rem 1.6rem;font-size:.85rem}
   .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}

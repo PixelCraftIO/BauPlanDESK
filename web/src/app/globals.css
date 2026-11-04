@@ -395,6 +395,272 @@ input:focus-visible {
   margin: 0;
 }
 
+/* Ablaufdiagramme (src/lib/diagramm.tsx): Linien und Schrift folgen der
+   Vordergrundfarbe, Flächen der Seitenfarbe – damit hell und dunkel lesbar. */
+.diagramm {
+  margin: 1.5rem 0 0;
+}
+.diagramm-flaeche {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  padding: 1rem;
+  overflow-x: auto;
+}
+.diagramm svg {
+  display: block;
+  width: 100%;
+  min-width: 40rem;
+  height: auto;
+  color: var(--fg);
+  font-family: inherit;
+}
+.diagramm figcaption {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 48rem;
+}
+.dg-flaeche {
+  fill: var(--panel);
+  stroke: var(--feld-rand);
+  stroke-width: 1.25;
+}
+.dg-titel {
+  fill: currentColor;
+  font-size: 14px;
+  font-weight: 650;
+}
+.dg-zeile {
+  fill: var(--muted);
+  font-size: 12px;
+}
+.dg-akzent .dg-flaeche {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.dg-akzent .dg-titel {
+  fill: var(--accent);
+}
+.dg-daten .dg-flaeche {
+  fill: var(--zebra);
+}
+.dg-hinweis .dg-flaeche {
+  fill: var(--hinweis-bg);
+  stroke: var(--hinweis-rand);
+}
+.dg-frage .dg-flaeche {
+  fill: var(--bg);
+}
+.dg-kante polyline {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+.dg-kante-akzent polyline {
+  stroke: var(--accent);
+  stroke-width: 2.25;
+}
+.dg-spitze {
+  fill: var(--muted);
+}
+.dg-spitze-akzent {
+  fill: var(--accent);
+}
+.dg-beschriftung rect {
+  fill: var(--panel);
+}
+.dg-beschriftung text {
+  fill: currentColor;
+  font-size: 11.5px;
+  font-style: italic;
+}
+
+/* Unterseiten Zeicheneditor und Abläufe */
+.seitenkopf {
+  background: linear-gradient(180deg, var(--accent-soft), var(--panel));
+  border-bottom: 1px solid var(--border-innen);
+  padding: 2.75rem 0 2.25rem;
+}
+.seitenkopf h1 {
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  margin: 0 0 0.75rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.seitenkopf .einleitung {
+  max-width: 48rem;
+  margin: 0;
+}
+.sprungmarken {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.sprungmarken a {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.sprungmarken a:hover {
+  border-color: var(--accent);
+}
+.funktion {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: 2rem;
+  align-items: start;
+  padding: 2.5rem 0;
+  border-top: 1px solid var(--border-innen);
+}
+.funktion:first-of-type {
+  border-top: 0;
+}
+.funktion:nth-of-type(even) {
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+}
+.funktion:nth-of-type(even) .funktion-bild {
+  order: 2;
+}
+.funktion-bild {
+  margin: 0;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgb(31 58 95 / 0.12);
+}
+.funktion-bild a {
+  display: block;
+}
+.funktion-bild img {
+  display: block;
+}
+.funktion-text h2 {
+  font-size: 1.4rem;
+  margin: 0 0 0.5rem;
+}
+.funktion-text > p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+.funktion-text ul {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+.funktion-text li {
+  margin: 0.3rem 0;
+}
+.funktion-text kbd {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 2px;
+  background: var(--zebra);
+}
+.ablaufkapitel {
+  padding: 2.5rem 0;
+  border-top: 1px solid var(--border-innen);
+}
+.ablaufkapitel:first-of-type {
+  border-top: 0;
+}
+.ablaufkapitel h2 {
+  font-size: 1.4rem;
+  margin: 0 0 0.5rem;
+}
+.ablaufkapitel > p {
+  margin: 0;
+  max-width: 48rem;
+  color: var(--muted);
+}
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.legende li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.legende-muster {
+  display: inline-block;
+  width: 1.6rem;
+  height: 1rem;
+  border: 1.25px solid var(--feld-rand);
+  background: var(--panel);
+}
+.legende-muster.akzent {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+.legende-muster.daten {
+  background: var(--zebra);
+  border-radius: 5px;
+}
+.legende-muster.hinweis {
+  border-color: var(--hinweis-rand);
+  background: var(--hinweis-bg);
+}
+.legende-muster.linie {
+  border: 0;
+  height: 0;
+  border-top: 2px dashed var(--muted);
+  background: none;
+}
+.toleranz {
+  margin: 1.5rem 0 0;
+}
+.toleranz svg {
+  display: block;
+  width: 100%;
+  max-width: 46rem;
+  height: auto;
+  color: var(--fg);
+}
+.toleranz figcaption {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 48rem;
+}
+.tol-ok {
+  fill: var(--zebra);
+  stroke: var(--feld-rand);
+}
+.tol-warn {
+  fill: var(--hinweis-bg);
+  stroke: var(--hinweis-rand);
+}
+.tol-fehler {
+  fill: var(--err-bg);
+  stroke: var(--error-text);
+}
+.tol-text {
+  fill: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tol-skala {
+  fill: var(--muted);
+  font-size: 12px;
+}
+.tol-strich {
+  stroke: var(--muted);
+}
+
 /* Anmeldung */
 .login {
   display: grid;
@@ -619,16 +885,23 @@ input:focus-visible {
 
 @media (max-width: 960px) {
   .held-inhalt {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .ablauf {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .ansichten {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .funktion,
+  .funktion:nth-of-type(even) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .funktion:nth-of-type(even) .funktion-bild {
+    order: 0;
   }
   .handbuch {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.5rem;
   }
   .handbuch-seitenleiste {
@@ -641,6 +914,11 @@ input:focus-visible {
 }
 
 @media (max-width: 640px) {
+  /* Breite Handbuchtabellen rollen waagerecht, statt die Seite zu verbreitern. */
+  .handbuch-text table {
+    display: block;
+    overflow-x: auto;
+  }
   .hauptnavigation .nur-breit {
     display: none;
   }
@@ -654,7 +932,7 @@ input:focus-visible {
     justify-content: space-between;
   }
   .ablauf {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .band-inhalt {
     flex-direction: column;

@@ -158,3 +158,167 @@ function ifcDetailsEnde() {
   const d = document.querySelector("[aria-label=Details]");
   d.scrollTop = d.scrollHeight;
 }
+
+/**
+ * Legt im Beispielprojekt die eigene Zeichnung „Entwurf Erdgeschoss“ (Blatt in
+ * Metern) an, falls sie fehlt: Wände mit Fenstern und Türen, Maßketten,
+ * Raumstempel aus dem Raumbuch EG, Planzeichen, ein Abbruch-Schuppen und die
+ * Geschoss-Außenkante als Markierung. Gibt die Objekt-ID zurück.
+ */
+async function beispielzeichnung(NAME = "Entwurf Erdgeschoss") {
+  const inv = window.__TAURI_INTERNALS__.invoke;
+  const p = (await inv("projekte_auflisten")).find((x) => x.name === "Neubau Einfamilienhaus Mustermann");
+  const da = (await inv("fachobjekte", { projektId: p.id, art: "planaufmass" })).find((f) => f.daten.bezeichnung === NAME);
+  if (da) return da.objekt;
+  const rb = (await inv("fachobjekte", { projektId: p.id, art: "raumbuch" })).find((f) => /Erdgeschoss/.test(f.daten.bezeichnung));
+  const id = () => crypto.randomUUID();
+  const ebene = (bezeichnung, darstellung) => ({ id: id(), bezeichnung, sichtbar: true, gesperrt: false, darstellung });
+  const wand = ebene("Wände", { stift_mm: 0.5, schraffur: "mauerwerk", bauzustand: "neubau" });
+  const abbruch = ebene("Abbruch", { stift_mm: 0.35, schraffur: "diagonal", bauzustand: "abbruch" });
+  const mass = ebene("Bemaßung", { stift_mm: 0.18 });
+  const text = ebene("Beschriftung", { stift_mm: 0.25 });
+  const frei = ebene("Freianlagen", { stift_mm: 0.25, farbe: "#2f7d32" });
+  const aufmass = ebene("Aufmaß", {});
+  const W = (von, bis, dicke_m, oeffnungen = [], e = wand) => ({ id: id(), ebene_id: e.id, art: "wand", von, bis, dicke_m, oeffnungen });
+  const F = (lage_m, breite_m, hoehe_m = 1.385, bruestung_m = 0.885) => ({ art: "fenster", lage_m, breite_m, hoehe_m, bruestung_m, links: false });
+  const T = (lage_m, breite_m, links = false) => ({ art: "tuer", lage_m, breite_m, hoehe_m: 2.135, links });
+  const M = (von, bis, abstand) => ({ id: id(), ebene_id: mass.id, art: "masskette", von, bis, abstand });
+  const elemente = [
+    W([0, 0], [12, 0], 0.365, [F(1.0, 2.01), F(4.3, 1.51), F(8.9, 1.26)]),
+    W([12, 0], [12, 9.5], 0.365, [F(1.1, 1.26), F(7.4, 1.26)]),
+    W([12, 9.5], [0, 9.5], 0.365, [F(1.6, 1.51), T(5.6, 1.135, true)]),
+    W([0, 9.5], [0, 0], 0.365, [F(1.7, 1.01), F(5.4, 2.26, 2.26, 0)]),
+    W([7, 0], [7, 9.5], 0.24, [T(4.4, 0.885), T(7.6, 0.885, true)]),
+    W([0, 5], [7, 5], 0.24, [T(4.6, 0.885)]),
+    W([3.5, 5], [3.5, 9.5], 0.115, [T(1.4, 0.76)]),
+    W([7, 3.6], [12, 3.6], 0.115, [T(1.2, 0.885, true)]),
+    W([7, 6.9], [12, 6.9], 0.115),
+    W([15, 0.5], [18, 0.5], 0.175, [], abbruch),
+    W([18, 0.5], [18, 3.5], 0.175, [], abbruch),
+    W([18, 3.5], [15, 3.5], 0.175, [], abbruch),
+    W([15, 3.5], [15, 0.5], 0.175, [], abbruch),
+    M([0, 0], [12, 0], -1.4),
+    M([0, 0], [7, 0], -0.8),
+    M([7, 0], [12, 0], -0.8),
+    M([0, 9.5], [0, 0], -1.4),
+    M([0, 9.5], [0, 5], -0.8),
+    M([0, 5], [0, 0], -0.8),
+    { id: id(), ebene_id: text.id, art: "text", punkt: [-4.5, -2.6], inhalt: "Grundriss Erdgeschoss", hoehe: 0.5, drehung_grad: 0 },
+    { id: id(), ebene_id: text.id, art: "text", punkt: [15, 4.4], inhalt: "Schuppen (Abbruch)", hoehe: 0.3, drehung_grad: 0 },
+    { id: id(), ebene_id: frei.id, art: "symbol", punkt: [-3, 2], symbol: "baum_bestand", groesse: 3, drehung_grad: 0 },
+    { id: id(), ebene_id: frei.id, art: "symbol", punkt: [16.5, 8], symbol: "baum_neu", groesse: 2.5, drehung_grad: 0 },
+    { id: id(), ebene_id: frei.id, art: "symbol", punkt: [5.25, 10.6], symbol: "hauseingang", groesse: 1, drehung_grad: 0 },
+  ];
+  // Raumstempel an den Raummitten, nach Raumname zugeordnet.
+  const lage = [
+    [/Wohnen/, [1.5, 2.5]],
+    [/Küche/, [8.0, 1.8]],
+    [/Arbeit/, [8.0, 8.2]],
+    [/Diele|Flur/, [3.8, 6.4]],
+    [/Technik|Hausanschl|WC|Bad|Dusch/, [0.8, 7.3]],
+  ];
+  const belegt = new Set();
+  for (const r of rb?.daten.raeume ?? []) {
+    const l = lage.find(([re], i) => re.test(r.bezeichnung) && !belegt.has(i));
+    if (!l) continue;
+    belegt.add(lage.indexOf(l));
+    elemente.push({ id: id(), ebene_id: text.id, art: "raumstempel", punkt: l[1], raumbuch_id: rb.objekt, raum_id: r.id, hoehe: 0.3 });
+  }
+  const s = 0.1825;
+  const plan = {
+    bezeichnung: NAME,
+    seite: 1,
+    kalibrierung: { art: "einheit", einheit: "meter" },
+    hoehenbezug: null,
+    ebenen: [wand, abbruch, mass, text, frei, aufmass],
+    markierungen: [
+      {
+        id: id(),
+        ebene_id: aufmass.id,
+        bezeichnung: "Außenkante EG",
+        bedeutung: "geschoss_aussenkante",
+        geometrie: { art: "polygon", punkte: [[-s, -s], [12 + s, -s], [12 + s, 9.5 + s], [-s, 9.5 + s]] },
+        grundstueck_id: null,
+        gebaeude_id: null,
+        geschoss_id: null,
+      },
+    ],
+    elemente,
+  };
+  // Haus mit Abstand zum Blattrand: alle Punkte um (6 m, 6 m) verschieben.
+  const v = (q) => [q[0] + 6, q[1] + 6];
+  for (const e of elemente) for (const k of ["von", "bis", "punkt"]) if (e[k]) e[k] = v(e[k]);
+  for (const m of plan.markierungen) m.geometrie.punkte = m.geometrie.punkte.map(v);
+  const neu = id();
+  await inv("fachobjekt_speichern", { projektId: p.id, art: "planaufmass", id: neu, basis: 0, daten: plan });
+  return neu;
+}
+
+/** Öffnet im Aufmaß den Tab bzw. Listeneintrag mit dem Namen `name`. */
+async function aufmassTab(name) {
+  await register("Ermittlung");
+  await bereich("Aufmaß");
+  let t = [...haupt().querySelectorAll("[role=tab]")].filter(sichtbar).find((e) => txt(e).startsWith(name));
+  if (!t) {
+    const liste = [...haupt().querySelectorAll("[role=tab]")].filter(sichtbar).find((e) => txt(e) === "Aufmaßliste");
+    if (liste) {
+      liste.click();
+      await sleep(1200);
+    }
+    await eintrag(name);
+    t = [...haupt().querySelectorAll("[role=tab]")].filter(sichtbar).find((e) => txt(e).startsWith(name));
+  }
+  if (t) t.click();
+  await sleep(1500);
+}
+
+/** Zoomt die Zeichenfläche um den Faktor `f` um den Bildschirmpunkt (x, y) wie Strg+Mausrad. */
+async function zoomAuf(x, y, f) {
+  const ziel = document.elementFromPoint(x, y);
+  ziel.dispatchEvent(new WheelEvent("wheel", { deltaY: -Math.log(f) / 0.0015, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+  await sleep(1200);
+}
+
+/** Zoomt so, dass die Planbeschriftung `t` (z. B. „Grundriss EG“) links oben stehen bleibt. */
+async function zoomAufText(t, f) {
+  const e = [...document.querySelectorAll("svg text")].filter(sichtbar).find((x) => x.textContent.trim() === t);
+  if (!e) throw new Error("Beschriftung fehlt: " + t);
+  const r = e.getBoundingClientRect();
+  await zoomAuf(r.left - 8, r.top - 8, f);
+}
+
+/** Schaltet den Zeicheneditor in den Vollbildmodus, falls er es nicht schon ist. */
+async function vollbildAn() {
+  if (!finde("Vollbild beenden")) await klick("Vollbild");
+  await sleep(1200);
+}
+
+/** Wählt in der Auswahl, deren erste Option mit `erste` beginnt, die Option mit Text `t`. */
+async function waehleText(erste, t) {
+  const s = [...document.querySelectorAll("select")].filter(sichtbar).find((x) => x.options[0]?.text.startsWith(erste));
+  if (!s) throw new Error("Auswahl fehlt: " + erste);
+  s.value = [...s.options].find((o) => o.text.startsWith(t) || o.text.includes(t)).value;
+  s.dispatchEvent(new Event("change", { bubbles: true }));
+  await sleep(1200);
+}
+
+/** Klickt mit der Maus an Bildschirmpunkt (x, y) auf die Zeichenfläche (wählt die oberste Markierung). */
+async function planKlick(x, y) {
+  const e = document.elementFromPoint(x, y);
+  const o = { clientX: x, clientY: y, bubbles: true, cancelable: true, button: 0, pointerId: 1, pointerType: "mouse", isPrimary: true };
+  e.dispatchEvent(new PointerEvent("pointerdown", o));
+  await sleep(60);
+  e.dispatchEvent(new PointerEvent("pointerup", o));
+  e.dispatchEvent(new MouseEvent("click", o));
+  await sleep(1000);
+}
+
+/** Klappt die Palette des Zeicheneditors mit dem Titel `t` auf und rückt sie nach oben. */
+async function palette(t) {
+  const s = [...document.querySelectorAll("details.palette > summary")].filter(sichtbar).find((x) => txt(x).toUpperCase().startsWith(t.toUpperCase()));
+  if (!s) throw new Error("Palette fehlt: " + t);
+  if (!s.parentElement.open) s.click();
+  await sleep(800);
+  s.scrollIntoView({ block: "start" });
+  await sleep(400);
+}
