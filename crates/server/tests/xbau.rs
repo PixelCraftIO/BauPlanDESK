@@ -1004,6 +1004,7 @@ async fn zentrale_flurstuecke_gelten_fuer_antrag_und_export() {
         planbindung: None,
         planflaeche_m2: None,
         flaeche_aus_plan: false,
+        flaeche_offen: false,
     };
     let mut recht = p.planungsrecht.clone();
     recht.grundstuecksinformationen = Some(Grundstuecksinformationen {
@@ -1202,6 +1203,7 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
         planbindung: None,
         planflaeche_m2: None,
         flaeche_aus_plan: false,
+        flaeche_offen: false,
     };
     let mut recht = p.planungsrecht.clone();
     recht.grundstuecksinformationen = Some(Grundstuecksinformationen {

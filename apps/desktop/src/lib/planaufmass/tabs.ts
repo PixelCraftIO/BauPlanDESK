@@ -1,6 +1,8 @@
 /** Zeichnungs-Tabs des Aufmaßes: offene Aufmaße eines Projekts je Benutzer, über Sitzungen hinweg gemerkt. */
 /** Start eines Tabs: gespeichertes Aufmaß, neuer Entwurf auf einer Unterlage oder neue eigene Zeichnung in Metern. */
 export type Tabstart = { id?: string; dokument?: { id: string; version: number; name: string }; zeichnung?: boolean;
+  /** Flurstücksauftrag aus den Grundstücksinformationen: Grenze zeichnen und Fläche übernehmen. */
+  flurstueck?: { id: string; bezeichnung: string };
   /** IFC-Modell-Tab; `modell` ist die Modellakte, sobald gewählt. */
   ifc?: boolean; modell?: string };
 export interface Zeichnungstab {

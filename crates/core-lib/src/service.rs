@@ -1087,8 +1087,15 @@ impl CoreServices {
         fehlende_angaben.extend(self.anlagen_pruefen(&pruefstand).await?);
         // Gezeichnete Flurstücksfläche weicht deutlich vom Kataster ab: erst
         // klären, dann einreichen (Warnungen stehen in der Baugrundstücksprüfung).
+        let infos = crate::grundstuecksinformationen::informationen(&p.planungsrecht);
+        fehlende_angaben.extend(infos.offene_flaechen().map(|f| {
+            format!(
+                "Flurstück {}: Fläche noch nicht ermittelt (im Zeicheneditor zeichnen und übernehmen oder Katasterfläche eintragen).",
+                f.bezeichnung()
+            )
+        }));
         fehlende_angaben.extend(
-            crate::grundstuecksinformationen::informationen(&p.planungsrecht)
+            infos
                 .flaechenabweichungen()
                 .into_iter()
                 .filter(|(s, _)| *s == crate::grundstuecksinformationen::Flaechenabweichung::Fehler)

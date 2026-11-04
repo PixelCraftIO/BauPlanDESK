@@ -102,6 +102,12 @@ Die Lage wird geometrisch im Aufmaß geprüft ([Kapitel 5](05-ermittlung.md#lage
 
 Liegt eine Flurkarte oder ein Lageplan vor, kann die Grenze im Aufmaß
 gezeichnet und dem Flurstück zugeordnet werden ([Kapitel 5](05-ermittlung.md#aufmaß-und-zeicheneditor)).
+Am schnellsten über **Im Zeicheneditor ermitteln** neben der Flurstücksfläche:
+Unterlage wählen (vorhandenes Aufmaß, Projektdatei oder eigene Zeichnung in
+Metern), kalibrieren, **Grenze zeichnen** und **Fläche übernehmen und zurück**.
+Bedeutung „Flurstück“ und Zuordnung setzt die App selbst. Bei einem bereits
+verknüpften Flurstück heißt der Knopf **Im Zeicheneditor bearbeiten**.
+
 Dann gilt:
 
 - Die **Katasterfläche bleibt Rechenwert**. Die gezeichnete Fläche steht

@@ -33,7 +33,12 @@
   import type { Raumbuch, Plansymbol, Oeffnungsart } from "../generated/plattform";
   import { projektNavigation } from "../projektNavigation.svelte";
   import { tick } from "svelte";
-  let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
+  import { Uebernahme } from "./Uebernahme.svelte";
+  import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
+  import { flurstueckVorbereiten, flurstueckeSpeichern } from "./flurstueck";
+  let {projekt,benutzerId,darf,onprojekt,unterlage=null,modus="voll",start=null,entwurfObjekt="",sichtbar=true,onoeffnen,onneu,onstatus,onschliessen,onflurstueckfertig}:{projekt:Project;benutzerId:string;darf:boolean;onprojekt?:(p:Project)=>void;unterlage?:{dokumentId:string;nummer:number}|null;
+    /** Flurstücksauftrag des Tabs übernommen oder beendet. */
+    onflurstueckfertig?:()=>void;
     /** voll: Liste und Editor in einem; liste: nur die Liste, Öffnen/Neu gehen an den Aufrufer; tab: nur der Editor für `start`. */
     modus?:"voll"|"liste"|"tab";start?:Tabstart|null;entwurfObjekt?:string;sichtbar?:boolean;
     onoeffnen?:(f:Datensatz<Planaufmass>)=>void;onneu?:(start?:Tabstart)=>void;onstatus?:(st:{titel:string;geaendert:boolean;id?:string|null})=>void;onschliessen?:()=>void}=$props();
@@ -41,6 +46,8 @@
   const flurstuecke=$derived(grundstuecksinformationen(projekt.planungsrecht).flurstuecke);
   let dateien=$state<DocumentVersion[]>([]), ifcDateien=$state<DocumentVersion[]>([]), pdf=$state<PdfVorschauDaten|null>(null), pdfFehler=$state(""), grund=$state<GrundstueckKontext[]>([]);
   let gebaeude=$state<Datensatz<Gebaeude>[]>([]),listenFehler=$state(""),laedt=$state(false);
+  // Erst nach dem ersten Laden der Unterlagen darf ein Tab seinen Start ausführen, sonst fehlt die Unterlage.
+  let unterlagenGeladen=$state(false);
   // DXF-Unterlage: Zeichnung samt Ebenensichtbarkeit (nur Anzeige und Fang).
   let dxf=$state<CadPlan|null>(null), dxfSichtbar=$state<boolean[]>([]);
   let baugrenzenLaeuft=$state(false), baugrenzenErgebnis=$state<BaugrenzenPruefung|null>(null);
@@ -242,6 +249,7 @@
     grund=g.status==="fulfilled"?g.value:[];
     gebaeude=b.status==="fulfilled"?b.value:[];
     listenFehler=[...extra,...[d,g,b].flatMap(r=>r.status==="rejected"?[fehlertext(r.reason)]:[])].join(" · ");
+    unterlagenGeladen=true;
   }
   // Von außen gewünschte Unterlage (Projektdateien „Im Aufmaß öffnen“, Projektstart, Projektübersicht).
   let unterlageNummer=0;
@@ -280,7 +288,7 @@
   let gestartet=$state(false);
   $effect(()=>{
     const st=start,bereit=s.bereit,liste=s.liste,unterlagen=dateien;
-    if(modus!=="tab"||!st||!bereit||gestartet||laedt)return;
+    if(modus!=="tab"||!st||!bereit||gestartet||laedt||!unterlagenGeladen)return;
     untrack(()=>{gestartet=true;void tabStarten(st,liste,unterlagen)});
   });
   async function tabStarten(st:Tabstart,liste:Datensatz<Planaufmass>[],unterlagen:DocumentVersion[]){
@@ -710,6 +718,43 @@
     }
     vorbelegung=null;vorlage=t;werkzeug=id;
   }
+  // Flurstücksauftrag des Tabs: Grenze dieses Flurstücks zeichnen und die Fläche
+  // übernehmen. Aufgabe, Messwert und Übernahme kommen vom Core wie im Aufgaben-Panel.
+  const flurAuftrag=$derived(modus==="tab"?start?.flurstueck??null:null);
+  const flurVorschau=new Uebernahme();
+  let flurAufgabe=$state<Planaufgabe|null>(null),flurFehler=$state(""),flurLaeuft=$state(false),flurGeneration=0;
+  $effect(()=>{
+    const a=flurAuftrag,sig=signatur;
+    if(!a||!s.eingabe){flurAufgabe=null;return}
+    const n=++flurGeneration;
+    const timer=setTimeout(()=>{void planApi.aufgaben(projekt.id,JSON.parse(sig)).then(l=>{if(n===flurGeneration){flurAufgabe=l.find(x=>x.verbraucher==="flurstueck"&&x.objekt===a.id)??null;flurFehler=flurAufgabe?"":"Das Flurstück ist nicht mehr gespeichert."}}).catch(e=>{if(n===flurGeneration)flurFehler=fehlertext(e)})},300);
+    return()=>clearTimeout(timer);
+  });
+  /** Markierung dieses Aufmaßes für das Flurstück: noch frei oder schon verknüpft. */
+  const flurMarkierung=(a:Planaufgabe|null|undefined,plan:Planaufmass|null|undefined)=>a?.markierung??(a?.gebunden&&plan?.markierungen.some(m=>m.id===a.gebunden)?a.gebunden:null);
+  const flurFlaeche=$derived.by(()=>{const id=flurMarkierung(flurAufgabe,s.eingabe);return id?aktuelleWerte.find(w=>w.id===id)?.flaeche_m2??null:null});
+  const ohneMassstab=$derived(!!s.eingabe?.dokument&&!istDxfUnterlage&&!(aktueller?.kalibrierung??s.eingabe?.kalibrierung));
+  async function flurUebernehmen(){
+    const a=flurAuftrag;if(!a||!darf||flurLaeuft)return;
+    flurLaeuft=true;flurFehler="";
+    try{
+      // Die Bindung verweist auf den gespeicherten Stand dieses Aufmaßes.
+      if((!s.original||s.hatAenderungen())&&!(await s.speichern()))return;
+      const id=s.id;if(!id)throw Error("Aufmaß zuerst speichern.");
+      const stand=await plattformApi.lesen<Planaufmass>(projekt.id,"planaufmass",id);if(!stand)throw Error("Aufmaß nicht mehr vorhanden.");
+      const aufgabe=(await planApi.aufgaben(projekt.id,stand.daten)).find(x=>x.verbraucher==="flurstueck"&&x.objekt===a.id);
+      if(!aufgabe)throw Error("Das Flurstück ist nicht mehr gespeichert.");
+      const mid=flurMarkierung(aufgabe,stand.daten);
+      if(!mid)throw Error("Noch keine Grenze für dieses Flurstück gezeichnet: „Grenze zeichnen“ wählen und das Polygon schließen.");
+      const {basis,geprueft,vorher,nachher}=await flurstueckVorbereiten(projekt,a.id,{aufmass_id:id,revision:stand.revision,markierung_id:mid,groesse:aufgabe.groesse,ziel:aufgabe.ziel});
+      const name=stand.daten.markierungen.find(m=>m.id===mid)?.bezeichnung??"Markierung";
+      if(!(await flurVorschau.fragen([{ziel:`Flurstück ${a.bezeichnung} · Fläche`,vorher,nachher,quelle:`${stand.daten.bezeichnung} · ${name} · R${stand.revision}`}],true)))return;
+      onprojekt?.(await flurstueckeSpeichern(basis,geprueft));
+      onflurstueckfertig?.();
+      const zurueck=navigation?.rueckweg;
+      if(navigation&&zurueck?.bereich==="flurstuecke"){navigation.rueckweg=null;navigation.springen(zurueck)}
+    }catch(e){flurFehler=fehlertext(e)}finally{flurLaeuft=false}
+  }
   function aufgabeZeichnen(a:Planaufgabe){
     if(a.geometrie==="hoehenpunkt"&&!hoehenMoeglich){
       s.meldung=`„${a.titel}“ ist eine Höhe: zuerst einen Schnitt oder eine Ansicht als Ausschnitt öffnen und dort die Bezugslinie setzen.`;return;
@@ -807,6 +852,7 @@
   const anzahl=(a:Planausschnitt)=>s.eingabe?.markierungen.filter(m=>m.ausschnitt_id===a.id)??[];
 </script>
 
+<UebernahmeVorschau v={flurVorschau}/>
 <Fachliste titel="Aufmaß" {s} bereich="planaufmass" {darf} lesendBedienbar={true} zusatzBeschaeftigt={()=>laedt} kompakt={true} werkzeuge={vollbild?undefined:editorwerkzeuge} oeffnen={modus==="liste"?f=>onoeffnen?.(f):undefined} neu={modus==="liste"?()=>onneu?.():undefined}>
   {#snippet children(p)}
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
@@ -855,6 +901,15 @@
             <datalist id="cad-befehle">{#each befehlsliste as [k,b]}<option value={k}>{b}</option>{/each}</datalist>
           </div>
           {#if betrachterSeite!==null}<p class="hinweisbox betrachtung" role="status">Betrachtung von Seite {betrachterSeite}. Das Aufmaß gehört weiterhin zu Seite {p.seite}. <button type="button" class="link" onclick={()=>betrachterSeite=null}>Zum Aufmaßblatt zurück</button>{#if darf}<button type="button" onclick={()=>void seiteWechseln(betrachterSeite!)}>Eigenes Aufmaß für diese Seite anlegen …</button>{/if}</p>{/if}
+          {#if flurAuftrag}<div class="hinweisbox flurauftrag" role="status" aria-label="Flurstücksauftrag">
+              <strong>Flurstück {flurAuftrag.bezeichnung}:</strong>
+              <span>{flurFlaeche!=null?`Grenze gezeichnet · ${z(flurFlaeche)} m²`:flurMarkierung(flurAufgabe,p)?"Grenze gezeichnet; Fläche noch nicht messbar.":"Grenze als Polygon zeichnen und schließen."}</span>
+              {#if ohneMassstab}<span class="meta">Zuerst den Maßstab festlegen: „Zwei Punkte kalibrieren“ (Q). Ohne Maßstab lässt sich keine Fläche messen.</span>{/if}
+              {#if darf}<button type="button" class="sekundaer" disabled={!flurAufgabe||s.laeuft||flurLaeuft} onclick={()=>flurAufgabe&&aufgabeZeichnen(flurAufgabe)}>Grenze zeichnen</button>
+                <button type="button" disabled={flurFlaeche==null||s.laeuft||flurLaeuft} onclick={()=>void flurUebernehmen()}>Fläche übernehmen und zurück</button>{/if}
+              <button type="button" class="link" disabled={flurLaeuft} onclick={()=>onflurstueckfertig?.()}>Auftrag beenden</button>
+              {#if flurFehler}<span class="fehlertext" role="alert">{flurFehler}</span>{/if}
+            </div>{/if}
           {#if pdf||dxf||istZeichnung}
             <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}

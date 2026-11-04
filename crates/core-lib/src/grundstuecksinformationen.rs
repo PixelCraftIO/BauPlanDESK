@@ -75,6 +75,13 @@ pub struct FlurstuecksInfo {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(optional, as = "Option<bool>")]
     pub flaeche_aus_plan: bool,
+    /// Die Fläche wird im Aufmaß ermittelt; eine Katasterfläche liegt noch
+    /// nicht vor. `flaeche_m2` ist dann 0 und gilt als **fehlend**, nicht als
+    /// 0 m²: Baugrundstücke, GRZ/GFZ und die Projektfläche bleiben offen, bis
+    /// die gezeichnete Fläche übernommen ist (danach „Fläche aus Plan“).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(optional, as = "Option<bool>")]
+    pub flaeche_offen: bool,
 }
 /// Anlass der Baulastklärung für ein Flurstück mit Rolle „Sonstiges“.
 pub const BAULAST_GRUND: &str = "Flurstück außerhalb des Vorhabengrundstücks (Zuwegung, Baulastfläche o. Ä.). Klären, ob eine Baulast nötig ist; die Baulasterklärung des Eigentümers ist dann Bauvorlage.";
@@ -294,11 +301,22 @@ impl Grundstuecksinformationen {
                     );
                 }
             }
-            if !f.flaeche_m2.is_finite() || f.flaeche_m2 <= 0. {
+            if f.flaeche_offen {
+                if f.planbindung.is_some() || f.flaeche_aus_plan {
+                    return fehler(
+                        "Fläche wird im Aufmaß ermittelt, ist aber bereits verknüpft; Übernahme aus dem Aufmaß erneut ausführen",
+                    );
+                }
+                if f.flaeche_m2 != 0. {
+                    return fehler(
+                        "Fläche wird im Aufmaß ermittelt; Katasterfläche erst angeben, wenn „Fläche wird im Aufmaß ermittelt“ abgewählt ist",
+                    );
+                }
+            } else if !f.flaeche_m2.is_finite() || f.flaeche_m2 <= 0. {
                 return fehler(if f.planbindung.is_some() {
                     "Fläche laut Kataster in m² angeben oder die gezeichnete Fläche als Flurstücksfläche verwenden"
                 } else {
-                    "Fläche laut Kataster in m² angeben (größer als 0)"
+                    "Fläche laut Kataster in m² angeben (größer als 0) oder „Fläche wird im Aufmaß ermittelt“ wählen"
                 });
             }
             if f.rolle.ist_vorhaben()
@@ -349,11 +367,19 @@ impl Grundstuecksinformationen {
         self.flurstuecke.iter().filter(|f| f.rolle.ist_vorhaben())
     }
     /// Summe der Flurstücksflächen des Vorhabens (Eigentumsfläche, ohne Abzüge);
-    /// `None`, solange keine Flurstücke erfasst sind.
+    /// `None`, solange keine Flurstücke erfasst sind oder eine Fläche noch im
+    /// Aufmaß ermittelt wird (eine Teilsumme wäre eine falsche Grundstücksfläche).
     pub fn vorhabenflaeche_m2(&self) -> Option<f64> {
-        let mut flaechen = self.vorhaben().map(|f| f.flaeche_m2).peekable();
+        let mut flaechen = self
+            .vorhaben()
+            .map(|f| (!f.flaeche_offen).then_some(f.flaeche_m2))
+            .peekable();
         flaechen.peek()?;
-        Some(flaechen.sum())
+        flaechen.sum()
+    }
+    /// Vorhabenflurstücke, deren Fläche noch im Aufmaß ermittelt wird.
+    pub fn offene_flaechen(&self) -> impl Iterator<Item = &FlurstuecksInfo> {
+        self.vorhaben().filter(|f| f.flaeche_offen)
     }
     /// Quellenstand der Baugrundstücksermittlung: nur Angaben, die Bildung und
     /// Fläche der Baugrundstücke bestimmen (Vorhabenflurstücke mit Kataster-,
@@ -441,17 +467,20 @@ pub fn informationen(p: &Planungsrecht) -> Grundstuecksinformationen {
                             planbindung: None,
                             planflaeche_m2: None,
                             flaeche_aus_plan: false,
+                            flaeche_offen: false,
                         })
                         .collect()
                 })
                 .unwrap_or_default(),
         })
 }
-/// Mit erfassten Flurstücken ist die Projektfläche die Summe der Vorhabenflurstücke;
-/// ohne Flurstücke bleibt die Angabe des Bestandsprojekts stehen.
+/// Mit erfassten Flurstücken ist die Projektfläche die Summe der Vorhabenflurstücke,
+/// solange eine Fläche im Aufmaß ermittelt wird bleibt sie leer; ohne Flurstücke
+/// bleibt die Angabe des Bestandsprojekts stehen.
 pub fn projektflaeche_ableiten(p: &mut crate::domain::Project) {
-    if let Some(f) = informationen(&p.planungsrecht).vorhabenflaeche_m2() {
-        p.grundstuecksflaeche_m2 = Some(f);
+    let infos = informationen(&p.planungsrecht);
+    if infos.vorhaben().next().is_some() {
+        p.grundstuecksflaeche_m2 = infos.vorhabenflaeche_m2();
     }
 }
 pub fn ermittlung(p: &Planungsrecht) -> CoreResult<Option<BaugrundstuecksErmittlung>> {
@@ -752,6 +781,58 @@ mod tests {
         // „Fläche aus Plan“: kein Vergleich, die Zeichnung ist der Wert.
         f.flaeche_aus_plan = true;
         assert_eq!(f.flaechenabweichung(), None);
+    }
+    #[test]
+    fn offene_flaeche_ist_fehlend_und_nicht_null() {
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(musterplan()),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        let vorher = informationen(&p).fingerprint().unwrap();
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        // Ohne Fläche und ohne Kennzeichen bleibt die Angabe ein Fehler.
+        infos.flurstuecke[0].flaeche_m2 = 0.;
+        let err = infos.validate().unwrap_err().to_string();
+        assert!(err.contains("im Aufmaß ermittelt"), "{err}");
+        infos.flurstuecke[0].flaeche_offen = true;
+        infos.validate().unwrap();
+        assert_ne!(infos.fingerprint().unwrap(), vorher, "Ermittlung veraltet");
+        // Keine Teilsumme als Grundstücksfläche, keine Berechnung mit 0 m².
+        assert_eq!(infos.vorhabenflaeche_m2(), None);
+        assert_eq!(infos.offene_flaechen().count(), 1);
+        let b = plan(&p).unwrap().unwrap();
+        let err = b.gruppen(true).unwrap_err().to_string();
+        assert!(err.contains("Fläche noch nicht ermittelt"), "{err}");
+        // Die Zuordnung der Flurstücke (Lage der Gebäude, Aufmaß) bleibt möglich.
+        assert_eq!(b.einheit_je_flurstueck().len(), 3);
+        let mut projekt = crate::domain::Project {
+            id: crate::domain::ProjectId::new(),
+            name: "P".into(),
+            bundesland: crate::domain::Bundesland::By,
+            grundstuecksflaeche_m2: Some(900.),
+            planungsrecht: p.clone(),
+            version: 1,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        projektflaeche_ableiten(&mut projekt);
+        assert_eq!(projekt.grundstuecksflaeche_m2, None, "keine veraltete Zahl");
+        // Widersprüchliche Angaben.
+        let infos = p.grundstuecksinformationen.as_mut().unwrap();
+        infos.flurstuecke[0].flaeche_m2 = 10.;
+        assert!(infos.validate().is_err(), "Katasterfläche und offen");
+        infos.flurstuecke[0].flaeche_m2 = 0.;
+        infos.flurstuecke[0].flaeche_aus_plan = true;
+        assert!(infos.validate().is_err(), "offen und aus Plan");
+        // Bestandsdaten schreiben das Kennzeichen nicht.
+        infos.flurstuecke[0].flaeche_aus_plan = false;
+        infos.flurstuecke[0].flaeche_offen = false;
+        assert!(
+            !serde_json::to_string(infos)
+                .unwrap()
+                .contains("flaeche_offen")
+        );
     }
     #[test]
     fn optionale_grundbuchangaben_fuehren_nicht_zu_heimlicher_gruppierung() {
