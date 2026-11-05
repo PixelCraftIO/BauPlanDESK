@@ -80,11 +80,11 @@ fn lesbare_zahl(n: f64) -> String {
 }
 /// Ausgabemaßstab eigener Zeichnungen: 1 : 100, also Seitenpunkte je Meter.
 const ZEICHNUNG_MASSSTAB: f64 = 100.;
-fn zeichnung_punkte_pro_meter() -> f64 {
+pub(super) fn zeichnung_punkte_pro_meter() -> f64 {
     72. / 0.0254 / ZEICHNUNG_MASSSTAB
 }
 /// Leeres PDF-Blatt (Seitenpunkte) für die Ausgabe einer eigenen Zeichnung.
-fn leeres_blatt(breite: f64, hoehe: f64) -> CoreResult<Vec<u8>> {
+pub(super) fn leeres_blatt(breite: f64, hoehe: f64) -> CoreResult<Vec<u8>> {
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
     let mut d = Document::with_version("1.5");
     let pages_id = d.new_object_id();
@@ -411,6 +411,8 @@ impl CoreServices {
                         herkunft,
                         legende,
                         konturen,
+                        stile: vec![],
+                        spalten: vec![],
                     },
                 )
             }

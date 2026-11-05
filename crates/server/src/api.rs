@@ -1876,10 +1876,10 @@ async fn abstandsexport(
         [
             (
                 axum::http::header::CONTENT_TYPE,
-                if format == "json" {
-                    "application/json"
-                } else {
-                    "application/dxf"
+                match format.as_str() {
+                    "json" => "application/json",
+                    "lageplan" => "application/pdf",
+                    _ => "application/dxf",
                 },
             ),
             (axum::http::header::CONTENT_DISPOSITION, "attachment"),

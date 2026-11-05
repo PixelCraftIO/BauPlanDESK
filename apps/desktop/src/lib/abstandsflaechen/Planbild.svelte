@@ -115,7 +115,10 @@
         x={(w.von.x + w.bis.x) / 2}
         y={-(w.von.y + w.bis.y) / 2 - box.pad * 0.15}
         font-size={box.pad * 0.65}
-        fill="currentColor">W{i + 1}</text
+        fill="currentColor"
+        >W{i + 1} · {w.bezeichnung}{#if ergebnis?.waende.find((e) => e.id === w.id)?.tiefe_m != null}{" "}· T {ergebnis?.waende
+            .find((e) => e.id === w.id)
+            ?.tiefe_m?.toLocaleString("de-DE", { maximumFractionDigits: 2 })} m{/if}</text
       >{/if}{/each}
     {#each ergebnis?.ueberdeckungen ?? [] as u}{#each u.polygone as p}<path
           d={[path(p.aussen), ...p.innen.map(path)].join(" ")}

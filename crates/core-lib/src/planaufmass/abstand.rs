@@ -841,3 +841,194 @@ impl CoreServices {
         Ok(())
     }
 }
+
+fn statustext(s: &crate::abstandsflaechen::AbstandsStatus) -> &'static str {
+    use crate::abstandsflaechen::AbstandsStatus::*;
+    match s {
+        Offen => "offen",
+        Tiefenvorpruefung => "nur Tiefe geprüft",
+        Eingehalten => "eingehalten",
+        Konflikt => "Konflikt",
+        Grenzfall => "Grenzfall",
+    }
+}
+fn meter(v: f64) -> String {
+    format!("{v:.2}").replace('.', ",")
+}
+
+impl CoreServices {
+    /// Abstandsflächenplan: das Ergebnis auf der Seite des Lageplans, aus dem
+    /// Lage und Grenzen stammen. Abstandsflächen blau, Flächen jenseits der
+    /// Grenze rot, Überdeckungen violett; jede Wand beschriftet mit
+    /// „A1 · H … m · T … m“. Die Plandatei bleibt unverändert.
+    pub async fn abstandsflaechenplan(
+        &self,
+        pid: ProjectId,
+        plan: &AbstandsPlan,
+        r: &crate::abstandsflaechen::AbstandsErgebnis,
+    ) -> CoreResult<Vec<u8>> {
+        use crate::druckausgabe::plananlage::{Konturstil, Plananlage, Plankontur};
+        let b = plan.planbindungen.iter().find(|b| geometrieziel(b)).ok_or_else(|| {
+            fehler(
+                "Der Abstandsflächenplan braucht Wände oder Grenzen aus Linien im Lageplan; sonst die Vektorplanskizze der Druckausgabe verwenden",
+            )
+        })?;
+        let (a, m, _) = self.planbindung_aufloesen(pid, b).await?;
+        let f = match m
+            .ausschnitt_id
+            .and_then(|id| a.ausschnitte.iter().find(|x| x.id == id))
+            .and_then(|x| x.kalibrierung.clone())
+            .or_else(|| a.kalibrierung_wirksam())
+        {
+            Some(k) => k.meter_pro_punkt()?,
+            None => return Err(fehler("Maßstab des Lageplans fehlt")),
+        };
+        // Eigene Zeichnung: Meter auf ein leeres Blatt im Ausgabemaßstab.
+        let skalierung = if a.ist_zeichnung() {
+            super::export::zeichnung_punkte_pro_meter()
+        } else {
+            1.
+        };
+        let seite = |v: &APunkt| [v.x / f * skalierung, -v.y / f * skalierung];
+        let ring = |ps: &[APunkt]| ps.iter().map(seite).collect::<Vec<_>>();
+        let (mut konturen, mut stile) = (vec![], vec![]);
+        let mut kontur = |ringe: Vec<Vec<[f64; 2]>>, geschlossen, beschriftung: String, stil| {
+            konturen.push(Plankontur {
+                ringe,
+                geschlossen,
+                beschriftung,
+            });
+            stile.push(stil);
+        };
+        for g in &plan.grundstuecke {
+            if g.grenze.len() >= 3 {
+                let mut ringe = vec![ring(&g.grenze)];
+                ringe.extend(g.innenringe.iter().map(|i| ring(i)));
+                kontur(ringe, true, g.bezeichnung.clone(), Konturstil::Grenze);
+            }
+        }
+        let mut legende = vec![];
+        let mut ohne_lage = vec![];
+        for w in &plan.waende {
+            let Some(e) = r.waende.iter().find(|e| e.id == w.id) else {
+                continue;
+            };
+            let werte = format!(
+                "H {} m · T {} m{}",
+                e.h_m.map(meter).unwrap_or_else(|| "–".into()),
+                e.tiefe_m.map(meter).unwrap_or_else(|| "–".into()),
+                e.flaeche_m2
+                    .map(|a| format!(" · {} m²", meter(a)))
+                    .unwrap_or_default()
+            );
+            legende.push(vec![
+                format!("{} · {}", w.bezeichnung, w.gebaeude),
+                werte.clone(),
+                if e.offen.is_empty() {
+                    statustext(&e.status).to_string()
+                } else {
+                    format!("{}: {}", statustext(&e.status), e.offen.join("; "))
+                },
+            ]);
+            // Wände mit Breite aus der Ansicht haben keine Lage im Lageplan.
+            if w.breite_aus_ansicht {
+                ohne_lage.push(w.bezeichnung.clone());
+                continue;
+            }
+            if e.polygon.len() >= 3 {
+                kontur(
+                    vec![ring(&e.polygon)],
+                    true,
+                    String::new(),
+                    Konturstil::Abstandsflaeche,
+                );
+            }
+            for k in &e.konflikte {
+                let mut ringe = vec![ring(&k.aussen)];
+                ringe.extend(k.innen.iter().map(|i| ring(i)));
+                kontur(ringe, true, String::new(), Konturstil::Konflikt);
+            }
+            kontur(
+                vec![ring(&[w.von.clone(), w.bis.clone()])],
+                false,
+                format!("{} · {werte}", w.bezeichnung),
+                Konturstil::Wand,
+            );
+        }
+        for u in &r.ueberdeckungen {
+            for poly in &u.polygone {
+                let mut ringe = vec![ring(&poly.aussen)];
+                ringe.extend(poly.innen.iter().map(|i| ring(i)));
+                kontur(ringe, true, String::new(), Konturstil::Ueberdeckung);
+            }
+        }
+        let (pdf, quelle) = match &a.dokument {
+            Some(d) => {
+                let (v, bytes) = self.load_version(d.dokument_id, d.version).await?;
+                (
+                    bytes.to_vec(),
+                    format!(
+                        "Lageplan: {} · V{} · Seite {} · Aufmaß „{}“",
+                        v.file_name, v.version, a.seite, a.bezeichnung
+                    ),
+                )
+            }
+            None => {
+                let (mut bx, mut by) = (10f64, 10f64);
+                for q in konturen.iter().flat_map(|k| k.ringe.iter().flatten()) {
+                    bx = bx.max(q[0] / skalierung + 2.);
+                    by = by.max(q[1] / skalierung + 2.);
+                }
+                (
+                    super::export::leeres_blatt(bx * skalierung, by * skalierung)?,
+                    format!("Lageplan: eigene Zeichnung „{}“ (1 : 100)", a.bezeichnung),
+                )
+            }
+        };
+        let mut herkunft = vec![
+            quelle,
+            format!("Abstandsplan „{}“ · {}", plan.bezeichnung, r.rechenstand),
+        ];
+        if let Some(rw) = &plan.regelwerk {
+            herkunft.push(format!(
+                "Regelwerk {} · Stichtag {} ({}) · SHA-256 {}",
+                rw.datei, rw.stichtag, rw.stichtag_art, rw.pruefsumme
+            ));
+        }
+        let freigegeben = crate::abstandsflaechen::regelwerke()
+            .ok()
+            .and_then(|alle| {
+                let datei = &plan.regelwerk.as_ref()?.datei;
+                alle.into_iter().find(|r| &r.datei == datei)
+            })
+            .is_some_and(|r| r.inhalt.pruefung.geprueft);
+        if !freigegeben {
+            herkunft.push("Regelwerk fachlich nicht freigegeben".into());
+        }
+        herkunft.push(
+            "Blau: Abstandsfläche · Rot: Fläche jenseits der Grenze · Violett: Überdeckung · Schwarz: Grundstücksgrenze".into(),
+        );
+        if !ohne_lage.is_empty() {
+            herkunft.push(format!(
+                "Ohne Lage im Lageplan (Breite aus der Ansicht, Grenzabstand nach Angabe des Planers): {}",
+                ohne_lage.join(", ")
+            ));
+        }
+        crate::druckausgabe::plananlage::erstellen(
+            &pdf,
+            &Plananlage {
+                seite: a.seite,
+                titel: format!("Abstandsflächenplan · {}", plan.bezeichnung),
+                herkunft,
+                legende,
+                konturen,
+                stile,
+                spalten: vec![
+                    "Wand".into(),
+                    "Höhe, Tiefe, Fläche".into(),
+                    "Ergebnis".into(),
+                ],
+            },
+        )
+    }
+}

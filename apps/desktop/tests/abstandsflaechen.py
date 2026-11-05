@@ -161,6 +161,7 @@ with sync_playwright() as p:
  expect(page.get_by_role('textbox',name='Gelände-/Höhenherleitung und Planquelle',exact=True)).to_have_value(re.compile('Abgrabung „G3“ bei 2 m \\(99 m\\) nicht maßgebend'))
  page.get_by_text('Aus der Ansicht abgegriffen',exact=False).scroll_into_view_if_needed()
  page.screenshot(path=str(out/'hoehen-ansicht.png'),full_page=True)
+ expect(page.get_by_role('button',name='Abstandsflächenplan auf dem Lageplan (PDF)',exact=True)).to_be_attached()
  # Fassungswahl: Stichtag heute schlägt die geltende NRW-Fassung vor; Wechsel nur mit Vergleich.
  tab('Grundlagen')
  fw=page.locator('section.fassung')

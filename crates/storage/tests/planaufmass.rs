@@ -3182,6 +3182,39 @@ async fn abstandsflaechen_linien_aus_dem_lageplan() {
         .unwrap();
     assert_eq!(again.plan, plan);
 
+    // Abstandsflächenplan: Ergebnis zurück auf die Lageplanseite.
+    let mut mit_hoehen = plan.clone();
+    for w in &mut mit_hoehen.waende {
+        (w.gelaende_a_m, w.gelaende_b_m) = (Some(100.), Some(100.));
+        (w.abschluss_a_m, w.abschluss_b_m) = (Some(106.), Some(106.));
+        w.dachart = core_lib::abstandsflaechen::Dachart::Flach;
+    }
+    let r = core_lib::abstandsflaechen::berechnen(&mit_hoehen).unwrap();
+    assert!(r.waende.iter().all(|e| e.polygon.len() >= 3), "{r:?}");
+    let pdf = core
+        .abstandsflaechenplan(p.id, &mit_hoehen, &r)
+        .await
+        .unwrap();
+    if let Ok(out) = std::env::var("BAUPROJEKT_ABSTAND_ARTEFAKTE") {
+        std::fs::write(
+            std::path::Path::new(&out).join("abstandsflaechenplan.pdf"),
+            &pdf,
+        )
+        .unwrap();
+    }
+    let d = lopdf::Document::load_mem(&pdf).unwrap();
+    assert!(d.get_pages().len() >= 2);
+    let seite = *d.get_pages().values().next().unwrap();
+    let inhalt = String::from_utf8_lossy(&d.get_page_content(seite)).to_string();
+    assert!(
+        inhalt.contains("/BauDeckkraft20 gs") && inhalt.contains("B*"),
+        "{inhalt}"
+    );
+    // Ohne Linien im Lageplan gibt es keinen Abstandsflächenplan.
+    let mut ohne = mit_hoehen.clone();
+    ohne.planbindungen.clear();
+    assert!(core.abstandsflaechenplan(p.id, &ohne, &r).await.is_err());
+
     // Linie verschoben: Prüfung meldet die geänderte Grundlage, neue
     // Übernahme zieht die Wand nach.
     a.markierungen[2].geometrie = Plangeometrie::Strecke {
