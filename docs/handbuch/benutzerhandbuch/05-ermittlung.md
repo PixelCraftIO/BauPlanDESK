@@ -65,7 +65,7 @@ Bildschirm; die Akte bleibt im Hauptfenster bedienbar.
 | Kopfleiste | Speichern, Schließen, Rückgängig/Wiederholen, „Aufmaßblatt PDF …“, „Messwerte CSV …“, Maße anzeigen, Vollbild (F11), Kurzbefehle (F1) |
 | Werkzeugleiste links | Auswählen (V), Verschieben (M), Polygon (P), Rechteck (R), Kreis (K), Strecke / Dach (S), Wand (W), Maßkette (L), Text (X), Höhenpunkt (H), Bezugslinie setzen, Ausschnitt anlegen, Zwei Punkte kalibrieren, Kontrollstrecke messen, Duplizieren, Markierung entfernen |
 | Ansichtsleiste | Zoom (bei eigenen Zeichnungen als Bildschirmmaßstab 1:n), Einpassen, 1:1, Auf Auswahl, Zoomfenster (Z), drehen, **Punktfang** und Fangoptionen |
-| Paletten rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl), **Werkzeugkiste** (Vorlagen) |
+| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss, dazu Voreinstellung und **Werkzeugkiste**), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung** sowie **Prüfen und Ausgabe**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
 | Statusleiste | Zeigerposition in Metern, aktiver Fang, Ortho bzw. Winkelraster, Bildschirmmaßstab, Unterlage bzw. Blattgröße; die Tastenbelegung zeigt F1 |
 
 Alle Werkzeuge erscheinen als Symbol; der Name und das Tastenkürzel stehen im
@@ -84,13 +84,13 @@ Tooltip. Die vollständige Tastenbelegung: [Kapitel 10](10-anhang.md#zeichenedit
 
 ![Objekte: Ausschnitte, Zeichenebenen, Markierungen](bilder/ermittlung-aufmass-objekte.png)
 
-Die Palette **Objekte** listet die Ausschnitte („Öffnen“ zeigt nur diesen
+Der Reiter **Objekte** listet die Ausschnitte („Öffnen“ zeigt nur diesen
 Bereich), die **Zeichenebenen** (Sichtbarkeit „An“, „Sperre“, aktive Ebene)
 und alle **Markierungen** mit Suche und Filtern nach Bedeutung und Gebäude.
 
 ### Zeichnen und zuordnen
 
-Der schnellste Weg führt über die Palette **Aufgaben**: Sie listet alle Ziele
+Der schnellste Weg führt über den Reiter **Aufgaben**: Sie listet alle Ziele
 im Projekt, die einen Messwert brauchen – Flurstücke, Abzugsflächen,
 GRZ-Bauteile, Gebäude und Geschosse, Abstandswände, Positionen der
 Fachberechnungen und Räume der Raumbücher.
@@ -110,7 +110,7 @@ Fachberechnungen und Räume der Raumbücher.
 Alternativ eine Vorlage aus der **Werkzeugkiste** anklicken (z. B. „DIN 277
 NUF“, „Versiegelte Fläche“, „Gebäudegrundfläche“). Sie stellt Werkzeug,
 Bedeutung, Namen und Zeichenebene ein. Freie Markierungen erhalten ihre
-**Bedeutung** und Zuordnung in der Palette **Eigenschaften**.
+**Bedeutung** und Zuordnung im Reiter **Eigenschaften**.
 
 ![Werkzeugkiste mit Vorlagen für Grundstück, GRZ-Bauteile, Gebäude, Räume, DIN 277 und Höhen](bilder/editor-werkzeugkiste.png)
 
@@ -146,7 +146,7 @@ vermeidet dabei Doppelerfassungen:
 - **Abzugsflächen, GRZ-Bauteile, Räume:** Gibt es schon eine passende
   Handzeile (gleiche Art am selben Flurstück/Baugrundstück bzw. gleicher
   Raumname), fragt die Übernahme: *verknüpfen* (Art, Grundlage und
-  Bezeichnung bleiben) oder *neue Zeile*. Die Aufgaben-Palette kennzeichnet von Hand
+  Bezeichnung bleiben) oder *neue Zeile*. Der Reiter Aufgaben kennzeichnet von Hand
   erfasste Werte mit „manuell erfasst“ bzw. „Handwert ohne Zeichnung, passende
   Markierung vorhanden“.
 - **Doppelerfassung:** Stehen eine gezeichnete und eine fast gleich große
@@ -165,7 +165,7 @@ vermeidet dabei Doppelerfassungen:
 
 1. **Neue Zeichnung** wählen. Das Blatt rechnet in Metern (Meterraster),
    Maßstab und Kalibrierung entfallen.
-2. Unter „Blatt und Einrichtung → Hintergründe“ eine PDF-Seite oder DXF als
+2. Ohne Auswahl unter „Eigenschaften“ → „Blatt und Einrichtung → Hintergründe“ eine PDF-Seite oder DXF als
    Hintergrund hinzufügen und einpassen: Maßstab bzw. Einheit, „Über Strecke
    einpassen“, „Verschieben“, „Um Punkt drehen“, Deckkraft und Sichtbarkeit.
    Der Punktfang greift auf die Vektoren des Hintergrunds.

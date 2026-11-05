@@ -47,8 +47,8 @@ with sync_playwright() as pw:
  expect(tab.get_by_label('Bezeichnung',exact=True).first).to_have_value('Markierung 1')
  expect(tab.locator('.messwerte')).to_contain_text('50 m²')
  # Werkzeugkiste: ein Klick wählt Polygon, Bedeutung NUF, Namen und legt die Ebene „DIN 277“ an.
- kiste=tab.locator('details.palette').filter(has_text='Werkzeugkiste')
- if not kiste.evaluate('d=>d.open'):kiste.locator('summary').click()
+ tab.get_by_role('tab',name='Aufgaben',exact=True).click()
+ kiste=tab.locator('section.palette[aria-label="Werkzeugkiste"]')
  kiste.get_by_role('button',name='DIN 277 NUF',exact=True).click()
  expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_be_visible()
  expect(tab.get_by_role('button',name='Polygon',exact=True)).to_have_attribute('aria-pressed','true')
@@ -58,8 +58,9 @@ with sync_playwright() as pw:
  expect(tab.get_by_label('Zeichenebene',exact=True)).to_have_value(tab.get_by_label('Zeichenebene',exact=True).locator('option',has_text='DIN 277').evaluate('o=>o.value'))
  expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_have_count(0)
  # Hintergrund: PDF-Seite 1 im Maßstab 1:100, über Strecke einpassen, verschieben.
- blatt=tab.locator('details.palette').filter(has_text='Blatt und Einrichtung')
- if not blatt.evaluate('d=>d.open'):blatt.locator('summary').click()
+ tab.get_by_role('tab',name='Eigenschaften',exact=True).click()
+ tab.get_by_role('button',name='Zum Blatt',exact=True).click()
+ expect(tab.locator('section.palette[aria-label="Blatt und Einrichtung"]')).to_be_visible()
  tab.get_by_label('Hintergrund-Unterlage',exact=True).select_option(label='Grundrisse.pdf · V1')
  tab.get_by_role('button',name='Hintergrund hinzufügen',exact=True).click()
  expect(svg.locator('.hintergrund image')).to_have_count(1)

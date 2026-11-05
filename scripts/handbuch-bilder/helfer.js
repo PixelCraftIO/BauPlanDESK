@@ -314,11 +314,17 @@ async function planKlick(x, y) {
 }
 
 /** Klappt die Palette des Zeicheneditors mit dem Titel `t` auf und rückt sie nach oben. */
+// Paletten der rechten Spalte: Reiter wählen (ohne Auswahl zeigt „Eigenschaften“ das Blatt), dann zum Abschnitt rollen.
+const PALETTENREITER = { "Werkzeugkiste": "Aufgaben", "Aufgaben": "Aufgaben", "Objekte": "Objekte", "Eigenschaften": "Eigenschaften", "Blatt und Einrichtung": "Eigenschaften", "Prüfen und Ausgabe": "Eigenschaften" };
 async function palette(t) {
-  const s = [...document.querySelectorAll("details.palette > summary")].filter(sichtbar).find((x) => txt(x).toUpperCase().startsWith(t.toUpperCase()));
+  const r = [...document.querySelectorAll("[role=tab]")].filter(sichtbar).find((x) => txt(x) === (PALETTENREITER[t] ?? t));
+  if (r) r.click();
+  await sleep(500);
+  if (PALETTENREITER[t] === "Eigenschaften" && t !== "Eigenschaften") { const b = [...document.querySelectorAll("button")].filter(sichtbar).find((x) => txt(x) === "Zum Blatt"); if (b) b.click(); }
+  await sleep(500);
+  const s = [...document.querySelectorAll("section.palette > .palettenkopf")].filter(sichtbar).find((x) => txt(x).toUpperCase().startsWith(t.toUpperCase()));
   if (!s) throw new Error("Palette fehlt: " + t);
-  if (!s.parentElement.open) s.click();
-  await sleep(800);
+  await sleep(300);
   s.scrollIntoView({ block: "start" });
   await sleep(400);
 }

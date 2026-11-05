@@ -27,7 +27,12 @@ with sync_playwright() as p:
     scope.get_by_role("button",name="1:1",exact=True).click()
     scope.get_by_role("button",name="Maßstab setzen",exact=True).click()
     scope.get_by_label("Punktfang",exact=True).uncheck()
-    def tab(name): scope.get_by_role("navigation",name="Planpanel").get_by_role("button",name=name,exact=True).click()
+    def tab(name): scope.get_by_role("tablist",name="Planpanel").get_by_role("tab",name=name,exact=True).click()
+    def blatt(sc=None):
+        sc=sc or scope
+        sc.get_by_role("tablist",name="Planpanel").get_by_role("tab",name="Eigenschaften",exact=True).click()
+        zb=sc.get_by_role("button",name="Zum Blatt",exact=True)
+        if zb.count():zb.click()
     def click(x,y):
         svg.scroll_into_view_if_needed()
         q=svg.evaluate("""async(svg,p)=>{
@@ -105,6 +110,7 @@ with sync_playwright() as p:
     # Seitenminiaturen dienen der Betrachtung. Erst eine eigene Aktion legt ein neues Aufmaß an.
     scope.get_by_role("button",name="Seiten (2)",exact=True).click()
     scope.get_by_role("button",name="Seite 2",exact=True).click()
+    blatt()
     expect(scope.get_by_label("Seite",exact=True)).to_have_value("1")
     expect(scope.get_by_text("Betrachtung von Seite 2.",exact=False)).to_be_visible()
     scope.get_by_role("button",name="Eigenes Aufmaß für diese Seite anlegen …",exact=True).click()
@@ -139,7 +145,7 @@ with sync_playwright() as p:
     scope.get_by_role("button",name="Vollbild beenden",exact=True).click()
     # Vergleich und Übertragung erhalten die ursprüngliche Markierung/Verknüpfung.
     original_marker=page.evaluate("window.planSaved.daten.markierungen[0].id")
-    scope.locator("aside summary").filter(has_text="Prüfen und Ausgabe").click()
+    blatt()
     expect(scope.get_by_text("Planstände vergleichen",exact=True)).to_be_visible()
     scope.get_by_label("Vergleichsunterlage",exact=True).select_option("d316da8b-cbfb-4ae6-931b-8765fb6454b2|1")
     scope.get_by_label("Blattlage und Konturen anhand der Überlagerung geprüft",exact=True).check()
@@ -161,11 +167,12 @@ with sync_playwright() as p:
     rs=read.locator(".projekt-sitzung:visible");rs.get_by_role("button",name="Öffnen",exact=True).click()
     expect(rs.get_by_role("button",name="1:1",exact=True)).to_be_enabled()
     expect(rs.get_by_role("button",name="Speichern",exact=True)).to_be_disabled()
-    rs.get_by_role("navigation",name="Planpanel").get_by_role("button",name="Objekte",exact=True).click()
+    rs.get_by_role("tablist",name="Planpanel").get_by_role("tab",name="Objekte",exact=True).click()
     rs.locator(".ebene").get_by_label("An",exact=True).uncheck()
     expect(rs.get_by_role("button",name="Speichern",exact=True)).to_be_disabled()
     rs.locator(".ebene").get_by_label("An",exact=True).check()
     rs.get_by_role("button",name="Seiten (2)",exact=True).click();rs.get_by_role("button",name="Seite 1",exact=True).click()
+    blatt(rs)
     expect(rs.get_by_label("Seite",exact=True)).to_have_value("2")
     expect(rs.get_by_role("button",name="Zum Aufmaßblatt zurück",exact=True)).to_be_visible()
     read.close()

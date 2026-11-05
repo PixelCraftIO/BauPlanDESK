@@ -229,8 +229,8 @@ with sync_playwright() as pw:
  # IFC-Geschoss als Hintergrund einer eigenen Zeichnung.
  scope.get_by_role('button',name='Neue Zeichnung',exact=True).click()
  tab=scope.locator('section[aria-label="Neue Zeichnung"]:visible')
- blatt=tab.locator('details.palette').filter(has_text='Blatt und Einrichtung')
- if not blatt.evaluate('d=>d.open'):blatt.locator('summary').click()
+ tab.get_by_role('tab',name='Eigenschaften',exact=True).click()
+ expect(tab.locator('section.palette[aria-label="Blatt und Einrichtung"]')).to_be_visible()
  tab.get_by_label('Hintergrund-Unterlage').select_option(label=f"{ifc['datei_name']} · V1")
  expect(tab.get_by_label('Geschoss des IFC-Modells')).to_have_value(eg['global_id'])
  tab.get_by_label('Geschoss des IFC-Modells').select_option(og['global_id'])

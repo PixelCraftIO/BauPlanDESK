@@ -81,10 +81,16 @@
   let undo=$state(0),redo=$state(0),verlaufGruppe="";
   let auswahlIds=$state<string[]>([]),punktIndex=$state(0),drehenGrad=$state(0),kanteMeter=$state(1),kanteWinkel=$state(0);
   let suche=$state(""),bedeutungFilter=$state(""),gebaeudeFilter=$state(""),geschossFilter=$state(""),nurFehler=$state(false),panel=$state("aufgaben"),hilfe=$state(false);
-  // Aufgeklappte Paletten rechts; Aufgaben/Objekte/Eigenschaften folgen dem Panelwahl-Zustand.
-  let offen=$state({eigenschaften:false,aufgaben:true,werkzeugkiste:false,objekte:false,blatt:true,pruefen:false});
+  // Rechte Spalte: drei Reiter, jeder zeigt nur seinen eigenen Inhalt.
+  // „Eigenschaften“ ohne Auswahl zeigt das Blatt (Unterlage, Maßstab, Höhenbezug) und die Prüf- und Ausgabefunktionen.
+  const REITER=[["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as const;
   function panelOeffnen(id:string){panel=id}
-  $effect(()=>{const id=panel;untrack(()=>{offen.aufgaben=id==="aufgaben";offen.objekte=id==="objekte";offen.eigenschaften=id==="eigenschaften"})});
+  function auswahlAufheben(){auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[]}
+  function reiterTaste(e:KeyboardEvent){
+    const i=REITER.findIndex(r=>r[0]===panel);let n=i;
+    if(e.key==="ArrowRight")n=(i+1)%REITER.length;else if(e.key==="ArrowLeft")n=(i+REITER.length-1)%REITER.length;else if(e.key==="Home")n=0;else if(e.key==="End")n=REITER.length-1;else return;
+    e.preventDefault();panel=REITER[n][0];void tick().then(()=>(e.currentTarget as HTMLElement|null)?.querySelector<HTMLElement>(`[data-reiter="${panel}"]`)?.focus());
+  }
   let markierungsFehler=$state<{id:string;fehler:string}[]>([]);
   let kontrollMeter=$state(10),kontrolle=$state<{gemessen:number;soll:number;stand:string}|null>(null);
   let vergleich=$state(""),vergleichPdf=$state<PdfVorschauDaten|null>(null),vergleichDeckkraft=$state(.5);
@@ -202,6 +208,7 @@
   onMount(()=>{planApi.werkzeugkiste().then(v=>vorlagen=v).catch(e=>{listenFehler=fehlertext(e)})});
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
   const m=$derived(s.eingabe?.markierungen.find(m=>m.id===auswahl));
+  const nichtsGewaehlt=$derived(!m&&!el&&auswahlIds.length===0&&elementAuswahlIds.length===0);
   const layer=$derived(s.eingabe?.ebenen.find(e=>e.id===ebene));
   const objektGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===m?.ebene_id)?.gesperrt);
   const quelleAlt=$derived(!!s.eingabe?.dokument&&dateien.some(d=>d.document_id===s.eingabe!.dokument!.dokument_id&&d.version>s.eingabe!.dokument!.version));
@@ -277,7 +284,7 @@
     if(vorhanden){s.bearbeiten(vorhanden);return}
     s.neu();if(!s.eingabe)return;
     s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};
-    offen.blatt=true;
+    panel="eigenschaften";
   }
   async function baugrenzenZuordnen(){
     if(!s.eingabe||!s.id||!darf||baugrenzenLaeuft)return;
@@ -304,9 +311,9 @@
       return;
     }
     s.neu();if(!s.eingabe)return;
-    if(st.zeichnung){s.eingabe=leereZeichnung();offen.blatt=true;return}
+    if(st.zeichnung){s.eingabe=leereZeichnung();panel="eigenschaften";return}
     const d=st.dokument?unterlagen.find(x=>x.document_id===st.dokument!.id&&x.version===st.dokument!.version):undefined;
-    if(d){s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};offen.blatt=true}
+    if(d){s.eingabe={...s.leer(),bezeichnung:istDxf(d.file_name)?d.file_name:`${d.file_name} · Seite 1`,dokument:{dokument_id:d.document_id,version:d.version},seite:1};panel="eigenschaften"}
   }
   $effect(()=>{if(modus==="tab"&&gestartet&&!s.eingabe&&!s.gerettet&&!s.laeuft)untrack(()=>onschliessen?.())});
   $effect(()=>{const titel=s.eingabe?.bezeichnung??"",geaendert=s.hatAenderungen(),id=s.original?s.id:null;untrack(()=>onstatus?.({titel,geaendert,id}))});
@@ -321,8 +328,9 @@
   });
   $effect(()=>{
     const id=s.id;
-    untrack(()=>{auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[];hgZiel="";betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";offen.blatt=!s.eingabe?.kalibrierung;
+    untrack(()=>{auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[];hgZiel="";betrachterSeite=null;sichtbarkeit={};ebene=s.eingabe?.ebenen[0]?.id??"";undo=0;redo=0;if(s.eingabe)verlauf.reset($state.snapshot(s.eingabe));werkzeug="auswahl";aktiv="";rahmenAuswahl="";
       try{const v=JSON.parse(localStorage.getItem(`bauprojekt.planpanel.${benutzerId}.${s.projektId}.${id}`)??"null");if(v){panel=["aufgaben","objekte","eigenschaften"].includes(v.panel)?v.panel:"aufgaben";suche=typeof v.suche==="string"?v.suche.slice(0,500):"";aktiv=v.aktiv??"";auswahl=v.auswahl??"";auswahlIds=auswahl?[auswahl]:[];bedeutungFilter=v.bedeutungFilter??"";gebaeudeFilter=v.gebaeudeFilter??"";geschossFilter=v.geschossFilter??"";nurFehler=v.nurFehler===true}}catch{}
+      if(!s.eingabe?.kalibrierung){panel="eigenschaften";auswahl="";auswahlIds=[]}
     });
   });
   // Ein gespeicherter Stand ist eine eigene Rückgängig-Stufe: Eingaben danach
@@ -419,6 +427,7 @@
       if(e.key==="F2"){e.preventDefault();befehlFeld?.focus();return}
       if(e.key==="Escape"){
         if(werkzeug!=="auswahl")werkzeug="auswahl";
+        else if(!nichtsGewaehlt)auswahlAufheben();
         else if(aktiv)schliessen();
         else if(vollbild)vollbild=false;
         return;
@@ -823,7 +832,7 @@
     if(!(await ask("Ein neues Aufmaß mit neuen Markierungs-IDs auf der ausgerichteten Vergleichsunterlage anlegen? Der alte Stand und alle bisherigen Verknüpfungen bleiben erhalten. Maßstäbe und Höhenbezüge im neuen Entwurf neu festlegen.",{title:"Aufmaß übertragen",okLabel:"Neuen Entwurf anlegen",cancelLabel:"Abbrechen"})))return;
     const kopie=aufmassUebertragen($state.snapshot(s.eingabe),{dokument_id:vergleichPdf.dokument.document_id,version:vergleichPdf.dokument.version},Math.min(s.eingabe.seite,vergleichPdf.seiten.length),$state.snapshot(vergleichAusrichtung));
     if(s.hatAenderungen()&&!(await s.speichern()))return;
-    s.neu();s.eingabe=kopie;vergleich="";vergleichBestaetigt=false;offen.blatt=true;s.meldung="Übertragener Entwurf: Konturen prüfen, Maßstäbe kalibrieren und Höhenbezüge neu festlegen. Bestehende Berechnungen verwenden weiterhin das alte Aufmaß.";
+    s.neu();s.eingabe=kopie;vergleich="";vergleichBestaetigt=false;panel="eigenschaften";s.meldung="Übertragener Entwurf: Konturen prüfen, Maßstäbe kalibrieren und Höhenbezüge neu festlegen. Bestehende Berechnungen verwenden weiterhin das alte Aufmaß.";
   }
   async function exportieren(format:"pdf"|"csv"){
     if(!s.eingabe||!s.id||exportLaeuft)return;
@@ -931,9 +940,10 @@
           {#if messFehler}<p class="fehlertext" role="alert">Aufmaß prüfen: {messFehler}</p>{/if}
         </div>
         <aside bind:this={paletten}>
-          <nav class="panelwahl" aria-label="Planpanel">{#each [["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as [id,titel]}<button type="button" class="sekundaer" class:aktiv={panel===id} aria-pressed={panel===id} onclick={()=>panelOeffnen(id)}>{titel}</button>{/each}</nav>
-          <details class="palette" bind:open={offen.eigenschaften}>
-            <summary><h3>Eigenschaften</h3> <span class="meta">{auswahlTitel}</span></summary>
+          <div class="panelwahl" role="tablist" aria-label="Planpanel" tabindex="-1" onkeydown={reiterTaste}>{#each REITER as [id,titel]}<button type="button" role="tab" id={`reiter-${id}`} data-reiter={id} aria-selected={panel===id} aria-controls="planpanel-inhalt" tabindex={panel===id?0:-1} class="sekundaer" class:aktiv={panel===id} onclick={()=>panelOeffnen(id)}>{titel}</button>{/each}</div>
+          <div id="planpanel-inhalt" class="planpanel" role="tabpanel" aria-labelledby={`reiter-${panel}`}>
+          {#if panel==="eigenschaften"&&!nichtsGewaehlt}<section class="palette" aria-label="Eigenschaften der Auswahl">
+            <div class="palettenkopf"><h3>Eigenschaften</h3> <span class="meta">{auswahlTitel}</span><button type="button" class="link kopflink" title="Auswahl aufheben (Esc) und das Blatt zeigen" onclick={auswahlAufheben}>Zum Blatt</button></div>
             {#if el}
               <fieldset disabled={elementGesperrt} class="element-eigenschaften" aria-label="Zeichenelement">
                 <legend>{el.art==="wand"?"Wand":el.art==="masskette"?"Maßkette":el.art==="symbol"?"Planzeichen":el.art==="raumstempel"?"Raumstempel":"Text"}</legend>
@@ -1035,18 +1045,18 @@
               </fieldset>
               <p class="meta">Nach dem Speichern: {ziel(m.bedeutung)} Eckpunkte lassen sich mit „Auswählen“ ziehen, die ganze Markierung durch Ziehen der Fläche oder mit den Pfeiltasten.</p>
             {/if}
-          </details>
-          <details class="palette" bind:open={offen.aufgaben}>
-            <summary><h3>Aufgaben</h3></summary>
+          </section>{/if}
+          {#if panel==="aufgaben"}<section class="palette" aria-label="Aufgaben">
+            <div class="palettenkopf"><h3>Aufgaben</h3></div>
             {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
             <details><summary>Voreinstellung für freie Markierungen</summary><fieldset disabled={!darf}>
               <label>Bedeutung neuer Markierungen<select aria-label="Bedeutung neuer Markierungen" bind:value={standardBedeutung}>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
               <label>Gebäude neuer Markierungen<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
               {#if standardGebaeude}<label>Geschoss neuer Markierungen<select aria-label="Geschoss neuer Markierungen" bind:value={standardGeschoss}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===standardGebaeude)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
             </fieldset></details>
-          </details>
-          <details class="palette" bind:open={offen.werkzeugkiste}>
-            <summary><h3>Werkzeugkiste</h3> <span class="meta">· Vorlagen mit Bedeutung und Ebene</span></summary>
+          </section>
+          <section class="palette" aria-label="Werkzeugkiste">
+            <div class="palettenkopf"><h3>Werkzeugkiste</h3> <span class="meta">· Vorlagen mit Bedeutung und Ebene</span></div>
             <p class="meta">Ein Klick wählt Werkzeug, Bedeutung, Namen und Zeichenebene der nächsten Markierung; Gebäude und Geschoss kommen aus der Voreinstellung unter „Aufgaben“.</p>
             {#each vorlagenGruppen as [gruppe,liste] (gruppe)}
               <h4>{gruppe}</h4>
@@ -1057,9 +1067,9 @@
                 {/each}
               </div>
             {/each}
-          </details>
-          <details class="palette" bind:open={offen.objekte}>
-            <summary><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></summary>
+          </section>{/if}
+          {#if panel==="objekte"}<section class="palette" aria-label="Objekte">
+            <div class="palettenkopf"><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></div>
             <h3>Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
             <p class="meta">Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.</p>
             <div class="ausschnitte">
@@ -1134,9 +1144,9 @@
                 {#each p.elemente as e (e.id)}<div class="objektzeile"><button type="button" class:aktiv={e.id===elementAuswahl} onclick={()=>{elementWaehlen(e.id);panelOeffnen("eigenschaften")}}>{e.art==="wand"?`Wand${e.oeffnungen?.length?` · ${e.oeffnungen.length} Öffnung(en)`:""}`:e.art==="masskette"?"Maßkette":e.art==="symbol"?`Planzeichen ${PLANSYMBOLE.find(([k])=>k===e.symbol)?.[1]??""}`:e.art==="raumstempel"?`Raumstempel ${raeume[e.raum_id]?.nummer??"(Raum fehlt)"}`:`Text „${e.inhalt}“`}<span>{p.ebenen.find(x=>x.id===e.ebene_id)?.bezeichnung??"Ebene fehlt"}</span></button></div>{/each}
               </div>
             {/if}
-          </details>
-          <details class="palette" bind:open={offen.blatt}>
-            <summary><h3>Blatt und Einrichtung</h3> <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></summary>
+          </section>{/if}
+          {#if panel==="eigenschaften"&&nichtsGewaehlt}<section class="palette" aria-label="Blatt und Einrichtung">
+            <div class="palettenkopf"><h3>Blatt und Einrichtung</h3> <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></div>
             <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
               <label>Bezeichnung des Aufmaßes<input bind:value={p.bezeichnung} required/></label>
               {#if istZeichnung}<p class="meta">Eigene Zeichnung: Das Blatt rechnet in Metern (1 Einheit = 1 m, y nach unten) und wächst mit den Inhalten. Unterlagen liegen als Hintergründe darunter.</p>
@@ -1213,9 +1223,9 @@
               <div class="dxf-ebenen">{#each dxf.plan.ebenen as e,i}<label><input type="checkbox" checked={dxfSichtbar[i]??true} onchange={ev=>{const an=ev.currentTarget.checked;dxfSichtbar=dxfSichtbar.map((v,j)=>j===i?an:v)}}/><span class="farbe" style:background={e.farbe??"#222"}></span>{e.name}</label>{/each}</div>
               {#if dxf.plan.hinweise.length}<ul class="meta">{#each dxf.plan.hinweise as h}<li>{h}</li>{/each}</ul>{/if}
             {/if}
-          </details>
-          <details class="palette" bind:open={offen.pruefen}>
-            <summary><h3>Prüfen und Ausgabe</h3></summary>
+          </section>
+          <section class="palette" aria-label="Prüfen und Ausgabe">
+            <div class="palettenkopf"><h3>Prüfen und Ausgabe</h3></div>
             <h3>Lage im Baufenster (§ 23 BauNVO)</h3>
             <p class="meta">Im Lageplan das Baufenster (Baugrenzen / Baulinien) mit Bedeutung „Baufenster“ und den Gebäudeumriss mit Bedeutung „Vorhabenumriss“ zeichnen, je genau eine Markierung; bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen. Die Zuordnung speichert beide Umrisse in Metern am Projekt; der GRZ-Nachweis bewertet die Lage.</p>
             <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
@@ -1246,7 +1256,8 @@
                 <button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void layoutAusgeben()}>Planblatt PDF …</button>
               </details>
             {/if}
-          </details>
+          </section>{/if}
+          </div>
         </aside>
       </div>
     </div>
@@ -1295,12 +1306,11 @@
   .panelwahl button{flex:1;font-size:.85rem;padding:.35rem .3rem;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;min-height:28px}
   .panelwahl button.aktiv{background:var(--panel);box-shadow:inset 0 2px 0 var(--accent);color:var(--accent);font-weight:600}
   .palette{flex:none;background:var(--panel);border-bottom:1px solid var(--border);padding:0 10px 10px}
-  .palette:not([open]){padding-bottom:0}
-  .palette > summary{margin:0 -10px;padding:5px 10px;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--kopfzeile);border-bottom:1px solid var(--border-innen);list-style:none;display:flex;gap:.4rem;align-items:baseline}
-  .palette > summary::before{content:"▸";font-size:.7rem;transition:transform .1s}
-  .palette[open] > summary::before{transform:rotate(90deg)}
-  .palette > summary .meta{text-transform:none;letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .palette > summary h3{margin:0;font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
+  .palettenkopf{margin:0 -10px;padding:5px 10px;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--kopfzeile);border-bottom:1px solid var(--border-innen);display:flex;gap:.4rem;align-items:baseline}
+  .palettenkopf .meta{text-transform:none;letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .palettenkopf h3{margin:0!important;font:inherit!important;text-transform:inherit;letter-spacing:inherit;color:inherit!important}
+  .planpanel{display:flex;flex-direction:column}
+  .palettenkopf .kopflink{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:.8rem;white-space:nowrap}
   /* Aufklappbares Planlayout: Pfeil und Überschrift in einer Zeile. */
   .planlayout > summary{display:flex;gap:.4rem;align-items:baseline;cursor:pointer;list-style:none}
   .planlayout > summary::-webkit-details-marker{display:none}
