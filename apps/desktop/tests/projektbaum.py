@@ -1,9 +1,10 @@
 """Projektbaum mit Statussymbolen (Server auf http://127.0.0.1:1430).
 
-Rot: ungespeichert · Gelb: noch zu erledigen · Grün: erledigt · ohne Symbol:
-leer und nicht benötigt. Zweige zeigen das dringendste Symbol, „Nur offene“
-blendet Erledigtes aus, leere Bereiche lassen sich als nicht benötigt
-kennzeichnen.
+Statusschema: Rot Problem · Blau nicht gespeichert · Orange veraltet · Gelb in
+Arbeit · Grau zu erledigen · Grün geprüft · ohne Symbol leer bzw. nicht
+benötigt. Zweige zeigen das dringendste Symbol, „Nur offene“ blendet
+Geprüftes aus, „?“ öffnet die Legende, leere Bereiche lassen sich als nicht
+benötigt kennzeichnen.
 """
 from pathlib import Path
 import json, os, re
@@ -17,24 +18,46 @@ with sync_playwright() as p:
  browser=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
  page=browser.new_page(viewport={'width':1440,'height':1000},locale='de-DE')
  page.on('pageerror',lambda e:errors.append(str(e)))
- page.add_init_script('window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text())
+ staende=[
+  {'bereich':'uebersicht','zustand':'in_arbeit','gruende':['Vorhaben beschreiben'],'kennzeichenbar':False},
+  {'bereich':'rechtsgrundlagen','zustand':'geprueft','gruende':[],'kennzeichenbar':False},
+  {'bereich':'flurstuecke','zustand':'zu_erledigen','gruende':['Mindestens ein Vorhabenflurstück erfassen'],'kennzeichenbar':False},
+  {'bereich':'stellplaetze','zustand':'leer','gruende':[],'kennzeichenbar':True},
+  {'bereich':'abstand','zustand':'problem','gruende':['Abstandsflächen Nord: Anforderung nicht eingehalten'],'kennzeichenbar':False},
+  {'bereich':'freiflaechen','zustand':'veraltet','gruende':['Freiflächen: Grundlagen oder Eingaben geändert, Nachweis neu erstellen'],'kennzeichenbar':False},
+ ]
+ page.add_init_script('window.testBereichsstatus='+json.dumps(staende)+';window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text())
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1430'))
  page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
  nav=gliederung(page)
  def symbol(name):return nav.locator('.navigationseintrag').filter(has=page.get_by_role('button',name=name,exact=True)).locator('.statussymbol')
- # Gelb mit Grund, Grün, leer ohne Symbol.
- expect(symbol('Flurstücke und Grundbuch')).to_have_class(re.compile(r'\bgelb\b'))
- expect(symbol('Flurstücke und Grundbuch')).to_have_attribute('title','Noch zu erledigen:\nMindestens ein Vorhabenflurstück erfassen')
+ # Jeder Zustand mit eigenem Symbol und Grund; leer ohne Symbol.
+ expect(symbol('Flurstücke und Grundbuch')).to_have_class(re.compile(r'\bgrau\b'))
+ expect(symbol('Flurstücke und Grundbuch')).to_have_attribute('title','Zu erledigen:\nMindestens ein Vorhabenflurstück erfassen')
+ expect(symbol('Stammdaten')).to_have_class(re.compile(r'\bgelb\b'))
  expect(symbol('Rechtsgrundlagen')).to_have_class(re.compile(r'\bgruen\b'))
+ expect(symbol('Abstandsflächen')).to_have_class(re.compile(r'\brot\b'))
+ expect(symbol('Abstandsflächen')).to_have_attribute('title','Problem:\nAbstandsflächen Nord: Anforderung nicht eingehalten')
  expect(symbol('Stellplatznachweis')).to_have_count(0)
- # Zweige sammeln das dringendste Symbol.
+ # Zweige sammeln das dringendste Symbol (Rot vor Orange vor Gelb vor Grau).
  expect(nav.get_by_role('button',name='Grundlagen',exact=True).locator('.statussymbol')).to_have_class(re.compile(r'\bgelb\b'))
  expect(nav.get_by_role('button',name='Ermittlung',exact=True).locator('.statussymbol')).to_have_class(re.compile(r'\bgelb\b'))
+ expect(nav.get_by_role('button',name='Weitere Nachweise',exact=True).locator('.statussymbol')).to_have_class(re.compile(r'\brot\b'))
+ # Legende erklärt alle Symbole und schließt mit Escape.
+ nav.get_by_role('button',name='Legende der Statussymbole',exact=True).click()
+ legende=page.get_by_role('dialog',name='Legende der Statussymbole')
+ expect(legende).to_be_visible()
+ for wort in ['Problem','Nicht gespeichert','Veraltet','In Arbeit','Zu erledigen','Geprüft','Ohne Zeichen']:
+  expect(legende).to_contain_text(wort)
+ expect(legende.locator('.statussymbol')).to_have_count(6)
+ page.screenshot(path=str(out/'legende.png'))
+ page.keyboard.press('Escape')
+ expect(legende).to_have_count(0)
  page.screenshot(path=str(out/'projektbaum.png'))
  # Statuszeile im geöffneten Bereich nennt den Grund.
  bereich(page,'Flurstücke und Grundbuch')
  expect(page.locator('.projekt-sitzung:visible .bereichsstatus')).to_contain_text('Mindestens ein Vorhabenflurstück erfassen')
- # „Nur offene“ blendet Erledigtes aus und bleibt gemerkt.
+ # „Nur offene“ blendet Geprüftes aus und bleibt gemerkt.
  nav.get_by_role('button',name='Nur offene',exact=True).click()
  expect(nav.get_by_role('button',name='Rechtsgrundlagen',exact=True)).to_have_count(0)
  expect(nav.get_by_role('button',name='Flurstücke und Grundbuch',exact=True)).to_have_count(1)
@@ -61,4 +84,4 @@ with sync_playwright() as p:
  expect(nav.get_by_role('button',name='Rechtsgrundlagen: Weitere Aktionen',exact=True)).to_have_count(0)
  browser.close()
 assert not errors,errors
-print('Projektbaum: Symbole gelb/grün/ohne, Zweigsymbole, Statuszeile, Nur offene und nicht benötigt geprüft.')
+print('Projektbaum: Statusschema mit sechs Symbolen, Zweigsymbole, Legende, Statuszeile, Nur offene und nicht benötigt geprüft.')

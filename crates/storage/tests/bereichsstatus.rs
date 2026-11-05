@@ -54,7 +54,7 @@ async fn neues_projekt_und_bebauungsplan() {
     let s = c.bereichsstatus_am(p.id, tag, &u).await.unwrap();
     // Pflicht: Stammdaten, Rechtsgrundlagen, Flurstücke.
     for id in ["uebersicht", "rechtsgrundlagen", "flurstuecke"] {
-        assert_eq!(zustand(&s, id), Offen, "{id}");
+        assert_eq!(zustand(&s, id), ZuErledigen, "{id}");
     }
     assert!(gruende(&s, "uebersicht").contains("Bauherr"));
     assert!(gruende(&s, "flurstuecke").contains("Vorhabenflurstück"));
@@ -96,8 +96,8 @@ async fn neues_projekt_und_bebauungsplan() {
         .await
         .unwrap();
     let s = c.bereichsstatus_am(p.id, tag, &u).await.unwrap();
-    assert_eq!(zustand(&s, "rechtsgrundlagen"), Erledigt);
-    assert_eq!(zustand(&s, "festsetzungen"), Offen);
+    assert_eq!(zustand(&s, "rechtsgrundlagen"), Geprueft);
+    assert_eq!(zustand(&s, "festsetzungen"), ZuErledigen);
     assert!(gruende(&s, "festsetzungen").contains("GRZ"));
 
     // Mit erfasstem Maß der Nutzung sind die Festsetzungen erledigt.
@@ -118,7 +118,7 @@ async fn neues_projekt_und_bebauungsplan() {
     .await
     .unwrap();
     let s = c.bereichsstatus_am(p.id, tag, &u).await.unwrap();
-    assert_eq!(zustand(&s, "festsetzungen"), Erledigt);
+    assert_eq!(zustand(&s, "festsetzungen"), Geprueft);
 
     // Ein leerer Datenbereich lässt sich als nicht benötigt kennzeichnen …
     assert!(

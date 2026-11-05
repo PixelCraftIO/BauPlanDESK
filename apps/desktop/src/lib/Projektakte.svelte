@@ -21,7 +21,7 @@
   import { melden, abonnieren } from "./projektEreignisse";
   import { plattformApi } from "./plattformApi";
   import type { Bereichsstatus } from "./generated/plattform";
-  import StatusSymbol from "./StatusSymbol.svelte";
+  import StatusSymbol, { STATUSWORT, statusartVon } from "./StatusSymbol.svelte";
   import {
     api,
     fehlertext,
@@ -90,7 +90,7 @@
   } = $props();
   const editoren = projektEditoren();
   const navigation = projektNavigationAnlegen();
-  // Bereichsstatus (offen/erledigt) für Projektbaum und Statuszeile; neu nach
+  // Bereichsstatus (Problem, veraltet, in Arbeit, zu erledigen, geprüft) für Projektbaum und Statuszeile; neu nach
   // jeder gespeicherten Änderung der Akte. Ohne Antwort bleibt der Baum ohne Symbole.
   let staende = $state<Record<string, Bereichsstatus>>({});
   let statusNr = 0;
@@ -127,6 +127,7 @@
   const statusBereich = $derived(
     staende[ansicht === "mass" ? "grundstueck" : ansicht],
   );
+  const statusArt = $derived(statusartVon(statusBereich?.zustand));
   $effect(() => {
     navigation.benutzerId = ich?.id ?? null;
     navigation.projektId = projekt.id;
@@ -411,10 +412,13 @@
       onbenoetigt={darf("bearbeitung") ? benoetigtSetzen : undefined}
     />{/if}
   <main>
-    {#if statusBereich?.zustand === "offen" && statusBereich.gruende.length}<details class="bereichsstatus">
+    {#if statusArt && statusArt !== "gruen" && statusBereich?.gruende.length}<details
+        class="bereichsstatus"
+        data-art={statusArt}
+      >
         <summary
-          ><StatusSymbol art="gelb" text={statusBereich.gruende.join("\n")} />
-          Noch zu erledigen: {statusBereich.gruende[0]}{statusBereich.gruende.length > 1
+          ><StatusSymbol art={statusArt} text={statusBereich.gruende.join("\n")} />
+          {STATUSWORT[statusArt]}: {statusBereich.gruende[0]}{statusBereich.gruende.length > 1
             ? ` (+${statusBereich.gruende.length - 1} weitere)`
             : ""}</summary
         >
@@ -749,11 +753,21 @@
 <style>
   /* Statuszeile über dem Bereich: was hier noch zu erledigen ist. */
   .bereichsstatus {
+    --farbe: #c99000;
     margin: 0 0 8px;
     padding: 4px 10px;
-    border: 1px solid #ecd49a;
-    background: color-mix(in srgb, #d39200 9%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--farbe) 45%, var(--panel));
+    background: color-mix(in srgb, var(--farbe) 9%, var(--panel));
     font-size: 0.9rem;
+  }
+  .bereichsstatus[data-art="rot"] {
+    --farbe: #c0392b;
+  }
+  .bereichsstatus[data-art="orange"] {
+    --farbe: #c8580a;
+  }
+  .bereichsstatus[data-art="grau"] {
+    --farbe: #737a84;
   }
   .bereichsstatus summary {
     display: flex;

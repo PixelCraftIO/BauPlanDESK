@@ -137,9 +137,26 @@ async fn module_quellen_freigaben_archiv_und_druck() {
         core.nachweis_wiederholen(p.id, wn.id).await.unwrap(),
         serde_json::to_value(&wr).unwrap()
     );
+    // Statusschema: Ein erstellter, eingehaltener Nachweis ohne Bürofreigabe
+    // ist „in Arbeit“, nicht grün; die Grundlage Raumbuch wird verlangt.
+    use core_lib::bereichsstatus::Bereichszustand;
+    let bereich = |s: &core_lib::bereichsstatus::Bereichsstaende, id: &str| {
+        let b = s.bereiche.iter().find(|b| b.bereich == id).unwrap();
+        (b.zustand, b.gruende.join(" | "))
+    };
+    let s = core.bereichsstatus(p.id, &user).await.unwrap();
+    let (z, g) = bereich(&s, "wohnflaechen");
+    assert_eq!(z, Bereichszustand::InArbeit, "{g}");
+    assert!(g.contains("Bürofreigabe"), "{g}");
+    assert_eq!(bereich(&s, "raumbuch").0, Bereichszustand::ZuErledigen);
+    assert_eq!(bereich(&s, "nachweise").0, Bereichszustand::InArbeit);
     core.nachweis_freigeben(p.id, wn.id, "Kontrollfall geprüft".into(), &user)
         .await
         .unwrap();
+    // Erst mit Freigabe ist der Bereich geprüft.
+    let s = core.bereichsstatus(p.id, &user).await.unwrap();
+    let (z, g) = bereich(&s, "wohnflaechen");
+    assert_eq!(z, Bereichszustand::Geprueft, "{g}");
     staende.insert(
         "wohnflaechen".into(),
         json!({"fachstand":wf,"plan":wp,"ergebnis":wr,"nachweis":wn}),

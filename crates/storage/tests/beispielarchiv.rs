@@ -129,10 +129,11 @@ async fn beispielkopie_uebernimmt_lizenz_und_testbeginn() {
     );
 }
 
-/// Bereichsstatus der Projektnavigation im Beispielprojekt: Am Stichtag sind nur
-/// die Arbeiten rund um den nachgeforderten Entwässerungsnachweis offen
-/// (Aufgaben, Unterlagenregister, Verfahrensakte); die erfassten Grundlagen und
-/// Nachweise sind erledigt.
+/// Bereichsstatus der Projektnavigation im Beispielprojekt: Am Stichtag ist die
+/// Aufgabe zum nachgeforderten Entwässerungsnachweis überfällig (Problem);
+/// Unterlagenregister, Verfahrensakte, Aufmaß (Aufgaben ohne Messwert) und
+/// Gebäude (Garage ohne Geschosse) sind in Arbeit. Grundlagen und freigegebene,
+/// eingehaltene Nachweise sind geprüft.
 #[tokio::test]
 async fn beispielprojekt_bereichsstatus() {
     use core_lib::bereichsstatus::Bereichszustand::*;
@@ -166,23 +167,35 @@ async fn beispielprojekt_bereichsstatus() {
         "rechtsgrundlagen",
         "festsetzungen",
         "flurstuecke",
-        "gebaeude",
         "raumbuch",
         "grundstueck",
         "grz",
         "wohnflaechen",
         "abstand",
         "stellplaetze",
+        "entwaesserung",
+        "nachweise",
     ] {
-        assert_eq!(zustand(id), Erledigt, "{id}");
+        assert_eq!(zustand(id), Geprueft, "{id}");
     }
-    for id in ["verfahren", "aufgaben", "unterlagen"] {
-        assert_eq!(zustand(id), Offen, "{id}");
+    for id in ["verfahren", "unterlagen", "planaufmass", "gebaeude"] {
+        assert_eq!(zustand(id), InArbeit, "{id}");
+    }
+    assert_eq!(zustand("aufgaben"), Problem);
+    // Listenbereiche werden nie grün.
+    for id in [
+        "aufgaben",
+        "projekttagebuch",
+        "fachplaner",
+        "dokumente",
+        "portale",
+    ] {
+        assert_ne!(zustand(id), Geprueft, "{id}");
     }
     assert!(
         s.bereiche
             .iter()
-            .filter(|b| b.zustand == Offen)
+            .filter(|b| matches!(b.zustand, Problem | Veraltet | InArbeit | ZuErledigen))
             .all(|b| !b.gruende.is_empty())
     );
     db.schliessen().await;

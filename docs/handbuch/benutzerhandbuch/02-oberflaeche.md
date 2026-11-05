@@ -68,26 +68,45 @@ ein eigener Vorgang im Projektverzeichnis.
    - Ein ausgegrauter Eintrag ist noch gesperrt. Beim Darüberfahren nennt er
      die fehlenden Schritte (z. B. fehlende Rechtsgrundlage für GRZ).
 4. **Statussymbole** rechts neben den Einträgen zeigen den Stand jedes
-   Bereichs. Die Form unterscheidet die Zustände auch ohne Farbe:
+   Bereichs. Die Form unterscheidet die Zustände auch ohne Farbe; das **?**
+   oben im Baum öffnet dieselbe Legende in der Anwendung:
 
-   | Symbol | Bedeutung |
-   | --- | --- |
-   | rotes Ausrufezeichen | Ungespeicherte Änderungen in diesem Bereich |
-   | gelber Halbkreis | Noch zu erledigen; beim Darüberfahren steht, was fehlt |
-   | grüner Haken | Vollständig und gespeichert |
-   | kein Symbol | Leer und nichts verlangt, z. B. ein Raumbuch, das niemand braucht |
+   | Symbol | Stand | Bedeutung |
+   | --- | --- | --- |
+   | rotes Kreuz | Problem | Anforderung nicht eingehalten, Prüffehler oder Frist überschritten |
+   | blauer Punkt | Nicht gespeichert | Änderungen in diesem Bereich sind noch nicht gespeichert |
+   | oranger Pfeil | Veraltet | Eine Grundlage hat sich geändert: Nachweis neu erstellen bzw. neu prüfen |
+   | gelber Halbkreis | In Arbeit | Begonnen, aber Angaben, Messwerte, Prüfung oder Freigabe fehlen |
+   | grauer Ring | Zu erledigen | Wird benötigt, es ist aber noch nichts erfasst |
+   | grüner Haken | Geprüft | Vollständig, aktuell und fachlich geprüft bzw. freigegeben |
+   | kein Symbol | – | Nicht benötigt, leer oder noch gesperrt |
 
-   Was als offen gilt, richtet sich nach den erfassten Daten. Ist in den
-   Rechtsgrundlagen ein Bebauungsplan gewählt, wird „Planfestsetzungen“ gelb,
-   bis mindestens eine Festsetzung wie GRZ, GFZ oder Vollgeschosse eingetragen
-   ist. Gibt es Wohnflächen oder DIN-277-Flächen, verlangt das Raumbuch
-   Einträge. Offene Arbeitspunkte der Projektübersicht, auch überfällige
-   Fristen, machen den Bereich gelb, zu dem sie führen.
+   Beim Darüberfahren steht am Symbol, was fehlt oder was das Problem ist.
+   **Grün gibt es nur mit einem Prüfsignal**, nie allein deshalb, weil ein
+   Wert eingetragen ist:
+   - Berechnungen (GRZ, Wohnflächen, Stellplätze, Abstandsflächen …) werden
+     grün, wenn ihr neuester Nachweis aktuell, vollständig, eingehalten und
+     vom Büro freigegeben ist. Ohne Nachweis oder ohne Freigabe bleiben sie
+     gelb, mit geänderten Grundlagen orange, nicht eingehalten rot.
+   - Pflichtangaben (Stammdaten, Rechtsgrundlagen, Flurstücke) werden grün,
+     wenn alles Verlangte angegeben ist. Ist in den Rechtsgrundlagen ein
+     Bebauungsplan gewählt, sind die Planfestsetzungen grau, bis das Maß der
+     Nutzung (z. B. GRZ, GFZ oder Vollgeschosse) eingetragen ist.
+   - Aufmaß: grün, wenn jeder Plan einen Maßstab hat und jede Aufmaßaufgabe
+     einen Messwert. Gebäude: Geschosse eingestuft, Flurstücke zugeordnet.
+     Raumbuch: jeder Raum mit Fläche und Nutzung. Planliste: jeder Plan mit
+     Index und Dokument. Verfahren: erst mit der Entscheidung der Behörde.
+   - Listen wie Aufgaben, Projekttagebuch, Fachplaner oder Projektdateien
+     werden nie grün: Sie sind gelb, solange Einträge offen sind, rot bei
+     überfälligen Einträgen und sonst ohne Symbol.
+   - Gibt es Wohnflächen oder DIN-277-Flächen, verlangt das Raumbuch Einträge
+     (grau, solange es leer ist). Offene Arbeitspunkte der Projektübersicht
+     machen den Bereich gelb, zu dem sie führen; überfällige Fristen rot.
    - Ein Register oder eine Gruppe zeigt das dringendste Symbol der Bereiche
-     darunter.
-   - **Nur offene** oben im Baum blendet alles Erledigte und Leere aus.
-   - Steht man in einem offenen Bereich, nennt eine gelbe Zeile über der
-     Arbeitsfläche, was dort noch fehlt.
+     darunter (Rot vor Blau, Orange, Gelb, Grau und Grün).
+   - **Nur offene** oben im Baum blendet alles Geprüfte und Leere aus.
+   - Steht man in einem nicht grünen Bereich, nennt eine farbige Zeile über
+     der Arbeitsfläche, was dort noch fehlt.
    - Über **⋯** neben einem leeren Bereich lässt er sich **als nicht benötigt
      kennzeichnen**. Er erscheint dann kursiv und bleibt ohne Symbol. Die
      Kennzeichnung wird in der Akte gespeichert, steht im Verlauf der
