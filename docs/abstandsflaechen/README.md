@@ -221,8 +221,9 @@ Planrechtsgrundlagen oder am Abstandsplan dagegen schon.
 ## Architektur und Prüfung
 
 `core-lib::abstandsflaechen` besitzt Modelle, Validierung, Regelauswertung,
-Geometrie, Berichtslesesicht und CAD-/Exportadapter. Regelpakete liegen in
-`regelwerke/abstandsflaechen/pilot.json`. Die UI berechnet keine verbindlichen
+Geometrie, Berichtslesesicht und CAD-/Exportadapter. Regelpakete liegen je Land
+und Fassung in `regelwerke/abstandsflaechen/<land>/<gültig ab>.json` (Aufbau und
+Änderungsregeln: `regelwerke/abstandsflaechen/README.md`). Die UI berechnet keine verbindlichen
 Rechtsfaktoren oder Flächen nach. Tauri und HTTP verwenden dieselben Services.
 
 Projektentwürfe verwenden revisionierte Fachstände (`abstandsflaechen`).

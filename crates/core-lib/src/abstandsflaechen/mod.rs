@@ -4,9 +4,14 @@ pub mod bericht;
 mod cadhoehen;
 mod geometrie;
 mod hoehen;
+mod regelwerk;
 mod umriss;
 use crate::{CoreError, CoreResult, domain::Bundesland, plattform::objekte::Dokumentbezug};
 pub use cadhoehen::{CadHoehe, gelaende_vorschlag};
+pub use regelwerk::{
+    Absatztext, Beispielrechnung, Fassungsangabe, Rechtsquelle, Regeldatei, Regelpruefpunkt,
+    Regelpruefung, Regelwerk, fassung_am, regelwerke,
+};
 use serde::{Deserialize, Serialize};
 pub use umriss::{UmrissAbgleich, umrisse_abgleichen, umrisse_einbinden};
 use uuid::Uuid;
@@ -458,11 +463,26 @@ fn text(s: &str, max: usize) -> CoreResult<()> {
         Ok(())
     }
 }
+/// Je Land die Regeln der heute geltenden Fassung (ohne geltende Fassung die
+/// jüngste). Alle Fassungen mit Herkunft liefert [`regelwerke`].
 pub fn katalog() -> CoreResult<Vec<AbstandsRegeln>> {
-    serde_json::from_str(include_str!(
-        "../../../../regelwerke/abstandsflaechen/pilot.json"
-    ))
-    .map_err(|e| err(e.to_string()))
+    katalog_am(chrono::Local::now().date_naive())
+}
+pub fn katalog_am(tag: chrono::NaiveDate) -> CoreResult<Vec<AbstandsRegeln>> {
+    let alle = regelwerke()?;
+    let mut laender: Vec<Bundesland> = alle.iter().map(|r| r.inhalt.regeln.land).collect();
+    laender.dedup();
+    Ok(laender
+        .into_iter()
+        .filter_map(|land| {
+            let mut des_landes = alle.iter().filter(|r| r.inhalt.regeln.land == land);
+            des_landes
+                .clone()
+                .find(|r| r.gilt_am(tag))
+                .or_else(|| des_landes.next_back())
+                .map(|r| r.inhalt.regeln.clone())
+        })
+        .collect())
 }
 impl AbstandsPlan {
     pub fn dokumente(&self) -> Vec<Dokumentbezug> {
