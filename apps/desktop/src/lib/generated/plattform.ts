@@ -1856,14 +1856,14 @@ export type Tagesmaileinstellung = { aktiv: boolean, adresse: string, umfang: Ab
  */
 abwesend_bis: string | null, vertretung: BenutzerId | null, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
-export type Bereichszustand = "offen" | "erledigt" | "leer" | "nicht_benoetigt";
+export type Bereichszustand = "problem" | "veraltet" | "in_arbeit" | "zu_erledigen" | "geprueft" | "leer" | "nicht_benoetigt";
 export type Bereichsstatus = {
 /**
  * Kennung des Bereichs wie in der Navigation (z. B. `flurstuecke`, `grz`).
  */
 bereich: string, zustand: Bereichszustand,
 /**
- * Kurze Gründe für „offen“ in der Reihenfolge der Projektübersicht.
+ * Kurze Gründe für den Zustand: Probleme, dann Veraltetes, dann Offenes.
  */
 gruende: Array<string>,
 /**

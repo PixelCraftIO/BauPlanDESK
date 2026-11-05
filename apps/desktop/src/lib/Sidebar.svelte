@@ -13,7 +13,14 @@
   import type { Project } from "./api";
   import type { Ansicht } from "./projektSitzung";
   import type { Bereichsstatus } from "./generated/plattform";
-  import StatusSymbol, { type Statusart } from "./StatusSymbol.svelte";
+  import StatusSymbol, {
+    type Statusart,
+    RANG,
+    REIHENFOLGE,
+    STATUSWORT,
+    STATUSERKLAERUNG,
+    statusartVon,
+  } from "./StatusSymbol.svelte";
   let {
     projekt,
     aktiv = true,
@@ -31,16 +38,19 @@
     onbenoetigt?: (bereich: string, benoetigt: boolean) => void;
   } = $props();
   type Symbol = { art: Statusart; text: string } | null;
-  const RANG: Record<Statusart, number> = { rot: 3, gelb: 2, gruen: 1 };
-  /** Rot aus ungespeicherten Änderungen, sonst Gelb/Grün aus dem Core. */
+  /**
+   * Blau aus ungespeicherten Änderungen (nur die Oberfläche kennt sie), sonst
+   * der Zustand aus dem Core. Ein Problem bleibt auch ungespeichert rot.
+   */
   function symbolVon(id: string): Symbol {
     const modul = MODULE.find((m) => m.id === id);
     if (modul && voraussetzung(projekt, modul)) return null;
-    if (editoren?.hatAenderungenIn(id as Ansicht)) return { art: "rot", text: "" };
     const s = staende[id];
-    if (s?.zustand === "offen") return { art: "gelb", text: s.gruende.join("\n") };
-    if (s?.zustand === "erledigt") return { art: "gruen", text: "" };
-    return null;
+    const art = statusartVon(s?.zustand);
+    const text = s?.gruende.join("\n") ?? "";
+    if (art === "rot") return { art, text };
+    if (editoren?.hatAenderungenIn(id as Ansicht)) return { art: "blau", text: "" };
+    return art && { art, text };
   }
   /** Ein Zweig zeigt das dringendste Symbol seiner Bereiche. */
   function zweigSymbol(z: NavZweig): Symbol {
@@ -55,7 +65,25 @@
     }
     return best && { art: best.art, text: offen.join("\n") };
   }
-  // „Nur offene“: Erledigtes und Leeres ausblenden (lokal je Benutzer).
+  // Legende des Statusschemas („?“ im Baumkopf).
+  let legendeOffen = $state(false);
+  let legende = $state<HTMLElement>();
+  $effect(() => {
+    if (!legendeOffen) return;
+    const klick = (e: PointerEvent) => {
+      if (legende && !legende.contains(e.target as Node)) legendeOffen = false;
+    };
+    const taste = (e: KeyboardEvent) => {
+      if (e.key === "Escape") legendeOffen = false;
+    };
+    window.addEventListener("pointerdown", klick, true);
+    window.addEventListener("keydown", taste);
+    return () => {
+      window.removeEventListener("pointerdown", klick, true);
+      window.removeEventListener("keydown", taste);
+    };
+  });
+  // „Nur offene“: Geprüftes und Leeres ausblenden (lokal je Benutzer).
   let nurOffen = $state(false);
   try {
     nurOffen = localStorage.getItem("bauplan.baum.nurOffen") === "1";
@@ -293,7 +321,7 @@
         type="button"
         class="link"
         aria-pressed={nurOffen}
-        title="Nur Bereiche mit offener Arbeit oder ungespeicherten Änderungen zeigen"
+        title="Nur Bereiche mit Problem, offener Arbeit oder ungespeicherten Änderungen zeigen (Geprüftes und Leeres ausblenden)"
         onclick={nurOffenUmschalten}>Nur offene</button
       >
       <button
@@ -302,6 +330,31 @@
         onclick={() => (alleZu ? alleAufklappen() : alleZuklappen())}
         >{alleZu ? "Alle aufklappen" : "Alle zuklappen"}</button
       >
+      <span class="legende" bind:this={legende}>
+        <button
+          type="button"
+          class="link legendeknopf"
+          aria-expanded={legendeOffen}
+          aria-controls="statuslegende"
+          aria-label="Legende der Statussymbole"
+          title="Legende der Statussymbole"
+          onclick={() => (legendeOffen = !legendeOffen)}>?</button
+        >
+        {#if legendeOffen}<div id="statuslegende" class="legendefeld" role="dialog" aria-label="Legende der Statussymbole">
+            <strong>Statussymbole</strong>
+            <ul>
+              {#each REIHENFOLGE as art (art)}<li data-art={art}>
+                  <StatusSymbol {art} /><span
+                    ><b>{STATUSWORT[art]}</b> {STATUSERKLAERUNG[art]}</span
+                  >
+                </li>{/each}
+              <li><span class="ohne" aria-hidden="true"></span><span
+                  ><b>Ohne Zeichen</b> Nicht benötigt, leer oder noch gesperrt (ⓘ zeigt die Voraussetzung).</span
+                ></li>
+            </ul>
+            <p>Ein Zweig zeigt das dringendste Symbol seiner Bereiche. Listen wie Aufgaben werden nie grün.</p>
+          </div>{/if}
+      </span>
     </div>
     <nav aria-label="Gliederung der Projektakte">
       <ul class="projektbaum">
@@ -340,9 +393,61 @@
     padding: 2px 10px 4px;
     font-weight: 600;
     border-bottom: 1px solid var(--border-innen);
+    /* Bezugsrahmen der Legende: so breit wie die Navigation. */
+    position: relative;
   }
-  .baumkopf > span {
+  .baumkopf > span:first-child {
     flex: 1;
+  }
+  .legende {
+    display: inline-flex;
+  }
+  .baumkopf .legendeknopf {
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    font-weight: 600;
+    text-decoration: none;
+    line-height: 1;
+  }
+  .legendefeld {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 4px;
+    right: 4px;
+    z-index: 30;
+    padding: 0.6rem 0.7rem;
+    background: var(--panel);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+    font-weight: 400;
+    font-size: 0.8rem;
+  }
+  .legendefeld ul {
+    list-style: none;
+    margin: 0.4rem 0;
+    padding: 0;
+  }
+  .legendefeld li {
+    border: none;
+    background: none;
+    display: flex;
+    gap: 0.45rem;
+    align-items: flex-start;
+    padding: 0.2rem 0;
+  }
+  .legendefeld li :global(.statussymbol),
+  .legendefeld .ohne {
+    margin-top: 2px;
+    width: 14px;
+    flex: none;
+  }
+  .legendefeld p {
+    margin: 0;
+    color: var(--muted);
   }
   .baumkopf .link[aria-pressed="true"] {
     font-weight: 600;
@@ -354,6 +459,7 @@
     display: inline-flex;
   }
   .baumkopf .link {
+    white-space: nowrap;
     font-size: 0.8rem;
     font-weight: 400;
     min-height: 0;

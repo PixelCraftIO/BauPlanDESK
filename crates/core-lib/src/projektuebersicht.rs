@@ -1167,7 +1167,9 @@ impl CoreServices {
         Ok(s)
     }
 }
-fn nachweisschluessel(n: &crate::plattform::nachweise::Nachweisstand) -> CoreResult<String> {
+pub(crate) fn nachweisschluessel(
+    n: &crate::plattform::nachweise::Nachweisstand,
+) -> CoreResult<String> {
     Ok(match &n.eingabe {
         NachweisEingabe::Fach { objekt, .. } => format!("fach:{objekt}"),
         NachweisEingabe::AbstandProjekt { objekt, .. } => format!("abstand:{objekt}"),
