@@ -1,7 +1,7 @@
-//! Das mitgelieferte Beispielprojekt (`beispiele/Beispielprojekt-EFH-Mustermann.zip`)
+//! Das abgelegte Beispielprojekt (`beispiele/Beispielprojekt-EFH-Mustermann.zip`)
 //! bleibt mit dem aktuellen Stand der Software lesbar und rechnet dieselben
-//! Ergebnisse. Die App stellt genau dieses Archiv über „Hilfe → Beispielprojekt
-//! öffnen“ in ein eigenes Profil wieder her.
+//! Ergebnisse. Die Bildautomatik des Benutzerhandbuchs
+//! (`scripts/handbuch-bilder`) nimmt alle Bilder aus genau diesem Archiv auf.
 //!
 //! Schlägt der Test nach einer Regel- oder Berechnungsänderung fehl, das Archiv
 //! mit dem Generator neu erzeugen (siehe `beispiele/README.md`) und die
@@ -26,7 +26,7 @@ async fn mitgeliefertes_beispielprojekt_rechnet_mit_aktuellem_stand() {
         .unwrap();
 
     let (c, db) = basis::profil_oeffnen(&profil).await;
-    // Wer das Beispiel öffnet, verwaltet die Kopie (wie in der App).
+    // Wer das Archiv wiederherstellt, verwaltet das Profil (wie in der App).
     let ich = core_lib::anmeldung::verwaltung_nach_wiederherstellung(
         &db.repositories(),
         "anwender",
@@ -85,48 +85,6 @@ async fn mitgeliefertes_beispielprojekt_rechnet_mit_aktuellem_stand() {
         c.load_version(d.document_id, d.version).await.unwrap();
     }
     db.schliessen().await;
-}
-
-/// Die Kopie des Beispielprojekts übernimmt Lizenz und Testbeginn des
-/// bisherigen Profils, damit sie weder eine neue Testversion startet noch
-/// ohne Lizenz schreibgeschützt ist.
-#[tokio::test]
-async fn beispielkopie_uebernimmt_lizenz_und_testbeginn() {
-    let dir = tempfile::tempdir().unwrap();
-    let von = db_sqlite::SqliteDatabase::open(&dir.path().join("von.db"))
-        .await
-        .unwrap();
-    let nach = db_sqlite::SqliteDatabase::open(&dir.path().join("nach.db"))
-        .await
-        .unwrap();
-    let (von, nach) = (von.repositories(), nach.repositories());
-    von.lizenz
-        .einstellung_setzen("testbeginn", "2026-01-05")
-        .await
-        .unwrap();
-    von.lizenz
-        .einstellung_setzen("lizenz", "Lizenzdatei")
-        .await
-        .unwrap();
-    core_lib::license::lizenz_uebernehmen(von.lizenz.as_ref(), nach.lizenz.as_ref())
-        .await
-        .unwrap();
-    assert_eq!(
-        nach.lizenz
-            .einstellung("testbeginn")
-            .await
-            .unwrap()
-            .as_deref(),
-        Some("2026-01-05")
-    );
-    assert_eq!(
-        nach.lizenz.einstellung("lizenz").await.unwrap().as_deref(),
-        Some("Lizenzdatei")
-    );
-    assert_eq!(
-        nach.lizenz.einstellung("abo_schluessel").await.unwrap(),
-        None
-    );
 }
 
 /// Bereichsstatus der Projektnavigation im Beispielprojekt: Am Stichtag ist die

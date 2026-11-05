@@ -3,8 +3,8 @@
 [← Verfahren und Einreichung](08-verfahren.md) · [Inhalt](README.md) · [Weiter: Anhang →](10-anhang.md)
 
 Die typischen Abläufe als Checklisten. Jeder Schritt verweist auf den Bereich
-in der App und das Kapitel mit den Einzelheiten. Im Beispielprojekt sind alle
-Schritte von Workflow 1 bis 3 bereits einmal durchlaufen.
+in der App und das Kapitel mit den Einzelheiten. Im Beispielprojekt der Bilder
+sind alle Schritte von Workflow 1 bis 3 bereits einmal durchlaufen.
 
 ## Workflow 1: Vom Grundstück zur Erstabgabe
 
@@ -119,7 +119,7 @@ Wenn sich der Entwurf ändert, nachdem schon gemessen und gerechnet wurde:
 5. Dokumentkategorien und Briefbogen anpassen.
 6. Formularvorlagen in die Formularbibliothek importieren.
 7. Erste Sicherung erstellen und prüfen.
-8. Zum Üben das Beispielprojekt öffnen.
+8. Zum Üben ein eigenes Testprojekt anlegen.
 
 Einzelheiten: [Kapitel 3](03-einrichtung.md).
 

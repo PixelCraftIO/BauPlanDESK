@@ -564,13 +564,11 @@
     }
   }
 
-  /** Mitgeliefertes Beispielprojekt in eigenem Profil (siehe beispielprojekt.rs). */
-  let beispiel = $state<{ aktiv: boolean; kopie_vorhanden: boolean } | null>(
-    null,
-  );
-  let beispielFrage = $state(false);
+  /** Profil des früheren Beispielprojekts (siehe beispielprojekt.rs): nur
+   *  noch der Rückweg zu den eigenen Projekten. */
+  let beispiel = $state<{ aktiv: boolean } | null>(null);
   let beispielLaeuft = $state(false);
-  /** Öffnen und Verlassen starten die Anwendung in einem anderen Profil neu. */
+  /** Verlassen startet die Anwendung im vorherigen Profil neu. */
   async function beispielWechseln(aktion: () => Promise<void>) {
     if (beispielLaeuft) return;
     if (updateBlockiert()) {
@@ -712,9 +710,6 @@
         break;
       case "hilfe.handbuch":
         hilfeOeffnen();
-        break;
-      case "hilfe.beispielprojekt":
-        beispielFrage = true;
         break;
       case "hilfe.lizenz":
         dialog = "lizenz";
@@ -869,61 +864,7 @@
   </div>
 {/if}
 
-{#if beispielFrage}
-  <div class="banner" role="dialog" aria-label="Beispielprojekt">
-    <div style="flex: 1 1 32rem">
-      <strong>Beispielprojekt „Neubau Einfamilienhaus Mustermann“</strong>
-      <p class="meta">
-        Ein vollständig bearbeitetes Bauantragsverfahren (NRW) zum Ansehen und
-        Ausprobieren. Es öffnet sich als eigene Kopie in einem getrennten
-        Profil; Ihre Projekte bleiben unverändert. Die Anwendung startet dafür
-        neu.
-      </p>
-    </div>
-    <div class="knoepfe">
-      {#if beispiel?.aktiv}
-        <button
-          disabled={beispielLaeuft}
-          onclick={() => beispielWechseln(api.beispielprojektVerlassen)}
-          >Zu meinen Projekten zurückkehren</button
-        >
-        <button
-          class="sekundaer"
-          disabled={beispielLaeuft}
-          onclick={() =>
-            beispielWechseln(() => api.beispielprojektOeffnen(true))}
-          >Unveränderte Kopie wiederherstellen</button
-        >
-      {:else if beispiel?.kopie_vorhanden}
-        <button
-          disabled={beispielLaeuft}
-          onclick={() =>
-            beispielWechseln(() => api.beispielprojektOeffnen(false))}
-          >Bearbeitete Kopie öffnen</button
-        >
-        <button
-          class="sekundaer"
-          disabled={beispielLaeuft}
-          onclick={() =>
-            beispielWechseln(() => api.beispielprojektOeffnen(true))}
-          >Neue unveränderte Kopie öffnen</button
-        >
-      {:else}
-        <button
-          disabled={beispielLaeuft}
-          onclick={() =>
-            beispielWechseln(() => api.beispielprojektOeffnen(true))}
-          >Beispielprojekt öffnen</button
-        >
-      {/if}
-      <button
-        class="sekundaer"
-        disabled={beispielLaeuft}
-        onclick={() => (beispielFrage = false)}>Abbrechen</button
-      >
-    </div>
-  </div>
-{:else if beispiel?.aktiv}
+{#if beispiel?.aktiv}
   <div class="banner" role="status">
     <span
       >Sie arbeiten im <strong>Beispielprojekt</strong>. Änderungen betreffen

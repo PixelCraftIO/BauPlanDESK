@@ -4,10 +4,9 @@ Bebildertes Handbuch für Architektinnen, Architekten, Entwurfsverfasser und
 die Projektorganisation im Büro. Es erklärt die Oberfläche, alle Funktionen
 und die Standardabläufe vom ersten Projekt bis zur Bauausführung.
 
-Alle Bildschirmfotos stammen aus der echten Anwendung mit dem mitgelieferten
-Beispielprojekt **„Neubau Einfamilienhaus Mustermann“** (Nordrhein-Westfalen).
-Sie können jeden Schritt dort nachvollziehen: **Hilfe → Beispielprojekt öffnen**
-(siehe [Kapitel 1](01-einstieg.md#beispielprojekt-öffnen)).
+Alle Bildschirmfotos stammen aus der echten Anwendung mit dem
+Beispielprojekt **„Neubau Einfamilienhaus Mustermann“** (Nordrhein-Westfalen,
+siehe [Kapitel 1](01-einstieg.md#das-beispielprojekt-in-diesem-handbuch)).
 
 **Stand:** 28.10.2026 · Programmstand `main` f5c4e8d (inkl. neuem Zeicheneditor,
 Abgleich von Hand- und Zeichnungswerten und IFC-Modellen).
@@ -80,3 +79,4 @@ und wird beim Ergänzen neuer Module ebenfalls gepflegt.
 | 28.10.2026 | main 09df005 | PDF-Ausgabe `Benutzerhandbuch.pdf` (59 Seiten) und Skript `scripts/benutzerhandbuch-pdf.py`. |
 | 28.10.2026 | main f5c4e8d | IFC-Modelle (BIM): neuer Abschnitt in Kapitel 5 mit 10 Bildschirmfotos (Modell öffnen, Ansicht, Prüfung, Nacharbeit, Auswertung, Übernahme, Abgleich, Export), Workflow 6, Hinweise in Kapitel 1 und 8, fünf neue Begriffe. Die Bildautomatik legt dafür das IFC-Testmodell in das Beispielprojekt (Szenen `ifc-modell-…`). |
 | 04.11.2026 | main 6fb8eac | Alle Bilder auf den aktuellen Programmstand neu aufgenommen. Sieben neue Bilder zum Zeicheneditor in Kapitel 5 (Aufgaben, Werkzeugkiste, Eigenschaften und Verwendung, eigene Zeichnung, Konstruieren, Darstellung, Planlayout); die Bildautomatik legt dafür die eigene Zeichnung „Entwurf Erdgeschoss“ im Beispielprojekt an (Szenen `editor-…`). |
+| 05.11.2026 | main b22b207 | Menüpunkt „Hilfe → Beispielprojekt öffnen“ entfallen: Kapitel 1 erklärt das Beispielprojekt nur noch als Grundlage der Bilder, Menütabelle in Kapitel 2 und Workflow 5 angepasst, Bild `arbeitsplatz-beispielprojekt-oeffnen.png` entfernt. Die Bildautomatik stellt das Archiv jetzt über „Sicherung und Wiederherstellung“ her. |

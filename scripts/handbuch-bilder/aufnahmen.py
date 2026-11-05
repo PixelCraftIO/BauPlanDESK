@@ -1,9 +1,10 @@
 """Erzeugt die Bildschirmfotos des Benutzerhandbuchs aus der echten Anwendung.
 
 Ablauf: Xvfb starten, Brücke (bruecke.py) für apps/desktop/dist bereitstellen,
-Debug-Binary starten, über „Hilfe → Beispielprojekt öffnen“ eine frische Kopie
-von „Neubau Einfamilienhaus Mustermann“ laden und die Szenen unten der Reihe
-nach aufnehmen. Ergebnis: docs/handbuch/benutzerhandbuch/bilder/<name>.png.
+Debug-Binary starten, das Beispielprojekt „Neubau Einfamilienhaus Mustermann“
+(beispiele/Beispielprojekt-EFH-Mustermann.zip) wie unter „Einstellungen →
+Sicherung und Wiederherstellung“ in ein eigenes Profil wiederherstellen und die
+Szenen unten der Reihe nach aufnehmen. Ergebnis: docs/handbuch/benutzerhandbuch/bilder/<name>.png.
 
 Voraussetzungen (Linux): Xvfb, ImageMagick (import), WebKitGTK-Laufzeit,
 `npm run build --prefix apps/desktop` und
@@ -19,7 +20,6 @@ läuft, z. B. „mmeier“ mit vollem Namen „Maria Meier“; sonst der aktuell
 Benutzer), BAUPROJEKT_APP_HOME (Profilverzeichnis, Standard: Home des Kontos).
 """
 
-import glob
 import json
 import os
 import shutil
@@ -100,23 +100,33 @@ def umgebung_starten():
         time.sleep(1)
 
 
+ARCHIV = WURZEL / "beispiele/Beispielprojekt-EFH-Mustermann.zip"
+
+
 def beispielprojekt_oeffnen():
-    """Frische Kopie des Beispielprojekts; die App startet dabei neu."""
-    js('await window.__TAURI_INTERNALS__.invoke("plugin:event|emit",{event:"menu",payload:"hilfe.beispielprojekt"}); await sleep(900); return 1')
-    foto("arbeitsplatz-beispielprojekt-oeffnen")
-    try:
-        js('klick("Beispielprojekt öffnen","[role=dialog] button"); return 1', timeout=5)
-    except Exception:
-        pass  # Fenster wird während der Antwort neu gestartet
-    time.sleep(8)
-    warte_auf_app()
+    """Stellt das Beispielarchiv in das Profil „Handbuchprofil“ wieder her,
+    aktiviert es (wie „In neues Profil wiederherstellen“ und „Profil
+    aktivieren“ in den Einstellungen) und startet die App darin neu."""
+    profil = home() / ".local/share/io.pixelcraft.bauprojektio/Handbuchprofil"
+    # Das Konto der App muss das Archiv lesen können.
+    archiv = Path("/tmp/handbuch-beispielprojekt.zip")
+    shutil.copy(ARCHIV, archiv)
+    archiv.chmod(0o644)
+    js(
+        "const i = window.__TAURI_INTERNALS__.invoke;"
+        f"await i('sicherung_wiederherstellen', {{pfad: {json.dumps(str(archiv))}, ziel: {json.dumps(str(profil))}}});"
+        f"await i('profil_aktivieren', {{pfad: {json.dumps(str(profil))}}}); return 1",
+        timeout=120,
+    )
+    app_starten(frisch=False)
     # Das Beispielprofil bringt keine Formularvorlagen mit; die amtlichen
     # Beispiel-PDFs aus formulare/beispiele dienen als Bibliothek.
-    for ordner in glob.glob(str(home() / ".local/share/io.pixelcraft.bauprojektio/Beispielprojekt/*/Formularvorlagen")):
-        for pdf in (WURZEL / "formulare/beispiele").glob("*.pdf"):
-            shutil.copy(pdf, ordner)
-            if BENUTZER:
-                shutil.chown(Path(ordner) / pdf.name, BENUTZER)
+    ordner = profil / "Formularvorlagen"
+    ordner.mkdir(parents=True, exist_ok=True)
+    for pdf in (WURZEL / "formulare/beispiele").glob("*.pdf"):
+        shutil.copy(pdf, ordner)
+        if BENUTZER:
+            shutil.chown(ordner / pdf.name, BENUTZER)
     js('await klick("Öffnen","main button, button"); await sleep(2500); return 1')
 
 

@@ -6,8 +6,8 @@
 //! BAUPROJEKT_BEISPIEL_ZIEL=beispiele cargo test -p storage --test beispielprojekt
 //! ```
 //!
-//! Die App liefert das Archiv aus und öffnet es über „Hilfe → Beispielprojekt
-//! öffnen“ als eigene Kopie; `tests/beispielarchiv.rs` prüft das ausgelieferte Archiv.
+//! Das Archiv ist die Grundlage der Handbuchbilder (`scripts/handbuch-bilder`);
+//! `tests/beispielarchiv.rs` prüft das abgelegte Archiv.
 mod beispiel;
 use beispiel::*;
 
