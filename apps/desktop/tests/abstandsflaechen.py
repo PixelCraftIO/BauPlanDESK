@@ -1,6 +1,6 @@
 """Projektbezogene Abstandsflächen im Produktionsbuild, echte Core-Berichte."""
 from pathlib import Path
-import os,json,base64,hashlib
+import os,json,base64,hashlib,re
 from playwright.sync_api import sync_playwright,expect
 from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
@@ -11,6 +11,7 @@ wf['umriss']=json.loads((art/'umriss.json').read_text(encoding='utf-8'))
 # Echte Übernahme der Linien „Abstandsfläche“ aus dem Lageplan (storage-Test planaufmass).
 wf['linien']=json.loads((art/'linien.json').read_text(encoding='utf-8'))
 wf['ansichten']=json.loads((art/'ansichten.json').read_text(encoding='utf-8'))
+wf['hoehen']=json.loads((art/'hoehen.json').read_text(encoding='utf-8'))
 # Regeldateien wie im Rechenkern: Inhalt plus Dateiname und SHA-256 des Dateitexts.
 rw=root.parents[2]/'regelwerke/abstandsflaechen'
 werke=[{'datei':str(f.relative_to(rw)),'pruefsumme':hashlib.sha256(f.read_bytes()).hexdigest(),**json.loads(f.read_text(encoding='utf-8'))} for f in sorted(rw.glob('*/*.json'))]
@@ -21,8 +22,8 @@ const base=window.__TAURI_INTERNALS__.invoke,clone=v=>JSON.parse(JSON.stringify(
 window.testUser=clone(window.abstand.benutzer);window.aPlan=clone(window.abstand.fachstand);window.aFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
- if(cmd==='fachobjekte'&&args.art==='planaufmass')return [window.abstand.linien.aufmass,window.abstand.ansichten.aufmass].map(l=>({daten:clone(l.daten),modul:'planaufmass',objekt:l.objekt,projekt_id:window.abstand.fachstand.projekt_id,revision:l.revision,schema_version:1}));
- if(cmd==='abstandslinien_uebernehmen'){window.calls.push({cmd,args:clone(args)});const q=args.aufmass.aufmass_id===window.abstand.ansichten.aufmass.objekt?window.abstand.ansichten:window.abstand.linien;return clone(q.uebernahme);}
+ if(cmd==='fachobjekte'&&args.art==='planaufmass')return [window.abstand.linien.aufmass,window.abstand.ansichten.aufmass,window.abstand.hoehen.aufmass].map(l=>({daten:clone(l.daten),modul:'planaufmass',objekt:l.objekt,projekt_id:window.abstand.fachstand.projekt_id,revision:l.revision,schema_version:1}));
+ if(cmd==='abstandslinien_uebernehmen'){window.calls.push({cmd,args:clone(args)});const q=[window.abstand.ansichten,window.abstand.hoehen].find(x=>x.aufmass.objekt===args.aufmass.aufmass_id)??window.abstand.linien;return clone(q.uebernahme);}
  if(['fachobjekte','fachobjekt_speichern'].includes(cmd)&&args.art!=='abstandsflaechen')return base(cmd,args);
  if(!['fachobjekte','fachobjekt_speichern','abstandsregeln','abstandsplan_pruefen','nachweis_erstellen','druckkatalog','druckausgabe_erstellen','druckausgabe_ablegen','dokumente_auflisten','abstandsumrisse_einbinden'].includes(cmd))return base(cmd,args);
  window.calls.push({cmd,args:clone(args)});
@@ -147,6 +148,19 @@ with sync_playwright() as p:
  page.get_by_role('spinbutton',name='Abstand zur Grundstücksgrenze (m, Angabe des Planers)',exact=True).fill('4')
  expect(page.get_by_role('button',name='In der Ansicht zeigen',exact=True)).to_be_visible()
  page.screenshot(path=str(out/'linien-ansicht.png'),full_page=True)
+ # Höhen aus der Ansicht: Gelände, Traufe/Attika, First, Neigung, Wandteilgrenze, Gaube.
+ li.get_by_role('combobox',name='Aufmaß').select_option(wf['hoehen']['aufmass']['objekt'])
+ li.get_by_role('button',name='Linien übernehmen',exact=True).click()
+ expect(li.get_by_role('status')).to_contain_text('Linien übernommen')
+ page.get_by_role('row').filter(has_text='A1').get_by_role('button',name='Bearbeiten',exact=True).click()
+ expect(page.get_by_text('Aus der Ansicht abgegriffen: Gelände, Wandoberkante',exact=False)).to_be_visible()
+ expect(page.get_by_role('spinbutton',name='Geländeoberfläche Höhe 2',exact=True)).to_have_value('100.5')
+ expect(page.get_by_role('spinbutton',name='Geländeoberfläche Höhe 2',exact=True)).to_be_disabled()
+ expect(page.get_by_role('spinbutton',name='Wandoberkante Höhe 3',exact=True)).to_have_value('108')
+ expect(page.get_by_role('textbox',name='Zusätzliche Wandteilgrenzen (Stationen in m, mit Semikolon getrennt)',exact=True)).to_have_value('3')
+ expect(page.get_by_role('textbox',name='Gelände-/Höhenherleitung und Planquelle',exact=True)).to_have_value(re.compile('Abgrabung „G3“ bei 2 m \\(99 m\\) nicht maßgebend'))
+ page.get_by_text('Aus der Ansicht abgegriffen',exact=False).scroll_into_view_if_needed()
+ page.screenshot(path=str(out/'hoehen-ansicht.png'),full_page=True)
  # Fassungswahl: Stichtag heute schlägt die geltende NRW-Fassung vor; Wechsel nur mit Vergleich.
  tab('Grundlagen')
  fw=page.locator('section.fassung')

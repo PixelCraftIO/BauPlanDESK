@@ -121,7 +121,10 @@
     oder einem Schnitt die Linie zwischen den Gebäudekanten ziehen, vom
     Wandanfang zum Wandende: Sie wird mit der gleichnamigen Wand verknüpft
     (Wandbezug für die Höhen). Gibt es die Wand im Lageplan nicht, entsteht sie
-    mit der Breite aus der Ansicht; dann den Abstand zur Grenze angeben.
+    mit der Breite aus der Ansicht; dann den Abstand zur Grenze angeben. Gelände,
+    Traufe, Attika, First, Dachneigung, Wandteilgrenzen und Gauben in derselben
+    Ansicht über der Linie zeichnen: Sie gehören nach ihrer waagerechten Lage zur
+    Wand, die Höhe kommt von der Bezugslinie; Abgrabungen zählen nicht.
   </p>
   {#if !aufmasse.length}
     <p class="hinweisbox">

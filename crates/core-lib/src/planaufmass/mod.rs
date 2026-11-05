@@ -6,6 +6,7 @@
 //! Öffentlicher Vertrag und Koordinatenkonvention: docs/planaufmass.md.
 mod abgleich;
 mod abstand;
+mod ansichtshoehen;
 mod aufgaben;
 mod baugrenzen;
 mod cadmigration;
@@ -278,6 +279,16 @@ pub enum Planbedeutung {
     /// Strecke entlang der Außenkante einer Wand im Lageplan, vor der eine
     /// Abstandsfläche liegt; wird im Abstandsplan zur Wand A1, A2 …
     Abstandsflaeche,
+    /// Oberkante der Attika (Flachdach) in der Ansicht; Wandoberkante.
+    Attika,
+    /// Senkrechte Strecke in der Ansicht: Grenze zwischen Wandteilen.
+    Wandteilgrenze,
+    /// Strecke in der Ansicht über die Breite einer Gaube oder eines
+    /// Dachaufbaus.
+    Gaube,
+    /// Geländepunkt einer Abgrabung (Belichtung, Zugang, Zufahrt); bleibt für
+    /// die Wandhöhe außer Betracht.
+    Abgrabung,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -345,6 +356,10 @@ impl Planbedeutung {
             Self::Fundamentsohle => "Fundamentsohle",
             Self::Hoehenmass => "Höhenmaß",
             Self::Abstandsflaeche => "Abstandsfläche",
+            Self::Attika => "Attika",
+            Self::Wandteilgrenze => "Wandteilgrenze",
+            Self::Gaube => "Gaube / Dachaufbau",
+            Self::Abgrabung => "Abgrabung",
         }
     }
     /// Flächen, die das Raumbuch als Raum (oder Höhenzone) übernimmt.
@@ -631,6 +646,32 @@ pub struct Planaufmass {
     #[ts(optional, as = "Option<Vec<Zeichenelement>>")]
     pub elemente: Vec<Zeichenelement>,
 }
+/// Maßstab und Richtungen eines Ausschnitts für Höhen (siehe
+/// [`Planaufmass::hoehenrahmen`]).
+#[derive(Debug, Clone, Copy)]
+pub struct Hoehenrahmen {
+    /// Meter je Punkt; ohne Maßstab `None`.
+    pub faktor: Option<f64>,
+    /// Einheitsvektor „nach oben“ in Seitenkoordinaten.
+    pub aufwaerts: [f64; 2],
+    /// Einheitsvektor waagerecht in Seitenkoordinaten.
+    pub waagerecht: [f64; 2],
+    /// Bezugspunkt und seine Höhe; ohne Bezugslinie keine absoluten Höhen.
+    pub bezug: Option<(Planpunkt, f64)>,
+}
+impl Hoehenrahmen {
+    /// Waagerechte Lage von `p` in Metern (Ursprung beliebig, aber fest).
+    pub fn waagerecht_m(&self, p: &Planpunkt) -> Option<f64> {
+        self.faktor
+            .map(|f| (p[0] * self.waagerecht[0] + p[1] * self.waagerecht[1]) * f)
+    }
+    /// Absolute Höhe von `p`.
+    pub fn hoehe_m(&self, p: &Planpunkt) -> Option<f64> {
+        self.faktor.zip(self.bezug).map(|(f, (o, h))| {
+            h + ((p[0] - o[0]) * self.aufwaerts[0] + (p[1] - o[1]) * self.aufwaerts[1]) * f
+        })
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct Planmesswert {
     pub id: Uuid,
@@ -895,6 +936,60 @@ impl Planaufmass {
             None => self.hoehenbezug.as_ref().map(|h| h.system.as_str()),
         }
     }
+    /// Maßstab, Höhenrichtung und Höhenbezug eines Ausschnitts: Bezugslinie
+    /// des Ausschnitts, sonst die Seitenvertikale mit dem Höhenbezug der
+    /// Seite. Ein Ausschnitt ohne Bezugslinie liefert keine absoluten Höhen.
+    fn rahmen(
+        &self,
+        ausschnitt: Option<&Planausschnitt>,
+        seitenfaktor: Option<f64>,
+    ) -> CoreResult<Hoehenrahmen> {
+        let faktor = match ausschnitt.and_then(|a| a.kalibrierung.as_ref()) {
+            Some(k) => Some(k.meter_pro_punkt()?),
+            None => seitenfaktor,
+        };
+        let (aufwaerts, bezug): ([f64; 2], Option<(Planpunkt, f64)>) = match ausschnitt {
+            Some(a) => match &a.bezugslinie {
+                Some(b) => {
+                    let l = abstand(&b.von, &b.bis);
+                    let d = [(b.bis[0] - b.von[0]) / l, (b.bis[1] - b.von[1]) / l];
+                    let mut n = [d[1], -d[0]];
+                    if n[1] > 0. || (n[1] == 0. && n[0] > 0.) {
+                        n = [-n[0], -n[1]];
+                    }
+                    (n, Some((b.von, b.hoehe_m)))
+                }
+                None => ([0., -1.], None),
+            },
+            None => (
+                [0., -1.],
+                self.hoehenbezug.as_ref().map(|h| (h.punkt, h.hoehe_m)),
+            ),
+        };
+        Ok(Hoehenrahmen {
+            faktor,
+            aufwaerts,
+            waagerecht: [-aufwaerts[1], aufwaerts[0]],
+            bezug,
+        })
+    }
+    /// Rahmen für Höhen und waagerechte Lagen im Ausschnitt `ausschnitt_id`.
+    pub fn hoehenrahmen(&self, ausschnitt_id: Option<Uuid>) -> CoreResult<Hoehenrahmen> {
+        let a = ausschnitt_id
+            .map(|id| {
+                self.ausschnitte
+                    .iter()
+                    .find(|a| a.id == id)
+                    .ok_or_else(|| fehler("Ausschnitt der Markierung fehlt"))
+            })
+            .transpose()?;
+        let seite = self
+            .kalibrierung_wirksam()
+            .as_ref()
+            .map(Plankalibrierung::meter_pro_punkt)
+            .transpose()?;
+        self.rahmen(a, seite)
+    }
     pub fn messen(&self) -> CoreResult<Vec<Planmesswert>> {
         crate::plattform::text(&self.bezeichnung, 500)?;
         if self.seite == 0
@@ -1003,33 +1098,12 @@ impl Planaufmass {
                             .ok_or_else(|| fehler("Ausschnitt der Markierung fehlt"))
                     })
                     .transpose()?;
-                let faktor = match ausschnitt.and_then(|a| a.kalibrierung.as_ref()) {
-                    Some(k) => Some(k.meter_pro_punkt()?),
-                    None => seitenfaktor,
-                };
-                // Höhenrichtung und Bezug: Bezugslinie des Ausschnitts, sonst die
-                // Seitenvertikale mit dem Höhenbezug der Seite. Ein Ausschnitt ohne
-                // Bezugslinie liefert keine absoluten Höhen.
-                let (aufwaerts, bezug): ([f64; 2], Option<(Planpunkt, f64)>) =
-                    match ausschnitt {
-                        Some(a) => match &a.bezugslinie {
-                            Some(b) => {
-                                let l = abstand(&b.von, &b.bis);
-                                let d = [(b.bis[0] - b.von[0]) / l, (b.bis[1] - b.von[1]) / l];
-                                let mut n = [d[1], -d[0]];
-                                if n[1] > 0. || (n[1] == 0. && n[0] > 0.) {
-                                    n = [-n[0], -n[1]];
-                                }
-                                (n, Some((b.von, b.hoehe_m)))
-                            }
-                            None => ([0., -1.], None),
-                        },
-                        None => (
-                            [0., -1.],
-                            self.hoehenbezug.as_ref().map(|h| (h.punkt, h.hoehe_m)),
-                        ),
-                    };
-                let waagerecht = [-aufwaerts[1], aufwaerts[0]];
+                let Hoehenrahmen {
+                    faktor,
+                    aufwaerts,
+                    waagerecht,
+                    bezug,
+                } = self.rahmen(ausschnitt, seitenfaktor)?;
                 let mut r = Planmesswert {
                     id: m.id,
                     laenge_m: None,

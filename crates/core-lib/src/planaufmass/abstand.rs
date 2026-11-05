@@ -166,6 +166,8 @@ fn linienwand(m: &Planmarkierung) -> AbstandsWand {
         breite_aus_ansicht: false,
         ansicht_laenge_m: None,
         grenzabstand_m: None,
+        ansicht_felder: vec![],
+        ansicht_hinweise: vec![],
     }
 }
 
@@ -262,6 +264,8 @@ impl CoreServices {
         let mut rahmen: Option<(Uuid, Option<Uuid>)> = None;
         let mut ansichtslinien = std::collections::HashSet::new();
         // Breite aus der Ansicht gilt nur, solange eine Ansicht verknüpft ist.
+        // Die Höhen aus der Ansicht werden je Lauf neu abgegriffen.
+        let mut vorher: std::collections::HashMap<Uuid, Vec<String>> = Default::default();
         for w in &mut plan.waende {
             if !plan
                 .planbindungen
@@ -270,7 +274,10 @@ impl CoreServices {
             {
                 w.ansicht_laenge_m = None;
             }
+            vorher.insert(w.id, std::mem::take(&mut w.ansicht_felder));
+            w.ansicht_hinweise.clear();
         }
+        let mut ansichten: Vec<(Uuid, Uuid, Planaufmass, Planmarkierung)> = vec![];
         for b in plan.planbindungen.clone() {
             if !seen.insert(b.ziel.clone()) {
                 return Err(fehler("Wandfeld mehrfach verknüpft"));
@@ -311,6 +318,7 @@ impl CoreServices {
                     )));
                 }
                 w.ansicht_laenge_m = Some(wert);
+                ansichten.push((w.id, b.aufmass_id, a.clone(), m.clone()));
                 if w.breite_aus_ansicht {
                     (w.von, w.bis) = (APunkt { x: 0., y: 0. }, APunkt { x: wert, y: 0. });
                 }
@@ -469,7 +477,52 @@ impl CoreServices {
                 plan.quellen.push(d);
             }
         }
+        // Wände in derselben Ansicht dürfen sich nicht überlappen: Jede Höhe
+        // gehört genau einer Wand.
+        for (i, (wi, qi, ai, mi)) in ansichten.iter().enumerate() {
+            for (wj, qj, aj, mj) in &ansichten[i + 1..] {
+                if qi != qj || mi.ausschnitt_id != mj.ausschnitt_id || wi == wj {
+                    continue;
+                }
+                let (Some(x), Some(y)) = (
+                    ansichtshoehen::linienbereich(ai, mi),
+                    ansichtshoehen::linienbereich(aj, mj),
+                ) else {
+                    continue;
+                };
+                let tol = toleranzen().abstandsflaeche_breite.m;
+                let ueberlappung = x.0.max(x.1).min(y.0.max(y.1)) - x.0.min(x.1).max(y.0.min(y.1));
+                if ueberlappung > tol {
+                    return Err(fehler(format!(
+                        "Linien „{}“ und „{}“ überlappen in derselben Ansicht; jede Höhe gehört genau einer Wand",
+                        mi.bezeichnung, mj.bezeichnung
+                    )));
+                }
+            }
+        }
+        for (wid, _, a, m) in &ansichten {
+            let praefix = format!("waende.{wid}.");
+            let gebunden: Vec<&str> = plan
+                .planbindungen
+                .iter()
+                .filter_map(|b| b.ziel.strip_prefix(&praefix))
+                .collect();
+            let hoehenbezug = plan.hoehenbezug.clone();
+            let w = plan
+                .waende
+                .iter_mut()
+                .find(|w| w.id == *wid)
+                .ok_or_else(|| fehler("Zielwand fehlt"))?;
+            if w.umriss.is_some() {
+                continue;
+            }
+            let h = ansichtshoehen::uebernehmen(w, a, m, &hoehenbezug, &gebunden)?;
+            herkunft.entry(w.id).or_default().extend(h);
+        }
         for w in &mut plan.waende {
+            if ansichten.iter().any(|(id, ..)| *id == w.id) {
+                ansichtshoehen::veraltete_leeren(w, &vorher.remove(&w.id).unwrap_or_default());
+            }
             if let Some(h) = herkunft.remove(&w.id) {
                 w.hoehenquelle = format!("{} · {RECHENSTAND}", h.join("; "));
             }

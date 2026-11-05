@@ -199,5 +199,7 @@ fn neue_wand(u: &AbstandsUmriss, i: usize) -> AbstandsWand {
         breite_aus_ansicht: false,
         ansicht_laenge_m: None,
         grenzabstand_m: None,
+        ansicht_felder: vec![],
+        ansicht_hinweise: vec![],
     }
 }

@@ -314,6 +314,17 @@ pub struct AbstandsWand {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub grenzabstand_m: Option<f64>,
+    /// Felder, die der Höhenabgriff in der verknüpften Ansicht setzt
+    /// (`gelaende`, `oberkante`, `wandteilgrenzen`, `dachhoehe_m`,
+    /// `dachneigung_grad`, `dachneigung_b_grad`, `gauben_laenge_m`); sie
+    /// sind im Plan gesperrt, solange die Ansicht verknüpft ist.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<String>>")]
+    pub ansicht_felder: Vec<String>,
+    /// Offene Punkte aus dem Höhenabgriff in der Ansicht.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<String>>")]
+    pub ansicht_hinweise: Vec<String>,
 }
 /// Höhe an einer Stelle der Wand; `station_m` ab Wandanfang (`von`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -707,6 +718,12 @@ impl AbstandsPlan {
             ] {
                 text(s, 4000)?;
             }
+            if w.ansicht_felder.len() > 20 || w.ansicht_hinweise.len() > 50 {
+                return Err(err("Zu viele Angaben aus der Ansicht"));
+            }
+            for t in w.ansicht_felder.iter().chain(&w.ansicht_hinweise) {
+                text(t, 1000)?;
+            }
             if w.grenzabstand_m
                 .into_iter()
                 .chain(w.ansicht_laenge_m)
@@ -881,6 +898,7 @@ pub fn berechnen_stand(plan: &AbstandsPlan, stand: &str) -> CoreResult<AbstandsE
         if w.bezeichnung.trim().is_empty() || w.gebaeude.trim().is_empty() {
             e.offen.push("Gebäude und Wandbezeichnung angeben".into());
         }
+        e.offen.extend(w.ansicht_hinweise.iter().cloned());
         if laenge < 0.001 {
             e.offen
                 .push("Wandlänge mindestens 1 mm erforderlich".into());

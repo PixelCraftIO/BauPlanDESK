@@ -221,6 +221,42 @@ diesem Aufmaß verknüpft sie mit der gleichnamigen Wand:
 
 ![Wände aus Ansichten](screenshots/linien-ansicht.png)
 
+### Höhen in der Ansicht abgreifen
+
+In derselben Ansicht (Ausschnitt mit Maßstab und Bezugslinie im Höhensystem des
+Abstandsplans) über der Linie „Abstandsfläche“ zeichnen; die Werkzeuge liegen
+unter **Höhen** auf der Ebene „Abstandsflächen“:
+
+| Werkzeug | Form | Wird zu |
+|---|---|---|
+| Gelände, Geländelinie | Höhenpunkt oder Strecke | Punkte im Geländeprofil |
+| Abgrabung | Höhenpunkt | nur in der Herleitung, nicht maßgebend |
+| Traufe (Schnittlinie Dachhaut), Attika | Strecke oder Höhenpunkt | Wandoberkante |
+| First | Höhenpunkt oder Strecke | Dachhöhe = First − höchste Wandoberkante |
+| Dachneigung | Strecke auf der Dachhaut | Dachneigung, die zweite von links Dachseite 2 |
+| Wandteilgrenze | senkrechte Strecke | zusätzliche Wandteilgrenze |
+| Gaube / Dachaufbau | waagerechte Strecke | Gaubenlänge (Summe) |
+
+- Die waagerechte Lage bestimmt die Stelle an der Wand: Anteil der Linie von
+  Wandanfang bis Wandende mal Wandbreite. Wandanfang ist der Anfang der Linie in
+  der Ansicht; so ist auch eine seitenverkehrt liegende Ansicht eindeutig.
+- Linien werden auf die Wand gekürzt (Dachüberstand, durchlaufende Traufe), die
+  Höhe am Schnitt wird interpoliert. Punkte bis 5 cm bzw. 1 % neben der
+  Gebäudekante gelten als Kante. Endet die Traufe dort, wo die Attika beginnt,
+  entsteht ein Höhensprung und damit ein eigener Wandteil.
+- Ist an einer Markierung ein Gebäude gesetzt, zählt sie nur für Wände dieses
+  Gebäudes. Linien zweier Wände in derselben Ansicht dürfen sich nicht
+  überlappen, damit jede Höhe genau einer Wand gehört.
+- Die Werte werden bei jeder Übernahme und Prüfung neu abgegriffen und sind im
+  Plan gesperrt. Ein einzeln verknüpftes Wandfeld (z. B. Gelände A) hat Vorrang;
+  der Nachweis nennt den Konflikt als offenen Punkt. Misst die Ansicht in einem
+  anderen Höhensystem als der Abstandsplan, werden keine Höhen übernommen.
+- Wie aus den Höhen die maßgebende Wandhöhe wird, legt die Regeldatei fest
+  (NRW: Mittel aus den Wandhöhen an den Kanten je Wandteil). Die Wandabwicklung
+  im Ergebnis zeigt Stelle, Gelände, Oberkante und Wandhöhe je Wandteil.
+
+![Höhen aus der Ansicht](screenshots/hoehen-ansicht.png)
+
 ## Geometrie übernehmen
 
 Grundstücks-, Flächen- und Gebäudeumrisse über Eckpunkttabellen erfassen oder
