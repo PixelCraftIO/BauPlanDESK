@@ -41,6 +41,14 @@ with sync_playwright() as p:
  page.screenshot(path=str(out/'nur-offene.png'))
  nav.get_by_role('button',name='Nur offene',exact=True).click()
  expect(nav.get_by_role('button',name='Rechtsgrundlagen',exact=True)).to_have_count(1)
+ # Das Aktionsmenü schließt bei Klick daneben und mit Escape.
+ nav.get_by_role('button',name='Stellplatznachweis: Weitere Aktionen',exact=True).click()
+ expect(page.get_by_role('menu',name='Stellplatznachweis: Aktionen')).to_be_visible()
+ page.locator('.projekt-sitzung:visible main').click(position={'x':5,'y':5})
+ expect(page.get_by_role('menu',name='Stellplatznachweis: Aktionen')).to_have_count(0)
+ nav.get_by_role('button',name='Stellplatznachweis: Weitere Aktionen',exact=True).click()
+ page.keyboard.press('Tab');page.keyboard.press('Escape')
+ expect(page.get_by_role('menu',name='Stellplatznachweis: Aktionen')).to_have_count(0)
  # Leeren Bereich als nicht benötigt kennzeichnen und zurücknehmen.
  nav.get_by_role('button',name='Stellplatznachweis: Weitere Aktionen',exact=True).click()
  page.get_by_role('menuitem',name='Als nicht benötigt kennzeichnen',exact=True).click()

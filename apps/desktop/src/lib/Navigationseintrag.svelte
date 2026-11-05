@@ -34,6 +34,23 @@
     onbenoetigt?: (benoetigt: boolean) => void;
   } = $props();
   let menue = $state(false);
+  let eintrag = $state<HTMLDivElement>();
+  // Das Aktionsmenü schließt bei Klick daneben und mit Escape, wo immer der Fokus steht.
+  $effect(() => {
+    if (!menue) return;
+    const zu = (e: PointerEvent) => {
+      if (!eintrag?.contains(e.target as Node)) menue = false;
+    };
+    const taste = (e: KeyboardEvent) => {
+      if (e.key === "Escape") menue = false;
+    };
+    window.addEventListener("pointerdown", zu, true);
+    window.addEventListener("keydown", taste);
+    return () => {
+      window.removeEventListener("pointerdown", zu, true);
+      window.removeEventListener("keydown", taste);
+    };
+  });
   const uid = $props.id();
   let offen = $state(false),
     x = $state(0),
@@ -57,7 +74,7 @@
   }
 </script>
 
-<div class="navigationseintrag" class:gesperrt={!!grund} class:nichtbenoetigt={nichtBenoetigt}>
+<div class="navigationseintrag" bind:this={eintrag} class:gesperrt={!!grund} class:nichtbenoetigt={nichtBenoetigt}>
   {#if grund}
     <div
       class="sperrhinweis"
@@ -219,15 +236,21 @@
       opacity: 1;
     }
   }
+  /* ⓘ steht links neben der Leiste mit Stern und Statussymbol (`.rechts`),
+     sonst verdeckt die Leiste den Knopf. */
   .info {
     position: absolute;
-    right: 0;
-    top: 0.5rem;
-    padding: 0.15rem;
+    right: 54px;
+    top: 4px;
+    height: 24px;
+    min-height: 0;
+    padding: 0 0.15rem;
   }
   .sperrhinweis {
     position: relative;
-    padding-right: 1.4rem;
+  }
+  .sperrhinweis > button:not(.info) {
+    padding-right: calc(54px + 1.4rem);
   }
   .sperrtext {
     position: fixed;

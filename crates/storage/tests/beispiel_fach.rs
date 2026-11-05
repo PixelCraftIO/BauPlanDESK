@@ -15,8 +15,29 @@ fn kennzahl(n: &core_lib::plattform::nachweise::NachweisAnsicht, id: &str) -> Op
         .as_f64()
 }
 
-#[tokio::test]
-async fn beispiel_fach() {
+/// Der Ablauf des Beispielprojekts ist ein sehr großer async-Zustand; auf dem
+/// Standardstapel des Testthreads (2 MiB) läuft er über. Daher ein eigener
+/// Thread mit größerem Stapel.
+#[test]
+fn beispiel_fach() {
+    let ergebnis = std::thread::Builder::new()
+        .name("beispiel_fach".into())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(ablauf())
+        })
+        .unwrap()
+        .join();
+    if let Err(e) = ergebnis {
+        std::panic::resume_unwind(e);
+    }
+}
+
+async fn ablauf() {
     let dir = tempfile::tempdir().unwrap();
     let mut b = basis::basis(dir.path().join("profil")).await;
     fach::fach(&mut b).await;

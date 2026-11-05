@@ -64,6 +64,17 @@ with sync_playwright() as pw:
  tab.get_by_role('button',name='Parallele anlegen',exact=True).click()
  expect(tab.get_by_text('Versatz: 1 Kopie(n) angelegt',exact=False)).to_be_visible()
  svg.press('Control+z')
+ # Escape schließt zuerst nur die Fangoptionen; das Werkzeug bleibt aktiv.
+ tab.get_by_role('button',name='Fangoptionen ▾',exact=True).click()
+ expect(tab.get_by_role('group',name='Fangoptionen')).to_be_visible()
+ page.keyboard.press('Escape')
+ expect(tab.get_by_role('group',name='Fangoptionen')).to_have_count(0)
+ expect(tab.get_by_role('button',name='Versatz',exact=True)).to_have_attribute('aria-pressed','true')
+ # Menü „Ausgabe“ schließt bei Klick daneben.
+ tab.get_by_role('button',name='Ausgabe ▾',exact=True).click()
+ expect(tab.get_by_role('menu',name='Ausgabe')).to_be_visible()
+ tab.get_by_role('tab',name='Objekte',exact=True).click()
+ expect(tab.get_by_role('menu',name='Ausgabe')).to_have_count(0)
  svg.press('Escape')
  expect(tab.get_by_role('button',name='Auswählen',exact=True)).to_have_attribute('aria-pressed','true')
  # Hintergrund: PDF-Seite 1 im Maßstab 1:100, über Strecke einpassen, verschieben.

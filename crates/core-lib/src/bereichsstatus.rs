@@ -182,10 +182,20 @@ impl CoreServices {
         let projekt = self.get_project(p).await?;
         let recht = &projekt.planungsrecht;
         let mut gruende = gruende_aus(&uebersicht);
+        // Je Objektart genügt ein Datensatz; das Projekt ist oben schon gelesen
+        // (Zugriff geprüft), daher direkt und ohne erneutes Projektlesen.
         let mut daten: BTreeSet<&str> = BTreeSet::new();
         for art in DATENARTEN {
-            if let Some(b) = bereich_von(art)
-                && !self.fachobjektseite(p, art, None, 1).await?.is_empty()
+            let Some(b) = bereich_von(art) else { continue };
+            if daten.contains(b) {
+                continue;
+            }
+            if !self
+                .repos
+                .commit
+                .fachseite(p, art.modul(), None, 1)
+                .await?
+                .is_empty()
             {
                 daten.insert(b);
             }
