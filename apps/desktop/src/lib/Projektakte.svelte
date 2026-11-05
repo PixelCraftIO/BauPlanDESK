@@ -118,6 +118,27 @@
       localStorage.setItem(KOPF_SCHLUESSEL, JSON.stringify(kopfWahl));
     } catch {}
   }
+  // Arbeitsansicht: Im Aufmaß klappt die Projektnavigation ein, Aktenkopf und
+  // Register werden zu einer Pfadzeile. Die Wahl gilt je Benutzer.
+  const arbeitsSchluessel = $derived(`bauprojekt.arbeitsansicht.${ich?.id ?? "lokal"}`);
+  let arbeitsWahl = $state(true);
+  $effect(() => {
+    const k = arbeitsSchluessel;
+    untrack(() => {
+      try {
+        arbeitsWahl = localStorage.getItem(k) !== "0";
+      } catch {
+        arbeitsWahl = true;
+      }
+    });
+  });
+  const arbeitsansicht = $derived(ansicht === "planaufmass" && arbeitsWahl);
+  function arbeitsansichtSetzen(an: boolean) {
+    arbeitsWahl = an;
+    try {
+      localStorage.setItem(arbeitsSchluessel, an ? "1" : "0");
+    } catch {}
+  }
   let navigationsNummer = 0;
   $effect(() => {
     const a = navigation.auftrag;
@@ -290,10 +311,30 @@
       >OK</button
     >
   </div>{/if}
-<header class="projektkopf" aria-label="Aktenkopf">
+{#if arbeitsansicht}<header class="projektkopf pfadkopf" aria-label="Aktenkopf">
+    <div class="pfadzeile">
+      <Symbolknopf titel="Projektnavigation einblenden" tip="rechts" onclick={() => arbeitsansichtSetzen(false)}
+        ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3v10M7 4l4 4-4 4" /></svg></Symbolknopf
+      >
+      <nav class="pfad" aria-label="Pfad">
+        <h1>{projekt.name}</h1>
+        <span aria-hidden="true">›</span>
+        {#if aktuellesRegister}<button type="button" class="link" title="Projektnavigation einblenden" onclick={() => arbeitsansichtSetzen(false)}>{aktuellesRegister.titel}</button>
+          <span aria-hidden="true">›</span>{/if}
+        <strong>{MODULE.find((m) => m.id === ansicht)?.titel ?? ""}</strong>
+      </nav>
+      {#if onhilfe}<Symbolknopf titel="Hilfe zu diesem Bereich" tip="links" onclick={onhilfe}
+          ><NavIcon art="hilfe" /></Symbolknopf
+        >{/if}
+    </div>
+  </header>{/if}
+<header class="projektkopf" aria-label="Aktenkopf" hidden={arbeitsansicht}>
   <div class="aktenkopf-titel">
     <h1>{projekt.name}</h1>
     <div class="kopfaktionen">
+      {#if ansicht === "planaufmass"}<Symbolknopf titel="Arbeitsansicht: Projektnavigation einklappen" tip="links" onclick={() => arbeitsansichtSetzen(true)}
+          ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 3v10M9 4L5 8l4 4" /></svg></Symbolknopf
+        >{/if}
       <Symbolknopf
         titel={kopfKompakt ? "Projektdetails anzeigen" : "Projektdetails einklappen"}
         tip="links"
@@ -338,7 +379,7 @@
     </div>
   </dl>
 </header>
-<div class="register" role="tablist" aria-label="Register der Projektakte">
+<div class="register" role="tablist" aria-label="Register der Projektakte" hidden={arbeitsansicht}>
   {#each REGISTER as r (r.id)}
     <button
       role="tab"
@@ -354,8 +395,8 @@
   {/each}
 </div>
 
-<div class="aktenrumpf">
-  <Sidebar {projekt} {aktiv} {ansicht} onbereich={bereich} />
+<div class="aktenrumpf" class:arbeitsansicht>
+  {#if !arbeitsansicht}<Sidebar {projekt} {aktiv} {ansicht} onbereich={bereich} />{/if}
   <main>
     {#if navigation.rueckweg && navigation.rueckweg.bereich !== ansicht}<button
         class="link"
@@ -682,6 +723,43 @@
 </div>
 
 <style>
+  .aktenrumpf.arbeitsansicht {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pfadkopf {
+    padding: 3px 10px 3px 6px;
+  }
+  .pfadzeile {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .pfad {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+    overflow: hidden;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .pfad h1 {
+    font-size: 0.95rem;
+    margin: 0;
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pfad .link {
+    min-height: 0;
+    padding: 0;
+  }
+  .pfad strong {
+    color: var(--fg);
+  }
   .kopfaktionen {
     display: flex;
     gap: 2px;

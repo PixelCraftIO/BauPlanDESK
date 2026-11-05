@@ -707,6 +707,7 @@ Messwerte auf PDF-Blättern, DXF-Zeichnungen oder eigenen Zeichnungen in Metern 
 | Zoomen | Strg + Mausrad oder Pinch; Z für Zoomfenster |
 | Verschieben | Leertaste oder mittlere Maustaste halten |
 | Vollbild / zurück | F11 / Esc |
+| Arbeitsansicht | Im Aufmaß ist die Projektnavigation eingeklappt; Symbol am Anfang der Pfadzeile blendet sie ein, Symbol im Aktenkopf klappt sie wieder ein (je Benutzer gemerkt) |
 | Markierung bearbeiten | Auswählen, Eckpunkte bearbeiten; Entf zum Löschen |
 | Rückgängig / Wiederholen / Duplizieren | Strg+Z / Strg+Y / Strg+D innerhalb des Aufmaßeditors |
 | Maßeingabe | Nach dem ersten Punkt eine Ziffer tippen; die eingeblendete Maßeingabe und Einheit beachten |

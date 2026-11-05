@@ -1030,6 +1030,10 @@
                 "F11 / Esc"
               ],
               [
+                "Arbeitsansicht",
+                "Im Aufmaß ist die Projektnavigation eingeklappt; Symbol am Anfang der Pfadzeile blendet sie ein, Symbol im Aktenkopf klappt sie wieder ein (je Benutzer gemerkt)"
+              ],
+              [
                 "Markierung bearbeiten",
                 "Auswählen, Eckpunkte bearbeiten; Entf zum Löschen"
               ],
