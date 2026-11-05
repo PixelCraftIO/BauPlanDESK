@@ -66,7 +66,7 @@ Bildschirm; die Akte bleibt im Hauptfenster bedienbar.
 | Werkzeugleiste links | Auswählen (V), Verschieben (M), Polygon (P), Rechteck (R), Kreis (K), Strecke / Dach (S), Wand (W), Maßkette (L), Text (X), Höhenpunkt (H), Bezugslinie setzen, Ausschnitt anlegen, Zwei Punkte kalibrieren, Kontrollstrecke messen, Duplizieren, Markierung entfernen |
 | Optionsleiste | Name des aktiven Werkzeugs, seine Einstellungen (z. B. Bedeutung, Gebäude und Geschoss neuer Markierungen, Wanddicke, Planzeichen, Referenzlänge) und der nächste Schritt; rechts der Arbeitsbereich und die **Befehlszeile** (F2) |
 | Ansichtsleiste | Zoom (bei eigenen Zeichnungen als Bildschirmmaßstab 1:n), Einpassen, 1:1, Auf Auswahl, Zoomfenster (Z), drehen, **Punktfang**, Fangoptionen (Auswahlliste), Ortho und Winkelraster |
-| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
+| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss), **Objekte** (Ausschnitte und ein Baum aus Zeichenebenen und ihren Objekten), **Eigenschaften** (der Auswahl oder der gewählten Ebene; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
 | Statusleiste | Zeigerposition in Metern, aktiver Fang, Ortho bzw. Winkelraster, Bildschirmmaßstab, Unterlage bzw. Blattgröße; die Tastenbelegung zeigt F1 |
 
 Alle Werkzeuge erscheinen als Symbol; der Name und das Tastenkürzel stehen im
@@ -83,11 +83,17 @@ Tooltip. Die vollständige Tastenbelegung: [Kapitel 10](10-anhang.md#zeichenedit
    einen **Ausschnitt** mit eigenem Maßstab anlegen. Für Höhen im Schnitt eine
    **Bezugslinie** mit Höhe und Höhensystem (z. B. m ü. NHN) setzen.
 
-![Objekte: Ausschnitte, Zeichenebenen, Markierungen](bilder/ermittlung-aufmass-objekte.png)
+![Objekte: Ausschnitte und Baum aus Zeichenebenen mit ihren Markierungen und Zeichenelementen](bilder/ermittlung-aufmass-objekte.png)
 
 Der Reiter **Objekte** listet die Ausschnitte („Öffnen“ zeigt nur diesen
-Bereich), die **Zeichenebenen** (Sichtbarkeit „An“, „Sperre“, aktive Ebene)
-und alle **Markierungen** mit Suche und Filtern nach Bedeutung und Gebäude.
+Bereich) und darunter einen **Baum**: jede Zeichenebene mit ihren
+Markierungen und Zeichenelementen. Je Ebene schaltet das **Auge** die
+Sichtbarkeit und das **Schloss** die Sperre, der Kreis davor macht sie zur
+aktiven Ebene für neue Objekte. Ein Klick auf den Ebenennamen zeigt Name und
+Darstellung der Ebene unter **Eigenschaften**. Das Menü **Ebenen ▾** legt
+Ebenen an (auch die üblichen Lageplan-Ebenen) und sperrt oder entsperrt alle.
+Suche und **Filter** (Bedeutung, Gebäude, Geschoss, nur fehlerhafte) wirken
+auf die Markierungen.
 
 ### Zeichnen und zuordnen
 
@@ -206,15 +212,16 @@ Büro-CAD. Die gewohnten Handgriffe sind aber da:
 
 - Stift (0,1–2,5 mm), Linienart, Farbe, Schraffur und **Bauzustand** (Bestand
   grau, Abbruch gelb, Neubau rot) je Ebene oder Element; das Element hat
-  Vorrang. Ebenen lassen sich sperren, „Lageplan-Ebenen anlegen“ legt die
-  üblichen Lageplan-Ebenen an.
+  Vorrang. Die Darstellung einer Ebene steht unter **Eigenschaften**, sobald
+  die Ebene im Baum gewählt ist; „Ebenen ▾ → Lageplan-Ebenen anlegen“ legt
+  die üblichen Lageplan-Ebenen an.
 - **Öffnung** (F) setzt Fenster oder Tür in eine Wand (Breite, Höhe,
   Brüstung, Anschlag).
 - **Planzeichen** (G): Bäume (Bestand, neu, Fällung), Stellplatz, Zufahrt,
   Hauseingang, Grenzpunkt.
 - **Raumstempel** (N) zeigt Nummer, Bezeichnung und Fläche aus dem Raumbuch.
 
-![Zeichenebenen mit eigener Darstellung: Wände als Neubau mit Mauerwerksschraffur, Schuppen als Abbruch](bilder/editor-darstellung.png)
+![Ebene „Wände“ gewählt: Darstellung als Neubau mit Mauerwerksschraffur unter Eigenschaften](bilder/editor-darstellung.png)
 
 ### Planlayout und DXF
 

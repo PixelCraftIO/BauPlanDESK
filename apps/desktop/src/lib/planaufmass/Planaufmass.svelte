@@ -131,7 +131,10 @@
   const FENSTERTITEL:Record<string,string>={baufenster:"Lage im Baufenster (§ 23 BauNVO)",vergleich:"Planstände vergleichen",planblatt:"Planblatt PDF (maßstäblich)"};
   let menue=$state(""),werkzeugfenster=$state<""|"baufenster"|"vergleich"|"planblatt">("");
   function fensterOeffnen(f:"baufenster"|"vergleich"|"planblatt"){menue="";werkzeugfenster=f;if(f==="planblatt")void planlisteLaden()}
-  function auswahlAufheben(){auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[]}
+  function auswahlAufheben(){auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[];ebenenAuswahl=""}
+  // Reiter „Objekte“: Baum aus Ebenen und ihren Objekten; eine gewählte Ebene zeigt ihre Eigenschaften.
+  let ebenenAuswahl=$state(""),zugeklappt=$state<Record<string,boolean>>({}),filterOffen=$state(false);
+  function ebeneWaehlen(id:string){auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[];ebenenAuswahl=id;panelOeffnen("eigenschaften")}
   function reiterTaste(e:KeyboardEvent){
     const i=REITER.findIndex(r=>r[0]===panel);let n=i;
     if(e.key==="ArrowRight")n=(i+1)%REITER.length;else if(e.key==="ArrowLeft")n=(i+REITER.length-1)%REITER.length;else if(e.key==="Home")n=0;else if(e.key==="End")n=REITER.length-1;else return;
@@ -261,6 +264,9 @@
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
   const m=$derived(s.eingabe?.markierungen.find(m=>m.id===auswahl));
   const nichtsGewaehlt=$derived(!m&&!el&&auswahlIds.length===0&&elementAuswahlIds.length===0);
+  const gewaehlteEbene=$derived(nichtsGewaehlt?s.eingabe?.ebenen.find(e=>e.id===ebenenAuswahl):undefined);
+  const filterAnzahl=$derived([bedeutungFilter,gebaeudeFilter,geschossFilter,nurFehler].filter(Boolean).length);
+  const mitFilter=$derived(!!suche||filterAnzahl>0);
   const layer=$derived(s.eingabe?.ebenen.find(e=>e.id===ebene));
   const objektGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===m?.ebene_id)?.gesperrt);
   const quelleAlt=$derived(!!s.eingabe?.dokument&&dateien.some(d=>d.document_id===s.eingabe!.dokument!.dokument_id&&d.version>s.eingabe!.dokument!.version));
@@ -272,6 +278,7 @@
   const fehlerMap=$derived(new Map(markierungsFehler.map(f=>[f.id,f.fehler])));
   const gefilterteMarkierungen=$derived((s.eingabe?.markierungen??[]).filter(i=>(!aktiv||i.ausschnitt_id===aktiv)&&(!suche||i.bezeichnung.toLocaleLowerCase("de").includes(suche.toLocaleLowerCase("de")))&&(!bedeutungFilter||i.bedeutung===bedeutungFilter)&&(!gebaeudeFilter||i.gebaeude_id===gebaeudeFilter)&&(!geschossFilter||i.geschoss_id===geschossFilter)&&(!nurFehler||fehlerMap.has(i.id))));
   const wert=$derived(aktuelleWerte.find(w=>w.id===auswahl));
+  const ohneEbene=$derived(gefilterteMarkierungen.filter(x=>!s.eingabe?.ebenen.some(e=>e.id===x.ebene_id)));
   const ausschnitte=$derived(s.eingabe?.ausschnitte??[]);
   const aktueller=$derived(ausschnitte.find(a=>a.id===aktiv));
   const kontrollStand=$derived(JSON.stringify([s.eingabe?.dokument,s.eingabe?.seite,aktueller?.id,aktueller?.kalibrierung??s.eingabe?.kalibrierung]));
@@ -482,7 +489,7 @@
         if(menue){menue="";return}
         if(werkzeugfenster){werkzeugfenster="";return}
         if(werkzeug!=="auswahl")werkzeug="auswahl";
-        else if(!nichtsGewaehlt)auswahlAufheben();
+        else if(!nichtsGewaehlt||ebenenAuswahl)auswahlAufheben();
         else if(aktiv)schliessen();
         else if(vollbild)vollbild=false;
         return;
@@ -564,7 +571,7 @@
     if(auswahlElemente.some(e=>p.ebenen.find(x=>x.id===e.ebene_id)?.gesperrt)){s.fehler="Gesperrte Ebenen zuerst entsperren.";return}
     merken();p.elemente=(p.elemente??[]).filter(e=>!ids.has(e.id));elementAuswahl="";elementAuswahlIds=[];
   }
-  function elementWaehlen(id:string){elementAuswahl=id;elementAuswahlIds=id?[id]:[];if(id){auswahl="";auswahlIds=[];if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}}
+  function elementWaehlen(id:string){if(id)ebenenAuswahl="";elementAuswahl=id;elementAuswahlIds=id?[id]:[];if(id){auswahl="";auswahlIds=[];if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}}
   // Fensterauswahl: Markierungen und Zeichenelemente gemeinsam; Shift/Strg ergänzt.
   function fensterWaehlen(ids:string[],eids:string[],mehrfach:boolean){
     betrachterSeite=null;
@@ -710,7 +717,7 @@
     if(!s.eingabe||!darf||s.laeuft)return;
     const p=verlauf.vorwaerts($state.snapshot(s.eingabe));if(p)s.eingabe=p;verlaufStatus();
   }
-  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id){elementAuswahl="";if(!mehrfach)elementAuswahlIds=[]}else if(!mehrfach)elementAuswahlIds=[];if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}
+  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id)ebenenAuswahl="";if(id){elementAuswahl="";if(!mehrfach)elementAuswahlIds=[]}else if(!mehrfach)elementAuswahlIds=[];if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}
   function gemeinsamVerschieben(ids:string[],dx:number,dy:number){if(!s.eingabe||!darf||s.laeuft)return;const ms=s.eingabe.markierungen.filter(m=>ids.includes(m.id));if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;merken();for(const m of ms)m.geometrie=verschieben(m.geometrie,dx,dy)}
   function geometrieSetzen(g:Plangeometrie){if(!m||objektGesperrt)return;merken();m.geometrie=g}
   async function flaechenAktion(operation:import("../generated/plattform").Flaechenoperation){
@@ -1150,8 +1157,7 @@
           </section>{/if}
           {#if panel==="objekte"}<section class="palette" aria-label="Objekte">
             <div class="palettenkopf"><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></div>
-            <h3>Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
-            <p class="meta">Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.</p>
+            <h3 title="Je Zeichnung auf dem Blatt ein Ausschnitt. Doppelklick auf einen Rahmen oder „Öffnen“ zeigt nur diesen Bereich; neue Markierungen gehören dann dazu.">Ausschnitte <span class="meta">({ausschnitte.length})</span></h3>
             <div class="ausschnitte">
               {#each ausschnitte as a (a.id)}
                 <div class="ausschnitt" class:aktiv={a.id===aktiv} class:gewaehlt={a.id===rahmenAuswahl}>
@@ -1161,7 +1167,7 @@
                 </div>
               {/each}
             </div>
-            {#if !aktiv}<button type="button" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf||istZeichnung)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
+            {#if !aktiv}<button type="button" class="sekundaer" class:aktiv={werkzeug==="ausschnitt"} aria-pressed={werkzeug==="ausschnitt"} disabled={!darf||!(pdf||dxf||istZeichnung)} onclick={()=>{werkzeug="ausschnitt";rahmenAuswahl=""}}>Ausschnitt anlegen</button>{/if}
             {#if bearbeiteter}
               {@const a=bearbeiteter}
               <fieldset disabled={!darf||s.laeuft} class="ausschnitt-eigenschaften">
@@ -1191,41 +1197,71 @@
                 </div>
               </fieldset>
             {/if}
-            <h3>Zeichenebenen</h3>
-            {#each p.ebenen as e (e.id)}
-              <div class="ebene"><input type="radio" aria-label={`Auf Ebene ${e.bezeichnung} zeichnen`} name={`ebene-${s.id}`} value={e.id} bind:group={ebene}/>
-                <input aria-label="Ebenenname" bind:value={e.bezeichnung} disabled={!darf||s.laeuft} required/>
-                <label title="Sichtbar"><input type="checkbox" checked={sichtbarkeit[e.id]??e.sichtbar} onchange={ev=>{if(darf)e.sichtbar=ev.currentTarget.checked;else sichtbarkeit={...sichtbarkeit,[e.id]:ev.currentTarget.checked}}}/>An</label>
-                <label title="Gesperrt"><input type="checkbox" bind:checked={e.gesperrt} disabled={!darf||s.laeuft}/>Sperre</label>
-              </div>
-              <details class="ebenendarstellung"><summary>Darstellung{e.darstellung?" · eigene":""}</summary>
-                <DarstellungFelder wert={e.darstellung} disabled={!darf||s.laeuft} onaendern={d=>{merken();if(d)e.darstellung=d;else delete e.darstellung}}/>
-              </details>
-            {/each}
-            <div class="aktionen">
-              <button type="button" class="sekundaer" disabled={!darf||s.laeuft} onclick={()=>{const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id}}>Ebene hinzufügen</button>
-              <button type="button" class="sekundaer" disabled={!darf||s.laeuft} title="Grundstücksgrenze, Bestand, Abbruch, Neubau, Baugrenze, Abstandsflächen …" onclick={lageplanEbenen}>Lageplan-Ebenen anlegen</button>
-              <button type="button" class="sekundaer" disabled={!darf||s.laeuft||!layer} title="Alle anderen Ebenen sperren" onclick={()=>{merken();for(const e of p.ebenen)e.gesperrt=e.id!==ebene}}>Nur aktive Ebene bearbeiten</button>
-              <button type="button" class="sekundaer" disabled={!darf||s.laeuft||!p.ebenen.some(e=>e.gesperrt)} onclick={()=>{merken();for(const e of p.ebenen)e.gesperrt=false}}>Alle entsperren</button>
+            <div class="baumkopf"><h3>Ebenen und Objekte{aktueller?` · ${aktueller.bezeichnung}`:""}</h3>
+              <span class="menue"><button type="button" class="sekundaer" aria-haspopup="menu" aria-expanded={menue==="ebenen"} disabled={!darf||s.laeuft} onclick={()=>menue=menue==="ebenen"?"":"ebenen"}>Ebenen ▾</button>
+                {#if menue==="ebenen"}<div class="menueliste" role="menu" aria-label="Ebenen">
+                  <button type="button" role="menuitem" onclick={()=>{menue="";const id=crypto.randomUUID();p.ebenen.push({id,bezeichnung:`Ebene ${p.ebenen.length+1}`,sichtbar:true,gesperrt:false});ebene=id;ebeneWaehlen(id)}}>Ebene hinzufügen</button>
+                  <button type="button" role="menuitem" title="Grundstücksgrenze, Bestand, Abbruch, Neubau, Baugrenze, Abstandsflächen …" onclick={()=>{menue="";lageplanEbenen()}}>Lageplan-Ebenen anlegen</button>
+                  <button type="button" role="menuitem" disabled={!layer} title="Alle anderen Ebenen sperren" onclick={()=>{menue="";merken();for(const e of p.ebenen)e.gesperrt=e.id!==ebene}}>Nur aktive Ebene bearbeiten</button>
+                  <button type="button" role="menuitem" disabled={!p.ebenen.some(e=>e.gesperrt)} onclick={()=>{menue="";merken();for(const e of p.ebenen)e.gesperrt=false}}>Alle entsperren</button>
+                </div>{/if}
+              </span>
             </div>
-            <h3>Markierungen <span class="meta">({aktiv?`${anzahl(aktueller!).length} von `:""}{p.markierungen.length})</span></h3>
-            <label>Suchen<input type="search" aria-label="Markierungen suchen" bind:value={suche}/></label>
-            <label>Bedeutung filtern<select aria-label="Bedeutung filtern" bind:value={bedeutungFilter}><option value="">Alle Bedeutungen</option>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
-            <label>Gebäude filtern<select aria-label="Gebäude filtern" bind:value={gebaeudeFilter} onchange={()=>geschossFilter=""}><option value="">Alle Gebäude</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
-            {#if gebaeudeFilter}<label>Geschoss filtern<select aria-label="Geschoss filtern" bind:value={geschossFilter}><option value="">Alle Geschosse</option>{#each gebaeude.find(g=>g.objekt===gebaeudeFilter)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
-            <label><input type="checkbox" bind:checked={nurFehler}/>Nur fehlerhafte Markierungen</label>
-            <div class="markierungen">
-              {#each gefilterteMarkierungen as item (item.id)}<div class="objektzeile"><input type="checkbox" aria-label={`${item.bezeichnung} zur Auswahl hinzufügen`} checked={auswahlIds.includes(item.id)} onchange={()=>waehlen(item.id,true)}/><button type="button" class:aktiv={item.id===auswahl} onclick={()=>{waehlen(item.id);panelOeffnen("eigenschaften")}}>{item.bezeichnung}<span>{bedeutungen.find(b=>b[0]===item.bedeutung)?.[1]}{fehlerMap.has(item.id)?" · Fehler":""}{!aktiv&&item.ausschnitt_id?` · ${ausschnitte.find(a=>a.id===item.ausschnitt_id)?.bezeichnung??"Ausschnitt fehlt"}`:""}</span></button></div>{/each}
-              {#if !p.markierungen.length}<p class="meta">Ein Zeichenwerkzeug wählen (Tasten P, R, K, S, H) und Punkte auf dem Plan setzen.</p>{/if}
+            <div class="suchzeile">
+              <input type="search" aria-label="Markierungen suchen" placeholder="Suchen …" bind:value={suche}/>
+              <button type="button" class="sekundaer" aria-expanded={filterOffen} onclick={()=>filterOffen=!filterOffen}>Filter{filterAnzahl?` (${filterAnzahl})`:""}</button>
             </div>
-            {#if p.elemente?.length}
-              <h3>Zeichenelemente <span class="meta">({p.elemente.length})</span></h3>
-              <div class="markierungen">
-                {#each p.elemente as e (e.id)}<div class="objektzeile"><button type="button" class:aktiv={e.id===elementAuswahl} onclick={()=>{elementWaehlen(e.id);panelOeffnen("eigenschaften")}}>{e.art==="wand"?`Wand${e.oeffnungen?.length?` · ${e.oeffnungen.length} Öffnung(en)`:""}`:e.art==="masskette"?"Maßkette":e.art==="symbol"?`Planzeichen ${PLANSYMBOLE.find(([k])=>k===e.symbol)?.[1]??""}`:e.art==="raumstempel"?`Raumstempel ${raeume[e.raum_id]?.nummer??"(Raum fehlt)"}`:`Text „${e.inhalt}“`}<span>{p.ebenen.find(x=>x.id===e.ebene_id)?.bezeichnung??"Ebene fehlt"}</span></button></div>{/each}
-              </div>
-            {/if}
+            {#if filterOffen}<div class="filter">
+              <label>Bedeutung<select aria-label="Bedeutung filtern" bind:value={bedeutungFilter}><option value="">Alle Bedeutungen</option>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
+              <label>Gebäude<select aria-label="Gebäude filtern" bind:value={gebaeudeFilter} onchange={()=>geschossFilter=""}><option value="">Alle Gebäude</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
+              {#if gebaeudeFilter}<label>Geschoss<select aria-label="Geschoss filtern" bind:value={geschossFilter}><option value="">Alle Geschosse</option>{#each gebaeude.find(g=>g.objekt===gebaeudeFilter)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
+              <label class="zeile"><input type="checkbox" bind:checked={nurFehler}/>Nur fehlerhafte Markierungen</label>
+            </div>{/if}
+            <ul class="baum" role="tree" aria-label="Ebenen und Objekte">
+              {#each p.ebenen as e (e.id)}
+                {@const ms=gefilterteMarkierungen.filter(x=>x.ebene_id===e.id)}
+                {@const es=mitFilter?[]:(p.elemente??[]).filter(x=>x.ebene_id===e.id)}
+                {@const offen=!zugeklappt[e.id]&&(ms.length+es.length>0)}
+                {@const sichtbar=sichtbarkeit[e.id]??e.sichtbar}
+                <li role="treeitem" aria-expanded={ms.length+es.length?offen:undefined} aria-selected={ebenenAuswahl===e.id} aria-label={`Ebene ${e.bezeichnung}`} class="ebene" class:aktiv={ebene===e.id} class:gewaehlt={ebenenAuswahl===e.id} class:aus={!sichtbar}>
+                  <div class="ebenenzeile">
+                    <button type="button" class="pfeil" class:offen aria-label={offen?`Ebene ${e.bezeichnung} zuklappen`:`Ebene ${e.bezeichnung} aufklappen`} disabled={!(ms.length+es.length)} onclick={()=>zugeklappt={...zugeklappt,[e.id]:offen}}></button>
+                    <input type="radio" aria-label={`Auf Ebene ${e.bezeichnung} zeichnen`} title="Aktive Ebene: neue Objekte landen hier" name={`ebene-${s.id}`} value={e.id} bind:group={ebene}/>
+                    <button type="button" class="name" title="Eigenschaften und Darstellung der Ebene" onclick={()=>ebeneWaehlen(e.id)}>{e.bezeichnung}{e.darstellung?" ◆":""}</button>
+                    <span class="anzahl">{ms.length+es.length}</span>
+                    <button type="button" class="umschalter" aria-label={`Ebene ${e.bezeichnung} sichtbar`} aria-pressed={sichtbar} title={sichtbar?"Sichtbar – ausblenden":"Ausgeblendet – einblenden"} onclick={()=>{if(darf)e.sichtbar=!sichtbar;else sichtbarkeit={...sichtbarkeit,[e.id]:!sichtbar}}}><WerkzeugIcon art={sichtbar?"auge":"augezu"}/></button>
+                    <button type="button" class="umschalter" aria-label={`Ebene ${e.bezeichnung} gesperrt`} aria-pressed={e.gesperrt} title={e.gesperrt?"Gesperrt – entsperren":"Sperren"} disabled={!darf||s.laeuft} onclick={()=>{e.gesperrt=!e.gesperrt}}><WerkzeugIcon art={e.gesperrt?"schloss":"schlossauf"}/></button>
+                  </div>
+                  {#if offen}<ul role="group">
+                    {#each ms as item (item.id)}<li role="treeitem" aria-selected={auswahlIds.includes(item.id)} class="objektzeile"><input type="checkbox" aria-label={`${item.bezeichnung} zur Auswahl hinzufügen`} checked={auswahlIds.includes(item.id)} onchange={()=>waehlen(item.id,true)}/><button type="button" class:aktiv={item.id===auswahl} onclick={()=>{waehlen(item.id);panelOeffnen("eigenschaften")}}>{item.bezeichnung}<span>{bedeutungen.find(b=>b[0]===item.bedeutung)?.[1]}{fehlerMap.has(item.id)?" · Fehler":""}{!aktiv&&item.ausschnitt_id?` · ${ausschnitte.find(a=>a.id===item.ausschnitt_id)?.bezeichnung??"Ausschnitt fehlt"}`:""}</span></button></li>{/each}
+                    {#each es as x (x.id)}<li role="treeitem" aria-selected={elementAuswahlIds.includes(x.id)} class="objektzeile element"><button type="button" data-element={x.art} class:aktiv={x.id===elementAuswahl} onclick={()=>{elementWaehlen(x.id);panelOeffnen("eigenschaften")}}>{x.art==="wand"?`Wand${x.oeffnungen?.length?` · ${x.oeffnungen.length} Öffnung(en)`:""}`:x.art==="masskette"?"Maßkette":x.art==="symbol"?`Planzeichen ${PLANSYMBOLE.find(([k])=>k===x.symbol)?.[1]??""}`:x.art==="raumstempel"?`Raumstempel ${raeume[x.raum_id]?.nummer??"(Raum fehlt)"}`:`Text „${x.inhalt}“`}<span>Zeichenelement</span></button></li>{/each}
+                  </ul>{/if}
+                </li>
+              {/each}
+              {#if ohneEbene.length}<li role="treeitem" aria-expanded="true" aria-selected="false" class="ebene"><div class="ebenenzeile"><span class="name">Ohne Ebene</span><span class="anzahl">{ohneEbene.length}</span></div>
+                <ul role="group">{#each ohneEbene as item (item.id)}<li role="treeitem" aria-selected={auswahlIds.includes(item.id)} class="objektzeile"><button type="button" class:aktiv={item.id===auswahl} onclick={()=>{waehlen(item.id);panelOeffnen("eigenschaften")}}>{item.bezeichnung}<span>{bedeutungen.find(b=>b[0]===item.bedeutung)?.[1]}</span></button></li>{/each}</ul></li>{/if}
+            </ul>
+            {#if !p.markierungen.length&&!p.elemente?.length}<p class="meta">Ein Zeichenwerkzeug wählen (Tasten P, R, K, S, H) und Punkte auf dem Plan setzen.</p>
+            {:else if mitFilter&&!gefilterteMarkierungen.length}<p class="meta">Keine Markierung passt zu Suche und Filter.</p>{/if}
           </section>{/if}
-          {#if panel==="eigenschaften"&&nichtsGewaehlt}<section class="palette" aria-label="Blatt und Einrichtung">
+          {#if panel==="eigenschaften"&&gewaehlteEbene}{@const e=gewaehlteEbene}<section class="palette" aria-label="Eigenschaften der Ebene">
+            <div class="palettenkopf"><h3>Eigenschaften</h3> <span class="meta">· Ebene {e.bezeichnung}</span><button type="button" class="link kopflink" title="Ebene abwählen (Esc) und das Blatt zeigen" onclick={auswahlAufheben}>Zum Blatt</button></div>
+            <fieldset disabled={!darf||s.laeuft}>
+              <label>Name<input aria-label="Ebenenname" bind:value={e.bezeichnung} required/></label>
+              <div class="ebenenschalter">
+                <label><input type="radio" name={`ebene-eig-${s.id}`} value={e.id} bind:group={ebene}/>Aktive Ebene</label>
+                <label><input type="checkbox" checked={sichtbarkeit[e.id]??e.sichtbar} onchange={ev=>{if(darf)e.sichtbar=ev.currentTarget.checked;else sichtbarkeit={...sichtbarkeit,[e.id]:ev.currentTarget.checked}}}/>Sichtbar</label>
+                <label><input type="checkbox" bind:checked={e.gesperrt}/>Gesperrt</label>
+              </div>
+            </fieldset>
+            <DarstellungFelder wert={e.darstellung} disabled={!darf||s.laeuft} onaendern={d=>{merken();if(d)e.darstellung=d;else delete e.darstellung}}/>
+            <p class="meta">Elemente mit eigener Darstellung überschreiben die Ebene.</p>
+            <div class="aktionen">
+              <button type="button" class="sekundaer" disabled={!darf||s.laeuft} title="Alle anderen Ebenen sperren" onclick={()=>{merken();for(const x of p.ebenen)x.gesperrt=x.id!==e.id;ebene=e.id}}>Nur diese Ebene bearbeiten</button>
+              <button type="button" class="sekundaer" disabled={!darf||s.laeuft||p.ebenen.length<2||p.markierungen.some(x=>x.ebene_id===e.id)||(p.elemente??[]).some(x=>x.ebene_id===e.id)} title="Nur leere Ebenen lassen sich entfernen" onclick={()=>{merken();p.ebenen=p.ebenen.filter(x=>x.id!==e.id);if(ebene===e.id)ebene=p.ebenen[0]?.id??"";ebenenAuswahl=""}}>Ebene entfernen</button>
+            </div>
+          </section>{/if}
+          {#if panel==="eigenschaften"&&nichtsGewaehlt&&!gewaehlteEbene}<section class="palette" aria-label="Blatt und Einrichtung">
             <div class="palettenkopf"><h3>Blatt und Einrichtung</h3> <span class="meta">{!p.kalibrierung?"· Maßstab fehlt":`· ${massstabText(p.kalibrierung)}`}{p.hoehenbezug?` · Bezug ${z(p.hoehenbezug.hoehe_m)} ${p.hoehenbezug.system}`:""}</span></div>
             <fieldset class="quellzeile" disabled={!darf||s.laeuft}>
               <label>Bezeichnung des Aufmaßes<input bind:value={p.bezeichnung} required/></label>
@@ -1428,7 +1464,6 @@
   .oeffnung input,.oeffnung select{min-width:0;font-size:.8rem}
   .oeffnung .entfernen{align-self:end;padding:0 .3rem 6px;grid-column:4;grid-row:1}
   .oeffnung label:nth-of-type(4),.oeffnung label:nth-of-type(5){grid-row:2}
-  .ebenendarstellung{margin:0 0 .3rem 1.6rem;font-size:.85rem}
   .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}
   .konstruieren .zeile{display:flex;gap:.35rem;align-items:center;margin-top:.4rem}
@@ -1450,11 +1485,39 @@
   .element-eigenschaften legend{font-weight:600;padding:0 .3rem}
   .ausschnitt-eigenschaften .zeile{display:flex;flex-wrap:wrap;gap:.3rem .7rem;align-items:center}
   .ausschnitt-eigenschaften .zeile label{flex:0 0 7rem}
-  .ebene{display:flex;gap:.3rem;align-items:center;margin-bottom:.4rem}
-  .ebene>input:not([type=radio]){min-width:3rem;width:100%}
-  .ebene label{font-size:.75rem;white-space:nowrap}
-  .markierungen{max-height:260px;overflow:auto;display:grid;gap:.25rem}
-  .markierungen button{text-align:left}.markierungen span{display:block;font-size:.75rem;font-weight:400}
+  /* Baum im Reiter „Objekte“: Ebene mit Auge und Schloss, darunter ihre Objekte. */
+  .ebenenschalter{display:flex;flex-wrap:wrap;gap:.3rem 1rem;font-size:.85rem}
+  .ebenenschalter label{display:flex;gap:.3rem;align-items:center}
+  .baumkopf{display:flex;align-items:center;gap:.5rem;margin-top:.8rem}
+  .baumkopf h3{margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .baumkopf .menueliste{min-width:14rem}
+  .suchzeile{display:flex;gap:.4rem;margin:.4rem 0}
+  .suchzeile input{flex:1;min-width:0}
+  .filter{display:grid;gap:.3rem;padding:.4rem;margin-bottom:.4rem;background:var(--leiste);border:1px solid var(--border-innen)}
+  .baum,.baum ul{list-style:none;margin:0;padding:0}
+  .baum{border-top:1px solid var(--border-innen)}
+  .baum li{padding:0;border-top:0;gap:.3rem;align-items:center}
+  .baum li.ebene{display:block;border-bottom:1px solid var(--border-innen)}
+  .ebenenzeile{display:flex;align-items:center;gap:.25rem;min-height:30px;padding:0 2px}
+  .ebene.aktiv>.ebenenzeile .name{font-weight:600}
+  .ebene.gewaehlt>.ebenenzeile{background:var(--auswahl);box-shadow:inset 2px 0 0 var(--accent)}
+  .ebene.aus>.ebenenzeile .name{color:var(--muted);text-decoration:line-through}
+  .ebenenzeile .pfeil{width:18px;min-width:18px;min-height:18px;padding:0;border:0;background:transparent;position:relative}
+  .ebenenzeile .pfeil::before{content:"";position:absolute;left:6px;top:5px;border-style:solid;border-width:4px 0 4px 6px;border-color:transparent transparent transparent var(--muted);transition:transform .1s}
+  .ebenenzeile .pfeil.offen::before{transform:rotate(90deg)}
+  .ebenenzeile .pfeil:disabled::before{opacity:.25}
+  .ebenenzeile .name{flex:1;min-width:0;min-height:24px;padding:0 .3rem;border:0;background:transparent;text-align:left;font-weight:400;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ebenenzeile .name:hover{text-decoration:underline}
+  .ebenenzeile .anzahl{font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.5rem;text-align:right}
+  .ebenenzeile .umschalter{width:26px;min-width:26px;min-height:24px;padding:0;border:0;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+  .ebenenzeile .umschalter[aria-pressed=true]{color:var(--fg)}
+  .ebenenzeile .umschalter :global(svg){width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.4}
+  .baum ul[role=group]{padding:0 0 .3rem 1.4rem}
+  .baum .objektzeile{min-height:0}
+  .baum .objektzeile button{text-align:left;min-height:26px;padding:2px 6px;border:0;background:transparent;font-weight:400;color:var(--fg);display:flex;justify-content:space-between;gap:.5rem}
+  .baum .objektzeile button:hover{background:var(--leiste)}
+  .baum .objektzeile button.aktiv{background:var(--auswahl);box-shadow:inset 2px 0 0 var(--accent)}
+  .baum .objektzeile button span{font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .messwerte{display:grid;grid-template-columns:1fr auto;gap:.3rem .6rem;font-variant-numeric:tabular-nums;margin:.4rem 0;padding:.4rem .6rem;background:var(--leiste);border:1px solid var(--border-innen)}
   .messwerte dt{color:var(--muted)}.messwerte dd{margin:0;font-weight:600}
   @media(max-width:1100px){.werkzeugfenster{right:8px}.arbeitsplatz{grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}aside{grid-column:1 / -1;border-left:0;border-top:1px solid var(--border);max-height:45%}}
