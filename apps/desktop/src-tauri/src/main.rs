@@ -279,6 +279,7 @@ fn main() {
             commands::baugrenzen_pruefen,
             commands::abstandsflaeche,
             abstandsflaechen::abstandsregeln,
+            abstandsflaechen::abstandsregelwerke,
             abstandsflaechen::abstandscad_konturen,
             abstandsflaechen::abstandsplan_pruefen,
             abstandsflaechen::abstandsnachweis_export,

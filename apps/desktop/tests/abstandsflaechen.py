@@ -1,6 +1,6 @@
 """Projektbezogene Abstandsflächen im Produktionsbuild, echte Core-Berichte."""
 from pathlib import Path
-import os,json,base64
+import os,json,base64,hashlib
 from playwright.sync_api import sync_playwright,expect
 from navigation_hilfe import bereich, register, gliederung
 root=Path(__file__).resolve().parent
@@ -8,6 +8,9 @@ art=Path(os.environ.get('BAUPROJEKT_ABSTAND_ARTEFAKTE','/tmp/bauprojekt-abstand'
 wf=json.loads((art/'workflow.json').read_text(encoding='utf-8'));wf['pdf']=base64.b64encode((art/'nachweis.pdf').read_bytes()).decode()
 # Echter Core-Abgleich eines Gebäudeumrisses aus dem Storage-Test.
 wf['umriss']=json.loads((art/'umriss.json').read_text(encoding='utf-8'))
+# Regeldateien wie im Rechenkern: Inhalt plus Dateiname und SHA-256 des Dateitexts.
+rw=root.parents[2]/'regelwerke/abstandsflaechen'
+werke=[{'datei':str(f.relative_to(rw)),'pruefsumme':hashlib.sha256(f.read_bytes()).hexdigest(),**json.loads(f.read_text(encoding='utf-8'))} for f in sorted(rw.glob('*/*.json'))]
 out=Path(os.environ.get('BAUPROJEKT_ABSTAND_UI_ARTEFAKTE',str(root.parents[2]/'docs/abstandsflaechen/screenshots')));out.mkdir(parents=True,exist_ok=True)
 custom=r'''
 {
@@ -42,7 +45,7 @@ errors=[]
 with sync_playwright() as p:
  b=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
  page=b.new_page(viewport={'width':1680,'height':1100},locale='de-DE');page.on('pageerror',lambda e:errors.append(str(e)))
- page.add_init_script('window.fixture='+json.dumps(wf['projekt'])+';window.abstand='+json.dumps(wf)+';'+(root/'tauri-mock.js').read_text()+custom)
+ page.add_init_script('window.fixture='+json.dumps(wf['projekt'])+';window.abstand='+json.dumps(wf)+';window.abstandRegelwerke='+json.dumps(werke)+';'+(root/'tauri-mock.js').read_text()+custom)
  page.route('**/abstand-pdf-test.mjs',lambda route:route.fulfill(path=str(root.parent/'node_modules/pdfjs-dist/build/pdf.mjs'),content_type='application/javascript'))
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1444'))
  page.locator('.projekttabelle').get_by_role('button',name=wf['projekt']['name'],exact=True).click()
@@ -104,6 +107,23 @@ with sync_playwright() as p:
  expect(result.get_by_role('img',name='Wandabwicklung Wohnhaus – Seite 1',exact=True)).to_be_visible()
  expect(result.get_by_text('im Mittel gemessene Wandhöhe aus den Kanten (7 m + 6,8 m) / 2 = 6,9 m',exact=False)).to_be_visible()
  page.screenshot(path=str(out/'wandabwicklung.png'),full_page=True)
+ # Fassungswahl: Stichtag heute schlägt die geltende NRW-Fassung vor; Wechsel nur mit Vergleich.
+ tab('Grundlagen')
+ fw=page.locator('section.fassung')
+ expect(fw.get_by_role('heading',name='Rechtsgrundlage: Landesbauordnung und Fassung')).to_be_visible()
+ expect(fw.get_by_role('combobox',name='Fassung')).to_contain_text('gilt am Stichtag')
+ fw.get_by_role('button',name='Fassung übernehmen',exact=True).click()
+ expect(fw.get_by_text('Regelwerk fachlich nicht freigegeben',exact=True)).to_be_visible()
+ expect(fw.get_by_text('GV. NRW. S. 537',exact=False)).to_be_visible()
+ expect(fw.get_by_role('heading',name='Nicht automatisch geprüfte Tatbestände',exact=False)).to_be_visible()
+ fw.get_by_role('checkbox').first.check()
+ fw.get_by_role('textbox',name='Vermerk zu Abs. 1',exact=True).fill('Gebäude, keine Sonderanlage')
+ page.screenshot(path=str(out/'fassungswahl.png'),full_page=True)
+ fw.get_by_role('combobox',name='Fassung').select_option('nw/2024-01-01.json')
+ fw.get_by_role('button',name='Fassung wechseln (mit Vergleich)',exact=True).click()
+ expect(fw.get_by_role('table').filter(has_text='Tiefe je Wand')).to_be_visible()
+ fw.get_by_role('button',name='Wechsel bestätigen',exact=True).click()
+ expect(fw.get_by_role('textbox',name='Begründung',exact=False)).to_be_visible()
  assert not errors,errors
  b.close()
 print('Abstandsflächen: Projektentwurf, Konflikterhalt, Höhenprofil, Gebäudeumriss, Wandabwicklung, echte PDF-Texte und Vektorplanskizze geprüft.')

@@ -56,6 +56,7 @@ window.__TAURI_INTERNALS__ = {
     if (cmd.startsWith("plugin:event|")) return;
     if(cmd==="update_status")return {eingerichtet:false,quelle:"",hinweis:"Updates sind in diesem Testbuild nicht eingerichtet.",verfuegbar:null};
     if(cmd==="abstandsregeln")return [];
+    if(cmd==="abstandsregelwerke")return window.abstandRegelwerke??[];
     if(cmd==="beispielprojekt_status")return window.beispielStatus??{aktiv:false,kopie_vorhanden:false};
     if(cmd==="beispielprojekt_oeffnen"||cmd==="beispielprojekt_verlassen")return;
     if(cmd==="druckgestaltung")return window.druckGestaltung??{kopfzeile:"{Projekt}",fusszeile:"Stand: {Datum}",anschreiben:"Sehr geehrte Damen und Herren,\n\nanbei die Unterlagen.\n\nMit freundlichen Grüßen"};

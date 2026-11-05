@@ -17,6 +17,7 @@
     Dokumentbezug,
     Gebaeude,
     UmrissAbgleich,
+    Regelwerk,
   } from "../generated/plattform";
   import Druckknopf from "../Druckknopf.svelte";
   import Dokumentliste from "../verfahren/Dokumentliste.svelte";
@@ -25,6 +26,12 @@
   import Planbild from "./Planbild.svelte";
   import Hoehenprofil from "./Hoehenprofil.svelte";
   import Abwicklung from "./Abwicklung.svelte";
+  import Fassungswahl, {
+    heute,
+    uebernehmen,
+    vorschlag,
+    STICHTAGARTEN,
+  } from "./Fassungswahl.svelte";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   let {
     projekt,
@@ -38,6 +45,7 @@
     darfFreigeben?: boolean;
   } = $props();
   let katalog = $state<AbstandsRegeln[]>([]),
+    regelwerke = $state<Regelwerk[]>([]),
     dateien = $state<DocumentVersion[]>([]),
     bereich = $state("grundlagen"),
     auswahl = $state(""),
@@ -46,6 +54,14 @@
     busy = $state(false),
     meldung = $state("");
   function leer(): AbstandsPlan {
+    const p = grundplan();
+    // Neue Pläne rechnen mit der heute geltenden Fassung; der Stichtag wird
+    // unter „Grundlagen“ auf den Antragseingang gesetzt.
+    const r = vorschlag($state.snapshot(regelwerke), projekt.bundesland, heute());
+    if (r) uebernehmen(p, r, heute(), STICHTAGARTEN[2]);
+    return p;
+  }
+  function grundplan(): AbstandsPlan {
     return {
       bezeichnung: "Abstandsflächennachweis",
       regeln: structuredClone(
@@ -134,8 +150,9 @@
   let hoehenHinweis = $state("");
   onMount(async () => {
     try {
-      [katalog, dateien, gebaeude] = await Promise.all([
+      [katalog, regelwerke, dateien, gebaeude] = await Promise.all([
         invoke<AbstandsRegeln[]>("abstandsregeln"),
+        invoke<Regelwerk[]>("abstandsregelwerke"),
         api.dokumente(projekt.id),
         plattformApi.liste<Gebaeude>(projekt.id, "gebaeude"),
       ]);
@@ -525,6 +542,7 @@
             Baugebiet noch ungeklärt. Es wurde kein WA angesetzt. Die
             anwendbaren Tiefenregeln müssen projektbezogen geklärt werden.
           </p>{/if}
+        <Fassungswahl plan={p} werke={regelwerke} projektId={projekt.id} {darf} />
         <h4>Regelpaket {p.regeln.id} · {p.regeln.version}</h4>
         <p class="hinweisbox">{p.regeln.hinweis}</p>
         <label

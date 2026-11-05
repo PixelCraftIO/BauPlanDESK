@@ -6,6 +6,11 @@ use tauri::State;
 pub fn abstandsregeln() -> Result<Vec<AbstandsRegeln>, CmdError> {
     Ok(katalog()?)
 }
+/// Alle Regeldateien je Land und Fassung mit Wortlaut, Quellen und Prüfstatus.
+#[tauri::command]
+pub fn abstandsregelwerke() -> Result<Vec<Regelwerk>, CmdError> {
+    Ok(regelwerke()?)
+}
 #[tauri::command]
 pub async fn abstandsplan_pruefen(
     state: State<'_, AppState>,
