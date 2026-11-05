@@ -166,6 +166,34 @@ Lesbarkeit. Numerische Berührung/Grenznähe bis 0,000001 m wird als Grenzfall
 statt als automatische Einhaltung ausgegeben. Dies ist keine gesetzliche
 Toleranz. Ungültige Geometrien werden abgewiesen.
 
+## Abstandsflächen im Lageplan zeichnen (A1, A2 …)
+
+Im Aufmaß des Lageplans (PDF, DXF oder eigene Zeichnung) am Werkzeug
+**Strecke / Dach** die Vorlage **Abstandsfläche** wählen und je Außenwand eine
+Linie entlang der Außenkante ziehen. Die Linien heißen A1, A2 … (die nächste
+Nummer folgt auf die höchste im Aufmaß) und liegen auf der Ebene
+„Abstandsflächen“. Im selben Plan die Flurstücke als Fläche mit Bedeutung
+„Flurstück“ zeichnen und zuordnen; ein Vorhabenumriss zeigt die Innenseite.
+
+Im Abstandsplan unter **Wände / Bauteile → Abstandsflächen aus dem Lageplan**
+das gespeicherte Aufmaß wählen und **Linien aus dem Lageplan übernehmen**:
+
+- Jede Linie wird eine Wand mit ihrem Namen. Anfang, Ende und Länge kommen aus
+  der Linie (Maßstab bzw. Zeichnungseinheit des Blattes oder Ausschnitts, y nach
+  oben) und sind im Plan gesperrt.
+- Jede zugeordnete Flurstücksfläche wird eine Grundstückseinheit mit gebundener
+  Grenze, im selben Koordinatenbezug wie die Wände.
+- Außenseite: die Seite, die vom Vorhabenumriss bzw. der Gebäudegrundfläche
+  wegzeigt. Grundstück: die Flurstücksfläche, in der die Linie liegt. Ist das
+  nicht eindeutig, nennt ein Hinweis die Wand.
+- Ein Abstandsplan nutzt genau einen Lageplan (ein Aufmaß, ein Ausschnitt) als
+  Koordinatenbezug. Linien in Ansichten oder Schnitten werden abgewiesen.
+- Wird eine Linie verschoben, meldet die Prüfung die geänderte Grundlage;
+  **Linien aus dem Lageplan aktualisieren** zieht Wände und Grenzen nach. Eine
+  gelöschte Linie löst nur die Bindung; die Wand bleibt mit ihrer letzten Lage.
+
+![Linien aus dem Lageplan](screenshots/linien-lageplan.png)
+
 ## Geometrie übernehmen
 
 Grundstücks-, Flächen- und Gebäudeumrisse über Eckpunkttabellen erfassen oder

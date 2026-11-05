@@ -26,6 +26,7 @@
   import Planbild from "./Planbild.svelte";
   import Hoehenprofil from "./Hoehenprofil.svelte";
   import Abwicklung from "./Abwicklung.svelte";
+  import Abstandslinien from "./Abstandslinien.svelte";
   import Fassungswahl, {
     heute,
     uebernehmen,
@@ -61,6 +62,9 @@
     if (r) uebernehmen(p, r, heute(), STICHTAGARTEN[2]);
     return p;
   }
+  /** Ist das Feld an eine Markierung im Aufmaß gebunden? */
+  const gebunden = (p: AbstandsPlan, ziel: string) =>
+    !!p.planbindungen?.some((b) => b.ziel === ziel);
   function grundplan(): AbstandsPlan {
     return {
       bezeichnung: "Abstandsflächennachweis",
@@ -748,6 +752,13 @@
             <button type="button" class="sekundaer" onclick={() => wandNeu(p)}
               >Wand hinzufügen</button
             >
+            <Abstandslinien
+              plan={p}
+              projektId={projekt.id}
+              {darf}
+              onplan={(neu) => (s.eingabe = neu)}
+              onbusy={(b) => (busy = b)}
+            />
             <table class="ergebnistabelle">
               <thead
                 ><tr
@@ -759,6 +770,8 @@
                     ><td>W{i + 1}</td><td>{w.gebaeude}</td><td
                       >{w.bezeichnung}{#if w.umriss}<span class="meta">
                           · aus Umriss</span
+                        >{:else if gebunden(p, `waende.${w.id}.lage`)}<span
+                          class="meta"> · aus Lageplan</span
                         >{/if}</td
                     ><td>{w.fall}</td><td
                       ><button
@@ -803,6 +816,10 @@
                   >Dachansatz kopieren und erneut prüfen</button
                 >
               </details>
+              {#if gebunden(p, `waende.${w.id}.lage`)}<p class="meta">
+                  Lage und Länge aus der Linie „{w.bezeichnung}“ im Lageplan;
+                  Gebäude folgt der Linie. Außenseite und Grundstück hier prüfen.
+                </p>{/if}
               {#if w.umriss}<p class="meta">
                   Seite {w.umriss.seite + 1} des Umrisses „{(
                     p.umrisse ?? []
@@ -813,7 +830,8 @@
               <div class="raster">
                 {#if gebaeude.length}<label
                     >Gebäude aus Gebäude/Geschosse<select
-                      disabled={!!w.umriss}
+                      disabled={!!w.umriss ||
+                        gebunden(p, `waende.${w.id}.lage`)}
                       value={w.gebaeude_id ?? ""}
                       onchange={(e) => {
                         const g = gebaeude.find(
@@ -869,28 +887,28 @@
                   >Anfang X (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss}
+                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.von.x}
                   /></label
                 ><label
                   >Anfang Y (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss}
+                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.von.y}
                   /></label
                 ><label
                   >Ende X (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss}
+                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.bis.x}
                   /></label
                 ><label
                   >Ende Y (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss}
+                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.bis.y}
                   /></label
                 >
@@ -1145,7 +1163,11 @@
               Flurstück-IDs: {g.flurstueck_ids.join(", ") ||
                 "Über die dokumentierte Grundstückszuordnung festlegen"}
             </p>
-            <Punktliste
+            {#if gebunden(p, `grundstuecke.${g.id}.grenze`)}<p class="meta">
+                Grenze aus dem Lageplan ({g.grenze.length} Eckpunkte), an das
+                Flurstück im Aufmaß gebunden. Änderungen dort vornehmen und unter
+                „Wände / Bauteile“ die Linien aktualisieren.
+              </p>{:else}<Punktliste
               bind:werte={g.grenze}
               label={`G${i + 1} Grenze`}
               {dateien}
@@ -1160,7 +1182,7 @@
                 )
                   p.quellen.push(d);
               }}
-            />
+            />{/if}
             <details>
               <summary>Rechtlich ausgeschlossene Innenringe</summary>
               <p class="meta">

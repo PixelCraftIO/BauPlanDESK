@@ -125,7 +125,7 @@ jobs:
       - name: XBau-Laufzeitvalidator installieren
         run: sudo apt-get update && sudo apt-get install -y libxml2-utils
       - name: Echte PDF- und Paket-Testdaten erzeugen
-        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --test druckausgabe --test verfahren --test abstandsflaechen --test fachberechnungen --test projektuebersicht --test xbau --test portale --locked
+        run: cargo test -p storage --test formular_workflow --test einreichungen --test pdf_livevorschau --test dokumentkategorien --test emails --test druckausgabe --test verfahren --test abstandsflaechen --test planaufmass --test fachberechnungen --test projektuebersicht --test xbau --test portale --locked
       - working-directory: apps/desktop
         run: npm ci && npm run check && npm run build
       - name: Produktionsoberfläche prüfen

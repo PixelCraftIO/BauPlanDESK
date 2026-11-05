@@ -2942,3 +2942,349 @@ async fn offene_flurstuecksflaeche_wird_aus_dem_aufmass_ermittelt() {
         .unwrap();
     assert_eq!(p.grundstuecksflaeche_m2, Some(1050.));
 }
+
+#[tokio::test]
+async fn abstandsflaechen_linien_aus_dem_lageplan() {
+    use core_lib::{
+        abstandsflaechen::{APunkt, Aussenrichtung},
+        grundstuecksinformationen::{FlurstuecksInfo, Grundstuecksinformationen},
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Lageplan Abstandsflächen".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: core_lib::domain::Planungsrecht {
+                    grundstuecksinformationen: Some(Grundstuecksinformationen {
+                        flurstuecke: vec![FlurstuecksInfo {
+                            id: "a".into(),
+                            gemarkung: "Linden".into(),
+                            gemarkungsnummer: String::new(),
+                            flur: "1".into(),
+                            nummer: "10/1".into(),
+                            flaeche_m2: 900.,
+                            grundbuchbezirk: String::new(),
+                            grundbuchblatt: String::new(),
+                            laufende_nummer: None,
+                            grundbuchauszug: None,
+                            eigentuemer: String::new(),
+                            eigentuemer_kunden: vec![],
+                            bemerkung: String::new(),
+                            rolle: Default::default(),
+                            planbindung: None,
+                            planflaeche_m2: None,
+                            flaeche_aus_plan: false,
+                            flaeche_offen: false,
+                        }],
+                    }),
+                    ..Default::default()
+                },
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let (ebene, aufmass) = (Uuid::new_v4(), Uuid::new_v4());
+    let (m_f, m_u, m_a1, m_a2) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let markierung = |id, name: &str, bedeutung, geometrie| Planmarkierung {
+        id,
+        ebene_id: ebene,
+        bezeichnung: name.into(),
+        bedeutung,
+        geometrie,
+        grundstueck_id: None,
+        gebaeude_id: None,
+        geschoss_id: None,
+        ausschnitt_id: None,
+        hoehenzone_von: None,
+        flurstueck_id: (bedeutung == Planbedeutung::Flurstueck).then(|| "a".into()),
+    };
+    // 100 pt = 10 m. Flurstück 30 × 30 m, Gebäude 10 × 10 m in der Mitte;
+    // A1 an der Nordseite (oben im Blatt), A2 an der Ostseite.
+    let mut a = Planaufmass {
+        bezeichnung: "Lageplan".into(),
+        dokument: Some(Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        }),
+        seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Abstandsflächen".into(),
+            sichtbar: true,
+            gesperrt: false,
+            darstellung: None,
+        }],
+        markierungen: vec![
+            markierung(
+                m_f,
+                "Flurstück 10/1",
+                Planbedeutung::Flurstueck,
+                Plangeometrie::Rechteck {
+                    von: [0., 0.],
+                    bis: [300., 300.],
+                },
+            ),
+            markierung(
+                m_u,
+                "Wohnhaus",
+                Planbedeutung::Vorhabenumriss,
+                Plangeometrie::Rechteck {
+                    von: [100., 100.],
+                    bis: [200., 200.],
+                },
+            ),
+            markierung(
+                m_a1,
+                "A1",
+                Planbedeutung::Abstandsflaeche,
+                Plangeometrie::Strecke {
+                    von: [100., 100.],
+                    bis: [200., 100.],
+                },
+            ),
+            markierung(
+                m_a2,
+                "A2",
+                Planbedeutung::Abstandsflaeche,
+                Plangeometrie::Strecke {
+                    von: [200., 200.],
+                    bis: [200., 100.],
+                },
+            ),
+        ],
+        ausschnitte: vec![],
+    };
+    let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
+    let f = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, aufmass, 0, save(&a), &user)
+        .await
+        .unwrap();
+    // Die Werkzeugkiste bietet die Linie an.
+    assert!(
+        werkzeugkiste()
+            .iter()
+            .any(|v| v.bedeutung == Planbedeutung::Abstandsflaeche
+                && v.geometrie == Aufgabengeometrie::Strecke)
+    );
+    let mut plan = core_lib::abstandsflaechen::testdaten::plan();
+    plan.waende.clear();
+    plan.grundstuecke.clear();
+    plan.koordinatenbezug.clear();
+    let stand = |revision| Aufmassstand {
+        aufmass_id: aufmass,
+        revision,
+    };
+    // Veralteter Stand wird abgewiesen.
+    assert!(
+        core.abstandslinien_uebernehmen(p.id, plan.clone(), stand(f.revision + 1))
+            .await
+            .is_err()
+    );
+    let u = core
+        .abstandslinien_uebernehmen(p.id, plan.clone(), stand(f.revision))
+        .await
+        .unwrap();
+    // Echte Übernahme für den Oberflächentest (apps/desktop/tests/abstandsflaechen.py).
+    if let Ok(out) = std::env::var("BAUPROJEKT_ABSTAND_ARTEFAKTE") {
+        let out = std::path::Path::new(&out);
+        std::fs::create_dir_all(out).unwrap();
+        std::fs::write(
+            out.join("linien.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "aufmass": {"objekt": aufmass, "revision": f.revision, "daten": a},
+                "uebernahme": u,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+    let plan = u.plan;
+    assert!(u.hinweise.is_empty(), "{:?}", u.hinweise);
+    let namen: Vec<_> = plan.waende.iter().map(|w| w.bezeichnung.as_str()).collect();
+    assert_eq!(namen, ["A1", "A2"]);
+    let (a1, a2) = (&plan.waende[0], &plan.waende[1]);
+    let nah = |p: &APunkt, x: f64, y: f64| (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9;
+    assert!(nah(&a1.von, 10., -10.) && nah(&a1.bis, 20., -10.));
+    assert!(nah(&a2.von, 20., -20.) && nah(&a2.bis, 20., -10.));
+    // Außenseite zeigt vom Vorhabenumriss weg: A1 nach Norden, A2 nach Osten.
+    assert_eq!(a1.aussen, Aussenrichtung::Links);
+    assert_eq!(a2.aussen, Aussenrichtung::Rechts);
+    assert_eq!(plan.grundstuecke.len(), 1);
+    let g = &plan.grundstuecke[0];
+    assert_eq!(g.flurstueck_ids, ["a"]);
+    assert_eq!(g.grenze.len(), 4);
+    assert!(g.grundlage.contains("Markierung „Flurstück 10/1“"));
+    assert!(plan.waende.iter().all(|w| w.grundstueck_id == Some(g.id)));
+    assert!(a1.hoehenquelle.contains("Lage: Aufmaß „Lageplan“"));
+    assert!(plan.koordinatenbezug.starts_with("Lageplan „Lageplan“"));
+    assert_eq!(plan.planbindungen.len(), 3);
+    assert!(
+        plan.quellen
+            .iter()
+            .any(|q| q.dokument_id == doc.document_id)
+    );
+    core.abstands_planquellen_pruefen(p.id, &plan)
+        .await
+        .unwrap();
+    // Ziele für die Anzeige der Verknüpfungen.
+    let ziele = abstandsziele(&plan);
+    assert!(
+        ziele
+            .iter()
+            .any(|z| z.ziel == format!("waende.{}.lage", a1.id))
+    );
+    assert!(
+        ziele
+            .iter()
+            .any(|z| z.ziel == format!("grundstuecke.{}.grenze", g.id))
+    );
+    // Erneute Übernahme ändert nichts.
+    let again = core
+        .abstandslinien_uebernehmen(p.id, plan.clone(), stand(f.revision))
+        .await
+        .unwrap();
+    assert_eq!(again.plan, plan);
+
+    // Linie verschoben: Prüfung meldet die geänderte Grundlage, neue
+    // Übernahme zieht die Wand nach.
+    a.markierungen[2].geometrie = Plangeometrie::Strecke {
+        von: [100., 100.],
+        bis: [250., 100.],
+    };
+    let f2 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    assert!(
+        core.abstands_planquellen_pruefen(p.id, &plan)
+            .await
+            .is_err()
+    );
+    let plan = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(f2.revision))
+        .await
+        .unwrap()
+        .plan;
+    assert!(nah(&plan.waende[0].bis, 25., -10.));
+    assert!(plan.planbindungen.iter().all(|b| b.revision == f2.revision));
+
+    // Eine von Hand angelegte Wand mit gleichem Namen blockiert neue Linien.
+    let mut doppelt = plan.clone();
+    doppelt.planbindungen.retain(|b| b.markierung_id != m_a2);
+    doppelt.waende.retain(|w| w.bezeichnung != "A2");
+    let mut hand = doppelt.waende[0].clone();
+    hand.id = Uuid::new_v4();
+    hand.bezeichnung = "A2".into();
+    doppelt.waende.push(hand);
+    assert!(
+        core.abstandslinien_uebernehmen(p.id, doppelt, stand(f2.revision))
+            .await
+            .is_err()
+    );
+
+    // Linie gelöscht: Wand bleibt mit ihrer letzten Lage, die Bindung entfällt.
+    a.markierungen.retain(|m| m.id != m_a2);
+    let f3 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f2.revision,
+            save(&a),
+            &user,
+        )
+        .await
+        .unwrap();
+    let u = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(f3.revision))
+        .await
+        .unwrap();
+    assert_eq!(u.plan.waende.len(), 2);
+    assert!(
+        u.hinweise
+            .iter()
+            .any(|h| h.starts_with("A2: Markierung im Lageplan gelöscht"))
+    );
+    assert!(!u.plan.planbindungen.iter().any(|b| b.markierung_id == m_a2));
+
+    // Linie in einer Ansicht wird abgewiesen.
+    let mut ansicht = a.clone();
+    let aid = Uuid::new_v4();
+    ansicht.ausschnitte.push(Planausschnitt {
+        id: aid,
+        bezeichnung: "Ansicht Nord".into(),
+        art: Ausschnittart::Ansicht,
+        von: [0., 0.],
+        bis: [400., 400.],
+        ebene_id: None,
+        kalibrierung: None,
+        bezugslinie: None,
+    });
+    for m in &mut ansicht.markierungen {
+        m.ausschnitt_id = Some(aid);
+    }
+    let f4 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            aufmass,
+            f3.revision,
+            save(&ansicht),
+            &user,
+        )
+        .await;
+    if let Ok(f4) = f4 {
+        let mut leer = core_lib::abstandsflaechen::testdaten::plan();
+        leer.waende.clear();
+        leer.grundstuecke.clear();
+        assert!(
+            core.abstandslinien_uebernehmen(p.id, leer, stand(f4.revision))
+                .await
+                .is_err()
+        );
+    }
+}

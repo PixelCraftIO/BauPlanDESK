@@ -26,7 +26,13 @@
       }else if(groesse==="hoehe"&&art!=="strecke")return [];
       if(plan.modul==="din277"&&ziel.startsWith("positionen.")&&!["nuf","tf","vf","kgf"].includes(m.bedeutung))return [];
     } else if("waende" in plan) {
+      // Lage aus Linien „Abstandsfläche“, Grenzen aus zugeordneten Flurstücken (planaufmass/abstand.rs).
+      if(ziel.endsWith(".grenze"))return m.bedeutung==="flurstueck"?[{value:`${a.stand.objekt}|${m.id}`,a,m,v}]:[];
       const wand=plan.waende.find(w=>w.id===ziel.split(".")[1]);
+      if(ziel.endsWith(".lage")){
+        if(!wand||m.bedeutung!=="abstandsflaeche"||m.gebaeude_id!==(wand.gebaeude_id??null))return [];
+        return [{value:`${a.stand.objekt}|${m.id}`,a,m,v}];
+      }
       if(!wand||m.gebaeude_id!==(wand.gebaeude_id??null))return [];
       // Eckhöhen absolut im Höhensystem des Plans, Dachwerte aus Strecken (planaufmass/abstand.rs).
       const absolut=/^(gelaende|abschluss)_[ab]_m$/.test(ziel.split(".")[2]??"");

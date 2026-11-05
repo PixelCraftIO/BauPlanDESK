@@ -203,7 +203,7 @@ export type Markierungspruefung = { id: string, wert: Planmesswert | null, fehle
 export type Planpruefung = { markierungen: Array<Markierungspruefung>, };
 export type Planexportwunsch = { aufmass_id: string, revision: number, format: Planexportformat, nur_sichtbare_ebenen: boolean, };
 export type Planexportformat = "pdf" | "csv";
-export type Planbedeutung = "unbestimmt" | "flurstueck" | "baufenster" | "vorhabenumriss" | "private_gruenflaeche" | "oeffentliche_gruenflaeche" | "verkehrsflaeche" | "ausserhalb_bauland" | "sonstiger_abzug" | "zufahrt" | "stellplatz" | "garage" | "nebenanlage" | "terrasse" | "unterirdisch" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass";
+export type Planbedeutung = "unbestimmt" | "flurstueck" | "baufenster" | "vorhabenumriss" | "private_gruenflaeche" | "oeffentliche_gruenflaeche" | "verkehrsflaeche" | "ausserhalb_bauland" | "sonstiger_abzug" | "zufahrt" | "stellplatz" | "garage" | "nebenanlage" | "terrasse" | "unterirdisch" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass" | "abstandsflaeche";
 export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
 /**
  * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
@@ -955,6 +955,7 @@ tiefe_m: number | null,
  */
 wandteil: number, };
 export type UmrissAbgleich = { plan: AbstandsPlan, hinweise: Array<string>, };
+export type AbstandslinienUebernahme = { plan: AbstandsPlan, hinweise: Array<string>, };
 export type CadHoehe = {
 /**
  * Lage in Metern.

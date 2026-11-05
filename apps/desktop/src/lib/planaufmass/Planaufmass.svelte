@@ -533,6 +533,7 @@
     if(b==="gelaende"||b==="traufe"||b==="first"||b==="dach"||b==="aussenwand")return "Je nach Ziel: Abstandsflächen → Grundlagen → „Aufmaß verknüpfen“ (manuelle Wand), Gebäudehöhen → „Quellen / Übernahmen“ oder Gebäude / Geschosse → „Höhen und alle Verknüpfungen aus Aufmaß“.";
     if(ABZUGSBEDEUTUNGEN.includes(b))return "Berechnungen → Baugrundstück → Flächenabzüge: „Abzugsflächen aus Aufmaß übernehmen“ (Flurstück zuordnen). Die Abzugsart folgt der Bedeutung, die rechtliche Grundlage wird dort ergänzt.";
     if(BAUTEILBEDEUTUNGEN.includes(b))return "Berechnungen → Baugrundstück (GRZ): „Bauteile aus Aufmaß übernehmen“ (Baugrundstück zuordnen). Anrechnung nach Bauteiltyp und BauNVO-Fassung; die Hauptanlage kommt über die Gebäudegrundfläche.";
+    if(b==="abstandsflaeche")return "Berechnungen → Abstandsflächen → Wände / Bauteile: „Linien aus dem Lageplan übernehmen“. Jede Linie wird eine Wand mit ihrem Namen (A1, A2 …); Lage und Länge bleiben an die Linie gebunden. Flurstücke im selben Plan liefern die Grundstücksgrenzen, ein Vorhabenumriss die Außenseite.";
     if(b==="baufenster"||b==="vorhabenumriss")return "Hier im Aufmaß: „Lage im Baufenster → Baufenster und Vorhabenumriss dem Projekt zuordnen“ (je genau eine Markierung). Der GRZ-Nachweis zeigt dann die Lage im Baufenster.";
     if(b==="flurstueck")return "Grundlagen → Flurstücke: über „Aufgaben → Übernehmen“ (Flurstück zuordnen). Die Katasterfläche bleibt Rechenwert und zeigt die Abweichung; ohne amtlichen Wert kann die gezeichnete Fläche als Flurstücksfläche gelten.";
     if(b==="unbestimmt")return "Zuerst eine Bedeutung wählen; sie bestimmt, welche Berechnung den Messwert übernehmen kann.";
@@ -783,11 +784,16 @@
       grundstueck_id:v?.grundstueck_id??(grund.length===1?grund[0].id:null),gebaeude_id:v?.gebaeude_id??standardGebaeude,geschoss_id:v?.geschoss_id??standardGeschoss};
     if(!v)neu.bedeutung=standardBedeutung;
     // Vorlage der Werkzeugkiste: Bedeutung und laufender Name („DIN 277 NUF 3“).
-    if(!v&&t){neu.bedeutung=t.bedeutung;neu.bezeichnung=`${t.titel} ${p.markierungen.filter(m=>m.bedeutung===t.bedeutung).length+1}`}
+    if(!v&&t){neu.bedeutung=t.bedeutung;neu.bezeichnung=t.bedeutung==="abstandsflaeche"?abstandsname(p):`${t.titel} ${p.markierungen.filter(m=>m.bedeutung===t.bedeutung).length+1}`}
     if(v?.flurstueck_id)neu.flurstueck_id=v.flurstueck_id;
     if(aktiv)neu.ausschnitt_id=aktiv;
     p.markierungen.push(neu);
     waehlen(id);vorbelegung=null;vorlage=null;panel="eigenschaften";
+  }
+  // Abstandsflächen heißen A1, A2 …; die nächste Nummer folgt auf die höchste im Aufmaß.
+  function abstandsname(p:{markierungen:{bezeichnung:string}[]}){
+    const n=Math.max(0,...p.markierungen.map(m=>/^A(\d+)$/.exec(m.bezeichnung.trim())?.[1]).filter(Boolean).map(Number));
+    return `A${n+1}`;
   }
   // Vorlage wählen: Werkzeug, Bedeutung und Zeichenebene in einem Schritt; die Ebene entsteht beim ersten Gebrauch.
   function vorlageWaehlen(t:Werkzeugvorlage){
