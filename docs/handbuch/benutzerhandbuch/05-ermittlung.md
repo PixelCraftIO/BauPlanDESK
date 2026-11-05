@@ -100,7 +100,11 @@ auf die Markierungen.
 Der schnellste Weg führt über den Reiter **Aufgaben**: Sie listet alle Ziele
 im Projekt, die einen Messwert brauchen – Flurstücke, Abzugsflächen,
 GRZ-Bauteile, Gebäude und Geschosse, Abstandswände, Positionen der
-Fachberechnungen und Räume der Raumbücher.
+Fachberechnungen und Räume der Raumbücher. Jede Aufgabe ist ein kompakter Eintrag:
+○ noch nicht gezeichnet, ● passende Markierung vorhanden, ✔ verknüpft.
+Die Gruppen zeigen ihren Fortschritt (z. B. 3/7) und lassen sich zuklappen;
+„Nur offene“ blendet Verknüpftes aus. Erläuterungen erscheinen beim
+Überfahren der Zeile, ein Klick auf den Titel zeigt die Markierung.
 
 ![Aufgaben, gefiltert auf die Wohnflächenberechnung: Handwerte mit passender Markierung](bilder/editor-aufgaben.png)
 

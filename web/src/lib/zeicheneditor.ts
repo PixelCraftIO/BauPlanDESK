@@ -20,7 +20,7 @@ export const FUNKTIONEN: Funktion[] = [
     titel: "Arbeitsplatz wie im CAD",
     bild: "ermittlung-aufmass-vollbild",
     alt: "Zeicheneditor im Vollbild mit Werkzeugleiste links, Plan in der Mitte und Paletten rechts",
-    text: "Der Plan bekommt die ganze Fläche. Werkzeuge stehen als Symbole links, Paletten für Aufgaben, Objekte und Eigenschaften rechts.",
+    text: "Der Plan bekommt die ganze Fläche. Werkzeuge stehen als Symbole links, Reiter für Aufgaben, Objekte und Eigenschaften rechts.",
     punkte: [
       "Mehrere Aufmaße und Zeichnungen als Tabs, auf Wunsch in einem eigenen Fenster auf dem zweiten Bildschirm",
       "PDF-Pläne mit Maßstab oder Zwei-Punkt-Kalibrierung, DXF mit Zeichnungseinheit und Ebenen",
@@ -34,9 +34,10 @@ export const FUNKTIONEN: Funktion[] = [
     id: "aufgaben",
     titel: "Aufgaben: was noch gezeichnet werden muss",
     bild: "editor-aufgaben",
-    alt: "Palette Aufgaben mit Räumen des Raumbuchs und den Knöpfen Zeichnen und Übernehmen",
-    text: "Die Palette Aufgaben listet jedes Ziel im Projekt, das einen Messwert braucht: Flurstücke, Abzugsflächen, Bauteile der GRZ, Gebäude, Geschosse, Räume und Positionen der Fachberechnungen.",
+    alt: "Reiter Aufgaben mit Fortschritt je Gruppe, Räumen des Raumbuchs und den Knöpfen Zeichnen und Übernehmen",
+    text: "Der Reiter Aufgaben listet jedes Ziel im Projekt, das einen Messwert braucht: Flurstücke, Abzugsflächen, Bauteile der GRZ, Gebäude, Geschosse, Räume und Positionen der Fachberechnungen.",
     punkte: [
+      "Eine Zeile je Aufgabe, Fortschritt je Gruppe, Filter „Nur offene“",
       "„Zeichnen“ stellt Werkzeug, Bedeutung und Zuordnung passend ein",
       "„Übernehmen“ setzt den Messwert ins Zielfeld und verknüpft es mit der Markierung",
       "Von Hand erfasste Werte sind gekennzeichnet, passende Markierungen werden vorgeschlagen",
