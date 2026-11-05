@@ -136,6 +136,11 @@ with sync_playwright() as p:
     scope.get_by_label("Bedeutung",exact=True).select_option("gebaeudegrundflaeche")
     scope.get_by_label("Gebäude",exact=True).select_option("7a1c0d4e-1b2c-4d5e-8f90-123456789abc")
     speichern();tab("Aufgaben")
+    # Kompakte Aufgaben: Gruppe mit Fortschritt, zuklappbar; eine Zeile je Aufgabe.
+    gruppe=scope.locator(".aufgaben button.gruppe").first
+    expect(gruppe).to_have_attribute("aria-expanded","true");expect(gruppe.locator(".zahl")).to_have_text("0/2")
+    gruppe.click();expect(scope.get_by_role("button",name="Übernehmen",exact=True)).to_have_count(0)
+    gruppe.click()
     scope.get_by_role("button",name="Übernehmen",exact=True).click()
     dialog=page.get_by_role("dialog")
     expect(dialog.get_by_role("table",name="Vorschau der Aufmaßübernahme")).to_contain_text("50 m²")

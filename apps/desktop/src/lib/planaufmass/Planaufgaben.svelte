@@ -30,7 +30,7 @@
     onzeichnen: (a: Planaufgabe) => void; onwaehlen: (markierung: string) => void;
   } = $props();
   let aufgaben = $state<Planaufgabe[]>([]), fehler = $state(""), meldung = $state(""), busy = $state("");
-  let filter = $state(""), nurOffen = $state(true);
+  let filter = $state(""), nurOffen = $state(true), zu = $state<Record<string, boolean>>({});
   let generation = 0;
   function laden(snapshot = JSON.stringify(plan)) {
     const n = ++generation;
@@ -159,34 +159,40 @@
 <AbgleichDialog a={abgleich}/>
 
 <section class="aufgaben" aria-label="Aufmaß-Aufgaben">
-  <h3>Aufgaben <span class="meta">({offen} offen)</span></h3>
-  {#if aufgaben.some(a=>a.gebunden)}<button type="button" class="sekundaer" disabled={!darf||!gespeichert||!!busy} onclick={()=>void gesammeltPruefen()}>Verknüpfte Werte gesammelt prüfen …</button>{/if}
   {#if !aufgaben.length}<p class="meta">Keine Zielfelder: zuerst unter Grundlagen → Flurstücke ein Flurstück, unter Grundlagen → Gebäude / Geschosse ein Gebäude, ein Raumbuch oder eine Fachberechnung mit Positionen speichern oder im Abstandsflächenplan eine manuelle Wand anlegen.</p>
   {:else}
+    <div class="stand" role="status"><span><strong>{offen}</strong> von {aufgaben.length} offen</span><span class="balken" aria-hidden="true"><span style={`width:${Math.round(100*(aufgaben.length-offen)/aufgaben.length)}%`}></span></span></div>
     <div class="filter">
-      <select aria-label="Aufgaben für" bind:value={filter}><option value="">Alle Flurstücke, Abzüge, Bauteile, Gebäude, Wände, Berechnungen und Raumbücher</option>{#each objekte as o}<option value={`${o.verbraucher}:${o.objekt}`}>{o.objekt_name}</option>{/each}</select>
-      <label><input type="checkbox" bind:checked={nurOffen}/>nur offene</label>
+      <select aria-label="Aufgaben für" bind:value={filter}><option value="">Alle Ziele</option>{#each objekte as o}<option value={`${o.verbraucher}:${o.objekt}`}>{o.objekt_name}</option>{/each}</select>
+      <label><input type="checkbox" bind:checked={nurOffen}/>Nur offene</label>
     </div>
     {#each gruppen as [gruppe, liste] (gruppe)}
-      <h4>{gruppe}</h4>
-      <ul>
+      {@const alle = aufgaben.filter((a) => a.gruppe === gruppe && (!filter || `${a.verbraucher}:${a.objekt}` === filter))}
+      {@const fertig = alle.filter((a) => a.gebunden).length}
+      {@const auf = !zu[gruppe]}
+      <h4><button type="button" class="gruppe" aria-expanded={auf} onclick={() => zu = { ...zu, [gruppe]: auf }}><span class="pfeil" class:auf aria-hidden="true"></span><span class="name">{gruppe}</span><span class="zahl" title={`${fertig} von ${alle.length} verknüpft`}>{fertig}/{alle.length}</span><span class="balken" aria-hidden="true"><span style={`width:${alle.length ? Math.round(100 * fertig / alle.length) : 0}%`}></span></span></button></h4>
+      {#if auf}<ul>
         {#each liste as a (`${a.verbraucher}:${a.ziel}`)}
-          <li class:erledigt={!!a.gebunden} class:bereit={!!a.markierung}>
+          {@const ziel = a.gebunden ?? a.markierung}
+          {@const tipp = [a.titel, a.gebunden ? `verknüpft mit „${name(a.gebunden)}“` : a.markierung ? `Markierung „${name(a.markierung)}“ passt` : "noch nicht gezeichnet", a.wert_vorhanden && !a.gebunden ? "Wert bisher von Hand erfasst" : "", a.hinweis ?? ""].filter(Boolean).join(" · ")}
+          <li class:erledigt={!!a.gebunden} class:bereit={!!a.markierung && !a.gebunden} title={tipp}>
             <span class="status" aria-hidden="true">{a.gebunden ? "✔" : a.markierung ? "●" : "○"}</span>
-            <span class="titel">{a.titel}{a.wert_vorhanden && !a.gebunden ? (a.markierung ? " · Handwert ohne Zeichnung, passende Markierung vorhanden" : " · manuell erfasst") : ""}</span>
-            {#if a.gebunden}<span class="meta">verknüpft mit „{name(a.gebunden)}“</span>
+            {#if ziel}<button type="button" class="titel" aria-label={`${a.titel}: „${name(ziel)}“ zeigen`} onclick={() => onwaehlen(ziel)}>{a.titel}</button>
+            {:else}<span class="titel">{a.titel}</span>{/if}
+            {#if a.wert_vorhanden && !a.gebunden}<span class="marke">Handwert</span>{/if}
+            {#if a.gebunden}<span class="meta">verknüpft</span>
             {:else if a.markierung}
-              <button type="button" class="link" onclick={() => onwaehlen(a.markierung!)}>„{name(a.markierung)}“</button>
-              {#if a.verbraucher === "abzug" || a.verbraucher === "bauteil"}<span class="meta hinweis">{a.hinweis}</span>
-              {:else}<button type="button" disabled={!darf || !gespeichert || busy !== ""} title={gespeichert ? "Markierung verknüpfen und Verbraucher speichern" : "Aufmaß zuerst speichern"} onclick={() => void uebernehmen(a)}>{busy === a.ziel ? "…" : "Übernehmen"}</button>{/if}
+              {#if a.verbraucher === "abzug" || a.verbraucher === "bauteil"}<span class="meta">erkannt</span>
+              {:else}<button type="button" class="klein" disabled={!darf || !gespeichert || busy !== ""} title={gespeichert ? "Markierung verknüpfen und Verbraucher speichern" : "Aufmaß zuerst speichern"} onclick={() => void uebernehmen(a)}>{busy === a.ziel ? "…" : "Übernehmen"}</button>{/if}
             {:else}
-              <button type="button" class="sekundaer" disabled={!darf} title={a.hinweis ?? ""} onclick={() => onzeichnen(a)}>Zeichnen</button>
-              {#if a.hinweis}<span class="meta hinweis">{a.hinweis}</span>{/if}
+              <button type="button" class="sekundaer klein" disabled={!darf} title={a.hinweis ?? "Werkzeug, Bedeutung und Zuordnung vorbelegen"} onclick={() => onzeichnen(a)}>Zeichnen</button>
             {/if}
           </li>
         {/each}
-      </ul>
+      </ul>{/if}
     {/each}
+    {#if !gruppen.length}<p class="meta">Alle Aufgaben erledigt.{nurOffen ? " „Nur offene“ abwählen, um die verknüpften zu sehen." : ""}</p>{/if}
+    {#if aufgaben.some(a=>a.gebunden)}<button type="button" class="sekundaer pruefen" disabled={!darf||!gespeichert||!!busy} onclick={()=>void gesammeltPruefen()}>Verknüpfte Werte gesammelt prüfen …</button>{/if}
     {#if !gespeichert}<p class="meta">Übernehmen ist nach dem Speichern des Aufmaßes möglich.</p>{/if}
   {/if}
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
@@ -194,15 +200,32 @@
 </section>
 
 <style>
-  .aufgaben h4 { margin: .5rem 0 .2rem; font-size: .9rem; }
-  .aufgaben ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }
-  .aufgaben li { display: flex; flex-wrap: wrap; gap: .3rem .5rem; align-items: center; padding: .15rem .3rem; border-radius: 4px; }
-  .aufgaben li.bereit { background: #168bb114; }
-  .aufgaben li.erledigt { opacity: .75; }
-  .status { width: 1.1em; text-align: center; color: #126d97; }
-  .erledigt .status { color: #1a7f37; }
-  .titel { flex: 1; min-width: 8rem; }
-  .hinweis { flex-basis: 100%; padding-left: 1.6em; }
+  .stand { display: flex; align-items: center; gap: .6rem; font-size: .85rem; margin: .2rem 0 .4rem; }
+  .stand .balken { flex: 1; }
+  .balken { display: block; height: 4px; background: var(--border-innen); border-radius: 2px; overflow: hidden; }
+  .balken > span { display: block; height: 100%; background: #1a7f37; }
   .filter { display: flex; gap: .6rem; align-items: center; margin-bottom: .3rem; }
+  .filter select { flex: 1; min-width: 0; }
   .filter label { display: flex; gap: .3rem; align-items: center; white-space: nowrap; font-size: .85rem; }
+  .aufgaben h4 { margin: .4rem 0 0; }
+  .gruppe { display: flex; align-items: center; gap: .4rem; width: 100%; min-height: 26px; padding: 2px 4px; border: 0; border-bottom: 1px solid var(--border-innen); background: transparent; color: var(--fg); font-size: .85rem; font-weight: 600; text-align: left; border-radius: 0; }
+  .gruppe .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gruppe .zahl { font-weight: 400; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .gruppe .balken { width: 3rem; flex: none; }
+  .pfeil { width: 0; height: 0; border-style: solid; border-width: 4px 0 4px 6px; border-color: transparent transparent transparent var(--muted); transition: transform .1s; }
+  .pfeil.auf { transform: rotate(90deg); }
+  .aufgaben ul { list-style: none; margin: 0; padding: 0; }
+  .aufgaben li { display: flex; flex-wrap: nowrap; gap: .4rem; align-items: center; min-height: 28px; padding: 1px 4px 1px 14px; border-top: 0; }
+  .aufgaben li:hover { background: var(--leiste); }
+  .aufgaben li.erledigt { opacity: .75; }
+  .status { width: 1.1em; flex: none; text-align: center; color: #126d97; }
+  .erledigt .status { color: #1a7f37; }
+  /* Höchstens zwei Zeilen: lange Titel bleiben unterscheidbar ("… Direkte Höhe" / "… Lichte Höhe"). */
+  .titel { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; font-size: .85rem; line-height: 1.25; }
+  button.titel { min-height: 0; padding: 0; border: 0; background: transparent; color: var(--accent); font-weight: 400; text-align: left; text-decoration: underline; text-decoration-color: transparent; }
+  button.titel:hover { text-decoration-color: currentColor; }
+  .marke { flex: none; font-size: .68rem; padding: 0 3px; border: 1px solid var(--border); color: var(--muted); }
+  li .meta { flex: none; font-size: .78rem; }
+  .klein { flex: none; min-height: 24px; padding: 1px 8px; font-size: .8rem; }
+  .pruefen { margin-top: .6rem; }
 </style>
