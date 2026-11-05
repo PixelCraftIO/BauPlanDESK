@@ -11,6 +11,8 @@
     registerVon,
   } from "./navigation";
   import Sidebar from "./Sidebar.svelte";
+  import Navgriff from "./Navgriff.svelte";
+  import { navbreite } from "./navbreite.svelte";
   import Symbolknopf from "./Symbolknopf.svelte";
   import NavIcon from "./NavIcon.svelte";
   import type { UebersichtsZiel } from "./generated/plattform";
@@ -402,7 +404,7 @@
     </div>
   </dl>
 </header>
-<div class="aktenrumpf" class:arbeitsansicht>
+<div class="aktenrumpf" class:arbeitsansicht style:--navbreite={`${navbreite.px}px`}>
   {#if !arbeitsansicht}<Sidebar
       {projekt}
       {aktiv}
@@ -410,7 +412,7 @@
       onbereich={bereich}
       {staende}
       onbenoetigt={darf("bearbeitung") ? benoetigtSetzen : undefined}
-    />{/if}
+    /><Navgriff />{/if}
   <main>
     {#if statusArt && statusArt !== "gruen" && statusBereich?.gruende.length}<details
         class="bereichsstatus"

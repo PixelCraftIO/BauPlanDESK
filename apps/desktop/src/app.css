@@ -1054,7 +1054,11 @@ tbody tr:nth-child(even) {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  /* Breite der Projektnavigation: per Griff verstellbar (--navbreite),
+     in schmalen Fenstern begrenzt (--navspalte). */
+  --navspalte: var(--navbreite, 300px);
+  grid-template-columns: var(--navspalte) minmax(0, 1fr);
+  position: relative;
 }
 .aktenrumpf > main {
   overflow: auto;
@@ -1445,7 +1449,7 @@ dialog h2 {
 
 @media (max-width: 1120px) {
   .aktenrumpf {
-    grid-template-columns: 190px minmax(0, 1fr);
+    --navspalte: min(var(--navbreite, 300px), 260px);
   }
   .planbereich {
     grid-template-columns: minmax(0, 1fr);
@@ -1459,7 +1463,7 @@ dialog h2 {
 }
 @media (max-width: 800px) {
   .aktenrumpf {
-    grid-template-columns: 158px minmax(0, 1fr);
+    --navspalte: min(var(--navbreite, 300px), 200px);
   }
   .aktennavigation button {
     padding: 3px 6px;
