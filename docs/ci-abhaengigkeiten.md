@@ -35,3 +35,15 @@ Lokal unter Windows am 15.10.2026 geprüft: 124 Core-Modultests und vier
 Formular-/DMS-Integrationstests erfolgreich; Formatprüfung und Clippy ohne Fehler.
 `cargo-deny 0.20.2` meldet mit allen Features:
 `advisories ok, bans ok, licenses ok, sources ok`.
+
+## npm-Hinweise der Desktop-Oberfläche (05.11.2026)
+
+`npm audit` in `apps/desktop` meldet drei Hinweise niedriger Stufe, alle aus
+derselben Quelle: `deepmerge` (GHSA-gcqx-w48m-w2h4, Prototype Poisoning in
+`mergeObject()`), eingezogen über `@sveltejs/vite-plugin-svelte` und dessen
+Inspector. Beide sind reine Entwicklungswerkzeuge (Vite-Plugin beim Bauen bzw.
+im Dev-Server); sie gelangen nicht in das ausgelieferte Programm und verarbeiten
+keine Projektdaten. Eine korrigierte Version gibt es noch nicht („No fix
+available“). Bewertung: kein Handlungsbedarf, bei der nächsten
+Svelte-/Vite-Aktualisierung erneut prüfen. `npm audit fix --force` nicht
+verwenden, es würde das Svelte-Plugin auf eine inkompatible Version setzen.

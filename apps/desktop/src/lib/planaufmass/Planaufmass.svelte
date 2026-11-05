@@ -255,6 +255,13 @@
   const vorlagenGruppen=$derived([...new Map(vorlagen.map(v=>[v.gruppe,vorlagen.filter(x=>x.gruppe===v.gruppe)])).entries()]);
   const werkzeugFuer=(g:Werkzeugvorlage["geometrie"])=>g==="flaeche"?"polygon":g==="hoehenpunkt"?"hoehenpunkt":"strecke";
   onMount(()=>{planApi.werkzeugkiste().then(v=>vorlagen=v).catch(e=>{listenFehler=fehlertext(e)})});
+  // Menüs „Prüfen“, „Ausgabe“ und „Ebenen“ schließen bei Klick daneben.
+  $effect(()=>{
+    if(!menue)return;
+    const zu=(e:PointerEvent)=>{if(!(e.target as Element|null)?.closest?.(".menue"))menue=""};
+    window.addEventListener("pointerdown",zu,true);
+    return()=>window.removeEventListener("pointerdown",zu,true);
+  });
   $effect(()=>{
     if(!vorlagenmenue)return;
     const zu=(e:PointerEvent)=>{if(!(e.target as Element|null)?.closest?.(".vorlagenmenue,.vorlagenpfeil"))vorlagenmenue=""};

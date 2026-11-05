@@ -45,12 +45,29 @@
   $effect(() => s.entwurfSichern());
   // „Nicht benötigt“ im Projektbaum speichert ebenfalls hier: ohne eigene
   // Änderungen den neuen Stand übernehmen, damit kein Versionskonflikt entsteht.
+  // Hat das Formular eigene Änderungen und hat sich am Server nur diese
+  // Kennzeichnung geändert, wird sie samt Revision übernommen; die eigenen
+  // Eingaben bleiben stehen und lassen sich ohne Konflikt speichern.
+  const ohneKennzeichen = (o: Projektorganisation | null) =>
+    o && JSON.stringify({ ...o, nicht_benoetigt: undefined });
   $effect(() =>
     abonnieren(projektId, ["fachobjekte"], async () => {
-      if (!s.bereit || s.laeuft || s.hatAenderungen()) return;
-      await s.laden();
+      if (!s.bereit || s.laeuft) return;
+      if (!s.hatAenderungen()) {
+        await s.laden();
+        const f = s.liste.find((f) => f.objekt === projektId);
+        if (f && f.revision !== s.revision) s.bearbeiten(f);
+        return;
+      }
+      const vorher = ohneKennzeichen(s.original);
+      await s.laden(); // lässt Eingabe und Original bei offenen Änderungen stehen
       const f = s.liste.find((f) => f.objekt === projektId);
-      if (f && f.revision !== s.revision) s.bearbeiten(f);
+      if (!f || f.revision === s.revision || !s.eingabe || !s.original) return;
+      if (ohneKennzeichen(f.daten) !== vorher) return;
+      const kennzeichen = f.daten.nicht_benoetigt;
+      s.revision = f.revision;
+      s.original = { ...s.original, nicht_benoetigt: kennzeichen };
+      s.eingabe = { ...s.eingabe, nicht_benoetigt: kennzeichen };
     }),
   );
   editorAnmelden("uebersicht", {

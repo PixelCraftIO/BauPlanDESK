@@ -268,7 +268,9 @@ fn berechnungsfeld(
         (Wohnflaechen, "abzuege", _) => einfach(
             Kgf,
             Flaeche,
-            Some("Grundfläche von Pfeiler, Schornstein, Vormauerung oder Treppe als Konstruktionsfläche"),
+            Some(
+                "Grundfläche von Pfeiler, Schornstein, Vormauerung oder Treppe als Konstruktionsfläche",
+            ),
         ),
         (Freiflaechen | Entwaesserung, _, _) => {
             let typ = text("typ");
@@ -308,7 +310,9 @@ fn berechnungsfeld(
         (Hoehen, "daecher", _) => einfach(
             Dach,
             Strecke,
-            Some("Strecke entlang der Dachhaut von Traufe bis First; die Horizontale wird gemessen"),
+            Some(
+                "Strecke entlang der Dachhaut von Traufe bis First; die Horizontale wird gemessen",
+            ),
         ),
         (Hoehen, "punkte", "bezug_m") => einfach(
             Gelaende,
@@ -393,47 +397,280 @@ pub struct Werkzeugvorlage {
 pub fn werkzeugkiste() -> Vec<Werkzeugvorlage> {
     use Aufgabengeometrie::*;
     use Planbedeutung::*;
-    let v = |id: &str, gruppe: &str, titel: &str, bedeutung, geometrie, ebene: &str, hinweis: &str| {
-        Werkzeugvorlage {
-            id: id.into(),
-            gruppe: gruppe.into(),
-            titel: titel.into(),
-            bedeutung,
-            geometrie,
-            ebene: ebene.into(),
-            hinweis: hinweis.into(),
-        }
-    };
+    let v =
+        |id: &str, gruppe: &str, titel: &str, bedeutung, geometrie, ebene: &str, hinweis: &str| {
+            Werkzeugvorlage {
+                id: id.into(),
+                gruppe: gruppe.into(),
+                titel: titel.into(),
+                bedeutung,
+                geometrie,
+                ebene: ebene.into(),
+                hinweis: hinweis.into(),
+            }
+        };
     vec![
-        v("flurstueck", "Grundstück", "Flurstück", Flurstueck, Flaeche, "Grundstück", "Flurstücksgrenze aus Flurkarte oder Lageplan; Flurstück in den Eigenschaften zuordnen"),
-        v("baufenster", "Grundstück", "Baufenster", Baufenster, Flaeche, "Grundstück", "Baugrenzen oder Baulinien im Lageplan"),
-        v("vorhabenumriss", "Grundstück", "Vorhabenumriss", Vorhabenumriss, Flaeche, "Grundstück", "Umriss des Vorhabens im Lageplan"),
-        v("gruenflaeche", "Grundstück", "Private Grünfläche", PrivateGruenflaeche, Flaeche, "Grundstück", "Grünfläche für Abzug oder Freiflächenbilanz"),
-        v("verkehrsflaeche", "Grundstück", "Verkehrsfläche", Verkehrsflaeche, Flaeche, "Grundstück", "Öffentliche Verkehrsfläche als Abzugsfläche"),
-        v("versiegelt", "Grundstück", "Versiegelte Fläche", Versiegelung, Flaeche, "Grundstück", "Befestigte Fläche für Freiflächen- und Entwässerungsbilanz"),
-        v("zufahrt", "GRZ-Bauteile", "Zufahrt", Zufahrt, Flaeche, "Bauteile", "Bauteil nach § 19 Abs. 4 BauNVO; Baugrundstück zuordnen"),
-        v("stellplatz", "GRZ-Bauteile", "Stellplatz", Stellplatz, Flaeche, "Bauteile", "Bauteil nach § 19 Abs. 4 BauNVO; Baugrundstück zuordnen"),
-        v("garage", "GRZ-Bauteile", "Garage / Carport", Garage, Flaeche, "Bauteile", "Bauteil nach § 19 Abs. 4 BauNVO; Baugrundstück zuordnen"),
-        v("nebenanlage", "GRZ-Bauteile", "Nebenanlage", Nebenanlage, Flaeche, "Bauteile", "Nebenanlage nach § 14 BauNVO; Baugrundstück zuordnen"),
-        v("terrasse", "GRZ-Bauteile", "Terrasse", Terrasse, Flaeche, "Bauteile", "Terrasse; Baugrundstück zuordnen"),
-        v("unterirdisch", "GRZ-Bauteile", "Unterirdische Anlage", Unterirdisch, Flaeche, "Bauteile", "Unterirdische bauliche Anlage; Baugrundstück zuordnen"),
-        v("gebaeudegrundflaeche", "Gebäude", "Gebäudegrundfläche", Gebaeudegrundflaeche, Flaeche, "Gebäude", "Horizontale Projektion des Gebäudes; Gebäude zuordnen"),
-        v("geschossflaeche", "Gebäude", "Geschossfläche", GeschossAussenkante, Flaeche, "Gebäude", "Außenkante eines Geschosses; Gebäude und Geschoss zuordnen"),
-        v("raum", "Räume", "Raum", Raum, Flaeche, "Räume", "Raumkontur für Raumbuch und Wohnfläche; Gebäude und Geschoss zuordnen"),
-        v("aufenthaltsraum", "Räume", "Aufenthaltsraum", Aufenthaltsraum, Flaeche, "Räume", "Aufenthaltsraum für Raumbuch und Wohnfläche; Gebäude und Geschoss zuordnen"),
-        v("nuf", "DIN 277", "DIN 277 NUF", Nuf, Flaeche, "DIN 277", "Nutzungsfläche; Gebäude und Geschoss zuordnen"),
-        v("tf", "DIN 277", "DIN 277 TF", Tf, Flaeche, "DIN 277", "Technikfläche; Gebäude und Geschoss zuordnen"),
-        v("vf", "DIN 277", "DIN 277 VF", Vf, Flaeche, "DIN 277", "Verkehrsfläche; Gebäude und Geschoss zuordnen"),
-        v("kgf", "DIN 277", "DIN 277 KGF", Kgf, Flaeche, "DIN 277", "Konstruktions-Grundfläche; Gebäude und Geschoss zuordnen"),
-        v("nullpunkt", "Höhen", "Nullpunkt ±0,00", Nullpunkt, Hoehenpunkt, "Höhen", "Höhenpunkt im Schnitt oder in der Ansicht mit Bezugslinie"),
-        v("gelaende", "Höhen", "Gelände", Gelaende, Hoehenpunkt, "Höhen", "Maßgebendes Gelände; Höhenpunkt mit Bezugslinie"),
-        v("traufe", "Höhen", "Traufe", Traufe, Hoehenpunkt, "Höhen", "Traufhöhe; Höhenpunkt mit Bezugslinie"),
-        v("first", "Höhen", "First", First, Hoehenpunkt, "Höhen", "Firsthöhe; Höhenpunkt mit Bezugslinie"),
-        v("fussboden", "Höhen", "OK Fußboden", Fussboden, Hoehenpunkt, "Höhen", "Oberkante Fertigfußboden eines Geschosses; Geschoss zuordnen"),
-        v("decke", "Höhen", "OK Decke", Decke, Hoehenpunkt, "Höhen", "Oberkante Decke eines Geschosses; Geschoss zuordnen"),
-        v("fundamentsohle", "Höhen", "Fundamentsohle", Fundamentsohle, Hoehenpunkt, "Höhen", "Unterkante Fundament; Höhenpunkt mit Bezugslinie"),
-        v("hoehenmass", "Höhen", "Höhenmaß", Hoehenmass, Strecke, "Höhen", "Senkrechte Strecke im Schnitt: lichte Höhe, Geschosshöhe oder Deckendicke"),
-        v("dach", "Höhen", "Dachneigung", Dach, Strecke, "Höhen", "Strecke entlang der Dachhaut von Traufe bis First"),
+        v(
+            "flurstueck",
+            "Grundstück",
+            "Flurstück",
+            Flurstueck,
+            Flaeche,
+            "Grundstück",
+            "Flurstücksgrenze aus Flurkarte oder Lageplan; Flurstück in den Eigenschaften zuordnen",
+        ),
+        v(
+            "baufenster",
+            "Grundstück",
+            "Baufenster",
+            Baufenster,
+            Flaeche,
+            "Grundstück",
+            "Baugrenzen oder Baulinien im Lageplan",
+        ),
+        v(
+            "vorhabenumriss",
+            "Grundstück",
+            "Vorhabenumriss",
+            Vorhabenumriss,
+            Flaeche,
+            "Grundstück",
+            "Umriss des Vorhabens im Lageplan",
+        ),
+        v(
+            "gruenflaeche",
+            "Grundstück",
+            "Private Grünfläche",
+            PrivateGruenflaeche,
+            Flaeche,
+            "Grundstück",
+            "Grünfläche für Abzug oder Freiflächenbilanz",
+        ),
+        v(
+            "verkehrsflaeche",
+            "Grundstück",
+            "Verkehrsfläche",
+            Verkehrsflaeche,
+            Flaeche,
+            "Grundstück",
+            "Öffentliche Verkehrsfläche als Abzugsfläche",
+        ),
+        v(
+            "versiegelt",
+            "Grundstück",
+            "Versiegelte Fläche",
+            Versiegelung,
+            Flaeche,
+            "Grundstück",
+            "Befestigte Fläche für Freiflächen- und Entwässerungsbilanz",
+        ),
+        v(
+            "zufahrt",
+            "GRZ-Bauteile",
+            "Zufahrt",
+            Zufahrt,
+            Flaeche,
+            "Bauteile",
+            "Bauteil nach § 19 Abs. 4 BauNVO; Baugrundstück zuordnen",
+        ),
+        v(
+            "stellplatz",
+            "GRZ-Bauteile",
+            "Stellplatz",
+            Stellplatz,
+            Flaeche,
+            "Bauteile",
+            "Bauteil nach § 19 Abs. 4 BauNVO; Baugrundstück zuordnen",
+        ),
+        v(
+            "garage",
+            "GRZ-Bauteile",
+            "Garage / Carport",
+            Garage,
+            Flaeche,
+            "Bauteile",
+            "Bauteil nach § 19 Abs. 4 BauNVO; Baugrundstück zuordnen",
+        ),
+        v(
+            "nebenanlage",
+            "GRZ-Bauteile",
+            "Nebenanlage",
+            Nebenanlage,
+            Flaeche,
+            "Bauteile",
+            "Nebenanlage nach § 14 BauNVO; Baugrundstück zuordnen",
+        ),
+        v(
+            "terrasse",
+            "GRZ-Bauteile",
+            "Terrasse",
+            Terrasse,
+            Flaeche,
+            "Bauteile",
+            "Terrasse; Baugrundstück zuordnen",
+        ),
+        v(
+            "unterirdisch",
+            "GRZ-Bauteile",
+            "Unterirdische Anlage",
+            Unterirdisch,
+            Flaeche,
+            "Bauteile",
+            "Unterirdische bauliche Anlage; Baugrundstück zuordnen",
+        ),
+        v(
+            "gebaeudegrundflaeche",
+            "Gebäude",
+            "Gebäudegrundfläche",
+            Gebaeudegrundflaeche,
+            Flaeche,
+            "Gebäude",
+            "Horizontale Projektion des Gebäudes; Gebäude zuordnen",
+        ),
+        v(
+            "geschossflaeche",
+            "Gebäude",
+            "Geschossfläche",
+            GeschossAussenkante,
+            Flaeche,
+            "Gebäude",
+            "Außenkante eines Geschosses; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "raum",
+            "Räume",
+            "Raum",
+            Raum,
+            Flaeche,
+            "Räume",
+            "Raumkontur für Raumbuch und Wohnfläche; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "aufenthaltsraum",
+            "Räume",
+            "Aufenthaltsraum",
+            Aufenthaltsraum,
+            Flaeche,
+            "Räume",
+            "Aufenthaltsraum für Raumbuch und Wohnfläche; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "nuf",
+            "DIN 277",
+            "DIN 277 NUF",
+            Nuf,
+            Flaeche,
+            "DIN 277",
+            "Nutzungsfläche; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "tf",
+            "DIN 277",
+            "DIN 277 TF",
+            Tf,
+            Flaeche,
+            "DIN 277",
+            "Technikfläche; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "vf",
+            "DIN 277",
+            "DIN 277 VF",
+            Vf,
+            Flaeche,
+            "DIN 277",
+            "Verkehrsfläche; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "kgf",
+            "DIN 277",
+            "DIN 277 KGF",
+            Kgf,
+            Flaeche,
+            "DIN 277",
+            "Konstruktions-Grundfläche; Gebäude und Geschoss zuordnen",
+        ),
+        v(
+            "nullpunkt",
+            "Höhen",
+            "Nullpunkt ±0,00",
+            Nullpunkt,
+            Hoehenpunkt,
+            "Höhen",
+            "Höhenpunkt im Schnitt oder in der Ansicht mit Bezugslinie",
+        ),
+        v(
+            "gelaende",
+            "Höhen",
+            "Gelände",
+            Gelaende,
+            Hoehenpunkt,
+            "Höhen",
+            "Maßgebendes Gelände; Höhenpunkt mit Bezugslinie",
+        ),
+        v(
+            "traufe",
+            "Höhen",
+            "Traufe",
+            Traufe,
+            Hoehenpunkt,
+            "Höhen",
+            "Traufhöhe; Höhenpunkt mit Bezugslinie",
+        ),
+        v(
+            "first",
+            "Höhen",
+            "First",
+            First,
+            Hoehenpunkt,
+            "Höhen",
+            "Firsthöhe; Höhenpunkt mit Bezugslinie",
+        ),
+        v(
+            "fussboden",
+            "Höhen",
+            "OK Fußboden",
+            Fussboden,
+            Hoehenpunkt,
+            "Höhen",
+            "Oberkante Fertigfußboden eines Geschosses; Geschoss zuordnen",
+        ),
+        v(
+            "decke",
+            "Höhen",
+            "OK Decke",
+            Decke,
+            Hoehenpunkt,
+            "Höhen",
+            "Oberkante Decke eines Geschosses; Geschoss zuordnen",
+        ),
+        v(
+            "fundamentsohle",
+            "Höhen",
+            "Fundamentsohle",
+            Fundamentsohle,
+            Hoehenpunkt,
+            "Höhen",
+            "Unterkante Fundament; Höhenpunkt mit Bezugslinie",
+        ),
+        v(
+            "hoehenmass",
+            "Höhen",
+            "Höhenmaß",
+            Hoehenmass,
+            Strecke,
+            "Höhen",
+            "Senkrechte Strecke im Schnitt: lichte Höhe, Geschosshöhe oder Deckendicke",
+        ),
+        v(
+            "dach",
+            "Höhen",
+            "Dachneigung",
+            Dach,
+            Strecke,
+            "Höhen",
+            "Strecke entlang der Dachhaut von Traufe bis First",
+        ),
     ]
 }
 
@@ -759,8 +996,8 @@ impl CoreServices {
             ObjektArt::Hoehen,
         ] {
             for f in self.fachobjekte(pid, art).await? {
-                let plan: FachPlan = serde_json::from_value(f.daten.clone())
-                    .map_err(|e| fehler(e.to_string()))?;
+                let plan: FachPlan =
+                    serde_json::from_value(f.daten.clone()).map_err(|e| fehler(e.to_string()))?;
                 let modultitel = vorlagen
                     .iter()
                     .find(|v| v.plan.modul == plan.modul)
@@ -812,7 +1049,8 @@ impl CoreServices {
                             && plan.gebaeude_id.is_none()
                             && feld.passend.contains(&m.bedeutung)
                             && m.gebaeude_id.is_some()
-                            && m.grundstueck_id.is_none_or(|g| Some(g) == plan.grundstueck_id)
+                            && m.grundstueck_id
+                                .is_none_or(|g| Some(g) == plan.grundstueck_id)
                             && !vergeben.contains(&m.id)
                     };
                     let markierung = if gesperrt || uebernommen {
@@ -923,7 +1161,9 @@ impl CoreServices {
                 .markierungen
                 .iter()
                 .find(|m| {
-                    passt(m, Aufgabengeometrie::Flaeche) && raumfilter(m) && !vergeben.contains(&m.id)
+                    passt(m, Aufgabengeometrie::Flaeche)
+                        && raumfilter(m)
+                        && !vergeben.contains(&m.id)
                 })
                 .map(|m| m.id);
             if r.raeume.is_empty() || frei_raum.is_some() {

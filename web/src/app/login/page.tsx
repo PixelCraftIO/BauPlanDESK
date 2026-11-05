@@ -3,13 +3,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { aktuelleSitzung } from "@/lib/auth";
 import { LoginFormular } from "./login-formular";
+import { sicheresZiel } from "@/lib/weiterleitung";
 
 export const metadata: Metadata = { title: "Anmelden" };
 
-// Nur relative Ziele innerhalb der Seite zulassen (kein offener Redirect).
-function sicheresZiel(weiter: string | string[] | undefined) {
-  return typeof weiter === "string" && weiter.startsWith("/") && !weiter.startsWith("//") ? weiter : "/";
-}
 
 export default async function LoginSeite({ searchParams }: { searchParams: Promise<{ weiter?: string | string[] }> }) {
   const ziel = sicheresZiel((await searchParams).weiter);

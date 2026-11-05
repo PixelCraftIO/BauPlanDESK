@@ -654,9 +654,17 @@
   });
   const cursorKlasse=$derived(leertaste||pan||werkzeug==="verschieben"?"greifen":zoomfenster?"zoomen":werkzeug==="auswahl"?"":"zeichnen");
   const eingabePos=$derived(cursor?boxPunkt(cursor):null);
+  // Escape schließt zuerst die Fangoptionen und sonst nichts: In der Capture-Phase
+  // am Fenster läuft der Handler vor den Tastenbefehlen von Plan und Editor.
+  $effect(()=>{
+    if(!fangOffen)return;
+    const taste=(e:KeyboardEvent)=>{if(e.key==="Escape"){fangOffen=false;e.stopPropagation();e.preventDefault()}};
+    window.addEventListener("keydown",taste,true);
+    return()=>window.removeEventListener("keydown",taste,true);
+  });
 </script>
 
-<svelte:window onkeydown={e=>{if(e.key==="Escape"&&fangOffen){fangOffen=false;e.stopPropagation()}}} onpointerdown={e=>{if(fangOffen&&!(e.target as Element).closest?.(".fangwahl"))fangOffen=false}}/>
+<svelte:window onpointerdown={e=>{if(fangOffen&&!(e.target as Element).closest?.(".fangwahl"))fangOffen=false}}/>
 <div class="pdf-plan">
   <div class="plan-kopf" role="toolbar" aria-label="Ansicht">
     <Symbolknopf titel="Verkleinern" disabled={!bereit} onclick={()=>zoomMitte(1/1.25)}><WerkzeugIcon art="minus"/></Symbolknopf>
