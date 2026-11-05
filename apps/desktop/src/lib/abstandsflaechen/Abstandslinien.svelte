@@ -29,6 +29,22 @@
     busy = $state(false);
   const linien = (a: Planaufmass) =>
     a.markierungen.filter((m) => m.bedeutung === "abstandsflaeche");
+  /** Linien in Ansicht, Schnitt oder Detail sind Wandbezüge, keine Lage. */
+  const inAnsicht = (a: Planaufmass, id?: string | null) =>
+    ["ansicht", "schnitt", "detail"].includes(
+      a.ausschnitte?.find((x) => x.id === id)?.art ?? "",
+    );
+  const imLageplan = (a: Planaufmass) =>
+    linien(a).filter((m) => !inAnsicht(a, m.ausschnitt_id));
+  const inAnsichten = (a: Planaufmass) =>
+    linien(a).filter((m) => inAnsicht(a, m.ausschnitt_id));
+  const anzahl = (a: Planaufmass) =>
+    [
+      imLageplan(a).length ? `${imLageplan(a).length} im Lageplan` : "",
+      inAnsichten(a).length ? `${inAnsichten(a).length} in Ansichten` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
   // Ein Plan nutzt genau einen Lageplan; mit Bindungen ist er gesetzt.
   const gebunden = $derived(
     plan.planbindungen?.find((b) => /\.(lage|grenze)$/.test(b.ziel))
@@ -59,7 +75,9 @@
   });
   const gewaehlt = $derived(aufmasse.find((a) => a.objekt === wahl));
   const bindungen = $derived(
-    (plan.planbindungen ?? []).filter((b) => b.ziel.endsWith(".lage")),
+    (plan.planbindungen ?? []).filter(
+      (b) => b.aufmass_id === wahl && /\.(lage|ansicht)$/.test(b.ziel),
+    ),
   );
   async function uebernehmen() {
     if (!gewaehlt) return;
@@ -82,7 +100,7 @@
       const neu = r.plan.waende.length - plan.waende.length;
       onplan(r.plan);
       hinweise = r.hinweise;
-      meldung = `${linien(gewaehlt.daten).length} Linien übernommen${neu > 0 ? `, ${neu} neue Wände` : ""}. Angaben prüfen und speichern.`;
+      meldung = `Linien übernommen (${anzahl(gewaehlt.daten)})${neu > 0 ? `, ${neu} neue Wände` : ""}. Angaben prüfen und speichern.`;
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -93,13 +111,17 @@
 </script>
 
 <section class="linien" aria-labelledby="linien-titel">
-  <h4 id="linien-titel">Abstandsflächen aus dem Lageplan</h4>
+  <h4 id="linien-titel">Abstandsflächen aus Lageplan und Ansichten</h4>
   <p class="meta">
     Im Aufmaß des Lageplans je Außenwand eine Linie mit dem Werkzeug
     „Abstandsfläche“ ziehen (Vorlage am Werkzeug „Strecke / Dach“). Jede Linie wird hier
     eine Wand mit ihrem Namen (A1, A2 …). Lage und Länge bleiben an die Linie
     gebunden; zugeordnete Flurstücke im selben Plan liefern die
-    Grundstücksgrenzen, ein Vorhabenumriss die Außenseite.
+    Grundstücksgrenzen, ein Vorhabenumriss die Außenseite. In einer Ansicht
+    oder einem Schnitt die Linie zwischen den Gebäudekanten ziehen, vom
+    Wandanfang zum Wandende: Sie wird mit der gleichnamigen Wand verknüpft
+    (Wandbezug für die Höhen). Gibt es die Wand im Lageplan nicht, entsteht sie
+    mit der Breite aus der Ansicht; dann den Abstand zur Grenze angeben.
   </p>
   {#if !aufmasse.length}
     <p class="hinweisbox">
@@ -108,27 +130,37 @@
   {:else}
     <div class="raster">
       <label
-        >Lageplan<select bind:value={wahl} disabled={!darf || busy}
+        >Aufmaß<select bind:value={wahl} disabled={!darf || busy}
           >{#each aufmasse as a (a.objekt)}<option
               value={a.objekt}
-              disabled={!!gebunden && gebunden !== a.objekt}
-              >{a.daten.bezeichnung} · {linien(a.daten).length} Linien · R{a.revision}</option
+              disabled={!!gebunden &&
+                gebunden !== a.objekt &&
+                imLageplan(a.daten).length > 0}
+              >{a.daten.bezeichnung} · {anzahl(a.daten)} · R{a.revision}</option
             >{/each}</select
         ></label
       >
     </div>
     {#if gewaehlt}<p class="meta">
-        Linien: {linien(gewaehlt.daten)
-          .map((m) => m.bezeichnung)
-          .join(", ")}
+        {#if imLageplan(gewaehlt.daten).length}Lageplan: {imLageplan(
+            gewaehlt.daten,
+          )
+            .map((m) => m.bezeichnung)
+            .join(", ")}{/if}{#if imLageplan(gewaehlt.daten).length && inAnsichten(gewaehlt.daten).length}
+          ·
+        {/if}{#if inAnsichten(gewaehlt.daten).length}Ansichten: {inAnsichten(
+            gewaehlt.daten,
+          )
+            .map((m) => m.bezeichnung)
+            .join(", ")}{/if}
       </p>{/if}
     <button
       type="button"
       disabled={!darf || busy || !gewaehlt}
       onclick={uebernehmen}
       >{bindungen.length
-        ? "Linien aus dem Lageplan aktualisieren"
-        : "Linien aus dem Lageplan übernehmen"}</button
+        ? "Linien aktualisieren"
+        : "Linien übernehmen"}</button
     >
   {/if}
   {#if fehler}<p role="alert">{fehler}</p>{/if}

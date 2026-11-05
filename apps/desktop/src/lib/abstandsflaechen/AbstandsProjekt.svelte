@@ -34,6 +34,8 @@
     STICHTAGARTEN,
   } from "./Fassungswahl.svelte";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
+  import { projektNavigation } from "../projektNavigation.svelte";
+  import { editorZiel } from "../planaufmass/verwendung";
   let {
     projekt,
     benutzerId,
@@ -65,6 +67,16 @@
   /** Ist das Feld an eine Markierung im Aufmaß gebunden? */
   const gebunden = (p: AbstandsPlan, ziel: string) =>
     !!p.planbindungen?.some((b) => b.ziel === ziel);
+  const bindung = (p: AbstandsPlan, ziel: string) =>
+    p.planbindungen?.find((b) => b.ziel === ziel);
+  const navigation = projektNavigation();
+  /** Zur verknüpften Linie im Zeicheneditor springen. */
+  function zeigen(p: AbstandsPlan, ziel: string) {
+    const b = bindung(p, ziel);
+    if (b) navigation?.springen(editorZiel(b.aufmass_id, b.markierung_id));
+  }
+  const zahl = (v: number) =>
+    v.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   function grundplan(): AbstandsPlan {
     return {
       bezeichnung: "Abstandsflächennachweis",
@@ -768,10 +780,14 @@
               ><tbody
                 >{#each p.waende as w, i}<tr
                     ><td>W{i + 1}</td><td>{w.gebaeude}</td><td
-                      >{w.bezeichnung}{#if w.umriss}<span class="meta">
-                          · aus Umriss</span
+                      >{w.bezeichnung}{#if w.umriss}<span class="meta"
+                          >{" "}· aus Umriss</span
                         >{:else if gebunden(p, `waende.${w.id}.lage`)}<span
-                          class="meta"> · aus Lageplan</span
+                          class="meta">{" "}· aus Lageplan</span
+                        >{:else if w.breite_aus_ansicht}<span class="meta"
+                          >{" "}· Breite aus Ansicht</span
+                        >{/if}{#if gebunden(p, `waende.${w.id}.ansicht`)}<span
+                          class="meta">{" "}· mit Ansicht</span
                         >{/if}</td
                     ><td>{w.fall}</td><td
                       ><button
@@ -819,7 +835,46 @@
               {#if gebunden(p, `waende.${w.id}.lage`)}<p class="meta">
                   Lage und Länge aus der Linie „{w.bezeichnung}“ im Lageplan;
                   Gebäude folgt der Linie. Außenseite und Grundstück hier prüfen.
+                  <button
+                    type="button"
+                    class="link"
+                    onclick={() => zeigen(p, `waende.${w.id}.lage`)}
+                    >Im Lageplan zeigen</button
+                  >
                 </p>{/if}
+              {#if gebunden(p, `waende.${w.id}.ansicht`)}<p class="meta">
+                  Wandbezug in der Ansicht: Breite {zahl(
+                    w.ansicht_laenge_m ?? 0,
+                  )} m{#if !w.breite_aus_ansicht}, im Lageplan {zahl(
+                      Math.hypot(w.bis.x - w.von.x, w.bis.y - w.von.y),
+                    )} m{/if}.
+                  <button
+                    type="button"
+                    class="link"
+                    onclick={() => zeigen(p, `waende.${w.id}.ansicht`)}
+                    >In der Ansicht zeigen</button
+                  >
+                </p>{/if}
+              {#if w.breite_aus_ansicht}<p class="meta">
+                  Breite aus der Ansicht, keine Linie im Lageplan: Die Lage zur
+                  Grundstücksgrenze prüft die Software nicht. Den Abstand zur
+                  Grenze angeben; die Abstandsfläche wird als Breite × Tiefe
+                  ausgewiesen.
+                </p>
+                <div class="raster">
+                  <label
+                    >Abstand zur Grundstücksgrenze (m, Angabe des Planers)<input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={w.grenzabstand_m ?? ""}
+                      oninput={(e) => {
+                        const v = e.currentTarget.valueAsNumber;
+                        w.grenzabstand_m = Number.isFinite(v) ? v : undefined;
+                      }}
+                    /></label
+                  >
+                </div>{/if}
               {#if w.umriss}<p class="meta">
                   Seite {w.umriss.seite + 1} des Umrisses „{(
                     p.umrisse ?? []
@@ -864,7 +919,7 @@
                   >Wandbezeichnung<input bind:value={w.bezeichnung} /></label
                 ><label
                   >Grundstückseinheit<select
-                    disabled={!!w.umriss}
+                    disabled={!!w.umriss || !!w.breite_aus_ansicht}
                     bind:value={w.grundstueck_id}
                     ><option value={null}
                       >Nur Tiefenvorprüfung / noch ungeklärt</option
@@ -887,28 +942,36 @@
                   >Anfang X (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
+                    readonly={!!w.umriss ||
+                      !!w.breite_aus_ansicht ||
+                      gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.von.x}
                   /></label
                 ><label
                   >Anfang Y (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
+                    readonly={!!w.umriss ||
+                      !!w.breite_aus_ansicht ||
+                      gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.von.y}
                   /></label
                 ><label
                   >Ende X (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
+                    readonly={!!w.umriss ||
+                      !!w.breite_aus_ansicht ||
+                      gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.bis.x}
                   /></label
                 ><label
                   >Ende Y (m)<input
                     type="number"
                     step="any"
-                    readonly={!!w.umriss || gebunden(p, `waende.${w.id}.lage`)}
+                    readonly={!!w.umriss ||
+                      !!w.breite_aus_ansicht ||
+                      gebunden(p, `waende.${w.id}.lage`)}
                     bind:value={w.bis.y}
                   /></label
                 >

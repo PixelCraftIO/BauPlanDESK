@@ -3250,41 +3250,312 @@ async fn abstandsflaechen_linien_aus_dem_lageplan() {
             .any(|h| h.starts_with("A2: Markierung im Lageplan gelöscht"))
     );
     assert!(!u.plan.planbindungen.iter().any(|b| b.markierung_id == m_a2));
+}
 
-    // Linie in einer Ansicht wird abgewiesen.
-    let mut ansicht = a.clone();
-    let aid = Uuid::new_v4();
-    ansicht.ausschnitte.push(Planausschnitt {
-        id: aid,
-        bezeichnung: "Ansicht Nord".into(),
-        art: Ausschnittart::Ansicht,
-        von: [0., 0.],
-        bis: [400., 400.],
-        ebene_id: None,
-        kalibrierung: None,
-        bezugslinie: None,
-    });
-    for m in &mut ansicht.markierungen {
-        m.ausschnitt_id = Some(aid);
-    }
-    let f4 = core
+#[tokio::test]
+async fn abstandsflaechen_mit_ansichten_verknuepfen() {
+    use core_lib::abstandsflaechen::{AbstandsStatus, berechnen};
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Ansichten".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Plaene.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let ebene = Uuid::new_v4();
+    let linie = |id, name: &str, von, bis, ausschnitt| Planmarkierung {
+        id,
+        ebene_id: ebene,
+        bezeichnung: name.into(),
+        bedeutung: Planbedeutung::Abstandsflaeche,
+        geometrie: Plangeometrie::Strecke { von, bis },
+        grundstueck_id: None,
+        gebaeude_id: None,
+        geschoss_id: None,
+        ausschnitt_id: ausschnitt,
+        hoehenzone_von: None,
+        flurstueck_id: None,
+    };
+    let aufmass = |name: &str, markierungen, ausschnitte| Planaufmass {
+        bezeichnung: name.into(),
+        dokument: Some(Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        }),
+        seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
+        // 100 pt = 10 m.
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Abstandsflächen".into(),
+            sichtbar: true,
+            gesperrt: false,
+            darstellung: None,
+        }],
+        markierungen,
+        ausschnitte,
+    };
+    let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
+    // Lageplan mit A1 (10 m).
+    let (lid, l_a1) = (Uuid::new_v4(), Uuid::new_v4());
+    let mut lageplan = aufmass(
+        "Lageplan",
+        vec![linie(l_a1, "A1", [100., 100.], [200., 100.], None)],
+        vec![],
+    );
+    let fl = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, lid, 0, save(&lageplan), &user)
+        .await
+        .unwrap();
+    // Ansichten: A1 als Wandbezug (10 m), A3 nur in der Ansicht (8 m).
+    let (vid, nord, v_a1, v_a3) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let mut ansichten = aufmass(
+        "Ansichten",
+        vec![
+            linie(v_a1, "A1", [600., 500.], [500., 500.], Some(nord)),
+            linie(v_a3, "A3", [0., 500.], [80., 500.], Some(nord)),
+        ],
+        vec![Planausschnitt {
+            id: nord,
+            bezeichnung: "Ansicht Nord".into(),
+            art: Ausschnittart::Ansicht,
+            von: [0., 0.],
+            bis: [1000., 1000.],
+            ebene_id: None,
+            kalibrierung: None,
+            bezugslinie: None,
+        }],
+    );
+    let fv = core
         .fachobjekt_speichern(
             p.id,
             ObjektArt::Planaufmass,
-            aufmass,
-            f3.revision,
-            save(&ansicht),
+            vid,
+            0,
+            save(&ansichten),
             &user,
         )
-        .await;
-    if let Ok(f4) = f4 {
-        let mut leer = core_lib::abstandsflaechen::testdaten::plan();
-        leer.waende.clear();
-        leer.grundstuecke.clear();
-        assert!(
-            core.abstandslinien_uebernehmen(p.id, leer, stand(f4.revision))
-                .await
-                .is_err()
-        );
+        .await
+        .unwrap();
+    let mut plan = core_lib::abstandsflaechen::testdaten::plan();
+    plan.waende.clear();
+    plan.grundstuecke.clear();
+    let stand = |aufmass_id, revision| Aufmassstand {
+        aufmass_id,
+        revision,
+    };
+    plan = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(lid, fl.revision))
+        .await
+        .unwrap()
+        .plan;
+    let u = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(vid, fv.revision))
+        .await
+        .unwrap();
+    // Echte Übernahme für den Oberflächentest (apps/desktop/tests/abstandsflaechen.py).
+    if let Ok(out) = std::env::var("BAUPROJEKT_ABSTAND_ARTEFAKTE") {
+        let out = std::path::Path::new(&out);
+        std::fs::create_dir_all(out).unwrap();
+        std::fs::write(
+            out.join("ansichten.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "aufmass": {"objekt": vid, "revision": fv.revision, "daten": ansichten},
+                "uebernahme": u,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
     }
+    let mut plan = u.plan;
+    assert_eq!(
+        plan.waende
+            .iter()
+            .map(|w| w.bezeichnung.as_str())
+            .collect::<Vec<_>>(),
+        ["A1", "A3"]
+    );
+    assert!(
+        u.hinweise
+            .iter()
+            .any(|h| h.starts_with("A3: Breite aus „Ansicht Nord“")),
+        "{:?}",
+        u.hinweise
+    );
+    let (a1, a3) = (&plan.waende[0], &plan.waende[1]);
+    assert!(!a1.breite_aus_ansicht && (a1.ansicht_laenge_m.unwrap() - 10.).abs() < 1e-9);
+    assert!(a1.hoehenquelle.contains("Ansicht: Aufmaß „Ansichten“"));
+    assert!(a3.breite_aus_ansicht);
+    assert_eq!((a3.bis.x, a3.bis.y), (8., 0.));
+    assert!(
+        plan.planbindungen
+            .iter()
+            .any(|b| b.ziel == format!("waende.{}.ansicht", a1.id))
+    );
+    // Die Lage von A1 bleibt aus dem Lageplan; die Ansicht ändert sie nicht.
+    assert_eq!((a1.von.x, a1.bis.x), (10., 20.));
+    core.abstands_planquellen_pruefen(p.id, &plan)
+        .await
+        .unwrap();
+    let ziele = abstandsziele(&plan);
+    assert!(
+        ziele
+            .iter()
+            .any(|z| z.ziel == format!("waende.{}.ansicht", a3.id))
+    );
+    // Eine Linie gehört genau einer Wand.
+    let mut doppelt = plan.clone();
+    let a1_ansicht = doppelt
+        .planbindungen
+        .iter()
+        .find(|b| b.markierung_id == v_a1)
+        .unwrap()
+        .clone();
+    doppelt.planbindungen.retain(|b| b.markierung_id != v_a3);
+    doppelt.planbindungen.push(Planbindung {
+        ziel: format!("waende.{}.ansicht", a3.id),
+        ..a1_ansicht
+    });
+    assert!(core.planaufmass_abstand(p.id, doppelt).await.is_err());
+
+    // A3 ohne Lage: Fläche = Breite × Tiefe, Prüfung über den Grenzabstand.
+    let a3 = &mut plan.waende[1];
+    a3.gelaende = vec![];
+    (a3.gelaende_a_m, a3.gelaende_b_m) = (Some(100.), Some(100.));
+    (a3.abschluss_a_m, a3.abschluss_b_m) = (Some(106.), Some(106.));
+    a3.dachart = core_lib::abstandsflaechen::Dachart::Flach;
+    let r = berechnen(&plan).unwrap();
+    let e = r.waende.iter().find(|w| w.bezeichnung == "A3").unwrap();
+    assert_eq!(e.status, AbstandsStatus::Offen, "{e:?}");
+    assert!(e.offen[0].starts_with("Abstand der Wand zur Grundstücksgrenze angeben"));
+    assert!(e.polygon.is_empty());
+    assert!((e.flaeche_m2.unwrap() - 24.).abs() < 1e-9, "{e:?}");
+    plan.waende[1].grenzabstand_m = Some(4.);
+    let e = berechnen(&plan).unwrap().waende.remove(1);
+    assert_eq!(e.status, AbstandsStatus::Eingehalten);
+    assert!(
+        e.herleitung
+            .iter()
+            .any(|h| h.contains("Angabe des Planers"))
+    );
+    plan.waende[1].grenzabstand_m = Some(2.5);
+    assert_eq!(
+        berechnen(&plan).unwrap().waende[1].status,
+        AbstandsStatus::Konflikt
+    );
+
+    // Breite in der Ansicht weicht vom Lageplan ab: Hinweis im Prüfbericht.
+    ansichten.markierungen[0].geometrie = Plangeometrie::Strecke {
+        von: [605., 500.],
+        bis: [500., 500.],
+    };
+    let fv2 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            vid,
+            fv.revision,
+            save(&ansichten),
+            &user,
+        )
+        .await
+        .unwrap();
+    let plan = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(vid, fv2.revision))
+        .await
+        .unwrap()
+        .plan;
+    assert!((plan.waende[0].ansicht_laenge_m.unwrap() - 10.5).abs() < 1e-9);
+    let r = core.abstandsplan_pruefen(p.id, &plan).await.unwrap();
+    assert!(
+        r.offen
+            .iter()
+            .any(|o| o.starts_with("A1: Breite in der Ansicht 10,5 m, im Lageplan 10 m")),
+        "{:?}",
+        r.offen
+    );
+
+    // A3 wird nachträglich im Lageplan gezogen: dieselbe Wand erhält Lage und
+    // Breite aus dem Lageplan, die Ansicht bleibt Wandbezug.
+    let a3_id = plan.waende[1].id;
+    lageplan.markierungen.push(linie(
+        Uuid::new_v4(),
+        "A3",
+        [200., 100.],
+        [200., 180.],
+        None,
+    ));
+    let fl2 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            lid,
+            fl.revision,
+            save(&lageplan),
+            &user,
+        )
+        .await
+        .unwrap();
+    let plan = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(lid, fl2.revision))
+        .await
+        .unwrap()
+        .plan;
+    assert_eq!(plan.waende.len(), 2);
+    let a3 = &plan.waende[1];
+    assert_eq!(a3.id, a3_id);
+    assert!(!a3.breite_aus_ansicht && a3.grenzabstand_m.is_none());
+    assert_eq!(
+        (a3.von.x, a3.von.y, a3.bis.x, a3.bis.y),
+        (20., -10., 20., -18.)
+    );
+    assert!(
+        plan.planbindungen
+            .iter()
+            .any(|b| b.ziel == format!("waende.{a3_id}.ansicht"))
+    );
+    assert!(
+        plan.planbindungen
+            .iter()
+            .any(|b| b.ziel == format!("waende.{a3_id}.lage"))
+    );
 }

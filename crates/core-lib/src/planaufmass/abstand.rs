@@ -19,6 +19,19 @@ pub struct AbstandslinienUebernahme {
 /// (Markierung „Flurstück“) aus dem Lageplan.
 const LAGE: &str = "lage";
 const GRENZE: &str = "grenze";
+/// Wandbezug in Ansicht oder Schnitt: Linie „Abstandsfläche“ zwischen den
+/// Gebäudekanten; liefert die Breite in der Ansicht und später die Stationen
+/// der Höhen.
+const ANSICHT: &str = "ansicht";
+fn ansichtsziel(b: &Planbindung) -> bool {
+    b.ziel.ends_with(&format!(".{ANSICHT}"))
+}
+/// Liegt die Markierung in einer Ansicht, einem Schnitt oder Detail?
+fn in_ansicht(a: &Planaufmass, m: &Planmarkierung) -> bool {
+    m.ausschnitt_id
+        .and_then(|id| a.ausschnitte.iter().find(|x| x.id == id))
+        .is_some_and(|x| x.art.mit_hoehen())
+}
 fn geometrieziel(b: &Planbindung) -> bool {
     b.ziel.ends_with(&format!(".{LAGE}")) || b.ziel.ends_with(&format!(".{GRENZE}"))
 }
@@ -150,12 +163,16 @@ fn linienwand(m: &Planmarkierung) -> AbstandsWand {
         tiefenfall: None,
         tiefenfall_grundlage: String::new(),
         umriss: None,
+        breite_aus_ansicht: false,
+        ansicht_laenge_m: None,
+        grenzabstand_m: None,
     }
 }
 
 fn zielgroesse(feld: &str) -> Option<Planmessgroesse> {
     match feld {
         LAGE => Some(Planmessgroesse::Laenge),
+        ANSICHT => Some(Planmessgroesse::Horizontale),
         GRENZE => Some(Planmessgroesse::Flaeche),
         "gelaende_a_m" | "gelaende_b_m" | "abschluss_a_m" | "abschluss_b_m" | "dachhoehe_m" => {
             Some(Planmessgroesse::Hoehe)
@@ -172,6 +189,15 @@ pub fn abstandsziele(plan: &AbstandsPlan) -> Vec<Planziel> {
             titel: format!("{} · Grenze aus dem Lageplan (Flurstück)", g.bezeichnung),
             groesse: Planmessgroesse::Flaeche,
         })
+        // Auch Umrisswände bekommen ihre Ansicht.
+        .chain(plan.waende.iter().map(|w| Planziel {
+            ziel: format!("waende.{}.{ANSICHT}", w.id),
+            titel: format!(
+                "{} · Wandbezug in Ansicht/Schnitt (Linie Abstandsfläche)",
+                w.bezeichnung
+            ),
+            groesse: Planmessgroesse::Horizontale,
+        }))
         .chain(
             plan.waende
                 .iter()
@@ -234,6 +260,17 @@ impl CoreServices {
         let mut herkunft: std::collections::BTreeMap<Uuid, Vec<String>> = Default::default();
         // Lage und Grenzen teilen einen Koordinatenbezug: ein Aufmaß, ein Ausschnitt.
         let mut rahmen: Option<(Uuid, Option<Uuid>)> = None;
+        let mut ansichtslinien = std::collections::HashSet::new();
+        // Breite aus der Ansicht gilt nur, solange eine Ansicht verknüpft ist.
+        for w in &mut plan.waende {
+            if !plan
+                .planbindungen
+                .iter()
+                .any(|b| b.ziel == format!("waende.{}.{ANSICHT}", w.id))
+            {
+                w.ansicht_laenge_m = None;
+            }
+        }
         for b in plan.planbindungen.clone() {
             if !seen.insert(b.ziel.clone()) {
                 return Err(fehler("Wandfeld mehrfach verknüpft"));
@@ -246,6 +283,48 @@ impl CoreServices {
                 return Err(fehler("Ungültiges Wandfeld / Messgröße"));
             }
             let (a, m, wert) = self.planbindung_aufloesen(pid, &b).await?;
+            if t[2] == ANSICHT {
+                let w = plan
+                    .waende
+                    .iter_mut()
+                    .find(|w| w.id.to_string() == t[1])
+                    .ok_or_else(|| fehler("Zielwand fehlt"))?;
+                if m.bedeutung != Planbedeutung::Abstandsflaeche
+                    || !matches!(m.geometrie, Plangeometrie::Strecke { .. })
+                    || !in_ansicht(&a, &m)
+                {
+                    return Err(fehler(format!(
+                        "{}: Wandbezug ist eine Linie „Abstandsfläche“ in einer Ansicht oder einem Schnitt",
+                        w.bezeichnung
+                    )));
+                }
+                if m.gebaeude_id.is_some() && m.gebaeude_id != w.gebaeude_id {
+                    return Err(fehler(format!(
+                        "{}: Linie in der Ansicht gehört zu einem anderen Gebäude",
+                        w.bezeichnung
+                    )));
+                }
+                if !ansichtslinien.insert(m.id) {
+                    return Err(fehler(format!(
+                        "Linie „{}“ in der Ansicht gehört schon zu einer anderen Wand",
+                        m.bezeichnung
+                    )));
+                }
+                w.ansicht_laenge_m = Some(wert);
+                if w.breite_aus_ansicht {
+                    (w.von, w.bis) = (APunkt { x: 0., y: 0. }, APunkt { x: wert, y: 0. });
+                }
+                herkunft
+                    .entry(w.id)
+                    .or_default()
+                    .push(herkunftstext("Ansicht", &a, &b, &m));
+                if let Some(d) = a.dokument
+                    && !plan.quellen.contains(&d)
+                {
+                    plan.quellen.push(d);
+                }
+                continue;
+            }
             if geometrieziel(&b) {
                 let r = (b.aufmass_id, m.ausschnitt_id);
                 if *rahmen.get_or_insert(r) != r {
@@ -283,6 +362,9 @@ impl CoreServices {
                         return Err(fehler("Linie gehört zu einem anderen Gebäude"));
                     }
                     (w.von, w.bis) = strecke_m(&a, &m)?;
+                    // Linie im Lageplan nachgezogen: Lage gilt, Breiten werden verglichen.
+                    w.breite_aus_ansicht = false;
+                    w.grenzabstand_m = None;
                     herkunft
                         .entry(w.id)
                         .or_default()
@@ -408,27 +490,28 @@ impl CoreServices {
     ) -> CoreResult<AbstandslinienUebernahme> {
         let a = self.aufmassstand(pid, stand).await?;
         let mut hinweise = vec![];
-        if let Some(b) = plan
-            .planbindungen
+        let (ansichtslinien, linien): (Vec<&Planmarkierung>, Vec<&Planmarkierung>) = a
+            .markierungen
             .iter()
-            .find(|b| geometrieziel(b) && b.aufmass_id != stand.aufmass_id)
+            .filter(|m| m.bedeutung == Planbedeutung::Abstandsflaeche)
+            .partition(|m| in_ansicht(&a, m));
+        if linien.is_empty() && ansichtslinien.is_empty() {
+            return Err(fehler(
+                "Im Aufmaß gibt es keine Linie mit Bedeutung „Abstandsfläche“",
+            ));
+        }
+        if !linien.is_empty()
+            && let Some(b) = plan
+                .planbindungen
+                .iter()
+                .find(|b| geometrieziel(b) && b.aufmass_id != stand.aufmass_id)
         {
             return Err(fehler(format!(
                 "Lage und Grenzen stammen bereits aus einem anderen Lageplan ({}); ein Abstandsplan nutzt genau einen Lageplan als Koordinatenbezug",
                 b.aufmass_id
             )));
         }
-        let linien: Vec<&Planmarkierung> = a
-            .markierungen
-            .iter()
-            .filter(|m| m.bedeutung == Planbedeutung::Abstandsflaeche)
-            .collect();
-        let Some(erste) = linien.first() else {
-            return Err(fehler(
-                "Im Aufmaß gibt es keine Linie mit Bedeutung „Abstandsfläche“",
-            ));
-        };
-        let ausschnitt = erste.ausschnitt_id;
+        let ausschnitt = linien.first().and_then(|m| m.ausschnitt_id);
         if linien.iter().any(|m| m.ausschnitt_id != ausschnitt) {
             return Err(fehler(
                 "Alle Linien „Abstandsfläche“ im selben Ausschnitt bzw. auf dem Blatt zeichnen",
@@ -437,13 +520,13 @@ impl CoreServices {
         // Gelöschte Linien: Bindung lösen, die Wand behält ihre letzte Lage.
         plan.planbindungen.retain(|b| {
             let weg = b.aufmass_id == stand.aufmass_id
-                && geometrieziel(b)
+                && (geometrieziel(b) || ansichtsziel(b))
                 && !a.markierungen.iter().any(|m| m.id == b.markierung_id);
             if weg {
                 let name = plan
                     .waende
                     .iter()
-                    .find(|w| b.ziel == format!("waende.{}.{LAGE}", w.id))
+                    .find(|w| b.ziel.starts_with(&format!("waende.{}.", w.id)))
                     .map(|w| w.bezeichnung.clone())
                     .or_else(|| {
                         plan.grundstuecke
@@ -462,7 +545,7 @@ impl CoreServices {
         for b in plan
             .planbindungen
             .iter_mut()
-            .filter(|b| b.aufmass_id == stand.aufmass_id && geometrieziel(b))
+            .filter(|b| b.aufmass_id == stand.aufmass_id && (geometrieziel(b) || ansichtsziel(b)))
         {
             b.revision = stand.revision;
         }
@@ -475,7 +558,8 @@ impl CoreServices {
         };
         // Grenzen aus den zugeordneten Flurstücken desselben Ausschnitts.
         for m in a.markierungen.iter().filter(|m| {
-            m.bedeutung == Planbedeutung::Flurstueck
+            !linien.is_empty()
+                && m.bedeutung == Planbedeutung::Flurstueck
                 && m.flurstueck_id.is_some()
                 && m.ausschnitt_id == ausschnitt
         }) {
@@ -509,19 +593,33 @@ impl CoreServices {
             ));
         }
         let gebaeudenamen = self.gebaeudenamen(pid).await?;
+        let gebaeudename = |m: &Planmarkierung| {
+            m.gebaeude_id
+                .and_then(|id| gebaeudenamen.iter().find(|(g, _)| *g == id))
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| "Gebäude".into())
+        };
         let mut neu = vec![];
         for m in &linien {
             if plan.planbindungen.iter().any(|b| b.markierung_id == m.id) {
                 continue;
             }
             let mut w = linienwand(m);
-            w.gebaeude = m
-                .gebaeude_id
-                .and_then(|id| gebaeudenamen.iter().find(|(g, _)| *g == id))
-                .map(|(_, n)| n.clone())
-                .unwrap_or_else(|| "Gebäude".into());
+            w.gebaeude = gebaeudename(m);
             if plan.waende.iter().any(|x| x.id == w.id) {
                 // Bindung früher gelöst: Wand wieder an die Linie binden.
+            } else if let Some(x) = plan.waende.iter().find(|x| {
+                x.bezeichnung == w.bezeichnung
+                    && x.breite_aus_ansicht
+                    && !plan
+                        .planbindungen
+                        .iter()
+                        .any(|b| b.ziel == format!("waende.{}.{LAGE}", x.id))
+            }) {
+                // Wand bisher nur aus der Ansicht: Lage und Breite kommen jetzt
+                // aus dem Lageplan, die Ansicht bleibt Wandbezug.
+                w.id = x.id;
+                neu.push(w.id);
             } else if let Some(x) = plan.waende.iter().find(|x| x.bezeichnung == w.bezeichnung) {
                 return Err(fehler(format!(
                     "Die Wand „{}“ gibt es schon; Linie im Lageplan umbenennen, damit Bezeichnungen eindeutig bleiben",
@@ -535,6 +633,51 @@ impl CoreServices {
                 m,
                 format!("waende.{}.{LAGE}", w.id),
                 Planmessgroesse::Laenge,
+            ));
+        }
+        // Linien in Ansichten: Wandbezug der gleichnamigen Wand, sonst eine
+        // Wand mit Breite aus der Ansicht.
+        for m in &ansichtslinien {
+            if plan.planbindungen.iter().any(|b| b.markierung_id == m.id) {
+                continue;
+            }
+            let ansicht = m
+                .ausschnitt_id
+                .and_then(|id| a.ausschnitte.iter().find(|x| x.id == id))
+                .map(|x| x.bezeichnung.clone())
+                .unwrap_or_default();
+            let id = match plan.waende.iter().find(|w| w.bezeichnung == m.bezeichnung) {
+                Some(w) => {
+                    if plan
+                        .planbindungen
+                        .iter()
+                        .any(|b| b.ziel == format!("waende.{}.{ANSICHT}", w.id))
+                    {
+                        hinweise.push(format!(
+                            "{}: Wand hat schon eine Ansicht; Linie in „{ansicht}“ nicht verknüpft",
+                            w.bezeichnung
+                        ));
+                        continue;
+                    }
+                    w.id
+                }
+                None => {
+                    let mut w = linienwand(m);
+                    w.gebaeude = gebaeudename(m);
+                    w.breite_aus_ansicht = true;
+                    hinweise.push(format!(
+                        "{}: Breite aus „{ansicht}“, keine Linie im Lageplan; Abstand zur Grundstücksgrenze angeben (Lage wird nicht geprüft)",
+                        w.bezeichnung
+                    ));
+                    let id = w.id;
+                    plan.waende.push(w);
+                    id
+                }
+            };
+            plan.planbindungen.push(bindung(
+                m,
+                format!("waende.{id}.{ANSICHT}"),
+                Planmessgroesse::Horizontale,
             ));
         }
         if plan.planbindungen.len() > 500 || plan.waende.len() > 200 {
@@ -599,12 +742,14 @@ impl CoreServices {
                 }
             }
         }
-        if plan.grundstuecke.iter().any(|g| {
-            !plan
-                .planbindungen
-                .iter()
-                .any(|b| b.ziel == format!("grundstuecke.{}.{GRENZE}", g.id))
-        }) {
+        if !linien.is_empty()
+            && plan.grundstuecke.iter().any(|g| {
+                !plan
+                    .planbindungen
+                    .iter()
+                    .any(|b| b.ziel == format!("grundstuecke.{}.{GRENZE}", g.id))
+            })
+        {
             hinweise.push(
                 "Grundstücke mit von Hand erfassten Grenzen liegen nicht im Koordinatenbezug des Lageplans; Flurstücke im Lageplan zeichnen und zuordnen"
                     .into(),
@@ -618,8 +763,9 @@ impl CoreServices {
                 .map(|x| format!(" › {}", x.bezeichnung))
                 .unwrap_or_default()
         );
-        if plan.koordinatenbezug.trim().is_empty()
-            || plan.koordinatenbezug.starts_with("Lageplan „")
+        if !linien.is_empty()
+            && (plan.koordinatenbezug.trim().is_empty()
+                || plan.koordinatenbezug.starts_with("Lageplan „"))
         {
             plan.koordinatenbezug = bezug;
         }

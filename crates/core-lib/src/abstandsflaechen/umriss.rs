@@ -196,5 +196,8 @@ fn neue_wand(u: &AbstandsUmriss, i: usize) -> AbstandsWand {
             umriss_id: u.id,
             seite: i,
         }),
+        breite_aus_ansicht: false,
+        ansicht_laenge_m: None,
+        grenzabstand_m: None,
     }
 }

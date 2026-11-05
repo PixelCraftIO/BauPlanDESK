@@ -10,6 +10,7 @@ wf=json.loads((art/'workflow.json').read_text(encoding='utf-8'));wf['pdf']=base6
 wf['umriss']=json.loads((art/'umriss.json').read_text(encoding='utf-8'))
 # Echte Übernahme der Linien „Abstandsfläche“ aus dem Lageplan (storage-Test planaufmass).
 wf['linien']=json.loads((art/'linien.json').read_text(encoding='utf-8'))
+wf['ansichten']=json.loads((art/'ansichten.json').read_text(encoding='utf-8'))
 # Regeldateien wie im Rechenkern: Inhalt plus Dateiname und SHA-256 des Dateitexts.
 rw=root.parents[2]/'regelwerke/abstandsflaechen'
 werke=[{'datei':str(f.relative_to(rw)),'pruefsumme':hashlib.sha256(f.read_bytes()).hexdigest(),**json.loads(f.read_text(encoding='utf-8'))} for f in sorted(rw.glob('*/*.json'))]
@@ -20,8 +21,8 @@ const base=window.__TAURI_INTERNALS__.invoke,clone=v=>JSON.parse(JSON.stringify(
 window.testUser=clone(window.abstand.benutzer);window.aPlan=clone(window.abstand.fachstand);window.aFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
- if(cmd==='fachobjekte'&&args.art==='planaufmass'){const l=window.abstand.linien.aufmass;return [{daten:clone(l.daten),modul:'planaufmass',objekt:l.objekt,projekt_id:window.abstand.fachstand.projekt_id,revision:l.revision,schema_version:1}];}
- if(cmd==='abstandslinien_uebernehmen'){window.calls.push({cmd,args:clone(args)});return clone(window.abstand.linien.uebernahme);}
+ if(cmd==='fachobjekte'&&args.art==='planaufmass')return [window.abstand.linien.aufmass,window.abstand.ansichten.aufmass].map(l=>({daten:clone(l.daten),modul:'planaufmass',objekt:l.objekt,projekt_id:window.abstand.fachstand.projekt_id,revision:l.revision,schema_version:1}));
+ if(cmd==='abstandslinien_uebernehmen'){window.calls.push({cmd,args:clone(args)});const q=args.aufmass.aufmass_id===window.abstand.ansichten.aufmass.objekt?window.abstand.ansichten:window.abstand.linien;return clone(q.uebernahme);}
  if(['fachobjekte','fachobjekt_speichern'].includes(cmd)&&args.art!=='abstandsflaechen')return base(cmd,args);
  if(!['fachobjekte','fachobjekt_speichern','abstandsregeln','abstandsplan_pruefen','nachweis_erstellen','druckkatalog','druckausgabe_erstellen','druckausgabe_ablegen','dokumente_auflisten','abstandsumrisse_einbinden'].includes(cmd))return base(cmd,args);
  window.calls.push({cmd,args:clone(args)});
@@ -114,10 +115,11 @@ with sync_playwright() as p:
  # Linien „Abstandsfläche“ aus dem Lageplan: A1/A2 als Wände, Lage gebunden.
  tab('Wände / Bauteile')
  li=page.locator('section.linien')
- expect(li.get_by_role('heading',name='Abstandsflächen aus dem Lageplan')).to_be_visible()
- expect(li.get_by_role('combobox',name='Lageplan')).to_contain_text('2 Linien')
- li.get_by_role('button',name='Linien aus dem Lageplan übernehmen',exact=True).click()
- expect(li.get_by_role('status')).to_contain_text('2 Linien übernommen')
+ expect(li.get_by_role('heading',name='Abstandsflächen aus Lageplan und Ansichten')).to_be_visible()
+ li.get_by_role('combobox',name='Aufmaß').select_option(wf['linien']['aufmass']['objekt'])
+ expect(li.get_by_role('combobox',name='Aufmaß')).to_contain_text('2 im Lageplan')
+ li.get_by_role('button',name='Linien übernehmen',exact=True).click()
+ expect(li.get_by_role('status')).to_contain_text('Linien übernommen (2 im Lageplan)')
  call=page.evaluate("window.calls.find(c=>c.cmd==='abstandslinien_uebernehmen').args")
  assert call['aufmass']['aufmass_id']==wf['linien']['aufmass']['objekt'],call['aufmass']
  a1=page.get_by_role('row').filter(has_text='A1')
@@ -129,6 +131,22 @@ with sync_playwright() as p:
  page.screenshot(path=str(out/'linien-lageplan.png'),full_page=True)
  tab('Lageplan / Grenzen')
  expect(page.get_by_text('Grenze aus dem Lageplan (4 Eckpunkte)',exact=False)).to_be_visible()
+ # Linien in einer Ansicht: A1 erhält den Wandbezug, A3 entsteht mit der Breite aus der Ansicht.
+ tab('Wände / Bauteile')
+ li.get_by_role('combobox',name='Aufmaß').select_option(wf['ansichten']['aufmass']['objekt'])
+ expect(li.get_by_text('Ansichten: A1, A3',exact=False)).to_be_visible()
+ li.get_by_role('button',name='Linien übernehmen',exact=True).click()
+ expect(li.get_by_role('status')).to_contain_text('2 in Ansichten')
+ expect(li.get_by_role('listitem').filter(has_text='A3: Breite aus „Ansicht Nord“')).to_be_visible()
+ a3=page.get_by_role('row').filter(has_text='A3')
+ expect(a3).to_contain_text('Breite aus Ansicht')
+ a3.get_by_role('button',name='Bearbeiten',exact=True).click()
+ expect(page.get_by_text('Wandbezug in der Ansicht: Breite 8 m',exact=False)).to_be_visible()
+ expect(page.get_by_role('spinbutton',name='Ende X (m)',exact=True)).not_to_be_editable()
+ expect(page.get_by_role('combobox',name='Grundstückseinheit',exact=True)).to_be_disabled()
+ page.get_by_role('spinbutton',name='Abstand zur Grundstücksgrenze (m, Angabe des Planers)',exact=True).fill('4')
+ expect(page.get_by_role('button',name='In der Ansicht zeigen',exact=True)).to_be_visible()
+ page.screenshot(path=str(out/'linien-ansicht.png'),full_page=True)
  # Fassungswahl: Stichtag heute schlägt die geltende NRW-Fassung vor; Wechsel nur mit Vergleich.
  tab('Grundlagen')
  fw=page.locator('section.fassung')

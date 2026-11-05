@@ -1,5 +1,5 @@
 {
-  "_hinweis": "Toleranzen für den Vergleich gezeichneter Flächen mit amtlichen oder manuell erfassten Werten. Gelesen von core-lib (grundstuecksinformationen.rs, planaufmass/abgleich.rs) und der Oberfläche (Anzeige).",
+  "_hinweis": "Toleranzen für den Vergleich gezeichneter Flächen mit amtlichen oder manuell erfassten Werten. Gelesen von core-lib (grundstuecksinformationen.rs, planaufmass/abgleich.rs, abstandsflaechen/mod.rs) und der Oberfläche (Anzeige).",
   "flurstueck": {
     "unauffaellig_m2": 1.0,
     "unauffaellig_prozent": 1.0,
@@ -8,5 +8,10 @@
   "doppelerfassung": {
     "m2": 1.0,
     "prozent": 2.0
+  },
+  "abstandsflaeche_breite": {
+    "_hinweis": "Wandbreite einer Abstandsfläche in der Ansicht gegen die Linie im Lageplan: unauffällig bis m oder prozent der Lageplanbreite (der größere Wert).",
+    "m": 0.05,
+    "prozent": 1.0
   }
 }

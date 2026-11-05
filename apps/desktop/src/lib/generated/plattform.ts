@@ -871,7 +871,23 @@ tiefenfall_grundlage?: string,
 /**
  * Aus einem Gebäudeumriss erzeugte Seite; Lage und Eckhöhen führt der Umriss.
  */
-umriss?: UmrissSeite, };
+umriss?: UmrissSeite,
+/**
+ * Breite aus der verknüpften Ansicht statt Lage im Lageplan: Die Wand
+ * liegt in einem eigenen Bezug von (0, 0) nach (Breite, 0); die Lage
+ * prüft die Software nicht, maßgebend ist `grenzabstand_m`.
+ */
+breite_aus_ansicht?: boolean,
+/**
+ * Wandbreite in der verknüpften Ansicht (Linie „Abstandsfläche“), für
+ * den Längenabgleich mit dem Lageplan.
+ */
+ansicht_laenge_m?: number,
+/**
+ * Abstand der Wand zur Grundstücksgrenze als Angabe des Planers; nur
+ * maßgebend, wenn die Wand keine Grenze im Plan hat.
+ */
+grenzabstand_m?: number, };
 export type AbstandsPlan = { planbindungen?: Array<Planbindung>, bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>,
 /**
  * Gewählte Regeldatei (Land und Fassung); fehlt in Plänen vor der

@@ -165,11 +165,36 @@ pub(super) fn wand(
     let Some(g) = p
         .grundstuecke
         .iter()
-        .find(|g| Some(g.id) == w.grundstueck_id && g.grenze.len() >= 3)
+        .find(|g| !w.breite_aus_ansicht && Some(g.id) == w.grundstueck_id && g.grenze.len() >= 3)
     else {
+        if w.breite_aus_ansicht {
+            // Eigener Bezug ohne Lage: nur Fläche = Breite × Tiefe, keine Skizze.
+            e.polygon.clear();
+            e.herleitung.push(
+                "Breite aus der Ansicht; Lage im Lageplan nicht erfasst, Fläche = Breite × Tiefe"
+                    .into(),
+            );
+        }
+        if let Some(a) = w.grenzabstand_m {
+            let t = verlauf.iter().map(|v| v.1).fold(0., f64::max);
+            e.herleitung.push(format!(
+                "Grenzabstand {} m (Angabe des Planers), erforderliche Tiefe {} m; Lage nicht automatisch geprüft",
+                hoehen::zahl(a),
+                hoehen::zahl(t)
+            ));
+            e.status = if a + 1e-9 >= t {
+                AbstandsStatus::Eingehalten
+            } else {
+                AbstandsStatus::Konflikt
+            };
+            return Ok(());
+        }
         e.status = AbstandsStatus::Tiefenvorpruefung;
-        e.offen
-            .push("Grundstücksgrenze fehlt – ausschließlich Tiefenvorprüfung".into());
+        e.offen.push(if w.breite_aus_ansicht {
+            "Abstand der Wand zur Grundstücksgrenze angeben (Breite aus der Ansicht, Lage nicht im Lageplan)".into()
+        } else {
+            "Grundstücksgrenze fehlt – ausschließlich Tiefenvorprüfung".into()
+        });
         return Ok(());
     };
     if g.grundlage.trim().is_empty() {

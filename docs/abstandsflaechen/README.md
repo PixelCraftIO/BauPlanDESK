@@ -175,8 +175,8 @@ Nummer folgt auf die höchste im Aufmaß) und liegen auf der Ebene
 „Abstandsflächen“. Im selben Plan die Flurstücke als Fläche mit Bedeutung
 „Flurstück“ zeichnen und zuordnen; ein Vorhabenumriss zeigt die Innenseite.
 
-Im Abstandsplan unter **Wände / Bauteile → Abstandsflächen aus dem Lageplan**
-das gespeicherte Aufmaß wählen und **Linien aus dem Lageplan übernehmen**:
+Im Abstandsplan unter **Wände / Bauteile → Abstandsflächen aus Lageplan und
+Ansichten** das gespeicherte Aufmaß wählen und **Linien übernehmen**:
 
 - Jede Linie wird eine Wand mit ihrem Namen. Anfang, Ende und Länge kommen aus
   der Linie (Maßstab bzw. Zeichnungseinheit des Blattes oder Ausschnitts, y nach
@@ -187,12 +187,39 @@ das gespeicherte Aufmaß wählen und **Linien aus dem Lageplan übernehmen**:
   wegzeigt. Grundstück: die Flurstücksfläche, in der die Linie liegt. Ist das
   nicht eindeutig, nennt ein Hinweis die Wand.
 - Ein Abstandsplan nutzt genau einen Lageplan (ein Aufmaß, ein Ausschnitt) als
-  Koordinatenbezug. Linien in Ansichten oder Schnitten werden abgewiesen.
+  Koordinatenbezug.
 - Wird eine Linie verschoben, meldet die Prüfung die geänderte Grundlage;
-  **Linien aus dem Lageplan aktualisieren** zieht Wände und Grenzen nach. Eine
+  **Linien aktualisieren** zieht Wände und Grenzen nach. Eine
   gelöschte Linie löst nur die Bindung; die Wand bleibt mit ihrer letzten Lage.
 
 ![Linien aus dem Lageplan](screenshots/linien-lageplan.png)
+
+### Wände in Ansichten und Schnitten
+
+In einer Ansicht, einem Schnitt oder Detail (Ausschnitt mit dieser Art) die
+Linie „Abstandsfläche“ zwischen den Gebäudekanten ziehen, vom Wandanfang zum
+Wandende, und ihr den Namen der Wand geben (A1 …). **Linien übernehmen** mit
+diesem Aufmaß verknüpft sie mit der gleichnamigen Wand:
+
+- **Wand gibt es im Lageplan:** Die Ansicht wird Wandbezug (Verknüpfung
+  `waende.<id>.ansicht`, Grundlage für die Höhen in PR 5). Lage und Breite
+  bleiben aus dem Lageplan. Weicht die Breite in der Ansicht mehr als
+  0,05 m bzw. 1 % (der größere Wert, `regelwerke/aufmass-toleranzen.json`,
+  `abstandsflaeche_breite`) von der Lageplanlänge ab, nennt der Prüfbericht
+  beide Werte: Wandkanten und Maßstab der Ansicht prüfen.
+- **Wand gibt es nur in der Ansicht** (übersichtliche Vorhaben): Die Wand
+  entsteht mit der Breite aus der Ansicht („Breite aus Ansicht“). Sie hat keine
+  Lage im Plan; die Abstandsfläche wird als Breite × Tiefe ausgewiesen. Den
+  **Abstand zur Grundstücksgrenze** gibt der Planer an; die Wand gilt als
+  eingehalten, wenn er die erforderliche Tiefe erreicht. Die Lage selbst prüft
+  die Software nicht; ohne Angabe bleibt die Wand offen. Zieht man die Linie
+  später im Lageplan, übernimmt die Wand Lage und Breite von dort.
+- Eine Linie gehört genau einer Wand. Ist an der Linie ein Gebäude gesetzt,
+  muss es das Gebäude der Wand sein.
+- **Im Lageplan zeigen** und **In der Ansicht zeigen** öffnen die verknüpfte
+  Linie im Zeicheneditor.
+
+![Wände aus Ansichten](screenshots/linien-ansicht.png)
 
 ## Geometrie übernehmen
 

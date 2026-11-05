@@ -113,6 +113,13 @@ pub struct Doppelerfassung {
 pub(crate) struct Toleranzen {
     pub flurstueck: FlurstueckToleranz,
     doppelerfassung: DoppelToleranz,
+    pub abstandsflaeche_breite: BreitenToleranz,
+}
+/// Wandbreite in der Ansicht gegen den Lageplan.
+#[derive(Deserialize)]
+pub(crate) struct BreitenToleranz {
+    pub m: f64,
+    pub prozent: f64,
 }
 #[derive(Deserialize)]
 pub(crate) struct FlurstueckToleranz {
