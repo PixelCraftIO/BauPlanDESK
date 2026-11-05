@@ -3559,3 +3559,290 @@ async fn abstandsflaechen_mit_ansichten_verknuepfen() {
             .any(|b| b.ziel == format!("waende.{a3_id}.lage"))
     );
 }
+
+#[tokio::test]
+async fn abstandsflaechen_hoehen_aus_der_ansicht() {
+    use core_lib::abstandsflaechen::berechnen;
+    let dir = tempfile::tempdir().unwrap();
+    let db = db_sqlite::SqliteDatabase::open(&dir.path().join("buero.db"))
+        .await
+        .unwrap();
+    let core = CoreServices::new(
+        db.repositories(),
+        Arc::new(storage::LocalStorage::new(dir.path().join("Dateien"), "local").unwrap()),
+        Arc::new(LboEngine::new()),
+        Arc::new(DevelopmentLicense),
+    );
+    let user = core.anmelden("planer", "Daniel").await.unwrap();
+    let p = core
+        .create_project(
+            NewProject {
+                name: "Höhen".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Default::default(),
+            },
+            &user,
+        )
+        .await
+        .unwrap();
+    let doc = core
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Plaene.pdf",
+            Bytes::from(core_lib::formular::testdaten::musterformular()),
+            &user,
+        )
+        .await
+        .unwrap();
+    let mut plan = core_lib::abstandsflaechen::testdaten::plan();
+    plan.waende.clear();
+    plan.grundstuecke.clear();
+    let system = plan.hoehenbezug.clone();
+    let ebene = Uuid::new_v4();
+    let m = |name: &str, bedeutung, geometrie, ausschnitt| Planmarkierung {
+        id: Uuid::new_v4(),
+        ebene_id: ebene,
+        bezeichnung: name.into(),
+        bedeutung,
+        geometrie,
+        grundstueck_id: None,
+        gebaeude_id: None,
+        geschoss_id: None,
+        ausschnitt_id: ausschnitt,
+        hoehenzone_von: None,
+        flurstueck_id: None,
+    };
+    let strecke = |von: [f64; 2], bis: [f64; 2]| Plangeometrie::Strecke { von, bis };
+    let punkt = |p: [f64; 2]| Plangeometrie::Hoehenpunkt { punkt: p };
+    let aufmass = |name: &str, markierungen, ausschnitte| Planaufmass {
+        bezeichnung: name.into(),
+        dokument: Some(Dokumentbezug {
+            dokument_id: doc.document_id,
+            version: 1,
+        }),
+        seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
+        // 100 pt = 10 m.
+        kalibrierung: Some(Plankalibrierung::Strecke {
+            von: [0., 0.],
+            bis: [100., 0.],
+            meter: 10.,
+        }),
+        hoehenbezug: None,
+        ebenen: vec![Planebene {
+            id: ebene,
+            bezeichnung: "Abstandsflächen".into(),
+            sichtbar: true,
+            gesperrt: false,
+            darstellung: None,
+        }],
+        markierungen,
+        ausschnitte,
+    };
+    let save = |a: &Planaufmass| serde_json::to_value(a).unwrap();
+    let stand = |aufmass_id, revision| Aufmassstand {
+        aufmass_id,
+        revision,
+    };
+    // Lageplan: A1 (10 m) und A2.
+    let lid = Uuid::new_v4();
+    let lageplan = aufmass(
+        "Lageplan",
+        vec![
+            m(
+                "A1",
+                Planbedeutung::Abstandsflaeche,
+                strecke([100., 100.], [200., 100.]),
+                None,
+            ),
+            m(
+                "A2",
+                Planbedeutung::Abstandsflaeche,
+                strecke([200., 100.], [200., 170.]),
+                None,
+            ),
+        ],
+        vec![],
+    );
+    let fl = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, lid, 0, save(&lageplan), &user)
+        .await
+        .unwrap();
+    plan = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(lid, fl.revision))
+        .await
+        .unwrap()
+        .plan;
+    // Ansicht Süd: ±0,00-Linie bei y = 600 auf 100 m, 10 pt = 1 m. A1 von
+    // x = 500 bis 600; Höhe = 100 + (600 − y) / 10.
+    let (vid, sued) = (Uuid::new_v4(), Uuid::new_v4());
+    let s = Some(sued);
+    use Planbedeutung::*;
+    let mut ansicht = aufmass(
+        "Ansichten",
+        vec![
+            m(
+                "A1",
+                Abstandsflaeche,
+                strecke([500., 600.], [600., 600.]),
+                s,
+            ),
+            m("G1", Gelaende, strecke([500., 600.], [550., 595.]), s),
+            m("G2", Gelaende, strecke([550., 595.], [600., 600.]), s),
+            m("G3", Abgrabung, punkt([520., 610.]), s),
+            // Außerhalb der Wand: gehört nicht zu A1.
+            m("G4", Gelaende, punkt([700., 600.]), s),
+            // Traufe mit Dachüberstand, daneben höhere Attika: Höhensprung bei 6 m.
+            m("T1", Traufe, strecke([490., 530.], [560., 530.]), s),
+            m("AT1", Attika, strecke([560., 520.], [600., 520.]), s),
+            m("W1", Wandteilgrenze, strecke([530., 520.], [530., 600.]), s),
+            m("F1", First, punkt([530., 480.]), s),
+            m("D1", Dach, strecke([500., 530.], [530., 500.]), s),
+            m("GA1", Gaube, strecke([510., 505.], [525., 505.]), s),
+        ],
+        vec![Planausschnitt {
+            id: sued,
+            bezeichnung: "Ansicht Süd".into(),
+            art: Ausschnittart::Ansicht,
+            von: [0., 0.],
+            bis: [1000., 1000.],
+            ebene_id: None,
+            kalibrierung: None,
+            bezugslinie: Some(Planbezugslinie {
+                von: [0., 600.],
+                bis: [1000., 600.],
+                hoehe_m: 100.,
+                system: system.clone(),
+            }),
+        }],
+    );
+    let fv = core
+        .fachobjekt_speichern(p.id, ObjektArt::Planaufmass, vid, 0, save(&ansicht), &user)
+        .await
+        .unwrap();
+    let u = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(vid, fv.revision))
+        .await
+        .unwrap();
+    // Echte Übernahme für den Oberflächentest (apps/desktop/tests/abstandsflaechen.py).
+    if let Ok(out) = std::env::var("BAUPROJEKT_ABSTAND_ARTEFAKTE") {
+        let out = std::path::Path::new(&out);
+        std::fs::create_dir_all(out).unwrap();
+        std::fs::write(
+            out.join("hoehen.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "aufmass": {"objekt": vid, "revision": fv.revision, "daten": ansicht},
+                "uebernahme": u,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+    let mut plan = u.plan;
+    let a1 = plan.waende.iter().find(|w| w.bezeichnung == "A1").unwrap();
+    let paare = |v: &[core_lib::abstandsflaechen::Hoehenpunkt]| {
+        v.iter()
+            .map(|p| {
+                (
+                    (p.station_m * 1000.).round() / 1000.,
+                    (p.hoehe_m * 1000.).round() / 1000.,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(paare(&a1.gelaende), [(0., 100.), (5., 100.5), (10., 100.)]);
+    assert_eq!(
+        paare(&a1.oberkante),
+        [(0., 107.), (6., 107.), (6., 108.), (10., 108.)]
+    );
+    assert_eq!(a1.wandteilgrenzen, [3.]);
+    assert!((a1.dachhoehe_m.unwrap() - 4.).abs() < 1e-9);
+    assert!((a1.dachneigung_grad.unwrap() - 45.).abs() < 1e-9);
+    assert!((a1.gauben_laenge_m.unwrap() - 1.5).abs() < 1e-9);
+    assert!(a1.ansicht_hinweise.is_empty(), "{:?}", a1.ansicht_hinweise);
+    for f in [
+        "gelaende",
+        "oberkante",
+        "wandteilgrenzen",
+        "dachhoehe_m",
+        "dachneigung_grad",
+        "gauben_laenge_m",
+    ] {
+        assert!(a1.ansicht_felder.iter().any(|x| x == f), "{f}");
+    }
+    assert!(a1.gelaende[1].quelle.contains("Ansicht „Ansicht Süd“ · G1"));
+    assert!(
+        a1.hoehenquelle
+            .contains("Abgrabung „G3“ bei 2 m (99 m) nicht maßgebend"),
+        "{}",
+        a1.hoehenquelle
+    );
+    core.abstands_planquellen_pruefen(p.id, &plan)
+        .await
+        .unwrap();
+    // Wandteile aus Grenze bei 3 m und Höhensprung bei 6 m.
+    let e = berechnen(&plan)
+        .unwrap()
+        .waende
+        .into_iter()
+        .find(|e| e.bezeichnung == "A1")
+        .unwrap();
+    assert_eq!(e.wandteile.len(), 3, "{e:?}");
+    assert!(
+        !e.offen.iter().any(|o| o.contains("Ansicht")),
+        "{:?}",
+        e.offen
+    );
+    // Von Hand geänderte Höhe: Abweichung vom Aufmaß.
+    let mut verstellt = plan.clone();
+    verstellt.waende[0].gelaende[1].hoehe_m = 101.;
+    assert!(
+        core.abstands_planquellen_pruefen(p.id, &verstellt)
+            .await
+            .is_err()
+    );
+
+    // Anderes Höhensystem im Plan: Höhen werden nicht übernommen und der
+    // alte Abgriff geleert; Neigung und Gauben bleiben.
+    plan.hoehenbezug = "DHHN2016".into();
+    let plan2 = core.planaufmass_abstand(p.id, plan.clone()).await.unwrap();
+    let a1 = &plan2.waende[0];
+    assert!(a1.gelaende.is_empty() && a1.oberkante.is_empty() && a1.dachhoehe_m.is_none());
+    assert!(a1.dachneigung_grad.is_some());
+    assert!(
+        a1.ansicht_hinweise[0].contains("misst Höhen im System"),
+        "{:?}",
+        a1.ansicht_hinweise
+    );
+    let e = berechnen(&plan2).unwrap().waende.remove(0);
+    assert!(e.offen.iter().any(|o| o.contains("misst Höhen im System")));
+    plan.hoehenbezug = system;
+
+    // A2 in derselben Ansicht überlappt A1: abgewiesen.
+    ansicht.markierungen.push(m(
+        "A2",
+        Abstandsflaeche,
+        strecke([580., 600.], [650., 600.]),
+        s,
+    ));
+    let fv2 = core
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Planaufmass,
+            vid,
+            fv.revision,
+            save(&ansicht),
+            &user,
+        )
+        .await
+        .unwrap();
+    let e = core
+        .abstandslinien_uebernehmen(p.id, plan, stand(vid, fv2.revision))
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("überlappen"), "{e}");
+}

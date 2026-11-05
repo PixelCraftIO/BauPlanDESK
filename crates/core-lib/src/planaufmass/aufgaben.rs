@@ -687,6 +687,62 @@ pub fn werkzeugkiste() -> Vec<Werkzeugvorlage> {
             "Höhen",
             "Strecke entlang der Dachhaut von Traufe bis First",
         ),
+        // Höhenwerkzeuge in der Ansicht einer Abstandsfläche: Die waagerechte
+        // Lage ergibt die Stelle an der Wand, die Höhe kommt von der Bezugslinie.
+        v(
+            "gelaendelinie",
+            "Höhen",
+            "Geländelinie",
+            Gelaende,
+            Strecke,
+            "Abstandsflächen",
+            "Gelände in der Ansicht als Linie; jeder Knick eine eigene Strecke",
+        ),
+        v(
+            "abgrabung",
+            "Höhen",
+            "Abgrabung",
+            Abgrabung,
+            Hoehenpunkt,
+            "Abstandsflächen",
+            "Geländepunkt einer Abgrabung (Belichtung, Zugang, Zufahrt); nicht maßgebend für die Wandhöhe",
+        ),
+        v(
+            "traufe_linie",
+            "Höhen",
+            "Traufe (Schnittlinie Dachhaut)",
+            Traufe,
+            Strecke,
+            "Abstandsflächen",
+            "Schnittlinie der Außenwand mit der Dachhaut in der Ansicht; Wandoberkante",
+        ),
+        v(
+            "attika",
+            "Höhen",
+            "Attika",
+            Attika,
+            Strecke,
+            "Abstandsflächen",
+            "Oberkante der Attika in der Ansicht; Wandoberkante beim Flachdach",
+        ),
+        v(
+            "wandteilgrenze",
+            "Höhen",
+            "Wandteilgrenze",
+            Wandteilgrenze,
+            Strecke,
+            "Abstandsflächen",
+            "Senkrechte Linie in der Ansicht zwischen Wandteilen unterschiedlicher Höhe",
+        ),
+        v(
+            "gaube",
+            "Höhen",
+            "Gaube / Dachaufbau",
+            Gaube,
+            Strecke,
+            "Abstandsflächen",
+            "Waagerechte Strecke über die Breite der Gaube in der Ansicht",
+        ),
     ]
 }
 

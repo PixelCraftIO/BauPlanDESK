@@ -203,7 +203,7 @@ export type Markierungspruefung = { id: string, wert: Planmesswert | null, fehle
 export type Planpruefung = { markierungen: Array<Markierungspruefung>, };
 export type Planexportwunsch = { aufmass_id: string, revision: number, format: Planexportformat, nur_sichtbare_ebenen: boolean, };
 export type Planexportformat = "pdf" | "csv";
-export type Planbedeutung = "unbestimmt" | "flurstueck" | "baufenster" | "vorhabenumriss" | "private_gruenflaeche" | "oeffentliche_gruenflaeche" | "verkehrsflaeche" | "ausserhalb_bauland" | "sonstiger_abzug" | "zufahrt" | "stellplatz" | "garage" | "nebenanlage" | "terrasse" | "unterirdisch" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass" | "abstandsflaeche";
+export type Planbedeutung = "unbestimmt" | "flurstueck" | "baufenster" | "vorhabenumriss" | "private_gruenflaeche" | "oeffentliche_gruenflaeche" | "verkehrsflaeche" | "ausserhalb_bauland" | "sonstiger_abzug" | "zufahrt" | "stellplatz" | "garage" | "nebenanlage" | "terrasse" | "unterirdisch" | "versiegelung" | "geschoss_aussenkante" | "gebaeudegrundflaeche" | "raum" | "aufenthaltsraum" | "nuf" | "tf" | "vf" | "kgf" | "aussenwand" | "gelaende" | "traufe" | "first" | "dach" | "nullpunkt" | "fussboden" | "decke" | "fundamentsohle" | "hoehenmass" | "abstandsflaeche" | "attika" | "wandteilgrenze" | "gaube" | "abgrabung";
 export type Planmarkierung = { id: string, ebene_id: string, bezeichnung: string, bedeutung: Planbedeutung, geometrie: Plangeometrie, grundstueck_id: string | null, gebaeude_id: string | null, geschoss_id: string | null,
 /**
  * Ausschnitt, in dem die Markierung gezeichnet wurde; fehlt bei Altdaten.
@@ -887,7 +887,18 @@ ansicht_laenge_m?: number,
  * Abstand der Wand zur Grundstücksgrenze als Angabe des Planers; nur
  * maßgebend, wenn die Wand keine Grenze im Plan hat.
  */
-grenzabstand_m?: number, };
+grenzabstand_m?: number,
+/**
+ * Felder, die der Höhenabgriff in der verknüpften Ansicht setzt
+ * (`gelaende`, `oberkante`, `wandteilgrenzen`, `dachhoehe_m`,
+ * `dachneigung_grad`, `dachneigung_b_grad`, `gauben_laenge_m`); sie
+ * sind im Plan gesperrt, solange die Ansicht verknüpft ist.
+ */
+ansicht_felder?: Array<string>,
+/**
+ * Offene Punkte aus dem Höhenabgriff in der Ansicht.
+ */
+ansicht_hinweise?: Array<string>, };
 export type AbstandsPlan = { planbindungen?: Array<Planbindung>, bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>,
 /**
  * Gewählte Regeldatei (Land und Fassung); fehlt in Plänen vor der

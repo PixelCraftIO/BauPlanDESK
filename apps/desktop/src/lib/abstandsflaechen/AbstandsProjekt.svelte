@@ -75,6 +75,18 @@
     const b = bindung(p, ziel);
     if (b) navigation?.springen(editorZiel(b.aufmass_id, b.markierung_id));
   }
+  /** Setzt der Höhenabgriff in der verknüpften Ansicht dieses Feld? */
+  const ausAnsicht = (w: AbstandsWand, feld: string) =>
+    !!w.ansicht_felder?.includes(feld);
+  const FELDNAMEN: Record<string, string> = {
+    gelaende: "Gelände",
+    oberkante: "Wandoberkante",
+    wandteilgrenzen: "Wandteilgrenzen",
+    dachhoehe_m: "Dachhöhe",
+    dachneigung_grad: "Dachneigung",
+    dachneigung_b_grad: "Dachneigung 2",
+    gauben_laenge_m: "Gauben",
+  };
   const zahl = (v: number) =>
     v.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   function grundplan(): AbstandsPlan {
@@ -996,14 +1008,28 @@
                       ? "Wandhöhe an jeder Stelle, Abstandsfläche mit wechselnder Tiefe"
                       : "größte Wandhöhe je Wandteil (konservativ)"}.
               </p>
+              {#if w.ansicht_felder?.length}<p class="meta" role="status">
+                  Aus der Ansicht abgegriffen: {w.ansicht_felder
+                    .map((f) => FELDNAMEN[f] ?? f)
+                    .join(", ")}. Diese Werte dort ändern und unter „Linien
+                  aktualisieren“ neu übernehmen.
+                </p>{/if}
+              {#if w.ansicht_hinweise?.length}<ul class="hinweisbox">
+                  {#each w.ansicht_hinweise as h}<li>{h}</li>{/each}
+                </ul>{/if}
               {#key w.id}<Hoehenprofil
                   wand={w}
-                  planGelaende={p.planbindungen?.some((b) =>
+                  planGelaende={(p.planbindungen?.some((b) =>
                     b.ziel.startsWith(`waende.${w.id}.gelaende_`),
-                  ) ?? false}
-                  planOberkante={p.planbindungen?.some((b) =>
+                  ) ??
+                    false) ||
+                    ausAnsicht(w, "gelaende")}
+                  planOberkante={(p.planbindungen?.some((b) =>
                     b.ziel.startsWith(`waende.${w.id}.abschluss_`),
-                  ) ?? false}
+                  ) ??
+                    false) ||
+                    ausAnsicht(w, "oberkante")}
+                  planGrenzen={ausAnsicht(w, "wandteilgrenzen")}
                   {dateien}
                   projektId={projekt.id}
                   onquelle={(d) => {
@@ -1054,7 +1080,7 @@
                       bind:value={w.dachhoehe_m}
                       readonly={p.planbindungen?.some(
                         (b) => b.ziel === `waende.${w.id}.dachhoehe_m`,
-                      )}
+                      ) || ausAnsicht(w, "dachhoehe_m")}
                     /></label
                   >{#if w.dachart === "dachflaeche"}<label
                       >Dachneigung (Grad)<input
@@ -1065,7 +1091,7 @@
                         bind:value={w.dachneigung_grad}
                         readonly={p.planbindungen?.some(
                           (b) => b.ziel === `waende.${w.id}.dachneigung_grad`,
-                        )}
+                        ) || ausAnsicht(w, "dachneigung_grad")}
                       /></label
                     >{#if p.regeln.gauben}<label
                         >Gesamtlänge Gauben/Dachaufbauten auf dieser Dachfläche
@@ -1074,6 +1100,7 @@
                           min="0"
                           step="any"
                           value={w.gauben_laenge_m ?? ""}
+                          readonly={ausAnsicht(w, "gauben_laenge_m")}
                           oninput={(e) => {
                             const v = e.currentTarget.value;
                             w.gauben_laenge_m =
@@ -1089,7 +1116,7 @@
                         bind:value={w.dachneigung_grad}
                         readonly={p.planbindungen?.some(
                           (b) => b.ziel === `waende.${w.id}.dachneigung_grad`,
-                        )}
+                        ) || ausAnsicht(w, "dachneigung_grad")}
                       /></label
                     ><label
                       >Neigung Dachseite 2 (Grad)<input
@@ -1100,7 +1127,7 @@
                         value={w.dachneigung_b_grad ?? ""}
                         readonly={p.planbindungen?.some(
                           (b) => b.ziel === `waende.${w.id}.dachneigung_b_grad`,
-                        )}
+                        ) || ausAnsicht(w, "dachneigung_b_grad")}
                         oninput={(e) => {
                           const v = e.currentTarget.value;
                           w.dachneigung_b_grad =

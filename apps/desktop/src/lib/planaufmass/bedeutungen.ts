@@ -8,7 +8,8 @@ export const BEDEUTUNGEN: [Planbedeutung, string][] = [
     ["nuf","DIN 277 – Nutzungsfläche (NUF)"],["tf","DIN 277 – Technikfläche (TF)"],["vf","DIN 277 – Verkehrsfläche (VF)"],
     ["kgf","DIN 277 – Konstruktionsfläche (KGF)"],["aussenwand","Außenwand"],["gelaende","Gelände"],["traufe","Traufe"],["first","First"],["dach","Dach"],
     ["nullpunkt","Gebäudenullpunkt ±0,00"],["fussboden","OK Fertigfußboden"],["decke","OK Decke"],["fundamentsohle","Fundamentsohle"],["hoehenmass","Höhenmaß (senkrechte Strecke)"],
-    ["abstandsflaeche","Abstandsfläche (Linie an der Außenwand im Lageplan)"],
+    ["abstandsflaeche","Abstandsfläche (Linie an der Außenwand im Lageplan oder in der Ansicht)"],
+    ["attika","Attika (Oberkante, Ansicht)"],["wandteilgrenze","Wandteilgrenze (senkrechte Linie, Ansicht)"],["gaube","Gaube / Dachaufbau (Breite, Ansicht)"],["abgrabung","Abgrabung (Gelände, nicht maßgebend)"],
 ];
 export function bedeutungText(b: Planbedeutung | string): string {
   return BEDEUTUNGEN.find(x => x[0] === b)?.[1] ?? String(b);

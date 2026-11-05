@@ -20,6 +20,7 @@
     onquelle = () => {},
     planGelaende = false,
     planOberkante = false,
+    planGrenzen = false,
   }: {
     wand: AbstandsWand;
     dateien?: DocumentVersion[];
@@ -28,6 +29,8 @@
     /** Geländehöhen bzw. Wandabschluss als Eckwerte aus dem Aufmaß verknüpft. */
     planGelaende?: boolean;
     planOberkante?: boolean;
+    /** Wandteilgrenzen aus der verknüpften Ansicht. */
+    planGrenzen?: boolean;
   } = $props();
   // Ein Profil darf verknüpfte Eckwerte nicht verdeckt übersteuern; gesperrt
   // wird nur die jeweils betroffene Liste.
@@ -65,6 +68,10 @@
   }
   // Die Komponente wird je Wand neu erzeugt ({#key}); Startwert genügt.
   let teilgrenzen = $state(untrack(() => (wand.wandteilgrenzen ?? []).join("; ")));
+  // Aus der Ansicht abgegriffene Grenzen folgen der Wand.
+  $effect(() => {
+    if (planGrenzen) teilgrenzen = (wand.wandteilgrenzen ?? []).join("; ");
+  });
   function grenzenSetzen() {
     wand.wandteilgrenzen = teilgrenzen
       .split(/[;\s]+/)
@@ -125,7 +132,7 @@
   }
 </script>
 
-{#if planGelaende || planOberkante}<p class="hinweisbox">{planGelaende && planOberkante ? "Geländehöhen und Wandabschluss sind" : planGelaende ? "Geländehöhen sind" : "Wandabschlusshöhen sind"} mit Aufmaß verknüpft. Für ein eigenes Profil unter „Grundlagen“ die Verknüpfung lösen; die übrigen Angaben bleiben bearbeitbar.</p>{/if}
+{#if planGelaende || planOberkante}<p class="hinweisbox">{planGelaende && planOberkante ? "Geländehöhen und Wandabschluss sind" : planGelaende ? "Geländehöhen sind" : "Wandabschlusshöhen sind"} mit Aufmaß verknüpft{(wand.ansicht_felder ?? []).some((f) => f === "gelaende" || f === "oberkante") ? " (Höhen aus der Ansicht)" : ""}. Änderungen im Aufmaß vornehmen; für ein eigenes Profil die Verknüpfung lösen. Die übrigen Angaben bleiben bearbeitbar.</p>{/if}
 <fieldset class="profil">
   <legend>Höhenprofil der Wand · Länge {laenge.toLocaleString("de-DE", { maximumFractionDigits: 3 })} m</legend>
   <p class="meta">
@@ -194,6 +201,7 @@
     >Zusätzliche Wandteilgrenzen (Stationen in m, mit Semikolon getrennt)<input
       bind:value={teilgrenzen}
       onchange={grenzenSetzen}
+      readonly={planGrenzen}
       placeholder="z. B. 4,5; 9"
     /></label
   >
