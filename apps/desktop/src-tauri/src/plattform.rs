@@ -214,6 +214,18 @@ pub async fn projektuebersicht(
         .await?)
 }
 
+/// Status je Navigationsbereich (offen, erledigt, leer) für die Projektnavigation.
+#[tauri::command]
+pub async fn bereichsstatus(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> Result<core_lib::bereichsstatus::Bereichsstaende, CmdError> {
+    Ok(state
+        .core
+        .bereichsstatus(projekt_id, &state.benutzer())
+        .await?)
+}
+
 #[tauri::command]
 pub async fn einreichungspruefung(
     state: State<'_, AppState>,

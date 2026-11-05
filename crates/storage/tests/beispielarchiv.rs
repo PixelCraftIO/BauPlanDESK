@@ -128,3 +128,62 @@ async fn beispielkopie_uebernimmt_lizenz_und_testbeginn() {
         None
     );
 }
+
+/// Bereichsstatus der Projektnavigation im Beispielprojekt: Am Stichtag sind nur
+/// die Arbeiten rund um den nachgeforderten Entwässerungsnachweis offen
+/// (Aufgaben, Unterlagenregister, Verfahrensakte); die erfassten Grundlagen und
+/// Nachweise sind erledigt.
+#[tokio::test]
+async fn beispielprojekt_bereichsstatus() {
+    use core_lib::bereichsstatus::Bereichszustand::*;
+    let archiv = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(ARCHIV);
+    let dir = tempfile::tempdir().unwrap();
+    let profil = dir.path().join("Beispielprojekt");
+    storage::sicherung::wiederherstellen(&archiv, &profil).unwrap();
+    let (c, db) = basis::profil_oeffnen(&profil).await;
+    let ich = core_lib::anmeldung::verwaltung_nach_wiederherstellung(
+        &db.repositories(),
+        "anwender",
+        "Neue Anwenderin",
+    )
+    .await
+    .unwrap();
+    let p = &c.list_projects().await.unwrap()[0];
+    let tag = chrono::NaiveDate::from_ymd_opt(2026, 11, 4).unwrap();
+    let s = c.bereichsstatus_am(p.id, tag, &ich).await.unwrap();
+    for b in &s.bereiche {
+        println!("{:<18} {:?} {:?}", b.bereich, b.zustand, b.gruende);
+    }
+    let zustand = |id: &str| {
+        s.bereiche
+            .iter()
+            .find(|b| b.bereich == id)
+            .unwrap_or_else(|| panic!("Bereich {id} fehlt"))
+            .zustand
+    };
+    for id in [
+        "uebersicht",
+        "rechtsgrundlagen",
+        "festsetzungen",
+        "flurstuecke",
+        "gebaeude",
+        "raumbuch",
+        "grundstueck",
+        "grz",
+        "wohnflaechen",
+        "abstand",
+        "stellplaetze",
+    ] {
+        assert_eq!(zustand(id), Erledigt, "{id}");
+    }
+    for id in ["verfahren", "aufgaben", "unterlagen"] {
+        assert_eq!(zustand(id), Offen, "{id}");
+    }
+    assert!(
+        s.bereiche
+            .iter()
+            .filter(|b| b.zustand == Offen)
+            .all(|b| !b.gruende.is_empty())
+    );
+    db.schliessen().await;
+}

@@ -160,6 +160,7 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/status", get(projektstatus))
         .route("/projekte/{id}/uebersicht", get(projektuebersicht))
+        .route("/projekte/{id}/bereichsstatus", get(bereichsstatus))
         .route(
             "/projekte/{id}/einreichungspruefung",
             get(einreichungspruefung),
@@ -1956,6 +1957,14 @@ async fn projektuebersicht(
     Extension(wer): Extension<Benutzer>,
 ) -> ApiResult<core_lib::projektuebersicht::Projektuebersicht> {
     Ok(Json(core.projektuebersicht(ProjectId(id), &wer).await?))
+}
+
+async fn bereichsstatus(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Extension(wer): Extension<Benutzer>,
+) -> ApiResult<core_lib::bereichsstatus::Bereichsstaende> {
+    Ok(Json(core.bereichsstatus(ProjectId(id), &wer).await?))
 }
 
 #[derive(serde::Deserialize)]

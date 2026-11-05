@@ -130,6 +130,7 @@ fn main() {
             plattform::fachverlaufsseite,
             plattform::projektstatus,
             plattform::projektuebersicht,
+            plattform::bereichsstatus,
             plattform::einreichungspruefung,
             plattform::standard_checkliste,
             plattform::checkliste_anwenden,
