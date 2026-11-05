@@ -25,6 +25,7 @@ export const FUNKTIONEN: Funktion[] = [
       "Mehrere Aufmaße und Zeichnungen als Tabs, auf Wunsch in einem eigenen Fenster auf dem zweiten Bildschirm",
       "PDF-Pläne mit Maßstab oder Zwei-Punkt-Kalibrierung, DXF mit Zeichnungseinheit und Ebenen",
       "Ausschnitte mit eigenem Maßstab für Sammelblätter, Bezugslinie für Höhen im Schnitt",
+      "Arbeitsansicht: Projektnavigation eingeklappt, Pfadzeile statt Aktenkopf",
       "Vollbild mit F11, alle Kurzbefehle mit F1",
     ],
     link: "/handbuch/05-ermittlung#arbeitsplatz-des-editors",

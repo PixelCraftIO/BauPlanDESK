@@ -56,6 +56,13 @@ Zeichenfläche („Aufmaßliste“ führt zur Übersicht). Das Symbol rechts dan
 öffnet das Aufmaß **in einem eigenen Fenster**, z. B. auf dem zweiten
 Bildschirm; die Akte bleibt im Hauptfenster bedienbar.
 
+Im Bereich „Aufmaß“ gilt die **Arbeitsansicht**: Die Projektnavigation links
+ist eingeklappt, Aktenkopf und Register stehen als eine Pfadzeile
+(Projekt › Ermittlung › Aufmaß) über der Zeichenfläche. Das Symbol am Anfang
+der Pfadzeile oder ein Klick auf „Ermittlung“ blendet die Navigation wieder
+ein; das Symbol im Aktenkopf klappt sie erneut ein. Die Wahl merkt sich die
+App je Benutzer.
+
 ### Arbeitsplatz des Editors
 
 ![Zeicheneditor im Vollbild](bilder/ermittlung-aufmass-vollbild.png)

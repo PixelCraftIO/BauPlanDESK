@@ -13,7 +13,15 @@ def akte(scope):
     return scope.locator(".projekt-sitzung:visible")
 
 
+def navigation_zeigen(scope):
+    """Die Arbeitsansicht im Aufmaß klappt Projektnavigation und Register ein."""
+    knopf = akte(scope).get_by_role("button", name="Projektnavigation einblenden", exact=True)
+    if knopf.count() and knopf.first.is_visible():
+        knopf.first.click()
+
+
 def register(scope, titel):
+    navigation_zeigen(scope)
     akte(scope).locator(".register").get_by_role("tab", name=titel, exact=True).click()
 
 
@@ -25,6 +33,7 @@ def bereich(scope, name):
     if name in ARBEITSPLATZ:
         scope.locator(".app-werkzeuge").get_by_role("button", name=name, exact=True).click()
         return
+    navigation_zeigen(scope)
     knopf = gliederung(scope).get_by_role("button", name=name, exact=True)
     if not knopf.count():
         for reiter in akte(scope).locator(".register").get_by_role("tab").all():

@@ -42,18 +42,34 @@ async function projekt() {
   tab.click();
   await sleep(800);
 }
+/** Die Arbeitsansicht im Aufmaß klappt die Projektnavigation ein; vor dem Navigieren einblenden. */
+async function navigationZeigen() {
+  const k = [...document.querySelectorAll("button")].filter(sichtbar).find((b) => b.getAttribute("aria-label") === "Projektnavigation einblenden");
+  if (k) {
+    k.click();
+    await sleep(500);
+  }
+}
 async function register(t) {
   await projekt();
+  await navigationZeigen();
   await klick(t, "[role=tab],button");
   await sleep(600);
 }
 async function bereich(titel) {
+  await navigationZeigen();
   const e = [...document.querySelectorAll(".aktennavigation nav button")]
     .filter(sichtbar)
     .find((b) => txt(b) === titel || txt(b).startsWith(titel));
   if (!e) throw new Error("Bereich fehlt: " + titel);
   e.click();
   await sleep(1500);
+  // Im Aufmaß die Arbeitsansicht (eingeklappte Projektnavigation) zeigen, wie sie Nutzer vorfinden.
+  const ein = [...document.querySelectorAll("button")].filter(sichtbar).find((b) => b.getAttribute("aria-label") === "Arbeitsansicht: Projektnavigation einklappen");
+  if (ein) {
+    ein.click();
+    await sleep(500);
+  }
 }
 /** Öffnet in einer Eintragsliste die Zeile, die `zeile` enthält (sonst die erste). */
 async function eintrag(zeile) {
