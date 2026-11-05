@@ -200,6 +200,7 @@ fn main() {
         core_lib::abstandsflaechen::Wandteilergebnis,
         core_lib::abstandsflaechen::Profilzeile,
         core_lib::abstandsflaechen::UmrissAbgleich,
+        core_lib::planaufmass::AbstandslinienUebernahme,
         core_lib::abstandsflaechen::CadHoehe,
         core_lib::abstandsflaechen::Fassungsangabe,
         core_lib::abstandsflaechen::Rechtsquelle,

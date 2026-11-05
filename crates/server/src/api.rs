@@ -434,6 +434,10 @@ fn routen(core: CoreServices) -> Router {
         )
         .route("/projekte/{id}/planabstand", post(planaufmass_abstand))
         .route(
+            "/projekte/{id}/abstandslinien",
+            post(abstandslinien_uebernehmen),
+        )
+        .route(
             "/berechnung/planaufmass/abstandsziele",
             post(planaufmass_abstandsziele),
         )
@@ -839,6 +843,21 @@ async fn planaufmass_abstand(
     Json(plan): Json<core_lib::abstandsflaechen::AbstandsPlan>,
 ) -> ApiResult<core_lib::abstandsflaechen::AbstandsPlan> {
     Ok(Json(core.planaufmass_abstand(ProjectId(id), plan).await?))
+}
+#[derive(Deserialize)]
+struct Abstandslinien {
+    plan: core_lib::abstandsflaechen::AbstandsPlan,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+}
+async fn abstandslinien_uebernehmen(
+    State(ApiState { core }): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(w): Json<Abstandslinien>,
+) -> ApiResult<core_lib::planaufmass::AbstandslinienUebernahme> {
+    Ok(Json(
+        core.abstandslinien_uebernehmen(ProjectId(id), w.plan, w.aufmass)
+            .await?,
+    ))
 }
 
 async fn rule_packs(State(ApiState { core, .. }): State<ApiState>) -> ApiResult<Vec<RulePackInfo>> {

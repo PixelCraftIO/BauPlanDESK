@@ -130,6 +130,23 @@ pub async fn planaufmass_abstand(
         .await?;
     Ok(state.core.planaufmass_abstand(projekt_id, plan).await?)
 }
+/// Linien „Abstandsfläche“ und Flurstücksgrenzen eines Lageplans übernehmen.
+#[tauri::command]
+pub async fn abstandslinien_uebernehmen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    plan: core_lib::abstandsflaechen::AbstandsPlan,
+    aufmass: core_lib::planaufmass::Aufmassstand,
+) -> Result<core_lib::planaufmass::AbstandslinienUebernahme, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .abstandslinien_uebernehmen(projekt_id, plan, aufmass)
+        .await?)
+}
 #[tauri::command]
 pub async fn berechnungsvorlagen() -> Result<Vec<BerechnungsVorlage>, CmdError> {
     Ok(core_lib::berechnungen::vorlagen()?)

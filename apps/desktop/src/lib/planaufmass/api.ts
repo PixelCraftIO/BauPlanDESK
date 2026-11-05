@@ -43,6 +43,9 @@ export const planApi = {
   abstandsziele: (plan: import("../generated/plattform").AbstandsPlan) => invoke<Planziel[]>("planaufmass_abstandsziele", { plan }),
   abstand: (projektId: string, plan: import("../generated/plattform").AbstandsPlan) =>
     invoke<import("../generated/plattform").AbstandsPlan>("planaufmass_abstand", { projektId, plan }),
+  /** Linien „Abstandsfläche“ und Flurstücksgrenzen eines gespeicherten Lageplans übernehmen. */
+  abstandslinien: (projektId: string, plan: import("../generated/plattform").AbstandsPlan, aufmass: { aufmass_id: string; revision: number }) =>
+    invoke<import("../generated/plattform").AbstandslinienUebernahme>("abstandslinien_uebernehmen", { projektId, plan, aufmass }),
   gebaeudeziele: (plan: import("../generated/plattform").Gebaeude) => invoke<Planziel[]>("planaufmass_gebaeudeziele", { plan }),
   gebaeude: (projektId: string, id: string, plan: import("../generated/plattform").Gebaeude) =>
     invoke<import("../generated/plattform").Gebaeude>("planaufmass_gebaeude", { projektId, id, plan }),

@@ -8,6 +8,8 @@ art=Path(os.environ.get('BAUPROJEKT_ABSTAND_ARTEFAKTE','/tmp/bauprojekt-abstand'
 wf=json.loads((art/'workflow.json').read_text(encoding='utf-8'));wf['pdf']=base64.b64encode((art/'nachweis.pdf').read_bytes()).decode()
 # Echter Core-Abgleich eines Gebäudeumrisses aus dem Storage-Test.
 wf['umriss']=json.loads((art/'umriss.json').read_text(encoding='utf-8'))
+# Echte Übernahme der Linien „Abstandsfläche“ aus dem Lageplan (storage-Test planaufmass).
+wf['linien']=json.loads((art/'linien.json').read_text(encoding='utf-8'))
 # Regeldateien wie im Rechenkern: Inhalt plus Dateiname und SHA-256 des Dateitexts.
 rw=root.parents[2]/'regelwerke/abstandsflaechen'
 werke=[{'datei':str(f.relative_to(rw)),'pruefsumme':hashlib.sha256(f.read_bytes()).hexdigest(),**json.loads(f.read_text(encoding='utf-8'))} for f in sorted(rw.glob('*/*.json'))]
@@ -18,6 +20,8 @@ const base=window.__TAURI_INTERNALS__.invoke,clone=v=>JSON.parse(JSON.stringify(
 window.testUser=clone(window.abstand.benutzer);window.aPlan=clone(window.abstand.fachstand);window.aFail=false;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  cmd=({fachobjektseite:'fachobjekte',fachverlaufsseite:'fachverlauf',druckartefakt_erstellen:'druckausgabe_erstellen'})[cmd]??cmd;
+ if(cmd==='fachobjekte'&&args.art==='planaufmass'){const l=window.abstand.linien.aufmass;return [{daten:clone(l.daten),modul:'planaufmass',objekt:l.objekt,projekt_id:window.abstand.fachstand.projekt_id,revision:l.revision,schema_version:1}];}
+ if(cmd==='abstandslinien_uebernehmen'){window.calls.push({cmd,args:clone(args)});return clone(window.abstand.linien.uebernahme);}
  if(['fachobjekte','fachobjekt_speichern'].includes(cmd)&&args.art!=='abstandsflaechen')return base(cmd,args);
  if(!['fachobjekte','fachobjekt_speichern','abstandsregeln','abstandsplan_pruefen','nachweis_erstellen','druckkatalog','druckausgabe_erstellen','druckausgabe_ablegen','dokumente_auflisten','abstandsumrisse_einbinden'].includes(cmd))return base(cmd,args);
  window.calls.push({cmd,args:clone(args)});
@@ -107,6 +111,24 @@ with sync_playwright() as p:
  expect(result.get_by_role('img',name='Wandabwicklung Wohnhaus – Seite 1',exact=True)).to_be_visible()
  expect(result.get_by_text('im Mittel gemessene Wandhöhe aus den Kanten (7 m + 6,8 m) / 2 = 6,9 m',exact=False)).to_be_visible()
  page.screenshot(path=str(out/'wandabwicklung.png'),full_page=True)
+ # Linien „Abstandsfläche“ aus dem Lageplan: A1/A2 als Wände, Lage gebunden.
+ tab('Wände / Bauteile')
+ li=page.locator('section.linien')
+ expect(li.get_by_role('heading',name='Abstandsflächen aus dem Lageplan')).to_be_visible()
+ expect(li.get_by_role('combobox',name='Lageplan')).to_contain_text('2 Linien')
+ li.get_by_role('button',name='Linien aus dem Lageplan übernehmen',exact=True).click()
+ expect(li.get_by_role('status')).to_contain_text('2 Linien übernommen')
+ call=page.evaluate("window.calls.find(c=>c.cmd==='abstandslinien_uebernehmen').args")
+ assert call['aufmass']['aufmass_id']==wf['linien']['aufmass']['objekt'],call['aufmass']
+ a1=page.get_by_role('row').filter(has_text='A1')
+ expect(a1).to_contain_text('aus Lageplan')
+ a1.get_by_role('button',name='Bearbeiten',exact=True).click()
+ expect(page.get_by_role('spinbutton',name='Anfang X (m)',exact=True)).not_to_be_editable()
+ expect(page.get_by_role('spinbutton',name='Anfang X (m)',exact=True)).to_have_value('10')
+ expect(page.get_by_text('Lage und Länge aus der Linie „A1“ im Lageplan',exact=False)).to_be_visible()
+ page.screenshot(path=str(out/'linien-lageplan.png'),full_page=True)
+ tab('Lageplan / Grenzen')
+ expect(page.get_by_text('Grenze aus dem Lageplan (4 Eckpunkte)',exact=False)).to_be_visible()
  # Fassungswahl: Stichtag heute schlägt die geltende NRW-Fassung vor; Wechsel nur mit Vergleich.
  tab('Grundlagen')
  fw=page.locator('section.fassung')

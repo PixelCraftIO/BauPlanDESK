@@ -127,6 +127,13 @@ fn wandfeld(feld: &str) -> (Planbedeutung, Aufgabengeometrie, Option<&'static st
             Strecke,
             Some("Senkrechte Strecke vom Wandabschluss bis zur Dachoberkante"),
         ),
+        "lage" => (
+            Abstandsflaeche,
+            Strecke,
+            Some(
+                "Linie entlang der Außenwand im Lageplan; Übernahme unter Abstandsflächen → Wände",
+            ),
+        ),
         _ => (
             Dach,
             Strecke,
@@ -418,6 +425,15 @@ pub fn werkzeugkiste() -> Vec<Werkzeugvorlage> {
             Flaeche,
             "Grundstück",
             "Flurstücksgrenze aus Flurkarte oder Lageplan; Flurstück in den Eigenschaften zuordnen",
+        ),
+        v(
+            "abstandsflaeche",
+            "Grundstück",
+            "Abstandsfläche",
+            Abstandsflaeche,
+            Strecke,
+            "Abstandsflächen",
+            "Linie entlang der Außenkante einer Wand im Lageplan; wird im Abstandsflächennachweis zu A1, A2 …",
         ),
         v(
             "baufenster",
@@ -960,6 +976,8 @@ impl CoreServices {
                     "abschluss_b_m" => w.abschluss_b_m,
                     "dachhoehe_m" => w.dachhoehe_m,
                     "dachneigung_grad" => w.dachneigung_grad,
+                    // Lage gilt als vorhanden, sobald die Wand eine Länge hat.
+                    "lage" => (w.von != w.bis).then_some(0.),
                     _ => w.dachneigung_b_grad,
                 };
                 aufgaben.push(Planaufgabe {

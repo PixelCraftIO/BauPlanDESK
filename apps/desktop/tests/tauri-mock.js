@@ -85,6 +85,7 @@ window.__TAURI_INTERNALS__ = {
       return [
         { id: "flurstueck", gruppe: "Grundstück", titel: "Flurstück", bedeutung: "flurstueck", geometrie: "flaeche", ebene: "Grundstück", hinweis: "Flurstücksgrenze aus Flurkarte oder Lageplan" },
         { id: "nuf", gruppe: "DIN 277", titel: "DIN 277 NUF", bedeutung: "nuf", geometrie: "flaeche", ebene: "DIN 277", hinweis: "Nutzungsfläche; Gebäude und Geschoss zuordnen" },
+        { id: "abstandsflaeche", gruppe: "Grundstück", titel: "Abstandsfläche", bedeutung: "abstandsflaeche", geometrie: "strecke", ebene: "Abstandsflächen", hinweis: "Linie entlang der Außenkante einer Wand im Lageplan" },
         { id: "traufe", gruppe: "Höhen", titel: "Traufe", bedeutung: "traufe", geometrie: "hoehenpunkt", ebene: "Höhen", hinweis: "Traufhöhe; Höhenpunkt mit Bezugslinie" },
       ];
     if (["fachobjekte","fachobjektseite","fachverlaufsseite","fachverlauf","nachweise","verfahren_planunterlagen"].includes(cmd)) return [];

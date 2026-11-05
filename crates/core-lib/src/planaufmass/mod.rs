@@ -24,7 +24,7 @@ pub use abgleich::{
     Abgleichsfrage, Abgleichskandidat, Doppelerfassung, Zeilenzuordnung, abzugsdubletten,
     bauteildubletten, fast_gleich,
 };
-pub use abstand::abstandsziele;
+pub use abstand::{AbstandslinienUebernahme, abstandsziele};
 pub use aufgaben::{Aufgabengeometrie, Planaufgabe, Werkzeugvorlage, werkzeugkiste};
 pub use baugrenzen::BaugrenzenUebernahme;
 pub use cadmigration::{CadUebernahme, seitenpunkt};
@@ -275,6 +275,9 @@ pub enum Planbedeutung {
     Fundamentsohle,
     /// Senkrechte Strecke: lichte Höhe, Geschosshöhe, Deckendicke.
     Hoehenmass,
+    /// Strecke entlang der Außenkante einer Wand im Lageplan, vor der eine
+    /// Abstandsfläche liegt; wird im Abstandsplan zur Wand A1, A2 …
+    Abstandsflaeche,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -341,6 +344,7 @@ impl Planbedeutung {
             Self::Decke => "OK Decke",
             Self::Fundamentsohle => "Fundamentsohle",
             Self::Hoehenmass => "Höhenmaß",
+            Self::Abstandsflaeche => "Abstandsfläche",
         }
     }
     /// Flächen, die das Raumbuch als Raum (oder Höhenzone) übernimmt.

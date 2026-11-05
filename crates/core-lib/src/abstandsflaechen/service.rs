@@ -60,7 +60,7 @@ impl CoreServices {
         Ok(r)
     }
     /// Identität und Bezeichnung der Gebäude aus Gebäude/Geschosse.
-    async fn gebaeudenamen(&self, p: ProjectId) -> CoreResult<Vec<(Uuid, String)>> {
+    pub(crate) async fn gebaeudenamen(&self, p: ProjectId) -> CoreResult<Vec<(Uuid, String)>> {
         let mut r = vec![];
         for f in self.repos.commit.fachstaende(p, "gebaeude").await? {
             let g: crate::plattform::objekte::Gebaeude =

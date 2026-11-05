@@ -57,6 +57,13 @@ with sync_playwright() as pw:
  expect(tab.get_by_label('Bedeutung',exact=True)).to_have_value('nuf')
  expect(tab.get_by_label('Zeichenebene',exact=True)).to_have_value(tab.get_by_label('Zeichenebene',exact=True).locator('option',has_text='DIN 277').evaluate('o=>o.value'))
  expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_have_count(0)
+ # Linie „Abstandsfläche“: Namen A1, A2 … für den Abstandsflächennachweis.
+ for n,y in enumerate([11,13],start=1):
+  tab.get_by_role('button',name='Vorlagen für Strecke / Dach',exact=True).click()
+  tab.get_by_role('menu',name='Vorlagen Strecke / Dach').get_by_role('menuitem',name='Abstandsfläche').first.click()
+  click(20,y);click(26,y)
+  expect(tab.get_by_label('Bezeichnung',exact=True).first).to_have_value(f'A{n}')
+  expect(tab.get_by_label('Bedeutung',exact=True)).to_have_value('abstandsflaeche')
  # Versatz als Werkzeug: Auswahl bleibt, Abstand in der Optionsleiste, danach rückgängig.
  tab.get_by_role('button',name='Versatz',exact=True).click()
  expect(tab.get_by_role('button',name='Versatz',exact=True)).to_have_attribute('aria-pressed','true')
