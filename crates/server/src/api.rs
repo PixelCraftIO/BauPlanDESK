@@ -162,6 +162,10 @@ fn routen(core: CoreServices) -> Router {
         .route("/projekte/{id}/uebersicht", get(projektuebersicht))
         .route("/projekte/{id}/bereichsstatus", get(bereichsstatus))
         .route(
+            "/projekte/{id}/bereichsstatus/{bereich}",
+            post(bereich_benoetigt_setzen),
+        )
+        .route(
             "/projekte/{id}/einreichungspruefung",
             get(einreichungspruefung),
         )
@@ -1965,6 +1969,22 @@ async fn bereichsstatus(
     Extension(wer): Extension<Benutzer>,
 ) -> ApiResult<core_lib::bereichsstatus::Bereichsstaende> {
     Ok(Json(core.bereichsstatus(ProjectId(id), &wer).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct BenoetigtEingabe {
+    benoetigt: bool,
+}
+async fn bereich_benoetigt_setzen(
+    State(ApiState { core }): State<ApiState>,
+    Path((id, bereich)): Path<(Uuid, String)>,
+    Extension(wer): Extension<Benutzer>,
+    Json(e): Json<BenoetigtEingabe>,
+) -> ApiResult<core_lib::bereichsstatus::Bereichsstaende> {
+    Ok(Json(
+        core.bereich_benoetigt_setzen(ProjectId(id), &bereich, e.benoetigt, &wer)
+            .await?,
+    ))
 }
 
 #[derive(serde::Deserialize)]

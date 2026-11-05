@@ -1657,7 +1657,13 @@ export type Suchtext = { dokument: Dokumentbezug, sha256: string, quelle: Textqu
 export type Suchtreffer = { titel: string, bereich: string, auszug: string, verfahren: string | null, dokument: Dokumentbezug | null, };
 export type ObjektArt = "stellplaetze" | "wohnflaechen" | "din277" | "vollgeschosse" | "hoehen" | "freiflaechen" | "entwaesserung" | "ueberbaubarkeit" | "abstandsflaechen" | "verfahren" | "projektorganisation" | "gebaeude" | "aufgaben" | "unterlagen" | "dokumentdaten" | "raumbuch" | "planaufmass" | "cadaufmass" | "ifcmodell" | "projekttagebuch" | "planliste" | "fachplanerlieferung" | "baukennwerte";
 export type Projektphase = "vorbereitung" | "vorplanung" | "entwurf" | "genehmigung" | "ausfuehrung" | "abgeschlossen";
-export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string, };
+export type Projektorganisation = { kennzeichen: string, phase: Projektphase, verantwortlich: BenutzerId | null, beschreibung: string,
+/**
+ * Navigationsbereiche, die das Büro für dieses Projekt ausdrücklich als
+ * nicht benötigt gekennzeichnet hat (siehe [`crate::bereichsstatus`]).
+ * Fehlt in älteren Ständen.
+ */
+nicht_benoetigt?: Array<string>, };
 export type Dokumentbezug = { dokument_id: DocumentId, version: number, };
 export type Gebaeude = { planbindungen?: Array<Planbindung>, geometrie?: GebaeudeGeometrie, bezeichnung: string,
 /**
@@ -1850,7 +1856,7 @@ export type Tagesmaileinstellung = { aktiv: boolean, adresse: string, umfang: Ab
  */
 abwesend_bis: string | null, vertretung: BenutzerId | null, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
-export type Bereichszustand = "offen" | "erledigt" | "leer";
+export type Bereichszustand = "offen" | "erledigt" | "leer" | "nicht_benoetigt";
 export type Bereichsstatus = {
 /**
  * Kennung des Bereichs wie in der Navigation (z. B. `flurstuecke`, `grz`).
@@ -1859,7 +1865,12 @@ bereich: string, zustand: Bereichszustand,
 /**
  * Kurze Gründe für „offen“ in der Reihenfolge der Projektübersicht.
  */
-gruende: Array<string>, };
+gruende: Array<string>,
+/**
+ * Ob sich der Bereich als „nicht benötigt“ kennzeichnen lässt: nur
+ * Datenbereiche, in denen noch nichts erfasst ist.
+ */
+kennzeichenbar: boolean, };
 export type Bereichsstaende = { projekt_version: bigint, stichtag: string, bereiche: Array<Bereichsstatus>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };

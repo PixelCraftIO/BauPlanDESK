@@ -67,7 +67,33 @@ ein eigener Vorgang im Projektverzeichnis.
      listet die letzten fünf Bereiche.
    - Ein ausgegrauter Eintrag ist noch gesperrt. Beim Darüberfahren nennt er
      die fehlenden Schritte (z. B. fehlende Rechtsgrundlage für GRZ).
-4. **Arbeitsfläche** rechts mit dem gewählten Bereich.
+4. **Statussymbole** rechts neben den Einträgen zeigen den Stand jedes
+   Bereichs. Die Form unterscheidet die Zustände auch ohne Farbe:
+
+   | Symbol | Bedeutung |
+   | --- | --- |
+   | rotes Ausrufezeichen | Ungespeicherte Änderungen in diesem Bereich |
+   | gelber Halbkreis | Noch zu erledigen; beim Darüberfahren steht, was fehlt |
+   | grüner Haken | Vollständig und gespeichert |
+   | kein Symbol | Leer und nichts verlangt, z. B. ein Raumbuch, das niemand braucht |
+
+   Was als offen gilt, richtet sich nach den erfassten Daten. Ist in den
+   Rechtsgrundlagen ein Bebauungsplan gewählt, wird „Planfestsetzungen“ gelb,
+   bis mindestens eine Festsetzung wie GRZ, GFZ oder Vollgeschosse eingetragen
+   ist. Gibt es Wohnflächen oder DIN-277-Flächen, verlangt das Raumbuch
+   Einträge. Offene Arbeitspunkte der Projektübersicht, auch überfällige
+   Fristen, machen den Bereich gelb, zu dem sie führen.
+   - Ein Register oder eine Gruppe zeigt das dringendste Symbol der Bereiche
+     darunter.
+   - **Nur offene** oben im Baum blendet alles Erledigte und Leere aus.
+   - Steht man in einem offenen Bereich, nennt eine gelbe Zeile über der
+     Arbeitsfläche, was dort noch fehlt.
+   - Über **⋯** neben einem leeren Bereich lässt er sich **als nicht benötigt
+     kennzeichnen**. Er erscheint dann kursiv und bleibt ohne Symbol. Die
+     Kennzeichnung wird in der Akte gespeichert, steht im Verlauf der
+     Projektorganisation und lässt sich mit „Wieder als benötigt führen“
+     zurücknehmen. Sobald der Bereich Daten enthält, gilt sie nicht mehr.
+5. **Arbeitsfläche** rechts mit dem gewählten Bereich.
 
 Die vollständige Gliederung:
 

@@ -18,7 +18,10 @@
   import { FACHMODULE } from "./fachmodule/register";
   import { projektEditoren } from "./editoren";
   import { untrack } from "svelte";
-  import { melden } from "./projektEreignisse";
+  import { melden, abonnieren } from "./projektEreignisse";
+  import { plattformApi } from "./plattformApi";
+  import type { Bereichsstatus } from "./generated/plattform";
+  import StatusSymbol from "./StatusSymbol.svelte";
   import {
     api,
     fehlertext,
@@ -87,6 +90,43 @@
   } = $props();
   const editoren = projektEditoren();
   const navigation = projektNavigationAnlegen();
+  // Bereichsstatus (offen/erledigt) für Projektbaum und Statuszeile; neu nach
+  // jeder gespeicherten Änderung der Akte. Ohne Antwort bleibt der Baum ohne Symbole.
+  let staende = $state<Record<string, Bereichsstatus>>({});
+  let statusNr = 0;
+  let statusTimer: ReturnType<typeof setTimeout> | undefined;
+  async function statusLaden() {
+    const nr = ++statusNr;
+    try {
+      const s = await plattformApi.bereichsstatus(projekt.id);
+      if (nr === statusNr)
+        staende = Object.fromEntries(s.bereiche.map((b) => [b.bereich, b]));
+    } catch {
+      /* Navigation bleibt ohne Status nutzbar */
+    }
+  }
+  function statusPlanen() {
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => void statusLaden(), 400);
+  }
+  $effect(() => {
+    void projekt.version;
+    untrack(statusPlanen);
+  });
+  $effect(() =>
+    abonnieren(projekt.id, ["dokumente", "fachobjekte", "nachweise"], statusPlanen),
+  );
+  async function benoetigtSetzen(bereich: string, benoetigt: boolean) {
+    try {
+      const s = await plattformApi.bereichBenoetigt(projekt.id, bereich, benoetigt);
+      staende = Object.fromEntries(s.bereiche.map((b) => [b.bereich, b]));
+    } catch (e) {
+      fehler = (e as { meldung?: string })?.meldung ?? String(e);
+    }
+  }
+  const statusBereich = $derived(
+    staende[ansicht === "mass" ? "grundstueck" : ansicht],
+  );
   $effect(() => {
     navigation.benutzerId = ich?.id ?? null;
     navigation.projektId = projekt.id;
@@ -362,8 +402,26 @@
   </dl>
 </header>
 <div class="aktenrumpf" class:arbeitsansicht>
-  {#if !arbeitsansicht}<Sidebar {projekt} {aktiv} {ansicht} onbereich={bereich} />{/if}
+  {#if !arbeitsansicht}<Sidebar
+      {projekt}
+      {aktiv}
+      {ansicht}
+      onbereich={bereich}
+      {staende}
+      onbenoetigt={darf("bearbeitung") ? benoetigtSetzen : undefined}
+    />{/if}
   <main>
+    {#if statusBereich?.zustand === "offen" && statusBereich.gruende.length}<details class="bereichsstatus">
+        <summary
+          ><StatusSymbol art="gelb" text={statusBereich.gruende.join("\n")} />
+          Noch zu erledigen: {statusBereich.gruende[0]}{statusBereich.gruende.length > 1
+            ? ` (+${statusBereich.gruende.length - 1} weitere)`
+            : ""}</summary
+        >
+        <ul>
+          {#each statusBereich.gruende as g}<li>{g}</li>{/each}
+        </ul>
+      </details>{/if}
     {#if navigation.rueckweg && navigation.rueckweg.bereich !== ansicht}<button
         class="link"
         onclick={() => {
@@ -689,6 +747,24 @@
 </div>
 
 <style>
+  /* Statuszeile über dem Bereich: was hier noch zu erledigen ist. */
+  .bereichsstatus {
+    margin: 0 0 8px;
+    padding: 4px 10px;
+    border: 1px solid #ecd49a;
+    background: color-mix(in srgb, #d39200 9%, var(--panel));
+    font-size: 0.9rem;
+  }
+  .bereichsstatus summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .bereichsstatus ul {
+    margin: 4px 0 2px;
+    padding-left: 2.2rem;
+  }
   .aktenrumpf.arbeitsansicht {
     grid-template-columns: minmax(0, 1fr);
   }

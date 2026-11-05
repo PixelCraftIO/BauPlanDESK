@@ -131,6 +131,7 @@ fn main() {
             plattform::projektstatus,
             plattform::projektuebersicht,
             plattform::bereichsstatus,
+            plattform::bereich_benoetigt_setzen,
             plattform::einreichungspruefung,
             plattform::standard_checkliste,
             plattform::checkliste_anwenden,

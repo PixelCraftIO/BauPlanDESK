@@ -226,6 +226,20 @@ pub async fn bereichsstatus(
         .await?)
 }
 
+/// Leeren Bereich als „nicht benötigt“ kennzeichnen oder die Kennzeichnung zurücknehmen.
+#[tauri::command]
+pub async fn bereich_benoetigt_setzen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    bereich: String,
+    benoetigt: bool,
+) -> Result<core_lib::bereichsstatus::Bereichsstaende, CmdError> {
+    Ok(state
+        .core
+        .bereich_benoetigt_setzen(projekt_id, &bereich, benoetigt, &state.benutzer())
+        .await?)
+}
+
 #[tauri::command]
 pub async fn einreichungspruefung(
     state: State<'_, AppState>,

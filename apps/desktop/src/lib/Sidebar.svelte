@@ -6,22 +6,75 @@
   import {
     navigationMitModulen,
     pfadZu,
+    moduleVon,
     KURZTITEL,
     type NavZweig,
   } from "./navigation";
   import type { Project } from "./api";
   import type { Ansicht } from "./projektSitzung";
+  import type { Bereichsstatus } from "./generated/plattform";
+  import StatusSymbol, { type Statusart } from "./StatusSymbol.svelte";
   let {
     projekt,
     aktiv = true,
     ansicht,
     onbereich,
+    staende = {},
+    onbenoetigt,
   }: {
     projekt: Project;
     aktiv?: boolean;
     ansicht: Ansicht;
     onbereich: (a: Ansicht) => void;
+    /** Bereichsstatus aus dem Core, je Bereichs-ID. */
+    staende?: Record<string, Bereichsstatus>;
+    onbenoetigt?: (bereich: string, benoetigt: boolean) => void;
   } = $props();
+  type Symbol = { art: Statusart; text: string } | null;
+  const RANG: Record<Statusart, number> = { rot: 3, gelb: 2, gruen: 1 };
+  /** Rot aus ungespeicherten Änderungen, sonst Gelb/Grün aus dem Core. */
+  function symbolVon(id: string): Symbol {
+    const modul = MODULE.find((m) => m.id === id);
+    if (modul && voraussetzung(projekt, modul)) return null;
+    if (editoren?.hatAenderungenIn(id as Ansicht)) return { art: "rot", text: "" };
+    const s = staende[id];
+    if (s?.zustand === "offen") return { art: "gelb", text: s.gruende.join("\n") };
+    if (s?.zustand === "erledigt") return { art: "gruen", text: "" };
+    return null;
+  }
+  /** Ein Zweig zeigt das dringendste Symbol seiner Bereiche. */
+  function zweigSymbol(z: NavZweig): Symbol {
+    let best: Symbol = null;
+    const offen: string[] = [];
+    for (const id of moduleVon(z)) {
+      const s = symbolVon(id);
+      if (!s) continue;
+      if (s.art !== "gruen")
+        offen.push(MODULE.find((m) => m.id === id)?.titel ?? id);
+      if (!best || RANG[s.art] > RANG[best.art]) best = s;
+    }
+    return best && { art: best.art, text: offen.join("\n") };
+  }
+  // „Nur offene“: Erledigtes und Leeres ausblenden (lokal je Benutzer).
+  let nurOffen = $state(false);
+  try {
+    nurOffen = localStorage.getItem("bauplan.baum.nurOffen") === "1";
+  } catch {
+    /* Standard: alles zeigen */
+  }
+  function nurOffenUmschalten() {
+    nurOffen = !nurOffen;
+    try {
+      localStorage.setItem("bauplan.baum.nurOffen", nurOffen ? "1" : "0");
+    } catch {
+      /* Navigation bleibt nutzbar */
+    }
+  }
+  function sichtbar(id: string) {
+    if (!nurOffen || istAktiv(id)) return true;
+    const s = symbolVon(id);
+    return !!s && s.art !== "gruen";
+  }
   const NAVIGATION = navigationMitModulen(MODULE);
   // Zugeklappte Zweige des Projektbaums, je Projekt lokal gemerkt.
   const baumSchluessel = () => `bauplan.baum.${projekt.id}`;
@@ -138,11 +191,16 @@
   }
 </script>
 
-{#snippet eintraege(ids: import("./module").ModulId[])}
-  {#each ids as id}
+{#snippet eintraege(ids: import("./module").ModulId[], baum = false)}
+  {#each baum ? ids.filter(sichtbar) : ids as id}
     {@const modul = MODULE.find((m) => m.id === id)!}
     {@const grund = voraussetzung(projekt, modul)}
+    {@const stand = staende[id]}
     <Navigationseintrag
+      status={symbolVon(id)}
+      nichtBenoetigt={stand?.zustand === "nicht_benoetigt"}
+      kennzeichenbar={!!stand?.kennzeichenbar}
+      onbenoetigt={onbenoetigt && ((b) => onbenoetigt(id, b))}
       {id}
       titel={modul.titel}
       kurz={KURZTITEL[id] ?? modul.titel}
@@ -157,7 +215,8 @@
 {/snippet}
 {#snippet zweig(z: NavZweig, ebene: number)}
   {@const offen = !zu.has(z.id)}
-  <li class="baumzweig" data-ebene={ebene}>
+  {@const symbol = zweigSymbol(z)}
+  {#if !nurOffen || moduleVon(z).some(sichtbar)}<li class="baumzweig" data-ebene={ebene}>
     <button
       type="button"
       class="zweigkopf"
@@ -169,13 +228,13 @@
       ><span class="pfeil" class:offen aria-hidden="true"></span
       ><span class="zweigtitel"
         >{#if z.ziffer}<small class="ziffer">{z.ziffer}</small>{/if}{z.titel}</span
-      ></button
+      >{#if symbol}<span class="zweigsymbol"><StatusSymbol art={symbol.art} text={symbol.text} /></span>{/if}</button
     >
     {#if offen}<ul role="group" aria-label={z.titel}>
-        {#if z.module.length}<li class="blaetter">{@render eintraege(z.module)}</li>{/if}
+        {#if z.module.length}<li class="blaetter">{@render eintraege(z.module, true)}</li>{/if}
         {#each z.kinder ?? [] as k (k.id)}{@render zweig(k, ebene + 1)}{/each}
       </ul>{/if}
-  </li>
+  </li>{/if}
 {/snippet}
 
 <svelte:window
@@ -233,6 +292,13 @@
       <button
         type="button"
         class="link"
+        aria-pressed={nurOffen}
+        title="Nur Bereiche mit offener Arbeit oder ungespeicherten Änderungen zeigen"
+        onclick={nurOffenUmschalten}>Nur offene</button
+      >
+      <button
+        type="button"
+        class="link"
         onclick={() => (alleZu ? alleAufklappen() : alleZuklappen())}
         >{alleZu ? "Alle aufklappen" : "Alle zuklappen"}</button
       >
@@ -274,6 +340,18 @@
     padding: 2px 10px 4px;
     font-weight: 600;
     border-bottom: 1px solid var(--border-innen);
+  }
+  .baumkopf > span {
+    flex: 1;
+  }
+  .baumkopf .link[aria-pressed="true"] {
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .zweigsymbol {
+    margin-left: auto;
+    padding-right: 4px;
+    display: inline-flex;
   }
   .baumkopf .link {
     font-size: 0.8rem;

@@ -10,10 +10,10 @@
 //! Änderungen kennt nur die Oberfläche; sperrende Voraussetzungen bleiben dort
 //! wie bisher.
 use crate::{
-    CoreResult, CoreServices,
+    CoreError, CoreResult, CoreServices,
     benutzer::Benutzer,
     domain::ProjectId,
-    plattform::ObjektArt,
+    plattform::{ObjektArt, objekte::Projektorganisation},
     projektuebersicht::{Dringlichkeit, Projektuebersicht},
 };
 use chrono::NaiveDate;
@@ -29,6 +29,8 @@ pub enum Bereichszustand {
     Erledigt,
     /// Leer und nicht benötigt, oder Listenbereich ohne offene Einträge (kein Symbol).
     Leer,
+    /// Vom Büro ausdrücklich als nicht benötigt gekennzeichnet (kein Symbol).
+    NichtBenoetigt,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -38,6 +40,9 @@ pub struct Bereichsstatus {
     pub zustand: Bereichszustand,
     /// Kurze Gründe für „offen“ in der Reihenfolge der Projektübersicht.
     pub gruende: Vec<String>,
+    /// Ob sich der Bereich als „nicht benötigt“ kennzeichnen lässt: nur
+    /// Datenbereiche, in denen noch nichts erfasst ist.
+    pub kennzeichenbar: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -249,11 +254,20 @@ impl CoreServices {
             );
         }
 
+        let nicht_benoetigt = self
+            .organisation(p)
+            .await?
+            .map(|(o, _)| o.nicht_benoetigt)
+            .unwrap_or_default();
         let bereiche = BEREICHE
             .iter()
             .map(|(b, art)| {
-                let g = gruende.remove(*b).unwrap_or_default();
-                let zustand = if !g.is_empty() {
+                let kennzeichenbar = *art == Art::Daten && !daten.contains(b);
+                let mut g = gruende.remove(*b).unwrap_or_default();
+                let zustand = if kennzeichenbar && nicht_benoetigt.iter().any(|n| n == b) {
+                    g.clear();
+                    Bereichszustand::NichtBenoetigt
+                } else if !g.is_empty() {
                     Bereichszustand::Offen
                 } else {
                     match art {
@@ -266,6 +280,7 @@ impl CoreServices {
                     bereich: (*b).into(),
                     zustand,
                     gruende: g,
+                    kennzeichenbar,
                 }
             })
             .collect();
@@ -274,5 +289,63 @@ impl CoreServices {
             stichtag: heute,
             bereiche,
         })
+    }
+
+    async fn organisation(&self, p: ProjectId) -> CoreResult<Option<(Projektorganisation, i64)>> {
+        let Some(f) = self
+            .fachobjekt_lesen(p, ObjektArt::Projektorganisation, p.0)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let o = serde_json::from_value(f.daten)
+            .map_err(|e| CoreError::InvalidInput(format!("Projektorganisation: {e}")))?;
+        Ok(Some((o, f.revision)))
+    }
+
+    /// Kennzeichnet einen leeren Datenbereich als „nicht benötigt“ oder nimmt
+    /// die Kennzeichnung zurück. Gespeichert in der Projektorganisation (gilt
+    /// für alle Mitarbeiter, mit Revision und Verlauf).
+    pub async fn bereich_benoetigt_setzen(
+        &self,
+        p: ProjectId,
+        bereich: &str,
+        benoetigt: bool,
+        wer: &Benutzer,
+    ) -> CoreResult<Bereichsstaende> {
+        let stand = self.bereichsstatus(p, wer).await?;
+        let Some(b) = stand.bereiche.iter().find(|b| b.bereich == bereich) else {
+            return Err(CoreError::InvalidInput(format!(
+                "Unbekannter Bereich „{bereich}“"
+            )));
+        };
+        if !benoetigt && !b.kennzeichenbar {
+            return Err(CoreError::InvalidInput(
+                "Nur Bereiche ohne erfasste Daten lassen sich als nicht benötigt kennzeichnen"
+                    .into(),
+            ));
+        }
+        let (mut org, basis) = match self.organisation(p).await? {
+            Some((o, r)) => (o, r),
+            None => (
+                Projektorganisation {
+                    kennzeichen: String::new(),
+                    phase: crate::plattform::objekte::Projektphase::Vorbereitung,
+                    verantwortlich: None,
+                    beschreibung: String::new(),
+                    nicht_benoetigt: vec![],
+                },
+                0,
+            ),
+        };
+        org.nicht_benoetigt.retain(|n| n != bereich);
+        if !benoetigt {
+            org.nicht_benoetigt.push(bereich.to_string());
+        }
+        let daten =
+            serde_json::to_value(&org).map_err(|e| CoreError::InvalidInput(e.to_string()))?;
+        self.fachobjekt_speichern(p, ObjektArt::Projektorganisation, p.0, basis, daten, wer)
+            .await?;
+        self.bereichsstatus(p, wer).await
     }
 }
