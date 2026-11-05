@@ -62,10 +62,10 @@ Bildschirm; die Akte bleibt im Hauptfenster bedienbar.
 
 | Bereich | Inhalt |
 | --- | --- |
-| Kopfleiste | Speichern, Schließen, Rückgängig/Wiederholen, „Aufmaßblatt PDF …“, „Messwerte CSV …“, Maße anzeigen, Vollbild (F11), Kurzbefehle (F1) |
+| Kopfleiste | Speichern, Schließen, Rückgängig/Wiederholen, Menü **Prüfen** (Lage im Baufenster, Planstände vergleichen), Menü **Ausgabe** (Aufmaßblatt PDF, Messwerte CSV, DXF fürs CAD, Planblatt PDF), Maße anzeigen, Vollbild (F11), Kurzbefehle (F1) |
 | Werkzeugleiste links | Auswählen (V), Verschieben (M), Polygon (P), Rechteck (R), Kreis (K), Strecke / Dach (S), Wand (W), Maßkette (L), Text (X), Höhenpunkt (H), Bezugslinie setzen, Ausschnitt anlegen, Zwei Punkte kalibrieren, Kontrollstrecke messen, Duplizieren, Markierung entfernen |
 | Ansichtsleiste | Zoom (bei eigenen Zeichnungen als Bildschirmmaßstab 1:n), Einpassen, 1:1, Auf Auswahl, Zoomfenster (Z), drehen, **Punktfang** und Fangoptionen |
-| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss, dazu Voreinstellung und **Werkzeugkiste**), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung** sowie **Prüfen und Ausgabe**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
+| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss, dazu Voreinstellung und **Werkzeugkiste**), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
 | Statusleiste | Zeigerposition in Metern, aktiver Fang, Ortho bzw. Winkelraster, Bildschirmmaßstab, Unterlage bzw. Blattgröße; die Tastenbelegung zeigt F1 |
 
 Alle Werkzeuge erscheinen als Symbol; der Name und das Tastenkürzel stehen im
@@ -214,12 +214,12 @@ Büro-CAD. Die gewohnten Handgriffe sind aber da:
 
 ### Planlayout und DXF
 
-„Planlayout“ gibt die eigene Zeichnung maßstäblich auf A4 bis A0 aus, mit
+„Ausgabe → Planblatt PDF (maßstäblich) …“ öffnet ein Fenster über dem Plan und gibt die eigene Zeichnung maßstäblich auf A4 bis A0 aus, mit
 Plankopf aus Projekt und Planliste, Nordpfeil, Maßstabsleiste und Legende;
-wahlweise als neue Version des Plandokuments. „DXF fürs CAD …“ gibt Zeichnung
+wahlweise als neue Version des Plandokuments. „Ausgabe → DXF fürs CAD …“ gibt Zeichnung
 oder kalibriertes Aufmaß in Metern mit einer DXF-Ebene je Zeichenebene aus.
 
-![Prüfen und Ausgabe mit Planlayout: Format, Maßstab, Planlisteneintrag, Nordpfeil und Legende](bilder/editor-planlayout.png)
+![Fenster „Planblatt PDF“ über dem Plan: Format, Maßstab, Planlisteneintrag, Nordpfeil und Legende](bilder/editor-planlayout.png)
 
 ## IFC-Modell (BIM)
 

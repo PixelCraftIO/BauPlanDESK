@@ -85,6 +85,10 @@
   // „Eigenschaften“ ohne Auswahl zeigt das Blatt (Unterlage, Maßstab, Höhenbezug) und die Prüf- und Ausgabefunktionen.
   const REITER=[["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as const;
   function panelOeffnen(id:string){panel=id}
+  // Kopfleiste: Menüs „Prüfen“ und „Ausgabe“; ihre Werkzeugfenster schweben über dem Plan, der bedienbar bleibt.
+  const FENSTERTITEL:Record<string,string>={baufenster:"Lage im Baufenster (§ 23 BauNVO)",vergleich:"Planstände vergleichen",planblatt:"Planblatt PDF (maßstäblich)"};
+  let menue=$state(""),werkzeugfenster=$state<""|"baufenster"|"vergleich"|"planblatt">("");
+  function fensterOeffnen(f:"baufenster"|"vergleich"|"planblatt"){menue="";werkzeugfenster=f;if(f==="planblatt")void planlisteLaden()}
   function auswahlAufheben(){auswahl="";auswahlIds=[];elementAuswahl="";elementAuswahlIds=[]}
   function reiterTaste(e:KeyboardEvent){
     const i=REITER.findIndex(r=>r[0]===panel);let n=i;
@@ -426,6 +430,8 @@
       if(e.key==="F1"){e.preventDefault();hilfe=!hilfe;return}
       if(e.key==="F2"){e.preventDefault();befehlFeld?.focus();return}
       if(e.key==="Escape"){
+        if(menue){menue="";return}
+        if(werkzeugfenster){werkzeugfenster="";return}
         if(werkzeug!=="auswahl")werkzeug="auswahl";
         else if(!nichtsGewaehlt)auswahlAufheben();
         else if(aktiv)schliessen();
@@ -939,6 +945,33 @@
           {:else}<p class="meta leer">{laedt?"Unterlage wird geladen …":"Unter „Blatt und Einrichtung“ eine Unterlage auswählen."}</p>{/if}
           {#if messFehler}<p class="fehlertext" role="alert">Aufmaß prüfen: {messFehler}</p>{/if}
         </div>
+        {#if werkzeugfenster}<div class="werkzeugfenster" role="dialog" aria-label={FENSTERTITEL[werkzeugfenster]}>
+          <div class="palettenkopf"><h3>{FENSTERTITEL[werkzeugfenster]}</h3><button type="button" class="link kopflink" title="Schließen (Esc)" onclick={()=>werkzeugfenster=""}>Schließen</button></div>
+          {#if werkzeugfenster==="baufenster"}
+            <p class="meta">Im Lageplan das Baufenster (Baugrenzen / Baulinien) mit Bedeutung „Baufenster“ und den Gebäudeumriss mit Bedeutung „Vorhabenumriss“ zeichnen, je genau eine Markierung; bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen. Die Zuordnung speichert beide Umrisse in Metern am Projekt; der GRZ-Nachweis bewertet die Lage.</p>
+            <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
+            {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
+            {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
+          {:else if werkzeugfenster==="vergleich"}
+              <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
+              {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
+                <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
+                <label><input type="checkbox" bind:checked={vergleichBestaetigt}/>Blattlage und Konturen anhand der Überlagerung geprüft</label>
+                <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Als neues Aufmaß auf Vergleichsunterlage übertragen …</button>{/if}
+          {:else if werkzeugfenster==="planblatt"}
+                <div class="kalibrierung">
+                  <label>Format<select bind:value={layout.format}>{#each ["a4","a3","a2","a1","a0"] as f}<option value={f}>{f.toUpperCase()}</option>{/each}</select></label>
+                  <label>Lage<select bind:value={layout.hochformat}><option value={false}>Quer</option><option value={true}>Hoch</option></select></label>
+                  <label>Maßstab 1 :<select bind:value={layout.massstab}>{#each [20,50,100,200,250,500,1000] as m}<option value={m}>{m}</option>{/each}</select></label>
+                </div>
+                <label>Plan der Planliste (Nummer und Index im Plankopf)<select bind:value={layout.dokument}><option value="">Ohne Planlisteneintrag</option>{#each planlisteZeilen as z (z.eintrag.dokument_id)}<option value={z.eintrag.dokument_id}>{z.eintrag.plannummer} · {z.eintrag.titel}</option>{/each}</select></label>
+                <label>Planinhalt<input bind:value={layout.planinhalt} maxlength="300" placeholder={layout.dokument?"Titel aus der Planliste":s.eingabe?.bezeichnung}/></label>
+                <div class="kalibrierung"><label><input type="checkbox" bind:checked={layout.nord}/>Nordpfeil</label>{#if layout.nord}<label>Richtung Nord (° gegen Uhrzeiger)<input type="number" step="any" bind:value={layout.nordwinkel}/></label>{/if}<label><input type="checkbox" bind:checked={layout.legende}/>Legende der Ebenen</label></div>
+                <label><input type="checkbox" bind:checked={layout.ablegen} disabled={!darf}/>Im Projekt ablegen{layout.dokument?" (als neue Version des gewählten Plans)":""}</label>
+                <p class="meta">Bauherr, Vorhaben, Grundstück und Entwurfsverfasser kommen aus Projekt, Bauantrag und Büroangaben. Passt die Zeichnung nicht auf das Blatt, wird kein Plan erzeugt: größeres Format oder kleineren Maßstab wählen.</p>
+                <button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void layoutAusgeben()}>Planblatt PDF …</button>
+          {/if}
+        </div>{/if}
         <aside bind:this={paletten}>
           <div class="panelwahl" role="tablist" aria-label="Planpanel" tabindex="-1" onkeydown={reiterTaste}>{#each REITER as [id,titel]}<button type="button" role="tab" id={`reiter-${id}`} data-reiter={id} aria-selected={panel===id} aria-controls="planpanel-inhalt" tabindex={panel===id?0:-1} class="sekundaer" class:aktiv={panel===id} onclick={()=>panelOeffnen(id)}>{titel}</button>{/each}</div>
           <div id="planpanel-inhalt" class="planpanel" role="tabpanel" aria-labelledby={`reiter-${panel}`}>
@@ -1224,39 +1257,7 @@
               {#if dxf.plan.hinweise.length}<ul class="meta">{#each dxf.plan.hinweise as h}<li>{h}</li>{/each}</ul>{/if}
             {/if}
           </section>
-          <section class="palette" aria-label="Prüfen und Ausgabe">
-            <div class="palettenkopf"><h3>Prüfen und Ausgabe</h3></div>
-            <h3>Lage im Baufenster (§ 23 BauNVO)</h3>
-            <p class="meta">Im Lageplan das Baufenster (Baugrenzen / Baulinien) mit Bedeutung „Baufenster“ und den Gebäudeumriss mit Bedeutung „Vorhabenumriss“ zeichnen, je genau eine Markierung; bei mehreren Baugrundstücken dem Vorhabenumriss das Baugrundstück zuordnen. Die Zuordnung speichert beide Umrisse in Metern am Projekt; der GRZ-Nachweis bewertet die Lage.</p>
-            <button type="button" disabled={!darf||s.laeuft||baugrenzenLaeuft||!s.id} onclick={()=>void baugrenzenZuordnen()}>{baugrenzenLaeuft?"Wird zugeordnet …":"Baufenster und Vorhabenumriss dem Projekt zuordnen"}</button>
-            {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
-            {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
-            {#if !istDxfUnterlage&&!istZeichnung}<h3>Planstände vergleichen</h3>
-              <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
-              {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
-                <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
-                <label><input type="checkbox" bind:checked={vergleichBestaetigt}/>Blattlage und Konturen anhand der Überlagerung geprüft</label>
-                <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Als neues Aufmaß auf Vergleichsunterlage übertragen …</button>{/if}
-            {/if}
-            <h3>Ausgabe</h3>
-            <label><input type="checkbox" bind:checked={nurSichtbare}/>Nur sichtbare Ebenen ausgeben</label>
-            <div class="aktionen"><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}>Aufmaßblatt PDF …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}>Messwerte CSV …</button><button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} title="Zeichnung und Markierungen in Metern für das Büro-CAD (Ebenen, Farben, Strichstärken)" onclick={()=>void dxfAusgeben()}>DXF fürs CAD …</button></div>
-            {#if istZeichnung}
-              <details class="planlayout" ontoggle={e=>{if(e.currentTarget.open)void planlisteLaden()}}><summary><h3>Planlayout (maßstäbliches Planblatt)</h3></summary>
-                <div class="kalibrierung">
-                  <label>Format<select bind:value={layout.format}>{#each ["a4","a3","a2","a1","a0"] as f}<option value={f}>{f.toUpperCase()}</option>{/each}</select></label>
-                  <label>Lage<select bind:value={layout.hochformat}><option value={false}>Quer</option><option value={true}>Hoch</option></select></label>
-                  <label>Maßstab 1 :<select bind:value={layout.massstab}>{#each [20,50,100,200,250,500,1000] as m}<option value={m}>{m}</option>{/each}</select></label>
-                </div>
-                <label>Plan der Planliste (Nummer und Index im Plankopf)<select bind:value={layout.dokument}><option value="">Ohne Planlisteneintrag</option>{#each planlisteZeilen as z (z.eintrag.dokument_id)}<option value={z.eintrag.dokument_id}>{z.eintrag.plannummer} · {z.eintrag.titel}</option>{/each}</select></label>
-                <label>Planinhalt<input bind:value={layout.planinhalt} maxlength="300" placeholder={layout.dokument?"Titel aus der Planliste":s.eingabe?.bezeichnung}/></label>
-                <div class="kalibrierung"><label><input type="checkbox" bind:checked={layout.nord}/>Nordpfeil</label>{#if layout.nord}<label>Richtung Nord (° gegen Uhrzeiger)<input type="number" step="any" bind:value={layout.nordwinkel}/></label>{/if}<label><input type="checkbox" bind:checked={layout.legende}/>Legende der Ebenen</label></div>
-                <label><input type="checkbox" bind:checked={layout.ablegen} disabled={!darf}/>Im Projekt ablegen{layout.dokument?" (als neue Version des gewählten Plans)":""}</label>
-                <p class="meta">Bauherr, Vorhaben, Grundstück und Entwurfsverfasser kommen aus Projekt, Bauantrag und Büroangaben. Passt die Zeichnung nicht auf das Blatt, wird kein Plan erzeugt: größeres Format oder kleineren Maßstab wählen.</p>
-                <button type="button" class="sekundaer" disabled={exportLaeuft||s.laeuft} onclick={()=>void layoutAusgeben()}>Planblatt PDF …</button>
-              </details>
-            {/if}
-          </section>{/if}
+          {/if}
           </div>
         </aside>
       </div>
@@ -1268,8 +1269,23 @@
     <Symbolknopf titel="Rückgängig" kuerzel="Strg+Z" disabled={!darf||!undo} onclick={rueckwaerts}><WerkzeugIcon art="undo"/></Symbolknopf>
     <Symbolknopf titel="Wiederholen" kuerzel="Strg+Y" disabled={!darf||!redo} onclick={vorwaerts}><WerkzeugIcon art="redo"/></Symbolknopf>
     <span class="trenner" aria-hidden="true"></span>
-    <Symbolknopf titel="Aufmaßblatt PDF …" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("pdf")}><WerkzeugIcon art="pdf"/></Symbolknopf>
-    <Symbolknopf titel="Messwerte CSV …" disabled={exportLaeuft||s.laeuft} onclick={()=>void exportieren("csv")}><WerkzeugIcon art="csv"/></Symbolknopf>
+    <span class="menue">
+      <button type="button" class="sekundaer menueknopf" aria-haspopup="menu" aria-expanded={menue==="pruefen"} onclick={()=>menue=menue==="pruefen"?"":"pruefen"}>Prüfen ▾</button>
+      {#if menue==="pruefen"}<div class="menueliste" role="menu" aria-label="Prüfen">
+        <button type="button" role="menuitem" onclick={()=>fensterOeffnen("baufenster")}>Lage im Baufenster (§ 23 BauNVO) …</button>
+        {#if !istDxfUnterlage&&!istZeichnung}<button type="button" role="menuitem" onclick={()=>fensterOeffnen("vergleich")}>Planstände vergleichen …</button>{/if}
+      </div>{/if}
+    </span>
+    <span class="menue">
+      <button type="button" class="sekundaer menueknopf" aria-haspopup="menu" aria-expanded={menue==="ausgabe"} onclick={()=>menue=menue==="ausgabe"?"":"ausgabe"}>Ausgabe ▾</button>
+      {#if menue==="ausgabe"}<div class="menueliste" role="menu" aria-label="Ausgabe">
+        <button type="button" role="menuitem" disabled={exportLaeuft||s.laeuft} onclick={()=>{menue="";void exportieren("pdf")}}>Aufmaßblatt PDF …</button>
+        <button type="button" role="menuitem" disabled={exportLaeuft||s.laeuft} onclick={()=>{menue="";void exportieren("csv")}}>Messwerte CSV …</button>
+        <button type="button" role="menuitem" disabled={exportLaeuft||s.laeuft} title="Zeichnung und Markierungen in Metern für das Büro-CAD (Ebenen, Farben, Strichstärken)" onclick={()=>{menue="";void dxfAusgeben()}}>DXF fürs CAD …</button>
+        {#if istZeichnung}<button type="button" role="menuitem" onclick={()=>fensterOeffnen("planblatt")}>Planblatt PDF (maßstäblich) …</button>{/if}
+        <label class="menuehaken"><input type="checkbox" bind:checked={nurSichtbare}/>Nur sichtbare Ebenen ausgeben</label>
+      </div>{/if}
+    </span>
     <span class="trenner" aria-hidden="true"></span>
     <Symbolknopf titel="Maße anzeigen" aktiv={masse} onclick={()=>masse=!masse}><WerkzeugIcon art="masse"/></Symbolknopf>
     <Symbolknopf titel={vollbild?"Vollbild beenden":"Vollbild"} kuerzel="F11" aktiv={vollbild} onclick={()=>vollbild=!vollbild}><WerkzeugIcon art="vollbild"/></Symbolknopf>
@@ -1288,7 +1304,7 @@
   .kurzbefehle{border-bottom:1px solid var(--border);padding:.4rem .8rem;background:var(--leiste)}
   .kurzbefehle p{margin:.3rem 0;font-size:.85rem}
   .hinweisbox.schmal{margin:0;border-left:0;border-right:0;border-top:0}
-  .arbeitsplatz{display:grid;grid-template-columns:auto minmax(0,1fr) 320px;flex:1;min-height:0}
+  .arbeitsplatz{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) 320px;flex:1;min-height:0}
   .werkzeugleiste{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:2px;padding:6px 4px;background:var(--kopfzeile);border-right:1px solid var(--border);overflow:auto}
   .gruppentrenner{width:20px;border-top:1px solid var(--border);margin:4px 0}
   .flaeche{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
@@ -1310,13 +1326,17 @@
   .palettenkopf .meta{text-transform:none;letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .palettenkopf h3{margin:0!important;font:inherit!important;text-transform:inherit;letter-spacing:inherit;color:inherit!important}
   .planpanel{display:flex;flex-direction:column}
+  .menue{position:relative;display:inline-flex}
+  .menueknopf{min-height:28px;padding:2px 10px;white-space:nowrap}
+  .menueliste{position:absolute;right:0;top:calc(100% + 2px);z-index:30;min-width:16rem;display:flex;flex-direction:column;padding:4px 0;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18)}
+  .menueliste button{border:0;border-radius:0;background:transparent;text-align:left;padding:6px 12px;min-height:0;font-weight:400;color:var(--fg)}
+  .menueliste button:hover:not(:disabled),.menueliste button:focus-visible{background:var(--auswahl,var(--kopfzeile))}
+  .menuehaken{display:flex;gap:.4rem;align-items:center;padding:6px 12px;border-top:1px solid var(--border-innen);margin-top:4px;font-size:.85rem}
+  .werkzeugfenster{position:absolute;top:8px;right:328px;z-index:20;width:min(360px,60%);max-height:calc(100% - 16px);overflow:auto;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18);padding:0 10px 10px;display:grid;gap:.5rem}
+  .werkzeugfenster label:not(:has(> input[type=checkbox])){display:flex;flex-direction:column;gap:2px;font-size:.85rem;color:var(--muted)}
+  .werkzeugfenster label input:not([type=checkbox]),.werkzeugfenster label select{width:100%;min-height:28px}
   .palettenkopf .kopflink{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:.8rem;white-space:nowrap}
   /* Aufklappbares Planlayout: Pfeil und Überschrift in einer Zeile. */
-  .planlayout > summary{display:flex;gap:.4rem;align-items:baseline;cursor:pointer;list-style:none}
-  .planlayout > summary::-webkit-details-marker{display:none}
-  .planlayout > summary::before{content:"▸";font-size:.7rem;transition:transform .1s}
-  .planlayout[open] > summary::before{transform:rotate(90deg)}
-  .planlayout > summary h3{margin:.4rem 0}
   .palette h3{margin:.8rem 0 .3rem;font-size:.9rem}
   .palette h4{margin:.6rem 0 .2rem;font-size:.8rem;color:var(--muted)}
   .vorlagen{display:flex;flex-wrap:wrap;gap:4px}
@@ -1377,5 +1397,5 @@
   .markierungen button{text-align:left}.markierungen span{display:block;font-size:.75rem;font-weight:400}
   .messwerte{display:grid;grid-template-columns:1fr auto;gap:.3rem .6rem;font-variant-numeric:tabular-nums;margin:.4rem 0;padding:.4rem .6rem;background:var(--leiste);border:1px solid var(--border-innen)}
   .messwerte dt{color:var(--muted)}.messwerte dd{margin:0;font-weight:600}
-  @media(max-width:1100px){.arbeitsplatz{grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}aside{grid-column:1 / -1;border-left:0;border-top:1px solid var(--border);max-height:45%}}
+  @media(max-width:1100px){.werkzeugfenster{right:8px}.arbeitsplatz{grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}aside{grid-column:1 / -1;border-left:0;border-top:1px solid var(--border);max-height:45%}}
 </style>
