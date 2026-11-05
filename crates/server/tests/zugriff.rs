@@ -412,6 +412,7 @@ async fn anmeldung_projektgrenzen_und_widerruf_werden_pro_anfrage_geprueft() {
         "aktenexport",
         "verfahrensprofil",
         "abstandsregeln",
+        "abstandsregelwerke",
         "uebersicht",
     ] {
         assert_eq!(

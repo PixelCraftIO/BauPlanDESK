@@ -9,8 +9,9 @@ mod umriss;
 use crate::{CoreError, CoreResult, domain::Bundesland, plattform::objekte::Dokumentbezug};
 pub use cadhoehen::{CadHoehe, gelaende_vorschlag};
 pub use regelwerk::{
-    Absatztext, Beispielrechnung, Fassungsangabe, Rechtsquelle, Regeldatei, Regelpruefpunkt,
-    Regelpruefung, Regelwerk, fassung_am, regelwerke,
+    Absatztext, Beispielrechnung, Fassungsangabe, Pruefpunktstand, Rechtsquelle, Regeldatei,
+    Regelpruefpunkt, Regelpruefung, Regelwerk, Regelwerkbezug, Regelwerkpruefung, fassung_am,
+    regelwerk_pruefen, regelwerk_uebernehmen, regelwerke,
 };
 use serde::{Deserialize, Serialize};
 pub use umriss::{UmrissAbgleich, umrisse_abgleichen, umrisse_einbinden};
@@ -360,6 +361,11 @@ pub struct AbstandsPlan {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(optional, as = "Option<Vec<AbstandsUmriss>>")]
     pub umrisse: Vec<AbstandsUmriss>,
+    /// Gewählte Regeldatei (Land und Fassung); fehlt in Plänen vor der
+    /// Fassungswahl, die dann nur mit der Regelkopie `regeln` rechnen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub regelwerk: Option<Regelwerkbezug>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AbstandsPolygon {
@@ -599,6 +605,18 @@ impl AbstandsPlan {
             .chain(r.ueberdeckung.iter().map(|u| &u.quelle))
         {
             text(s, 4000)?;
+        }
+        if let Some(b) = &self.regelwerk {
+            for t in [&b.datei, &b.pruefsumme, &b.stichtag_art] {
+                text(t, 500)?;
+            }
+            text(&b.abweichung, 8000)?;
+            if b.pruefpunkte.len() > 100 {
+                return Err(err("Höchstens 100 Prüfpunkte"));
+            }
+            for p in &b.pruefpunkte {
+                text(&p.vermerk, 4000)?;
+            }
         }
         if self.umrisse.len() > 50 {
             return Err(err("Höchstens 50 Gebäudeumrisse"));
@@ -1188,6 +1206,12 @@ pub fn projektabgleich(
         return;
     }
     let mut neu = Vec::new();
+    if let Some(p) = regelwerk_pruefen(plan)
+        && !p.offen.is_empty()
+    {
+        r.offen.extend(p.offen);
+        r.vollstaendig = false;
+    }
     if let Some(g) = recht.festgesetzte_werte.baugebiet
         && g.code() != plan.recht.gebiet.trim()
     {

@@ -872,7 +872,12 @@ tiefenfall_grundlage?: string,
  * Aus einem Gebäudeumriss erzeugte Seite; Lage und Eckhöhen führt der Umriss.
  */
 umriss?: UmrissSeite, };
-export type AbstandsPlan = { planbindungen?: Array<Planbindung>, bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>, };
+export type AbstandsPlan = { planbindungen?: Array<Planbindung>, bezeichnung: string, regeln: AbstandsRegeln, recht: AbstandsRecht, hoehenbezug: string, koordinatenbezug: string, grundstuecke: Array<AbstandsGrundstueck>, waende: Array<AbstandsWand>, flaechen: Array<AbstandsFlaeche>, quellen: Array<Dokumentbezug>, umfang_geprueft: boolean, umfang_vermerk: string, umrisse?: Array<AbstandsUmriss>,
+/**
+ * Gewählte Regeldatei (Land und Fassung); fehlt in Plänen vor der
+ * Fassungswahl, die dann nur mit der Regelkopie `regeln` rechnen.
+ */
+regelwerk?: Regelwerkbezug, };
 export type AbstandsPolygon = { aussen: Array<APunkt>, innen: Array<Array<APunkt>>, };
 export type AbstandsStatus = "offen" | "tiefenvorpruefung" | "eingehalten" | "konflikt" | "grenzfall";
 export type WandErgebnis = { id: string, bezeichnung: string, laenge_m: number, wandhoehe_m: number | null, dachanteil_m: number | null, h_m: number | null, faktor: number | null, mindesttiefe_m: number | null, tiefe_m: number | null, herleitung: Array<string>, offen: Array<string>, status: AbstandsStatus, flaeche_m2: number | null, ausserhalb_m2: number | null, polygon: Array<APunkt>, konflikte: Array<AbstandsPolygon>,
@@ -963,6 +968,102 @@ hoehe_m: number, ebene: string,
  * „Höhenkote“ (Text) oder „Höhenpunkt“ (Punkt mit z).
  */
 art: string, quelle: Dokumentbezug, };
+export type Fassungsangabe = { gesetz: string, paragraf: string,
+/**
+ * Tag des Inkrafttretens; fehlt bei Pilotansätzen ohne belegte Fassung.
+ */
+gueltig_ab: string | null,
+/**
+ * Letzter Geltungstag; fehlt, solange die Fassung gilt.
+ */
+gueltig_bis: string | null, fundstelle: string, uebergang: string, };
+export type Rechtsquelle = { titel: string, url: string,
+/**
+ * Abrufdatum; fehlt, wenn die Quelle nicht online geprüft werden konnte.
+ */
+abgerufen: string | null,
+/**
+ * Beigelegte Datei relativ zum Länderordner.
+ */
+datei: string,
+/**
+ * SHA-256 der beigelegten Datei.
+ */
+sha256: string, };
+export type Regelpruefung = {
+/**
+ * Nur das Büro setzt `true` (fachliche Abnahme), zusammen mit dem
+ * Eintrag in `freigaben.json`.
+ */
+geprueft: boolean, geprueft_von: string, geprueft_am: string | null, vermerk: string, };
+export type Absatztext = { absatz: number, text: string, };
+export type Regelpruefpunkt = { absatz: number, frage: string, };
+export type Beispielrechnung = { titel: string, gebiet: string, laenge_m: number,
+/**
+ * Geländehöhe an Wandanfang und Wandende.
+ */
+gelaende_m: [number, number],
+/**
+ * Wandoberkante an Wandanfang und Wandende.
+ */
+oberkante_m: [number, number], dachhoehe_m?: number, dachneigung_grad?: number, tiefenfall?: Tiefenfall, erwartet_h_m: number, erwartet_tiefe_m: number, };
+export type Regeldatei = { schema: number, fassung: Fassungsangabe, quellen: Array<Rechtsquelle>, pruefung: Regelpruefung, wortlaut: Array<Absatztext>, pruefpunkte: Array<Regelpruefpunkt>, beispiele: Array<Beispielrechnung>, regeln: AbstandsRegeln, };
+export type Regelwerk = {
+/**
+ * Pfad relativ zu `regelwerke/abstandsflaechen`, z. B. `nw/2024-01-01.json`.
+ */
+datei: string,
+/**
+ * SHA-256 des Dateiinhalts.
+ */
+pruefsumme: string, schema: number, fassung: Fassungsangabe, quellen: Array<Rechtsquelle>, pruefung: Regelpruefung, wortlaut: Array<Absatztext>, pruefpunkte: Array<Regelpruefpunkt>, beispiele: Array<Beispielrechnung>, regeln: AbstandsRegeln, };
+export type Regelwerkbezug = {
+/**
+ * Pfad relativ zu `regelwerke/abstandsflaechen`, z. B. `nw/2024-01-01.json`.
+ */
+datei: string,
+/**
+ * SHA-256 der Regeldatei bei der Übernahme.
+ */
+pruefsumme: string,
+/**
+ * Tag, nach dem sich die Fassung richtet (in der Regel Antragseingang).
+ */
+stichtag: string,
+/**
+ * Woher der Stichtag stammt, z. B. „Eingang Bauantrag“.
+ */
+stichtag_art: string,
+/**
+ * Begründung, wenn die Fassung nicht am Stichtag gilt (z. B. Übergangsrecht).
+ */
+abweichung?: string,
+/**
+ * Bearbeitungsstand der Prüfpunkte der Regeldatei.
+ */
+pruefpunkte?: Array<Pruefpunktstand>, };
+export type Pruefpunktstand = { absatz: number, erledigt: boolean, vermerk?: string, };
+export type Regelwerkpruefung = {
+/**
+ * Die gewählte Regeldatei, sofern in dieser Programmversion enthalten.
+ */
+regelwerk: Regelwerk | null,
+/**
+ * Datei der am Stichtag geltenden Fassung.
+ */
+geltend: string | null,
+/**
+ * Rechenregeln des Plans entsprechen der Regeldatei.
+ */
+regeln_aktuell: boolean,
+/**
+ * Die Regeldatei hat sich seit der Übernahme geändert.
+ */
+datei_geaendert: boolean,
+/**
+ * Absätze, die die Rechenregeln anwenden (aus den Quellenangaben).
+ */
+angewandte_absaetze: Array<number>, offen: Array<string>, };
 export type Grundstuecksinformationen = { flurstuecke: Array<FlurstuecksInfo>, };
 export type FlurstuecksInfo = { id: string,
 /**

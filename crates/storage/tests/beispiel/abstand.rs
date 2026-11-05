@@ -266,6 +266,7 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
                 quelle: "Garage: Flachdach OK Attika 2,80 m über Gelände (Ansicht Garage, Entwurf 10/2026); Grundriss aus Lageplan-DXF (Ebene GEB_GARAGE)".into(),
             },
         ],
+        regelwerk: None,
     };
     plan.recht.fassung = plan.regeln.rechtsstand.clone();
     // Seiten als Wände übernehmen (Core-Abgleich wie in der Oberfläche).

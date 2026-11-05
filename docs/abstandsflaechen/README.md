@@ -9,6 +9,16 @@ bleibt unter **Einfache Tiefenvorprüfung** verfügbar; alte Nachweise bleiben l
 1. **Grundlagen:** Gemeinde, konkrete Rechtsfassung und Anwendbarkeit, Baugebiet,
    Satzungs-/Planprüfung, Gelände-/Höhen- und Koordinatenbezug dokumentieren.
    Originalunterlagen mit ihrer konkreten Version zuordnen.
+   Unter **Rechtsgrundlage** den Stichtag (in der Regel Eingang des Bauantrags)
+   setzen; vorgeschlagen wird die an diesem Tag geltende Fassung der
+   Landesbauordnung aus `regelwerke/abstandsflaechen/`. „Fassung übernehmen“
+   kopiert die Rechenregeln in den Plan und nimmt Fundstelle, Wortlaut und
+   Prüfsumme der Regeldatei in den Nachweis auf. Eine andere Fassung als die am
+   Stichtag geltende braucht eine Begründung (z. B. Übergangsrecht); ein Wechsel
+   zeigt vorher die Tiefen je Wand alt und neu. Die nicht automatisch geprüften
+   Tatbestände der Regeldatei werden je Absatz abgehakt und vermerkt; offene
+   Punkte halten den Nachweis unvollständig.
+   ![Fassungswahl](screenshots/fassungswahl.png)
 2. **Gebäudeumrisse:** Eckpunkte des Gebäudes in Umlaufrichtung erfassen, je
    Ecke optional die Geländehöhe, dazu eine Vorgabe der Wandoberkante (z. B.
    Traufe, auch aus Gebäude/Geschosse übernehmbar). **Seiten als Wände

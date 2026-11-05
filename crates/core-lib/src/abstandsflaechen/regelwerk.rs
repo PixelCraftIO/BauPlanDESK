@@ -181,6 +181,183 @@ pub fn fassung_am(land: Bundesland, tag: NaiveDate) -> CoreResult<Option<Regelwe
     }
 }
 
+/// Im Abstandsplan gespeicherte Wahl der Regeldatei.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Regelwerkbezug {
+    /// Pfad relativ zu `regelwerke/abstandsflaechen`, z. B. `nw/2024-01-01.json`.
+    pub datei: String,
+    /// SHA-256 der Regeldatei bei der Übernahme.
+    pub pruefsumme: String,
+    /// Tag, nach dem sich die Fassung richtet (in der Regel Antragseingang).
+    #[ts(type = "string")]
+    pub stichtag: NaiveDate,
+    /// Woher der Stichtag stammt, z. B. „Eingang Bauantrag“.
+    pub stichtag_art: String,
+    /// Begründung, wenn die Fassung nicht am Stichtag gilt (z. B. Übergangsrecht).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub abweichung: String,
+    /// Bearbeitungsstand der Prüfpunkte der Regeldatei.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<Pruefpunktstand>>")]
+    pub pruefpunkte: Vec<Pruefpunktstand>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Pruefpunktstand {
+    pub absatz: u32,
+    pub erledigt: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub vermerk: String,
+}
+/// Abgleich des Plans mit seiner Regeldatei.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct Regelwerkpruefung {
+    /// Die gewählte Regeldatei, sofern in dieser Programmversion enthalten.
+    pub regelwerk: Option<Regelwerk>,
+    /// Datei der am Stichtag geltenden Fassung.
+    pub geltend: Option<String>,
+    /// Rechenregeln des Plans entsprechen der Regeldatei.
+    pub regeln_aktuell: bool,
+    /// Die Regeldatei hat sich seit der Übernahme geändert.
+    pub datei_geaendert: bool,
+    /// Absätze, die die Rechenregeln anwenden (aus den Quellenangaben).
+    pub angewandte_absaetze: Vec<u32>,
+    pub offen: Vec<String>,
+}
+/// Absätze, auf die sich die Rechenregeln berufen („Abs. 5 Satz 1“ → 5).
+fn angewandte_absaetze(r: &AbstandsRegeln) -> Vec<u32> {
+    let quellen = r
+        .tiefen
+        .iter()
+        .map(|t| &t.quelle)
+        .chain(r.dach.iter().map(|d| &d.quelle))
+        .chain(r.grenzanlagen.iter().map(|g| &g.quelle))
+        .chain(r.giebel.iter().map(|g| &g.quelle))
+        .chain(r.gauben.iter().map(|g| &g.quelle))
+        .chain(r.ueberdeckung.iter().map(|u| &u.quelle));
+    let mut v: Vec<u32> = quellen
+        .flat_map(|q| {
+            q.match_indices("Abs. ")
+                .filter_map(|(i, m)| {
+                    let rest = &q[i + m.len()..];
+                    let ziffern: String = rest.chars().take_while(char::is_ascii_digit).collect();
+                    ziffern.parse().ok()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    v.sort_unstable();
+    v.dedup();
+    v
+}
+/// Prüft die Fassungswahl eines Plans; `None` für Pläne ohne Regeldatei.
+pub fn regelwerk_pruefen(plan: &AbstandsPlan) -> Option<Regelwerkpruefung> {
+    let b = plan.regelwerk.as_ref()?;
+    let mut offen = Vec::new();
+    let alle = match regelwerke() {
+        Ok(a) => a,
+        Err(e) => {
+            offen.push(format!("Regeldateien nicht lesbar: {e}"));
+            vec![]
+        }
+    };
+    let regelwerk = alle.iter().find(|r| r.datei == b.datei).cloned();
+    let geltend = alle
+        .iter()
+        .filter(|r| r.inhalt.regeln.land == plan.regeln.land)
+        .find(|r| r.gilt_am(b.stichtag))
+        .map(|r| r.datei.clone());
+    let Some(r) = &regelwerk else {
+        offen.push(format!(
+            "Regeldatei {} ist in dieser Programmversion nicht enthalten",
+            b.datei
+        ));
+        return Some(Regelwerkpruefung {
+            regelwerk: None,
+            geltend,
+            regeln_aktuell: false,
+            datei_geaendert: false,
+            angewandte_absaetze: angewandte_absaetze(&plan.regeln),
+            offen,
+        });
+    };
+    let regeln_aktuell = r.inhalt.regeln == plan.regeln;
+    if !regeln_aktuell {
+        offen.push(format!(
+            "Rechenregeln des Plans weichen von der Regeldatei {} ab; Fassung neu übernehmen",
+            b.datei
+        ));
+    }
+    if geltend.as_deref() != Some(b.datei.as_str()) && b.abweichung.trim().is_empty() {
+        offen.push(format!(
+            "Die gewählte Fassung gilt nicht am Stichtag {} ({}); Begründung angeben, z. B. Übergangsrecht oder Antrag nach altem Recht",
+            b.stichtag.format("%d.%m.%Y"),
+            match &geltend {
+                Some(d) => format!("am Stichtag gilt {d}"),
+                None => "für diesen Tag ist keine Fassung hinterlegt".into(),
+            }
+        ));
+    }
+    let nicht_erledigt: Vec<String> = r
+        .inhalt
+        .pruefpunkte
+        .iter()
+        .filter(|p| {
+            !b.pruefpunkte
+                .iter()
+                .any(|s| s.absatz == p.absatz && s.erledigt)
+        })
+        .map(|p| p.absatz.to_string())
+        .collect();
+    if !nicht_erledigt.is_empty() {
+        offen.push(format!(
+            "Prüfpunkte der Regeldatei abhaken (nicht automatisch geprüft): Abs. {}",
+            nicht_erledigt.join(", ")
+        ));
+    }
+    Some(Regelwerkpruefung {
+        datei_geaendert: r.pruefsumme != b.pruefsumme,
+        angewandte_absaetze: angewandte_absaetze(&r.inhalt.regeln),
+        regelwerk: regelwerk.clone(),
+        geltend,
+        regeln_aktuell,
+        offen,
+    })
+}
+/// Regelwerkbezug für eine Regeldatei mit offenen Prüfpunkten.
+pub fn regelwerk_uebernehmen(
+    plan: &mut AbstandsPlan,
+    datei: &str,
+    stichtag: NaiveDate,
+    stichtag_art: String,
+) -> CoreResult<()> {
+    let r = regelwerke()?
+        .into_iter()
+        .find(|r| r.datei == datei)
+        .ok_or_else(|| err("Unbekannte Regeldatei"))?;
+    if r.inhalt.regeln.land != plan.regeln.land {
+        return Err(err("Regeldatei gehört zu einem anderen Bundesland"));
+    }
+    // Begründung und abgehakte Prüfpunkte gelten nur für dieselbe Datei.
+    let alt = plan.regelwerk.take().filter(|a| a.datei == r.datei);
+    plan.regeln = r.inhalt.regeln.clone();
+    plan.regelwerk = Some(Regelwerkbezug {
+        datei: r.datei.clone(),
+        pruefsumme: r.pruefsumme.clone(),
+        stichtag,
+        stichtag_art,
+        abweichung: alt
+            .as_ref()
+            .map(|a| a.abweichung.clone())
+            .unwrap_or_default(),
+        pruefpunkte: alt.map(|a| a.pruefpunkte).unwrap_or_default(),
+    });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -482,5 +659,105 @@ mod tests {
             r
         };
         assert_eq!(rechenteil(&alt.regeln), rechenteil(&neu.regeln));
+    }
+
+    fn nw_plan(datei: &str, stichtag: &str) -> AbstandsPlan {
+        let mut p = testdaten::plan();
+        regelwerk_uebernehmen(&mut p, datei, tag(stichtag), "Eingang Bauantrag".into()).unwrap();
+        p
+    }
+    fn alle_abhaken(p: &mut AbstandsPlan) {
+        let r = regelwerk_pruefen(p).unwrap().regelwerk.unwrap();
+        p.regelwerk.as_mut().unwrap().pruefpunkte = r
+            .inhalt
+            .pruefpunkte
+            .iter()
+            .map(|q| Pruefpunktstand {
+                absatz: q.absatz,
+                erledigt: true,
+                vermerk: "geprüft".into(),
+            })
+            .collect();
+    }
+
+    #[test]
+    fn uebernahme_setzt_regeln_und_prueft_die_fassung_am_stichtag() {
+        let mut p = nw_plan("nw/2024-01-01.json", "2026-05-04");
+        let b = p.regelwerk.clone().unwrap();
+        assert_eq!(p.regeln.version, "2024-01-01");
+        assert_eq!(b.pruefsumme.len(), 64);
+        let pr = regelwerk_pruefen(&p).unwrap();
+        assert!(pr.regeln_aktuell && !pr.datei_geaendert);
+        assert_eq!(pr.geltend.as_deref(), Some("nw/2024-01-01.json"));
+        assert_eq!(pr.angewandte_absaetze, vec![3, 4, 5, 8]);
+        // Nur die Prüfpunkte sind offen, in einer Meldung.
+        assert_eq!(pr.offen.len(), 1);
+        assert!(pr.offen[0].contains("Abs. 1, 2, 3"));
+        alle_abhaken(&mut p);
+        assert!(regelwerk_pruefen(&p).unwrap().offen.is_empty());
+
+        // Fassung, die am Stichtag nicht gilt: nur mit Begründung.
+        regelwerk_uebernehmen(
+            &mut p,
+            "nw/2026-09-01.json",
+            tag("2026-05-04"),
+            "Eingang Bauantrag".into(),
+        )
+        .unwrap();
+        let b = p.regelwerk.as_ref().unwrap();
+        assert!(
+            b.pruefpunkte.is_empty(),
+            "Prüfpunkte gelten nur für dieselbe Datei"
+        );
+        alle_abhaken(&mut p);
+        let pr = regelwerk_pruefen(&p).unwrap();
+        assert_eq!(pr.offen.len(), 1);
+        assert!(pr.offen[0].contains("gilt nicht am Stichtag 04.05.2026"));
+        p.regelwerk.as_mut().unwrap().abweichung =
+            "Bauherrschaft beantragt neues Recht (§ 90 Abs. 4 Satz 2)".into();
+        assert!(regelwerk_pruefen(&p).unwrap().offen.is_empty());
+    }
+
+    #[test]
+    fn abweichende_regelkopie_und_fremdes_land_werden_erkannt() {
+        let mut p = nw_plan("nw/2026-09-01.json", "2026-11-05");
+        alle_abhaken(&mut p);
+        p.regeln.tiefen[0].faktor = 0.5;
+        let pr = regelwerk_pruefen(&p).unwrap();
+        assert!(!pr.regeln_aktuell);
+        assert!(pr.offen[0].contains("weichen von der Regeldatei"));
+        p.regelwerk.as_mut().unwrap().pruefsumme = "0".repeat(64);
+        assert!(regelwerk_pruefen(&p).unwrap().datei_geaendert);
+        p.regelwerk.as_mut().unwrap().datei = "nw/1999-01-01.json".into();
+        assert!(regelwerk_pruefen(&p).unwrap().offen[0].contains("nicht enthalten"));
+        assert!(
+            regelwerk_uebernehmen(&mut p, "by/pilot.json", tag("2026-11-05"), String::new())
+                .is_err()
+        );
+        assert!(
+            regelwerk_uebernehmen(&mut p, "xx.json", tag("2026-11-05"), String::new()).is_err()
+        );
+    }
+
+    #[test]
+    fn offene_fassungswahl_macht_den_nachweis_unvollstaendig() {
+        let mut p = nw_plan("nw/2026-09-01.json", "2026-11-05");
+        let mut r = berechnen(&p).unwrap();
+        let recht = crate::domain::Planungsrecht::default();
+        projektabgleich(&p, &recht, &mut r);
+        assert!(!r.vollstaendig);
+        assert!(
+            r.offen
+                .iter()
+                .any(|o| o.contains("Prüfpunkte der Regeldatei"))
+        );
+        alle_abhaken(&mut p);
+        let mut r = berechnen(&p).unwrap();
+        let vorher = r.vollstaendig;
+        projektabgleich(&p, &recht, &mut r);
+        assert_eq!(r.vollstaendig, vorher);
+        // Ohne Regeldatei (Altpläne) keine zusätzliche Meldung.
+        p.regelwerk = None;
+        assert!(regelwerk_pruefen(&p).is_none());
     }
 }

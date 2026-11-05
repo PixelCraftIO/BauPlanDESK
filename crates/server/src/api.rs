@@ -381,6 +381,7 @@ fn routen(core: CoreServices) -> Router {
         .route("/lbo/regelpakete", get(rule_packs))
         .route("/berechnung/abstandsflaeche", post(abstandsflaeche))
         .route("/projekte/{id}/abstandsregeln", get(abstandsregeln))
+        .route("/projekte/{id}/abstandsregelwerke", get(abstandsregelwerke))
         .route("/projekte/{id}/abstandsplan", post(abstandsplan))
         .route("/projekte/{id}/abstandscad", post(abstandscad))
         .route("/projekte/{id}/abstandscadhoehen", post(abstandscad_hoehen))
@@ -1833,6 +1834,10 @@ async fn verfahren_aktenexport(
 
 async fn abstandsregeln() -> ApiResult<Vec<core_lib::abstandsflaechen::AbstandsRegeln>> {
     Ok(Json(core_lib::abstandsflaechen::katalog()?))
+}
+/// Alle Regeldateien je Land und Fassung mit Wortlaut, Quellen und Prüfstatus.
+async fn abstandsregelwerke() -> ApiResult<Vec<core_lib::abstandsflaechen::Regelwerk>> {
+    Ok(Json(core_lib::abstandsflaechen::regelwerke()?))
 }
 async fn abstandsplan(
     State(ApiState { core }): State<ApiState>,

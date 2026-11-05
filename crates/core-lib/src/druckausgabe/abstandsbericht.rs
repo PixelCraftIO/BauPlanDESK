@@ -68,6 +68,7 @@ pub(super) fn abstand(
         ],
     );
     z.push(text(&p.regeln.hinweis));
+    regelwerk(z, p);
     z.push(tabelle(
         &["Planbezug", "Grundstück", "Grundlage"],
         &[0.7, 2., 3.],
@@ -516,4 +517,129 @@ pub(super) fn abstand(
     }
     z.push(text("Die Vektorplanskizze folgt als letztes Blatt dieser Anlage. Planskizze: G = Grundstück, W = Wand / Abstandsfläche, F = zusätzliche Fläche. Konflikte rot, Überdeckungen violett. Maßstab nur bei Ausgabe mit 100 %. Die Planskizze ersetzt keinen amtlichen Lageplan."));
     Ok(())
+}
+
+/// Rechtsgrundlage aus der Regeldatei: Fassung, Fundstelle, Prüfstatus,
+/// Wortlaut der angewandten Absätze und Prüfpunkte.
+fn regelwerk(z: &mut Vec<Zeile>, p: &crate::abstandsflaechen::AbstandsPlan) {
+    let (Some(b), Some(pr)) = (&p.regelwerk, crate::abstandsflaechen::regelwerk_pruefen(p)) else {
+        return;
+    };
+    z.push(titel("Rechtsgrundlage (Regeldatei)"));
+    let Some(r) = &pr.regelwerk else {
+        z.push(hinweis(format!(
+            "Regeldatei {} ist in dieser Programmversion nicht enthalten.",
+            b.datei
+        )));
+        return;
+    };
+    let d = &r.inhalt;
+    let tag = |t: Option<chrono::NaiveDate>| {
+        t.map(|t| t.format("%d.%m.%Y").to_string())
+            .unwrap_or_else(|| "offen".into())
+    };
+    let gueltig = match d.fassung.gueltig_ab {
+        Some(_) => format!(
+            "{} bis {}",
+            tag(d.fassung.gueltig_ab),
+            match d.fassung.gueltig_bis {
+                Some(_) => tag(d.fassung.gueltig_bis),
+                None => "auf Weiteres".into(),
+            }
+        ),
+        None => "Pilotansatz ohne belegte Fassung".into(),
+    };
+    angaben(
+        z,
+        vec![
+            (
+                "Gesetz",
+                format!("{}, {}", d.fassung.gesetz, d.fassung.paragraf),
+            ),
+            ("Fassung gültig", gueltig),
+            ("Fundstelle", d.fassung.fundstelle.clone()),
+            (
+                "Stichtag",
+                format!("{} ({})", b.stichtag.format("%d.%m.%Y"), b.stichtag_art),
+            ),
+            (
+                "Fassungswahl",
+                if pr.geltend.as_deref() == Some(b.datei.as_str()) {
+                    "Am Stichtag geltende Fassung".into()
+                } else {
+                    format!("Abweichend vom Stichtag: {}", b.abweichung)
+                },
+            ),
+            ("Übergangsrecht", d.fassung.uebergang.clone()),
+            (
+                "Regeldatei",
+                format!("{} · SHA-256 {}", r.datei, b.pruefsumme),
+            ),
+            (
+                "Quellen",
+                d.quellen
+                    .iter()
+                    .map(|q| format!("{} (abgerufen {})", q.titel, tag(q.abgerufen)))
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ),
+            (
+                "Fachliche Freigabe",
+                if d.pruefung.geprueft {
+                    format!(
+                        "Ja · {} · {}",
+                        d.pruefung.geprueft_von,
+                        tag(d.pruefung.geprueft_am)
+                    )
+                } else {
+                    "Nein".into()
+                },
+            ),
+        ],
+    );
+    if !d.pruefung.geprueft {
+        z.push(hinweis(
+            "Regelwerk fachlich nicht freigegeben: Die Regeldatei ist aus dem Gesetzestext übertragen, aber vom Büro noch nicht abgenommen.",
+        ));
+    }
+    if pr.datei_geaendert {
+        z.push(hinweis(if pr.regeln_aktuell {
+            "Die Regeldatei wurde seit der Übernahme geändert (Angaben oder Wortlaut); die Rechenregeln sind unverändert."
+        } else {
+            "Die Regeldatei wurde seit der Übernahme geändert; gerechnet wurde mit der im Nachweis gespeicherten Regelkopie."
+        }));
+    }
+    let wortlaut: Vec<_> = d
+        .wortlaut
+        .iter()
+        .filter(|a| pr.angewandte_absaetze.contains(&a.absatz))
+        .collect();
+    if !wortlaut.is_empty() {
+        z.push(titel(format!(
+            "Wortlaut der angewandten Absätze ({})",
+            d.fassung.paragraf
+        )));
+        for a in wortlaut {
+            z.push(text(format!("({}) {}", a.absatz, a.text)));
+        }
+    }
+    if !d.pruefpunkte.is_empty() {
+        z.push(titel("Nicht automatisch geprüfte Tatbestände"));
+        z.push(tabelle(
+            &["Abs.", "Prüffrage", "Erledigt", "Vermerk"],
+            &[0.5, 3.2, 0.8, 2.],
+            d.pruefpunkte
+                .iter()
+                .map(|q| {
+                    let s = b.pruefpunkte.iter().find(|s| s.absatz == q.absatz);
+                    vec![
+                        q.absatz.to_string(),
+                        q.frage.clone(),
+                        ja(s.is_some_and(|s| s.erledigt)).into(),
+                        s.map(|s| s.vermerk.clone()).unwrap_or_default(),
+                    ]
+                })
+                .collect(),
+        ));
+    }
 }
