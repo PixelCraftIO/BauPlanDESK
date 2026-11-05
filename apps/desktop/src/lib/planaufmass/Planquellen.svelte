@@ -29,6 +29,11 @@
       // Lage aus Linien „Abstandsfläche“, Grenzen aus zugeordneten Flurstücken (planaufmass/abstand.rs).
       if(ziel.endsWith(".grenze"))return m.bedeutung==="flurstueck"?[{value:`${a.stand.objekt}|${m.id}`,a,m,v}]:[];
       const wand=plan.waende.find(w=>w.id===ziel.split(".")[1]);
+      if(ziel.endsWith(".ansicht")){
+        const art=a.stand.daten.ausschnitte?.find(x=>x.id===m.ausschnitt_id)?.art;
+        if(!wand||m.bedeutung!=="abstandsflaeche"||!["ansicht","schnitt","detail"].includes(art??"")||(m.gebaeude_id!=null&&m.gebaeude_id!==(wand.gebaeude_id??null)))return [];
+        return [{value:`${a.stand.objekt}|${m.id}`,a,m,v}];
+      }
       if(ziel.endsWith(".lage")){
         if(!wand||m.bedeutung!=="abstandsflaeche"||m.gebaeude_id!==(wand.gebaeude_id??null))return [];
         return [{value:`${a.stand.objekt}|${m.id}`,a,m,v}];

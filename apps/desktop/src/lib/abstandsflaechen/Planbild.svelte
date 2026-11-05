@@ -18,7 +18,9 @@
       ...plan.grundstuecke.flatMap((g) => g.grenze),
       ...plan.flaechen.flatMap((f) => f.polygon),
       ...(plan.umrisse ?? []).flatMap((u) => u.ecken),
-      ...plan.waende.flatMap((w) => [w.von, w.bis]),
+      ...plan.waende
+        .filter((w) => !w.breite_aus_ansicht)
+        .flatMap((w) => [w.von, w.bis]),
       ...(ergebnis?.waende.flatMap((w) => w.polygon) ?? []),
     ].filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)),
   );
@@ -89,7 +91,8 @@
           stroke="#ce443c"
           vector-effect="non-scaling-stroke"
         />{/each}{/each}
-    {#each plan.waende as w, i}<line
+    <!-- Wände mit Breite aus der Ansicht haben keine Lage im Plan. -->
+    {#each plan.waende as w, i}{#if !w.breite_aus_ansicht}<line
         role="button"
         tabindex="0"
         aria-label={`W${i + 1}: ${w.bezeichnung} auswählen`}
@@ -113,7 +116,7 @@
         y={-(w.von.y + w.bis.y) / 2 - box.pad * 0.15}
         font-size={box.pad * 0.65}
         fill="currentColor">W{i + 1}</text
-      >{/each}
+      >{/if}{/each}
     {#each ergebnis?.ueberdeckungen ?? [] as u}{#each u.polygone as p}<path
           d={[path(p.aussen), ...p.innen.map(path)].join(" ")}
           fill={u.zulaessig ? "#8b419322" : "#8b41934d"}

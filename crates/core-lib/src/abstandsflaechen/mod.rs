@@ -298,6 +298,22 @@ pub struct AbstandsWand {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub umriss: Option<UmrissSeite>,
+    /// Breite aus der verknüpften Ansicht statt Lage im Lageplan: Die Wand
+    /// liegt in einem eigenen Bezug von (0, 0) nach (Breite, 0); die Lage
+    /// prüft die Software nicht, maßgebend ist `grenzabstand_m`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(optional, as = "Option<bool>")]
+    pub breite_aus_ansicht: bool,
+    /// Wandbreite in der verknüpften Ansicht (Linie „Abstandsfläche“), für
+    /// den Längenabgleich mit dem Lageplan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ansicht_laenge_m: Option<f64>,
+    /// Abstand der Wand zur Grundstücksgrenze als Angabe des Planers; nur
+    /// maßgebend, wenn die Wand keine Grenze im Plan hat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub grenzabstand_m: Option<f64>,
 }
 /// Höhe an einer Stelle der Wand; `station_m` ab Wandanfang (`von`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -690,6 +706,22 @@ impl AbstandsPlan {
                 &w.tiefenfall_grundlage,
             ] {
                 text(s, 4000)?;
+            }
+            if w.grenzabstand_m
+                .into_iter()
+                .chain(w.ansicht_laenge_m)
+                .any(|v| !v.is_finite() || !(0. ..=100_000.).contains(&v))
+            {
+                return Err(err(format!(
+                    "{}: Grenzabstand und Breite in der Ansicht in Metern ab 0 angeben",
+                    w.bezeichnung
+                )));
+            }
+            if w.breite_aus_ansicht && w.umriss.is_some() {
+                return Err(err(format!(
+                    "{}: Umrisswände liegen im Lageplan; Breite nicht aus der Ansicht",
+                    w.bezeichnung
+                )));
             }
             if w.gelaende.len() > 500 || w.oberkante.len() > 500 || w.wandteilgrenzen.len() > 200 {
                 return Err(err(
@@ -1245,6 +1277,22 @@ pub fn projektabgleich(
                 g.bezeichnung,
                 hoehen::zahl((grenze * 100.).round() / 100.),
                 hoehen::zahl(kataster)
+            ));
+        }
+    }
+    // Breite der Wand in der verknüpften Ansicht gegen die Lage im Plan.
+    let tol = &crate::planaufmass::toleranzen().abstandsflaeche_breite;
+    for w in plan.waende.iter().filter(|w| !w.breite_aus_ansicht) {
+        let Some(a) = w.ansicht_laenge_m else {
+            continue;
+        };
+        let l = (w.bis.x - w.von.x).hypot(w.bis.y - w.von.y);
+        if (a - l).abs() > tol.m.max(tol.prozent / 100. * l) {
+            neu.push(format!(
+                "{}: Breite in der Ansicht {} m, im Lageplan {} m; Wandkanten und Maßstab der Ansicht prüfen",
+                w.bezeichnung,
+                hoehen::zahl(a),
+                hoehen::zahl(l)
             ));
         }
     }
