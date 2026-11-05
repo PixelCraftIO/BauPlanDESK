@@ -86,6 +86,14 @@ with sync_playwright() as p:
     old=page.evaluate("window.planSaved.daten.markierungen.map(m=>m.geometrie.von[0])")
     svg.focus();page.keyboard.press("ArrowRight");speichern()
     assert page.evaluate("window.planSaved.daten.markierungen.map(m=>m.geometrie.von[0])")==[x+1 for x in old]
+    # Baum: Ebene „Aufmaß“ mit beiden Markierungen; die Ebene zeigt ihre Eigenschaften.
+    tab("Objekte");baum=scope.get_by_role("tree",name="Ebenen und Objekte")
+    expect(baum.get_by_role("treeitem",name="Ebene Aufmaß")).to_have_attribute("aria-expanded","true")
+    baum.get_by_role("button",name="Aufmaß",exact=True).click()
+    expect(scope.locator('section.palette[aria-label="Eigenschaften der Ebene"]')).to_be_visible()
+    expect(scope.get_by_label("Ebenenname",exact=True)).to_have_value("Aufmaß")
+    scope.get_by_role("button",name="Zum Blatt",exact=True).click()
+    expect(scope.locator('section.palette[aria-label="Blatt und Einrichtung"]')).to_be_visible()
     # Ausschnitt anlegen und eine darin gebundene Kontur speichern.
     tab("Objekte");scope.locator("aside").get_by_role("button",name="Ausschnitt anlegen",exact=True).click();click(50,40);click(550,350)
     scope.get_by_label("Ausschnittname",exact=True).fill("Schnitt B-B")
@@ -169,9 +177,10 @@ with sync_playwright() as p:
     expect(rs.get_by_role("button",name="1:1",exact=True)).to_be_enabled()
     expect(rs.get_by_role("button",name="Speichern",exact=True)).to_be_disabled()
     rs.get_by_role("tablist",name="Planpanel").get_by_role("tab",name="Objekte",exact=True).click()
-    rs.locator(".ebene").get_by_label("An",exact=True).uncheck()
+    auge=rs.get_by_role("tree",name="Ebenen und Objekte").get_by_role("button",name="Ebene Aufmaß sichtbar",exact=True)
+    auge.click();expect(auge).to_have_attribute("aria-pressed","false")
     expect(rs.get_by_role("button",name="Speichern",exact=True)).to_be_disabled()
-    rs.locator(".ebene").get_by_label("An",exact=True).check()
+    auge.click();expect(auge).to_have_attribute("aria-pressed","true")
     rs.get_by_role("button",name="Seiten (2)",exact=True).click();rs.get_by_role("button",name="Seite 1",exact=True).click()
     blatt(rs)
     expect(rs.get_by_label("Seite",exact=True)).to_have_value("2")

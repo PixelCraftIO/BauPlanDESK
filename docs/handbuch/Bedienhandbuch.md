@@ -762,14 +762,14 @@ Der Zeicheneditor bleibt ein Werkzeug für Genehmigungsplanung und Nachweise neb
 
 ### Stifte, Linienarten und Schraffuren
 
-Im Bereich „Darstellung“ der Eigenschaften gelten Stift (0,1 bis 2,5 mm), Linienart, Farbe, Schraffur und Bauzustand je Ebene oder je Element. Das Element überschreibt die Ebene. Bauzustand färbt nach Bauvorlagenverordnung: Bestand grau, Abbruch gelb, Neubau rot. Ebenen lassen sich sperren; „Nur aktive Ebene bearbeiten“ schützt die übrigen.
+Im Bereich „Darstellung“ der Eigenschaften (für eine Ebene: Ebenennamen im Baum unter „Objekte“ anklicken) gelten Stift (0,1 bis 2,5 mm), Linienart, Farbe, Schraffur und Bauzustand je Ebene oder je Element. Das Element überschreibt die Ebene. Bauzustand färbt nach Bauvorlagenverordnung: Bestand grau, Abbruch gelb, Neubau rot. Im Baum unter „Objekte“ schaltet das Auge die Sichtbarkeit und das Schloss die Sperre je Ebene; „Ebenen ▾ → Nur aktive Ebene bearbeiten“ schützt die übrigen.
 
 ### Wände, Öffnungen, Planzeichen und Raumstempel
 
 - Öffnung (F): in eine Wand klicken, Art (Fenster oder Tür), Breite, Höhe, Brüstung und Anschlagseite in der Eigenschaftentabelle setzen. Öffnungen überlappen nicht und enden innerhalb der Wand.
 - Planzeichen (G): Baum Bestand / neu / Fällung, Stellplatz, Zufahrt, Hauseingang, Grenzpunkt; Größe und Drehung einstellbar.
 - Raumstempel (N): zeigt Nummer, Bezeichnung und Fläche des Raums aus dem Raumbuch und folgt dessen Änderungen.
-- „Lageplan-Ebenen anlegen“ erzeugt Ebenen für Grundstücksgrenze, Bestand, Abbruch, Neubau, Baugrenze / Baulinie, Abstandsflächen, Freiflächen und Bäume sowie Stellplätze und Zufahrten mit passenden Stiften.
+- „Ebenen ▾ → Lageplan-Ebenen anlegen“ (Reiter „Objekte“) erzeugt Ebenen für Grundstücksgrenze, Bestand, Abbruch, Neubau, Baugrenze / Baulinie, Abstandsflächen, Freiflächen und Bäume sowie Stellplätze und Zufahrten mit passenden Stiften.
 
 ### Planlayout mit Plankopf
 
