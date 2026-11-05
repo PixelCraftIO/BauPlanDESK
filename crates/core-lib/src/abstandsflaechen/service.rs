@@ -188,8 +188,12 @@ impl CoreServices {
                 "Abstandsflaechen.dxf".into(),
                 bericht::dxf(plan, &r).into_bytes(),
             )),
+            "lageplan" => Ok((
+                "Abstandsflaechenplan.pdf".into(),
+                self.abstandsflaechenplan(p, plan, &r).await?,
+            )),
             _ => Err(err(
-                "Exportformat muss json oder dxf sein; PDF über Druckausgabe",
+                "Exportformat muss json, dxf oder lageplan sein; Bericht als PDF über Druckausgabe",
             )),
         }
     }

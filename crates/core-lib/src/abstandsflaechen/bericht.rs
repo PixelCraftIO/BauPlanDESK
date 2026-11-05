@@ -287,11 +287,21 @@ pub fn planseite(
             }
             let (x, y) = xy(&w.von);
             let (a, b) = xy(&w.bis);
+            let werte = match (e.h_m, e.tiefe_m) {
+                (Some(h), Some(t)) => format!(
+                    " · H {} m · T {} m",
+                    format!("{h:.2}").replace('.', ","),
+                    format!("{t:.2}").replace('.', ",")
+                ),
+                _ => String::new(),
+            };
             out.push_str(&format!(
-                "1.4 w {x} {y} m {a} {b} l S BT /PlanFont 10 Tf {} {} Td (W{}) Tj ET\n",
+                "1.4 w {x} {y} m {a} {b} l S BT /PlanFont 8 Tf {} {} Td (W{} · {}{}) Tj ET\n",
                 (x + a) / 2.,
                 (y + b) / 2. + 5.,
-                i + 1
+                i + 1,
+                ascii(&w.bezeichnung),
+                werte
             ));
             for k in &e.konflikte {
                 out.push_str("1 0 0 RG 0.97 0.8 0.8 rg\n");

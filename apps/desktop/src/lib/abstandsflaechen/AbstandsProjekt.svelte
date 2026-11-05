@@ -383,15 +383,22 @@
       busy = false;
     }
   }
-  async function exportieren(format: "json" | "dxf") {
+  async function exportieren(format: "json" | "dxf" | "lageplan") {
     const n = await nachweis();
     if (!n) return;
     s.laeuft = true;
     try {
+      const endung = format === "lageplan" ? "pdf" : format;
       const ziel = await save({
-        title: "Archivierten Abstandsflächennachweis exportieren",
-        defaultPath: `Abstandsflaechen.${format}`,
-        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+        title:
+          format === "lageplan"
+            ? "Abstandsflächenplan auf dem Lageplan speichern"
+            : "Archivierten Abstandsflächennachweis exportieren",
+        defaultPath:
+          format === "lageplan"
+            ? "Abstandsflaechenplan.pdf"
+            : `Abstandsflaechen.${format}`,
+        filters: [{ name: endung.toUpperCase(), extensions: [endung] }],
       });
       if (ziel)
         await invoke("abstandsnachweis_export", {
@@ -1480,7 +1487,14 @@
         class="sekundaer"
         disabled={!darf || busy || s.laeuft}
         onclick={() => exportieren("dxf")}>Geometrie als DXF exportieren</button
-      >
+      >{#if p.planbindungen?.some((b) => /\.(lage|grenze)$/.test(b.ziel))}<button
+          type="button"
+          class="sekundaer"
+          disabled={!darf || busy || s.laeuft}
+          title="Abstandsflächen, Konflikte und Überdeckungen auf der Seite des Lageplans, aus dem die Linien stammen"
+          onclick={() => exportieren("lageplan")}
+          >Abstandsflächenplan auf dem Lageplan (PDF)</button
+        >{/if}
     </div>
     {#if ergebnis && ergebnisStand.startsWith(JSON.stringify( [s.id], ).slice(0, -1))}{#if !aktuell}<p
           role="status"

@@ -257,6 +257,27 @@ unter **Höhen** auf der Ebene „Abstandsflächen“:
 
 ![Höhen aus der Ansicht](screenshots/hoehen-ansicht.png)
 
+## Abstandsflächenplan auf dem Lageplan
+
+Stammen Wände oder Grenzen aus Linien im Lageplan, erzeugt **Abstandsflächenplan
+auf dem Lageplan (PDF)** (unter dem Ergebnis) aus dem archivierten Nachweisstand
+ein Blatt für den Bauantrag:
+
+- Die Seite des Lageplans bleibt unverändert und maßstäblich; darüber liegen
+  die Abstandsflächen (blau, halbtransparent), Flächen jenseits der Grenze (rot),
+  Überdeckungen (violett) und die Grundstücksgrenzen (schwarz).
+- Jede Wand ist beschriftet mit „A1 · H … m · T … m · … m²“.
+- Ein zweites Blatt nennt Lageplan (Datei, Version, Seite), Abstandsplan und
+  Rechenstand, Regeldatei mit Stichtag und Prüfsumme, den Hinweis „Regelwerk
+  fachlich nicht freigegeben“ und je Wand Höhe, Tiefe, Fläche und Ergebnis.
+- Wände mit Breite aus der Ansicht haben keine Lage im Lageplan; sie stehen nur
+  in der Tabelle, mit dem Grenzabstand nach Angabe des Planers.
+- Hat sich die Linie im Lageplan seit dem Nachweisstand geändert, wird kein Plan
+  erzeugt: zuerst „Linien aktualisieren“ und neu archivieren.
+
+Die Vektorplanskizze der Druckausgabe und die Skizze im Abstandsplan nennen
+die Wände ebenfalls mit Namen und Tiefe.
+
 ## Geometrie übernehmen
 
 Grundstücks-, Flächen- und Gebäudeumrisse über Eckpunkttabellen erfassen oder
