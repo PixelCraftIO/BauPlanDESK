@@ -42,20 +42,25 @@ ein eigener Vorgang im Projektverzeichnis.
 
 ## Aufbau der Projektakte
 
-![Projektakte mit Aktenkopf, Registern und Gliederung](bilder/akte-projektuebersicht.png)
+![Projektakte mit Aktenkopf und Projektbaum](bilder/akte-projektuebersicht.png)
 
 1. **Aktenkopf** mit Bundesland, Bauherr, Baugrundstück, Rechtsgrundlage und
    Stand. „Projektdetails einklappen“ schafft Platz; im Aufmaß ist der Kopf
    von vornherein eingeklappt. Die Wahl bleibt je Arbeitsplatz erhalten.
    „Hilfe zu diesem Bereich“ öffnet das passende Hilfekapitel.
-2. **Drei Register:**
-   - **Übersicht** – Projektübersicht, Aufgaben / Fristen, Chronik.
+2. **Projektbaum links** mit der ganzen Akte, aufgebaut wie der Ebenenbaum im
+   Zeicheneditor. Oberste Ebene sind die drei Register:
+   - **Übersicht** – Projektübersicht, Aufgaben / Fristen, Projekttagebuch,
+     Fachplaner, Chronik.
    - **Bereich 1 · Ermittlung** – alles, was Werte erzeugt: Grundlagen,
      Unterlagen, Aufmaß, Messwerte, Gebäudemodell.
    - **Bereich 2 · Nachweis und Einreichung** – alles, was Werte verarbeitet
      und ausgibt: Berechnungen, Formulare, Druck, Verfahren und
      Einreichungswerkzeuge.
-3. **Gliederung links** mit den Bereichen des gewählten Registers.
+3. **Zweige auf- und zuklappen:** Ein Klick auf ein Register oder eine Gruppe
+   klappt sie auf oder zu; „Alle zuklappen“ bzw. „Alle aufklappen“ oben im Baum
+   wirkt auf alle Zweige. Die App merkt sich die Wahl je Projekt. Der Zweig des
+   geöffneten Bereichs bleibt immer aufgeklappt.
    - **Bereich suchen** (Strg+K) findet Bereiche und Aktionen, z. B. „GRZ“,
      „Formulare“, „Drucken“ oder „Aktuellen Bereich speichern“.
    - Der **Stern** neben einem Eintrag merkt ihn als Favorit; „Zuletzt geöffnet“
@@ -68,7 +73,7 @@ Die vollständige Gliederung:
 
 | Register | Gruppe | Bereiche |
 | --- | --- | --- |
-| Übersicht | – | Projektübersicht, Aufgaben / Fristen, Chronik |
+| Übersicht | – | Projektübersicht, Aufgaben / Fristen, Projekttagebuch, Fachplaner / Lieferungen, Chronik |
 | Ermittlung | Grundlagen | Stammdaten, Rechtsgrundlagen, Planfestsetzungen, Flurstücke |
 | | Unterlagen | Projektdateien, Aufmaß, Messwerte, Unterlagenregister |
 | | Gebäudemodell | Gebäude / Geschosse, Flächen- und Raumbuch |

@@ -1,11 +1,11 @@
 <script lang="ts">
   import { editorRegister } from "./editoren";
   import Navigationseintrag from "./Navigationseintrag.svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { MODULE, voraussetzung } from "./module";
   import {
     navigationMitModulen,
-    registerVon,
+    pfadZu,
     KURZTITEL,
     type NavZweig,
   } from "./navigation";
@@ -23,7 +23,51 @@
     onbereich: (a: Ansicht) => void;
   } = $props();
   const NAVIGATION = navigationMitModulen(MODULE);
-  const register = $derived(registerVon(NAVIGATION, ansicht) ?? NAVIGATION[0]);
+  // Zugeklappte Zweige des Projektbaums, je Projekt lokal gemerkt.
+  const baumSchluessel = () => `bauplan.baum.${projekt.id}`;
+  const ZWEIGE = (function sammeln(zs: NavZweig[]): string[] {
+    return zs.flatMap((z) => (z.kinder ? [z.id, ...sammeln(z.kinder)] : [z.id]));
+  })(NAVIGATION);
+  let zu = $state(new Set<string>());
+  try {
+    const gemerkt = JSON.parse(localStorage.getItem(baumSchluessel()) ?? "[]");
+    if (Array.isArray(gemerkt))
+      zu = new Set(gemerkt.filter((id: string) => ZWEIGE.includes(id)));
+  } catch {
+    /* Baum startet aufgeklappt */
+  }
+  const alleZu = $derived(ZWEIGE.every((id) => zu.has(id)));
+  function zuSetzen(neu: Set<string>) {
+    zu = neu;
+    try {
+      localStorage.setItem(baumSchluessel(), JSON.stringify([...neu]));
+    } catch {
+      /* Navigation bleibt nutzbar */
+    }
+  }
+  function umschalten(id: string) {
+    const neu = new Set(zu);
+    if (!neu.delete(id)) neu.add(id);
+    zuSetzen(neu);
+  }
+  function alleZuklappen() {
+    zuSetzen(new Set(ZWEIGE));
+  }
+  function alleAufklappen() {
+    zuSetzen(new Set());
+  }
+  // Der Zweig des geöffneten Bereichs bleibt sichtbar.
+  $effect(() => {
+    const id = ansicht === "mass" ? "grundstueck" : ansicht;
+    untrack(() => {
+      const pfad = pfadZu(NAVIGATION, id);
+      if (pfad.some((z) => zu.has(z))) {
+        const neu = new Set(zu);
+        for (const z of pfad) neu.delete(z);
+        zuSetzen(neu);
+      }
+    });
+  });
   const editoren = editorRegister();
   let suchfeld = $state<HTMLInputElement>();
   let aktionsmeldung = $state("");
@@ -111,10 +155,27 @@
     />
   {/each}
 {/snippet}
-{#snippet gruppe(z: NavZweig)}
-  <div class="nav-gruppe">{z.titel}</div>
-  {@render eintraege(z.module)}
-  {#each z.kinder ?? [] as k}{@render gruppe(k)}{/each}
+{#snippet zweig(z: NavZweig, ebene: number)}
+  {@const offen = !zu.has(z.id)}
+  <li class="baumzweig" data-ebene={ebene}>
+    <button
+      type="button"
+      class="zweigkopf"
+      class:wurzel={ebene === 0}
+      aria-expanded={offen}
+      aria-label={z.titel}
+      title={z.untertitel ?? z.titel}
+      onclick={() => umschalten(z.id)}
+      ><span class="pfeil" class:offen aria-hidden="true"></span
+      ><span class="zweigtitel"
+        >{#if z.ziffer}<small class="ziffer">{z.ziffer}</small>{/if}{z.titel}</span
+      ></button
+    >
+    {#if offen}<ul role="group" aria-label={z.titel}>
+        {#if z.module.length}<li class="blaetter">{@render eintraege(z.module)}</li>{/if}
+        {#each z.kinder ?? [] as k (k.id)}{@render zweig(k, ebene + 1)}{/each}
+      </ul>{/if}
+  </li>
 {/snippet}
 
 <svelte:window
@@ -167,12 +228,19 @@
           zuletzt as import("./module").ModulId[],
         )}
       </details>{/if}
-    <nav aria-label={`Gliederung ${register.titel}`}>
-      {#if register.module.length || !register.kinder?.length}
-        {@render gruppe(register)}
-      {:else}
-        {#each register.kinder ?? [] as k}{@render gruppe(k)}{/each}
-      {/if}
+    <div class="baumkopf">
+      <span>Projekt</span>
+      <button
+        type="button"
+        class="link"
+        onclick={() => (alleZu ? alleAufklappen() : alleZuklappen())}
+        >{alleZu ? "Alle aufklappen" : "Alle zuklappen"}</button
+      >
+    </div>
+    <nav aria-label="Gliederung der Projektakte">
+      <ul class="projektbaum">
+        {#each NAVIGATION as z (z.id)}{@render zweig(z, 0)}{/each}
+      </ul>
     </nav>{/if}
 </aside>
 
@@ -196,5 +264,88 @@
   }
   details {
     padding: 0.4rem;
+  }
+  /* Projektbaum: Register → Gruppe → Bereich, wie der Ebenenbaum im Zeicheneditor. */
+  .baumkopf {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 2px 10px 4px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-innen);
+  }
+  .baumkopf .link {
+    font-size: 0.8rem;
+    font-weight: 400;
+    min-height: 0;
+    padding: 0;
+  }
+  .projektbaum,
+  .projektbaum ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .projektbaum ul {
+    padding-left: 12px;
+  }
+  /* Globale Listenzeilen (flex, Rahmen) gelten im Baum nicht. */
+  .projektbaum li {
+    display: block;
+    padding: 0;
+    border-top: 0;
+  }
+  .projektbaum > .baumzweig + .baumzweig {
+    border-top: 1px solid var(--border-innen);
+  }
+  .projektbaum .zweigkopf {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding-left: 4px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .projektbaum .zweigkopf.wurzel {
+    color: var(--fg);
+    padding-block: 5px;
+  }
+  .zweigtitel {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ziffer {
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pfeil {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    position: relative;
+  }
+  .pfeil::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 3px;
+    border-style: solid;
+    border-width: 4px 0 4px 6px;
+    border-color: transparent transparent transparent currentColor;
+    opacity: 0.7;
+  }
+  .pfeil.offen::before {
+    transform: rotate(90deg);
+  }
+  .blaetter :global(.navigationseintrag > button:not(.favorit)),
+  .blaetter :global(.sperrhinweis > button:not(.info)) {
+    padding-left: 18px;
   }
 </style>

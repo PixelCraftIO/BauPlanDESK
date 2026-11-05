@@ -17,7 +17,7 @@ Abgleich von Hand- und Zeichnungswerten und IFC-Modellen).
 | Nr. | Kapitel | Worum es geht |
 | --- | --- | --- |
 | 1 | [Einstieg](01-einstieg.md) | Was BauPlanIO leistet, Begriffe, Beispielprojekt |
-| 2 | [Oberfläche und Bedienung](02-oberflaeche.md) | Arbeitsplatz, Projekttabs, die drei Register, Speichern, Status |
+| 2 | [Oberfläche und Bedienung](02-oberflaeche.md) | Arbeitsplatz, Projekttabs, Projektbaum, Speichern, Status |
 | 3 | [Büro einrichten](03-einrichtung.md) | Einstellungen, Büroangaben, Benutzer, Kunden, Formularbibliothek |
 | 4 | [Projekt anlegen und Grundlagen](04-projekt-grundlagen.md) | Neues Projekt, Stammdaten, Rechtsgrundlagen, B-Plan, Flurstücke |
 | 5 | [Unterlagen, Aufmaß und Gebäudemodell](05-ermittlung.md) | Projektdateien, Zeicheneditor, IFC-Modelle (BIM), Messwerte, Gebäude, Raumbuch |

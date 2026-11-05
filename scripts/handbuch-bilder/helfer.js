@@ -50,17 +50,30 @@ async function navigationZeigen() {
     await sleep(500);
   }
 }
+/** Register = oberster Zweig des Projektbaums; wird aufgeklappt, nie zugeklappt. */
 async function register(t) {
   await projekt();
   await navigationZeigen();
-  await klick(t, "[role=tab],button");
+  const z = [...document.querySelectorAll(".aktennavigation .zweigkopf")]
+    .filter(sichtbar)
+    .find((b) => b.getAttribute("aria-label") === t);
+  if (!z) throw new Error("Register fehlt: " + t);
+  if (z.getAttribute("aria-expanded") === "false") z.click();
   await sleep(600);
 }
 async function bereich(titel) {
   await navigationZeigen();
-  const e = [...document.querySelectorAll(".aktennavigation nav button")]
-    .filter(sichtbar)
-    .find((b) => txt(b) === titel || txt(b).startsWith(titel));
+  const finden = () =>
+    [...document.querySelectorAll(".aktennavigation nav button:not(.zweigkopf)")]
+      .filter(sichtbar)
+      .find((b) => txt(b) === titel || txt(b).startsWith(titel));
+  let e = finden();
+  if (!e) {
+    // Zugeklappte Zweige des Projektbaums öffnen.
+    for (const z of document.querySelectorAll('.aktennavigation .zweigkopf[aria-expanded="false"]')) z.click();
+    await sleep(300);
+    e = finden();
+  }
   if (!e) throw new Error("Bereich fehlt: " + titel);
   e.click();
   await sleep(1500);

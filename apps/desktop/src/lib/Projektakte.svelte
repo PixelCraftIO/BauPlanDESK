@@ -8,9 +8,7 @@
   import { MODULE, voraussetzung } from "./module";
   import {
     navigationMitModulen,
-    moduleVon,
     registerVon,
-    type NavZweig,
   } from "./navigation";
   import Sidebar from "./Sidebar.svelte";
   import Symbolknopf from "./Symbolknopf.svelte";
@@ -276,28 +274,12 @@
   }
   const REGISTER = navigationMitModulen(MODULE);
   const aktuellesRegister = $derived(registerVon(REGISTER, ansicht));
-  // Jedes Register merkt sich seinen zuletzt geöffneten Bereich.
-  let zuletzt = $state<Record<string, Ansicht>>({});
-  $effect(() => {
-    const a = ansicht;
-    const r = registerVon(REGISTER, a);
-    if (r) untrack(() => (zuletzt[r.id] = a));
-  });
   function bereich(id: Ansicht) {
     const modul = MODULE.find((m) => m.id === id);
     ansicht =
       modul?.id === "festsetzungen" && voraussetzung(projekt, modul)
         ? "rechtsgrundlagen"
         : id;
-  }
-  function registerOeffnen(r: NavZweig) {
-    const ziel =
-      zuletzt[r.id] ??
-      moduleVon(r).find((id) => {
-        const m = MODULE.find((m) => m.id === id);
-        return m && !voraussetzung(projekt, m);
-      });
-    if (ziel) bereich(ziel);
   }
 </script>
 
@@ -379,22 +361,6 @@
     </div>
   </dl>
 </header>
-<div class="register" role="tablist" aria-label="Register der Projektakte" hidden={arbeitsansicht}>
-  {#each REGISTER as r (r.id)}
-    <button
-      role="tab"
-      aria-selected={aktuellesRegister?.id === r.id}
-      class:aktiv={aktuellesRegister?.id === r.id}
-      aria-label={r.titel}
-      title={r.untertitel}
-      onclick={() => registerOeffnen(r)}
-      ><span class="registertitel"
-        >{#if r.ziffer}<small class="ziffer">{r.ziffer}</small>{/if}{r.titel}</span
-      ></button
-    >
-  {/each}
-</div>
-
 <div class="aktenrumpf" class:arbeitsansicht>
   {#if !arbeitsansicht}<Sidebar {projekt} {aktiv} {ansicht} onbereich={bereich} />{/if}
   <main>
