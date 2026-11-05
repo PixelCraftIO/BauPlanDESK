@@ -1850,6 +1850,17 @@ export type Tagesmaileinstellung = { aktiv: boolean, adresse: string, umfang: Ab
  */
 abwesend_bis: string | null, vertretung: BenutzerId | null, };
 export type Projektuebersicht = { projekt_id: ProjectId, projekt_version: bigint, ermittelt_am: string, stichtag: string, zahlen: UebersichtsZahlen, punkte: Array<Arbeitspunkt>, verfahren: Array<VerfahrensUeberblick>, abgaben: Array<AbgabeUeberblick>, empfaenger: Array<EmpfaengerUeberblick>, hinweise: Array<string>, };
+export type Bereichszustand = "offen" | "erledigt" | "leer";
+export type Bereichsstatus = {
+/**
+ * Kennung des Bereichs wie in der Navigation (z. B. `flurstuecke`, `grz`).
+ */
+bereich: string, zustand: Bereichszustand,
+/**
+ * Kurze Gründe für „offen“ in der Reihenfolge der Projektübersicht.
+ */
+gruende: Array<string>, };
+export type Bereichsstaende = { projekt_version: bigint, stichtag: string, bereiche: Array<Bereichsstatus>, };
 export type Dokumentdaten = { dokument: Dokumentbezug, dokumentart: string, plannummer: string, revisionsindex: string, massstab: string, verfasser: string, datum: string | null, };
 export type Raumbuch = { planbindungen?: Array<Planbindung>, bezeichnung: string, gebaeude_id: string, geschoss_id: string | null, raeume: Array<Raum>, };
 export type Raum = { id: string, nummer: string, bezeichnung: string, nutzung: string,

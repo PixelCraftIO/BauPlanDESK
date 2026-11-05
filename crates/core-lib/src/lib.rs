@@ -75,6 +75,8 @@ pub mod berechnungen;
 
 pub mod projektuebersicht;
 
+pub mod bereichsstatus;
+
 pub mod portale;
 
 mod lesesitzung;
