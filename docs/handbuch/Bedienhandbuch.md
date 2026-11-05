@@ -696,7 +696,7 @@ Messwerte auf PDF-Blättern, DXF-Zeichnungen oder eigenen Zeichnungen in Metern 
 ### Eigene Zeichnung in Metern
 
 1. In der Zeichnungsleiste „Neue Zeichnung“ wählen. Das Blatt rechnet in Metern (1 Einheit = 1 m), zeigt ein Meterraster und wächst mit den Inhalten; Maßstab und Kalibrierung entfallen.
-2. Unter „Blatt und Einrichtung → Hintergründe“ eine PDF-Seite oder DXF-Zeichnung hinzufügen und einpassen: Maßstab 1:n bzw. Zeichnungseinheit setzen, „Über Strecke einpassen“ (zwei Punkte einer bekannten Strecke anklicken, Länge in m), „Verschieben“ (Punkt und Ziel anklicken) und „Um Punkt drehen“. Deckkraft und Sichtbarkeit je Hintergrund; der Punktfang greift an den Vektoren der Hintergründe.
+2. Ohne Auswahl unter „Eigenschaften“ → „Blatt und Einrichtung → Hintergründe“ eine PDF-Seite oder DXF-Zeichnung hinzufügen und einpassen: Maßstab 1:n bzw. Zeichnungseinheit setzen, „Über Strecke einpassen“ (zwei Punkte einer bekannten Strecke anklicken, Länge in m), „Verschieben“ (Punkt und Ziel anklicken) und „Um Punkt drehen“. Deckkraft und Sichtbarkeit je Hintergrund; der Punktfang greift an den Vektoren der Hintergründe.
 3. Mit Wand (W), Maßkette (L) und Text (X) zeichnen; Wanddicke, Abstand der Maßlinie, Text und Schrifthöhe stehen unter „Eigenschaften“. Diese Elemente liefern keine Messwerte, sie dienen der Darstellung.
 4. Flächen, Strecken und Höhen wie auf einer Unterlage als Markierungen zeichnen; Bedeutungen, Zuordnungen, Aufgaben und Übernahmen sind dieselben. Der PDF-Export gibt die Zeichnung im Maßstab 1:100 aus.
 
@@ -773,7 +773,7 @@ Im Bereich „Darstellung“ der Eigenschaften gelten Stift (0,1 bis 2,5 mm), Li
 
 ### Planlayout mit Plankopf
 
-1. In der eigenen Zeichnung „Planlayout“ öffnen: Blattformat (A4 bis A0, hoch oder quer), Maßstab (z. B. 1:100, 1:200, 1:500), Nordpfeil und Legende wählen.
+1. In der eigenen Zeichnung „Ausgabe → Planblatt PDF (maßstäblich) …“ öffnen: Blattformat (A4 bis A0, hoch oder quer), Maßstab (z. B. 1:100, 1:200, 1:500), Nordpfeil und Legende wählen.
 2. Den Plan aus der Planliste wählen. Plannummer, Index, Bauherr, Vorhaben, Grundstück und Planverfasser kommen aus Projekt und Planliste.
 3. Ausgeben. Das PDF ist maßstäblich mit Maßstabsleiste; wahlweise als neue Version des Plandokuments ablegen und danach in der Planliste den neuen Index setzen.
 
@@ -781,7 +781,7 @@ Im Bereich „Darstellung“ der Eigenschaften gelten Stift (0,1 bis 2,5 mm), Li
 
 ### DXF für das Büro-CAD
 
-„DXF fürs CAD …“ gibt die eigene Zeichnung oder ein kalibriertes Aufmaß als DXF in Metern aus, eine DXF-Ebene je Zeichenebene, mit Farbe und Strichstärke. Linienarten und Schraffuren werden nicht übertragen.
+„Ausgabe → DXF fürs CAD …“ gibt die eigene Zeichnung oder ein kalibriertes Aufmaß als DXF in Metern aus, eine DXF-Ebene je Zeichenebene, mit Farbe und Strichstärke. Linienarten und Schraffuren werden nicht übertragen.
 
 Weiterlesen: [Aufmaß auf PDF und DXF sowie eigene Zeichnungen](#25-aufmaß-auf-pdf-und-dxf-sowie-eigene-zeichnungen) · [Planliste, Plankopf und Planvergleich](#30-planliste-plankopf-und-planvergleich)
 

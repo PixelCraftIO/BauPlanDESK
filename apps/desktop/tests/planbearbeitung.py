@@ -145,8 +145,9 @@ with sync_playwright() as p:
     scope.get_by_role("button",name="Vollbild beenden",exact=True).click()
     # Vergleich und Übertragung erhalten die ursprüngliche Markierung/Verknüpfung.
     original_marker=page.evaluate("window.planSaved.daten.markierungen[0].id")
-    blatt()
-    expect(scope.get_by_text("Planstände vergleichen",exact=True)).to_be_visible()
+    scope.get_by_role("button",name="Prüfen ▾",exact=True).click()
+    scope.get_by_role("menuitem",name="Planstände vergleichen …",exact=True).click()
+    expect(scope.get_by_role("dialog",name="Planstände vergleichen")).to_be_visible()
     scope.get_by_label("Vergleichsunterlage",exact=True).select_option("d316da8b-cbfb-4ae6-931b-8765fb6454b2|1")
     scope.get_by_label("Blattlage und Konturen anhand der Überlagerung geprüft",exact=True).check()
     transfer=scope.get_by_role("button",name="Als neues Aufmaß auf Vergleichsunterlage übertragen …",exact=True)
