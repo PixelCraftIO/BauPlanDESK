@@ -108,6 +108,8 @@
   // Markierungen anderer Ausschnitte bleiben sichtbar, aber nicht bedienbar.
   const fremd=(m:Planmarkierung)=>!!aktiv&&(m.ausschnitt_id??"")!==aktiv;
   const faktor=$derived(meterProPunkt(ausschnitt?.kalibrierung??kalibrierung));
+  // Bildschirmmaßstab 1:n bei 96 dpi; aussagekräftiger als Prozent, sobald das Blatt in Metern rechnet.
+  const bildschirmNenner=$derived.by(()=>{if(!faktor||!zoom)return null;const n=faktor/(zoom*0.0254/96);return n>=100?Math.round(n/10)*10:Math.max(1,Math.round(n))});
   const aktiveKalibrierung=$derived(ausschnitt?.kalibrierung??kalibrierung);
   const gedreht=$derived(drehung%180!==0);
   const blatt=$derived(plan?dxfBlatt(plan):null);
@@ -119,6 +121,7 @@
   // Größe des gedrehten Blattes in Seitenpunkten (Box, in der gescrollt wird).
   const boxB=$derived(gedreht?hoehe:breite), boxH=$derived(gedreht?breite:hoehe);
   const z=(n:number,stellen=2)=>n.toLocaleString("de-DE",{maximumFractionDigits:stellen});
+  const koordinate=$derived(cursor?faktor?`x ${z(cursor[0]*faktor)} · y ${z(cursor[1]*faktor)} m`:`x ${z(cursor[0],0)} · y ${z(cursor[1],0)} pt`:"x – · y –");
   const rect=(a:{id?:string;von:Point;bis:Point})=>{const r=a.id&&rahmenVorschau?.id===a.id?rahmenVorschau:a;return {x:Math.min(r.von[0],r.bis[0]),y:Math.min(r.von[1],r.bis[1]),w:Math.abs(r.bis[0]-r.von[0]),h:Math.abs(r.bis[1]-r.von[1])}};
   // Seitenpunkt → Punkt der gedrehten Box (Seitenpunkte, ohne Zoom).
   function boxPunkt(p:Point):Point{
@@ -656,7 +659,7 @@
 <div class="pdf-plan">
   <div class="plan-kopf" role="toolbar" aria-label="Ansicht">
     <Symbolknopf titel="Verkleinern" disabled={!bereit} onclick={()=>zoomMitte(1/1.25)}><WerkzeugIcon art="minus"/></Symbolknopf>
-    <span class="zoom">{Math.round(zoom*100)} %</span>
+    <span class="zoom" title={bildschirmNenner?`Bildschirm ≈ 1:${bildschirmNenner.toLocaleString("de-DE")} · ${Math.round(zoom*100)} %`:undefined}>{zeichnung&&bildschirmNenner?`1:${bildschirmNenner.toLocaleString("de-DE")}`:`${Math.round(zoom*100)} %`}</span>
     <Symbolknopf titel="Vergrößern" disabled={!bereit} onclick={()=>zoomMitte(1.25)}><WerkzeugIcon art="plus"/></Symbolknopf>
     <Symbolknopf titel="Einpassen" disabled={!bereit} onclick={einpassen}><WerkzeugIcon art="einpassen"/></Symbolknopf>
     {#if !plan&&!zeichnung}<button type="button" class="sekundaer text" disabled={!bereit} onclick={()=>{zoom=1}} title="72 Punkte je Zoll">1:1</button>{/if}
@@ -782,8 +785,16 @@
       </div>
     </div>
   </div>
-  <p class="meta status" role="status">{vorschau?`Vorschau: ${vorschau} · `:""}{fangart || (zeichnung?`Eigene Zeichnung in Metern · Blatt ${z(breite,0)} × ${z(hoehe,0)} m${geometry.points.length?` · ${geometry.points.length} Fangpunkte der Hintergründe`:""}`:geometry.points.length?`${geometry.points.length} Vektorpunkte der Unterlage`:"Keine Vektorpunkte – manuell zeichnen")}
-    {geometry.limited?" · Vektorumfang begrenzt":""}{drehung?` · Ansicht ${drehung}° gedreht`:""} · Strg+Rad zoomt, Leertaste verschiebt, Shift rastet 45°, F8 Ortho, Alt setzt den Fang aus, Ziffern oder @ öffnen die Koordinateneingabe. Enter schließt bzw. wiederholt den letzten Befehl, Escape bricht ab.</p>
+  <div class="statusleiste meta" aria-label="Statusleiste">
+    <span class="feld koordinate" title="Zeigerposition">{koordinate}</span>
+    <span class="feld" title="Fang">{fangart||(fang?"Fang bereit":"Fang aus")}</span>
+    <span class="feld">{ortho?"Ortho":winkelraster?`Winkel ${winkelraster}°`:"Winkel frei"}</span>
+    {#if bildschirmNenner}<span class="feld" title="Maßstab der Bildschirmdarstellung (96 dpi)">Bildschirm ≈ 1:{bildschirmNenner.toLocaleString("de-DE")}</span>{/if}
+    {#if drehung}<span class="feld">Ansicht {drehung}° gedreht</span>{/if}
+    {#if vorschau}<span class="feld">Vorschau: {vorschau}</span>{/if}
+    <span class="feld quelle" role="status">{zeichnung?`Eigene Zeichnung in Metern · Blatt ${z(breite,0)} × ${z(hoehe,0)} m${geometry.points.length?` · ${geometry.points.length} Fangpunkte der Hintergründe`:""}`:geometry.points.length?`${geometry.points.length} Vektorpunkte der Unterlage`:"Keine Vektorpunkte – manuell zeichnen"}{geometry.limited?" · Vektorumfang begrenzt":""}</span>
+    <span class="feld" title="Kurzbefehle mit F1">F1 Kurzbefehle</span>
+  </div>
 </div>
 
 {#snippet figur(g:Plangeometrie,selected:boolean,st:string="")}
@@ -911,5 +922,8 @@
   svg .gewaehlt :is(path,polygon,rect,circle,line){stroke:#ad530a;stroke-width:2.5}
   .masseingabe{position:absolute;z-index:2;margin:0}
   .masseingabe input{width:11rem;font-size:.85rem;padding:.2rem .4rem;border:1px solid #ad530a;border-radius:3px;background:white}
-  .status{padding:3px 8px;margin:0;font-size:.8rem;min-height:1.6em;border-top:1px solid var(--border-innen);background:var(--leiste);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .statusleiste{display:flex;align-items:stretch;margin:0;font-size:.8rem;min-height:1.7em;border-top:1px solid var(--border-innen);background:var(--leiste);white-space:nowrap;overflow:hidden;font-variant-numeric:tabular-nums}
+  .statusleiste .feld{padding:2px 8px;border-right:1px solid var(--border-innen);display:flex;align-items:center}
+  .statusleiste .koordinate{min-width:12.5rem}
+  .statusleiste .quelle{margin-left:auto;border-left:1px solid var(--border-innen);min-width:0;overflow:hidden;text-overflow:ellipsis;display:block;line-height:1.6}
 </style>
