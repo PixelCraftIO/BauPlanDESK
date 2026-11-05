@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "fassung": {
+    "gesetz": "Landesbauordnung für Baden-Württemberg (LBO)",
+    "paragraf": "§§ 5, 6 Abstandsflächen",
+    "gueltig_ab": null,
+    "gueltig_bis": null,
+    "fundstelle": "",
+    "uebergang": ""
+  },
+  "quellen": [],
+  "pruefung": {
+    "geprueft": false,
+    "geprueft_von": "",
+    "geprueft_am": null,
+    "vermerk": "Pilotansatz ohne Wortlaut und ohne belegte Fassung; wird ersetzt, sobald die amtliche Fassung vorliegt."
+  },
+  "wortlaut": [],
+  "pruefpunkte": [],
+  "beispiele": [],
+  "regeln": {
+    "id": "abstand-bw",
+    "version": "pilot-2",
+    "land": "BW",
+    "rechtsstand": "§§ 5, 6 LBO BW in der Fassung der LBO-Reform 2025 – Beispielansatz, konkrete Fassung und Sonderregeln projektbezogen prüfen",
+    "hinweis": "Ungeprüfter Pilotkatalog. Landesfassung, Übergangsrecht, lokale Satzungen und alle Anwendungsbedingungen vor fachlicher Freigabe anhand amtlicher Quellen prüfen. Keine automatische rechtliche Vollständigkeitszusage. Dachregeln nur für Dachflächen; Giebel gesondert erfassen. BW: Giebelflächen werden nach der LBO-Reform 2025 zu einem Viertel angerechnet; als Dachart „Giebel“ mit Faktor 0,25 und Grundlage erfassen. Bei Wänden bis 5 m Breite beträgt die Mindesttiefe 2 m statt 2,5 m (§ 5 Abs. 7 LBO BW); diesen Fall als Sonderansatz erfassen.",
+    "tiefen": [
+      {
+        "gebiete": [
+          "WA",
+          "WR",
+          "WS",
+          "MI",
+          "SO"
+        ],
+        "faktor": 0.4,
+        "mindesttiefe_m": 2.5,
+        "quelle": "§§ 5, 6 LBO BW"
+      },
+      {
+        "gebiete": [
+          "WB",
+          "MD",
+          "MDW",
+          "MU",
+          "MK"
+        ],
+        "faktor": 0.2,
+        "mindesttiefe_m": 2.5,
+        "quelle": "§§ 5, 6 LBO BW"
+      },
+      {
+        "gebiete": [
+          "GE",
+          "GI"
+        ],
+        "faktor": 0.125,
+        "mindesttiefe_m": 2.5,
+        "quelle": "§§ 5, 6 LBO BW"
+      }
+    ],
+    "dach": [
+      {
+        "ueber_grad": 45,
+        "faktor": 0.25,
+        "quelle": "§ 5 Abs. 5 LBO BW (Reform 2025); Dachflächenansatz fachlich prüfen"
+      },
+      {
+        "ueber_grad": 70,
+        "faktor": 1,
+        "quelle": "§ 5 Abs. 5 LBO BW (Reform 2025); Dachflächenansatz fachlich prüfen"
+      }
+    ],
+    "grenzanlagen": null
+  }
+}

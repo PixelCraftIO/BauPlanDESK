@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "fassung": {
+    "gesetz": "Bayerische Bauordnung (BayBO)",
+    "paragraf": "Art. 6 Abstandsflächen",
+    "gueltig_ab": null,
+    "gueltig_bis": null,
+    "fundstelle": "",
+    "uebergang": ""
+  },
+  "quellen": [],
+  "pruefung": {
+    "geprueft": false,
+    "geprueft_von": "",
+    "geprueft_am": null,
+    "vermerk": "Pilotansatz ohne Wortlaut und ohne belegte Fassung; wird ersetzt, sobald die amtliche Fassung vorliegt."
+  },
+  "wortlaut": [],
+  "pruefpunkte": [],
+  "beispiele": [],
+  "regeln": {
+    "id": "abstand-by",
+    "version": "pilot-1",
+    "land": "BY",
+    "rechtsstand": "Art. 6 BayBO – Beispielansatz, konkrete Fassung und Sonderregeln projektbezogen prüfen",
+    "hinweis": "Ungeprüfter Pilotkatalog. Landesfassung, Übergangsrecht, lokale Satzungen und alle Anwendungsbedingungen vor fachlicher Freigabe anhand amtlicher Quellen prüfen. Keine automatische rechtliche Vollständigkeitszusage. Dachregeln nur für Dachflächen; Giebel gesondert erfassen.",
+    "tiefen": [
+      {
+        "gebiete": [
+          "WA",
+          "WR",
+          "WB",
+          "WS",
+          "MI",
+          "MD",
+          "MDW",
+          "MU",
+          "MK",
+          "SO"
+        ],
+        "faktor": 0.4,
+        "mindesttiefe_m": 3,
+        "quelle": "Art. 6 BayBO"
+      },
+      {
+        "gebiete": [
+          "GE",
+          "GI"
+        ],
+        "faktor": 0.2,
+        "mindesttiefe_m": 3,
+        "quelle": "Art. 6 BayBO"
+      }
+    ],
+    "dach": [
+      {
+        "ueber_grad": 45,
+        "faktor": 0.3333333333333333,
+        "quelle": "Art. 6 BayBO; Dachflächenansatz fachlich prüfen"
+      },
+      {
+        "ueber_grad": 70,
+        "faktor": 1,
+        "quelle": "Art. 6 BayBO; Dachflächenansatz fachlich prüfen"
+      }
+    ],
+    "grenzanlagen": null
+  }
+}

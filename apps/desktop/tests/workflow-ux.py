@@ -17,7 +17,7 @@ fixture['bundesland']='NW'
 fixture['planungsrecht'].update(rechtsgrundlage='par34',bau_nvo=None,bebauungsplan_art='kein')
 fixture['planungsrecht']['baugrundstuecke']['berechnungen']=[]
 fixture['planungsrecht']['baugrundstuecke']['flurstuecke']=fixture['planungsrecht']['baugrundstuecke']['flurstuecke'][:1]
-rules=json.loads((repo/'regelwerke/abstandsflaechen/pilot.json').read_text())
+rules=[json.loads((repo/'regelwerke/abstandsflaechen'/f).read_text())['regeln'] for f in ('nw/2026-09-01.json','by/pilot.json','bw/pilot.json')]
 out=Path(os.environ.get('BAUPROJEKT_WORKFLOW_UI_ARTEFAKTE','/tmp/bauplan-workflow-ui'));out.mkdir(parents=True,exist_ok=True)
 custom=r'''
 const base=window.__TAURI_INTERNALS__.invoke,clone=x=>JSON.parse(JSON.stringify(x));

@@ -13,7 +13,7 @@ fn meta() {
 
 // § 5 Abs. 7 LBO BW: 0,4 H allgemein; 0,2 H in Kern-, Dorf-, urbanen und
 // besonderen Wohngebieten; 0,125 H in Gewerbe- und Industriegebieten;
-// mindestens 2,5 m. Muss mit regelwerke/abstandsflaechen/pilot.json
+// mindestens 2,5 m. Muss mit regelwerke/abstandsflaechen/bw/pilot.json
 // übereinstimmen (Test `shipped_lbo_pakete_entsprechen_dem_katalog`).
 fn abstandsflaeche(input) {
     let faktor = switch input.gebiet {

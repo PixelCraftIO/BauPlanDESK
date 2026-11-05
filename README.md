@@ -208,9 +208,11 @@ dann Updates aus `<App-Daten>/lbo-rules/`.
 > BauNVO-Berechnungen, die Geltungsdauer der Baugenehmigung und die
 > Rechtsbehelfsfristen.
 
-Maßgebend für die Tiefenregeln ist der Katalog
-[`regelwerke/abstandsflaechen/pilot.json`](regelwerke/abstandsflaechen/pilot.json),
-den der wandweise Abstandsnachweis verwendet. Die ausgelieferten Rhai-Pakete des
+Maßgebend für die Tiefenregeln sind die Regeldateien je Land und Fassung in
+[`regelwerke/abstandsflaechen/`](regelwerke/abstandsflaechen/README.md)
+(z. B. `nw/2024-01-01.json`, `nw/2026-09-01.json`), die der wandweise
+Abstandsnachweis verwendet; jede Datei bringt Wortlaut, Quelle und
+Beispielrechnungen mit. Die ausgelieferten Rhai-Pakete des
 Schnellrechners müssen für jedes Baugebiet dieselben Faktoren und Mindesttiefen
 liefern; der Test `shipped_lbo_pakete_entsprechen_dem_katalog` erzwingt das.
 Eine Regeländerung wird deshalb immer in beiden Dateien vorgenommen.
