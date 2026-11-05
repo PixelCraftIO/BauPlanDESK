@@ -46,10 +46,10 @@ with sync_playwright() as pw:
  tab.get_by_role('button',name='Rechteck',exact=True).click();click(5,15);click(17.5,23)
  expect(tab.get_by_label('Bezeichnung',exact=True).first).to_have_value('Markierung 1')
  expect(tab.locator('.messwerte')).to_contain_text('50 m²')
- # Werkzeugkiste: ein Klick wählt Polygon, Bedeutung NUF, Namen und legt die Ebene „DIN 277“ an.
- tab.get_by_role('tab',name='Aufgaben',exact=True).click()
- kiste=tab.locator('section.palette[aria-label="Werkzeugkiste"]')
- kiste.get_by_role('button',name='DIN 277 NUF',exact=True).click()
+ # Werkzeugkiste am Polygon: ein Klick wählt Polygon, Bedeutung NUF, Namen und legt die Ebene „DIN 277“ an.
+ tab.get_by_role('button',name='Vorlagen für Polygon',exact=True).click()
+ tab.get_by_role('menu',name='Vorlagen Polygon').get_by_role('menuitem',name='DIN 277 NUF').first.click()
+ expect(tab.get_by_role('menu')).to_have_count(0)
  expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_be_visible()
  expect(tab.get_by_role('button',name='Polygon',exact=True)).to_have_attribute('aria-pressed','true')
  click(20,5);click(26,5);click(26,9);click(20,9);svg.press('Enter')
@@ -57,9 +57,18 @@ with sync_playwright() as pw:
  expect(tab.get_by_label('Bedeutung',exact=True)).to_have_value('nuf')
  expect(tab.get_by_label('Zeichenebene',exact=True)).to_have_value(tab.get_by_label('Zeichenebene',exact=True).locator('option',has_text='DIN 277').evaluate('o=>o.value'))
  expect(tab.get_by_role('status').filter(has_text='Vorlage DIN 277 NUF')).to_have_count(0)
+ # Versatz als Werkzeug: Auswahl bleibt, Abstand in der Optionsleiste, danach rückgängig.
+ tab.get_by_role('button',name='Versatz',exact=True).click()
+ expect(tab.get_by_role('button',name='Versatz',exact=True)).to_have_attribute('aria-pressed','true')
+ tab.get_by_label('Abstand der Parallele',exact=True).fill('1')
+ tab.get_by_role('button',name='Parallele anlegen',exact=True).click()
+ expect(tab.get_by_text('Versatz: 1 Kopie(n) angelegt',exact=False)).to_be_visible()
+ svg.press('Control+z')
+ svg.press('Escape')
+ expect(tab.get_by_role('button',name='Auswählen',exact=True)).to_have_attribute('aria-pressed','true')
  # Hintergrund: PDF-Seite 1 im Maßstab 1:100, über Strecke einpassen, verschieben.
  tab.get_by_role('tab',name='Eigenschaften',exact=True).click()
- tab.get_by_role('button',name='Zum Blatt',exact=True).click()
+ # Nach dem Rückgängigmachen ist nichts mehr gewählt: Eigenschaften zeigt direkt das Blatt.
  expect(tab.locator('section.palette[aria-label="Blatt und Einrichtung"]')).to_be_visible()
  tab.get_by_label('Hintergrund-Unterlage',exact=True).select_option(label='Grundrisse.pdf · V1')
  tab.get_by_role('button',name='Hintergrund hinzufügen',exact=True).click()

@@ -64,7 +64,7 @@ export const FUNKTIONEN: Funktion[] = [
     id: "konstruieren",
     titel: "Präzise konstruieren",
     bild: "editor-konstruieren",
-    alt: "Fangoptionen, Ortho und Winkelraster über dem Plan, rechts Kopieren, Spiegeln, Stutzen, Versatz und Reihe für die gewählte Wand",
+    alt: "Fangoptionen, Ortho und Winkelraster über dem Plan, Werkzeug Versatz mit Abstand in der Optionsleiste für die gewählte Wand",
     text: "Die gewohnten Handgriffe aus dem Büro-CAD sind da, ohne dass der Editor ein CAD ersetzen will.",
     punkte: [
       "Befehlszeile (F2) mit Kürzeln wie L, PL, R, W, KO, SP, ST, VS 0,5 und RH; Enter wiederholt",
@@ -108,11 +108,12 @@ export const FUNKTIONEN: Funktion[] = [
     id: "werkzeugkiste",
     titel: "Werkzeugkiste mit Vorlagen",
     bild: "editor-werkzeugkiste",
-    alt: "Palette Werkzeugkiste mit Vorlagen für Grundstück, GRZ-Bauteile, Gebäude, Räume, DIN 277 und Höhen",
+    alt: "Ausklappliste am Polygon mit Vorlagen für Grundstück, GRZ-Bauteile, Gebäude, Räume und DIN 277",
     text: "Vorlagen stellen Werkzeug, Bedeutung, Namen und Zeichenebene mit einem Klick ein, etwa für DIN 277 NUF, versiegelte Fläche, Stellplatz oder Traufhöhe.",
     punkte: [
       "Gruppen für Grundstück, GRZ-Bauteile, Gebäude, Räume, DIN 277 und Höhen",
-      "Gebäude und Geschoss kommen aus der Voreinstellung der Aufgaben",
+      "Ausklappliste am Werkzeug: kleines Dreieck oder rechte Maustaste",
+      "Gebäude und Geschoss kommen aus der Optionsleiste über dem Plan",
       "Einheitliche Bedeutungen, weniger Nacharbeit in den Eigenschaften",
     ],
     link: "/handbuch/05-ermittlung#zeichnen-und-zuordnen",

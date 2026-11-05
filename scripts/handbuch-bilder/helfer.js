@@ -315,7 +315,7 @@ async function planKlick(x, y) {
 
 /** Klappt die Palette des Zeicheneditors mit dem Titel `t` auf und rückt sie nach oben. */
 // Paletten der rechten Spalte: Reiter wählen (ohne Auswahl zeigt „Eigenschaften“ das Blatt), dann zum Abschnitt rollen.
-const PALETTENREITER = { "Werkzeugkiste": "Aufgaben", "Aufgaben": "Aufgaben", "Objekte": "Objekte", "Eigenschaften": "Eigenschaften", "Blatt und Einrichtung": "Eigenschaften", "Prüfen und Ausgabe": "Eigenschaften" };
+const PALETTENREITER = { "Aufgaben": "Aufgaben", "Objekte": "Objekte", "Eigenschaften": "Eigenschaften", "Blatt und Einrichtung": "Eigenschaften", "Prüfen und Ausgabe": "Eigenschaften" };
 async function palette(t) {
   const r = [...document.querySelectorAll("[role=tab]")].filter(sichtbar).find((x) => txt(x) === (PALETTENREITER[t] ?? t));
   if (r) r.click();

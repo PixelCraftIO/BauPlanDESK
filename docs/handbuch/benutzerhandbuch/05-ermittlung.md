@@ -66,7 +66,7 @@ Bildschirm; die Akte bleibt im Hauptfenster bedienbar.
 | Werkzeugleiste links | Auswählen (V), Verschieben (M), Polygon (P), Rechteck (R), Kreis (K), Strecke / Dach (S), Wand (W), Maßkette (L), Text (X), Höhenpunkt (H), Bezugslinie setzen, Ausschnitt anlegen, Zwei Punkte kalibrieren, Kontrollstrecke messen, Duplizieren, Markierung entfernen |
 | Optionsleiste | Name des aktiven Werkzeugs, seine Einstellungen (z. B. Bedeutung, Gebäude und Geschoss neuer Markierungen, Wanddicke, Planzeichen, Referenzlänge) und der nächste Schritt; rechts der Arbeitsbereich und die **Befehlszeile** (F2) |
 | Ansichtsleiste | Zoom (bei eigenen Zeichnungen als Bildschirmmaßstab 1:n), Einpassen, 1:1, Auf Auswahl, Zoomfenster (Z), drehen, **Punktfang**, Fangoptionen (Auswahlliste), Ortho und Winkelraster |
-| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss, dazu die **Werkzeugkiste**), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
+| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
 | Statusleiste | Zeigerposition in Metern, aktiver Fang, Ortho bzw. Winkelraster, Bildschirmmaßstab, Unterlage bzw. Blattgröße; die Tastenbelegung zeigt F1 |
 
 Alle Werkzeuge erscheinen als Symbol; der Name und das Tastenkürzel stehen im
@@ -108,12 +108,14 @@ Fachberechnungen und Räume der Raumbücher.
    und schreibgeschützt. „Verknüpfte Werte gesammelt prüfen …“ zeigt alle
    Übernahmen mit altem und neuem Wert.
 
-Alternativ eine Vorlage aus der **Werkzeugkiste** anklicken (z. B. „DIN 277
-NUF“, „Versiegelte Fläche“, „Gebäudegrundfläche“). Sie stellt Werkzeug,
-Bedeutung, Namen und Zeichenebene ein. Freie Markierungen erhalten ihre
+Alternativ eine Vorlage aus der **Werkzeugkiste** wählen: Das kleine Dreieck
+an Polygon, Strecke oder Höhenpunkt (oder die rechte Maustaste darauf) öffnet
+die Vorlagen des Werkzeugs, z. B. „DIN 277 NUF“, „Versiegelte Fläche“ oder
+„Gebäudegrundfläche“. Die Vorlage stellt Werkzeug, Bedeutung, Namen und
+Zeichenebene ein und steht danach in der Optionsleiste. Freie Markierungen erhalten ihre
 **Bedeutung** und Zuordnung im Reiter **Eigenschaften**.
 
-![Werkzeugkiste mit Vorlagen für Grundstück, GRZ-Bauteile, Gebäude, Räume, DIN 277 und Höhen](bilder/editor-werkzeugkiste.png)
+![Ausklappliste am Polygon mit den Vorlagen für Grundstück, GRZ-Bauteile, Gebäude, Räume und DIN 277](bilder/editor-werkzeugkiste.png)
 
 ![Eigenschaften einer Markierung: Bedeutung, Zuordnung, Messwerte und Verwendung](bilder/editor-eigenschaften.png)
 
@@ -188,8 +190,9 @@ Büro-CAD. Die gewohnten Handgriffe sind aber da:
 - **Kopieren** (C), **Spiegeln** (I) und **Stutzen/Dehnen** (D) arbeiten mit
   einer gezogenen Linie (Verschiebung, Spiegelachse oder Schneidekante).
   „Beim Spiegeln Original behalten“ erzeugt eine Kopie.
-- **Versatz** und **Reihe** im Bereich „Konstruieren“ der Eigenschaften, Abstände
-  in Metern.
+- **Versatz** (O) und **Reihe** (J) sind Werkzeuge der linken Leiste: Objekte
+  wählen, Abstand bzw. Anzahl und Abstände (in Metern) in der Optionsleiste
+  eintragen und „Parallele anlegen“ bzw. „Reihe anlegen“ drücken.
 - **Ortho** (F8) und **Winkelraster** (0/15/30/45/90°), Fang auf **Lot** und
   **Verlängerung**.
 - **Koordinateneingabe** mit @: `5,20` (Länge), `5,20<90` (Länge und Winkel),
@@ -197,7 +200,7 @@ Büro-CAD. Die gewohnten Handgriffe sind aber da:
 - **Befehlszeile** (F2) mit Kürzeln wie im CAD: L, PL, R, K, W, BM, T, KO, SP,
   ST, `VS 0,5`, RH, FE, SY, RS, E, OR. Enter wiederholt den letzten Befehl.
 
-![Fangoptionen, Ortho und Winkelraster; rechts Kopieren, Spiegeln, Stutzen/Dehnen, Versatz und Reihe](bilder/editor-konstruieren.png)
+![Fangoptionen, Ortho und Winkelraster; Werkzeug Versatz mit Abstand in der Optionsleiste](bilder/editor-konstruieren.png)
 
 ### Darstellung, Öffnungen und Planzeichen
 
