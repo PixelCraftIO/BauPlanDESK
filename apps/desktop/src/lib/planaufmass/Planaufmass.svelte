@@ -70,7 +70,7 @@
     [["polygon","Polygon","P"],["rechteck","Rechteck","R"],["kreis","Kreis","K"],["strecke","Strecke / Dach","S"]],
     [["wand","Wand","W"],["masskette","Maßkette","L"],["text","Text","X"]],
     [["oeffnung","Fenster / Tür","F"],["symbol","Planzeichen","G"],["raumstempel","Raumstempel","N"]],
-    [["kopieren","Kopieren","C"],["spiegeln","Spiegeln","I"],["stutzen","Stutzen / Dehnen","D"]],
+    [["kopieren","Kopieren","C"],["spiegeln","Spiegeln","I"],["stutzen","Stutzen / Dehnen","D"],["versatz","Versatz","O"],["reihe","Reihe","J"]],
     [["hoehenpunkt","Höhenpunkt","H"],["bezugslinie","Bezugslinie setzen","B"]],
     [["ausschnitt","Ausschnitt anlegen","A"],["kalibrieren","Zwei Punkte kalibrieren","Q"],["kontrolle","Kontrollstrecke messen","T"]],
   ];
@@ -87,6 +87,16 @@
   function panelOeffnen(id:string){panel=id}
   // Optionsleiste: Name, Felder und nächster Schritt des aktiven Werkzeugs in einer Zeile über dem Plan.
   const MARKIERUNGSWERKZEUGE=["polygon","rechteck","kreis","strecke","hoehenpunkt"];
+  // Versatz und Reihe wirken auf die Auswahl ohne Klicks im Plan; dort bleibt währenddessen das Auswählen aktiv.
+  const AUSWAHLWERKZEUGE=["versatz","reihe"];
+  // Werkzeugkiste: Ausklappliste am Werkzeug (kleines Dreieck oder rechte Maustaste).
+  let vorlagenmenue=$state(""),vorlagenLage=$state({x:0,y:0});
+  function vorlagenUmschalten(id:string,ziel:EventTarget|null){
+    if(vorlagenmenue===id){vorlagenmenue="";return}
+    const r=(ziel as HTMLElement|null)?.closest(".wzplatz")?.getBoundingClientRect();
+    if(r)vorlagenLage={x:r.right+4,y:r.top};
+    vorlagenmenue=id;
+  }
   const SONDERWERKZEUGE:Record<string,[string,string]>={hgstrecke:["kalibrieren","Hintergrund einpassen"],hgverschieben:["verschieben","Hintergrund verschieben"],hgdrehen:["verschieben","Hintergrund drehen"],bezug:["hoehenpunkt","Bezugshöhe setzen"]};
   const werkzeugTitel=$derived(SONDERWERKZEUGE[werkzeug]?.[1]??werkzeuge.find(w=>w[0]===werkzeug)?.[1]??"Auswählen");
   const werkzeugSymbol=$derived(SONDERWERKZEUGE[werkzeug]?.[0]??werkzeug);
@@ -105,6 +115,8 @@
     case "kopieren":return auswahlAnzahl?`Basispunkt, dann Zielpunkt · ${auswahlAnzahl} Objekt(e)`:"Zuerst Objekte wählen";
     case "spiegeln":return auswahlAnzahl?"Zwei Punkte der Spiegelachse":"Zuerst Objekte wählen";
     case "stutzen":return "Grenzkante mit zwei Punkten abgreifen";
+    case "versatz":return auswahlAnzahl?`Parallele im Abstand · ${auswahlAnzahl} Objekt(e)`:"Objekte im Plan wählen";
+    case "reihe":return auswahlAnzahl?`Kopien in gleichem Abstand · ${auswahlAnzahl} Objekt(e)`:"Objekte im Plan wählen";
     case "kalibrieren":return "Anfang und Ende der Referenzstrecke";
     case "bezug":return "Punkt mit der Bezugshöhe anklicken";
     case "bezugslinie":return "Anfang und Ende der Bezugslinie";
@@ -240,6 +252,12 @@
   const vorlagenGruppen=$derived([...new Map(vorlagen.map(v=>[v.gruppe,vorlagen.filter(x=>x.gruppe===v.gruppe)])).entries()]);
   const werkzeugFuer=(g:Werkzeugvorlage["geometrie"])=>g==="flaeche"?"polygon":g==="hoehenpunkt"?"hoehenpunkt":"strecke";
   onMount(()=>{planApi.werkzeugkiste().then(v=>vorlagen=v).catch(e=>{listenFehler=fehlertext(e)})});
+  $effect(()=>{
+    if(!vorlagenmenue)return;
+    const zu=(e:PointerEvent)=>{if(!(e.target as Element|null)?.closest?.(".vorlagenmenue,.vorlagenpfeil"))vorlagenmenue=""};
+    window.addEventListener("pointerdown",zu,true);
+    return()=>window.removeEventListener("pointerdown",zu,true);
+  });
   let editor=$state<HTMLDivElement>(), plan=$state<ReturnType<typeof PdfPlan>>();
   const m=$derived(s.eingabe?.markierungen.find(m=>m.id===auswahl));
   const nichtsGewaehlt=$derived(!m&&!el&&auswahlIds.length===0&&elementAuswahlIds.length===0);
@@ -460,6 +478,7 @@
       if(e.key==="F1"){e.preventDefault();hilfe=!hilfe;return}
       if(e.key==="F2"){e.preventDefault();befehlFeld?.focus();return}
       if(e.key==="Escape"){
+        if(vorlagenmenue){vorlagenmenue="";return}
         if(menue){menue="";return}
         if(werkzeugfenster){werkzeugfenster="";return}
         if(werkzeug!=="auswahl")werkzeug="auswahl";
@@ -545,7 +564,7 @@
     if(auswahlElemente.some(e=>p.ebenen.find(x=>x.id===e.ebene_id)?.gesperrt)){s.fehler="Gesperrte Ebenen zuerst entsperren.";return}
     merken();p.elemente=(p.elemente??[]).filter(e=>!ids.has(e.id));elementAuswahl="";elementAuswahlIds=[];
   }
-  function elementWaehlen(id:string){elementAuswahl=id;elementAuswahlIds=id?[id]:[];if(id){auswahl="";auswahlIds=[];werkzeug="auswahl"}}
+  function elementWaehlen(id:string){elementAuswahl=id;elementAuswahlIds=id?[id]:[];if(id){auswahl="";auswahlIds=[];if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}}
   // Fensterauswahl: Markierungen und Zeichenelemente gemeinsam; Shift/Strg ergänzt.
   function fensterWaehlen(ids:string[],eids:string[],mehrfach:boolean){
     betrachterSeite=null;
@@ -646,13 +665,14 @@
     if(id==="kontrolle")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     if(id==="wand"||id==="masskette"||id==="text")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     if(id==="kopieren"||id==="spiegeln"||id==="stutzen")return !auswahlAnzahl?"Zuerst Objekte auswählen":"";
+    if(id==="versatz"||id==="reihe")return blattFaktor()===null?"Zuerst den Maßstab festlegen":"";
     if(id==="symbol"||id==="raumstempel")return !(pdf||dxf||istZeichnung)?"Keine Unterlage geladen":"";
     if(id==="oeffnung")return !s.eingabe?.elemente?.some(e=>e.art==="wand")?"Zuerst Wände zeichnen":"";
     return "";
   }
   function werkzeugWaehlen(id:string){
     if(werkzeugGesperrt(id))return;
-    vorbelegung=null;vorlage=null;
+    vorbelegung=null;vorlage=null;vorlagenmenue="";
     if(id==="ausschnitt")rahmenAuswahl="";
     if((id==="bezugslinie"||id==="kalibrieren")&&bearbeiteter&&aktiv!==bearbeiteter.id&&id==="bezugslinie")oeffnen(bearbeiteter.id);
     werkzeug=id;
@@ -690,7 +710,7 @@
     if(!s.eingabe||!darf||s.laeuft)return;
     const p=verlauf.vorwaerts($state.snapshot(s.eingabe));if(p)s.eingabe=p;verlaufStatus();
   }
-  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id){elementAuswahl="";if(!mehrfach)elementAuswahlIds=[]}else if(!mehrfach)elementAuswahlIds=[];if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;werkzeug="auswahl"}
+  function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id){elementAuswahl="";if(!mehrfach)elementAuswahlIds=[]}else if(!mehrfach)elementAuswahlIds=[];if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}
   function gemeinsamVerschieben(ids:string[],dx:number,dy:number){if(!s.eingabe||!darf||s.laeuft)return;const ms=s.eingabe.markierungen.filter(m=>ids.includes(m.id));if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;merken();for(const m of ms)m.geometrie=verschieben(m.geometrie,dx,dy)}
   function geometrieSetzen(g:Plangeometrie){if(!m||objektGesperrt)return;merken();m.geometrie=g}
   async function flaechenAktion(operation:import("../generated/plattform").Flaechenoperation){
@@ -925,13 +945,28 @@
             {#if gi}<span class="gruppentrenner" role="separator" aria-hidden="true"></span>{/if}
             {#each gruppe as [id,titel,kuerzel]}
               {@const aus=werkzeugGesperrt(id)}
-              <Symbolknopf {titel} {kuerzel} tip="rechts" aktiv={werkzeug===id} disabled={!!aus} aria-description={aus||undefined} onclick={()=>werkzeugWaehlen(id)}><WerkzeugIcon art={id}/></Symbolknopf>
+              {@const mitVorlagen=vorlagen.some(v=>werkzeugFuer(v.geometrie)===id)}
+              <span class="wzplatz" role="presentation" oncontextmenu={e=>{if(!mitVorlagen||aus||!darf)return;e.preventDefault();vorlagenUmschalten(id,e.currentTarget)}}>
+                <Symbolknopf {titel} {kuerzel} tip="rechts" aktiv={werkzeug===id} disabled={!!aus} aria-description={aus||undefined} onclick={()=>werkzeugWaehlen(id)}><WerkzeugIcon art={id}/></Symbolknopf>
+                {#if mitVorlagen}<button type="button" class="vorlagenpfeil" aria-label={`Vorlagen für ${titel}`} aria-haspopup="menu" aria-expanded={vorlagenmenue===id} title="Vorlagen (auch rechte Maustaste)" disabled={!!aus||!darf} onclick={e=>vorlagenUmschalten(id,e.currentTarget)}></button>{/if}
+              </span>
             {/each}
           {/each}
           <span class="gruppentrenner" role="separator" aria-hidden="true"></span>
           <Symbolknopf titel="Duplizieren" kuerzel="Strg+D" tip="rechts" disabled={!m||objektGesperrt} onclick={duplizieren}><WerkzeugIcon art="duplizieren"/></Symbolknopf>
           <Symbolknopf titel={auswahlElemente.length&&!m?"Element entfernen":"Markierung entfernen"} kuerzel="Entf" tip="rechts" disabled={auswahlElemente.length&&!m?(!darf||s.laeuft):(!m||objektGesperrt)} onclick={()=>auswahlElemente.length&&!m?elementEntfernen():entfernen()}><WerkzeugIcon art="entfernen"/></Symbolknopf>
         </div>
+        {#if vorlagenmenue}{@const vl=vorlagen.filter(v=>werkzeugFuer(v.geometrie)===vorlagenmenue)}
+          <div class="vorlagenmenue" role="menu" aria-label={`Vorlagen ${werkzeuge.find(w=>w[0]===vorlagenmenue)?.[1]??""}`} style={`left:${vorlagenLage.x}px;top:${vorlagenLage.y}px`}>
+            <div class="menuekopf">{werkzeuge.find(w=>w[0]===vorlagenmenue)?.[1]} mit Vorlage</div>
+            {#each [...new Set(vl.map(v=>v.gruppe))] as gruppe (gruppe)}
+              <div class="menuegruppe" role="presentation">{gruppe}</div>
+              {#each vl.filter(v=>v.gruppe===gruppe) as t (t.id)}
+                <button type="button" role="menuitem" class:aktiv={vorlage?.id===t.id} title={t.hinweis||undefined} onclick={()=>{vorlagenmenue="";vorlageWaehlen(t)}}><span>{t.titel}</span><span class="meta">{bedeutungen.find(b=>b[0]===t.bedeutung)?.[1]}</span></button>
+              {/each}
+            {/each}
+          </div>
+        {/if}
         <div class="flaeche">
           <div class="optionsleiste" role="toolbar" aria-label="Optionen des Werkzeugs">
             <span class="wzname"><WerkzeugIcon art={werkzeugSymbol}/>{werkzeugTitel}</span>
@@ -947,6 +982,8 @@
             {:else if werkzeug==="raumstempel"}<label>Raum<select bind:value={planzeichen.raum}><option value="">Raum wählen …</option>{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung} · {z(r.flaeche_m2)} m²</option>{/each}</optgroup>{/each}</select></label>
             {:else if werkzeug==="oeffnung"}<label>Öffnung<select bind:value={planzeichen.oeffnung}><option value="fenster">Fenster 1,01 m</option><option value="tuer">Tür 0,885 m</option></select></label>
             {:else if werkzeug==="spiegeln"}<label class="haken"><input type="checkbox" bind:checked={konstruktion.spiegelKopie}/>Original behalten</label>
+            {:else if werkzeug==="versatz"}<label>Abstand (m, + außen/links)<input class="zahl" type="number" step="any" aria-label="Abstand der Parallele" bind:value={konstruktion.versatz}/></label><button type="button" class="sekundaer" disabled={!auswahlAnzahl||!darf||s.laeuft} onclick={auswahlVersatz}>Parallele anlegen</button>
+            {:else if werkzeug==="reihe"}<label>Anzahl<input class="zahl" type="number" min="2" max="200" step="1" aria-label="Anzahl der Reihe" bind:value={konstruktion.anzahl}/></label><label>x (m)<input class="zahl" type="number" step="any" aria-label="Abstand x der Reihe" bind:value={konstruktion.dx}/></label><label>y (m, nach oben)<input class="zahl" type="number" step="any" aria-label="Abstand y der Reihe" bind:value={konstruktion.dy}/></label><button type="button" class="sekundaer" disabled={!auswahlAnzahl||!darf||s.laeuft} onclick={auswahlReihe}>Reihe anlegen</button>
             {:else if werkzeug==="kalibrieren"}<label>Referenz (m)<input class="zahl" type="number" min=".001" step="any" aria-label="Länge der Referenzstrecke" bind:value={referenz}/></label>
             {:else if werkzeug==="bezug"||werkzeug==="bezugslinie"}<label>Höhe (m)<input class="zahl" type="number" step="any" aria-label="Höhe des Bezugs" bind:value={hwert}/></label><label>System<input class="kurz" aria-label="Höhensystem des Bezugs" bind:value={hsystem}/></label>
             {:else if werkzeug==="kontrolle"}<label>Soll (m)<input class="zahl" type="number" min=".001" step="any" aria-label="Länge der Kontrollstrecke" bind:value={kontrollMeter}/></label>
@@ -973,7 +1010,7 @@
               {#if flurFehler}<span class="fehlertext" role="alert">{flurFehler}</span>{/if}
             </div>{/if}
           {#if pdf||dxf||istZeichnung}
-            <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} {werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
+            <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} werkzeug={AUSWAHLWERKZEUGE.includes(werkzeug)?"auswahl":werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
               {vergleichAusrichtung}
               zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen} onwiederholen={wiederholen} {raeume}
@@ -1049,19 +1086,6 @@
                   onaendern={d=>{if(auswahlElemente.some(e=>p.ebenen.find(x=>x.id===e.ebene_id)?.gesperrt)){s.fehler="Gesperrte Ebenen zuerst entsperren.";return}merken();for(const e of auswahlElemente){if(d)e.darstellung=structuredClone(d);else delete e.darstellung}}}/>
                 <label>Zeichenebene<select aria-label="Zeichenebene der gewählten Elemente" value="" onchange={ev=>{const v=ev.currentTarget.value;if(!v)return;merken();for(const e of auswahlElemente)e.ebene_id=v}}><option value="">– beibehalten –</option>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
               </section>{/if}
-            {#if auswahlAnzahl}<section class="konstruieren" aria-label="Konstruieren">
-              <h3>Konstruieren · {auswahlAnzahl} Objekt(e)</h3>
-              <fieldset disabled={!darf||s.laeuft}>
-                <div class="aktionen">
-                  <button type="button" class="sekundaer" class:aktiv={werkzeug==="kopieren"} onclick={()=>werkzeugWaehlen("kopieren")} title="C">Kopieren</button>
-                  <button type="button" class="sekundaer" class:aktiv={werkzeug==="spiegeln"} onclick={()=>werkzeugWaehlen("spiegeln")} title="I">Spiegeln</button>
-                  <button type="button" class="sekundaer" class:aktiv={werkzeug==="stutzen"} onclick={()=>werkzeugWaehlen("stutzen")} title="D">Stutzen / Dehnen</button>
-                </div>
-                <label class="zeile"><input type="checkbox" bind:checked={konstruktion.spiegelKopie}/>Beim Spiegeln Original behalten</label>
-                <div class="konstruktionszeile"><label>Versatz (m, + außen/links)<input type="number" step="any" bind:value={konstruktion.versatz}/></label><button type="button" class="sekundaer" onclick={auswahlVersatz}>Parallele anlegen</button></div>
-                <div class="konstruktionszeile"><label>Anzahl<input type="number" min="2" max="200" step="1" bind:value={konstruktion.anzahl}/></label><label>Abstand x (m)<input type="number" step="any" bind:value={konstruktion.dx}/></label><label>Abstand y (m, nach oben)<input type="number" step="any" bind:value={konstruktion.dy}/></label><button type="button" class="sekundaer" onclick={auswahlReihe}>Reihe anlegen</button></div>
-              </fieldset>
-            </section>{/if}
             {#if auswahlIds.length>1}<section class="mehrfach"><h3>{auswahlIds.length} Markierungen ausgewählt</h3><fieldset disabled={!darf||s.laeuft}><div class="aktionen">{#each ["links","rechts","oben","unten"] as art}<button type="button" class="sekundaer" onclick={()=>auswahlAusrichten(art as "links"|"rechts"|"oben"|"unten")}>{art} ausrichten</button>{/each}</div>
               {#if auswahlIds.length===2}<div class="aktionen">{#each [["vereinen","Vereinen"],["abziehen","Zweite Fläche abziehen"],["schneiden","Schnittfläche"],["teilen","An zweiter Fläche teilen"]] as [op,t]}<button type="button" onclick={()=>void flaechenAktion(op as import("../generated/plattform").Flaechenoperation)}>{t}</button>{/each}</div>{/if}</fieldset></section>{/if}
             {#if m}
@@ -1123,19 +1147,6 @@
           {#if panel==="aufgaben"}<section class="palette" aria-label="Aufgaben">
             <div class="palettenkopf"><h3>Aufgaben</h3></div>
             {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
-          </section>
-          <section class="palette" aria-label="Werkzeugkiste">
-            <div class="palettenkopf"><h3>Werkzeugkiste</h3> <span class="meta">· Vorlagen mit Bedeutung und Ebene</span></div>
-            <p class="meta">Ein Klick wählt Werkzeug, Bedeutung, Namen und Zeichenebene der nächsten Markierung; Gebäude und Geschoss kommen aus der Optionsleiste über dem Plan.</p>
-            {#each vorlagenGruppen as [gruppe,liste] (gruppe)}
-              <h4>{gruppe}</h4>
-              <div class="vorlagen" role="group" aria-label={`Vorlagen ${gruppe}`}>
-                {#each liste as t (t.id)}
-                  {@const aus=werkzeugGesperrt(werkzeugFuer(t.geometrie))}
-                  <button type="button" class="sekundaer" class:aktiv={vorlage?.id===t.id} aria-pressed={vorlage?.id===t.id} disabled={!!aus} title={aus||t.hinweis} onclick={()=>vorlageWaehlen(t)}><WerkzeugIcon art={werkzeugFuer(t.geometrie)}/>{t.titel}</button>
-                {/each}
-              </div>
-            {/each}
           </section>{/if}
           {#if panel==="objekte"}<section class="palette" aria-label="Objekte">
             <div class="palettenkopf"><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></div>
@@ -1341,6 +1352,18 @@
   .kurzbefehle p{margin:.3rem 0;font-size:.85rem}
   .arbeitsplatz{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) 320px;flex:1;min-height:0}
   .werkzeugleiste{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:2px;padding:6px 4px;background:var(--kopfzeile);border-right:1px solid var(--border);overflow:auto}
+  .wzplatz{position:relative;display:flex}
+  .vorlagenpfeil{position:absolute;right:0;bottom:0;width:9px;height:9px;min-height:0;min-width:0;padding:0;border:0;background:transparent;cursor:pointer}
+  .vorlagenpfeil::after{content:"";position:absolute;right:1px;bottom:1px;border-style:solid;border-width:0 0 5px 5px;border-color:transparent transparent currentColor transparent;color:var(--muted)}
+  .vorlagenpfeil:hover::after,.vorlagenpfeil[aria-expanded=true]::after{color:var(--accent)}
+  .vorlagenpfeil:disabled{display:none}
+  .wzplatz .vorlagenpfeil:hover:not(:disabled),.wzplatz .vorlagenpfeil:focus-visible{background:transparent}
+  .vorlagenmenue{position:fixed;z-index:40;min-width:17rem;max-height:70vh;overflow:auto;display:flex;flex-direction:column;padding:4px 0;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18);font-size:.88rem}
+  .vorlagenmenue .menuekopf{padding:4px 12px 6px;font-weight:600;border-bottom:1px solid var(--border-innen)}
+  .vorlagenmenue .menuegruppe{padding:6px 12px 2px;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .vorlagenmenue button{display:flex;justify-content:space-between;gap:1rem;border:0;border-radius:0;background:transparent;text-align:left;padding:4px 12px 4px 20px;min-height:0;font-weight:400;color:var(--fg)}
+  .vorlagenmenue button:hover,.vorlagenmenue button:focus-visible,.vorlagenmenue button.aktiv{background:var(--auswahl,var(--kopfzeile))}
+  .vorlagenmenue button .meta{font-size:.8rem}
   .gruppentrenner{width:20px;border-top:1px solid var(--border);margin:4px 0}
   .flaeche{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
   .flaeche > :global(.pdf-plan){flex:1;min-height:0}
@@ -1384,10 +1407,6 @@
   /* Aufklappbares Planlayout: Pfeil und Überschrift in einer Zeile. */
   .palette h3{margin:.8rem 0 .3rem;font-size:.9rem}
   .palette h4{margin:.6rem 0 .2rem;font-size:.8rem;color:var(--muted)}
-  .vorlagen{display:flex;flex-wrap:wrap;gap:4px}
-  .vorlagen button{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;padding:2px 8px;min-height:26px}
-  .vorlagen button.aktiv{background:var(--akzent-hell,var(--leiste));border-color:var(--akzent)}
-  .vorlagen :global(svg){width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   .palette fieldset{border:0;padding:0;display:grid;gap:.5rem;margin:.4rem 0 0}
   .palette label:not(:has(> input[type=checkbox])):not(:has(> input[type=radio])){display:flex;flex-direction:column;gap:2px;margin:0;font-size:.85rem;color:var(--muted)}
   .palette label input:not([type=checkbox]):not([type=radio]),.palette label select{width:100%;min-height:28px;padding:2px 6px;color:var(--fg)}
@@ -1412,8 +1431,6 @@
   .ebenendarstellung{margin:0 0 .3rem 1.6rem;font-size:.85rem}
   .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}
-  .konstruktionszeile{display:flex;flex-wrap:wrap;gap:.4rem;align-items:end;margin-top:.4rem}
-  .konstruktionszeile label{flex:1 1 6rem}
   .konstruieren .zeile{display:flex;gap:.35rem;align-items:center;margin-top:.4rem}
   .quellzeile{display:grid;gap:.5rem}
   .kalibrierung{display:flex;gap:.5rem;flex-wrap:wrap;align-items:end;margin:.3rem 0}

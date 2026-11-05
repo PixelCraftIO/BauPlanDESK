@@ -17,6 +17,8 @@
     kopieren: '<rect x="2" y="6" width="6" height="6"/><rect x="8" y="2" width="6" height="6" stroke-dasharray="2 1.2"/><path d="M6 6l3-3"/>',
     spiegeln: '<path d="M8 1v14" stroke-dasharray="2 1.5"/><path d="M6 3L2 12h4zM10 3l4 9h-4z"/>',
     stutzen: '<path d="M10 2v12"/><path d="M2 8h8"/><path d="M11 8h3" stroke-dasharray="1.5 1.2"/>',
+    versatz: '<path d="M2 12L12 2"/><path d="M5 14l9-9" stroke-dasharray="2 1.2"/>',
+    reihe: '<rect x="1.5" y="6" width="3.5" height="4"/><rect x="6.25" y="6" width="3.5" height="4" stroke-dasharray="1.5 1"/><rect x="11" y="6" width="3.5" height="4" stroke-dasharray="1.5 1"/>',
     oeffnung: '<path d="M1 6h4v4H1zM11 6h4v4h-4z"/><path d="M5 7h6M5 9h6"/>',
     symbol: '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1" fill="currentColor"/>',
     raumstempel: '<rect x="2" y="4" width="12" height="8"/><path d="M4 7h6M4 10h4"/>',
