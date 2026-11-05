@@ -41,27 +41,14 @@ verbindliche Abgabe selbst erfolgt im Portal der zuständigen Behörde.
 
 Ausführliches Glossar: [Kapitel 10](10-anhang.md#begriffe).
 
-## Beispielprojekt öffnen
+## Das Beispielprojekt in diesem Handbuch
 
-Das mitgelieferte Beispielprojekt ist ein vollständig bearbeitetes
+Alle Bilder und Beispiele dieses Handbuchs stammen aus dem Projekt „Neubau
+Einfamilienhaus Mustermann“: ein vollständig bearbeitetes
 Bauantragsverfahren (Einfamilienhaus mit Garage in NRW, Bauantrag im Bauportal
-eingereicht, eine offene Nachforderung). Es eignet sich zum Ausprobieren und
-zum Schulen neuer Kolleginnen und Kollegen.
-
-1. Menü **Hilfe → Beispielprojekt öffnen** wählen.
-2. Den Hinweis lesen und **Beispielprojekt öffnen** bestätigen. Die Anwendung
-   startet neu und öffnet eine eigene Kopie in einem getrennten Profil.
-
-![Rückfrage beim Öffnen des Beispielprojekts](bilder/arbeitsplatz-beispielprojekt-oeffnen.png)
-
-Solange das Beispiel geöffnet ist, steht oben ein gelber Hinweis „Sie arbeiten
-im Beispielprojekt“. Änderungen betreffen nur diese Kopie; Ihre eigenen
-Projekte bleiben unverändert. **Zu meinen Projekten zurückkehren** startet die
-Anwendung wieder mit Ihrem bisherigen Profil. Beim nächsten Öffnen können Sie
-die bearbeitete Kopie fortsetzen oder neu beginnen.
-
-> In den Bildern dieses Handbuchs ist der gelbe Hinweis ausgeblendet, damit sie
-> der normalen Arbeit entsprechen.
+eingereicht, eine offene Nachforderung). Die Anwendung liefert dieses Projekt
+nicht mit. Zum Ausprobieren und Schulen legen Sie am besten ein eigenes
+Testprojekt an und löschen es danach wieder.
 
 ## Empfohlene Reihenfolge im Projekt
 

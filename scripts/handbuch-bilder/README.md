@@ -14,8 +14,10 @@ echten Anwendung mit dem mitgelieferten Beispielprojekt
   gegen das echte Backend.
 - `helfer.js` enthält Bedienhilfen (Register/Bereich öffnen, Eintrag öffnen,
   Reiter wählen, Abschnitt aufklappen, Dialoge schließen).
-- `aufnahmen.py` startet Xvfb, Brücke und App, öffnet über „Hilfe →
-  Beispielprojekt öffnen“ eine frische Kopie, legt die amtlichen Beispiel-PDFs
+- `aufnahmen.py` startet Xvfb, Brücke und App, stellt das Beispielarchiv
+  `beispiele/Beispielprojekt-EFH-Mustermann.zip` wie „Einstellungen →
+  Sicherung und Wiederherstellung“ in das Profil `Handbuchprofil` wieder her,
+  aktiviert es, startet die App darin neu, legt die amtlichen Beispiel-PDFs
   aus `formulare/beispiele` in die Formularbibliothek und nimmt die Szenen aus
   `SZENEN` mit ImageMagick (`import`) auf. Ist `pngquant` installiert, werden
   die Bilder verlustarm verkleinert.

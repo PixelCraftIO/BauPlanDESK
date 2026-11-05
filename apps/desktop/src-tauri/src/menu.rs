@@ -24,7 +24,6 @@ pub mod id {
     pub const ZOOM_RESET: &str = "ansicht.zoom_reset";
     pub const UPDATES: &str = "hilfe.updates";
     pub const HANDBUCH: &str = "hilfe.handbuch";
-    pub const BEISPIELPROJEKT: &str = "hilfe.beispielprojekt";
     pub const BEENDEN: &str = "datei.beenden";
     /// Nur im Netzwerkbetrieb (Anmeldung mit Kennwort).
     pub const ABMELDEN: &str = "anwendung.abmelden";
@@ -298,13 +297,6 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .build();
     let mut hilfe = SubmenuBuilder::new(app, "&Hilfe")
         .item(&item(id::HANDBUCH, "Bedienhandbuch", Some("F1"), true)?)
-        .separator()
-        .item(&item(
-            id::BEISPIELPROJEKT,
-            "Beispielprojekt öffnen …",
-            None,
-            true,
-        )?)
         .separator()
         .item(&item(id::UPDATES, "Nach Updates suchen …", None, true)?);
     if !cfg!(target_os = "macos") {

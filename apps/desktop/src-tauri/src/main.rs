@@ -158,7 +158,6 @@ fn main() {
             sicherungen::profil_aktivieren,
             sicherungen::standardprofil_aktivieren,
             beispielprojekt::beispielprojekt_status,
-            beispielprojekt::beispielprojekt_oeffnen,
             beispielprojekt::beispielprojekt_verlassen,
             projektordner::ausgabeauftraege,
             projektordner::ausgabe_wiederholen,

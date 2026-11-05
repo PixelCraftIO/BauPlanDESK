@@ -1,4 +1,4 @@
-"""Beispielprojekt: Menü „Hilfe → Beispielprojekt öffnen“ und Hinweis im Beispielprofil.
+"""Früheres Beispielprojekt: Menüpunkt entfallen, Rückweg aus dem Beispielprofil bleibt.
 Start a built frontend on http://127.0.0.1:1430 (see README.md).
 """
 from pathlib import Path
@@ -21,27 +21,15 @@ def aufrufe(page,cmd):
  return page.evaluate('c=>window.calls.filter(x=>x.cmd===c).map(x=>x.args)',cmd)
 with sync_playwright() as p:
  browser=p.chromium.launch(headless=True,executable_path=os.environ.get('BAUPROJEKT_CHROMIUM','/usr/bin/chromium'))
- # Erstes Öffnen: eine frische Kopie.
- page=start(browser,{'aktiv':False,'kopie_vorhanden':False})
+ # Der Menüpunkt ist entfallen: kein Dialog, kein Öffnen.
+ page=start(browser,{'aktiv':False})
  expect(page.get_by_text('Sie arbeiten im')).to_have_count(0)
  page.evaluate('window.emitNative("menu","hilfe.beispielprojekt")')
- frage=page.get_by_role('dialog',name='Beispielprojekt')
- expect(frage).to_contain_text('Ihre Projekte bleiben unverändert')
- page.screenshot(path=str(out/'beispielprojekt-oeffnen.png'))
- frage.get_by_role('button',name='Beispielprojekt öffnen',exact=True).click()
- page.wait_for_function('window.calls.some(x=>x.cmd==="beispielprojekt_oeffnen")')
- assert aufrufe(page,'beispielprojekt_oeffnen')==[{'neu':True}]
+ expect(page.get_by_role('dialog',name='Beispielprojekt')).to_have_count(0)
+ assert aufrufe(page,'beispielprojekt_oeffnen')==[]
  page.close()
- # Bearbeitete Kopie vorhanden: fortsetzen oder neu beginnen.
- page=start(browser,{'aktiv':False,'kopie_vorhanden':True})
- page.evaluate('window.emitNative("menu","hilfe.beispielprojekt")')
- frage=page.get_by_role('dialog',name='Beispielprojekt')
- frage.get_by_role('button',name='Bearbeitete Kopie öffnen',exact=True).click()
- page.wait_for_function('window.calls.some(x=>x.cmd==="beispielprojekt_oeffnen")')
- assert aufrufe(page,'beispielprojekt_oeffnen')==[{'neu':False}]
- page.close()
- # Im Beispielprofil: dauerhafter Hinweis mit Rückweg.
- page=start(browser,{'aktiv':True,'kopie_vorhanden':True})
+ # Wer beim Update noch im Beispielprofil arbeitet, behält den Rückweg.
+ page=start(browser,{'aktiv':True})
  hinweis=page.get_by_role('status').filter(has_text='Sie arbeiten im Beispielprojekt')
  expect(hinweis).to_be_visible()
  page.screenshot(path=str(out/'beispielprojekt-aktiv.png'))

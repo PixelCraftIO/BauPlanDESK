@@ -26,10 +26,8 @@ function knoepfe(w) {
 function haupt() {
   return [...document.querySelectorAll("main")].filter(sichtbar).pop() || document.body;
 }
-/** Hinweisleiste des Beispielprofils ausblenden, damit die Aufnahmen der normalen Arbeit entsprechen. */
+/** Markierungen der Bedienhilfen vor der Aufnahme entfernen. */
 function aufraeumen() {
-  for (const e of document.querySelectorAll("[role=status]"))
-    if (txt(e).startsWith("Sie arbeiten im Beispielprojekt")) e.style.display = "none";
   entmarke();
 }
 async function arbeitsplatz(t) {

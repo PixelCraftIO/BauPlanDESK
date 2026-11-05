@@ -2,7 +2,7 @@
 
 Für Architekten, Entwurfsverfasser und Planer
 
-Stand: 01.11.2026
+Stand: 05.11.2026
 
 ## Inhaltsverzeichnis
 
@@ -1461,13 +1461,13 @@ Weiterlesen: [Dateiablage und lesbare Projektordner](#05-dateiablage-und-lesbare
 
 ## 56. Durchgängiges Beispiel: Einfamilienhaus
 
-Einen Musterablauf ohne produktive Daten ausprobieren.
+Einen Musterablauf vom Flurstück bis zum Nachweis nachvollziehen.
 
-### Beispielprojekt öffnen
+### Vorbemerkung
 
-Über „Hilfe → Beispielprojekt öffnen …“ lässt sich das mitgelieferte Projekt „Neubau Einfamilienhaus Mustermann“ in einem eigenen Profil öffnen. Die Bestätigung und den Hinweis zum Beispielprofil beachten. Veränderungen betreffen diese Arbeitskopie; die mitgelieferte Ausgangssicherung bleibt erhalten. Zur Rückkehr den angebotenen Wechsel zurück zum bisherigen Profil verwenden.
+Das bebilderte Benutzerhandbuch zeigt alle Abläufe am Beispielprojekt „Neubau Einfamilienhaus Mustermann“. Die Anwendung liefert kein Beispielprojekt mehr mit; zum Üben ein eigenes Testprojekt anlegen.
 
-Die folgenden Zahlen sind ein zusätzliches didaktisches Beispiel. Sie sind weder Vorgabewerte des mitgelieferten Projekts noch eine Satzung oder rechtliche Musterentscheidung.
+Die folgenden Zahlen sind ein didaktisches Beispiel. Sie sind weder Vorgabewerte noch eine Satzung oder rechtliche Musterentscheidung.
 
 ### Vom Flurstück zum Nachweis
 

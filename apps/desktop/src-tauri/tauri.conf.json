@@ -55,8 +55,7 @@
     "resources": {
       "../../../lbo-rules/": "lbo-rules/",
       "../../../formulare/": "formulare/",
-      "../../../codelisten/": "codelisten/",
-      "../../../beispiele/Beispielprojekt-EFH-Mustermann.zip": "beispiele/Beispielprojekt-EFH-Mustermann.zip"
+      "../../../codelisten/": "codelisten/"
     },
     "windows": {
       "webviewInstallMode": {

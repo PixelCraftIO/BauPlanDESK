@@ -1259,13 +1259,9 @@ export const api = {
   profilAktivieren: (pfad: string) =>
     invoke<void>("profil_aktivieren", { pfad }),
   standardprofilAktivieren: () => invoke<void>("standardprofil_aktivieren"),
+  /** Läuft die Anwendung noch im Profil des früheren Beispielprojekts? */
   beispielprojektStatus: () =>
-    invoke<{ aktiv: boolean; kopie_vorhanden: boolean }>(
-      "beispielprojekt_status",
-    ),
-  /** Startet die Anwendung im Profil des Beispielprojekts neu. */
-  beispielprojektOeffnen: (neu: boolean) =>
-    invoke<void>("beispielprojekt_oeffnen", { neu }),
+    invoke<{ aktiv: boolean }>("beispielprojekt_status"),
   /** Startet die Anwendung im vorherigen Profil neu. */
   beispielprojektVerlassen: () => invoke<void>("beispielprojekt_verlassen"),
   projektordnerStatus: () => invoke<string>("projektordner_status"),

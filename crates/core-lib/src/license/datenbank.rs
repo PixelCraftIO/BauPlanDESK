@@ -624,22 +624,6 @@ impl LicenseProvider for DatenbankLizenz {
     }
 }
 
-/// Übernimmt Lizenz, Abo-Schlüssel und Beginn der Testversion in ein
-/// abgeleitetes Profil (z. B. die Kopie des Beispielprojekts). Die Kopie ist
-/// damit genauso lizenziert wie das Ausgangsprofil und beginnt keine neue
-/// Testversion. Arbeitsplätze werden nicht übernommen; sie belegt die Kopie selbst.
-pub async fn lizenz_uebernehmen(
-    von: &dyn LizenzRepository,
-    nach: &dyn LizenzRepository,
-) -> CoreResult<()> {
-    for schluessel in [LIZENZ, TESTBEGINN, ABO_SCHLUESSEL, ABO_LIZENZ] {
-        if let Some(wert) = von.einstellung(schluessel).await? {
-            nach.einstellung_setzen(schluessel, &wert).await?;
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

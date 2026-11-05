@@ -20,7 +20,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
 pub use datei::{Lizenz, Lizenzpruefer};
-pub use datenbank::{AboAnbindung, DatenbankLizenz, lizenz_uebernehmen};
+pub use datenbank::{AboAnbindung, DatenbankLizenz};
 
 use crate::error::{CoreError, CoreResult};
 

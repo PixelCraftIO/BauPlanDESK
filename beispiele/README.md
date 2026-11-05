@@ -7,31 +7,23 @@ Stichtag aller Angaben ist der 21.10.2026.
 
 | Datei | Inhalt |
 |---|---|
-| `Beispielprojekt-EFH-Mustermann.zip` | Sicherungsarchiv (Datenbank, DMS-Dateien, Formularvorlagen) zum Wiederherstellen |
+| `Beispielprojekt-EFH-Mustermann.zip` | Sicherungsarchiv (Datenbank, DMS-Dateien, Formularvorlagen); Grundlage der Handbuchbilder |
 | `Bauvorlagen-EFH-Mustermann.pdf` | Bauvorlagenpaket aus „Unterlagen → Drucken“ (216 Seiten, 36 Anlagen) |
 
-## Laden
+## Verwendung
 
-In der App: **Hilfe → Beispielprojekt öffnen …**. Das Archiv wird mit der App
-ausgeliefert und nie verändert. Die App stellt es in ein eigenes Profil unter
-`<App-Datenordner>/Beispielprojekt/` wieder her und startet darin neu:
+Die Anwendung liefert das Beispielprojekt seit 11/2026 nicht mehr aus (der
+Menüpunkt „Hilfe → Beispielprojekt öffnen“ ist entfallen). Das Archiv bleibt
+die Grundlage der Bildschirmfotos im Benutzerhandbuch: `scripts/handbuch-bilder`
+stellt es in ein eigenes Profil wieder her und nimmt die Szenen darin auf.
 
-- Ihre eigenen Projekte bleiben im bisherigen Profil unberührt. Ein Hinweis oben
-  zeigt, dass das Beispielprojekt offen ist; „Zu meinen Projekten zurückkehren“
-  startet wieder im vorherigen Profil.
-- Im Beispielprofil ist alles bearbeitbar. Wer es öffnet, wird dort
-  Administrator. Lizenz und Testbeginn kommen aus dem bisherigen Profil; eine
-  neue Kopie verlängert also keine Testversion.
-- Beim nächsten Öffnen lässt sich die bearbeitete Kopie fortsetzen oder eine
-  neue, unveränderte Kopie anlegen.
-
-Ohne App-Menü (z. B. ältere Version): Einstellungen → Sicherung und
-Wiederherstellung → „In neues Profil wiederherstellen“ mit diesem Archiv, dann
-„Profil aktivieren“ und die App neu starten.
+Von Hand laden: Einstellungen → Sicherung und Wiederherstellung → „In neues
+Profil wiederherstellen“ mit diesem Archiv, dann „Profil aktivieren“ und die App
+neu starten.
 
 ## Rechentest
 
-`cargo test -p storage --test beispielarchiv` stellt genau das mitgelieferte
+`cargo test -p storage --test beispielarchiv` stellt genau das hier abgelegte
 Archiv mit dem aktuellen Programmstand wieder her. Der Test prüft, dass alle
 Nachweise aktuell sind (die heutige Berechnung kommt aus denselben Eingaben und
 Regeln zum gespeicherten Ergebnis) und dass Formulare die Kennzahlen unten

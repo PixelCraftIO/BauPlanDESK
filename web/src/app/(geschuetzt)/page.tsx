@@ -176,14 +176,14 @@ export default function Startseite() {
       <section className="abschnitt abschnitt-band">
         <div className="breite band-inhalt">
           <div>
-            <h2>Ausprobieren mit dem Beispielprojekt</h2>
+            <h2>Ein Verfahren von Anfang bis Ende</h2>
             <p>
-              Ein vollständig bearbeitetes Verfahren – Einfamilienhaus mit Garage in Nordrhein-Westfalen – liegt der
-              Anwendung bei: <strong>Hilfe → Beispielprojekt öffnen</strong>.
+              Das Handbuch zeigt jeden Schritt an einem vollständig bearbeiteten Verfahren: Einfamilienhaus mit
+              Garage in Nordrhein-Westfalen, vom Flurstück bis zur Nachforderung der Bauaufsicht.
             </p>
           </div>
-          <Link href="/handbuch/01-einstieg#beispielprojekt-öffnen" className="knopf hell">
-            Zur Anleitung
+          <Link href="/handbuch/01-einstieg#das-beispielprojekt-in-diesem-handbuch" className="knopf hell">
+            Zum Handbuch
           </Link>
         </div>
       </section>
