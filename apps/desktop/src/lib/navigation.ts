@@ -11,8 +11,8 @@ export interface NavZweig {
 /**
  * Register der Projektakte: Übersicht sowie die beiden Bereiche Ermittlung
  * (alles, was Werte erzeugt) und Nachweis und Einreichung (alles, was Werte
- * verarbeitet und ausgibt). Jedes Register zeigt links nur seine eigene
- * Gliederung; Unterzweige erscheinen dort als Zwischenüberschriften.
+ * verarbeitet und ausgibt). Die Projektnavigation zeigt alles als einen Baum:
+ * Register → Gruppe → Bereich.
  */
 export const NAVIGATION: NavZweig[] = [
   {
@@ -156,6 +156,16 @@ export function navigationMitModulen(
     bekannt.add(m.id);
   }
   return zweige;
+}
+
+/** Zweige vom Register bis zur Gruppe, in der ein Bereich liegt (leer, wenn unbekannt). */
+export function pfadZu(zweige: NavZweig[], id: string): string[] {
+  for (const z of zweige) {
+    if (z.module.includes(id as ModulId)) return [z.id];
+    const tiefer = pfadZu(z.kinder ?? [], id);
+    if (tiefer.length) return [z.id, ...tiefer];
+  }
+  return [];
 }
 
 /** Alle Module eines Registers in Anzeigereihenfolge. */

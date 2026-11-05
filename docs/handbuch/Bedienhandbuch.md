@@ -158,7 +158,7 @@ Orientierung, parallele Projekte und sichere Entwurfsbearbeitung.
 
 Oben wechseln Sie zwischen „Projekte“, „Kunden / Bauherren“, „Formularbibliothek“, „Einstellungen“ und der Hilfe. Die darunter geöffneten Projekttabs bleiben unabhängig davon erhalten.
 
-Innerhalb einer Projektakte wechseln Sie über die Register „Übersicht“, „Ermittlung“ (Bereich 1: alles, was Werte erzeugt – Grundlagen, Unterlagen, Aufmaß, Messwerte, Gebäudemodell) und „Nachweis und Einreichung“ (Bereich 2: alles, was Werte verarbeitet und ausgibt – Berechnungen, Formulare, Druck, Verfahren). Links erscheint jeweils die Gliederung des gewählten Bereichs. Ein gesperrter Bereich nennt beim Darüberfahren konkret die fehlenden Schritte. Über das Informationssymbol ist die Erklärung mit Tastatur erreichbar und mit Escape schließbar. Nutzungsmodule können über „Entwurf öffnen“ vorbereitet werden; für Berechnung und Nachweise bleiben die fachlichen Voraussetzungen erforderlich.
+Innerhalb einer Projektakte steht links der Projektbaum mit den Registern „Übersicht“, „Ermittlung“ (Bereich 1: alles, was Werte erzeugt – Grundlagen, Unterlagen, Aufmaß, Messwerte, Gebäudemodell) und „Nachweis und Einreichung“ (Bereich 2: alles, was Werte verarbeitet und ausgibt – Berechnungen, Formulare, Druck, Verfahren). Ein Klick auf ein Register oder eine Gruppe klappt den Zweig auf oder zu; die Wahl bleibt je Projekt erhalten. Ein gesperrter Bereich nennt beim Darüberfahren konkret die fehlenden Schritte. Über das Informationssymbol ist die Erklärung mit Tastatur erreichbar und mit Escape schließbar. Nutzungsmodule können über „Entwurf öffnen“ vorbereitet werden; für Berechnung und Nachweise bleiben die fachlichen Voraussetzungen erforderlich.
 
 ### Eingaben richtig behandeln
 

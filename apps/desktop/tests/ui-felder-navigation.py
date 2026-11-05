@@ -2,7 +2,7 @@
 from pathlib import Path
 import json,os
 from playwright.sync_api import sync_playwright,expect
-from navigation_hilfe import bereich as bereich_oeffnen, register, gliederung
+from navigation_hilfe import bereich as bereich_oeffnen, register, gliederung, navigation_zeigen
 root=Path(__file__).resolve().parent;repo=root.parents[2]
 out=Path(os.environ.get('BAUPROJEKT_UI_FELDER_ARTEFAKTE','/tmp/bauprojekt-ui-felder'));out.mkdir(parents=True,exist_ok=True)
 fixture=json.loads((root/'fixtures/projekt.json').read_text());fixture['name']='UI-Prüfung Musterstraße';fixture['planungsrecht']['bau_nvo']='2017'
@@ -45,9 +45,12 @@ with sync_playwright() as pw:
  def view(name):bereich_oeffnen(page,name)
  def wc():return active().locator('[data-berechnungsmodul="wohnflaechen"]')
  open_project();expect(gliederung(page).get_by_role('button',name='Projektübersicht',exact=True)).to_have_attribute('aria-current','page')
- # Die Gliederung zeigt nur das geöffnete Register.
- expect(active().locator('.register').get_by_role('tab',name='Übersicht',exact=True)).to_have_attribute('aria-selected','true')
+ # Der Projektbaum zeigt die ganze Akte; Zweige lassen sich zuklappen und bleiben je Projekt gemerkt.
+ expect(gliederung(page).get_by_role('button',name='Übersicht',exact=True)).to_have_attribute('aria-expanded','true')
+ expect(gliederung(page).get_by_role('button',name='Wohnflächenberechnung',exact=True)).to_have_count(1)
+ gliederung(page).get_by_role('button',name='Gebäude und Flächen',exact=True).click()
  expect(gliederung(page).get_by_role('button',name='Wohnflächenberechnung',exact=True)).to_have_count(0)
+ assert 'flaechen' in page.evaluate("Object.keys(localStorage).filter(k=>k.startsWith('bauplan.baum.')).map(k=>localStorage.getItem(k)).join()")
  view('Wohnflächenberechnung');wc().get_by_role('button',name='Neu anlegen',exact=True).click()
  expect(wc().get_by_text('Eintragsliste anzeigen',exact=True)).to_be_visible()
  assert page.locator('.projekt-sitzung:visible .projektkopf').bounding_box()['height']<90
@@ -81,11 +84,11 @@ with sync_playwright() as pw:
  saved=page.evaluate('window.calls.filter(c=>c.cmd==="fachobjekt_speichern").at(-1).args.daten.eingaben.positionen[0]');assert saved['laenge_m']==8 and saved['breite_m']==4 and saved['aufmass_m2']==0
  field=row.get_by_label('Direkte Aufmaßfläche (m²)',exact=True);field.fill('45');page.evaluate('window.fachSaveFail=true');wc().get_by_role('button',name='Speichern',exact=True).click();expect(wc()).to_contain_text('Parallel geändert');expect(field).to_have_value('45');expect(wc().get_by_text('Gespeichert.',exact=True)).to_have_count(0)
  page.evaluate('window.fachSaveFail=false');field.fill('46');wc().get_by_role('button',name='Speichern',exact=True).click()
- # Jedes Register merkt sich je Projekt den zuletzt geöffneten Bereich.
- view('Aufmaß');register(page,'Übersicht');register(page,'Ermittlung')
+ # Jede Akte behält ihren geöffneten Bereich; eine neu geöffnete Akte startet in der Projektübersicht.
+ view('Aufmaß');navigation_zeigen(page)
  expect(gliederung(page).get_by_role('button',name='Aufmaß',exact=True)).to_have_attribute('aria-current','page')
- view('Projekte');open_project('Umbau Bürogebäude');register(page,'Ermittlung')
- expect(gliederung(page).get_by_role('button',name='Stammdaten',exact=True)).to_have_attribute('aria-current','page')
+ view('Projekte');open_project('Umbau Bürogebäude')
+ expect(gliederung(page).get_by_role('button',name='Projektübersicht',exact=True)).to_have_attribute('aria-current','page')
  page.locator('.tab-auswahl').filter(has_text=fixture['name']).click();expect(gliederung(page).get_by_role('button',name='Aufmaß',exact=True)).to_have_attribute('aria-current','page')
  view('Bebauungsplanfestsetzungen');expect(active().get_by_role('textbox',name='Planbezeichnung',exact=True)).to_have_count(0)
  active().get_by_role('button',name='Rechtsgrundlagen bearbeiten',exact=True).click();expect(active().get_by_label('Planbezeichnung',exact=True)).to_be_visible()
@@ -99,7 +102,7 @@ with sync_playwright() as pw:
   page.evaluate('(t)=>{document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}',theme);page.screenshot(path=str(out/f'wohnflaeche-{theme}.png'))
  for width in [1024,800,600]:
   page.set_viewport_size({'width':width,'height':850});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
-  assert page.locator('.aktennavigation button, .register button').evaluate_all('(es)=>es.filter(e=>e.getClientRects().length).every(e=>e.scrollWidth<=e.clientWidth+1)'),width
+  assert page.locator('.aktennavigation button').evaluate_all('(es)=>es.filter(e=>e.getClientRects().length).every(e=>e.scrollWidth<=e.clientWidth+1)'),width
  page.set_viewport_size({'width':1440,'height':1000});page.evaluate("document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light'")
  view('Gebäude / Geschosse');active().get_by_role('button',name='Neu anlegen',exact=True).click();active().get_by_role('button',name='Speichern',exact=True).click()
  geb=active().get_by_label('Gebäudebezeichnung',exact=True);expect(geb).to_have_attribute('aria-invalid','true');geb.fill('Garage');expect(geb).not_to_have_attribute('aria-invalid','true')

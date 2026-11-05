@@ -1,9 +1,8 @@
 """Gemeinsame Navigation der UI-Tests.
 
 Arbeitsplatzbereiche liegen in der Werkzeugleiste. Fachbereiche einer Projektakte
-liegen im Register, dessen Gliederung links angezeigt wird; ist der gesuchte
-Bereich nicht in der aktuellen Gliederung, werden die Register der Reihe nach
-geöffnet.
+liegen im Projektbaum links (Register → Gruppe → Bereich); ist der gesuchte
+Bereich zugeklappt, werden die Zweige aufgeklappt.
 """
 
 ARBEITSPLATZ = {"Projekte", "Kunden / Bauherren", "Formularbibliothek", "Einstellungen"}
@@ -21,8 +20,11 @@ def navigation_zeigen(scope):
 
 
 def register(scope, titel):
+    """Register = oberster Zweig des Projektbaums; wird aufgeklappt, nie zugeklappt."""
     navigation_zeigen(scope)
-    akte(scope).locator(".register").get_by_role("tab", name=titel, exact=True).click()
+    knopf = gliederung(scope).get_by_role("button", name=titel, exact=True)
+    if knopf.get_attribute("aria-expanded") == "false":
+        knopf.click()
 
 
 def gliederung(scope):
@@ -36,13 +38,9 @@ def bereich(scope, name):
     navigation_zeigen(scope)
     knopf = gliederung(scope).get_by_role("button", name=name, exact=True)
     if not knopf.count():
-        for reiter in akte(scope).locator(".register").get_by_role("tab").all():
-            reiter.click()
-            try:
-                knopf.wait_for(state="visible", timeout=1000)
-                break
-            except Exception:
-                continue
+        for z in gliederung(scope).locator('.zweigkopf[aria-expanded="false"]').all():
+            z.click()
+        knopf.first.wait_for(state="visible", timeout=2000)
     knopf.click()
 
 
