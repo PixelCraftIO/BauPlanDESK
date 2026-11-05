@@ -119,6 +119,9 @@
   let betrachterSeite=$state<number|null>(null),sichtbarkeit=$state<Record<string,boolean>>({});
   let aktiv=$state(""),rahmenAuswahl=$state(""),vollbild=$state(false),masse=$state(true),hoeheEditor=$state(560);
   // Zeichenelemente und Hintergründe eigener Zeichnungen.
+  let paletten=$state<HTMLElement>();
+  // Neue Auswahl: Eigenschaften stehen oben, die Spalte beginnt wieder am Anfang.
+  $effect(()=>{void auswahl;void elementAuswahl;if(panel==="eigenschaften")untrack(()=>paletten?.scrollTo({top:0}))});
   let elementAuswahl=$state(""),wanddicke=$state(.24),elementAuswahlIds=$state<string[]>([]);
   // Konstruktionsbefehle: Versatz und Reihe in Metern, Spiegeln wahlweise als Kopie.
   let konstruktion=$state({versatz:.5,anzahl:3,dx:1,dy:0,spiegelKopie:true});
@@ -181,6 +184,9 @@
   });
   let hgDatei=$state(""),hgSeite=$state(1),hgStrecke=$state(10),hgZiel=$state(""),hgWinkel=$state(0);
   const el=$derived(s.eingabe?.elemente?.find(e=>e.id===elementAuswahl));
+  const ELEMENTNAMEN:Record<string,string>={wand:"Wand",masskette:"Maßkette",symbol:"Planzeichen",raumstempel:"Raumstempel",text:"Text"};
+  // Kopfzeile der Eigenschaften: Markierungen und Zeichenelemente zählen gemeinsam.
+  const auswahlTitel=$derived.by(()=>{const n=auswahlIds.length+elementAuswahlIds.length;if(n>1)return `· ${n} ausgewählt`;if(m)return `· ${m.bezeichnung}`;if(el)return `· ${ELEMENTNAMEN[el.art]??"Zeichenelement"}`;return "· keine Auswahl"});
   const elementGesperrt=$derived(!darf||s.laeuft||!!s.eingabe?.ebenen.find(e=>e.id===el?.ebene_id)?.gesperrt);
   const istZeichnung=$derived(!!s.eingabe&&!s.eingabe.dokument);
   const einheitText=$derived(istZeichnung?"m":"Seitenpunkte");
@@ -867,7 +873,7 @@
         <button type="button" disabled={!darf||s.laeuft||!s.hatAenderungen()} onclick={()=>void s.speichern()}>Aufmaß speichern</button>
         <span class="editorwerkzeuge">{@render editorwerkzeuge()}</span>
       </div>{/if}
-      {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · W Wand · L Maßkette · X Text · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · Alt setzt Fang aus · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
+      {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · W Wand · L Maßkette · X Text · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · F8 Ortho · Alt setzt Fang aus · Ziffern oder @ öffnen die Koordinateneingabe · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt bzw. wiederholt den letzten Befehl · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
       {#if vorlage}<p role="status" class="hinweisbox schmal">Vorlage <strong>{vorlage.titel}</strong> ({bedeutungen.find(b=>b[0]===vorlage!.bedeutung)?.[1]}) auf Ebene „{aktiv?layer?.bezeichnung??vorlage.ebene:vorlage.ebene}“ · {vorlage.hinweis}. <button type="button" class="link" onclick={()=>{vorlage=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
       {#if werkzeug==="hgstrecke"||werkzeug==="hgverschieben"||werkzeug==="hgdrehen"}<p role="status" class="hinweisbox schmal">{werkzeug==="hgstrecke"?`Auf dem Hintergrund Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken; der Hintergrund wird darauf skaliert.`:werkzeug==="hgverschieben"?"Einen Punkt des Hintergrunds und dann seine Zielposition anklicken.":`Den Drehpunkt anklicken; der Hintergrund dreht sich um ${z(hgWinkel)}°.`}</p>{/if}
@@ -924,22 +930,25 @@
           {:else}<p class="meta leer">{laedt?"Unterlage wird geladen …":"Unter „Blatt und Einrichtung“ eine Unterlage auswählen."}</p>{/if}
           {#if messFehler}<p class="fehlertext" role="alert">Aufmaß prüfen: {messFehler}</p>{/if}
         </div>
-        <aside>
+        <aside bind:this={paletten}>
           <nav class="panelwahl" aria-label="Planpanel">{#each [["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as [id,titel]}<button type="button" class="sekundaer" class:aktiv={panel===id} aria-pressed={panel===id} onclick={()=>panelOeffnen(id)}>{titel}</button>{/each}</nav>
           <details class="palette" bind:open={offen.eigenschaften}>
-            <summary><h3>Eigenschaften</h3> <span class="meta">{m?`· ${m.bezeichnung}`:auswahlIds.length>1?`· ${auswahlIds.length} ausgewählt`:"· keine Auswahl"}</span></summary>
+            <summary><h3>Eigenschaften</h3> <span class="meta">{auswahlTitel}</span></summary>
             {#if el}
               <fieldset disabled={elementGesperrt} class="element-eigenschaften" aria-label="Zeichenelement">
                 <legend>{el.art==="wand"?"Wand":el.art==="masskette"?"Maßkette":el.art==="symbol"?"Planzeichen":el.art==="raumstempel"?"Raumstempel":"Text"}</legend>
                 {#if el.art==="wand"}<label>Wanddicke (m)<input type="number" min=".01" max="10" step=".01" bind:value={el.dicke_m}/></label>
-                  {#if el.oeffnungen?.length}<div class="oeffnungen-rahmen"><table class="oeffnungen"><thead><tr><th>Art</th><th>ab (m)</th><th>Breite</th><th>Höhe</th><th>Brüstung</th><th>Anschlag</th><th></th></tr></thead><tbody>
-                    {#each el.oeffnungen as o,i}<tr><td><select aria-label="Art" bind:value={o.art}><option value="fenster">Fenster</option><option value="tuer">Tür</option></select></td>
-                      <td><input type="number" min="0" step=".01" aria-label="Lage ab Wandanfang" bind:value={o.lage_m}/></td><td><input type="number" min=".1" step=".005" aria-label="Breite" bind:value={o.breite_m}/></td>
-                      <td><input type="number" min="0" step=".005" aria-label="Höhe" value={o.hoehe_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.hoehe_m=Number(v);else delete o.hoehe_m}}/></td>
-                      <td>{#if o.art==="fenster"}<input type="number" min="0" step=".005" aria-label="Brüstung" value={o.bruestung_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.bruestung_m=Number(v);else delete o.bruestung_m}}/>{/if}</td>
-                      <td>{#if o.art==="tuer"}<select aria-label="Anschlag" bind:value={o.links}><option value={false}>rechts</option><option value={true}>links</option></select>{/if}</td>
-                      <td><button type="button" class="link" onclick={()=>{if(el?.art==="wand"){merken();el.oeffnungen=el.oeffnungen!.filter((_,j)=>j!==i)}}}>Entfernen</button></td></tr>{/each}
-                  </tbody></table></div>{:else}<p class="meta">Fenster und Türen mit dem Werkzeug „Fenster / Tür“ (F) in die Wand klicken.</p>{/if}
+                  {#if el.oeffnungen?.length}<div class="oeffnungen">
+                    {#each el.oeffnungen as o,i}<div class="oeffnung" role="group" aria-label={`Öffnung ${i+1}`}>
+                      <label>Art<select aria-label="Art" bind:value={o.art}><option value="fenster">Fenster</option><option value="tuer">Tür</option></select></label>
+                      <label>ab (m)<input type="number" min="0" step=".01" aria-label="Lage ab Wandanfang" bind:value={o.lage_m}/></label>
+                      <label>Breite<input type="number" min=".1" step=".005" aria-label="Breite" bind:value={o.breite_m}/></label>
+                      <button type="button" class="link entfernen" title="Öffnung entfernen" aria-label="Öffnung entfernen" onclick={()=>{if(el?.art==="wand"){merken();el.oeffnungen=el.oeffnungen!.filter((_,j)=>j!==i)}}}>✕</button>
+                      <label>Höhe<input type="number" min="0" step=".005" aria-label="Höhe" value={o.hoehe_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.hoehe_m=Number(v);else delete o.hoehe_m}}/></label>
+                      {#if o.art==="fenster"}<label>Brüstung<input type="number" min="0" step=".005" aria-label="Brüstung" value={o.bruestung_m??""} onchange={e=>{const v=e.currentTarget.value;if(v)o.bruestung_m=Number(v);else delete o.bruestung_m}}/></label>
+                      {:else}<label>Anschlag<select aria-label="Anschlag" bind:value={o.links}><option value={false}>rechts</option><option value={true}>links</option></select></label>{/if}
+                    </div>{/each}
+                  </div>{:else}<p class="meta">Fenster und Türen mit dem Werkzeug „Fenster / Tür“ (F) in die Wand klicken.</p>{/if}
                 {:else if el.art==="symbol"}<label>Planzeichen<select bind:value={el.symbol}>{#each PLANSYMBOLE as [v,t]}<option value={v}>{t}</option>{/each}</select></label><label>Größe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.groesse}/></label><label>Drehung (°)<input type="number" step="any" bind:value={el.drehung_grad}/></label>
                 {:else if el.art==="raumstempel"}<label>Raum<select value={`${el.raumbuch_id}|${el.raum_id}`} onchange={e=>{const [a,b]=e.currentTarget.value.split("|");if(el?.art==="raumstempel"&&b){el.raumbuch_id=a;el.raum_id=b}}}>{#if !raeume[el.raum_id]}<option value={`${el.raumbuch_id}|${el.raum_id}`}>Raum fehlt im Raumbuch</option>{/if}{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung}</option>{/each}</optgroup>{/each}</select></label><label>Schrifthöhe ({einheitText})<input type="number" min=".01" step="any" bind:value={el.hoehe}/></label>
                 {:else if el.art==="masskette"}<label>Abstand der Maßlinie ({einheitText})<input type="number" step="any" bind:value={el.abstand}/></label>
@@ -1320,11 +1329,13 @@
   .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .planzeichenwahl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
   .planzeichenwahl label{display:flex;gap:.3rem;align-items:center}
-  /* Die Öffnungstabelle ist breiter als die Palette: sie rollt waagerecht, statt die ganze Palette zu verbreitern. */
-  .oeffnungen-rahmen{width:0;min-width:100%;overflow-x:auto}
-  .oeffnungen{width:100%;font-size:.8rem;border-collapse:collapse}
-  .oeffnungen input,.oeffnungen select{width:100%;min-width:4.4rem;font-size:.8rem}
-  .oeffnungen select{min-width:5.5rem}
+  /* Öffnungen als zweizeilige Gruppen: passen in die Palettenbreite, nichts wird abgeschnitten. */
+  .oeffnungen{display:grid;gap:.4rem}
+  .oeffnung{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:.3rem .4rem;align-items:end;padding:.35rem .4rem;border:1px solid var(--border-innen);background:var(--leiste)}
+  .oeffnung label:not(:has(> input[type=checkbox])){font-size:.75rem}
+  .oeffnung input,.oeffnung select{min-width:0;font-size:.8rem}
+  .oeffnung .entfernen{align-self:end;padding:0 .3rem 6px;grid-column:4;grid-row:1}
+  .oeffnung label:nth-of-type(4),.oeffnung label:nth-of-type(5){grid-row:2}
   .ebenendarstellung{margin:0 0 .3rem 1.6rem;font-size:.85rem}
   .konstruieren{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
   .konstruieren h3{margin:0 0 .4rem;font-size:.9rem}
