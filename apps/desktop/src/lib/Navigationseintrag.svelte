@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import type { ModulId } from "./module";
+  import StatusSymbol, { type Statusart } from "./StatusSymbol.svelte";
   let {
     id,
     titel,
@@ -11,6 +12,10 @@
     favorit,
     onoeffnen,
     onfavorit,
+    status = null,
+    nichtBenoetigt = false,
+    kennzeichenbar = false,
+    onbenoetigt,
   }: {
     id: ModulId;
     titel: string;
@@ -21,7 +26,14 @@
     favorit: boolean;
     onoeffnen: (id: ModulId) => void;
     onfavorit: () => void;
+    /** Statussymbol am Eintrag (rot/gelb/grün) mit Begründung. */
+    status?: { art: Statusart; text: string } | null;
+    nichtBenoetigt?: boolean;
+    /** Leerer Datenbereich: lässt sich als „nicht benötigt“ kennzeichnen. */
+    kennzeichenbar?: boolean;
+    onbenoetigt?: (benoetigt: boolean) => void;
   } = $props();
+  let menue = $state(false);
   const uid = $props.id();
   let offen = $state(false),
     x = $state(0),
@@ -45,7 +57,7 @@
   }
 </script>
 
-<div class="navigationseintrag" class:gesperrt={!!grund}>
+<div class="navigationseintrag" class:gesperrt={!!grund} class:nichtbenoetigt={nichtBenoetigt}>
   {#if grund}
     <div
       class="sperrhinweis"
@@ -98,18 +110,85 @@
       title={titel}
       onclick={() => onoeffnen(id)}>{kurz}</button
     >{/if}
-  <button
-    class="favorit link"
-    aria-label={`${titel}: ${favorit ? "Favorit entfernen" : "Als Favorit merken"}`}
-    aria-pressed={favorit}
-    onclick={onfavorit}>{favorit ? "★" : "☆"}</button
-  >
+  <span class="rechts">
+    {#if onbenoetigt && (kennzeichenbar || nichtBenoetigt)}<button
+        type="button"
+        class="mehr link"
+        aria-label={`${titel}: Weitere Aktionen`}
+        aria-haspopup="menu"
+        aria-expanded={menue}
+        onclick={() => (menue = !menue)}
+        onkeydown={(e) => {
+          if (e.key === "Escape") menue = false;
+        }}>⋯</button
+      >{/if}
+    <button
+      class="favorit link"
+      aria-label={`${titel}: ${favorit ? "Favorit entfernen" : "Als Favorit merken"}`}
+      aria-pressed={favorit}
+      onclick={onfavorit}>{favorit ? "★" : "☆"}</button
+    >
+    {#if status}<StatusSymbol art={status.art} text={status.text} />{:else}<span
+        class="statusplatz"
+        aria-hidden="true"
+      ></span>{/if}
+  </span>
+  {#if menue && onbenoetigt}<div class="eintragsmenue" role="menu" aria-label={`${titel}: Aktionen`}>
+      <button
+        type="button"
+        role="menuitem"
+        onclick={() => {
+          menue = false;
+          onbenoetigt(nichtBenoetigt);
+        }}
+        >{nichtBenoetigt
+          ? "Wieder als benötigt führen"
+          : "Als nicht benötigt kennzeichnen"}</button
+      >
+    </div>{/if}
 </div>
 
 <style>
   .navigationseintrag {
     position: relative;
-    padding-right: 1.6rem;
+  }
+  .rechts {
+    position: absolute;
+    right: 2px;
+    top: 4px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .statusplatz {
+    width: 14px;
+  }
+  .mehr {
+    padding: 0 2px;
+    min-height: 0;
+    line-height: 1;
+  }
+  .nichtbenoetigt > button:not(.favorit) {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .eintragsmenue {
+    position: absolute;
+    right: 4px;
+    top: 28px;
+    z-index: 50;
+    min-width: 14rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 16px #0003;
+    padding: 4px 0;
+  }
+  .eintragsmenue button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 5px 10px;
   }
   .navigationseintrag > button:not(.favorit),
   .sperrhinweis > button:not(.info) {
@@ -120,22 +199,23 @@
     overflow-wrap: anywhere;
     line-height: 1.35;
     padding-left: 18px;
+    padding-right: 52px;
   }
   .favorit {
-    position: absolute;
-    right: 0;
-    top: 0.5rem;
-    padding: 0.15rem;
+    padding: 0 0.15rem;
+    min-height: 0;
   }
   /* Leerer Stern nur beim Überfahren oder per Tastatur; gemerkte Einträge
      zeigen den gefüllten Stern dauerhaft. Bei Touch-Bedienung bleibt er da. */
   @media (hover: hover) {
-    .favorit[aria-pressed="false"] {
+    .favorit[aria-pressed="false"],
+    .mehr[aria-expanded="false"] {
       opacity: 0;
     }
-    .navigationseintrag:hover > .favorit,
-    .navigationseintrag:focus-within > .favorit,
-    .favorit:focus-visible {
+    .navigationseintrag:hover .favorit,
+    .navigationseintrag:focus-within .favorit,
+    .navigationseintrag:hover .mehr,
+    .navigationseintrag:focus-within .mehr {
       opacity: 1;
     }
   }

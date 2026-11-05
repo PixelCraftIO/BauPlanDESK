@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { abonnieren } from "./projektEreignisse";
   import { onMount, untrack } from "svelte";
   import { api, fehlertext, type Benutzer } from "./api";
   import type { Projektorganisation } from "./generated/plattform";
@@ -42,6 +43,16 @@
     }
   });
   $effect(() => s.entwurfSichern());
+  // „Nicht benötigt“ im Projektbaum speichert ebenfalls hier: ohne eigene
+  // Änderungen den neuen Stand übernehmen, damit kein Versionskonflikt entsteht.
+  $effect(() =>
+    abonnieren(projektId, ["fachobjekte"], async () => {
+      if (!s.bereit || s.laeuft || s.hatAenderungen()) return;
+      await s.laden();
+      const f = s.liste.find((f) => f.objekt === projektId);
+      if (f && f.revision !== s.revision) s.bearbeiten(f);
+    }),
+  );
   editorAnmelden("uebersicht", {
     hatAenderungen: () => s.hatAenderungen(),
     istBeschaeftigt: () => s.laeuft,

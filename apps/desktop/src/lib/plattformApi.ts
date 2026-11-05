@@ -27,6 +27,20 @@ export const plattformApi = {
       "projektuebersicht",
       { projektId },
     ),
+  /** Status je Navigationsbereich (offen, erledigt, leer, nicht benötigt). */
+  bereichsstatus: (projektId: string) =>
+    invoke<import("./generated/plattform").Bereichsstaende>("bereichsstatus", {
+      projektId,
+    }),
+  /** Leeren Bereich als „nicht benötigt“ kennzeichnen oder zurücknehmen. */
+  bereichBenoetigt: (projektId: string, bereich: string, benoetigt: boolean) =>
+    nachErfolg(
+      invoke<import("./generated/plattform").Bereichsstaende>(
+        "bereich_benoetigt_setzen",
+        { projektId, bereich, benoetigt },
+      ),
+      { projektId, bereich: "fachobjekte" },
+    ),
   status: (projektId: string) =>
     invoke<import("./generated/plattform").Projektstatus>("projektstatus", {
       projektId,

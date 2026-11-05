@@ -21,6 +21,12 @@ pub struct Projektorganisation {
     pub phase: Projektphase,
     pub verantwortlich: Option<BenutzerId>,
     pub beschreibung: String,
+    /// Navigationsbereiche, die das Büro für dieses Projekt ausdrücklich als
+    /// nicht benötigt gekennzeichnet hat (siehe [`crate::bereichsstatus`]).
+    /// Fehlt in älteren Ständen.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub nicht_benoetigt: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -511,7 +517,11 @@ pub(super) async fn validieren(
         }
         ObjektArt::Projektorganisation => {
             let o: Projektorganisation = serde_json::from_value(daten).map_err(json_err)?;
-            if o.kennzeichen.len() > 120 || o.beschreibung.len() > 10000 {
+            if o.kennzeichen.len() > 120
+                || o.beschreibung.len() > 10000
+                || o.nicht_benoetigt.len() > 100
+                || o.nicht_benoetigt.iter().any(|b| b.len() > 60)
+            {
                 return Err(CoreError::InvalidInput(
                     "Projektorganisation: Texte sind zu lang".into(),
                 ));

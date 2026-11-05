@@ -119,4 +119,37 @@ async fn neues_projekt_und_bebauungsplan() {
     .unwrap();
     let s = c.bereichsstatus_am(p.id, tag, &u).await.unwrap();
     assert_eq!(zustand(&s, "festsetzungen"), Erledigt);
+
+    // Ein leerer Datenbereich lässt sich als nicht benötigt kennzeichnen …
+    assert!(
+        s.bereiche
+            .iter()
+            .find(|b| b.bereich == "stellplaetze")
+            .unwrap()
+            .kennzeichenbar
+    );
+    let s = c
+        .bereich_benoetigt_setzen(p.id, "stellplaetze", false, &u)
+        .await
+        .unwrap();
+    assert_eq!(zustand(&s, "stellplaetze"), NichtBenoetigt);
+    // … Pflichtbereiche und Bereiche mit Daten nicht.
+    assert!(
+        c.bereich_benoetigt_setzen(p.id, "flurstuecke", false, &u)
+            .await
+            .is_err()
+    );
+    assert!(
+        c.bereich_benoetigt_setzen(p.id, "festsetzungen", false, &u)
+            .await
+            .is_err()
+    );
+    // Die Kennzeichnung gilt projektweit und lässt sich zurücknehmen.
+    let s = c.bereichsstatus_am(p.id, tag, &u).await.unwrap();
+    assert_eq!(zustand(&s, "stellplaetze"), NichtBenoetigt);
+    let s = c
+        .bereich_benoetigt_setzen(p.id, "stellplaetze", true, &u)
+        .await
+        .unwrap();
+    assert_eq!(zustand(&s, "stellplaetze"), Leer);
 }
