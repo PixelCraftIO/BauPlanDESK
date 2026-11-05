@@ -64,8 +64,9 @@ Bildschirm; die Akte bleibt im Hauptfenster bedienbar.
 | --- | --- |
 | Kopfleiste | Speichern, Schließen, Rückgängig/Wiederholen, Menü **Prüfen** (Lage im Baufenster, Planstände vergleichen), Menü **Ausgabe** (Aufmaßblatt PDF, Messwerte CSV, DXF fürs CAD, Planblatt PDF), Maße anzeigen, Vollbild (F11), Kurzbefehle (F1) |
 | Werkzeugleiste links | Auswählen (V), Verschieben (M), Polygon (P), Rechteck (R), Kreis (K), Strecke / Dach (S), Wand (W), Maßkette (L), Text (X), Höhenpunkt (H), Bezugslinie setzen, Ausschnitt anlegen, Zwei Punkte kalibrieren, Kontrollstrecke messen, Duplizieren, Markierung entfernen |
-| Ansichtsleiste | Zoom (bei eigenen Zeichnungen als Bildschirmmaßstab 1:n), Einpassen, 1:1, Auf Auswahl, Zoomfenster (Z), drehen, **Punktfang** und Fangoptionen |
-| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss, dazu Voreinstellung und **Werkzeugkiste**), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
+| Optionsleiste | Name des aktiven Werkzeugs, seine Einstellungen (z. B. Bedeutung, Gebäude und Geschoss neuer Markierungen, Wanddicke, Planzeichen, Referenzlänge) und der nächste Schritt; rechts der Arbeitsbereich und die **Befehlszeile** (F2) |
+| Ansichtsleiste | Zoom (bei eigenen Zeichnungen als Bildschirmmaßstab 1:n), Einpassen, 1:1, Auf Auswahl, Zoomfenster (Z), drehen, **Punktfang**, Fangoptionen (Auswahlliste), Ortho und Winkelraster |
+| Reiter rechts | **Aufgaben** (was noch gezeichnet bzw. übernommen werden muss, dazu die **Werkzeugkiste**), **Objekte** (Ausschnitte, Zeichenebenen, Markierungen), **Eigenschaften** (der Auswahl; ohne Auswahl **Blatt und Einrichtung**). Esc oder „Zum Blatt“ hebt die Auswahl auf |
 | Statusleiste | Zeigerposition in Metern, aktiver Fang, Ortho bzw. Winkelraster, Bildschirmmaßstab, Unterlage bzw. Blattgröße; die Tastenbelegung zeigt F1 |
 
 Alle Werkzeuge erscheinen als Symbol; der Name und das Tastenkürzel stehen im

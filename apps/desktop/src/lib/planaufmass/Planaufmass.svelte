@@ -85,6 +85,36 @@
   // „Eigenschaften“ ohne Auswahl zeigt das Blatt (Unterlage, Maßstab, Höhenbezug) und die Prüf- und Ausgabefunktionen.
   const REITER=[["aufgaben","Aufgaben"],["objekte","Objekte"],["eigenschaften","Eigenschaften"]] as const;
   function panelOeffnen(id:string){panel=id}
+  // Optionsleiste: Name, Felder und nächster Schritt des aktiven Werkzeugs in einer Zeile über dem Plan.
+  const MARKIERUNGSWERKZEUGE=["polygon","rechteck","kreis","strecke","hoehenpunkt"];
+  const SONDERWERKZEUGE:Record<string,[string,string]>={hgstrecke:["kalibrieren","Hintergrund einpassen"],hgverschieben:["verschieben","Hintergrund verschieben"],hgdrehen:["verschieben","Hintergrund drehen"],bezug:["hoehenpunkt","Bezugshöhe setzen"]};
+  const werkzeugTitel=$derived(SONDERWERKZEUGE[werkzeug]?.[1]??werkzeuge.find(w=>w[0]===werkzeug)?.[1]??"Auswählen");
+  const werkzeugSymbol=$derived(SONDERWERKZEUGE[werkzeug]?.[0]??werkzeug);
+  const werkzeugSchritt=$derived.by(()=>{switch(werkzeug){
+    case "auswahl":return "";
+    case "polygon":return "Punkte setzen, Enter oder Klick auf den ersten Punkt schließt";
+    case "rechteck":return "Zwei gegenüberliegende Ecken";
+    case "kreis":return "Mittelpunkt, dann Radius";
+    case "strecke":return "Anfangs- und Endpunkt";
+    case "wand":case "masskette":return "Anfangs- und Endpunkt";
+    case "text":return "Einfügepunkt anklicken";
+    case "hoehenpunkt":return "Punkt anklicken";
+    case "symbol":return "Klick setzt das Planzeichen";
+    case "raumstempel":return planzeichen.raum?"Klick setzt den Raumstempel":"Zuerst einen Raum wählen";
+    case "oeffnung":return "In eine Wand klicken";
+    case "kopieren":return auswahlAnzahl?`Basispunkt, dann Zielpunkt · ${auswahlAnzahl} Objekt(e)`:"Zuerst Objekte wählen";
+    case "spiegeln":return auswahlAnzahl?"Zwei Punkte der Spiegelachse":"Zuerst Objekte wählen";
+    case "stutzen":return "Grenzkante mit zwei Punkten abgreifen";
+    case "kalibrieren":return "Anfang und Ende der Referenzstrecke";
+    case "bezug":return "Punkt mit der Bezugshöhe anklicken";
+    case "bezugslinie":return "Anfang und Ende der Bezugslinie";
+    case "kontrolle":return "Anfang und Ende einer bekannten Strecke";
+    case "ausschnitt":return "Zwei gegenüberliegende Ecken des Rahmens";
+    case "hgstrecke":return `Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken`;
+    case "hgverschieben":return "Punkt des Hintergrunds, dann Zielposition";
+    case "hgdrehen":return "Drehpunkt anklicken";
+    default:return "";
+  }});
   // Kopfleiste: Menüs „Prüfen“ und „Ausgabe“; ihre Werkzeugfenster schweben über dem Plan, der bedienbar bleibt.
   const FENSTERTITEL:Record<string,string>={baufenster:"Lage im Baufenster (§ 23 BauNVO)",vergleich:"Planstände vergleichen",planblatt:"Planblatt PDF (maßstäblich)"};
   let menue=$state(""),werkzeugfenster=$state<""|"baufenster"|"vergleich"|"planblatt">("");
@@ -889,16 +919,6 @@
         <span class="editorwerkzeuge">{@render editorwerkzeuge()}</span>
       </div>{/if}
       {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · W Wand · L Maßkette · X Text · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · F8 Ortho · Alt setzt Fang aus · Ziffern oder @ öffnen die Koordinateneingabe · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt bzw. wiederholt den letzten Befehl · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
-      {#if vorlage}<p role="status" class="hinweisbox schmal">Vorlage <strong>{vorlage.titel}</strong> ({bedeutungen.find(b=>b[0]===vorlage!.bedeutung)?.[1]}) auf Ebene „{aktiv?layer?.bezeichnung??vorlage.ebene:vorlage.ebene}“ · {vorlage.hinweis}. <button type="button" class="link" onclick={()=>{vorlage=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
-      {#if vorbelegung}<p role="status" class="hinweisbox schmal">Zeichnen für <strong>{vorbelegung.gruppe} · {vorbelegung.titel}</strong> ({bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}){vorbelegung.hinweis?` · ${vorbelegung.hinweis}`:""}. Bedeutung und Zuordnung werden gesetzt. <button type="button" class="link" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>Abbrechen</button></p>{/if}
-      {#if werkzeug==="hgstrecke"||werkzeug==="hgverschieben"||werkzeug==="hgdrehen"}<p role="status" class="hinweisbox schmal">{werkzeug==="hgstrecke"?`Auf dem Hintergrund Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken; der Hintergrund wird darauf skaliert.`:werkzeug==="hgverschieben"?"Einen Punkt des Hintergrunds und dann seine Zielposition anklicken.":`Den Drehpunkt anklicken; der Hintergrund dreht sich um ${z(hgWinkel)}°.`}</p>{/if}
-      {#if werkzeug==="symbol"||werkzeug==="raumstempel"||werkzeug==="oeffnung"}<div role="status" class="hinweisbox schmal planzeichenwahl">
-        {#if werkzeug==="symbol"}<label>Planzeichen<select bind:value={planzeichen.symbol}>{#each PLANSYMBOLE as [v,t]}<option value={v}>{t}</option>{/each}</select></label><span>Klick setzt das Planzeichen; Größe und Drehung unter Eigenschaften.</span>
-        {:else if werkzeug==="raumstempel"}<label>Raum<select bind:value={planzeichen.raum}><option value="">Raum wählen …</option>{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung} · {z(r.flaeche_m2)} m²</option>{/each}</optgroup>{/each}</select></label><span>{raumbuecher.length?"Nummer, Name und Fläche kommen bei jeder Anzeige aus dem Raumbuch.":"Noch kein Raumbuch: Berechnungen → Flächen- und Raumbuch anlegen."}</span>
-        {:else}<label>Öffnung<select bind:value={planzeichen.oeffnung}><option value="fenster">Fenster 1,01 m</option><option value="tuer">Tür 0,885 m</option></select></label><span>In eine Wand klicken; Lage, Breite und Anschlag unter Eigenschaften.</span>{/if}
-      </div>{/if}
-      {#if werkzeug==="kopieren"||werkzeug==="spiegeln"||werkzeug==="stutzen"}<p role="status" class="hinweisbox schmal">{werkzeug==="kopieren"?`Basispunkt und Zielpunkt anklicken (Ziffern öffnen die Maßeingabe); ${auswahlAnzahl} Objekt(e) werden kopiert.`:werkzeug==="spiegeln"?`Zwei Punkte der Spiegelachse anklicken; ${konstruktion.spiegelKopie?"das Original bleibt erhalten":"das Original wird gespiegelt"} (umschaltbar unter Eigenschaften → Konstruieren).`:"Grenzkante mit zwei Punkten abgreifen (Fang an Kanten und Endpunkten). Gewählte Strecken, Wände und Maßketten enden dann an dieser Kante: zu lange werden gekürzt, zu kurze verlängert."}</p>{/if}
-      {#if werkzeug==="kalibrieren"||werkzeug==="bezug"||werkzeug==="bezugslinie"||werkzeug==="ausschnitt"||werkzeug==="kontrolle"}<p role="status" class="hinweisbox schmal">{werkzeug==="kalibrieren"?`Anfang und Ende der bekannten Referenzstrecke (${z(referenz)} m) anklicken.`:werkzeug==="bezug"?`Den Punkt mit der Bezugshöhe ${z(hwert)} ${hsystem} auf der Unterlage anklicken.`:werkzeug==="bezugslinie"?`Bezugslinie (z. B. ±0,00) anklicken: Anfang und Ende der Linie; Höhe ${z(hwert)} ${hsystem}.`:werkzeug==="kontrolle"?`Anfang und Ende einer bekannten Strecke (${z(kontrollMeter)} m) anklicken; die Abweichung erscheint unter „Blatt und Einrichtung“.`:"Rahmen um die Zeichnung aufziehen: zwei gegenüberliegende Ecken anklicken."}</p>{/if}
       <div class="arbeitsplatz">
         <div class="werkzeugleiste" role="toolbar" aria-label="PDF-Zeichenwerkzeuge" aria-orientation="vertical">
           {#each werkzeuggruppen as gruppe,gi}
@@ -913,9 +933,30 @@
           <Symbolknopf titel={auswahlElemente.length&&!m?"Element entfernen":"Markierung entfernen"} kuerzel="Entf" tip="rechts" disabled={auswahlElemente.length&&!m?(!darf||s.laeuft):(!m||objektGesperrt)} onclick={()=>auswahlElemente.length&&!m?elementEntfernen():entfernen()}><WerkzeugIcon art="entfernen"/></Symbolknopf>
         </div>
         <div class="flaeche">
-          <div class="pfad" aria-label="Arbeitsbereich">
-            <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{istZeichnung?"Eigene Zeichnung (Meter)":`${aktuelleDatei?.file_name??"Unterlage"}${istDxfUnterlage?"":` › Blatt ${p.seite}`}`}</button>
-            {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{#if aktueller.bezugslinie}<span class="meta">· Bezug {z(aktueller.bezugslinie.hoehe_m)} {aktueller.bezugslinie.system}</span>{/if}{/if}
+          <div class="optionsleiste" role="toolbar" aria-label="Optionen des Werkzeugs">
+            <span class="wzname"><WerkzeugIcon art={werkzeugSymbol}/>{werkzeugTitel}</span>
+            {#if vorlage}<span role="status" class="chip">Vorlage {vorlage.titel} · {bedeutungen.find(b=>b[0]===vorlage!.bedeutung)?.[1]} · Ebene „{aktiv?layer?.bezeichnung??vorlage.ebene:vorlage.ebene}“<button type="button" class="link" title="Vorlage abbrechen" onclick={()=>{vorlage=null;werkzeug="auswahl"}}>✕</button></span>
+            {:else if vorbelegung}<span role="status" class="chip" title={vorbelegung.hinweis||undefined}>Für {vorbelegung.gruppe} · {vorbelegung.titel} · {bedeutungen.find(b=>b[0]===vorbelegung!.bedeutung)?.[1]}<button type="button" class="link" title="Aufgabe abbrechen" onclick={()=>{vorbelegung=null;werkzeug="auswahl"}}>✕</button></span>
+            {:else if MARKIERUNGSWERKZEUGE.includes(werkzeug)}
+              <label>Bedeutung<select aria-label="Bedeutung neuer Markierungen" bind:value={standardBedeutung}>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
+              {#if gebaeude.length}<label>Gebäude<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>–</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>{/if}
+              {#if standardGebaeude}<label>Geschoss<select aria-label="Geschoss neuer Markierungen" bind:value={standardGeschoss}><option value={null}>–</option>{#each gebaeude.find(g=>g.objekt===standardGebaeude)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
+            {/if}
+            {#if werkzeug==="wand"}<label>Dicke (m)<input class="zahl" type="number" min=".01" max="10" step=".01" aria-label="Dicke neuer Wände" bind:value={wanddicke}/></label>
+            {:else if werkzeug==="symbol"}<label>Planzeichen<select bind:value={planzeichen.symbol}>{#each PLANSYMBOLE as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+            {:else if werkzeug==="raumstempel"}<label>Raum<select bind:value={planzeichen.raum}><option value="">Raum wählen …</option>{#each raumbuecher as rb (rb.objekt)}<optgroup label={rb.daten.bezeichnung}>{#each rb.daten.raeume as r (r.id)}<option value={`${rb.objekt}|${r.id}`}>{r.nummer} {r.bezeichnung} · {z(r.flaeche_m2)} m²</option>{/each}</optgroup>{/each}</select></label>
+            {:else if werkzeug==="oeffnung"}<label>Öffnung<select bind:value={planzeichen.oeffnung}><option value="fenster">Fenster 1,01 m</option><option value="tuer">Tür 0,885 m</option></select></label>
+            {:else if werkzeug==="spiegeln"}<label class="haken"><input type="checkbox" bind:checked={konstruktion.spiegelKopie}/>Original behalten</label>
+            {:else if werkzeug==="kalibrieren"}<label>Referenz (m)<input class="zahl" type="number" min=".001" step="any" aria-label="Länge der Referenzstrecke" bind:value={referenz}/></label>
+            {:else if werkzeug==="bezug"||werkzeug==="bezugslinie"}<label>Höhe (m)<input class="zahl" type="number" step="any" aria-label="Höhe des Bezugs" bind:value={hwert}/></label><label>System<input class="kurz" aria-label="Höhensystem des Bezugs" bind:value={hsystem}/></label>
+            {:else if werkzeug==="kontrolle"}<label>Soll (m)<input class="zahl" type="number" min=".001" step="any" aria-label="Länge der Kontrollstrecke" bind:value={kontrollMeter}/></label>
+            {:else if werkzeug==="hgstrecke"}<label>Strecke (m)<input class="zahl" type="number" min=".001" step="any" aria-label="Bekannte Strecke des Hintergrunds" bind:value={hgStrecke}/></label>
+            {:else if werkzeug==="hgdrehen"}<label>Winkel (°)<input class="zahl" type="number" step="any" aria-label="Drehwinkel des Hintergrunds" bind:value={hgWinkel}/></label>{/if}
+            {#if werkzeugSchritt}<span class="schritt" role="status">{werkzeugSchritt}</span>{/if}
+            <span class="pfad" aria-label="Arbeitsbereich">
+              <button type="button" class="link" disabled={!aktiv} onclick={schliessen}>{istZeichnung?"Eigene Zeichnung (Meter)":`${aktuelleDatei?.file_name??"Unterlage"}${istDxfUnterlage?"":` › Blatt ${p.seite}`}`}</button>
+              {#if aktueller}<span aria-hidden="true">›</span><strong>{aktueller.bezeichnung}</strong>{#if aktueller.bezugslinie}<span class="meta">· Bezug {z(aktueller.bezugslinie.hoehe_m)} {aktueller.bezugslinie.system}</span>{/if}{/if}
+            </span>
             <label class="befehlszeile"><span>Befehl</span><input bind:this={befehlFeld} bind:value={befehl} list="cad-befehle" autocomplete="off" spellcheck="false" disabled={!darf||s.laeuft}
               placeholder={letzterBefehl?`Enter wiederholt „${letzterBefehl}“`:"F2 · z. B. L, PL, KO, SP, VS 0,5, RH 4 1,2 0"} aria-label="Befehlszeile"
               onkeydown={e=>{if(e.key==="Enter"){e.preventDefault();const t=befehl||letzterBefehl;befehl="";befehlAusfuehren(t);plan?.fokus()}else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();befehl="";plan?.fokus()}}}/></label>
@@ -1082,15 +1123,10 @@
           {#if panel==="aufgaben"}<section class="palette" aria-label="Aufgaben">
             <div class="palettenkopf"><h3>Aufgaben</h3></div>
             {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
-            <details><summary>Voreinstellung für freie Markierungen</summary><fieldset disabled={!darf}>
-              <label>Bedeutung neuer Markierungen<select aria-label="Bedeutung neuer Markierungen" bind:value={standardBedeutung}>{#each bedeutungen as [id,t]}<option value={id}>{t}</option>{/each}</select></label>
-              <label>Gebäude neuer Markierungen<select aria-label="Gebäude neuer Markierungen" bind:value={standardGebaeude} onchange={()=>standardGeschoss=null}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
-              {#if standardGebaeude}<label>Geschoss neuer Markierungen<select aria-label="Geschoss neuer Markierungen" bind:value={standardGeschoss}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===standardGebaeude)?.daten.geschosse??[] as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
-            </fieldset></details>
           </section>
           <section class="palette" aria-label="Werkzeugkiste">
             <div class="palettenkopf"><h3>Werkzeugkiste</h3> <span class="meta">· Vorlagen mit Bedeutung und Ebene</span></div>
-            <p class="meta">Ein Klick wählt Werkzeug, Bedeutung, Namen und Zeichenebene der nächsten Markierung; Gebäude und Geschoss kommen aus der Voreinstellung unter „Aufgaben“.</p>
+            <p class="meta">Ein Klick wählt Werkzeug, Bedeutung, Namen und Zeichenebene der nächsten Markierung; Gebäude und Geschoss kommen aus der Optionsleiste über dem Plan.</p>
             {#each vorlagenGruppen as [gruppe,liste] (gruppe)}
               <h4>{gruppe}</h4>
               <div class="vorlagen" role="group" aria-label={`Vorlagen ${gruppe}`}>
@@ -1299,11 +1335,10 @@
   .editor.vollbild{position:fixed;inset:0;z-index:40;height:auto;border:0}
   .vollbildleiste{display:flex;gap:8px;align-items:center;padding:4px 8px;background:var(--kopfzeile);border-bottom:1px solid var(--border)}
   .vollbildleiste .editorwerkzeuge{display:inline-flex;gap:2px;align-items:center;margin-left:auto}
-  .werkzeugleiste :global(svg),.pfad :global(svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .werkzeugleiste :global(svg),.optionsleiste :global(svg){width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   .trenner{width:1px;height:20px;background:var(--border);margin:0 5px}
   .kurzbefehle{border-bottom:1px solid var(--border);padding:.4rem .8rem;background:var(--leiste)}
   .kurzbefehle p{margin:.3rem 0;font-size:.85rem}
-  .hinweisbox.schmal{margin:0;border-left:0;border-right:0;border-top:0}
   .arbeitsplatz{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) 320px;flex:1;min-height:0}
   .werkzeugleiste{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:2px;padding:6px 4px;background:var(--kopfzeile);border-right:1px solid var(--border);overflow:auto}
   .gruppentrenner{width:20px;border-top:1px solid var(--border);margin:4px 0}
@@ -1311,9 +1346,19 @@
   .flaeche > :global(.pdf-plan){flex:1;min-height:0}
   .befehlszeile{margin-left:auto;display:flex;gap:.3rem;align-items:center;color:var(--muted)}
   .befehlszeile input{width:16rem;min-height:22px;padding:0 .4rem;font-family:ui-monospace,monospace;font-size:.82rem}
-  .pfad{flex:none;display:flex;gap:.4rem;align-items:center;padding:2px 10px;min-height:26px;background:var(--leiste);border-bottom:1px solid var(--border-innen);font-size:.85rem;white-space:nowrap;overflow:hidden}
-  .pfad .link{min-height:20px;padding:0;color:var(--muted)}
-  .pfad .link:disabled{color:var(--muted);background:transparent}
+  .optionsleiste{flex:none;display:flex;gap:.6rem;align-items:center;padding:2px 10px;min-height:32px;background:var(--leiste);border-bottom:1px solid var(--border-innen);font-size:.85rem;white-space:nowrap;overflow:hidden}
+  .optionsleiste .wzname{display:flex;gap:.35rem;align-items:center;font-weight:600;padding-right:.6rem;border-right:1px solid var(--border-innen)}
+  .optionsleiste label{display:flex;gap:.3rem;align-items:center;color:var(--muted)}
+  .optionsleiste select,.optionsleiste input{min-height:24px;padding:1px 4px;color:var(--fg);font-size:.85rem}
+  .optionsleiste select{max-width:14rem}
+  .optionsleiste input.zahl{width:5.5rem}
+  .optionsleiste input.kurz{width:6rem}
+  .optionsleiste .chip{display:inline-flex;gap:.4rem;align-items:center;padding:1px 8px;border:1px solid var(--accent);color:var(--accent);background:var(--panel);border-radius:2px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .optionsleiste .chip .link{min-height:0;padding:0 2px}
+  .optionsleiste .schritt{color:var(--muted);font-style:italic;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .optionsleiste .pfad{margin-left:auto;display:flex;gap:.4rem;align-items:center;min-width:0;overflow:hidden}
+  .optionsleiste .pfad .link{min-height:20px;padding:0;color:var(--muted)}
+  .optionsleiste .pfad .link:disabled{color:var(--muted);background:transparent}
   .betrachtung{margin:0;border-left:0;border-right:0;border-top:0}
   .leer{padding:2rem;text-align:center}
   .flaeche > .fehlertext{margin:0;padding:4px 10px;border-top:1px solid var(--border)}
@@ -1332,7 +1377,7 @@
   .menueliste button{border:0;border-radius:0;background:transparent;text-align:left;padding:6px 12px;min-height:0;font-weight:400;color:var(--fg)}
   .menueliste button:hover:not(:disabled),.menueliste button:focus-visible{background:var(--auswahl,var(--kopfzeile))}
   .menuehaken{display:flex;gap:.4rem;align-items:center;padding:6px 12px;border-top:1px solid var(--border-innen);margin-top:4px;font-size:.85rem}
-  .werkzeugfenster{position:absolute;top:8px;right:328px;z-index:20;width:min(360px,60%);max-height:calc(100% - 16px);overflow:auto;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18);padding:0 10px 10px;display:grid;gap:.5rem}
+  .werkzeugfenster{position:absolute;top:56px;right:328px;z-index:20;width:min(360px,60%);max-height:calc(100% - 64px);overflow:auto;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18);padding:0 10px 10px;display:grid;gap:.5rem}
   .werkzeugfenster label:not(:has(> input[type=checkbox])){display:flex;flex-direction:column;gap:2px;font-size:.85rem;color:var(--muted)}
   .werkzeugfenster label input:not([type=checkbox]),.werkzeugfenster label select{width:100%;min-height:28px}
   .palettenkopf .kopflink{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:.8rem;white-space:nowrap}
@@ -1357,8 +1402,6 @@
   .objektzeile{display:flex;gap:.4rem;align-items:center;content-visibility:auto;contain-intrinsic-size:auto 48px}
   .objektzeile button{flex:1}
   .mehrfach{padding:.5rem;border:1px solid var(--border);margin:.5rem 0}
-  .planzeichenwahl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
-  .planzeichenwahl label{display:flex;gap:.3rem;align-items:center}
   /* Öffnungen als zweizeilige Gruppen: passen in die Palettenbreite, nichts wird abgeschnitten. */
   .oeffnungen{display:grid;gap:.4rem}
   .oeffnung{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:.3rem .4rem;align-items:end;padding:.35rem .4rem;border:1px solid var(--border-innen);background:var(--leiste)}

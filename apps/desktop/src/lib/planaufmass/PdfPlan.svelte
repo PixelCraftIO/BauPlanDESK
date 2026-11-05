@@ -656,6 +656,7 @@
   const eingabePos=$derived(cursor?boxPunkt(cursor):null);
 </script>
 
+<svelte:window onkeydown={e=>{if(e.key==="Escape"&&fangOffen){fangOffen=false;e.stopPropagation()}}} onpointerdown={e=>{if(fangOffen&&!(e.target as Element).closest?.(".fangwahl"))fangOffen=false}}/>
 <div class="pdf-plan">
   <div class="plan-kopf" role="toolbar" aria-label="Ansicht">
     <Symbolknopf titel="Verkleinern" disabled={!bereit} onclick={()=>zoomMitte(1/1.25)}><WerkzeugIcon art="minus"/></Symbolknopf>
@@ -671,14 +672,16 @@
     {#if seitenzahl>1}<Symbolknopf titel={`Seiten (${seitenzahl})`} aktiv={miniaturen} onclick={()=>miniaturen=!miniaturen}><WerkzeugIcon art="seiten"/></Symbolknopf>{/if}
     <span class="trenner" aria-hidden="true"></span>
     <label class="fangschalter" class:aktiv={fang} title="Punktfang"><input type="checkbox" bind:checked={fang}/><WerkzeugIcon art="fang"/><span>Punktfang</span></label>
-    <button type="button" class="sekundaer text" aria-expanded={fangOffen} onclick={()=>fangOffen=!fangOffen}>Fangoptionen</button>
+    <span class="fangwahl">
+      <button type="button" class="sekundaer text" aria-expanded={fangOffen} onclick={()=>fangOffen=!fangOffen}>Fangoptionen ▾</button>
+      {#if fangOffen}<div class="fangoptionen" role="group" aria-label="Fangoptionen">
+    {#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"],["eigene","Eigene Konturen"],["lot","Lot"],["verlaengerung","Verlängerung"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}
+      </div>{/if}
+    </span>
     <label class="fangschalter" class:aktiv={ortho} title="Ortho (F8)"><input type="checkbox" bind:checked={ortho}/><span>Ortho</span></label>
     <label class="winkelraster" title="Winkelraster beim Zeichnen">Winkel<select bind:value={winkelraster} aria-label="Winkelraster">{#each [[0,"frei"],[15,"15°"],[30,"30°"],[45,"45°"],[90,"90°"]] as [w,t]}<option value={w}>{t}</option>{/each}</select></label>
     {#if punkte.length}<span class="trenner" aria-hidden="true"></span><button type="button" class="text" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer text" onclick={()=>punkte=[]}>Abbrechen</button>{/if}
   </div>
-  {#if fangOffen}<div class="fangoptionen" aria-label="Fangoptionen">
-    {#each [["endpunkte","Endpunkte"],["mittelpunkte","Mittelpunkte"],["kanten","Kanten"],["schnittpunkte","Schnittpunkte"],["eigene","Eigene Konturen"],["lot","Lot"],["verlaengerung","Verlängerung"]] as [id,titel]}<label><input type="checkbox" checked={fangoptionen[id as keyof Fangoptionen]} onchange={e=>fangoptionen={...fangoptionen,[id]:e.currentTarget.checked}}/>{titel}</label>{/each}
-  </div>{/if}
   <div class="plan-koerper">
     {#if miniaturen&&seitenzahl>1}
       <nav class="seitenleiste" aria-label="Seiten der Unterlage">
@@ -853,7 +856,8 @@
   .fangschalter :global(svg){display:none}
   .winkelraster{display:inline-flex;gap:4px;align-items:center;font-size:.85rem;color:var(--muted);margin-left:4px}
   .winkelraster select{min-height:24px;padding:0 4px;font-size:.85rem}
-  .fangoptionen{display:flex;flex-wrap:wrap;gap:.7rem;padding:4px 8px;font-size:.85rem;background:var(--kopfzeile);border-bottom:1px solid var(--border-innen)}
+  .fangwahl{position:relative;display:inline-flex}
+  .fangoptionen{position:absolute;top:calc(100% + 2px);left:0;z-index:25;display:flex;flex-direction:column;gap:.35rem;padding:8px 12px;font-size:.85rem;white-space:nowrap;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18)}
   .fangoptionen label{display:flex;gap:.3rem;align-items:center}
   .vergleich{pointer-events:none;mix-blend-mode:multiply;transform-origin:0 0}
   .plan-koerper{display:flex;flex:1;min-height:0}
