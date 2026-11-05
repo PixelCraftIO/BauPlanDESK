@@ -82,6 +82,33 @@ with sync_playwright() as p:
  expect(nav.locator('.navigationseintrag.nichtbenoetigt')).to_have_count(0)
  # Pflichtbereich mit Daten bietet die Kennzeichnung nicht an.
  expect(nav.get_by_role('button',name='Rechtsgrundlagen: Weitere Aktionen',exact=True)).to_have_count(0)
+ # Statussymbole von Zweigen und Bereichen stehen in einer bündigen Spalte;
+ # lange Bereichsnamen brechen nicht um, nichts ragt waagrecht heraus.
+ rechts=page.evaluate("()=>[...document.querySelectorAll('.projekt-sitzung:not([hidden]) .projektbaum :is(.statussymbol,.statusplatz)')].map(e=>Math.round(e.getBoundingClientRect().right))")
+ assert len(rechts)>20 and len(set(rechts))==1,rechts
+ for name in ['Planfestsetzungen','Wohnflächenberechnung','Fachplaner / Lieferungen','Überbaubare Grundstücksfläche']:
+  knopf=nav.locator('.navigationseintrag').filter(has_text=name).first.locator('button').first
+  assert knopf.evaluate("e=>{const r=document.createRange();r.selectNodeContents(e);const z=[...r.getClientRects()];return z.every(x=>Math.abs(x.top-z[0].top)<4)}"),name
+ leiste=page.locator('.projekt-sitzung:visible .aktennavigation')
+ assert leiste.evaluate('e=>e.scrollWidth<=e.clientWidth'),'Projektnavigation scrollt waagrecht'
+ # Breite per Ziehen, Pfeiltaste und Doppelklick; bleibt nach Neuladen gemerkt.
+ griff=page.locator('.projekt-sitzung:visible').get_by_role('separator',name='Breite der Projektnavigation')
+ breite=lambda:round(leiste.bounding_box()['width'])
+ assert breite()==300,breite()
+ g=griff.bounding_box();page.mouse.move(g['x']+3,g['y']+200);page.mouse.down();page.mouse.move(g['x']+83,g['y']+200,steps=4);page.mouse.up()
+ assert breite()==380,breite()
+ griff.focus();page.keyboard.press('ArrowLeft')
+ assert breite()==364,breite()
+ assert page.evaluate("localStorage.getItem('bauplan.navbreite')")=='364'
+ g=griff.bounding_box();page.mouse.move(g['x']+3,g['y']+200);page.mouse.down();page.mouse.move(g['x']-500,g['y']+200,steps=4);page.mouse.up()
+ assert breite()==220,breite()
+ assert leiste.evaluate('e=>e.scrollWidth<=e.clientWidth'),'schmale Projektnavigation scrollt waagrecht'
+ page.screenshot(path=str(out/'navigation-schmal.png'))
+ griff.dblclick()
+ assert breite()==300,breite()
+ griff.focus();page.keyboard.press('ArrowRight')
+ page.reload();page.locator('.projekttabelle').get_by_role('button',name=fixture['name'],exact=True).click()
+ assert round(page.locator('.projekt-sitzung:visible .aktennavigation').bounding_box()['width'])==316
  browser.close()
 assert not errors,errors
-print('Projektbaum: Statusschema mit sechs Symbolen, Zweigsymbole, Legende, Statuszeile, Nur offene und nicht benötigt geprüft.')
+print('Projektbaum: Statusschema mit sechs Symbolen, Zweigsymbole, Legende, Statuszeile, Nur offene, nicht benötigt, bündige Symbolspalte und verstellbare Breite geprüft.')

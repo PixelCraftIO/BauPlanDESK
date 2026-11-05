@@ -389,7 +389,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    flex-wrap: wrap;
+    gap: 2px 0.5rem;
     padding: 2px 10px 4px;
     font-weight: 600;
     border-bottom: 1px solid var(--border-innen);
@@ -453,10 +454,12 @@
     font-weight: 600;
     text-decoration: underline;
   }
+  /* Statussymbole stehen in einer bündigen Spalte: Zweige und Bereiche
+     haben denselben Abstand zum rechten Rand (wie `.rechts` im Eintrag). */
   .zweigsymbol {
     margin-left: auto;
-    padding-right: 4px;
     display: inline-flex;
+    flex: none;
   }
   .baumkopf .link {
     white-space: nowrap;
@@ -489,6 +492,7 @@
     gap: 4px;
     width: 100%;
     padding-left: 4px;
+    padding-right: 2px;
     color: var(--muted);
     font-weight: 600;
   }
