@@ -124,7 +124,12 @@ Der Abstandsflächennachweis führt mit „Vorheriger Schritt“ / „Nächster
 Schritt“ durch die Reiter **Grundlagen → Gebäudeumriss → Wände / Bauteile →
 Lagepläne / Grenzen → Sonderfälle / Sicherungen → Prüfbericht**.
 
-1. Grundlagen: Gemeinde, konkrete LBO-Fassung, Baugebiet, Anwendbarkeit.
+1. Grundlagen: Gemeinde, Baugebiet, Anwendbarkeit. Unter **Rechtsgrundlage**
+   schlägt die App die Fassung der Landesbauordnung vor, die am Stichtag
+   (in der Regel Eingang des Bauantrags) gilt; jede Fassung ist eine eigene
+   Regeldatei. Ein Wechsel zeigt vorher den Vergleich je Wand. Solange das Büro
+   eine Regeldatei nicht fachlich freigegeben hat, trägt jeder Nachweis den
+   Hinweis „Regelwerk fachlich nicht freigegeben“.
 2. Gebäudeumriss mit Eckpunkten in Umlaufrichtung; „Seiten als Wände
    übernehmen“ erzeugt die Wände.
 3. Je Wand Gelände- und Wandabschluss, Dachanteile und Bauteile; die
@@ -133,6 +138,52 @@ Lagepläne / Grenzen → Sonderfälle / Sicherungen → Prüfbericht**.
 4. Grundstücksgrenzen und Nachbargebäude im selben Koordinatenbezug.
 5. Sonderfälle und rechtliche Sicherungen (Baulast, Übernahme) mit Belegen.
 6. Berechnen, Konflikte in Tabelle und Plan prüfen, Nachweis erstellen.
+
+#### Wände im Lageplan und in den Ansichten zeichnen
+
+Statt Koordinaten zu tippen, lassen sich die Wände im Zeicheneditor zeichnen:
+
+1. **Lageplan:** am Werkzeug „Strecke / Dach“ die Vorlage **Abstandsfläche**
+   wählen und je Außenwand eine Linie entlang der Außenkante ziehen. Die Linien
+   heißen A1, A2 … Im selben Plan die Flurstücke zuordnen; ein Vorhabenumriss
+   zeigt, nach welcher Seite die Fläche klappt.
+2. **Ansicht oder Schnitt** (Ausschnitt mit Maßstab und Bezugslinie): die
+   gleichnamige Linie zwischen den Gebäudekanten ziehen, vom Wandanfang zum
+   Wandende. Bei übersichtlichen Vorhaben genügt die Linie in der Ansicht; die
+   Breite kommt dann aus der Ansicht, und der Abstand zur Grenze wird als
+   Angabe des Planers eingetragen.
+3. **Höhen** in derselben Ansicht über der Linie zeichnen: Gelände (Punkte oder
+   Geländelinie), Abgrabung, Traufe als Schnittlinie der Dachhaut, Attika,
+   First, Dachneigung, Wandteilgrenze und Gaube. Die waagerechte Lage bestimmt
+   die Stelle an der Wand, die Höhe kommt von der Bezugslinie. Abgrabungen
+   zählen für die Wandhöhe nicht.
+4. Im Abstandsflächennachweis unter **Wände / Bauteile → Abstandsflächen aus
+   Lageplan und Ansichten** das Aufmaß wählen und **Linien übernehmen**. Jede
+   Linie wird eine Wand; Lage, Breite und Höhen sind danach gesperrt und
+   bleiben an die Zeichnung gebunden. Nach Änderungen im Plan **Linien
+   aktualisieren**. „Im Lageplan zeigen“ und „In der Ansicht zeigen“ springen
+   zur Linie im Editor.
+
+![Linien aus dem Lageplan](bilder/abstand-linien-lageplan.png)
+
+![Höhen aus der Ansicht](bilder/abstand-hoehen-ansicht.png)
+
+Weicht die Breite in der Ansicht mehr als 5 cm bzw. 1 % vom Lageplan ab,
+nennt der Prüfbericht beide Werte. Die Toleranz steht in
+`regelwerke/aufmass-toleranzen.json`.
+
+#### Abstandsflächenplan auf dem Lageplan
+
+Stammen Wände aus Linien im Lageplan, erzeugt **Abstandsflächenplan auf dem
+Lageplan (PDF)** unter dem Ergebnis aus dem archivierten Nachweisstand ein
+Blatt für den Bauantrag: die unveränderte Lageplanseite mit den
+Abstandsflächen (blau), Flächen jenseits der Grenze (rot) und Überdeckungen
+(violett), jede Wand beschriftet mit „A1 · H … m · T … m“. Ein zweites Blatt
+nennt Quellen, Regeldatei und je Wand Höhe, Tiefe, Fläche und Ergebnis.
+
+![Abstandsflächenplan auf dem Lageplan](bilder/abstand-plan-lageplan.png)
+
+Ausführlich mit allen Regeln: `docs/abstandsflaechen/README.md`.
 
 ## Nachweisstände und Freigaben
 
