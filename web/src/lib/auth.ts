@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins";
+import { oeffentlicheAdressen } from "./adresse";
 
 // Anmeldung mit Better Auth. Konten liegen in einer SQLite-Datei
 // (BAUPLANIO_DATENBANK, im Container auf einem Volume unter /data).
@@ -18,8 +19,11 @@ function erzeugeOptionen() {
   const datenbank = new Database(datei);
   datenbank.pragma("journal_mode = WAL");
 
+  const { baseURL, trustedOrigins } = oeffentlicheAdressen(process.env.BETTER_AUTH_URL);
+
   return {
     appName: "BauPlanIO",
+    ...(baseURL ? { baseURL, trustedOrigins } : {}),
     database: datenbank,
     emailAndPassword: {
       enabled: true,
