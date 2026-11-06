@@ -711,3 +711,70 @@ fn projektabgleich_meldet_abweichendes_baugebiet_nur_ab_stand_3() {
     projektabgleich(&p, &recht, &mut wiederholt);
     assert_eq!(wiederholt, alt);
 }
+/// Rechenbeispiel „Aufschüttung und Abgrabung“ aus dem Benutzerhandbuch
+/// (Kapitel 6, docs/handbuch/benutzerhandbuch/06-nachweise.md). Wand 12 m,
+/// Oberkante +10,00; Bestand steigt von +1,00 auf +4,00; geplant: Kuppe
+/// +5,00 → +4,00 bis 5,25 m, Sprung auf +1,00, eben bis 9,25 m, Böschung
+/// bis +2,75. Ändert sich ein Wert hier, das Handbuch mitziehen.
+#[test]
+fn handbuch_beispiel_aufschuettung_und_abgrabung() {
+    let bestand = |s: f64| 101. + 3. * s / 12.;
+    // Gelände je Variante (Station, Höhe) über NN 100 m; Sprung bei 5,25 m.
+    let a = vec![
+        (0., 105.),
+        (5.25, 104.),
+        (5.25, 101.),
+        (9.25, 101.),
+        (12., 102.75),
+    ];
+    let b = vec![
+        (0., 105.),
+        (5.25, 104.),
+        (5.25, bestand(5.25)),
+        (9.25, bestand(9.25)),
+        (12., bestand(12.)),
+    ];
+    let c = vec![
+        (0., bestand(0.)),
+        (5.25, bestand(5.25)),
+        (5.25, 101.),
+        (9.25, 101.),
+        (12., 102.75),
+    ];
+    let rechne = |g: &[(f64, f64)], grenzen: Vec<f64>| {
+        let mut p = profilplan(g, &[(0., 110.), (12., 110.)]);
+        p.waende[0].bis = punkt(17., 5.);
+        p.waende[0].wandteilgrenzen = grenzen;
+        let w = berechnen(&p).unwrap().waende.remove(0);
+        w.wandteile
+            .iter()
+            .map(|t| ((t.wandhoehe_m * 100.).round() / 100., t.tiefe_m.unwrap()))
+            .collect::<Vec<_>>()
+    };
+    let nah = |ist: Vec<(f64, f64)>, soll: &[(f64, f64)]| {
+        assert_eq!(ist.len(), soll.len(), "{ist:?}");
+        for (i, s) in ist.iter().zip(soll) {
+            assert!(
+                (i.0 - s.0).abs() < 0.006 && (i.1 - s.1).abs() < 0.006,
+                "{ist:?} ≠ {soll:?}"
+            );
+        }
+    };
+    // Ohne Wandteilgrenzen: Mittel der Kanten verdeckt den Sprung.
+    nah(rechne(&a, vec![]), &[(6.13, 3.)]);
+    let mut p = profilplan(&a, &[(0., 110.), (12., 110.)]);
+    p.waende[0].bis = punkt(17., 5.);
+    let w = berechnen(&p).unwrap().waende.remove(0);
+    assert!(
+        w.herleitung
+            .iter()
+            .any(|h| h.contains("um bis zu 3,016 m") && h.contains("(größte Wandhöhe 9 m)")),
+        "{:?}",
+        w.herleitung
+    );
+    // Mit Grenzen am Geländesprung und am Böschungsfuß.
+    let g = vec![5.25, 9.25];
+    nah(rechne(&a, g.clone()), &[(5.5, 3.), (9., 3.6), (8.13, 3.25)]);
+    nah(rechne(&b, g.clone()), &[(5.5, 3.), (7.19, 3.), (6.34, 3.)]);
+    nah(rechne(&c, g), &[(8.34, 3.3375), (9., 3.6), (8.13, 3.25)]);
+}

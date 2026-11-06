@@ -64,6 +64,7 @@
 | Abgabestand lässt sich nicht festhalten | Genannte Anforderungen, Abweichungen und Aktualität der Nachweise klären. |
 | Exportiert, aber nicht als eingereicht angezeigt | Im Portal absenden und den Beleg als Kommunikation/Übermittlung zuordnen. |
 | Speichern-Knopf deaktiviert | Rechte, Sperre durch andere Bearbeitung, laufende Aktion oder unveränderter Stand. |
+| Abstandsflächen: „Die Wandhöhe zwischen den Kanten weicht … vom gleichmäßigen Verlauf ab“ | Gelände springt oder knickt zwischen den Gebäudekanten. In der Ansicht Wandteilgrenzen am Sprung setzen und neu berechnen ([Rechenbeispiel](06-nachweise.md#rechenbeispiel-aufschüttung-und-abgrabung-bauo-nrw)). |
 | Formularbibliothek leer | Formularordner unter Einstellungen → Speicherorte prüfen und Vorlagen importieren. |
 
 Für eine Supportanfrage: Programmversion (Statusleiste), Bereich, genaue
@@ -96,6 +97,8 @@ oder Datenbank auf Verdacht löschen.
 | Portalbereitstellung | Exportierte Dateien für die manuelle Übergabe – noch kein Versand |
 | Versand / Eingang | Dokumentierte Übermittlung bzw. bestätigter Zugang |
 | Genehmigter Stand | Die im Bescheid ausdrücklich zugeordneten Versionen |
+| Wandteil | Abschnitt einer Außenwand mit eigener Wandhöhe und Abstandsflächentiefe; entsteht an einem Sprung der Oberkante oder an einer gezeichneten Wandteilgrenze |
+| Maßgebende Geländeoberfläche | Gelände, von dem die Wandhöhe gemessen wird: das genehmigte, sonst das natürliche (§ 2 Abs. 4 BauO NRW) |
 | IFC | Offenes Austauschformat für Gebäudemodelle (BIM), ISO 16739 |
 | Modellakte | Ein IFC-Modell im Projekt: Dokumentversion plus Prüfung, Nacharbeit und Übernahme |
 | GlobalId | Dauerhafte Kennung eines Elements im IFC-Modell; bleibt über neue Fassungen gleich |
