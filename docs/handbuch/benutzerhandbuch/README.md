@@ -8,8 +8,9 @@ Alle Bildschirmfotos stammen aus der echten Anwendung mit dem
 Beispielprojekt **„Neubau Einfamilienhaus Mustermann“** (Nordrhein-Westfalen,
 siehe [Kapitel 1](01-einstieg.md#das-beispielprojekt-in-diesem-handbuch)).
 
-**Stand:** 28.10.2026 · Programmstand `main` f5c4e8d (inkl. neuem Zeicheneditor,
-Abgleich von Hand- und Zeichnungswerten und IFC-Modellen).
+**Stand:** 06.11.2026 · Programmstand `main` 07db5da (inkl. Projektbaum mit
+Statussymbolen, aufgeräumtem Zeicheneditor und Abstandsflächen je Bundesland
+mit Rechenbeispiel zu Aufschüttung und Abgrabung).
 
 ## Inhalt
 
@@ -20,7 +21,7 @@ Abgleich von Hand- und Zeichnungswerten und IFC-Modellen).
 | 3 | [Büro einrichten](03-einrichtung.md) | Einstellungen, Büroangaben, Benutzer, Kunden, Formularbibliothek |
 | 4 | [Projekt anlegen und Grundlagen](04-projekt-grundlagen.md) | Neues Projekt, Stammdaten, Rechtsgrundlagen, B-Plan, Flurstücke |
 | 5 | [Unterlagen, Aufmaß und Gebäudemodell](05-ermittlung.md) | Projektdateien, Zeicheneditor, IFC-Modelle (BIM), Messwerte, Gebäude, Raumbuch |
-| 6 | [Berechnungen und Nachweise](06-nachweise.md) | Baugrundstück, GRZ/GFZ/BMZ, Fachberechnungen, Nachweisstände |
+| 6 | [Berechnungen und Nachweise](06-nachweise.md) | Baugrundstück, GRZ/GFZ/BMZ, Fachberechnungen, Abstandsflächen mit Rechenbeispiel, Nachweisstände |
 | 7 | [Formulare und Druckausgabe](07-formulare-druck.md) | PDF-Formulare ausfüllen, Berechnungsheft, Behördenausgabe |
 | 8 | [Verfahren und Einreichung](08-verfahren.md) | Verfahrensakte, Abgabestände, Portal, XBau, Bescheid, Bauausführung |
 | 9 | [Standard-Workflows](09-workflows.md) | Schritt-für-Schritt-Abläufe für die typischen Aufgaben |
@@ -80,3 +81,4 @@ und wird beim Ergänzen neuer Module ebenfalls gepflegt.
 | 28.10.2026 | main f5c4e8d | IFC-Modelle (BIM): neuer Abschnitt in Kapitel 5 mit 10 Bildschirmfotos (Modell öffnen, Ansicht, Prüfung, Nacharbeit, Auswertung, Übernahme, Abgleich, Export), Workflow 6, Hinweise in Kapitel 1 und 8, fünf neue Begriffe. Die Bildautomatik legt dafür das IFC-Testmodell in das Beispielprojekt (Szenen `ifc-modell-…`). |
 | 04.11.2026 | main 6fb8eac | Alle Bilder auf den aktuellen Programmstand neu aufgenommen. Sieben neue Bilder zum Zeicheneditor in Kapitel 5 (Aufgaben, Werkzeugkiste, Eigenschaften und Verwendung, eigene Zeichnung, Konstruieren, Darstellung, Planlayout); die Bildautomatik legt dafür die eigene Zeichnung „Entwurf Erdgeschoss“ im Beispielprojekt an (Szenen `editor-…`). |
 | 05.11.2026 | main b22b207 | Menüpunkt „Hilfe → Beispielprojekt öffnen“ entfallen: Kapitel 1 erklärt das Beispielprojekt nur noch als Grundlage der Bilder, Menütabelle in Kapitel 2 und Workflow 5 angepasst, Bild `arbeitsplatz-beispielprojekt-oeffnen.png` entfernt. Die Bildautomatik stellt das Archiv jetzt über „Sicherung und Wiederherstellung“ her. |
+| 06.11.2026 | main 07db5da | Alle Bilder auf den aktuellen Programmstand neu aufgenommen (Projektbaum mit Statussymbolen statt Register-Reitern, aufgeräumter Zeicheneditor). Kapitel 6: neues Rechenbeispiel „Aufschüttung und Abgrabung (BauO NRW)“ mit Abbildung (`scripts/handbuch-bilder/abstand_beispiel.py`); die Zahlen prüft der Test `handbuch_beispiel_aufschuettung_und_abgrabung`. |

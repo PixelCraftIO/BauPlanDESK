@@ -142,7 +142,10 @@ async function imAbschnitt(ueberschrift, knopf) {
 }
 /** Öffnet einen Reiter und rückt die Reiterleiste an den oberen Rand. */
 async function reiter(t) {
-  const e = finde(t, "[role=tab],button");
+  // Nicht den gleichnamigen Zweig im Projektbaum (z. B. „Verfahren“) treffen.
+  const e = [...document.querySelectorAll("[role=tab],button")]
+    .filter((x) => sichtbar(x) && !x.closest(".aktennavigation"))
+    .find((x) => txt(x) === t) || finde(t, "[role=tab]");
   if (!e) throw new Error("Reiter fehlt: " + t);
   e.click();
   await sleep(900);

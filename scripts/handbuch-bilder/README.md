@@ -75,3 +75,15 @@ Die Bilder `editor-…` erscheinen auch auf der Webseite (`web/src/lib/zeichened
 Hinweise: Szenen, die einen Formulareditor offen lassen, gehören ans Ende
 (beim Verlassen erscheint eine native Rückfrage, die spätere Bilder verdeckt).
 Die gelbe Leiste des Beispielprofils wird vor jedem Foto ausgeblendet.
+
+## Abbildung zum Rechenbeispiel Abstandsflächen
+
+`abstand_beispiel.py` zeichnet das Bild `abstand-beispiel-aufschuettung.png`
+(Kapitel 6, Rechenbeispiel „Aufschüttung und Abgrabung“) als SVG und rechnet
+es mit Chromium in PNG um; es braucht keine laufende App. Die Zahlen prüft der
+Test `handbuch_beispiel_aufschuettung_und_abgrabung` in
+`crates/core-lib/src/abstandsflaechen/tests.rs`.
+
+```sh
+BAUPROJEKT_CHROMIUM=/opt/pw-browsers/chromium python3 scripts/handbuch-bilder/abstand_beispiel.py
+```

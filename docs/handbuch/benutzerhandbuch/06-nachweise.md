@@ -183,6 +183,92 @@ nennt Quellen, Regeldatei und je Wand Höhe, Tiefe, Fläche und Ergebnis.
 
 ![Abstandsflächenplan auf dem Lageplan](bilder/abstand-plan-lageplan.png)
 
+#### Rechenbeispiel: Aufschüttung und Abgrabung (BauO NRW)
+
+Das Beispiel zeigt, wie eine veränderte Geländeoberfläche die Abstandsfläche
+einer Außenwand bestimmt und wie es in BauPlanIO eingegeben wird. Rechtsstand
+ist die BauO NRW 2018 in der Fassung ab 01.09.2026, Baugebiet WA
+(Tiefe 0,4 H, mindestens 3,00 m). Die Werte stammen aus einer Planskizze und
+sind gerundet; sie sind kein geprüfter Einzelfall.
+
+![Ansicht mit Bestand, geplantem Gelände und Wandteilen; darunter die Abstandsfläche](bilder/abstand-beispiel-aufschuettung.png)
+
+**Ausgangslage.** Die Wand ist 12,00 m lang, ihre Oberkante liegt durchgehend
+bei +10,00 (Flachdach oder Attika, kein Dachanteil). Das Bestandsgelände
+steigt gleichmäßig von +1,00 auf +4,00. Geplant sind:
+
+| Station | Stelle | Bestand | Geplant | Veränderung |
+| --- | --- | --- | --- | --- |
+| 0,00 m | linke Gebäudekante | +1,00 | +5,00 | Aufschüttung +4,00 |
+| 5,25 m | Geländesprung (Stützwand) | +2,31 | +4,00 oben / +1,00 unten | Aufschüttung +1,69 / Abgrabung −1,31 |
+| 9,25 m | Fuß der Böschung | +3,31 | +1,00 | Abgrabung −2,31 |
+| 12,00 m | rechte Gebäudekante | +4,00 | +2,75 | Abgrabung −1,25 |
+
+**Welche Geländeoberfläche zählt.** Maßgebend ist die Oberfläche aus der
+Baugenehmigung (§ 2 Abs. 4 BauO NRW); eine mitgenehmigte Aufschüttung oder
+Abgrabung zählt also. Ausnahme: Abgrabungen, die der Belichtung, dem Zugang
+oder der Zufahrt dienen, bleiben außer Betracht (§ 6 Abs. 4 Satz 6). Daraus
+ergeben sich drei Varianten:
+
+- **A:** Aufschüttung genehmigt, die Abgrabung dient keinem dieser Zwecke
+  (z. B. Gartengestaltung). Überall gilt das geplante Gelände.
+- **B:** Aufschüttung genehmigt, die Abgrabung dient der Belichtung oder dem
+  Zugang (Lichthof, Eingang Untergeschoss). Wo geplant tiefer als Bestand ist,
+  gilt der Bestand.
+- **C:** Aufschüttung nicht genehmigt, die Abgrabung zählt. Links gilt der
+  Bestand, rechts das abgegrabene Gelände.
+
+**Wandhöhe je Wandteil.** Die Wandhöhe H ist der Abstand vom Gelände bis zur
+Oberkante. Bei Wandteilen unterschiedlicher Höhe wird sie je Wandteil
+ermittelt, bei geneigtem Gelände als Mittel aus den Höhen an den Kanten des
+Wandteils (§ 6 Abs. 4 Satz 2 bis 5). Am Geländesprung steht die Wand links
+6,00 m und rechts 9,00 m hoch; deshalb wird die Wand am Sprung (5,25 m) und am
+Böschungsfuß (9,25 m) geteilt. Ohne diese Teilung bildet das Mittel der beiden
+Gebäudekanten den abgesenkten Bereich nicht ab.
+
+| Variante | Mittel der Gebäudekanten | Wandteil 0–5,25 m | Wandteil 5,25–9,25 m | Wandteil 9,25–12,00 m |
+| --- | --- | --- | --- | --- |
+| A | (5,00 + 7,25) / 2 = 6,13 → T 3,00 | (5,00 + 6,00) / 2 = 5,50 → T 3,00 | 9,00 → **T 3,60** | (9,00 + 7,25) / 2 = 8,13 → T 3,25 |
+| B | (5,00 + 6,00) / 2 = 5,50 → T 3,00 | 5,50 → T 3,00 | (7,69 + 6,69) / 2 = 7,19 → T 3,00 | (6,69 + 6,00) / 2 = 6,34 → T 3,00 |
+| C | (9,00 + 7,25) / 2 = 8,13 → T 3,25 | (9,00 + 7,69) / 2 = 8,34 → T 3,34 | 9,00 → **T 3,60** | 8,13 → T 3,25 |
+
+Alle Höhen in Metern; T = max(0,4 · H; 3,00 m).
+
+**Ergebnis.** Dient die abgesenkte Fläche der Belichtung oder dem Zugang
+(Variante B), genügen vor der ganzen Wand 3,00 m. Sonst wird das abgesenkte
+Mittelstück maßgebend: H = 9,00 m, Tiefe **3,60 m** auf 4,00 m Länge. Das
+Mittel der Gebäudekanten käme in Variante A nur auf 3,00 m.
+
+**So rechnet BauPlanIO das Beispiel.**
+
+1. In der Ansicht der Wand die Linie **Abstandsfläche** von Kante zu Kante
+   ziehen und die Oberkante als **Attika** (+10,00) abgreifen.
+2. Die Linie **Gelände** entlang der maßgebenden Oberfläche zeichnen, also je
+   nach Variante das geplante Gelände (A), ohne die privilegierte Abgrabung (B)
+   oder links den Bestand (C). Die Markierung **Abgrabung** erscheint nur in der
+   Herleitung als „nicht maßgebend“; welche Oberfläche gilt, entscheidet der
+   Planer mit dieser Linie.
+3. Am Geländesprung und am Böschungsfuß je eine **Wandteilgrenze** zeichnen.
+   BauPlanIO teilt eine Wand von selbst nur dort, wo die Oberkante springt,
+   nicht bei einem Sprung im Gelände.
+4. **Linien übernehmen** und berechnen. Der Prüfbericht zeigt je Wandteil die
+   Herleitung „im Mittel gemessene Wandhöhe aus den Kanten“ und die Tiefe;
+   in Variante A also 5,50 / 9,00 / 8,13 m und 3,00 / 3,60 / 3,25 m.
+
+Fehlen die Wandteilgrenzen, rechnet BauPlanIO mit dem Mittel der
+Gebäudekanten (Variante A: H 6,13 m, T 3,00 m) und schreibt den Hinweis
+„Die Wandhöhe zwischen den Kanten weicht um bis zu 3,016 m vom gleichmäßigen
+Verlauf ab (größte Wandhöhe 9 m). Wandteilung oder Ansatz fachlich prüfen.“
+Dieser Hinweis ist das Signal, Wandteilgrenzen zu setzen.
+
+> Zu klären bleibt im Einzelfall: Wozu dient die Abgrabung, und wird die
+> Aufschüttung mitgenehmigt? Die Bauaufsicht prüft nach § 8 Abs. 3, ob der
+> Nachbar Nachteile hat, etwa Einsicht von der aufgeschütteten Fläche.
+> Aufschüttung und Stützwand sind über 1 m hoch und begehbar; nahe an einer
+> Grenze brauchen sie eine eigene Abstandsfläche (§ 6 Abs. 1 Satz 2 Nr. 2).
+> Die Teilung am Geländesprung ist eine Auslegung des Wortlauts und vorab mit
+> der Bauaufsicht abzustimmen.
+
 Ausführlich mit allen Regeln: `docs/abstandsflaechen/README.md`.
 
 ## Nachweisstände und Freigaben
