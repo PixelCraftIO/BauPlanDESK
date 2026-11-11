@@ -37,6 +37,7 @@ fn markierung(id: Uuid, ebene: Uuid, g: Plangeometrie) -> Planmarkierung {
         flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
     }
 }
 

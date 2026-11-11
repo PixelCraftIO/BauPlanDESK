@@ -227,3 +227,136 @@ async fn veraltete_nachweise_werden_gesammelt_erneuert() {
     assert!(c.nachweise_erneuern(p.id, &ich).await.unwrap().is_empty());
     db.schliessen().await;
 }
+
+/// Räume führt allein das Raumbuch: Ändert sich dort ein Raum, folgen
+/// Wohnflächen und DIN 277 beim Erneuern, ohne dass die Zuordnungen der
+/// Berechnung verloren gehen.
+#[tokio::test]
+async fn berechnungen_folgen_dem_raumbuch() {
+    let (_dir, c, db, ich, p) = beispiel().await;
+    let buch = c
+        .fachobjekte(p.id, ObjektArt::Raumbuch)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|f| f.daten["bezeichnung"] == "Raumbuch Erdgeschoss")
+        .expect("Raumbuch Erdgeschoss");
+    let mut daten = buch.daten.clone();
+    let raum = daten["raeume"][0]["id"].as_str().unwrap().to_string();
+    daten["raeume"][0]["bezeichnung"] = json!("Wohnen und Essen");
+    c.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Raumbuch,
+        buch.objekt.parse().unwrap(),
+        buch.revision,
+        daten,
+        &ich,
+    )
+    .await
+    .unwrap();
+
+    let vorher = c.nachweise(p.id).await.unwrap();
+    let betroffen: Vec<_> = veraltet(&vorher)
+        .iter()
+        .map(|n| n.stand.bezeichnung.clone())
+        .collect();
+    assert!(
+        betroffen.iter().any(|b| b.contains("Wohnfl")),
+        "veraltet: {betroffen:?}"
+    );
+    let ergebnis = c.nachweise_erneuern(p.id, &ich).await.unwrap();
+    let offen: Vec<_> = ergebnis
+        .iter()
+        .filter(|e| e.neu.is_none())
+        .map(|e| (&e.bezeichnung, &e.grund))
+        .collect();
+    assert!(offen.is_empty(), "Nicht erneuert: {offen:?}");
+    assert!(veraltet(&c.nachweise(p.id).await.unwrap()).is_empty());
+
+    let wohnflaechen = c
+        .fachobjekte(p.id, ObjektArt::Wohnflaechen)
+        .await
+        .unwrap()
+        .remove(0);
+    let zeile = wohnflaechen.daten["eingaben"]["positionen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|z| z["id"] == raum.as_str())
+        .expect("Raum bleibt Position der Wohnflächenberechnung");
+    assert!(
+        zeile["raum"]
+            .as_str()
+            .unwrap()
+            .ends_with("Wohnen und Essen")
+    );
+    assert_eq!(zeile["wohnung"], "Wohnung 1 (Einfamilienhaus)");
+    assert!(
+        wohnflaechen.daten["eingaben"]["positionen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|z| z["id"] == "terrasse"),
+        "Eigene Positionen der Berechnung bleiben"
+    );
+    // Für Räume aus dem Raumbuch stellt der Zeicheneditor keine Messaufgabe mehr.
+    let aufmass = c
+        .fachobjekte(p.id, ObjektArt::Planaufmass)
+        .await
+        .unwrap()
+        .remove(0);
+    let plan: core_lib::planaufmass::Planaufmass = serde_json::from_value(aufmass.daten).unwrap();
+    let aufgaben = c.planaufmass_aufgaben(p.id, &plan).await.unwrap();
+    assert!(
+        !aufgaben
+            .iter()
+            .any(|a| a.verbraucher == "berechnung" && a.ziel.contains(&raum)),
+        "Raum aus dem Raumbuch erscheint als Messaufgabe der Berechnung"
+    );
+
+    // Ändert sich ein Wert, folgt die Berechnung ebenfalls; den Nachweis
+    // bestätigt dann das Büro, statt die Räume erneut zu übernehmen.
+    let buch = c
+        .fachobjekte(p.id, ObjektArt::Raumbuch)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|f| f.daten["bezeichnung"] == "Raumbuch Erdgeschoss")
+        .unwrap();
+    let mut daten = buch.daten.clone();
+    let hoehe = daten["raeume"][0]["hoehe_m"].as_f64().unwrap() + 0.05;
+    daten["raeume"][0]["hoehe_m"] = json!(hoehe);
+    c.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Raumbuch,
+        buch.objekt.parse().unwrap(),
+        buch.revision,
+        daten,
+        &ich,
+    )
+    .await
+    .unwrap();
+    let ergebnis = c.nachweise_erneuern(p.id, &ich).await.unwrap();
+    let wohnen = ergebnis
+        .iter()
+        .find(|e| e.bezeichnung.contains("Wohnfl"))
+        .expect("Wohnflächennachweis ist betroffen");
+    assert_eq!(
+        wohnen.grund.as_deref(),
+        Some("Geänderte Werte: Berechnung öffnen, prüfen und bestätigen")
+    );
+    let wohnflaechen = c
+        .fachobjekte(p.id, ObjektArt::Wohnflaechen)
+        .await
+        .unwrap()
+        .remove(0);
+    let zeile = wohnflaechen.daten["eingaben"]["positionen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|z| z["id"] == raum.as_str())
+        .unwrap();
+    assert_eq!(zeile["lichte_hoehe_m"], json!(hoehe));
+    assert!(zeile["typ"].as_str().is_some_and(|t| !t.is_empty()));
+    db.schliessen().await;
+}

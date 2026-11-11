@@ -20,11 +20,13 @@
   import { Bearbeitungsverlauf } from "./verlauf";
   import { drehen, punktAendern, punktEinfuegen, punktEntfernen, kantenmass, ausrichten } from "./bearbeitung";
   import { abbildenGeometrie, abbildenElement, verschiebung, spiegelung, elementSpiegeln, versatz, elementVersatz, geometrieStutzen, elementStutzen, reihe, befehlAuswerten, BEFEHLE, type Punkt } from "./konstruktion";
-  import { aufmassUebertragen } from "./uebertragung";
+  import { aufmassUebertragen,planstandWechseln } from "./uebertragung";
+  import { ausPasspunkten, gerundet } from "./ausrichtung";
+  import { planstandDifferenz, imBereich as imAenderungsbereich, type Bereich } from "./planstanddifferenz";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
   import type { Tabstart } from "./tabs";
-  import { BEDEUTUNGEN, bedeutungsgruppen, MIT_GRUNDSTUECK, OHNE_GEBAEUDE } from "./bedeutungen";
+  import { BEDEUTUNGEN, bedeutungText, bedeutungsgruppen, MIT_GRUNDSTUECK, OHNE_GEBAEUDE } from "./bedeutungen";
   import { verwendungenLaden, type Verwendung } from "./verwendung";
   import Quellenzustand from "./Quellenzustand.svelte";
   import DarstellungFelder from "./DarstellungFelder.svelte";
@@ -97,7 +99,7 @@
     if(r)vorlagenLage={x:r.right+4,y:r.top};
     vorlagenmenue=id;
   }
-  const SONDERWERKZEUGE:Record<string,[string,string]>={hgstrecke:["kalibrieren","Hintergrund einpassen"],hgverschieben:["verschieben","Hintergrund verschieben"],hgdrehen:["verschieben","Hintergrund drehen"],bezug:["hoehenpunkt","Bezugshöhe setzen"]};
+  const SONDERWERKZEUGE:Record<string,[string,string]>={hgstrecke:["kalibrieren","Hintergrund einpassen"],hgverschieben:["verschieben","Hintergrund verschieben"],hgdrehen:["verschieben","Hintergrund drehen"],bezug:["hoehenpunkt","Bezugshöhe setzen"],passalt:["kalibrieren","Passpunkte im aktuellen Plan"],passneu:["kalibrieren","Passpunkte im neuen Planstand"]};
   const werkzeugTitel=$derived(SONDERWERKZEUGE[werkzeug]?.[1]??werkzeuge.find(w=>w[0]===werkzeug)?.[1]??"Auswählen");
   const werkzeugSymbol=$derived(SONDERWERKZEUGE[werkzeug]?.[0]??werkzeug);
   const werkzeugSchritt=$derived.by(()=>{switch(werkzeug){
@@ -125,6 +127,8 @@
     case "hgstrecke":return `Anfang und Ende einer bekannten Strecke (${z(hgStrecke)} m) anklicken`;
     case "hgverschieben":return "Punkt des Hintergrunds, dann Zielposition";
     case "hgdrehen":return "Drehpunkt anklicken";
+    case "passalt":return "Schritt 1 von 2: zwei weit auseinanderliegende Punkte im aktuellen Plan anklicken";
+    case "passneu":return "Schritt 2 von 2: dieselben zwei Punkte in der überlagerten Vergleichsunterlage anklicken";
     default:return "";
   }});
   // Kopfleiste: Menüs „Prüfen“ und „Ausgabe“; ihre Werkzeugfenster schweben über dem Plan, der bedienbar bleibt.
@@ -144,6 +148,30 @@
   let kontrollMeter=$state(10),kontrolle=$state<{gemessen:number;soll:number;stand:string}|null>(null);
   let vergleich=$state(""),vergleichPdf=$state<PdfVorschauDaten|null>(null),vergleichDeckkraft=$state(.5);
   let vergleichAusrichtung=$state({dx:0,dy:0,grad:0,faktor:1}),vergleichBestaetigt=$state(false);
+  // Passpunkte: zwei Punkte im aktuellen Plan, dann dieselben in der Vergleichsunterlage.
+  let passAlt=$state<[Point,Point]|null>(null);
+  // Geänderte Bereiche zwischen aktuellem Blatt und Vergleichsunterlage sowie
+  // die Markierungen darin. `gewechselt`: Der Planstand wurde umgestellt, der
+  // bisherige Plan liegt zum Nachziehen darüber.
+  let aenderungen=$state<{bereiche:Bereich[];ids:string[]}|null>(null),aenderungLaeuft=$state(false),gewechselt=$state(false),aenderungFaellig=$state(false);
+  async function aenderungenSuchen(){
+    const p=s.eingabe;if(!p||!pdf||!vergleichPdf||aenderungLaeuft)return;
+    aenderungLaeuft=true;
+    try{
+      const bereiche=await planstandDifferenz({base64:pdf.pdf_base64,seite:p.seite},{base64:vergleichPdf.pdf_base64,seite:Math.min(p.seite,vergleichPdf.seiten.length)},$state.snapshot(vergleichAusrichtung));
+      aenderungen={bereiche,ids:(s.eingabe?.markierungen??[]).filter(m=>!m.kontur_von&&imAenderungsbereich(eckpunkte(m.geometrie),bereiche)).map(m=>m.id)};
+    }catch(e){s.fehler=`Planstände lassen sich nicht vergleichen: ${fehlertext(e)}`}finally{aenderungLaeuft=false}
+  }
+  function vergleichBeenden(){vergleich="";gewechselt=false;aenderungen=null;aenderungFaellig=false;vergleichBestaetigt=false;vergleichAusrichtung={dx:0,dy:0,grad:0,faktor:1}}
+  // Eine andere Unterlage oder Lage macht das Ergebnis ungültig.
+  $effect(()=>{void vergleich;void vergleichAusrichtung.dx;void vergleichAusrichtung.dy;void vergleichAusrichtung.grad;void vergleichAusrichtung.faktor;untrack(()=>{aenderungen=null})});
+  // Nach dem Wechsel sucht der Editor die geänderten Bereiche selbst, sobald beide Blätter geladen sind.
+  $effect(()=>{
+    const d=s.eingabe?.dokument;
+    if(!aenderungFaellig||laedt||!d||!pdf||!vergleichPdf)return;
+    if(pdf.dokument.document_id!==d.dokument_id||pdf.dokument.version!==d.version||`${vergleichPdf.dokument.document_id}|${vergleichPdf.dokument.version}`!==vergleich)return;
+    untrack(()=>{aenderungFaellig=false;void aenderungenSuchen()});
+  });
   let standardGebaeude=$state<string|null>(null),standardGeschoss=$state<string|null>(null),standardBedeutung=$state<Planbedeutung>("unbestimmt");
   let exportLaeuft=$state(false),nurSichtbare=$state(true);
   // Planlayout eigener Zeichnungen: Blatt, Maßstab, Nordpfeil, Plankopf aus der Planliste.
@@ -561,7 +589,7 @@
     const ms=s.eingabe.markierungen.filter(x=>(auswahlIds.length?auswahlIds:[m!.id]).includes(x.id));
     if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;
     const ids=new Map(ms.map(m=>[m.id,crypto.randomUUID()]));
-    const kopien=ms.map(m=>({...structuredClone($state.snapshot(m)),id:ids.get(m.id)!,bezeichnung:`${m.bezeichnung} (Kopie)`,hoehenzone_von:m.hoehenzone_von?ids.get(m.hoehenzone_von)??m.hoehenzone_von:undefined}));
+    const kopien=ms.map(m=>({...structuredClone($state.snapshot(m)),id:ids.get(m.id)!,bezeichnung:`${m.bezeichnung} (Kopie)`,hoehenzone_von:m.hoehenzone_von?ids.get(m.hoehenzone_von)??m.hoehenzone_von:undefined,kontur_von:m.kontur_von?ids.get(m.kontur_von)??m.kontur_von:undefined}));
     s.eingabe.markierungen.push(...kopien);auswahlIds=kopien.map(m=>m.id);auswahl=auswahlIds.at(-1)??"";
   }
   async function entfernen(){
@@ -571,9 +599,40 @@
     // Verknüpfte Werte verlieren ihre Quelle: vorher nennen, was daran hängt.
     const genutzt=ids.flatMap(id=>verwendungen.get(id)??[]);
     if(genutzt.length&&!(await ask(`Diese Markierung liefert Werte für:\n${[...new Set(genutzt.map(v=>v.verbraucher))].map(v=>`• ${v}`).join("\n")}\n\nNach dem Speichern des Aufmaßes melden diese Bereiche „Planmarkierung fehlt“. Dort die Verknüpfung lösen (der Wert bleibt als manuelle Angabe) oder neu verknüpfen. Markierung trotzdem entfernen?`,{title:"Verknüpfte Markierung entfernen",kind:"warning"})))return;
-    merken();s.eingabe.markierungen=s.eingabe.markierungen.filter(i=>!ids.includes(i.id));auswahl="";auswahlIds=[];
+    merken();
+    // Bleibt eine weitere Bedeutung der entfernten Kontur bestehen, trägt die erste davon die Kontur weiter.
+    for(const id of ids){
+      const rest=s.eingabe.markierungen.filter(x=>x.kontur_von===id&&!ids.includes(x.id));
+      if(rest.length){delete rest[0].kontur_von;for(const x of rest.slice(1))x.kontur_von=rest[0].id}
+    }
+    s.eingabe.markierungen=s.eingabe.markierungen.filter(i=>!ids.includes(i.id));auswahl="";auswahlIds=[];
   }
   function merken(){verlaufGruppe="";verlauf.gruppeBeenden();if(s.eingabe)verlauf.beobachten($state.snapshot(s.eingabe))}
+  // Eine Kontur, mehrere Bedeutungen: Markierungen mit `kontur_von` teilen die
+  // Kontur ihrer Quelle. Der Core gleicht sie beim Speichern an; hier folgt die
+  // Anzeige sofort, damit Messwerte und Aufgaben den aktuellen Umriss sehen.
+  $effect(()=>{
+    const p=s.eingabe;if(!p)return;
+    for(const x of p.markierungen){
+      if(!x.kontur_von)continue;
+      const q=p.markierungen.find(y=>y.id===x.kontur_von&&!y.kontur_von);
+      if(!q){delete x.kontur_von;continue}
+      if(JSON.stringify(x.geometrie)!==JSON.stringify(q.geometrie))x.geometrie=structuredClone($state.snapshot(q.geometrie));
+      if(x.ausschnitt_id!==q.ausschnitt_id){if(q.ausschnitt_id)x.ausschnitt_id=q.ausschnitt_id;else delete x.ausschnitt_id}
+    }
+  });
+  /** Weitere Bedeutung für dieselbe Kontur: neue Markierung, die der Kontur der Quelle folgt. */
+  function bedeutungErgaenzen(){
+    if(!s.eingabe||!m||objektGesperrt)return;
+    const quelle=s.eingabe.markierungen.find(x=>x.id===(m!.kontur_von??m!.id));if(!quelle)return;
+    merken();
+    const {hoehenzone_von:_h,flurstueck_id:_f,...basis}=structuredClone($state.snapshot(quelle));void _h;void _f;
+    const neu={...basis,id:crypto.randomUUID(),bezeichnung:`${quelle.bezeichnung} · weitere Bedeutung`,bedeutung:"unbestimmt" as const,kontur_von:quelle.id};
+    s.eingabe.markierungen.push(neu);auswahlIds=[];auswahl=neu.id;
+  }
+  function konturLoesen(){if(!m?.kontur_von||objektGesperrt)return;merken();delete m.kontur_von}
+  const konturQuelle=$derived(m?.kontur_von?s.eingabe?.markierungen.find(x=>x.id===m!.kontur_von)??null:null);
+  const konturWeitere=$derived(m&&!m.kontur_von?(s.eingabe?.markierungen.filter(x=>x.kontur_von===m!.id)??[]):[]);
   // Zeichenelemente: anlegen auf der aktiven Ebene, ändern per Ziehen, entfernen.
   function elementAnlegen(f:Zeichenform){
     const p=s.eingabe;if(!p||!darf||s.laeuft)return;
@@ -743,7 +802,7 @@
   }
   function waehlen(id:string,mehrfach=false){betrachterSeite=null;if(id)ebenenAuswahl="";if(id){elementAuswahl="";if(!mehrfach)elementAuswahlIds=[]}else if(!mehrfach)elementAuswahlIds=[];if(mehrfach){auswahlIds=auswahlIds.includes(id)?auswahlIds.filter(x=>x!==id):[...auswahlIds,id];auswahl=auswahlIds.at(-1)??""}else{auswahl=id;auswahlIds=id?[id]:[]}punktIndex=0;if(!AUSWAHLWERKZEUGE.includes(werkzeug))werkzeug="auswahl"}
   function gemeinsamVerschieben(ids:string[],dx:number,dy:number){if(!s.eingabe||!darf||s.laeuft)return;const ms=s.eingabe.markierungen.filter(m=>ids.includes(m.id));if(ms.some(m=>s.eingabe!.ebenen.find(e=>e.id===m.ebene_id)?.gesperrt))return;merken();for(const m of ms)m.geometrie=verschieben(m.geometrie,dx,dy)}
-  function geometrieSetzen(g:Plangeometrie){if(!m||objektGesperrt)return;merken();m.geometrie=g}
+  function geometrieSetzen(g:Plangeometrie){if(!m||objektGesperrt)return;merken();(konturQuelle??m).geometrie=g}
   async function flaechenAktion(operation:import("../generated/plattform").Flaechenoperation){
     if(!s.eingabe||!darf||auswahlIds.length!==2)return;
     const p=s.eingabe,ms=auswahlIds.map(id=>p.markierungen.find(m=>m.id===id)!);
@@ -761,6 +820,13 @@
     }
     if(werkzeug==="hgverschieben"&&g.art==="strecke"){hintergrundAendern(hgZiel,h=>hgVerschieben(h,g.von,g.bis));werkzeug="auswahl";return}
     if(werkzeug==="hgdrehen"&&g.art==="hoehenpunkt"){hintergrundAendern(hgZiel,h=>hgDrehen(h,g.punkt,hgWinkel));werkzeug="auswahl";return}
+    if(werkzeug==="passalt"&&g.art==="strecke"){passAlt=[g.von as Point,g.bis as Point];werkzeug="passneu";return}
+    if(werkzeug==="passneu"&&g.art==="strecke"){
+      const t=passAlt&&ausPasspunkten(passAlt,[g.von as Point,g.bis as Point],$state.snapshot(vergleichAusrichtung));
+      if(t){vergleichAusrichtung=gerundet(t);vergleichBestaetigt=false;s.meldung="Vergleichsunterlage über zwei Passpunkte ausgerichtet. Überlagerung prüfen und bestätigen."}
+      else s.fehler="Die Passpunkte liegen aufeinander. Zwei weit auseinanderliegende Punkte wählen.";
+      passAlt=null;werkzeug="auswahl";return;
+    }
     if(werkzeug==="kontrolle"&&g.art==="strecke"){
       if(!Number.isFinite(kontrollMeter)||kontrollMeter<=0){s.fehler="Eine positive Kontrolllänge in Metern angeben.";return}
       const f=meterProPunkt(aktueller?.kalibrierung??p.kalibrierung);if(f===null){s.fehler="Zuerst einen Maßstab setzen.";return}
@@ -966,6 +1032,29 @@
     if(s.hatAenderungen()&&!(await s.speichern()))return;
     s.neu();s.eingabe=kopie;vergleich="";vergleichBestaetigt=false;panel="eigenschaften";s.meldung="Übertragener Entwurf: Konturen prüfen, Maßstäbe kalibrieren und Höhenbezüge neu festlegen. Bestehende Berechnungen verwenden weiterhin das alte Aufmaß.";
   }
+  // Planstand im selben Aufmaß wechseln: Kennungen bleiben, Verknüpfungen
+  // melden nach dem Speichern nur den neuen Aufmaßstand.
+  async function planstandUmstellen(){
+    const p=s.eingabe;if(!p||!darf||!vergleichPdf||!vergleichBestaetigt||s.laeuft)return;
+    const d=vergleichPdf.dokument,bisher=p.dokument,t=$state.snapshot(vergleichAusrichtung);
+    if(!(await ask(`Dieses Aufmaß auf „${d.file_name}“, Version ${d.version}, umstellen? Markierungen, Maßstäbe und Höhenbezüge wandern mit der geprüften Ausrichtung auf das neue Blatt. Alle Verknüpfungen bleiben bestehen und melden nach dem Speichern den neuen Aufmaßstand.`,{title:"Planstand wechseln",okLabel:"Umstellen",cancelLabel:"Abbrechen"})))return;
+    merken();
+    try{s.eingabe=planstandWechseln($state.snapshot(p) as Planaufmass,{dokument_id:d.document_id,version:d.version},Math.min(p.seite,vergleichPdf.seiten.length),t)}catch(e){s.fehler=fehlertext(e);return}
+    plan?.abbrechen();kontrolle=null;vergleichBestaetigt=false;
+    // Der bisherige Stand bleibt als Überlagerung sichtbar: Abweichungen fallen sofort auf.
+    const a=-t.grad*Math.PI/180;
+    if(bisher){
+      vergleichAusrichtung=gerundet({dx:(-t.dx*Math.cos(a)+t.dy*Math.sin(a))/t.faktor,dy:(-t.dx*Math.sin(a)-t.dy*Math.cos(a))/t.faktor,grad:-t.grad,faktor:1/t.faktor});vergleich=`${bisher.dokument_id}|${bisher.version}`;
+      await tick();gewechselt=true;aenderungFaellig=true;
+    }else{vergleichBeenden();werkzeugfenster=""}
+    s.meldung="Planstand gewechselt, der bisherige Plan liegt zum Vergleich darüber. Geänderte Konturen anpassen, den Maßstab mit einer Kontrollstrecke prüfen und speichern. Danach in den Zielen den neuen Aufmaßstand übernehmen.";
+  }
+  function planstandVorbereiten(){
+    const d=s.eingabe?.dokument;if(!d)return;
+    const neu=dateien.filter(x=>x.document_id===d.dokument_id).sort((a,b)=>b.version-a.version)[0];
+    if(neu&&neu.version>d.version){vergleichBeenden();vergleich=`${neu.document_id}|${neu.version}`}
+    fensterOeffnen("vergleich");
+  }
   async function exportieren(format:"pdf"|"csv"){
     if(!s.eingabe||!s.id||exportLaeuft)return;
     if(s.hatAenderungen()){
@@ -1006,7 +1095,7 @@
     {#if listenFehler}<p class="fehlertext" role="alert">{listenFehler}</p>{/if}
     {#if !dateien.length&&!istZeichnung}<p class="hinweisbox">Noch keine Unterlage vorhanden. Zuerst eine PDF oder DXF unter „Projektdateien“ importieren – oder eine eigene Zeichnung in Metern anlegen.</p>{/if}
     <Quellenzustand projektId={projekt.id} version={projekt.version} />
-    {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere Version der Unterlage liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.</p>{/if}
+    {#if quelleAlt}<p class="hinweisbox" role="status">Eine neuere Version der Unterlage liegt vor. Dieses Aufmaß gehört weiterhin zur älteren Unterlage; Berechnungsübernahmen sind bis zur Prüfung der neuen Version gesperrt.{#if darf&&!istDxfUnterlage}{" "}<button type="button" class="link" onclick={planstandVorbereiten}>Auf den neuen Planstand umstellen …</button>{/if}</p>{/if}
     {#if pdfFehler}<p class="fehlertext" role="alert">{pdfFehler}</p>{/if}
     <div class="editor" class:vollbild bind:this={editor} style:height={vollbild?undefined:`${hoeheEditor}px`} onpointerdowncapture={()=>{verlaufGruppe="";verlauf.gruppeBeenden()}} oninputcapture={e=>{const el=e.target as HTMLElement;verlaufGruppe=`${auswahl}:${el.getAttribute("aria-label")??el.closest("label")?.textContent??el.tagName}`}}>
       {#if vollbild}<div class="vollbildleiste" role="toolbar" aria-label="Aufmaß im Vollbild">
@@ -1088,9 +1177,9 @@
               {#if flurFehler}<span class="fehlertext" role="alert">{flurFehler}</span>{/if}
             </div>{/if}
           {#if pdf||dxf||istZeichnung}
-            <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen:[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} {auswahl} {auswahlIds} werkzeug={AUSWAHLWERKZEUGE.includes(werkzeug)?"auswahl":werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
+            <PdfPlan bind:this={plan} pdfBase64={pdf?.pdf_base64??""} plan={dxf?.plan??null} planSichtbar={dxfSichtbar} seite={betrachterSeite??p.seite} markierungen={betrachterSeite===null?p.markierungen.filter(x=>!x.kontur_von):[]} ebenen={p.ebenen.map(e=>({...e,sichtbar:sichtbarkeit[e.id]??e.sichtbar}))} auswahl={m?.kontur_von??auswahl} {auswahlIds} werkzeug={AUSWAHLWERKZEUGE.includes(werkzeug)?"auswahl":werkzeug} darf={darf&&!s.laeuft&&betrachterSeite===null}
               ansichtKey={`bauprojekt.planansicht.${benutzerId}.${s.projektId}.${s.id}.${p.dokument?.dokument_id??"zeichnung"}.${p.dokument?.version??0}`} fehlerIds={markierungsFehler.map(f=>f.id)} vergleichBase64={vergleichPdf?.pdf_base64??""} {vergleichDeckkraft}
-              {vergleichAusrichtung}
+              {vergleichAusrichtung} hinweisBereiche={vergleich?aenderungen?.bereiche??[]:[]}
               zeichnung={istZeichnung} hintergruende={hgAnsichten} elemente={betrachterSeite===null?p.elemente??[]:[]} {elementAuswahl} {elementAuswahlIds} {wanddicke} onfenster={fensterWaehlen} onwiederholen={wiederholen} {raeume}
               onelement={elementAnlegen} onelementauswahl={elementWaehlen} onelementedit={elementSetzen}
               ausschnitte={betrachterSeite===null?p.ausschnitte??[]:[]} {aktiv} {rahmenAuswahl} werte={aktuelleWerte} kalibrierung={p.kalibrierung} {masse}
@@ -1109,11 +1198,28 @@
             {#if baugrenzenErgebnis}<p role="status" class:fehlertext={!baugrenzenErgebnis.eingehalten}>Baufenster {z(baugrenzenErgebnis.baufenster_m2)} m² · Vorhaben {z(baugrenzenErgebnis.vorhaben_m2)} m² · außerhalb {z(baugrenzenErgebnis.ausserhalb_m2)} m² ({z(baugrenzenErgebnis.ausserhalb_prozent)} %) · größter Überstand {z(baugrenzenErgebnis.eckpunkt_ueberstand_m)} m · {baugrenzenErgebnis.eingehalten?"eingehalten":"nicht eingehalten"}</p>{/if}
             {#if projekt.planungsrecht.baugrenzen}<p class="meta">Gespeicherte Zuordnung: Dokumentversion {projekt.planungsrecht.baugrenzen.dokument_version}{projekt.planungsrecht.baugrenzen.grundstueck_schluessel?` · Baugrundstück ${projekt.planungsrecht.baugrenzen.grundstueck_schluessel}`:""}</p>{/if}
           {:else if werkzeugfenster==="vergleich"}
-              <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
-              {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten. Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
+              {#snippet aenderungsliste()}
+                <button type="button" class="sekundaer" disabled={!pdf||!vergleichPdf||aenderungLaeuft} onclick={()=>void aenderungenSuchen()}>{aenderungLaeuft?"Planstände werden verglichen …":aenderungen?"Geänderte Bereiche erneut suchen":"Geänderte Bereiche suchen"}</button>
+                {#if aenderungen}<p role="status">{aenderungen.bereiche.length?`${aenderungen.bereiche.length} geänderte Bereiche, im Plan orange umrandet.`:"Zwischen den beiden Planständen wurde keine Änderung gefunden."} {aenderungen.bereiche.length?(aenderungen.ids.length?`${aenderungen.ids.length} Markierung(en) liegen darin und sind zu prüfen:`:"Keine Markierung liegt in einem geänderten Bereich."):""}</p>
+                  {#if aenderungen.ids.length}<ul class="aenderungsliste" aria-label="Markierungen in geänderten Bereichen">{#each aenderungen.ids as id (id)}{@const x=p.markierungen.find(y=>y.id===id)}{#if x}<li><button type="button" class="link" onclick={()=>{waehlen(id);void tick().then(()=>plan?.aufAuswahl())}}>{x.bezeichnung||"Ohne Namen"}</button> <span class="meta">{bedeutungText(x.bedeutung)}</span></li>{/if}{/each}</ul>{/if}{/if}
+              {/snippet}
+              {#if gewechselt&&vergleich}
+                <p class="hinweisbox" role="status">Planstand gewechselt. Der bisherige Plan liegt zum Vergleich über dem neuen. Markierungen in geänderten Bereichen anpassen, dann speichern.</p>
+                <label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label>
+                {@render aenderungsliste()}
+                <button type="button" onclick={vergleichBeenden}>Vergleich beenden</button>
+              {:else}
+              <label>Vergleichsunterlage<select aria-label="Vergleichsunterlage" bind:value={vergleich} onchange={()=>{gewechselt=false;vergleichBestaetigt=false}}><option value="">Kein Vergleich</option>{#each pdfDateien as d}<option value={`${d.document_id}|${d.version}`}>{d.file_name} · V{d.version}</option>{/each}</select></label>
+              {#if vergleich}<label>Deckkraft der Vergleichsunterlage<input type="range" min="0" max="1" step=".05" bind:value={vergleichDeckkraft}/></label><p class="meta">Vergleichsblatt auf das aktuelle Blatt ausrichten: am einfachsten über zwei Punkte, die in beiden Plänen vorkommen (Gebäudeecken, Achskreuze). Liegen die Blätter bereits deckungsgleich, entfällt das.</p>
+                <button type="button" class="sekundaer" class:aktiv={werkzeug==="passalt"||werkzeug==="passneu"} aria-pressed={werkzeug==="passalt"||werkzeug==="passneu"} disabled={!vergleichPdf} onclick={()=>{passAlt=null;werkzeug="passalt"}}>Über zwei Passpunkte ausrichten</button>
+                <p class="meta">Oder von Hand: Verschiebungen in physischen Seitenpunkten (72 pt = 1 Zoll); Rotation im Uhrzeigersinn.</p>
                 <div class="kalibrierung"><label>Versatz X (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dx}/></label><label>Versatz Y (pt)<input type="number" step="any" bind:value={vergleichAusrichtung.dy}/></label><label>Drehung (°)<input type="number" step="any" bind:value={vergleichAusrichtung.grad}/></label><label>Skalierungsfaktor<input type="number" min=".001" step="any" bind:value={vergleichAusrichtung.faktor}/></label></div>
                 <label><input type="checkbox" bind:checked={vergleichBestaetigt}/>Blattlage und Konturen anhand der Überlagerung geprüft</label>
-                <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Als neues Aufmaß auf Vergleichsunterlage übertragen …</button>{/if}
+                <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void planstandUmstellen()}>Dieses Aufmaß auf diesen Planstand umstellen …</button>
+                <p class="meta">Verknüpfungen zu Flurstück, Gebäude, Raumbuch und Berechnungen bleiben dabei bestehen.</p>
+                <button type="button" class="sekundaer" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Stattdessen als neues Aufmaß übertragen …</button>
+                {@render aenderungsliste()}{/if}
+              {/if}
           {:else if werkzeugfenster==="planblatt"}
                 <div class="kalibrierung">
                   <label>Format<select bind:value={layout.format}>{#each ["a4","a3","a2","a1","a0"] as f}<option value={f}>{f.toUpperCase()}</option>{/each}</select></label>
@@ -1194,7 +1300,7 @@
                 {#if m.gebaeude_id}<label>Geschoss<select aria-label="Geschoss" bind:value={m.geschoss_id}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse??[] as g,i}<option value={g.id}>{g.bezeichnung||`Geschoss ${i+1} (ohne Bezeichnung)`}</option>{/each}</select></label>{/if}
                 {#if (m.bedeutung==="gebaeudegrundflaeche"||m.bedeutung==="geschoss_aussenkante")&&!m.gebaeude_id}<p class="hinweisbox">Für die Übernahme ein Gebäude zuordnen.{gebaeude.length?"":" Gebäude zuerst unter Gebäudemodell → Gebäude / Geschosse anlegen und speichern."}</p>
                 {:else if m.bedeutung==="geschoss_aussenkante"&&!m.geschoss_id}<p class="hinweisbox">Für die Geschossfläche ein Geschoss zuordnen.{gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse.length?"":" Für dieses Gebäude sind noch keine Geschosse gespeichert; ohne einzelne Geschosse dient die Gebäudegrundfläche als Fläche des Einzelgeschosses."}</p>
-                {:else if m.bedeutung==="gebaeudegrundflaeche"&&m.geschoss_id}<p class="hinweisbox">Die Gebäudegrundfläche gilt für das ganze Gebäude; die Geschosszuordnung wird dafür nicht verwendet. Für eine Geschossfläche die Markierung duplizieren und die Kopie als „Geschoss – Außenkante“ kennzeichnen.</p>{/if}
+                {:else if m.bedeutung==="gebaeudegrundflaeche"&&m.geschoss_id}<p class="hinweisbox">Die Gebäudegrundfläche gilt für das ganze Gebäude; die Geschosszuordnung wird dafür nicht verwendet. Für eine Geschossfläche „Weitere Bedeutung für diese Kontur“ wählen und dort „Geschoss – Außenkante“ setzen.</p>{/if}
                 <dl class="messwerte">
                   {#if m.geometrie.art==="hoehenpunkt"}<dt>Absolute Höhe</dt><dd>{z(wert?.hoehe_m)} m</dd>
                   {:else if m.geometrie.art==="strecke"}<dt>Länge</dt><dd>{z(wert?.laenge_m)} m</dd>
@@ -1206,8 +1312,14 @@
                 </dl>
                 {#if messLaeuft}<p class="meta" role="status">Messwerte werden aktualisiert …</p>{/if}
                 {#each wert?.offen??[] as hinweis}<p class="hinweisbox">{hinweis}</p>{/each}
+                <div class="konturteilung" aria-label="Bedeutungen dieser Kontur">
+                  {#if konturQuelle}<p class="meta">Gleiche Kontur wie <button type="button" class="link" onclick={()=>waehlen(konturQuelle!.id)}>„{konturQuelle.bezeichnung}“</button>: Ändert sich dort der Umriss, ändert er sich hier mit. <button type="button" class="link" onclick={konturLoesen}>Verknüpfung lösen (eigene Kontur)</button></p>
+                  {:else if konturWeitere.length}<h4>Weitere Bedeutungen dieser Kontur</h4>
+                    <ul>{#each konturWeitere as x (x.id)}<li><button type="button" class="link" onclick={()=>waehlen(x.id)}>{x.bezeichnung}</button> <span class="meta">{bedeutungText(x.bedeutung)}</span></li>{/each}</ul>{/if}
+                  {#if m.geometrie.art!=="hoehenpunkt"}<button type="button" class="sekundaer" title="Dieselbe Kontur mit einer zweiten Bedeutung, z. B. Gebäudegrundfläche und Geschoss-Außenkante. Der Umriss wird nur einmal gepflegt." onclick={bedeutungErgaenzen}>Weitere Bedeutung für diese Kontur …</button>{/if}
+                </div>
                 <div class="aktionen">
-                  <button type="button" class="sekundaer" title="Strg+D · Kopie derselben Kontur, z. B. als Gebäudegrundfläche und Geschoss-Außenkante" onclick={duplizieren}>Duplizieren</button>
+                  <button type="button" class="sekundaer" title="Strg+D · Unabhängige Kopie der Kontur an gleicher Stelle" onclick={duplizieren}>Duplizieren</button>
                   <button type="button" class="sekundaer" title="Entf" onclick={entfernen}>Markierung entfernen</button>
                 </div>
                 <div class="verwendung" aria-label="Verwendung der Markierung">
@@ -1219,7 +1331,7 @@
                     </li>{/each}</ul>
                   {:else}<p class="meta">Noch in keiner Berechnung verwendet. Übernahme über die Aufgaben oder im Zielbereich.</p>{/if}
                 </div>
-                <details><summary>Kontur drehen, Stützpunkte und Kanten</summary>
+                <details><summary>Kontur drehen, Stützpunkte und Kanten{konturQuelle?" (wirkt auf die gemeinsame Kontur)":""}</summary>
                   <label>Kontur drehen (°)<input type="number" step="any" bind:value={drehenGrad}/></label><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(drehen($state.snapshot(m!.geometrie),drehenGrad))}>Drehung anwenden</button>
                   <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {mpp?`${z(p[0]*mpp)}; ${z(p[1]*mpp)} m`:`${z(p[0])}; ${z(p[1])} ${einheitText}`}</option>{/each}</select></label>
                   {#if m}{@const punkt=eckpunkte(m.geometrie)[punktIndex]??eckpunkte(m.geometrie)[0]}

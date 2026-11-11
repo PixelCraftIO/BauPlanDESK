@@ -506,8 +506,10 @@ impl CoreServices {
             }
         }
         // Datenlücken sind auch vor dem ersten archivierten Nachweis sichtbar.
+        let mut aufmasse = Vec::new();
         for f in self.fachobjekte(p, ObjektArt::Planaufmass).await? {
             let aufmass: crate::planaufmass::Planaufmass = decode(f.daten)?;
+            aufmasse.push((id(&f.objekt)?, aufmass.clone()));
             let mut offen = Vec::new();
             // Aufmaß: die Unterlage; eigene Zeichnung: alle Hintergründe.
             let unterlagen_aktuell = aufmass
@@ -577,8 +579,10 @@ impl CoreServices {
         // Gebäude mit Geschossen ohne Einstufung: Die Vollgeschossprüfung folgt
         // in Bereich 2 und wird dort verlangt.
         let mut uneingestuft: Vec<String> = Vec::new();
+        let mut gebaeudeliste = Vec::new();
         for f in self.fachobjekte(p, ObjektArt::Gebaeude).await? {
             let g: crate::plattform::objekte::Gebaeude = decode(f.daten)?;
+            gebaeudeliste.push((id(&f.objekt)?, g.clone()));
             if g.geschosse.iter().any(|s| s.vollgeschoss.is_none()) {
                 uneingestuft.push(g.bezeichnung.clone());
             }
@@ -597,6 +601,27 @@ impl CoreServices {
                         .register("planaufmass"),
                 );
             }
+        }
+        // Gegenproben: Was in zwei Zeichnungen steht, soll übereinstimmen.
+        let flurstuecksnamen =
+            crate::grundstuecksinformationen::informationen(&projekt.planungsrecht)
+                .flurstuecke
+                .iter()
+                .map(|f| (f.id.clone(), f.bezeichnung()))
+                .collect();
+        for g in crate::planaufmass::gegenprobe::gegenproben(
+            &aufmasse,
+            &gebaeudeliste,
+            &flurstuecksnamen,
+        ) {
+            s.punkt(
+                format!("gegenprobe:{}", g.schluessel),
+                Grundlagen,
+                Pruefen,
+                g.titel,
+                g.text,
+                UebersichtsZiel::neu("planaufmass").objekt(g.aufmass),
+            );
         }
         for f in self.fachobjekte(p, ObjektArt::Raumbuch).await? {
             let r: crate::plattform::objekte::Raumbuch = decode(f.daten)?;

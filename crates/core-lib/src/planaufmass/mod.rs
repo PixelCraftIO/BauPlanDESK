@@ -13,6 +13,7 @@ mod cadmigration;
 mod export;
 mod flurstueck;
 mod gebaeude;
+pub mod gegenprobe;
 mod geometrie;
 mod grundstueck;
 mod protokoll;
@@ -311,6 +312,14 @@ pub struct Planmarkierung {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub hoehenzone_von: Option<Uuid>,
+    /// Markierung desselben Aufmaßes, deren Kontur diese Markierung teilt:
+    /// eine Kontur, mehrere Bedeutungen (z. B. Gebäudegrundfläche und
+    /// Außenkante EG). Die Geometrie folgt beim Speichern der Quelle, siehe
+    /// [`Planaufmass::konturen_angleichen`]; Kennung, Bedeutung und Zuordnung
+    /// bleiben eigene, damit Übernahmen und Nachweise unverändert adressieren.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub kontur_von: Option<Uuid>,
     /// Flurstück (ID aus den Grundstücksinformationen), dessen Grenze diese
     /// Markierung mit Bedeutung „Flurstück“ zeigt. Grundlage der Übernahme in
     /// die Flurstücksfläche; ohne Zuordnung bleibt die Fläche eine Kontrolle.
@@ -795,6 +804,41 @@ fn polygon(punkte: &[Planpunkt]) -> CoreResult<(f64, f64)> {
     Ok((area, length))
 }
 impl Planaufmass {
+    /// Eine Kontur, mehrere Bedeutungen: Markierungen mit `kontur_von`
+    /// übernehmen Geometrie und Ausschnitt ihrer Quelle. Ketten enden an der
+    /// ersten Quelle; fehlt die Quelle, wird die Markierung eigenständig.
+    pub fn konturen_angleichen(&mut self) {
+        let quellen: std::collections::HashMap<Uuid, (Option<Uuid>, Plangeometrie, Option<Uuid>)> =
+            self.markierungen
+                .iter()
+                .map(|m| (m.id, (m.kontur_von, m.geometrie.clone(), m.ausschnitt_id)))
+                .collect();
+        for m in &mut self.markierungen {
+            let Some(mut quelle) = m.kontur_von else {
+                continue;
+            };
+            // Kette bis zur eigenständigen Quelle verfolgen (begrenzt gegen Zyklen).
+            let mut gefunden = None;
+            for _ in 0..8 {
+                match quellen.get(&quelle) {
+                    Some((Some(weiter), _, _)) if *weiter != m.id => quelle = *weiter,
+                    Some((None, g, a)) if quelle != m.id => {
+                        gefunden = Some((quelle, g.clone(), *a));
+                        break;
+                    }
+                    _ => break,
+                }
+            }
+            match gefunden {
+                Some((id, geometrie, ausschnitt)) => {
+                    m.kontur_von = Some(id);
+                    m.geometrie = geometrie;
+                    m.ausschnitt_id = ausschnitt;
+                }
+                None => m.kontur_von = None,
+            }
+        }
+    }
     /// Eigene Zeichnung ohne Unterlage: Seitenpunkte sind Meter.
     pub fn ist_zeichnung(&self) -> bool {
         self.dokument.is_none()

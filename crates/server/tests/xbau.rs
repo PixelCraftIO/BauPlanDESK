@@ -138,7 +138,8 @@ async fn bauantrag_erfassen_und_exportieren() {
 
     let mut antrag = leer.antrag;
     antrag.bauaufsicht = Bauaufsicht {
-        name: "Bauordnungsamt Köln".into(),
+        // Die Bauaufsicht führt die Verfahrensakte; der Antrag übernimmt ihren Namen.
+        name: "Bauamt".into(),
         kennung: "bab:053150000".into(),
     };
     let anna = core
@@ -1301,7 +1302,8 @@ async fn nachbarflurstueck_zaehlt_nicht_zum_antrag_und_zur_projektflaeche() {
     assert_eq!(
         g.hinweise,
         [
-            "Flurstück Lindenthal 12/3: Flurstück außerhalb des Vorhabengrundstücks (Zuwegung, Baulastfläche o. Ä.). Klären, ob eine Baulast nötig ist; die Baulasterklärung des Eigentümers ist dann Bauvorlage."
+            "Flurstück Lindenthal 12/3: Flurstück außerhalb des Vorhabengrundstücks (Zuwegung, Baulastfläche o. Ä.). Klären, ob eine Baulast nötig ist; die Baulasterklärung des Eigentümers ist dann Bauvorlage.",
+            "Anschrift des Baugrundstücks fehlt; sie wird in den Stammdaten des Projekts erfasst.",
         ]
     );
 }

@@ -1132,6 +1132,15 @@ impl CoreServices {
                 for z in planziele(&plan)? {
                     let t: Vec<&str> = z.ziel.split('.').collect();
                     let zeile = eingabezeile(&plan.eingaben, &z.ziel);
+                    // Räume misst allein das Raumbuch; die Berechnung folgt ihm.
+                    if !plan.fachquellen.is_empty()
+                        && zeile
+                            .and_then(|x| x.get("quelle"))
+                            .and_then(|q| q.as_str())
+                            .is_some_and(|q| q.starts_with("Raumbuch"))
+                    {
+                        continue;
+                    }
                     let feld = berechnungsfeld(plan.modul, t[0], t[2], zeile, &hoehenbezug);
                     if feld.bedeutung == Planbedeutung::Unbestimmt {
                         continue;

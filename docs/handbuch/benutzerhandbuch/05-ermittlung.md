@@ -157,6 +157,13 @@ im Bild die Dachfläche als versiegelte Fläche in der Regenwasserberechnung.
 | Raum | DIN 277 NUF/TF/VF bzw. Wohnfläche | Raumbuch |
 | Höhe (Traufe, First, Gelände) | Höhenpunkt bzw. Strecke / Dach | Gebäude |
 
+Hat dieselbe Kontur zwei Bedeutungen, etwa die Außenkante des Erdgeschosses,
+die zugleich Gebäudegrundfläche ist, die Kontur nur einmal zeichnen und in
+den Eigenschaften **Weitere Bedeutung für diese Kontur …** wählen. Jede
+Bedeutung hat ihre eigene Zuordnung und ihren eigenen Messwert; wird die
+Kontur geändert, folgen alle ihre Bedeutungen. „Von der Kontur lösen“ trennt
+eine Bedeutung wieder ab.
+
 ### Lage im Baufenster
 
 Für die Prüfung nach § 23 BauNVO im Lageplan je genau eine Markierung
@@ -164,6 +171,45 @@ Für die Prüfung nach § 23 BauNVO im Lageplan je genau eine Markierung
 dem Umriss das Baugrundstück zuordnen) und unter „Lage im Baufenster“ dem
 Projekt zuordnen. Der GRZ-Nachweis zeigt dann die Fläche außerhalb des
 Baufensters.
+
+### Neuer Planstand
+
+Kommt eine neue Version der Unterlage, bleibt das Aufmaß dasselbe:
+**Prüfen → Planstände vergleichen …** (oder der Hinweis „Auf den neuen
+Planstand umstellen …“) legt den neuen Plan über den aktuellen.
+
+1. Liegen die Blätter nicht deckungsgleich: **Über zwei Passpunkte
+   ausrichten**, zwei weit auseinanderliegende Punkte im aktuellen Plan
+   anklicken, danach dieselben zwei Punkte im überlagerten neuen Plan.
+2. „Blattlage und Konturen anhand der Überlagerung geprüft“ ankreuzen.
+3. **Dieses Aufmaß auf diesen Planstand umstellen …** Markierungen, Rahmen,
+   Maßstäbe und Höhenbezüge wandern auf das neue Blatt; Verknüpfungen zu
+   Flurstück, Gebäude, Raumbuch und Berechnungen bleiben bestehen.
+4. Der bisherige Plan liegt danach als Vergleich darüber. Geänderte Konturen
+   anpassen, speichern und in den Zielen den neuen Aufmaßstand übernehmen.
+
+„Stattdessen als neues Aufmaß übertragen …“ legt eine unabhängige Kopie mit
+neuen Markierungen an; das bisherige Aufmaß und seine Verknüpfungen bleiben
+dann beim alten Plan.
+
+### Gegenproben zwischen Zeichnungen
+
+Was in zwei Zeichnungen steht, vergleicht die Anwendung von selbst und meldet
+Abweichungen in der **Projektübersicht** als „Gegenprobe“. Das ist ein
+Hinweis und sperrt nichts.
+
+| Verglichen wird | Meldung ab |
+| --- | --- |
+| dasselbe Flurstück in zwei Plänen (Flurkarte, Lageplan) | 1 m² oder 2 % |
+| Gebäudegrundfläche oder Außenkante desselben Geschosses in zwei Plänen | 1 m² oder 2 % |
+| Gebäudegrundfläche gegen die Außenkante des Erdgeschosses | 1 m² oder 2 % |
+| First eines Gebäudes in Schnitt und Ansicht mit gleichem Höhensystem | 5 cm |
+| Traufe, wenn jede Zeichnung genau eine Traufe des Gebäudes zeigt | 5 cm |
+
+Weichen Grundfläche und Erdgeschoss wegen eines Vorsprungs oder einer
+Auskragung zu Recht voneinander ab, bleibt der Hinweis stehen und kann
+unbeachtet bleiben. Die Grenzwerte stehen in
+`regelwerke/aufmass-toleranzen.json`.
 
 ### Handwert und Zeichnung abgleichen
 
@@ -505,5 +551,8 @@ Wohnflächenberechnung und DIN-277-Nachweis.
 3. Oder „Räume aus Aufmaß übernehmen“: gezeichnete Raumkonturen werden zu
    Räumen; vorhandene Handräume mit gleicher Nummer/Bezeichnung werden
    verknüpft statt verdoppelt.
-4. Speichern. Nach einer Planänderung zuerst das Aufmaß, dann das Raumbuch und
-   danach die Wohnfläche/DIN 277 aktualisieren.
+4. Speichern. Räume werden nur hier geführt: Wohnflächenberechnung und
+   DIN 277 folgen dem Raumbuch. Nach einer Planänderung zuerst das Aufmaß,
+   dann das Raumbuch aktualisieren; die Berechnungen zeigen danach den
+   Hinweis „Räume aktualisieren“ und behalten dabei Wohnung, Raumart und
+   Zuordnungen. „Alle veralteten Nachweise erneuern“ erledigt das mit.

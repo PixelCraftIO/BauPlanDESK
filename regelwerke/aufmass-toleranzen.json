@@ -13,5 +13,9 @@
     "_hinweis": "Wandbreite einer Abstandsfläche in der Ansicht gegen die Linie im Lageplan: unauffällig bis m oder prozent der Lageplanbreite (der größere Wert).",
     "m": 0.05,
     "prozent": 1.0
+  },
+  "gegenprobe_hoehe": {
+    "_hinweis": "First und Traufe eines Gebäudes in zwei Zeichnungen gleichen Höhensystems: unauffällig bis m Unterschied. Flächen der Gegenprobe nutzen doppelerfassung.",
+    "m": 0.05
   }
 }

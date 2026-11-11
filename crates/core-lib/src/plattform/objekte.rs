@@ -454,8 +454,9 @@ pub(super) async fn validieren(
             serde_json::to_value(a)
         }
         ObjektArt::Planaufmass => {
-            let plan: crate::planaufmass::Planaufmass =
+            let mut plan: crate::planaufmass::Planaufmass =
                 serde_json::from_value(daten).map_err(json_err)?;
+            plan.konturen_angleichen();
             core.planaufmass_pruefen(p.id, &plan).await?;
             // Unterlage bzw. Hintergründe müssen lesbar sein und die Seite besitzen.
             let unterlagen = plan.dokument.iter().map(|d| (d, plan.seite, None)).chain(

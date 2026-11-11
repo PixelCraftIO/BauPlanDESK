@@ -329,6 +329,7 @@ fn main() {
             berechnungen::planaufmass_raumbuch_einsetzen,
             berechnungen::planaufmass_werkzeugkiste,
             berechnungen::berechnung_aus_raumbuch,
+            berechnungen::berechnung_raumbuch_nachfuehren,
             berechnungen::fachberechnung_pruefen,
             updater::update_status,
             updater::update_pruefen,

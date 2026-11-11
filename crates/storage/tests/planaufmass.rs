@@ -88,6 +88,7 @@ async fn pdf_aufmass_zu_din277_mit_revisionen_und_originalschutz() {
             flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
+            kontur_von: None,
         }],
         ausschnitte: vec![],
     };
@@ -365,6 +366,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 flurstueck_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
+                kontur_von: None,
             },
             Planmarkierung {
                 id: hoehe,
@@ -378,6 +380,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 flurstueck_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
+                kontur_von: None,
             },
             Planmarkierung {
                 id: dach,
@@ -394,6 +397,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
                 flurstueck_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
+                kontur_von: None,
             },
         ],
         ausschnitte: vec![],
@@ -413,6 +417,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
     });
     a.markierungen.push(Planmarkierung {
         id: geschossflaeche,
@@ -429,6 +434,7 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
         flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
     });
     core.fachobjekt_speichern(
         p.id,
@@ -921,6 +927,7 @@ async fn ausschnitte_aufgaben_quellen_importe_und_grundstuecksbilanz() {
             flurstueck_id: None,
             ausschnitt_id: Some(aus),
             hoehenzone_von: None,
+            kontur_von: None,
         }
     };
     let rechteck = |a: [f64; 2], b: [f64; 2]| Plangeometrie::Rechteck { von: a, bis: b };
@@ -1400,6 +1407,7 @@ async fn hoehenzonen_aus_pdf_werden_je_zone_als_wohnflaeche_angerechnet() {
         flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: von_raum,
+        kontur_von: None,
     };
     // 10 m × 5 m Raum, davon 10 m × 1 m Schräge zwischen 1 m und 2 m.
     let mut a = Planaufmass {
@@ -1647,6 +1655,7 @@ async fn flurstuecke_werden_aus_dem_pdf_aufmass_uebernommen() {
         geschoss_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
         flurstueck_id: flurstueck.map(Into::into),
     };
     let mut a = Planaufmass {
@@ -1962,6 +1971,7 @@ async fn abzuege_und_bauteile_werden_aus_dem_lageplan_uebernommen() {
         geschoss_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
         flurstueck_id: None,
     };
     // 100 × 100 pt = 10 m × 10 m = 100 m²; 100 × 50 pt = 50 m².
@@ -2549,6 +2559,7 @@ async fn dxf_unterlage_baufenster_und_cad_uebernahme() {
             flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
+            kontur_von: None,
         }
     };
     let mut a = Planaufmass {
@@ -2903,6 +2914,7 @@ async fn offene_flurstuecksflaeche_wird_aus_dem_aufmass_ermittelt() {
             geschoss_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
+            kontur_von: None,
             flurstueck_id: Some("b".into()),
         }],
         ausschnitte: vec![],
@@ -3047,6 +3059,7 @@ async fn abstandsflaechen_linien_aus_dem_lageplan() {
         geschoss_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
         flurstueck_id: (bedeutung == Planbedeutung::Flurstueck).then(|| "a".into()),
     };
     // 100 pt = 10 m. Flurstück 30 × 30 m, Gebäude 10 × 10 m in der Mitte;
@@ -3356,6 +3369,7 @@ async fn abstandsflaechen_mit_ansichten_verknuepfen() {
         geschoss_id: None,
         ausschnitt_id: ausschnitt,
         hoehenzone_von: None,
+        kontur_von: None,
         flurstueck_id: None,
     };
     let aufmass = |name: &str, markierungen, ausschnitte| Planaufmass {
@@ -3668,6 +3682,7 @@ async fn abstandsflaechen_hoehen_aus_der_ansicht() {
         geschoss_id: None,
         ausschnitt_id: ausschnitt,
         hoehenzone_von: None,
+        kontur_von: None,
         flurstueck_id: None,
     };
     let strecke = |von: [f64; 2], bis: [f64; 2]| Plangeometrie::Strecke { von, bis };

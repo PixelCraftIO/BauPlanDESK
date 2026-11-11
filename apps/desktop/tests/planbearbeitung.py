@@ -1,6 +1,6 @@
 """UI-Verträge der erweiterten Planbearbeitung; Fachberechnung wird separat getestet."""
 from pathlib import Path
-import json, os
+import json, os, re
 from playwright.sync_api import sync_playwright, expect
 from navigation_hilfe import bereich
 from plan_fixture import pdf_fixture, custom
@@ -163,9 +163,31 @@ with sync_playwright() as p:
     expect(scope.get_by_role("dialog",name="Planstände vergleichen")).to_be_visible()
     scope.get_by_label("Vergleichsunterlage",exact=True).select_option("d316da8b-cbfb-4ae6-931b-8765fb6454b2|1")
     scope.get_by_label("Blattlage und Konturen anhand der Überlagerung geprüft",exact=True).check()
-    transfer=scope.get_by_role("button",name="Als neues Aufmaß auf Vergleichsunterlage übertragen …",exact=True)
-    expect(transfer).to_be_enabled();transfer.click();speichern()
+    # Planstand im selben Aufmaß wechseln: Kennungen, Maßstab und Verknüpfung bleiben.
+    bisher=page.evaluate("window.planSaved.daten.dokument")
+    aufmass=page.evaluate("window.planSaved.objekt")
+    expect(scope.get_by_role("button",name="Über zwei Passpunkte ausrichten",exact=True)).to_be_enabled()
+    wechsel=scope.get_by_role("button",name="Dieses Aufmaß auf diesen Planstand umstellen …",exact=True)
+    expect(wechsel).to_be_enabled();wechsel.click()
+    # Der Editor bleibt im Vergleich und sucht die geänderten Bereiche selbst.
+    beenden=scope.get_by_role("button",name="Vergleich beenden",exact=True)
+    expect(beenden).to_be_visible()
+    expect(scope.get_by_role("status").filter(has_text=re.compile("geänderte Bereiche|keine Änderung gefunden")).first).to_be_visible(timeout=20000)
+    speichern()
+    assert page.evaluate("window.planSaved.objekt")==aufmass
     assert page.evaluate("window.planSaved.daten.dokument.dokument_id")=="d316da8b-cbfb-4ae6-931b-8765fb6454b2"
+    assert page.evaluate("window.planSaved.daten.kalibrierung")!=None
+    assert page.evaluate("window.planSaved.daten.markierungen[0].id")==original_marker
+    assert page.evaluate("window.planSaves.length")==2
+    # Der bisherige Plan liegt danach als Vergleich darüber; als neues Aufmaß übertragen bleibt möglich.
+    beenden.click()
+    expect(scope.get_by_label("Vergleichsunterlage",exact=True)).to_have_value("")
+    scope.get_by_label("Vergleichsunterlage",exact=True).select_option(f"{bisher['dokument_id']}|{bisher['version']}")
+    scope.get_by_label("Blattlage und Konturen anhand der Überlagerung geprüft",exact=True).check()
+    transfer=scope.get_by_role("button",name="Stattdessen als neues Aufmaß übertragen …",exact=True)
+    expect(transfer).to_be_enabled();transfer.click();speichern()
+    assert page.evaluate("window.planSaved.objekt")!=aufmass
+    assert page.evaluate("window.planSaved.daten.dokument.dokument_id")==bisher["dokument_id"]
     assert page.evaluate("window.planSaved.daten.kalibrierung")==None
     assert page.evaluate("window.planSaved.daten.markierungen[0].id")!=original_marker
     assert page.evaluate("window.gebaeudeSaved.daten.planbindungen[0].markierung_id")==original_marker

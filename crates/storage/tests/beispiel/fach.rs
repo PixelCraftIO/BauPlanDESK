@@ -917,6 +917,7 @@ pub async fn fach(b: &mut Beispiel) {
             flurstueck_id: None,
             ausschnitt_id: Some(aus),
             hoehenzone_von: None,
+            kontur_von: None,
         });
         id
     };
@@ -1184,6 +1185,7 @@ pub async fn fach(b: &mut Beispiel) {
             flurstueck_id: None,
             ausschnitt_id: Some(x_eg),
             hoehenzone_von: None,
+            kontur_von: None,
         });
         id
     };
@@ -1201,6 +1203,7 @@ pub async fn fach(b: &mut Beispiel) {
             flurstueck_id: None,
             ausschnitt_id: Some(x_eg),
             hoehenzone_von: None,
+            kontur_von: None,
         });
         id
     };

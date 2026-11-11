@@ -177,6 +177,10 @@
     grundstuecksinformationen($state.snapshot(projekt.planungsrecht))
       .flurstuecke,
   );
+  // Wandfälle mit ihrer Beschriftung; die Liste zeigt sie statt des Rohwerts.
+  const WANDFAELLE: [string, string][] = [["regel", "Regelwand"], ["garage", "Garage"], ["carport", "Carport"], ["nebengebaeude", "Nebengebäude ohne Aufenthaltsräume"], ["vorbau", "Vorbau / Balkon / Erker"], ["grenzbebauung", "Grenzbebauung"], ["bestand", "Bestand / Änderung"], ["sonderbau", "Sonderbau"], ["sonstiges", "Sonstiger Sonderfall"]];
+  const wandfall = (fall: string) =>
+    WANDFAELLE.find(([id]) => id === fall)?.[1] ?? fall;
   let hoehenHinweis = $state("");
   onMount(async () => {
     try {
@@ -827,7 +831,7 @@
                         >{/if}{#if gebunden(p, `waende.${w.id}.ansicht`)}<span
                           class="meta">{" "}· mit Ansicht</span
                         >{/if}</td
-                    ><td>{w.fall}</td><td
+                    ><td>{wandfall(w.fall)}</td><td
                       ><button
                         type="button"
                         class="link"
@@ -1175,7 +1179,7 @@
                 </div>{/if}
               <label
                 >Bauteil-/Wandfall<select bind:value={w.fall}
-                  >{#each [["regel", "Regelwand"], ["garage", "Garage"], ["carport", "Carport"], ["nebengebaeude", "Nebengebäude ohne Aufenthaltsräume"], ["vorbau", "Vorbau / Balkon / Erker"], ["grenzbebauung", "Grenzbebauung"], ["bestand", "Bestand / Änderung"], ["sonderbau", "Sonderbau"], ["sonstiges", "Sonstiger Sonderfall"]] as [id, t]}<option
+                  >{#each WANDFAELLE as [id, t]}<option
                       value={id}>{t}</option
                     >{/each}</select
                 ></label
@@ -1276,8 +1280,16 @@
                 >{/each}
             </div>
             <p class="meta">
-              Flurstück-IDs: {g.flurstueck_ids.join(", ") ||
-                "Über die dokumentierte Grundstückszuordnung festlegen"}
+              {g.flurstueck_ids.length
+                ? `Flurstücke: ${g.flurstueck_ids
+                    .map((id) => {
+                      const f = flurstuecke.find((f) => f.id === id);
+                      return f
+                        ? `${f.gemarkung} ${f.nummer}`.trim()
+                        : "nicht mehr im Projekt";
+                    })
+                    .join(", ")}`
+                : "Flurstücke über die dokumentierte Grundstückszuordnung festlegen"}
             </p>
             {#if gebunden(p, `grundstuecke.${g.id}.grenze`)}<p class="meta">
                 Grenze aus dem Lageplan ({g.grenze.length} Eckpunkte), an das

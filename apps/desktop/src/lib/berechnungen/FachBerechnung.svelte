@@ -428,6 +428,39 @@
     }
   }
 
+  // Räume führt allein das Raumbuch: Weicht dessen Stand vom übernommenen
+  // ab, folgt die Berechnung mit einem Klick (oder beim Erneuern der Nachweise).
+  const raumbuchVeraltet = $derived(
+    !!s.eingabe?.fachquellen?.some((q) => {
+      const r = raumbuecher.find((x) => x.objekt === q.objekt);
+      return !!r && r.revision !== q.revision;
+    }),
+  );
+  async function raumbuchFolgen() {
+    if (!s.eingabe || busy) return;
+    busy = true;
+    s.fehler = null;
+    try {
+      const vorher = s.eingabe.regelkontext.anwendbarkeit_bestaetigt;
+      const neu = await berechnungsApi.raumbuchNachfuehren(
+        projekt.id,
+        JSON.parse(JSON.stringify(s.eingabe)),
+      );
+      if (neu) {
+        s.eingabe = neu;
+        result = null;
+        s.meldung =
+          vorher && !neu.regelkontext.anwendbarkeit_bestaetigt
+            ? "Räume aus dem Raumbuch aktualisiert. Neue Räume zuordnen und die Berechnung erneut bestätigen."
+            : "Räume aus dem Raumbuch aktualisiert. Speichern und die Berechnung prüfen.";
+      }
+      await raumbuecherLaden();
+    } catch (e) {
+      s.fehler = fehlertext(e);
+    } finally {
+      busy = false;
+    }
+  }
   async function raumimport() {
     if (!s.eingabe || !raumbuchId) return;
     const basis = signatur(s.eingabe),
@@ -437,7 +470,16 @@
     try {
       const r = await berechnungsApi.ausRaumbuch(projekt.id, raumbuchId, modul);
       kandidat.gebaeude_id = r.gebaeude_id;
-      kandidat.fachquellen = r.fachquellen;
+      // Weitere Raumbücher derselben Berechnung bleiben mit ihren Räumen stehen.
+      const weitere = (kandidat.fachquellen ?? []).filter(
+        (q) => !r.fachquellen.some((n) => n.objekt === q.objekt),
+      );
+      const fremdeRaeume = new Set(
+        raumbuecher
+          .filter((b) => weitere.some((q) => q.objekt === b.objekt))
+          .flatMap((b) => b.daten.raeume.map((x) => x.id)),
+      );
+      kandidat.fachquellen = [...weitere, ...r.fachquellen];
       kandidat.uebernahmen = [];
       // Abgleich über die stabile Raum-ID: Flächen und Höhen stammen aus dem
       // Raumbuch, bereits erfasste Zuordnungen bleiben erhalten. Manuelle
@@ -446,7 +488,8 @@
         (lesen(kandidat.eingaben, "positionen") as Obj[] | undefined) ?? [];
       const neu = (lesen(r.eingaben, "positionen") as Obj[] | undefined) ?? [];
       const ausRaumbuch = (x: Obj) =>
-        String(x.quelle ?? "").startsWith("Raumbuch");
+        String(x.quelle ?? "").startsWith("Raumbuch") &&
+        !fremdeRaeume.has(String(x.id).split("_")[0]);
       const eigene =
         modul === "wohnflaechen"
           ? ["wohnung", "typ", "sonderfaktor", "begruendung"]
@@ -716,6 +759,17 @@
         </nav>
         <fieldset disabled={!darf || busy}>
           {#if bereich === "daten"}
+            {#if raumbuchVeraltet}<p class="hinweisbox" role="status">
+                Das Raumbuch wurde seit der Übernahme geändert. Räume führt
+                allein das Raumbuch; Wohnung, Raumart und Zuordnungen dieser
+                Berechnung bleiben erhalten.
+                <button
+                  type="button"
+                  class="link"
+                  disabled={busy || !darf}
+                  onclick={raumbuchFolgen}>Räume aktualisieren</button
+                >
+              </p>{/if}
             <div class="fachraster">
               <label data-feldpfad="$bezeichnung"
                 >Bezeichnung<span class="pflicht" aria-hidden="true">

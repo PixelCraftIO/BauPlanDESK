@@ -40,6 +40,7 @@ fn markierung(
         flurstueck_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
     }
 }
 

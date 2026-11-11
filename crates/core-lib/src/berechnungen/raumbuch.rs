@@ -147,6 +147,128 @@ impl CoreServices {
         );
         Ok(plan)
     }
+    /// Führt eine Berechnung ihrem Raumbuch nach: Flächen, Höhen und Höhenzonen
+    /// kommen aus dem aktuellen Raumbuch, die eigenen Angaben der Berechnung
+    /// (Wohnung, Raumart, Geschoss, Flächenart) bleiben je Raum erhalten.
+    /// Entfallene Räume entfallen, neue kommen hinzu; nur dann sind die
+    /// Bestätigungen der Berechnung erneut nötig. `false`, wenn nichts zu tun war.
+    pub async fn berechnung_raumbuch_nachfuehren(
+        &self,
+        p: ProjectId,
+        plan: &mut FachPlan,
+    ) -> CoreResult<bool> {
+        if !matches!(
+            plan.modul,
+            BerechnungsArt::Wohnflaechen | BerechnungsArt::Din277
+        ) || plan.fachquellen.is_empty()
+        {
+            return Ok(false);
+        }
+        let staende = self.fachobjekte(p, ObjektArt::Raumbuch).await?;
+        if plan.fachquellen.iter().all(|q| {
+            staende
+                .iter()
+                .any(|f| f.objekt == q.objekt.to_string() && f.revision == q.revision)
+        }) {
+            return Ok(false);
+        }
+        let mut neu = Vec::new();
+        let mut quellen = Vec::new();
+        for q in plan.fachquellen.clone() {
+            let r = self
+                .berechnung_aus_raumbuch(p, q.objekt, plan.modul)
+                .await?;
+            if let Some(serde_json::Value::Array(z)) = r.eingaben.get("positionen") {
+                neu.extend(z.iter().cloned());
+            }
+            quellen.extend(r.fachquellen);
+        }
+        let alt = plan
+            .eingaben
+            .get("positionen")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let kennung = |x: &serde_json::Value| x["id"].as_str().unwrap_or_default().to_string();
+        let aus_raumbuch = |x: &serde_json::Value| {
+            x["quelle"]
+                .as_str()
+                .is_some_and(|q| q.starts_with("Raumbuch"))
+        };
+        let leer = |v: &serde_json::Value| v.is_null() || v.as_str() == Some("");
+        let eigene: &[&str] = if plan.modul == BerechnungsArt::Wohnflaechen {
+            &["wohnung", "typ", "sonderfaktor", "begruendung"]
+        } else {
+            &["geschoss", "art", "bereich"]
+        };
+        let mut unbekannt = false;
+        let mut positionen = Vec::new();
+        for mut n in neu.iter().cloned() {
+            let id = kennung(&n);
+            let raum = id.split('_').next().unwrap_or_default().to_string();
+            let gleich = alt.iter().find(|a| kennung(a) == id);
+            // Neue Höhenzone eines bekannten Raums: Raumart und Wohnung vom Raum.
+            let verwandt = gleich.or_else(|| {
+                id.contains('_')
+                    .then(|| {
+                        alt.iter().find(|a| {
+                            let k = kennung(a);
+                            k == raum || k.starts_with(&format!("{raum}_"))
+                        })
+                    })
+                    .flatten()
+            });
+            match verwandt {
+                Some(a) => {
+                    for k in eigene {
+                        if (*k != "begruendung" || gleich.is_some())
+                            && let Some(v) = a.get(*k)
+                            && !leer(v)
+                        {
+                            n[*k] = v.clone();
+                        }
+                    }
+                    if gleich.is_some()
+                        && n.get("lichte_hoehe_m").is_some_and(|v| v.is_null())
+                        && a.get("lichte_hoehe_m").is_some_and(|v| !v.is_null())
+                    {
+                        n["lichte_hoehe_m"] = a["lichte_hoehe_m"].clone();
+                    }
+                }
+                None => unbekannt = true,
+            }
+            positionen.push(n);
+        }
+        let manuell: Vec<_> = alt
+            .iter()
+            .filter(|a| !aus_raumbuch(a) && !neu.iter().any(|n| kennung(n) == kennung(a)))
+            .cloned()
+            .collect();
+        // Planbindungen bleiben nur an Positionen ohne Raumbuchquelle.
+        plan.planbindungen.retain(|b| {
+            b.ziel.strip_prefix("positionen.").is_none_or(|rest| {
+                let id = rest.split('.').next().unwrap_or_default();
+                manuell.iter().any(|m| kennung(m) == id)
+            })
+        });
+        positionen.extend(manuell);
+        plan.eingaben["positionen"] = serde_json::Value::Array(positionen);
+        plan.fachquellen = quellen;
+        if unbekannt {
+            for f in [
+                "aufmass_vollstaendig",
+                "wohneinheiten_bestaetigt",
+                "klassifikation_geprueft",
+                "kgf_vollstaendig",
+            ] {
+                if plan.eingaben.get(f).is_some() {
+                    plan.eingaben[f] = serde_json::Value::Bool(false);
+                }
+            }
+            plan.regelkontext.anwendbarkeit_bestaetigt = false;
+        }
+        Ok(true)
+    }
 }
 
 /// DIN-277-Flächenart einer klassifizierten Planmarkierung.

@@ -346,7 +346,32 @@ impl CoreServices {
                     }
                 }
             }
-            if v != vorher {
+            // Dasselbe gilt für einen neueren Raumbuchstand mit gleichen Flächen
+            // und Höhen: Raumname und Quellenangabe ändern die Prüfaussage nicht.
+            let ohne_raumtexte = |mut plan: FachPlan| {
+                plan.fachquellen.clear();
+                if let Some(zeilen) = plan
+                    .eingaben
+                    .get_mut("positionen")
+                    .and_then(|z| z.as_array_mut())
+                {
+                    for z in zeilen {
+                        if z["quelle"]
+                            .as_str()
+                            .is_some_and(|q| q.starts_with("Raumbuch"))
+                            && let Some(o) = z.as_object_mut()
+                        {
+                            o.remove("quelle");
+                            o.remove("raum");
+                        }
+                    }
+                }
+                plan
+            };
+            let gleich = v == vorher
+                || (v.fachquellen != vorher.fachquellen
+                    && ohne_raumtexte(v) == ohne_raumtexte(vorher.clone()));
+            if !gleich {
                 neu.regelkontext.anwendbarkeit_bestaetigt = false;
             } else if neu.regelkontext.anwendbarkeit_bestaetigt
                 && !vorher.regelkontext.anwendbarkeit_bestaetigt
