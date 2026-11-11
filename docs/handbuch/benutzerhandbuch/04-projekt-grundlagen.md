@@ -124,6 +124,13 @@ Unterlage wählen (vorhandenes Aufmaß, Projektdatei oder eigene Zeichnung in
 Metern), kalibrieren, **Grenze zeichnen** und **Fläche übernehmen und zurück**.
 Bedeutung „Flurstück“ und Zuordnung setzt die App selbst. Bei einem bereits
 verknüpften Flurstück heißt der Knopf **Im Zeicheneditor bearbeiten**.
+Ist die Fläche schon gezeichnet, bietet der Auftrag sie unter **Vorhandene
+Fläche** an; „Diese Fläche verwenden“ ordnet sie zu, ohne neu zu zeichnen.
+
+Umgekehrt geht es auch: Im Zeicheneditor eine Fläche wählen, als Bedeutung
+„Flurstück“ setzen und **Als neues Flurstück anlegen …** wählen. Gemarkung,
+Flur und Nummer angeben; die App legt das Flurstück mit der gezeichneten
+Fläche an, speichert das Aufmaß und zeigt die Übernahme zur Bestätigung.
 
 Ist die Katasterfläche noch nicht bekannt, **Fläche wird im Aufmaß ermittelt**
 wählen oder das Feld leer lassen und direkt **Im Zeicheneditor ermitteln**

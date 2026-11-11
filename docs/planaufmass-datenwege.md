@@ -43,8 +43,10 @@ dürfen sich ändern, ohne dass etwas veraltet.
    was Gebäude und Wände noch brauchen; „Zeichnen“ wählt das Werkzeug und
    belegt Bedeutung, Gebäude, Geschoss und Namen vor. Ohne Aufgabe: zeichnen,
    **Bedeutung** und Zuordnung von Hand wählen.
-5. Aufmaß speichern. Unter **Aufgaben → Übernehmen** die Markierung in das
-   Gebäude bzw. die Wand übernehmen (Verbraucher wird gespeichert); das
+5. Unter **Aufgaben → Übernehmen** die Markierung in das Gebäude bzw. die
+   Wand übernehmen; ein ungespeichertes Aufmaß wird dabei zuerst gespeichert,
+   danach der Verbraucher. Die Vorschau nennt alten und neuen Wert und die
+   Quelle mit Aufmaß, Markierung und Aufmaßstand; das
    Seitenpanel nennt je Bedeutung den sonstigen Übernahmeort.
 6. Für Fachberechnungen weiterhin unter „Quellen / Übernahmen“ verknüpfen.
 7. Soll eine Kontur zwei Bedeutungen haben (z. B. Gebäudegrundfläche *und*

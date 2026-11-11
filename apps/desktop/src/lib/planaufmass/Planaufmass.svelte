@@ -844,8 +844,44 @@
   const flurMarkierung=(a:Planaufgabe|null|undefined,plan:Planaufmass|null|undefined)=>a?.markierung??(a?.gebunden&&plan?.markierungen.some(m=>m.id===a.gebunden)?a.gebunden:null);
   const flurFlaeche=$derived.by(()=>{const id=flurMarkierung(flurAufgabe,s.eingabe);return id?aktuelleWerte.find(w=>w.id===id)?.flaeche_m2??null:null});
   const ohneMassstab=$derived(!!s.eingabe?.dokument&&!istDxfUnterlage&&!(aktueller?.kalibrierung??s.eingabe?.kalibrierung));
-  async function flurUebernehmen(){
-    const a=flurAuftrag;if(!a||!darf||flurLaeuft)return;
+  /** Gezeichnete Flächen, die noch keinem Flurstück gehören: Angebot für den Flurstücksauftrag. */
+  const freieFlaechen=$derived((s.eingabe?.markierungen??[]).filter(m=>["polygon","rechteck","flaeche"].includes(m.geometrie.art)&&!m.flurstueck_id&&["flurstueck","unbestimmt"].includes(m.bedeutung)));
+  let flurWahl=$state("");
+  function flurFlaecheVerwenden(){
+    const a=flurAuftrag,m=s.eingabe?.markierungen.find(x=>x.id===(flurWahl||freieFlaechen[0]?.id));
+    if(!a||!m)return;
+    merken();m.bedeutung="flurstueck";m.flurstueck_id=a.id;flurWahl="";
+  }
+  // Neues Flurstück aus einer gezeichneten Fläche: legt das Flurstück in den
+  // Grundlagen an (Fläche wird im Aufmaß ermittelt) und ordnet die Markierung zu.
+  let neuesFlurstueck=$state<{gemarkung:string;flur:string;nummer:string}|null>(null),flurNeuLaeuft=$state(false);
+  async function flurstueckAnlegen(){
+    const m=s.eingabe?.markierungen.find(x=>x.id===auswahl),n=neuesFlurstueck;
+    if(!m||!n||!darf||flurNeuLaeuft)return;
+    if(!n.gemarkung.trim()||!n.nummer.trim()){s.fehler="Gemarkung und Flurstücksnummer angeben.";return}
+    // Das Flurstück entsteht gleich mit der gezeichneten Fläche: So blockiert
+    // kein Flurstück ohne Fläche die übrigen Berechnungen, falls die Übernahme scheitert.
+    const flaeche=aktuelleWerte.find(w=>w.id===m.id)?.flaeche_m2;
+    if(!(flaeche&&flaeche>0)){s.fehler="Die Fläche ist noch nicht messbar: zuerst den Maßstab festlegen.";return}
+    flurNeuLaeuft=true;s.fehler=null;
+    try{
+      const basis=JSON.parse(JSON.stringify(projekt)) as typeof projekt;
+      const infos=grundstuecksinformationen(basis.planungsrecht);
+      const id=crypto.randomUUID();
+      infos.flurstuecke.push({id,gemarkung:n.gemarkung.trim(),flur:n.flur.trim(),nummer:n.nummer.trim(),flaeche_m2:Math.round(flaeche*100)/100,grundbuchbezirk:"",grundbuchblatt:"",laufende_nummer:null,grundbuchauszug:null,eigentuemer:"",bemerkung:"Fläche aus der Zeichnung ermittelt."});
+      onprojekt?.(await flurstueckeSpeichern(basis,infos));
+      merken();m.bedeutung="flurstueck";m.flurstueck_id=id;
+      if(!m.bezeichnung.trim()||/^(Polygon|Rechteck|Fläche|Markierung)\b/.test(m.bezeichnung))m.bezeichnung=`Flurstück ${n.nummer.trim()}`;
+      neuesFlurstueck=null;
+      s.meldung=`Flurstück ${n.gemarkung.trim()} ${n.nummer.trim()} angelegt und zugeordnet.`;
+      // In einem Zug: Aufmaß speichern und die gezeichnete Fläche übernehmen.
+      await tick();
+      await flurUebernehmen({id,bezeichnung:`${n.gemarkung.trim()} ${n.nummer.trim()}`});
+    }catch(e){s.fehler=fehlertext(e)}finally{flurNeuLaeuft=false}
+  }
+  /** Übernimmt die gezeichnete Fläche ins Flurstück; ohne Angabe für den Flurstücksauftrag des Tabs. */
+  async function flurUebernehmen(direkt?:{id:string;bezeichnung:string}){
+    const a=direkt??flurAuftrag;if(!a||!darf||flurLaeuft)return;
     flurLaeuft=true;flurFehler="";
     try{
       // Die Bindung verweist auf den gespeicherten Stand dieses Aufmaßes.
@@ -856,14 +892,15 @@
       if(!aufgabe)throw Error("Das Flurstück ist nicht mehr gespeichert.");
       const mid=flurMarkierung(aufgabe,stand.daten);
       if(!mid)throw Error("Noch keine Grenze für dieses Flurstück gezeichnet: „Grenze zeichnen“ wählen und das Polygon schließen.");
-      const {basis,geprueft,vorher,nachher}=await flurstueckVorbereiten(projekt,a.id,{aufmass_id:id,revision:stand.revision,markierung_id:mid,groesse:aufgabe.groesse,ziel:aufgabe.ziel});
+      const {basis,geprueft,vorher,nachher}=await flurstueckVorbereiten(projekt,a.id,{aufmass_id:id,revision:stand.revision,markierung_id:mid,groesse:aufgabe.groesse,ziel:aufgabe.ziel},!!direkt);
       const name=stand.daten.markierungen.find(m=>m.id===mid)?.bezeichnung??"Markierung";
-      if(!(await flurVorschau.fragen([{ziel:`Flurstück ${a.bezeichnung} · Fläche`,vorher,nachher,quelle:`${stand.daten.bezeichnung} · ${name} · R${stand.revision}`}],true)))return;
+      if(!(await flurVorschau.fragen([{ziel:`Flurstück ${a.bezeichnung} · Fläche`,vorher,nachher,quelle:`${stand.daten.bezeichnung} · ${name} · Aufmaßstand ${stand.revision}`}],true)))return;
       onprojekt?.(await flurstueckeSpeichern(basis,geprueft));
+      if(direkt){s.meldung=`Flurstück ${a.bezeichnung}: Fläche ${nachher} übernommen und gespeichert.`;return}
       onflurstueckfertig?.();
       const zurueck=navigation?.rueckweg;
       if(navigation&&zurueck?.bereich==="flurstuecke"){navigation.rueckweg=null;navigation.springen(zurueck)}
-    }catch(e){flurFehler=fehlertext(e)}finally{flurLaeuft=false}
+    }catch(e){if(direkt)s.fehler=`Flurstück angelegt, die Fläche ist aber noch nicht übernommen: ${fehlertext(e)}`;else flurFehler=fehlertext(e)}finally{flurLaeuft=false}
   }
   function aufgabeZeichnen(a:Planaufgabe){
     if(a.geometrie==="hoehenpunkt"&&!hoehenMoeglich){
@@ -946,16 +983,17 @@
       s.neu();if(!s.eingabe)return;
       const datei=dateien.find(d=>d.document_id===dokument.dokument_id&&d.version===dokument.version);
       s.eingabe={...s.leer(),bezeichnung:datei&&istDxf(datei.file_name)?datei.file_name:`${datei?.file_name??"Unterlage"} · Seite ${seite}`,dokument,seite};
-    }else{p.dokument=dokument;p.seite=seite;basisReset()}
+    }else{const hatte=!!p.dokument&&(!!p.kalibrierung||!!p.hoehenbezug);p.dokument=dokument;p.seite=seite;basisReset(hatte)}
     plan?.abbrechen();vergleich="";kontrolle=null;
   }
-  function basisReset(){
+  function basisReset(melden=true){
     if(!s.eingabe)return;
     s.eingabe.kalibrierung=null;s.eingabe.hoehenbezug=null;
     // Rahmen bleiben als Vorschlag; ihre Maßstäbe und Bezugslinien sind neu zu bestätigen.
     for(const a of s.eingabe.ausschnitte??[]){delete a.kalibrierung;delete a.bezugslinie}
     aktiv="";
-    s.meldung="Unterlage geändert. Maßstab und Höhenbezug neu bestimmen und alle Markierungen kontrollieren.";
+    // Ein neues Aufmaß hat noch nichts, was neu zu bestimmen wäre.
+    if(melden)s.meldung="Unterlage geändert. Maßstab und Höhenbezug neu bestimmen und alle Markierungen kontrollieren.";
   }
   const massstabText=(k:Planaufmass["kalibrierung"]|undefined)=>!k?"":k.art==="einheit"?`Zeichnungseinheit ${EINHEITEN.find(e=>e.code===k.einheit)?.name??k.einheit}`:k.art==="massstab"?`1 : ${z(k.nenner)}`:`kalibriert über ${z(k.meter)} m`;
   const z=(n:number|null|undefined)=>n==null?"—":n.toLocaleString("de-DE",{maximumFractionDigits:3});
@@ -1043,6 +1081,7 @@
               <strong>Flurstück {flurAuftrag.bezeichnung}:</strong>
               <span>{flurFlaeche!=null?`Grenze gezeichnet · ${z(flurFlaeche)} m²`:flurMarkierung(flurAufgabe,p)?"Grenze gezeichnet; Fläche noch nicht messbar.":"Grenze als Polygon zeichnen und schließen."}</span>
               {#if ohneMassstab}<span class="meta">Zuerst den Maßstab festlegen: „Zwei Punkte kalibrieren“ (Q). Ohne Maßstab lässt sich keine Fläche messen.</span>{/if}
+              {#if darf&&!flurMarkierung(flurAufgabe,p)&&freieFlaechen.length}<label class="inline">Vorhandene Fläche<select aria-label="Vorhandene Fläche für das Flurstück" bind:value={flurWahl}>{#each freieFlaechen as f,i (f.id)}<option value={i?f.id:""}>{f.bezeichnung||"Fläche"}{aktuelleWerte.find(w=>w.id===f.id)?.flaeche_m2!=null?` · ${z(aktuelleWerte.find(w=>w.id===f.id)?.flaeche_m2)} m²`:""}</option>{/each}</select></label><button type="button" class="sekundaer" onclick={flurFlaecheVerwenden}>Diese Fläche verwenden</button>{/if}
               {#if darf}<button type="button" class="sekundaer" disabled={!flurAufgabe||s.laeuft||flurLaeuft} onclick={()=>flurAufgabe&&aufgabeZeichnen(flurAufgabe)}>Grenze zeichnen</button>
                 <button type="button" disabled={flurFlaeche==null||s.laeuft||flurLaeuft} onclick={()=>void flurUebernehmen()}>Fläche übernehmen und zurück</button>{/if}
               <button type="button" class="link" disabled={flurLaeuft} onclick={()=>onflurstueckfertig?.()}>Auftrag beenden</button>
@@ -1134,7 +1173,15 @@
                 <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung} onchange={()=>{if(m&&m.bedeutung!=="flurstueck"&&!ABZUGSBEDEUTUNGEN.includes(m.bedeutung))delete m.flurstueck_id}}><option value="unbestimmt">Noch nicht zugeordnet</option>{#each bedeutungsgruppen(m.geometrie.art,m.bedeutung) as [gruppe,liste]}<optgroup label={gruppe}>{#each liste as [v,t]}<option value={v}>{t}</option>{/each}</optgroup>{/each}</select></label>
                 {#if m.bedeutung==="flurstueck"||ABZUGSBEDEUTUNGEN.includes(m.bedeutung)}
                   <label>Flurstück<select aria-label="Flurstück" value={m.flurstueck_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.flurstueck_id=v;else delete m!.flurstueck_id}}><option value="">Nicht zugeordnet</option>{#each flurstuecke as f (f.id)}<option value={f.id}>{f.gemarkung} {f.nummer}{f.flur?` (Flur ${f.flur})`:""}</option>{/each}{#if m.flurstueck_id&&!flurstuecke.some(f=>f.id===m!.flurstueck_id)}<option value={m.flurstueck_id}>Flurstück nicht mehr erfasst</option>{/if}</select></label>
-                  {#if !m.flurstueck_id}<p class="hinweisbox">Für die Übernahme (Flurstücksfläche bzw. Flächenabzug des Flurstücks) das Flurstück zuordnen; ohne Zuordnung dient die Fläche nur zur Kontrolle.{flurstuecke.length?"":" Flurstücke zuerst unter Grundlagen → Flurstücke anlegen und speichern."}</p>{/if}
+                  {#if !m.flurstueck_id}<p class="hinweisbox">Für die Übernahme (Flurstücksfläche bzw. Flächenabzug des Flurstücks) das Flurstück zuordnen; ohne Zuordnung dient die Fläche nur zur Kontrolle.{flurstuecke.length?"":" Flurstücke zuerst unter Grundlagen → Flurstücke anlegen und speichern."}</p>
+                    {#if m.bedeutung==="flurstueck"&&darf}
+                      {#if neuesFlurstueck}<div class="flurneu" role="group" aria-label="Neues Flurstück">
+                        <label>Gemarkung<input aria-label="Gemarkung des neuen Flurstücks" bind:value={neuesFlurstueck.gemarkung} maxlength="200"/></label>
+                        <label>Flur<input aria-label="Flur des neuen Flurstücks" bind:value={neuesFlurstueck.flur} maxlength="20"/></label>
+                        <label>Flurstück<input aria-label="Nummer des neuen Flurstücks" bind:value={neuesFlurstueck.nummer} maxlength="20" placeholder="z. B. 412 oder 12/3"/></label>
+                        <div class="aktionen"><button type="button" disabled={flurNeuLaeuft} onclick={()=>void flurstueckAnlegen()}>Flurstück anlegen und zuordnen</button><button type="button" class="sekundaer" onclick={()=>neuesFlurstueck=null}>Abbrechen</button></div>
+                      </div>{:else}<button type="button" class="sekundaer" onclick={()=>neuesFlurstueck={gemarkung:flurstuecke[0]?.gemarkung??"",flur:flurstuecke[0]?.flur??"",nummer:""}}>Als neues Flurstück anlegen …</button>{/if}
+                    {/if}{/if}
                 {/if}
                 {#if ["raum","aufenthaltsraum","nuf","tf","vf"].includes(m.bedeutung)}
                   {@const raeume=p.markierungen.filter(x=>x.id!==m!.id&&!x.hoehenzone_von&&["raum","aufenthaltsraum","nuf","tf","vf"].includes(x.bedeutung)&&x.gebaeude_id===m!.gebaeude_id&&x.geschoss_id===m!.geschoss_id)}
@@ -1187,7 +1234,7 @@
           </section>{/if}
           {#if panel==="aufgaben"}<section class="palette" aria-label="Aufgaben">
             <div class="palettenkopf"><h3>Aufgaben</h3></div>
-            {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} planart={p.ausschnitte?.find(a=>a.id===aktiv)?.art??null} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
+            {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} onspeichern={()=>s.speichern()} {darf} planart={p.ausschnitte?.find(a=>a.id===aktiv)?.art??null} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
           </section>{/if}
           {#if panel==="objekte"}<section class="palette" aria-label="Objekte">
             <div class="palettenkopf"><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></div>

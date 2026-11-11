@@ -12,7 +12,7 @@ export const flurText = (f: Pick<FlurstuecksInfo, "flaeche_m2" | "planflaeche_m2
   !f ? "—" : f.flaeche_offen ? "noch nicht ermittelt" : f.flaeche_aus_plan ? `${werttext(f.flaeche_m2, "m²")} (aus Plan)` : f.planflaeche_m2 == null ? werttext(f.flaeche_m2, "m²") : `${werttext(f.flaeche_m2, "m²")} Kataster · gezeichnet ${werttext(f.planflaeche_m2, "m²")}`;
 
 /** Entwurf der Übernahme: geprüfte Grundstücksinformationen mit Bindung und Anzeige vorher/nachher. Speichert nichts. */
-export async function flurstueckVorbereiten(projekt: Project, flurstueckId: string, bindung: Planbindung) {
+export async function flurstueckVorbereiten(projekt: Project, flurstueckId: string, bindung: Planbindung, ausPlan = false) {
   const basis = JSON.parse(JSON.stringify(projekt)) as Project;
   const infos = grundstuecksinformationen(basis.planungsrecht);
   const f = infos.flurstuecke.find((x) => x.id === flurstueckId);
@@ -20,7 +20,8 @@ export async function flurstueckVorbereiten(projekt: Project, flurstueckId: stri
   const vorher = { ...f };
   f.planbindung = bindung;
   // Ohne amtliche Fläche liefert die Zeichnung die Flurstücksfläche; sonst bleibt sie Kontrolle.
-  if (!(f.flaeche_m2 > 0)) f.flaeche_aus_plan = true;
+  // `ausPlan`: Das Flurstück wurde aus der Zeichnung angelegt, seine Fläche ist kein Katasterwert.
+  if (ausPlan || !(f.flaeche_m2 > 0)) f.flaeche_aus_plan = true;
   const geprueft = await planApi.flurstuecke(projekt.id, infos);
   return { basis, geprueft, vorher: flurText(vorher), nachher: flurText(geprueft.flurstuecke.find((x) => x.id === flurstueckId)) };
 }
