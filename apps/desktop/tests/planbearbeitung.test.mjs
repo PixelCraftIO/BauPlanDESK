@@ -11,7 +11,7 @@ async function laden(name){
   const url="data:text/javascript;base64,"+Buffer.from(outputText).toString("base64");urls[name.replace(/\.ts$/,"")]=url;
   return import(url);
 }
-const geometry=await laden("pdfGeometry.ts"),edit=await laden("bearbeitung.ts"),{Bearbeitungsverlauf}=await laden("verlauf.ts"),{Fangindex,standardFang,streckenachsen}=await laden("fang.ts"),{aufmassUebertragen,planstandWechseln}=await laden("uebertragung.ts");
+const geometry=await laden("pdfGeometry.ts"),edit=await laden("bearbeitung.ts"),{Bearbeitungsverlauf}=await laden("verlauf.ts"),{Fangindex,standardFang,streckenachsen}=await laden("fang.ts"),{aufmassUebertragen,planstandWechseln,markierungenHolen}=await laden("uebertragung.ts");
 test("Vollständiges Rückgängig stellt Ausschnitt, Ebene, Maßstab und Markierungsreferenz gemeinsam wieder her",()=>{
   const a={kalibrierung:{art:"massstab",nenner:100},ausschnitte:[{id:"schnitt",ebene_id:"ebene"}],ebenen:[{id:"ebene",sichtbar:true}],markierungen:[{id:"m",ausschnitt_id:"schnitt"}]};
   const h=new Bearbeitungsverlauf();h.reset(a);
@@ -72,5 +72,16 @@ test("Planstandwechsel behält Kennungen und rechnet Konturen, Maßstab und Bez�
   assert.deepEqual(neu.ausschnitte[0].bezugslinie.bis,[20,80]);
   assert.deepEqual(neu.hoehenbezug.punkt,[20,80]);
   assert.deepEqual(alt.markierungen[0].geometrie.punkte[0],[20,20]);
+});
+test("Markierungen aus einem anderen Plan wandern mit der Ausrichtung und behalten Bedeutung und Zuordnung",()=>{
+  const quelle=[{id:"f",ebene_id:"x",ausschnitt_id:"karte",bezeichnung:"Flurstück 412",bedeutung:"flurstueck",flurstueck_id:"fs-412",grundstueck_id:null,gebaeude_id:null,geschoss_id:null,geometrie:{art:"polygon",punkte:[[0,0],[10,0],[10,10]]}},
+    {id:"g",ebene_id:"x",kontur_von:"f",hoehenzone_von:"fremd",bezeichnung:"Zweite",bedeutung:"baufenster",grundstueck_id:null,gebaeude_id:null,geschoss_id:null,geometrie:{art:"polygon",punkte:[[0,0],[10,0],[10,10]]}}];
+  let n=0;
+  // Die Flurkarte ist halb so groß gezeichnet und liegt um (100, 50) versetzt über dem Lageplan.
+  const neu=markierungenHolen(quelle,{dx:100,dy:50,grad:0,faktor:2},"ebene","lageplan",()=>`neu${++n}`);
+  assert.deepEqual(neu[0].geometrie.punkte,[[100,50],[120,50],[120,70]]);
+  assert.deepEqual([neu[0].id,neu[0].ebene_id,neu[0].ausschnitt_id,neu[0].flurstueck_id,neu[0].bedeutung],["neu1","ebene","lageplan","fs-412","flurstueck"]);
+  assert.equal(neu[1].kontur_von,"neu1");assert.equal(neu[1].hoehenzone_von,undefined);
+  assert.equal(quelle[0].id,"f");
 });
 

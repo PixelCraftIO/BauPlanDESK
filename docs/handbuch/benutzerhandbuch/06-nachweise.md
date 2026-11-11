@@ -178,8 +178,10 @@ Stammen Wände aus Linien im Lageplan, erzeugt **Abstandsflächenplan auf dem
 Lageplan (PDF)** unter dem Ergebnis aus dem archivierten Nachweisstand ein
 Blatt für den Bauantrag: die unveränderte Lageplanseite mit den
 Abstandsflächen (blau), Flächen jenseits der Grenze (rot) und Überdeckungen
-(violett), jede Wand beschriftet mit „A1 · H … m · T … m“. Ein zweites Blatt
-nennt Quellen, Regeldatei und je Wand Höhe, Tiefe, Fläche und Ergebnis.
+(violett). Jede Wand trägt in ihrer Mitte ihr Kürzel und die Tiefe
+(„A1 · T 3,00 m“); heißt die Linie „A1 Süd (Traufe)“, steht auf dem Plan nur
+„A1“. Ein zweites Blatt nennt Quellen, Regeldatei und je Wand Höhe, Tiefe,
+Fläche und Ergebnis.
 
 ![Abstandsflächenplan auf dem Lageplan](bilder/abstand-plan-lageplan.png)
 

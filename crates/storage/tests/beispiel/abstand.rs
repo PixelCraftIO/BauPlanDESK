@@ -1,22 +1,28 @@
 //! Beispielprojekt „Neubau Einfamilienhaus Mustermann“: Abstandsflächen nach
-//! § 6 BauO NRW 2018 (Paket `abstand-nw`) mit Lageplan-DXF, Grundstücks-
-//! grenzen je Flurstück, Gebäudeumrissen aus Gebäude/Geschosse, Satteldach mit
-//! Giebelanrechnung, Grenzgarage, Rechts-/Umfangsprüfung, Nachweis, Freigabe,
-//! PDF sowie JSON-/DXF-Export.
+//! § 6 BauO NRW 2018 (Paket `abstand-nw`) auf dem gezeichneten Weg: Lageplan
+//! als PDF (M 1:200), Flurstücke, Gebäudeumrisse und Linien „Abstandsfläche“
+//! im Aufmaß des Lageplans, Übernahme der Linien als Wände und der Flurstücke
+//! als Grundstücksgrenzen, Satteldach mit Giebelanrechnung, Grenzgarage,
+//! Rechts-/Umfangsprüfung, Nachweis, Freigabe, PDF sowie JSON-/DXF-Export.
 //!
-//! Lage (lokales System in Metern, x nach Osten, y nach Norden, Ursprung
-//! Südwestecke Flst. 412): Flurstück 412 = 20,00 × 31,00 m, Straße Lindenweg
-//! an der Nordseite (y = 31). Wohnhaus 11,00 × 9,00 m, 5,00 m hinter der
-//! Straßengrenze und 3,00 m von der Westgrenze: x 3–14, y 17–26, Traufseiten
-//! Nord/Süd. Grenzgarage 3,50 × 6,00 m an der Ostgrenze: x 16,5–20, y 20–26.
+//! Lage (Meter, x nach Osten, y nach Norden, Ursprung Südwestecke Flst. 412):
+//! Flurstück 412 = 20,00 × 31,00 m, Straße Lindenweg an der Nordseite
+//! (y = 31). Wohnhaus 11,00 × 9,00 m, 5,00 m hinter der Straßengrenze und
+//! 3,00 m von der Westgrenze: x 3–14, y 17–26, Traufseiten Nord/Süd.
+//! Grenzgarage 3,50 × 6,00 m an der Ostgrenze: x 16,5–20, y 20–26.
 #![allow(dead_code)]
 use super::basis::*;
 use bytes::Bytes;
 use core_lib::{
     abstandsflaechen::*,
-    cad::Laengeneinheit,
     druckausgabe::{Druckauftrag, Druckquelle},
+    grundstuecksinformationen::informationen,
+    planaufmass::{
+        Aufmassstand, Planaufmass, Planbedeutung, Planbindung, Planebene, Plangeometrie,
+        Plankalibrierung, Planmarkierung, Planmessgroesse,
+    },
     plattform::{ObjektArt, nachweise::NachweisEingabe, objekte::Dokumentbezug},
+    projektbereiche::ProjektBereich,
 };
 use uuid::Uuid;
 
@@ -25,55 +31,318 @@ pub const PLAN_ID: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0000_0
 pub const G412: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0001_0412);
 pub const G411: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0001_0411);
 pub const G413: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0001_0413);
+/// Aufmaß des Lageplans (fest, damit Abstandsplan und Flurstücke darauf verweisen).
+pub const LAGEPLAN_ID: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0003_0412);
+/// Baukörper für [`wand_id`].
 pub const UMRISS_HAUS: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0002_0001);
 pub const UMRISS_GARAGE: Uuid = Uuid::from_u128(0x4b5f_0000_0000_0000_0000_0000_0002_0002);
 pub const DACHNEIGUNG: f64 = 36.;
+/// Wände je Baukörper im Gegenuhrzeigersinn ab Südwestecke: Süd, Ost, Nord, West.
+const HAUSWAENDE: [&str; 4] = [
+    "A1 Süd (Traufe)",
+    "A2 Ost (Giebel)",
+    "A3 Nord (Traufe)",
+    "A4 West (Giebel)",
+];
+const GARAGENWAENDE: [&str; 4] = [
+    "A5 Garage Süd",
+    "A6 Garage Ost (Grenze)",
+    "A7 Garage Nord",
+    "A8 Garage West",
+];
 
-fn lw(ebene: &str, p: &[(f64, f64)]) -> String {
-    let mut s = format!("0\nLWPOLYLINE\n8\n{ebene}\n90\n{}\n70\n1\n", p.len());
-    for (x, y) in p {
-        s += &format!("10\n{x}\n20\n{y}\n");
+/// Lageplan M 1:200 auf A3: 1 m = 5 mm; die Südwestecke von Flst. 412 liegt
+/// bei (150 | 220) mm ab Blattecke links oben.
+const LP_X: f64 = 150.;
+const LP_Y: f64 = 220.;
+const LP_MM: f64 = 5.;
+/// Dieselbe Ecke im Koordinatenbezug des Aufmaßes (Meter ab Blattecke, y nach oben).
+pub const URSPRUNG: (f64, f64) = (LP_X / LP_MM, -LP_Y / LP_MM);
+/// Blattpunkt (mm) eines Lagepunkts in Metern.
+fn blatt(x: f64, y: f64) -> (f64, f64) {
+    (LP_X + LP_MM * x, LP_Y - LP_MM * y)
+}
+/// Rechteck in Metern: (x, y, Breite, Tiefe) ab Südwestecke.
+const FLST_411: (f64, f64, f64, f64) = (-21.13, 0., 21.13, 31.);
+const FLST_412: (f64, f64, f64, f64) = (0., 0., 20., 31.);
+const FLST_413: (f64, f64, f64, f64) = (20., 0., 19.29, 31.);
+const HAUS: (f64, f64, f64, f64) = (3., 17., 11., 9.);
+const GARAGE: (f64, f64, f64, f64) = (16.5, 20., 3.5, 6.);
+/// Ecken im Gegenuhrzeigersinn ab Südwestecke.
+fn ecken(r: (f64, f64, f64, f64)) -> [(f64, f64); 4] {
+    let (x, y, b, t) = r;
+    [(x, y), (x + b, y), (x + b, y + t), (x, y + t)]
+}
+
+/// Amtlicher Lageplan des Vermessers als Vektor-PDF.
+fn lageplan_pdf() -> Vec<u8> {
+    let mut z = Zeichnung::default();
+    z.stift(0.5, false);
+    z.rechteck((10., 10.), (410., 287.));
+    z.text(20., 24., 11., "Lageplan zum Bauantrag");
+    let rechteck = |z: &mut Zeichnung, r: (f64, f64, f64, f64)| {
+        let e = ecken(r);
+        z.rechteck(blatt(e[0].0, e[0].1), blatt(e[2].0, e[2].1));
+    };
+    // Flurstücke
+    z.stift(0.35, false);
+    for (r, nr) in [(FLST_411, "411"), (FLST_412, "412"), (FLST_413, "413")] {
+        rechteck(&mut z, r);
+        let m = blatt(r.0 + r.2 / 2. - 1.5, 6.);
+        z.text(m.0, m.1, 9., nr);
     }
-    s
-}
-fn rechteck(x: f64, y: f64, b: f64, t: f64) -> Vec<(f64, f64)> {
-    vec![(x, y), (x + b, y), (x + b, y + t), (x, y + t)]
-}
-/// Lageplan des Vermessers als DXF in Metern (Umlaufsinn gegen den Uhrzeigersinn).
-pub fn lageplan_dxf() -> String {
-    let mut s = String::from(
-        "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n",
+    let t = blatt(1., 2.);
+    z.text(t.0, t.1, 4., "620 m²");
+    // Straße Lindenweg (6,00 m) nördlich der Flurstücke
+    z.stift(0.25, false);
+    z.linie(blatt(-21.13, 37.), blatt(39.29, 37.));
+    let t = blatt(4., 33.2);
+    z.text(t.0, t.1, 8., "Lindenweg");
+    let t = blatt(-20., 31.4);
+    z.text(t.0, t.1, 3.5, "OK Straße 72,40 m ü. NHN");
+    // Vorhaben
+    z.stift(0.7, false);
+    rechteck(&mut z, HAUS);
+    rechteck(&mut z, GARAGE);
+    let t = blatt(4.2, 24.4);
+    z.text(t.0, t.1, 6., "Wohnhaus II");
+    let t = blatt(4.2, 23.4);
+    z.text(
+        t.0,
+        t.1,
+        4.,
+        "11,00 × 9,00 · SD 36° · Traufe 76,84 · First 80,09",
     );
-    s += &lw("FLST_411", &rechteck(-21.13, 0., 21.13, 31.));
-    s += &lw("FLST_412", &rechteck(0., 0., 20., 31.));
-    s += &lw("FLST_413", &rechteck(20., 0., 19.29, 31.));
-    s += &lw("GEB_WOHNHAUS", &rechteck(3., 17., 11., 9.));
-    s += &lw("GEB_GARAGE", &rechteck(16.5, 20., 3.5, 6.));
-    s += "0\nENDSEC\n0\nEOF\n";
-    s
+    let t = blatt(17.3, 24.6);
+    z.text(t.0, t.1, 4., "Garage");
+    let t = blatt(17.3, 21.2);
+    z.text(t.0, t.1, 3., "OK 75,14");
+    // Firstlinie und Maße zu den Grenzen
+    z.stift(0.18, true);
+    z.linie(blatt(3., 21.5), blatt(14., 21.5));
+    z.stift(0.13, false);
+    z.linie(blatt(0., 18.), blatt(3., 18.));
+    let t = blatt(0.6, 18.3);
+    z.text(t.0, t.1, 3.5, "3,00");
+    z.linie(blatt(8., 26.), blatt(8., 31.));
+    let t = blatt(8.3, 28.2);
+    z.text(t.0, t.1, 3.5, "5,00");
+    z.linie(blatt(14., 24.), blatt(16.5, 24.));
+    let t = blatt(14.4, 24.3);
+    z.text(t.0, t.1, 3.5, "2,50");
+    let t = blatt(1., 0.6);
+    z.text(t.0, t.1, 3.5, "Gelände eben 72,34 m ü. NHN");
+    // Nordpfeil
+    z.stift(0.35, false);
+    z.zug(&[
+        (380., 60.),
+        (385., 35.),
+        (390., 60.),
+        (385., 54.),
+        (380., 60.),
+    ]);
+    z.text(383., 32., 8., "N");
+    // Schriftfeld
+    z.rechteck((300., 245.), (410., 287.));
+    for (i, t) in [
+        "Neubau Einfamilienhaus Mustermann",
+        "Lindenweg 12, 59999 Musterstadt · Flurstück 412",
+        "Lageplan zum Bauantrag · Gemarkung Musterstadt, Flur 3",
+        "ÖbVI-Vermessung 09/2026 · Plan-Nr. LP-01 · Index a",
+        "M 1:200 · A3 · 21.10.2026",
+        "Planungsbüro Planer Architekten · E. Planer",
+    ]
+    .iter()
+    .enumerate()
+    {
+        z.text(303., 252. + i as f64 * 6., if i == 0 { 7. } else { 5. }, t);
+    }
+    blatt_pdf(z)
+}
+
+/// Lageplan ablegen, im Aufmaß Flurstücke, Gebäudeumrisse und Linien
+/// „Abstandsfläche“ zeichnen und die Flurstücke mit ihrer Zeichnung verbinden.
+pub async fn lageplan(b: &mut Beispiel) -> core_lib::commit::Fachstand {
+    let pid = b.p.id;
+    let pdf = lageplan_pdf();
+    if let Ok(ziel) = std::env::var("BAUPROJEKT_BEISPIEL_ARTEFAKTE") {
+        std::fs::create_dir_all(&ziel).unwrap();
+        std::fs::write(std::path::Path::new(&ziel).join("LP-01_Lageplan.pdf"), &pdf).unwrap();
+    }
+    let doc =
+        b.c.store_document_kategorisiert(
+            pid,
+            "LP-01_Lageplan_M200.pdf",
+            Bytes::from(pdf),
+            Some("lageplan".into()),
+            &b.u,
+        )
+        .await
+        .unwrap();
+    let dokument = Dokumentbezug {
+        dokument_id: doc.document_id,
+        version: doc.version,
+    };
+    b.speichern(
+        ObjektArt::Dokumentdaten,
+        doc.document_id.0,
+        serde_json::json!({"dokument": dokument, "dokumentart": "Lageplan",
+            "plannummer": "LP-01", "revisionsindex": "a", "massstab": "1:200",
+            "verfasser": "ÖbVI Musterstadt / Erika Planer, Architektin", "datum": "2026-10-21"}),
+    )
+    .await;
+    let (e_flur, e_geb, e_abstand) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let pt = |p: (f64, f64)| {
+        let (x, y) = blatt(p.0, p.1);
+        [x * MM, y * MM]
+    };
+    let mut markierungen = vec![];
+    let mut m =
+        |ebene, name: &str, bedeutung, geometrie, gebaeude: Option<Uuid>, flur: Option<&str>| {
+            markierungen.push(Planmarkierung {
+                id: Uuid::new_v4(),
+                ebene_id: ebene,
+                bezeichnung: name.into(),
+                bedeutung,
+                geometrie,
+                grundstueck_id: None,
+                gebaeude_id: gebaeude,
+                geschoss_id: None,
+                flurstueck_id: flur.map(Into::into),
+                ausschnitt_id: None,
+                hoehenzone_von: None,
+                kontur_von: None,
+            });
+        };
+    let flaeche = |r| {
+        let e = ecken(r);
+        Plangeometrie::Rechteck {
+            von: pt(e[3]),
+            bis: pt(e[1]),
+        }
+    };
+    for (r, name, id) in [
+        (FLST_412, "Flurstück 412", "fs-412"),
+        (FLST_411, "Flurstück 411", "fs-411"),
+        (FLST_413, "Flurstück 413", "fs-413"),
+    ] {
+        m(
+            e_flur,
+            name,
+            Planbedeutung::Flurstueck,
+            flaeche(r),
+            None,
+            Some(id),
+        );
+    }
+    for (r, name, gebaeude, waende) in [
+        (HAUS, "Wohnhaus", b.haus, HAUSWAENDE),
+        (GARAGE, "Garage", b.garage, GARAGENWAENDE),
+    ] {
+        m(
+            e_geb,
+            &format!("Umriss {name}"),
+            Planbedeutung::Vorhabenumriss,
+            flaeche(r),
+            Some(gebaeude),
+            None,
+        );
+        let e = ecken(r);
+        for (seite, wand) in waende.iter().enumerate() {
+            m(
+                e_abstand,
+                wand,
+                Planbedeutung::Abstandsflaeche,
+                Plangeometrie::Strecke {
+                    von: pt(e[seite]),
+                    bis: pt(e[(seite + 1) % 4]),
+                },
+                Some(gebaeude),
+                None,
+            );
+        }
+    }
+    let aufmass = Planaufmass {
+        bezeichnung: "LP-01 Lageplan".into(),
+        dokument: Some(dokument),
+        seite: 1,
+        hintergruende: vec![],
+        elemente: vec![],
+        kalibrierung: Some(Plankalibrierung::Massstab { nenner: 200. }),
+        hoehenbezug: None,
+        ebenen: [
+            (e_flur, "Flurstücke"),
+            (e_geb, "Gebäude"),
+            (e_abstand, "Abstandsflächen"),
+        ]
+        .into_iter()
+        .map(|(id, n)| Planebene {
+            id,
+            bezeichnung: n.into(),
+            sichtbar: true,
+            gesperrt: false,
+            darstellung: None,
+        })
+        .collect(),
+        markierungen,
+        ausschnitte: vec![],
+    };
+    let f = b
+        .speichern(
+            ObjektArt::Planaufmass,
+            LAGEPLAN_ID,
+            serde_json::to_value(&aufmass).unwrap(),
+        )
+        .await;
+    // Flurstücke mit ihrer Zeichnung verbinden: Die Katasterfläche bleibt
+    // Rechenwert, die gezeichnete Fläche steht als Gegenprobe daneben.
+    let mut infos = informationen(&b.p.planungsrecht);
+    for fl in &mut infos.flurstuecke {
+        let markierung = aufmass
+            .markierungen
+            .iter()
+            .find(|m| m.flurstueck_id.as_deref() == Some(fl.id.as_str()))
+            .expect("Flurstück gezeichnet");
+        fl.planbindung = Some(Planbindung {
+            aufmass_id: LAGEPLAN_ID,
+            revision: f.revision,
+            markierung_id: markierung.id,
+            groesse: Planmessgroesse::Flaeche,
+            ziel: fl.planziel(),
+        });
+    }
+    let infos = b.c.planaufmass_flurstuecke(pid, infos).await.unwrap();
+    for fl in &infos.flurstuecke {
+        let d = fl.flaechenabweichung_m2().expect("gezeichnete Fläche");
+        assert!(d.abs() < 0.05, "Flurstück {}: Abweichung {d}", fl.nummer);
+    }
+    let mut r = b.p.planungsrecht.clone();
+    r.grundstuecksinformationen = Some(infos);
+    b.bereich(ProjektBereich::Grundstuecksinformationen, r)
+        .await;
+    f
 }
 fn nah(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-6
 }
+fn wandname(umriss: Uuid, seite: usize) -> &'static str {
+    if umriss == UMRISS_HAUS {
+        HAUSWAENDE[seite]
+    } else {
+        GARAGENWAENDE[seite]
+    }
+}
 fn wand_mut(p: &mut AbstandsPlan, umriss: Uuid, seite: usize) -> &mut AbstandsWand {
     p.waende
         .iter_mut()
-        .find(|w| {
-            w.umriss
-                .as_ref()
-                .is_some_and(|s| s.umriss_id == umriss && s.seite == seite)
-        })
-        .expect("Umrisswand")
+        .find(|w| w.bezeichnung == wandname(umriss, seite))
+        .expect("Wand aus dem Lageplan")
 }
 pub fn wand_id(p: &AbstandsPlan, umriss: Uuid, seite: usize) -> Uuid {
     p.waende
         .iter()
-        .find(|w| {
-            w.umriss
-                .as_ref()
-                .is_some_and(|s| s.umriss_id == umriss && s.seite == seite)
-        })
-        .expect("Umrisswand")
+        .find(|w| w.bezeichnung == wandname(umriss, seite))
+        .expect("Wand aus dem Lageplan")
         .id
 }
 fn ergebnis(r: &AbstandsErgebnis, id: Uuid) -> &WandErgebnis {
@@ -126,37 +395,19 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
             .unwrap()
             .hoehen_nhn;
     if gg.traufe_m.is_none() {
-        b.info("Garage hat in Gebäude/Geschosse keinen Nullpunkt/keine Wandhöhe (Basis); Oberkante 2,80 m über Gelände wird im Umriss manuell erfasst.");
+        b.info("Garage hat in Gebäude/Geschosse keinen Nullpunkt/keine Wandhöhe (Basis); Oberkante 2,80 m über Gelände wird an den Garagenwänden von Hand erfasst.");
     }
 
-    // --- 2. Lageplan-DXF archivieren und Konturen übernehmen ---
-    let dxf =
-        b.c.store_document(
-            pid,
-            None,
-            None,
-            "Lageplan_Vermessung_Flst412.dxf",
-            Bytes::from(lageplan_dxf()),
-            &b.u,
-        )
-        .await
-        .unwrap();
-    let quelle = Dokumentbezug {
-        dokument_id: dxf.document_id,
-        version: dxf.version,
-    };
-    let konturen =
-        b.c.abstandscad_konturen(pid, quelle.clone(), Laengeneinheit::Meter)
+    // --- 2. Lageplan mit Flurstücken, Umrissen und Linien „Abstandsfläche“ ---
+    let vorhanden =
+        b.c.fachobjekte(pid, ObjektArt::Planaufmass)
             .await
-            .unwrap();
-    assert_eq!(konturen.len(), 5, "{konturen:?}");
-    let kontur = |ebene: &str| {
-        konturen
-            .iter()
-            .find(|k| k.ebene == ebene)
-            .unwrap_or_else(|| panic!("Kontur {ebene}"))
-            .punkte
-            .clone()
+            .unwrap()
+            .into_iter()
+            .find(|f| f.objekt == LAGEPLAN_ID.to_string());
+    let lp = match vorhanden {
+        Some(f) => f,
+        None => lageplan(b).await,
     };
     let flaeche = |p: &[APunkt]| {
         (0..p.len())
@@ -168,8 +419,6 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
             .abs()
             / 2.
     };
-    let grenze412 = kontur("FLST_412");
-    assert!(nah(flaeche(&grenze412), GRUNDSTUECK_M2));
 
     // --- 3. Abstandsplan erfassen ---
     let regeln = katalog()
@@ -188,30 +437,16 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         .unwrap_or_default()
         .to_string();
     assert_eq!(gebiet, "WA");
-    let grundstueck = |id, name: &str, fs: &str, grenze: Vec<APunkt>| AbstandsGrundstueck {
+    // Grenzen kommen aus den gezeichneten Flurstücken des Lageplans.
+    let grundstueck = |id, name: &str, fs: &str| AbstandsGrundstueck {
         id,
         bezeichnung: name.into(),
         flurstueck_ids: vec![fs.into()],
-        grenze,
+        grenze: vec![],
         innenringe: vec![],
-        grundlage: format!(
-            "Lageplan zum Bauantrag, ÖbVI-Vermessung 09/2026 (Lageplan_Vermessung_Flst412.dxf, Ebene {}); Gemarkung Musterstadt, Flur 3",
-            fs.replace("fs-", "FLST_")
-        ),
+        grundlage: String::new(),
     };
-    let haus_quelle = format!(
-        "Gebäude/Geschosse „Wohnhaus“: Gelände {gelaende:.2}, Traufe {traufe:.2} m ü. NHN; Grundriss aus Lageplan-DXF (Ebene GEB_WOHNHAUS)"
-    );
-    let ecken = |p: Vec<APunkt>, g: f64| {
-        p.into_iter()
-            .map(|p| UmrissEcke {
-                x: p.x,
-                y: p.y,
-                gelaende_m: Some(g),
-            })
-            .collect::<Vec<_>>()
-    };
-    let mut plan = AbstandsPlan {
+    let plan = AbstandsPlan {
         planbindungen: vec![],
         bezeichnung: "Abstandsflächen Neubau EFH Mustermann, Lindenweg 12".into(),
         regeln,
@@ -233,63 +468,70 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
         hoehenbezug: format!(
             "m ü. NHN (DHHN2016); ±0,00 = OK FFB EG = {NULLPUNKT_NHN:.2} m ü. NHN; maßgebliche Geländeoberfläche eben {gelaende:.2} m ü. NHN (natürliches Gelände, keine Abgrabungen)"
         ),
-        koordinatenbezug: "Lokales System des Lageplans in Metern, x nach Osten, y nach Norden, Ursprung Südwestecke Flst. 412; Straße Lindenweg im Norden".into(),
+        koordinatenbezug: String::new(), // aus dem Lageplan
         grundstuecke: vec![
-            grundstueck(G412, "Baugrundstück Flst. 412 (Bauherr Mustermann)", "fs-412", grenze412),
-            grundstueck(G411, "Nachbar Flst. 411 (Nachbar, West)", "fs-411", kontur("FLST_411")),
-            grundstueck(G413, "Nachbar Flst. 413 (Beispiel, Ost)", "fs-413", kontur("FLST_413")),
+            grundstueck(G412, "Baugrundstück Flst. 412 (Bauherr Mustermann)", "fs-412"),
+            grundstueck(G411, "Nachbar Flst. 411 (Nachbar, West)", "fs-411"),
+            grundstueck(G413, "Nachbar Flst. 413 (Beispiel, Ost)", "fs-413"),
         ],
         waende: vec![],
         flaechen: vec![],
-        quellen: vec![quelle.clone()],
+        quellen: vec![],
         umfang_geprueft: true,
-        umfang_vermerk: "Alle Außenwände von Wohnhaus (4) und Garage (4) aus den Gebäudeumrissen; Gelände eben, keine Vorbauten > 1,50 m, \
+        umfang_vermerk: "Alle Außenwände von Wohnhaus (4) und Garage (4) als Linien im Lageplan LP-01; Gelände eben, keine Vorbauten > 1,50 m, \
             keine Gauben, Dachüberstand 0,50 m unter § 6 Abs. 6; Garage ohne Aufenthaltsraum geprüft"
             .into(),
-        umrisse: vec![
-            AbstandsUmriss {
-                id: UMRISS_HAUS,
-                bezeichnung: "Wohnhaus".into(),
-                gebaeude_id: Some(b.haus),
-                grundstueck_id: Some(G412),
-                ecken: ecken(kontur("GEB_WOHNHAUS"), gelaende),
-                oberkante_m: Some(traufe),
-                quelle: haus_quelle.clone(),
-            },
-            AbstandsUmriss {
-                id: UMRISS_GARAGE,
-                bezeichnung: "Garage".into(),
-                gebaeude_id: Some(b.garage),
-                grundstueck_id: Some(G412),
-                ecken: ecken(kontur("GEB_GARAGE"), gelaende),
-                oberkante_m: Some(gelaende + 2.8),
-                quelle: "Garage: Flachdach OK Attika 2,80 m über Gelände (Ansicht Garage, Entwurf 10/2026); Grundriss aus Lageplan-DXF (Ebene GEB_GARAGE)".into(),
-            },
-        ],
+        umrisse: vec![],
         regelwerk: None,
     };
-    plan.recht.fassung = plan.regeln.rechtsstand.clone();
-    // Seiten als Wände übernehmen (Core-Abgleich wie in der Oberfläche).
-    let abgleich = umrisse_abgleichen(plan).unwrap();
-    for h in &abgleich.hinweise {
-        b.info(format!("Umrissabgleich: {h}"));
+    // Linien als Wände, Flurstücke als Grenzen übernehmen (wie „Linien übernehmen“).
+    let u =
+        b.c.abstandslinien_uebernehmen(
+            pid,
+            plan,
+            Aufmassstand {
+                aufmass_id: LAGEPLAN_ID,
+                revision: lp.revision,
+            },
+        )
+        .await
+        .unwrap();
+    for h in &u.hinweise {
+        b.info(format!("Linienübernahme: {h}"));
     }
-    let mut plan = abgleich.plan;
+    let mut plan = u.plan;
+    plan.recht.fassung = plan.regeln.rechtsstand.clone();
+    plan.recht.geprueft = true;
+    plan.umfang_geprueft = true;
     assert_eq!(plan.waende.len(), 8);
+    assert!(
+        plan.koordinatenbezug
+            .starts_with("Lageplan „LP-01 Lageplan“")
+    );
+    assert!(nah(flaeche(&plan.grundstuecke[0].grenze), GRUNDSTUECK_M2));
+    assert!(plan.grundstuecke.iter().all(|g| g.grenze.len() == 4));
     // Seiten im Gegenuhrzeigersinn ab Südwestecke: 0 Süd, 1 Ost, 2 Nord, 3 West.
+    for seite in 0..4 {
+        for (umriss, gebaeude, oberkante) in [
+            (UMRISS_HAUS, b.haus, traufe),
+            (UMRISS_GARAGE, b.garage, gelaende + 2.8),
+        ] {
+            let w = wand_mut(&mut plan, umriss, seite);
+            assert_eq!(w.gebaeude_id, Some(gebaeude));
+            // Außenseite aus dem Gebäudeumriss im Lageplan.
+            assert_eq!(w.aussen, Aussenrichtung::Rechts, "{}", w.bezeichnung);
+            w.grundstueck_id = Some(G412);
+            w.gelaende_a_m = Some(gelaende);
+            w.gelaende_b_m = Some(gelaende);
+            w.abschluss_a_m = Some(oberkante);
+            w.abschluss_b_m = Some(oberkante);
+        }
+    }
     let namen = ["Süd", "Ost", "Nord", "West"];
     for (seite, name) in namen.iter().enumerate() {
         let traufseite = seite % 2 == 0;
         let w = wand_mut(&mut plan, UMRISS_HAUS, seite);
-        assert_eq!(w.aussen, Aussenrichtung::Rechts);
-        w.bezeichnung = format!(
-            "{name}wand ({})",
-            if traufseite {
-                "Traufseite"
-            } else {
-                "Giebelseite"
-            }
-        );
+        assert!(w.bezeichnung.contains(name));
         // Dachhöhe und Neigung aus Gebäude/Geschosse (wie „Höhen übernehmen“).
         w.dachart = if traufseite {
             Dachart::Dachflaeche
@@ -305,9 +547,9 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
     }
     for (seite, name) in namen.iter().enumerate() {
         let w = wand_mut(&mut plan, UMRISS_GARAGE, seite);
-        w.bezeichnung = format!("Garage {name}");
+        assert!(w.bezeichnung.contains(name));
         w.dachart = Dachart::Flach;
-        w.dachgrundlage = "Flachdach mit Attika".into();
+        w.dachgrundlage = "Flachdach, OK Attika 2,80 m über Gelände (Entwurf 10/2026)".into();
         w.fall = Wandfall::Garage;
         w.nutzung_geprueft = true;
         w.grenzkennung = "Ostgrenze zu Flst. 413".into();
@@ -447,35 +689,23 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
     );
     assert!(!pr.vollstaendig);
     let mut probe = plan.clone();
-    probe.grundstuecke[0].grenze = vec![
-        APunkt { x: 0., y: 0. },
-        APunkt { x: 20., y: 0. },
-        APunkt { x: 20., y: 30. },
-        APunkt { x: 0., y: 30. },
-    ];
+    probe
+        .planbindungen
+        .retain(|b| b.ziel != format!("grundstuecke.{G412}.grenze"));
+    let (ox, oy) = URSPRUNG;
+    probe.grundstuecke[0].grenze = [(0., 0.), (20., 0.), (20., 30.), (0., 30.)]
+        .into_iter()
+        .map(|(x, y)| APunkt {
+            x: ox + x,
+            y: oy + y,
+        })
+        .collect();
     let pr = b.c.abstandsplan_pruefen(pid, &probe).await.unwrap();
     assert!(
         pr.offen.iter().any(|o| o.contains("Katasterfläche 620 m²")),
         "{:?}",
         pr.offen
     );
-    let mut probe = plan.clone();
-    for u in &mut probe.umrisse {
-        u.grundstueck_id = Some(G411);
-    }
-    let _ = umrisse_einbinden(&mut probe);
-    if let Ok(pr) = b.c.abstandsplan_pruefen(pid, &probe).await
-        && pr.waende.iter().all(|w| {
-            !w.offen
-                .iter()
-                .any(|o| o.contains("Flurstück") || o.contains("Gebäude"))
-        })
-    {
-        b.info(
-            "Probe: Umriss des Wohnhauses (Gebäude auf fs-412) dem Nachbargrundstück 411 zugeordnet – kein Hinweis auf die abweichende \
-             Flurstückszuordnung des Gebäudes (nur Konflikte über die Geometrie).",
-        );
-    }
 
     // --- 8. Nachweis archivieren, wiederholen, freigeben ---
     let n =
@@ -606,6 +836,17 @@ pub async fn abstand(b: &mut super::basis::Beispiel) {
              Grund ist der Status „Grenzfall – prüfen“ der Westwand (druckausgabe/berichte.rs:241). Vorschlag: Grund der Unvollständigkeit \
              (Grenzfall-Wände) ausdrücklich nennen.",
         );
+    }
+    // Abstandsflächenplan auf dem Blatt des Lageplans.
+    let flaechenplan = b.c.abstandsflaechenplan(pid, &plan, &r).await.unwrap();
+    assert!(flaechenplan.starts_with(b"%PDF"));
+    if let Ok(out) = std::env::var("BEISPIEL_ARTEFAKTE") {
+        std::fs::create_dir_all(&out).unwrap();
+        std::fs::write(
+            std::path::Path::new(&out).join("Abstandsflaechenplan.pdf"),
+            &flaechenplan,
+        )
+        .unwrap();
     }
     let dok =
         b.c.druckpdf_ablegen(

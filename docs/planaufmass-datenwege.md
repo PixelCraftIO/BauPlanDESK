@@ -72,6 +72,10 @@ dürfen sich ändern, ohne dass etwas veraltet.
     doppelt Gezeichnetes über alle Aufmaße (Flurstück, Gebäudegrundfläche,
     Geschoss-Außenkante, Grundfläche gegen Außenkante Erdgeschoss, First und
     Traufe) und meldet Abweichungen über der Toleranz als Hinweis.
+11. Pläne verbinden: Über die Passpunkte des Planvergleichs lassen sich
+    Markierungen eines anderen Aufmaßes in den geöffneten Plan holen
+    (`markierungenHolen`), etwa Flurstücke der Flurkarte in den Lageplan. Der
+    Abstandsplan bleibt bei genau einem Lageplan als Koordinatenbezug.
 
 Bedienung: Strg+Rad oder Pinch zoomt um den Mauszeiger, Z zieht ein
 Zoomfenster, Leertaste oder mittlere Maustaste verschiebt, ↶/↷ dreht die

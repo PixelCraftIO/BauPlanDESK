@@ -32,6 +32,8 @@ fn beispielprojekt_einfamilienhaus_mustermann() {
 async fn gesamtablauf() {
     let dir = tempfile::tempdir().unwrap();
     let mut b = basis::basis(dir.path().join("profil")).await;
+    // Lageplan zuerst: Die Flurstücke sind gezeichnet, bevor Nachweise entstehen.
+    Box::pin(abstand::lageplan(&mut b)).await;
     Box::pin(fach::fach(&mut b)).await;
     Box::pin(abstand::abstand(&mut b)).await;
     Box::pin(verfahren::verfahren(&mut b)).await;
