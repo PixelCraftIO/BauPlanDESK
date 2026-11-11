@@ -9,6 +9,8 @@
     fehlertext,
     type BibliotheksVorlage,
     type DocumentVersion,
+    type ProjektFormular,
+    type Werksvorlage,
     type Project,
   } from "./api";
   import {
@@ -51,6 +53,17 @@
     pdfBusy = $state(false),
     fehler = $state<string | null>(null),
     gespeichert = $state<DocumentVersion | null>(null);
+  let ausgefuellt = $state<ProjektFormular[]>([]),
+    werksvorlagen = $state<Werksvorlage[]>([]),
+    bearbeiten = $state<ProjektFormular | null>(null);
+  /** Mitgelieferte Vordrucke für das Bundesland des Projekts, die noch fehlen. */
+  const fehlendeWerksvorlagen = $derived(
+    werksvorlagen.filter(
+      (w) =>
+        !w.vorhanden &&
+        w.land.toLowerCase() === String(projekt.bundesland).toLowerCase(),
+    ),
+  );
   let kategorien = $state<Dokumentkategorie[]>([]),
     zuordnungen = $state<Record<string, KategorieZuordnung>>({}),
     kategorieFilter = $state("");
@@ -66,12 +79,22 @@
     ),
   );
   export function istBeschaeftigt() {
-    return laeuft || !!gewaehlt;
+    return laeuft || !!gewaehlt || !!bearbeiten;
   }
   async function laden() {
     const generation = ++ladeGeneration;
     laeuft = true;
     try {
+      // Der Abgleich der ausgefüllten Formulare rechnet die Projektquellen
+      // durch und hält die Vorlagenliste nicht auf.
+      void api
+        .projektFormulare(projekt.id)
+        .then((a) => {
+          if (generation === ladeGeneration) ausgefuellt = a;
+        })
+        .catch(() => {
+          if (generation === ladeGeneration) ausgefuellt = [];
+        });
       const [b, k] = await Promise.all([
         api.formularbibliothek(),
         api.kategorienkatalog(),
@@ -84,6 +107,7 @@
       if (generation !== ladeGeneration) return;
       fehler = null;
       vorlagen = b.vorlagen;
+      werksvorlagen = b.werksvorlagen ?? [];
       kategorien = k.kategorien;
       zuordnungen = Object.fromEntries(z);
     } catch (e) {
@@ -91,6 +115,17 @@
     } finally {
       if (generation === ladeGeneration) laeuft = false;
     }
+  }
+
+  async function werksvorlagenUebernehmen() {
+    laeuft = true;
+    try {
+      await api.werksvorlagenUebernehmen();
+    } catch (e) {
+      fehler = fehlertext(e);
+    }
+    laeuft = false;
+    await laden();
   }
 
   async function schliessenErlaubt() {
@@ -117,7 +152,9 @@
   async function fertig(d: DocumentVersion) {
     gespeichert = d;
     gewaehlt = null;
+    bearbeiten = null;
     dirty = false;
+    void laden();
     try {
       await ongespeichert();
     } catch (e) {
@@ -156,6 +193,61 @@
     onclick={onbibliothek}
     >Vorlagen hinzufügen / Eingabefelder einrichten …</button
   >{/if}
+{#if ausgefuellt.length}<h3>Ausgefüllte Formulare dieses Projekts</h3>
+  <table class="ergebnistabelle ausgefuellt">
+    <thead
+      ><tr
+        ><th>Formular</th><th>Stand</th><th>Abgleich mit den Projektdaten</th
+        ><th></th></tr
+      ></thead
+    ><tbody
+      >{#each ausgefuellt as a (a.dokument_id)}<tr
+          ><td
+            >{a.datei}<span class="meta"> · aus „{a.vorlage}“</span></td
+          ><td
+            >Version {a.version} · {new Date(a.erstellt).toLocaleDateString(
+              "de-DE",
+            )}</td
+          ><td
+            >{#if a.abweichungen === null}<span class="meta"
+                >nicht prüfbar</span
+              >{:else if a.abweichungen.length}<span
+                class="warnung"
+                title={a.abweichungen.join(", ")}
+                >{a.abweichungen.length}
+                {a.abweichungen.length === 1 ? "Feld weicht" : "Felder weichen"} ab</span
+              >{:else}aktuell{/if}</td
+          ><td
+            ><button
+              class="link"
+              disabled={!darf || laeuft}
+              onclick={() => {
+                dirty = false;
+                gespeichert = null;
+                bearbeiten = a;
+              }}
+              >{a.abweichungen?.length
+                ? "Aktualisieren …"
+                : "Bearbeiten …"}</button
+            ></td
+          ></tr
+        >{/each}</tbody
+    >
+  </table>
+  <h3>Neues Formular aus einer Vorlage</h3>{/if}
+{#if fehlendeWerksvorlagen.length}<aside class="hinweisbox werksvorlagen">
+    <strong
+      >Für dieses Bundesland liegen {fehlendeWerksvorlagen.length} amtliche
+      {fehlendeWerksvorlagen.length === 1 ? "Vordruck" : "Vordrucke"} bei</strong
+    >
+    <p>
+      {fehlendeWerksvorlagen.map((w) => w.titel).join(" · ")}. Die Felder sind
+      bereits mit den Projektdaten verknüpft.
+    </p>
+    <button disabled={!darf || laeuft} onclick={werksvorlagenUebernehmen}
+      >Mitgelieferte Vordrucke übernehmen</button
+    >
+  </aside>{/if}
 <p class="meta">
   Vorlage auswählen, ausfüllen und im Projekt „{projekt.name}“ speichern.
 </p>
@@ -226,6 +318,26 @@
     Noch keine Vorlagen vorhanden. Vorlagen werden zentral unter
     „Formularbibliothek“ verwaltet.
   </p>{/if}
+{#if bearbeiten}<Dialog
+    titel={`Formular bearbeiten · ${bearbeiten.datei}`}
+    breit
+    onrequestclose={schliessenErlaubt}
+    onclose={() => (bearbeiten = null)}
+    ><FormularAusfuellen
+      dokumentId={bearbeiten.dokument_id}
+      onfertig={fertig}
+      onabbrechen={async () => {
+        if (await schliessenErlaubt()) {
+          bearbeiten = null;
+          dirty = false;
+        }
+      }}
+      onstatus={(d, b) => {
+        dirty = d;
+        pdfBusy = b;
+      }}
+    /></Dialog
+  >{/if}
 {#if gewaehlt}<Dialog
     titel={`Formular ausfüllen · ${projekt.name}`}
     breit

@@ -73,6 +73,7 @@ pub mod abstandsflaechen;
 
 pub mod berechnungen;
 
+pub mod projektstand;
 pub mod projektuebersicht;
 
 pub mod bereichsstatus;

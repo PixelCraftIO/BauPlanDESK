@@ -50,6 +50,16 @@ termine: Array<CockpitTermin>,
  * Projekte nach Friststufe (überfällig, nächste Frist, Name).
  */
 projekte: Array<CockpitProjekt>, fehler: Array<CockpitFehler>, };
+export type Projektstufe = "vorbereitung" | "eingereicht" | "abgelehnt" | "genehmigt" | "im_bau" | "fertiggestellt" | "abgeschlossen";
+export type Projektstand = { projekt_id: ProjectId, stufe: Projektstufe, bezeichnung: string,
+/**
+ * Datum, an dem die Stufe erreicht wurde, soweit die Akte es nennt.
+ */
+seit: string | null,
+/**
+ * Stufe aus den Verfahrensakten, ohne den Abschluss durch das Büro.
+ */
+verfahrensstufe: Projektstufe, };
 export type Aboumfang = "alle" | "meine";
 export type Aboauskunft = { aktiv: boolean, umfang: Aboumfang | null, erstellt_am: string | null, };
 export type Aboschluessel = { umfang: Aboumfang,

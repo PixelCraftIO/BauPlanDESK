@@ -126,7 +126,10 @@ Wenn sich der Entwurf ändert, nachdem schon gemessen und gerechnet wurde:
 3. Büroangaben und bauvorlageberechtigte Personen pflegen.
 4. Benutzer anlegen, Rollen vergeben.
 5. Dokumentkategorien und Briefbogen anpassen.
-6. Formularvorlagen in die Formularbibliothek importieren.
+6. In der Formularbibliothek „Mitgelieferte Vordrucke übernehmen“ wählen und
+   weitere Vorlagen importieren. Der Kasten „Einrichtung abschließen“ im
+   Arbeitsplatz zeigt, ob Büroangaben, Entwurfsverfasser und Vorlagen
+   vollständig sind.
 7. Erste Sicherung erstellen und prüfen.
 8. Zum Üben ein eigenes Testprojekt anlegen.
 

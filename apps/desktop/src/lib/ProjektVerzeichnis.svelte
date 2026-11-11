@@ -7,6 +7,7 @@
     type Project,
     type ZuletztEintrag,
   } from "./api";
+  import type { Projektstand } from "./generated/plattform";
   let {
     zuletzt,
     darfAnlegen,
@@ -29,8 +30,15 @@
     laedt = $state(false),
     loescht = $state<string | null>(null);
   let sortierung = $state<"name" | "updated_at">("updated_at");
+  let staende = $state<Record<string, Projektstand>>({}),
+    standFilter = $state<"alle" | "laufend" | "abgeschlossen">("alle");
+  const standPasst = (p: Project) =>
+    standFilter === "alle" ||
+    (staende[p.id]?.stufe === "abgeschlossen") ===
+      (standFilter === "abgeschlossen");
   const liste = $derived(
     projekte
+      .filter(standPasst)
       .filter((p) =>
         (p.name + " " + landName(p.bundesland))
           .toLowerCase()
@@ -47,6 +55,14 @@
     fehler = null;
     try {
       projekte = await api.projekte();
+      // Der Stand ist Zusatzauskunft: Fehlt er, bleibt die Spalte leer.
+      try {
+        staende = Object.fromEntries(
+          (await api.projektstaende()).map((s) => [s.projekt_id, s]),
+        );
+      } catch {
+        staende = {};
+      }
     } catch (e) {
       fehler = fehlertext(e);
     } finally {
@@ -109,6 +125,12 @@ Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten u
         >Projektname</option
       ></select
     ></label
+  ><label
+    >Stand<select bind:value={standFilter} aria-label="Projektstand filtern"
+      ><option value="alle">Alle Projekte</option><option value="laufend"
+        >Laufende</option
+      ><option value="abgeschlossen">Abgeschlossene</option></select
+    ></label
   ><button class="sekundaer" onclick={laden} disabled={laedt}
     >Aktualisieren</button
   ><span class="meta">{liste.length} Projekte</span>
@@ -119,7 +141,7 @@ Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten u
   <table class="projekttabelle">
     <thead
       ><tr
-        ><th>Projekt</th><th>Bundesland</th><th>Grundstück</th><th
+        ><th>Projekt</th><th>Stand</th><th>Bundesland</th><th>Grundstück</th><th
           >Zuletzt geändert</th
         ><th>Aktion</th></tr
       ></thead
@@ -129,6 +151,17 @@ Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten u
             ><button class="link" onclick={() => onoeffnen(p.id)}
               >{p.name}</button
             ></td
+          ><td
+            >{#if staende[p.id]}{staende[p.id].bezeichnung}{#if staende[p.id].seit}<span
+                  class="meta"
+                  >{" "}· {new Date(
+                    `${staende[p.id].seit}T12:00:00`,
+                  ).toLocaleDateString("de-DE", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}</span
+                >{/if}{:else}—{/if}</td
           ><td>{landName(p.bundesland)}</td><td class="zahl"
             >{#if p.planungsrecht.grundstuecksinformationen || p.planungsrecht.baugrundstuecke}{p
                 .planungsrecht.grundstuecksinformationen?.flurstuecke.length ??

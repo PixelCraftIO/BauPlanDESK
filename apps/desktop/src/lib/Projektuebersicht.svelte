@@ -1,6 +1,7 @@
 <script lang="ts">
   import Arbeitscheck from "./arbeitsplatz/Arbeitscheck.svelte";
   import Statushilfe from "./arbeitsplatz/Statushilfe.svelte";
+  import ProjektstandLeiste from "./ProjektstandLeiste.svelte";
   import { abonnieren } from "./projektEreignisse";
   import { onDestroy, untrack } from "svelte";
   import { plattformApi } from "./plattformApi";
@@ -20,7 +21,9 @@
     onoeffnen,
     entwuerfe = false,
     benutzerId = "",
+    darf = true,
   }: {
+    darf?: boolean;
     projektId: string;
     version: number;
     sichtbar: boolean;
@@ -175,6 +178,11 @@
       >
     </div>
   </div>
+  <ProjektstandLeiste
+    {projektId}
+    aktualisieren={daten?.ermittelt_am ?? version}
+    {darf}
+  />
   {#if berichtMeldung}<p role="status">{berichtMeldung}</p>{/if}
   {#if fehler}<div class="fehler" role="alert">
       Übersicht konnte nicht aktualisiert werden: {fehler}{daten

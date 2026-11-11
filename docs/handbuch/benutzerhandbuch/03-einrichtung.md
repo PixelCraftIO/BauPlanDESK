@@ -6,6 +6,23 @@ Die Einrichtung erfolgt einmal je Büro bzw. Arbeitsplatz unter
 **Einstellungen** im Arbeitsplatz. Einige Punkte benötigen die Rolle
 Administrator.
 
+## Einrichtung abschließen
+
+Solange dem Büro etwas für den ersten Bauantrag fehlt, zeigt der Arbeitsplatz
+unter **Projekte** oberhalb der Büroübersicht den Kasten **„Einrichtung
+abschließen“** mit drei Schritten:
+
+![Einrichtung abschließen im leeren Arbeitsplatz](bilder/arbeitsplatz-einrichtung.png)
+
+| Schritt | Erledigt, wenn | Schaltfläche |
+| --- | --- | --- |
+| Büroangaben | Name und Ort des Büros eingetragen sind | „Büroangaben öffnen“ |
+| Entwurfsverfasserin oder Entwurfsverfasser | mindestens eine bauvorlageberechtigte Person angelegt ist | „Büroangaben öffnen“ |
+| Formularvorlagen | mindestens eine Vorlage in der Formularbibliothek steht | „Mitgelieferte Vordrucke übernehmen“ |
+
+Erledigte Schritte sind abgehakt. Ist alles eingerichtet, verschwindet der
+Kasten.
+
 ## Einstellungen im Überblick
 
 ![Einstellungen: Darstellung, Speicherorte, Sicherung](bilder/einstellungen-speicherorte.png)
@@ -116,20 +133,22 @@ gelten sofort in allen Projekten.
 Die Formularbibliothek enthält die PDF-Vorlagen des Büros, unabhängig von
 Projekten. Ausgefüllt wird später in der Projektakte unter „Formulare“.
 
-1. „PDF-Vorlage importieren …“ und das unveränderte amtliche PDF wählen. Die
-   Liste zeigt die erkannten Eingabefelder.
+1. **„Mitgelieferte Vordrucke übernehmen“** legt die der Anwendung
+   beiliegenden amtlichen NRW-Vordrucke (Bauantrag Anlage I/2,
+   Baubeschreibung Anlage I/7, Betriebsbeschreibung Anlage I/8) in die
+   Bibliothek. Der Hinweis erscheint, solange einer davon fehlt. Weitere
+   Vordrucke mit „PDF-Vorlage importieren …“ als unverändertes amtliches PDF
+   hinzufügen. Die Liste zeigt die erkannten Eingabefelder.
 2. „Vorschau“ zur Kontrolle; „Ändern“ setzt eine **Standardkategorie** für
    daraus erzeugte Projektdokumente.
 3. Fehlen Eingabefelder (nicht ausfüllbares PDF), mit **„Felder hinzufügen …“**
    Textfelder oder Kontrollkästchen auf der Seite platzieren, eindeutig
    benennen (z. B. „Anschrift“, mehrzeilig) und „Vorlage erstellen“.
-4. Für die mitgelieferten NRW-Formulare (Bauantrag Anlage I/2,
-   Baubeschreibung Anlage I/7, Betriebsbeschreibung Anlage I/8) sind
-   Zuordnungen hinterlegt, mit denen Projektdaten automatisch vorgeschlagen
-   werden.
+4. Für die mitgelieferten NRW-Vordrucke sind Zuordnungen hinterlegt, mit
+   denen Projektdaten automatisch vorgeschlagen werden.
 
 Eine geänderte Vorlage ändert bereits ausgefüllte Projektdokumente nicht.
 
-> Das Beispielprojekt bringt keine Vorlagen mit. Für die Bilder dieses
-> Handbuchs wurden die amtlichen Beispiel-PDFs aus `formulare/beispiele` in den
-> Formularordner gelegt.
+> Für andere Bundesländer liegen noch keine Vordrucke bei. Die amtlichen PDFs
+> des Landes lassen sich importieren; Projektdaten werden dann je Feld über
+> „Quelle“ zugeordnet.

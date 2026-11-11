@@ -35,6 +35,9 @@ ZIEL = WURZEL / "docs/handbuch/benutzerhandbuch/bilder"
 DISPLAY = os.environ.get("BAUPROJEKT_DISPLAY", ":77")
 HELFER = (HIER / "helfer.js").read_text()
 BENUTZER = os.environ.get("BAUPROJEKT_APP_BENUTZER")
+# Fester Kalendertag der App (nur Debug-Build), damit Fristen und Ampeln in
+# den Bildern bei jeder Aufnahme gleich aussehen.
+HEUTE = os.environ.get("BAUPROJEKT_HEUTE", "2026-11-11")
 
 
 def js(code, timeout=90, fenster="main"):
@@ -82,7 +85,7 @@ def app_starten(frisch):
     if frisch:
         shutil.rmtree(h / ".local/share/io.pixelcraft.bauprojektio", ignore_errors=True)
         shutil.rmtree(h / ".config/io.pixelcraft.bauprojektio", ignore_errors=True)
-    umgebung = ["env", f"DISPLAY={DISPLAY}", f"HOME={h}", "LANG=de_DE.UTF-8", "TZ=Europe/Berlin"]
+    umgebung = ["env", f"DISPLAY={DISPLAY}", f"HOME={h}", "LANG=de_DE.UTF-8", "TZ=Europe/Berlin", f"BAUPROJEKT_HEUTE={HEUTE}"]
     vorne = ["sudo", "-u", BENUTZER] if BENUTZER else []
     log = open("/tmp/handbuch-app.log", "w")
     subprocess.Popen(vorne + umgebung + [str(WURZEL / "target/debug/bauprojektio")], cwd=WURZEL, stdout=log, stderr=log)
@@ -119,14 +122,9 @@ def beispielprojekt_oeffnen():
         timeout=120,
     )
     app_starten(frisch=False)
-    # Das Beispielprofil bringt keine Formularvorlagen mit; die amtlichen
-    # Beispiel-PDFs aus formulare/beispiele dienen als Bibliothek.
-    ordner = profil / "Formularvorlagen"
-    ordner.mkdir(parents=True, exist_ok=True)
-    for pdf in (WURZEL / "formulare/beispiele").glob("*.pdf"):
-        shutil.copy(pdf, ordner)
-        if BENUTZER:
-            shutil.chown(ordner / pdf.name, BENUTZER)
+    # Das Beispielprofil bringt keine Formularvorlagen mit; die mitgelieferten
+    # Vordrucke kommen wie über „Mitgelieferte Vordrucke übernehmen“ hinein.
+    js("await window.__TAURI_INTERNALS__.invoke('werksvorlagen_uebernehmen'); return 1")
     js('await klick("Öffnen","main button, button"); await sleep(2500); return 1')
 
 
@@ -155,8 +153,8 @@ SZENEN = [
     ("ermittlung-festsetzungen", 'await register("Ermittlung"); await bereich("Planfestsetzungen")'),
     ("ermittlung-flurstuecke", 'await register("Ermittlung"); await bereich("Flurstücke")'),
     ("ermittlung-projektdateien", 'await register("Ermittlung"); await bereich("Projektdateien")'),
-    ("ermittlung-aufmass", 'await register("Ermittlung"); await bereich("Aufmaß"); if(!finde("Rückgängig")) await eintrag()'),
-    ("ermittlung-aufmass-vollbild", 'await register("Ermittlung"); await bereich("Aufmaß"); if(!finde("Rückgängig")) await eintrag(); await klick("Vollbild"); await sleep(1500)'),
+    ("ermittlung-aufmass", 'await aufmassTab("EP-01")'),
+    ("ermittlung-aufmass-vollbild", 'await aufmassTab("EP-01"); await klick("Vollbild"); await sleep(1500)'),
     ("ermittlung-aufmass-objekte", 'await klick("Objekte","[role=tab],button"); await sleep(800)'),
     ("ermittlung-messwerte", 'await taste("Escape"); await register("Ermittlung"); await bereich("Messwerte")'),
     ("ermittlung-unterlagenregister", 'await register("Ermittlung"); await bereich("Unterlagenregister")'),
@@ -237,6 +235,12 @@ def main(argumente):
     if not laufend:
         umgebung_starten()
         app_starten(frisch=True)
+        # Vor dem Beispielprojekt: das leere Profil mit dem Kasten
+        # „Einrichtung abschließen“.
+        if not auswahl or "arbeitsplatz-einrichtung" in auswahl:
+            js("await sleep(1500); return 1")
+            foto("arbeitsplatz-einrichtung")
+            print("ok   ", "arbeitsplatz-einrichtung")
         beispielprojekt_oeffnen()
         zeichnung_vorbereiten()
         if not auswahl or any(a.startswith("ifc-") for a in auswahl):

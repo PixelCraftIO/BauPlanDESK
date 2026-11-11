@@ -199,9 +199,10 @@ Zweite Stufe (Arbeitsablauf im Büro):
    gestalterische Änderungen lösen den Fall nicht mehr aus. Eine Einbindung,
    die nur das betroffene Baugrundstück sperrt, erfordert je Grundstück
    getrennte Fehler im Vertrag der Gebäudeeinbindung.
-2. **Formulare** erhalten weiterhin nur GRZ/GFZ/Geschossflächen/Vollgeschosse;
-   Wohnfläche, BGF/BRI, Versiegelung, Entwässerung und Höhen fehlen. Dafür ist
-   ein Ergebnisvertrag der Fachberechnungen für den Formularkontext nötig.
+2. **Formulare** erhalten neben GRZ/GFZ/Geschossflächen/Vollgeschossen die
+   Ergebnisse der Fachberechnungen (Wohnfläche, BGF/BRI, Stellplatzbedarf,
+   Versiegelung, Entwässerung, Höhen), siehe `formulare/README.md`. Offen
+   bleibt die Auswahl, wenn ein Projekt mehrere Berechnungen einer Art hat.
 3. BMZ übernimmt keine Gebäudedaten; Entwässerung kann Dachflächen mehrerer
    Gebäude nicht in einer Berechnung bündeln.
 4. Raumbuch: Es gibt keine Sammelaktualisierung über mehrere Aufmaße; jedes

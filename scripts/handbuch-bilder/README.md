@@ -17,8 +17,8 @@ echten Anwendung mit dem mitgelieferten Beispielprojekt
 - `aufnahmen.py` startet Xvfb, Brücke und App, stellt das Beispielarchiv
   `beispiele/Beispielprojekt-EFH-Mustermann.zip` wie „Einstellungen →
   Sicherung und Wiederherstellung“ in das Profil `Handbuchprofil` wieder her,
-  aktiviert es, startet die App darin neu, legt die amtlichen Beispiel-PDFs
-  aus `formulare/beispiele` in die Formularbibliothek und nimmt die Szenen aus
+  aktiviert es, startet die App darin neu, übernimmt die mitgelieferten
+  Vordrucke in die Formularbibliothek (`werksvorlagen_uebernehmen`) und nimmt die Szenen aus
   `SZENEN` mit ImageMagick (`import`) auf. Ist `pngquant` installiert, werden
   die Bilder verlustarm verkleinert.
 
@@ -45,6 +45,12 @@ BAUPROJEKT_APP_BENUTZER=mmeier python3 scripts/handbuch-bilder/aufnahmen.py
 # Nur einzelne Szenen, App und Beispielprojekt laufen bereits
 python3 scripts/handbuch-bilder/aufnahmen.py --laufend nachweis-grz verfahren-portal
 ```
+
+Die App läuft mit `BAUPROJEKT_HEUTE` (Standard `2026-11-11`, nur im
+Debug-Build wirksam) auf einem festen Kalendertag, damit Fristen und Ampeln in
+den Bildern bei jeder Aufnahme gleich aussehen. Das Bild
+`arbeitsplatz-einrichtung` entsteht vor dem Wiederherstellen des Beispiels im
+leeren Profil.
 
 Fehlschläge werden als `FEHLT <szene> <Meldung>` gemeldet; die übrigen Bilder
 entstehen trotzdem.

@@ -97,6 +97,22 @@
       laeuft = false;
     }
   }
+  const fehlendeWerksvorlagen = $derived(
+    (katalog?.werksvorlagen ?? []).filter((w) => !w.vorhanden),
+  );
+  async function werksvorlagenUebernehmen() {
+    laeuft = true;
+    fehler = null;
+    try {
+      const neu = await api.werksvorlagenUebernehmen();
+      await laden();
+      hinweis = `${neu.length} mitgelieferte ${neu.length === 1 ? "Vorlage" : "Vorlagen"} übernommen. Die Felder sind bereits mit den Projektdaten verknüpft.`;
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      laeuft = false;
+    }
+  }
   async function ansehen(v: BibliotheksVorlage) {
     laeuft = true;
     auswahl = v;
@@ -139,6 +155,19 @@
     >Aktualisieren</button
   >
 </div>
+{#if fehlendeWerksvorlagen.length}<aside class="hinweisbox werksvorlagen">
+    <strong>Mitgelieferte amtliche Vordrucke</strong>
+    <p>
+      Diese Vordrucke liegen der Anwendung bei und sind bereits mit den
+      Projektdaten verknüpft. In der Bibliothek stehen sie noch nicht:
+    </p>
+    <ul>
+      {#each fehlendeWerksvorlagen as w (w.name)}<li>{w.titel}</li>{/each}
+    </ul>
+    <button disabled={!darf || laeuft} onclick={werksvorlagenUebernehmen}
+      >Mitgelieferte Vordrucke übernehmen</button
+    >
+  </aside>{/if}
 {#if katalog}<p class="meta">
     Formularordner: {katalog.root} · Speicherort unter Einstellungen ändern.
   </p>

@@ -47,6 +47,42 @@ async fn gesamtablauf() {
         ],
     )
     .await;
+    // Die Planliste führt alle eingereichten Pläne.
+    let planliste = b.c.planliste(b.p.id, &b.u).await.unwrap();
+    assert_eq!(planliste.zeilen.len(), 4);
+    assert!(
+        planliste.ohne_eintrag.is_empty(),
+        "{:?}",
+        planliste.ohne_eintrag
+    );
+    // Stand des Projekts aus der Verfahrensakte.
+    let stand = b.c.projektstand(b.p.id).await.unwrap();
+    assert_eq!(
+        stand.stufe,
+        core_lib::projektstand::Projektstufe::Eingereicht
+    );
+    assert_eq!(stand.seit, "2026-09-15".parse().ok());
+    assert_eq!(b.c.projekt_formulare(b.p.id).await.unwrap().len(), 2);
+    // Formulare erhalten die Ergebnisse der Fachberechnungen.
+    let quellen =
+        b.c.formular_quellen(b.p.id, Default::default())
+            .await
+            .unwrap();
+    let wert = |s: &str| quellen.datenstand.werte.wert(s).map(str::to_string);
+    assert_eq!(wert("wohnflaeche.gesamt_m2").as_deref(), Some("154,47"));
+    assert_eq!(wert("din277.bgf_m2").as_deref(), Some("294,87"));
+    assert_eq!(wert("din277.bri_m3").as_deref(), Some("883,57"));
+    assert!(wert("stellplaetze.kfz_bedarf").is_some());
+    assert!(wert("freiflaechen.versiegelt_m2").is_some());
+    assert!(
+        quellen
+            .datenstand
+            .werte
+            .datenstand()
+            .keys()
+            .any(|k| k.starts_with("hoehen.hoehe_")),
+        "Höhen aus der Höhenberechnung"
+    );
     let katalog = b.c.druckkatalog(b.p.id).await.unwrap();
     assert_eq!(
         katalog.aktenzeichen, "63-BA-0815/2026",

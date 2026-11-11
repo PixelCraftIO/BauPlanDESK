@@ -19,6 +19,15 @@ pub fn zeit_deutsch(zeitpunkt: DateTime<Utc>) -> String {
 }
 
 pub fn heute() -> NaiveDate {
+    // Nur im Entwicklungsaufbau: fester Kalendertag für wiederholbare
+    // Bildschirmfotos des Handbuchs (`BAUPROJEKT_HEUTE=2026-10-23`).
+    #[cfg(debug_assertions)]
+    if let Some(tag) = std::env::var("BAUPROJEKT_HEUTE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+    {
+        return tag;
+    }
     datum_deutsch(Utc::now())
 }
 

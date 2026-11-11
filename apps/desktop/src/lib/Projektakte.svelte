@@ -480,6 +480,7 @@
         version={projekt.version}
         sichtbar={aktiv}
         benutzerId={ich?.id ?? ""}
+        darf={darf("bearbeitung")}
         entwuerfe={editoren.hatAenderungen()}
         onoeffnen={oeffnen}
       />{/if}
