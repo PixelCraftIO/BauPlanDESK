@@ -1,4 +1,6 @@
 <script lang="ts">
+  import AnschriftFelder from "./AnschriftFelder.svelte";
+  import { leereAnschrift } from "./api";
   import { projektNavigation } from "./projektNavigation.svelte";
   import { editorAnmelden } from "./editoren";
   import { untrack } from "svelte";
@@ -8,6 +10,9 @@
     fehlertext,
     istKonflikt,
     GEBIETE,
+    baunvoAm,
+    gebietKurz,
+    gebieteDerFassung,
     LAENDER,
     type Bundesland,
     type Planungsrecht,
@@ -33,6 +38,18 @@
     const wert = structuredClone($state.snapshot(p.planungsrecht));
     wert.bau_nvo ??= null;
     wert.umgebung ??= null;
+    wert.anschrift ??= leereAnschrift();
+    const f = wert.festgesetzte_werte;
+    f.bauweise ??= null;
+    f.traufhoehe_max_m ??= null;
+    f.firsthoehe_max_m ??= null;
+    f.gebaeudehoehe_max_m ??= null;
+    f.hoehen_ueber_nhn ??= false;
+    f.hoehenbezug ??= "";
+    f.hoehenbezug_m_nhn ??= null;
+    f.dachform ??= "";
+    f.dachneigung_min_grad ??= null;
+    f.dachneigung_max_grad ??= null;
     return wert;
   }
   let gespeichert = $state(untrack(() => grundlagen(projekt)));
@@ -46,6 +63,20 @@
   const geaendert = $derived(
     JSON.stringify(eingabe) !== JSON.stringify(gespeichert) ||
       land !== gespeichertLand,
+  );
+  /** BauNVO-Fassung, die zur Rechtskraft des Plans galt (Vorschlag). */
+  const fassungZurRechtskraft = $derived(
+    /^\d{4}-\d{2}-\d{2}$/.test(eingabe.plan_rechtskraft)
+      ? baunvoAm(eingabe.plan_rechtskraft)
+      : null,
+  );
+  /** Nur Baugebiete der gewählten Fassung; ein bereits gewähltes bleibt sichtbar. */
+  const gebieteZurWahl = $derived(
+    GEBIETE.filter(
+      (g) =>
+        g.code === eingabe.festgesetzte_werte.baugebiet ||
+        gebieteDerFassung(eingabe.bau_nvo).includes(g),
+    ),
   );
   const mitPlan = $derived(
     !["kein", "ungeklaert"].includes(eingabe.bebauungsplan_art),
@@ -382,6 +413,22 @@
           /></label
         >
       </div>
+      {#if fassungZurRechtskraft && fassungZurRechtskraft !== eingabe.bau_nvo}<p
+          class="hinweisbox"
+          data-baunvo-vorschlag
+        >
+          Zur Rechtskraft am {datumDe(eingabe.plan_rechtskraft)} galt die BauNVO
+          {fassungZurRechtskraft}{eingabe.bau_nvo
+            ? `, gewählt ist ${eingabe.bau_nvo}`
+            : ""}. Maßgebend ist in der Regel die Fassung zur Zeit der
+          öffentlichen Auslegung; nennt der Plan selbst eine Fassung, gilt diese.
+          <button
+            type="button"
+            class="link"
+            onclick={() => (eingabe.bau_nvo = fassungZurRechtskraft)}
+            >BauNVO {fassungZurRechtskraft} übernehmen</button
+          >
+        </p>{/if}
       {/if}
       {#if bereich === "festsetzungen"}
         <h3>Festgesetzte Werte</h3>
@@ -390,8 +437,8 @@
             >Baugebiet
             <select bind:value={eingabe.festgesetzte_werte.baugebiet}>
               <option value={null}>Nicht festgelegt</option>
-              {#each GEBIETE as g}<option value={g.code}
-                  >{g.code} – {g.name}</option
+              {#each gebieteZurWahl as g}<option value={g.code}
+                  >{gebietKurz(g.code)} – {g.name}</option
                 >{/each}
             </select>
           </label>
@@ -471,6 +518,92 @@
             >
           </label>
         </div>
+        <fieldset>
+          <legend>Bauweise, Höhen und Dach</legend>
+          <div class="raster">
+            <label
+              >Bauweise
+              <select bind:value={eingabe.festgesetzte_werte.bauweise}
+                ><option value={null}>Nicht festgesetzt</option><option
+                  value="offen">Offene Bauweise</option
+                ><option value="geschlossen">Geschlossene Bauweise</option
+                ><option value="abweichend">Abweichende Bauweise</option></select
+              >
+            </label>
+            <label
+              >Traufhöhe höchstens (m)<input
+                type="number"
+                step="any"
+                bind:value={eingabe.festgesetzte_werte.traufhoehe_max_m}
+              /></label
+            >
+            <label
+              >Firsthöhe höchstens (m)<input
+                type="number"
+                step="any"
+                bind:value={eingabe.festgesetzte_werte.firsthoehe_max_m}
+              /></label
+            >
+            <label
+              >Gebäudehöhe höchstens (m)<input
+                type="number"
+                step="any"
+                bind:value={eingabe.festgesetzte_werte.gebaeudehoehe_max_m}
+              /></label
+            >
+            <label
+              >Die Höhen gelten
+              <select bind:value={eingabe.festgesetzte_werte.hoehen_ueber_nhn}
+                ><option value={false}>über dem Bezugspunkt</option><option
+                  value={true}>als absolute Höhe (m ü. NHN)</option
+                ></select
+              >
+            </label>
+            {#if !eingabe.festgesetzte_werte.hoehen_ueber_nhn}<label
+                >Bezugspunkt<input
+                  bind:value={eingabe.festgesetzte_werte.hoehenbezug}
+                  maxlength="500"
+                  placeholder="z. B. Oberkante der Straße vor dem Grundstück"
+                /></label
+              >
+              <label
+                >Höhe des Bezugspunkts (m ü. NHN)<input
+                  type="number"
+                  step="any"
+                  bind:value={eingabe.festgesetzte_werte.hoehenbezug_m_nhn}
+                /></label
+              >{/if}
+            <label
+              >Zulässige Dachform<input
+                bind:value={eingabe.festgesetzte_werte.dachform}
+                maxlength="500"
+                placeholder="z. B. Satteldach"
+              /></label
+            >
+            <label
+              >Dachneigung mindestens (°)<input
+                type="number"
+                min="0"
+                max="89"
+                step="any"
+                bind:value={eingabe.festgesetzte_werte.dachneigung_min_grad}
+              /></label
+            >
+            <label
+              >Dachneigung höchstens (°)<input
+                type="number"
+                min="0"
+                max="89"
+                step="any"
+                bind:value={eingabe.festgesetzte_werte.dachneigung_max_grad}
+              /></label
+            >
+          </div>
+          <p class="meta">
+            Der Höhennachweis prüft Traufe, First, Gebäudehöhe und Dachneigung
+            gegen diese Werte. Leere Felder bleiben ungeprüft.
+          </p>
+        </fieldset>
         <p class="meta">
           Die gespeicherten Werte werden unter „Maß der Nutzung“ übernommen.
           Leere Felder bleiben ungeprüft. Die Baufensterfläche allein prüft die
@@ -517,6 +650,14 @@
     </fieldset>
   {/if}
   {#if bereich === "stammdaten"}<fieldset disabled={!darf || laeuft}>
+      <legend>Anschrift des Baugrundstücks</legend>
+      <AnschriftFelder bind:anschrift={eingabe.anschrift!} gesperrt={!darf || laeuft} />
+      <p class="meta">
+        Gilt für Bauantrag, Formulare und die Übermittlung an die Behörde. Sie
+        wird nur hier gepflegt.
+      </p>
+    </fieldset>
+    <fieldset disabled={!darf || laeuft}>
       <legend>Eckdaten des Bauvorhabens</legend>
       <div class="raster">
         <label
@@ -526,10 +667,10 @@
           /></label
         >
         <label
-          >Standort / Grundstück<input
+          >Lagebezeichnung (ohne Anschrift)<input
             bind:value={eingabe.standort}
             maxlength="1000"
-            placeholder="Adresse, Gemarkung, Flurstück …"
+            placeholder="z. B. Flur 3, östlich des Lindenwegs"
           /></label
         >
         <label

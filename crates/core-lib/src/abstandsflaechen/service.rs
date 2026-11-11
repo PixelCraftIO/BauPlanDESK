@@ -85,6 +85,18 @@ impl CoreServices {
         let mut neu: AbstandsPlan =
             serde_json::from_value(daten).map_err(|e| err(e.to_string()))?;
         self.planwerte_abstand(p, &mut neu).await?;
+        // Gemeinde und Baugebiet stehen im Projekt; der Abstandsplan führt
+        // keine eigene, abweichende Fassung davon.
+        let recht = self.get_project(p).await?.planungsrecht;
+        if !recht.gemeinde.trim().is_empty() {
+            neu.recht.gemeinde = recht.gemeinde.trim().into();
+        }
+        if let Some(g) = recht.festgesetzte_werte.baugebiet
+            && neu.recht.gebiet.trim() != g.code()
+        {
+            neu.recht.gebiet = g.code().into();
+            neu.recht.geprueft = false;
+        }
         neu.validate()?;
         // Umrisswände folgen ihrem Umriss; die Oberfläche bindet bereits beim
         // Bearbeiten ein, hier wird nur sichergestellt, dass nichts abweicht.

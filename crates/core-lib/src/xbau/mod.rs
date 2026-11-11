@@ -641,6 +641,12 @@ pub struct GespeicherterBauantrag {
     /// `true`: [`Bauantrag::anzahl_gebaeude`] ist die Zahl der unter
     /// Gebäude/Geschosse erfassten Gebäude und wird dort gepflegt.
     pub gebaeude_zentral: bool,
+    /// `true`: Die Anschrift des Baugrundstücks stammt aus den Stammdaten des
+    /// Projekts und wird dort gepflegt.
+    pub anschrift_zentral: bool,
+    /// `true`: Die Bauaufsichtsbehörde stammt aus der Verfahrensakte und wird
+    /// dort gepflegt.
+    pub bauaufsicht_zentral: bool,
     /// Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts
     /// ([`codeliste::verfahrensart_uri`]), sofern geladen; daraus wird
     /// [`Bauantrag::verfahrensart`] gewählt.

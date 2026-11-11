@@ -397,6 +397,30 @@ impl CoreServices {
             quelle: namen.join(" + "),
         })
     }
+    /// Wohneinheiten, wie sie die Stellplatznachweise des Projekts ansetzen.
+    async fn wohneinheiten_aus_stellplatznachweis(&self, p: ProjectId) -> CoreResult<Summe> {
+        let mut summe: Option<f64> = None;
+        let mut namen = Vec::new();
+        for f in self.fachobjekte(p, ObjektArt::Stellplaetze).await? {
+            let Ok(plan) = serde_json::from_value::<FachPlan>(f.daten) else {
+                continue;
+            };
+            let Ok(e) =
+                serde_json::from_value::<crate::berechnungen::stellplaetze::Eingabe>(plan.eingaben)
+            else {
+                continue;
+            };
+            let we: f64 = e.positionen.iter().filter_map(|n| n.wohneinheiten).sum();
+            if we > 0. {
+                summe = Some(summe.unwrap_or(0.) + we);
+                namen.push(plan.bezeichnung);
+            }
+        }
+        Ok(Summe {
+            wert: summe,
+            quelle: namen.join(" + "),
+        })
+    }
     pub async fn baukennwerte(&self, p: ProjectId) -> CoreResult<Baukennwerte> {
         match self
             .repos
@@ -551,9 +575,16 @@ impl CoreServices {
             mit(wfl.wert, 2, "m²"),
             &format!("Wohnflächenberechnung {}", wfl.quelle),
         );
-        let (wohnungen, wq) = match k.wohnungen {
-            Some(w) => (Some(w as f64), "Eingabe im Projekt".to_string()),
-            None => (we.wert, format!("Wohnflächenberechnung {}", we.quelle)),
+        // Eine Quelle für die Zahl der Wohnungen: eigene Eingabe, sonst die
+        // Wohnflächenberechnung, sonst der Stellplatznachweis.
+        let (wohnungen, wq) = match (k.wohnungen, we.wert) {
+            (Some(w), _) => (Some(w as f64), "Eingabe im Projekt".to_string()),
+            (None, Some(w)) => (Some(w), format!("Wohnflächenberechnung {}", we.quelle)),
+            (None, None) => {
+                let s = self.wohneinheiten_aus_stellplatznachweis(p).await?;
+                let quelle = format!("Stellplatznachweis {}", s.quelle);
+                (s.wert, quelle)
+            }
         };
         merk("Gebäude", "Anzahl Wohnungen", mit(wohnungen, 0, ""), &wq);
         merk(

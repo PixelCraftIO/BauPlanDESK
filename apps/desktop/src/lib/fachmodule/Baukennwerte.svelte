@@ -238,7 +238,7 @@
           type="number"
           min="0"
           step="1"
-          placeholder="aus der Wohnflächenberechnung"
+          placeholder="aus Wohnflächenberechnung oder Stellplatznachweis"
           value={eingabe.wohnungen ?? ""}
           oninput={(e) => (eingabe.wohnungen = leerNull(e.currentTarget.valueAsNumber))}
         /></label

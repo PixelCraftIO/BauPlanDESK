@@ -99,10 +99,12 @@
         ),
       ),
       recht: {
-        gemeinde: "",
+        gemeinde: projekt.planungsrecht.gemeinde.trim(),
         fassung: "",
         anwendung: "",
-        gebiet: projekt.planungsrecht.festgesetzte_werte.baugebiet ?? "",
+        gebiet: (
+          projekt.planungsrecht.festgesetzte_werte.baugebiet ?? ""
+        ).replace(/^SO.*/, "SO"),
         satzung: "",
         planfestsetzung: "",
         geprueft: false,
@@ -531,19 +533,36 @@
               required
               bind:value={p.bezeichnung}
             /></label
-          ><label>Gemeinde<input bind:value={p.recht.gemeinde} /></label><label
+          >{#if projekt.planungsrecht.gemeinde.trim()}<label
+              >Gemeinde<input
+                value={projekt.planungsrecht.gemeinde.trim()}
+                readonly
+                title="Aus den Stammdaten des Projekts"
+              /></label
+            >{:else}<label>Gemeinde<input bind:value={p.recht.gemeinde} /></label
+            >{/if}<label
             >Konkrete LBO-Fassung<input bind:value={p.recht.fassung} /></label
           ><label
-            >Baugebiet<select
+            >Baugebiet{#if projekt.planungsrecht.festgesetzte_werte.baugebiet}<input
+                value={projekt.planungsrecht.festgesetzte_werte.baugebiet.replace(/^SO.*/, "SO")}
+                readonly
+                title="Aus den Festsetzungen des Projekts"
+              />{:else}<select
               bind:value={p.recht.gebiet}
               onchange={() => (p.recht.geprueft = false)}
               ><option value="">Noch zu klären</option
               >{#each ["WA", "WR", "WB", "WS", "MI", "MD", "MDW", "MU", "MK", "SO", "GE", "GI"] as g}<option
                   >{g}</option
                 >{/each}</select
-            ></label
+            >{/if}</label
           >
         </div>
+        {#if projekt.planungsrecht.gemeinde.trim() || projekt.planungsrecht.festgesetzte_werte.baugebiet}<p
+            class="meta"
+          >
+            Gemeinde und Baugebiet stammen aus Stammdaten und Festsetzungen des
+            Projekts und werden dort gepflegt.
+          </p>{/if}
         <label
           >Anwendbarkeit / Übergangsrecht<textarea
             bind:value={p.recht.anwendung}

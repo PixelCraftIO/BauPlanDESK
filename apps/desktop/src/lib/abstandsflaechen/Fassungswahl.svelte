@@ -70,6 +70,7 @@
   import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { fehlertext } from "../api";
+  import { plattformApi } from "../plattformApi";
   import type { AbstandsErgebnis } from "../generated/plattform";
   let {
     plan,
@@ -104,6 +105,35 @@
       vergleich = null;
     });
   });
+  // Ist der Antrag bereits eingereicht, richtet sich die Fassung nach dem
+  // Eingang; die Akte kennt das Datum, es wird hier nicht erneut gefragt.
+  let eingereichtAm = $state<string | null>(null);
+  $effect(() => {
+    const id = projektId;
+    plattformApi
+      .uebersicht(id)
+      .then((u) => {
+        const tage = u.empfaenger
+          .flatMap((e) => e.dokumente.map((d) => d.eingereicht_am))
+          .sort();
+        if (id === projektId) eingereichtAm = tage[0] ?? null;
+      })
+      .catch(() => (eingereichtAm = null));
+  });
+  const stichtagWeichtAb = $derived(
+    !!eingereichtAm &&
+      (stichtag !== eingereichtAm || stichtagArt !== STICHTAGARTEN[0]),
+  );
+  function stichtagAusAkte() {
+    if (!eingereichtAm) return;
+    stichtag = eingereichtAm;
+    stichtagArt = STICHTAGARTEN[0];
+    vergleich = null;
+    if (plan.regelwerk) {
+      plan.regelwerk.stichtag = stichtag;
+      plan.regelwerk.stichtag_art = stichtagArt;
+    } else wahl = vorschlag(werke, land, stichtag)?.datei ?? wahl;
+  }
   const gewaehlt = $derived(desLandes.find((r) => r.datei === wahl));
   const aktiv = $derived(
     desLandes.find((r) => r.datei === plan.regelwerk?.datei),
@@ -181,6 +211,16 @@
       dem Regelpaket {plan.regeln.id} · {plan.regeln.version}.
     </p>
   {:else}
+    {#if stichtagWeichtAb}<p class="hinweisbox" data-stichtag-hinweis>
+        Der Bauantrag ist laut Verfahrensakte am {datum(eingereichtAm)} eingereicht.
+        Als Stichtag gilt hier noch „{stichtagArt}“ ({datum(stichtag)}).
+        <button
+          type="button"
+          class="link"
+          disabled={!darf}
+          onclick={stichtagAusAkte}>Stichtag auf den Antragseingang setzen</button
+        >
+      </p>{/if}
     <div class="raster">
       <label
         >Stichtag<input

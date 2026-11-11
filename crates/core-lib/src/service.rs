@@ -1069,6 +1069,34 @@ impl CoreServices {
         if gebaeude_zentral {
             antrag.anzahl_gebaeude = u32::try_from(gebaeude.len()).unwrap_or(u32::MAX);
         }
+        // Die Anschrift des Baugrundstücks steht in den Stammdaten des Projekts.
+        let anschrift_zentral = !p.planungsrecht.anschrift.ist_leer();
+        if anschrift_zentral {
+            antrag.grundstueck.anschrift = p.planungsrecht.anschrift.clone();
+        }
+        // Die Bauaufsichtsbehörde führt die Verfahrensakte. Nennen mehrere
+        // Akten verschiedene Behörden, entscheidet die Abgabe je Verfahren.
+        let akten: Vec<crate::verfahren::Verfahrensakte> = self
+            .repos
+            .commit
+            .fachstaende(project, "verfahren")
+            .await?
+            .into_iter()
+            .filter_map(|f| serde_json::from_value(f.daten).ok())
+            .collect();
+        let mut behoerden = akten
+            .iter()
+            .map(|a| (a.behoerde.name.trim(), a.behoerde.kennung.trim()))
+            .filter(|(name, kennung)| !name.is_empty() || !kennung.is_empty())
+            .collect::<Vec<_>>();
+        behoerden.dedup();
+        let bauaufsicht_zentral = behoerden.len() == 1;
+        if let [(name, kennung)] = behoerden.as_slice() {
+            antrag.bauaufsicht = crate::xbau::Bauaufsicht {
+                name: (*name).into(),
+                kennung: (*kennung).into(),
+            };
+        }
         let bauherren = self.bauherren_fuer_antrag(project, &antrag).await?;
         // Geprüft wird, was die Abgabe übermittelt: Anlagen ohne gewählte Art
         // erhalten dort die Anlagenart ihrer Dokumentkategorie.
@@ -1139,21 +1167,13 @@ impl CoreServices {
                 }),
         );
         hinweise.extend(infos.baulasthinweise());
-        if antrag.grundstueck.anschrift.ist_leer() && !p.planungsrecht.standort.trim().is_empty() {
-            hinweise.push(format!(
-                "Anschrift des Baugrundstücks fehlt; unter Planungsrecht ist als Standort „{}“ erfasst.",
-                p.planungsrecht.standort.trim()
-            ));
+        if antrag.grundstueck.anschrift.ist_leer() {
+            hinweise.push(
+                "Anschrift des Baugrundstücks fehlt; sie wird in den Stammdaten des Projekts erfasst."
+                    .into(),
+            );
         }
         // Bei genau einer Verfahrensakte ist der Bezug eindeutig; sonst prüft die Abgabe je Verfahren.
-        let akten: Vec<crate::verfahren::Verfahrensakte> = self
-            .repos
-            .commit
-            .fachstaende(project, "verfahren")
-            .await?
-            .into_iter()
-            .filter_map(|f| serde_json::from_value(f.daten).ok())
-            .collect();
         if let [akte] = akten.as_slice() {
             hinweise.extend(self.verfahrensart_abgleichen(&p, &antrag, akte));
         }
@@ -1166,6 +1186,8 @@ impl CoreServices {
             hinweise,
             flurstuecke_zentral,
             gebaeude_zentral,
+            anschrift_zentral,
+            bauaufsicht_zentral,
             verfahrensarten,
             anlagenart_vorschlaege: vorschlaege
                 .into_iter()
@@ -1220,6 +1242,10 @@ impl CoreServices {
         // Zentral erfasste Flurstücke nicht als zweite, später veraltende Kopie speichern.
         if !flurstuecke_fuer_antrag(&p).is_empty() {
             antrag.grundstueck.flurstuecke.clear();
+        }
+        // Ebenso die Anschrift aus den Stammdaten.
+        if !p.planungsrecht.anschrift.ist_leer() {
+            antrag.grundstueck.anschrift = Default::default();
         }
         // Alte Bauherren erst in die Kundendatenbank holen, sonst gingen sie
         // mit dem Speichern verloren.

@@ -37,7 +37,9 @@ export type Baugebiet =
   | "MK"
   | "GE"
   | "GI"
-  | "SO";
+  | "SO"
+  | "SOF"
+  | "SOS";
 
 export interface RulePackInfo {
   land: Bundesland;
@@ -281,6 +283,10 @@ export interface GespeicherterBauantrag {
   flurstuecke_zentral?: boolean;
   /** Gebäudeanzahl stammt aus Gebäude/Geschosse und ist hier nur Anzeige. */
   gebaeude_zentral?: boolean;
+  /** Anschrift des Baugrundstücks stammt aus den Stammdaten des Projekts. */
+  anschrift_zentral?: boolean;
+  /** Bauaufsichtsbehörde stammt aus der Verfahrensakte. */
+  bauaufsicht_zentral?: boolean;
   /** Geladene Landes-Codeliste der Verfahrensarten für das Bundesland des Projekts. */
   verfahrensarten?: Codeliste;
   /** Anlagenart je Dokument-ID aus der Dokumentkategorie (gilt ohne eigene Wahl). */
@@ -602,6 +608,19 @@ export interface Festsetzungen {
   ueberbaubare_flaeche_m2: number | null;
   vollgeschosse: number | null;
   geschossigkeit: "maximal" | "zwingend";
+  /** Bauweise nach § 22 BauNVO. */
+  bauweise?: "offen" | "geschlossen" | "abweichend" | null;
+  /** Höchstmaße der Höhe in m; der Höhennachweis prüft dagegen. */
+  traufhoehe_max_m?: number | null;
+  firsthoehe_max_m?: number | null;
+  gebaeudehoehe_max_m?: number | null;
+  /** `true`: absolute Höhen in m ü. NHN, sonst über dem Bezugspunkt. */
+  hoehen_ueber_nhn?: boolean;
+  hoehenbezug?: string;
+  hoehenbezug_m_nhn?: number | null;
+  dachform?: string;
+  dachneigung_min_grad?: number | null;
+  dachneigung_max_grad?: number | null;
 }
 
 export interface Bauteil {
@@ -808,6 +827,9 @@ export interface Planungsrecht {
   plan_nummer: string;
   plan_rechtskraft: string;
   gemeinde: string;
+  /** Anschrift des Baugrundstücks; die eine Quelle für Bauantrag und Formulare. */
+  anschrift?: Anschrift;
+  /** Lagebezeichnung in Worten, vor allem ohne Anschrift. */
   standort: string;
   vorhaben: string;
   nutzung: string;
@@ -1605,8 +1627,37 @@ export const GEBIETE: { code: Baugebiet; name: string }[] = [
   { code: "MK", name: "Kerngebiet" },
   { code: "GE", name: "Gewerbegebiet" },
   { code: "GI", name: "Industriegebiet" },
-  { code: "SO", name: "Sondergebiet (Erholung)" },
+  { code: "SO", name: "Sondergebiet Erholung: Wochenendhausgebiet" },
+  { code: "SOF", name: "Sondergebiet Erholung: Ferienhausgebiet" },
+  { code: "SOS", name: "Sonstiges Sondergebiet (§ 11 BauNVO)" },
 ];
+
+/** Kurzzeichen nach der PlanZV: alle Sondergebiete heißen „SO“. */
+export const gebietKurz = (g: Baugebiet) => (g.startsWith("SO") ? "SO" : g);
+
+/** BauNVO-Fassungen mit dem Tag ihres Inkrafttretens. */
+export const BAUNVO_FASSUNGEN = [
+  { jahr: "1962", ab: "1962-08-01" },
+  { jahr: "1968", ab: "1969-01-01" },
+  { jahr: "1977", ab: "1977-10-01" },
+  { jahr: "1990", ab: "1990-01-27" },
+  { jahr: "2017", ab: "2017-05-13" },
+  { jahr: "2021", ab: "2021-06-23" },
+] as const;
+
+/** Fassung, die an einem Tag (ISO-Datum) galt; `null` vor der ersten BauNVO. */
+export function baunvoAm(tag: string): (typeof BAUNVO_FASSUNGEN)[number]["jahr"] | null {
+  return BAUNVO_FASSUNGEN.filter((f) => f.ab <= tag).at(-1)?.jahr ?? null;
+}
+
+/** Baugebiete, die eine BauNVO-Fassung kennt (MU ab 2017, MDW ab 2021). */
+export function gebieteDerFassung(jahr: string | null | undefined) {
+  return GEBIETE.filter(
+    (g) =>
+      !jahr ||
+      (g.code === "MU" ? jahr >= "2017" : g.code === "MDW" ? jahr >= "2021" : true),
+  );
+}
 
 export function landName(code: Bundesland): string {
   return LAENDER.find((l) => l.code === code)?.name ?? code;

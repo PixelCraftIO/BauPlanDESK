@@ -40,6 +40,10 @@ pub enum Baugebiet {
     GI,
     /// Sondergebiet, das der Erholung dient (Wochenendhausgebiet)
     SO,
+    /// Sondergebiet, das der Erholung dient: Ferienhausgebiet (§ 10 BauNVO)
+    SOF,
+    /// Sonstiges Sondergebiet (§ 11 BauNVO), z. B. Einzelhandel, Klinik, Hafen
+    SOS,
 }
 
 /// Orientierungswerte für Obergrenzen nach § 17 BauNVO.
@@ -65,7 +69,7 @@ impl Baugebiet {
             Self::MK => "MK",
             Self::GE => "GE",
             Self::GI => "GI",
-            Self::SO => "SO",
+            Self::SO | Self::SOF | Self::SOS => "SO",
         }
     }
 
@@ -82,7 +86,9 @@ impl Baugebiet {
             Self::MK => "Kerngebiet",
             Self::GE => "Gewerbegebiet",
             Self::GI => "Industriegebiet",
-            Self::SO => "Sondergebiet (Erholung)",
+            Self::SO => "Sondergebiet Erholung: Wochenendhausgebiet",
+            Self::SOF => "Sondergebiet Erholung: Ferienhausgebiet",
+            Self::SOS => "Sonstiges Sondergebiet",
         }
     }
 
@@ -105,8 +111,9 @@ impl Baugebiet {
             Self::MD | Self::MDW | Self::MI => (0.6, Some(1.2), None),
             Self::MU => (0.8, Some(3.0), None),
             Self::MK => (1.0, Some(3.0), None),
-            Self::GE | Self::GI => (0.8, Some(2.4), Some(10.0)),
+            Self::GE | Self::GI | Self::SOS => (0.8, Some(2.4), Some(10.0)),
             Self::SO => (0.2, Some(0.2), None),
+            Self::SOF => (0.4, Some(1.2), None),
         };
         Orientierungswerte { grz, gfz, bmz }
     }

@@ -27,10 +27,95 @@ pub struct Festsetzungen {
     pub ueberbaubare_flaeche_m2: Option<f64>,
     pub vollgeschosse: Option<u32>,
     pub geschossigkeit: Geschossigkeit,
+    /// Bauweise nach § 22 BauNVO. Neue Felder werden nur mit Wert gespeichert,
+    /// damit bestehende Nachweise ihre Grundlagen wiedererkennen.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bauweise: Option<Bauweise>,
+    /// Höchstmaße der Höhe baulicher Anlagen (§ 18 BauNVO) in m.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traufhoehe_max_m: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub firsthoehe_max_m: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gebaeudehoehe_max_m: Option<f64>,
+    /// `true`: Die Höchstmaße sind absolute Höhen (m ü. NHN); sonst Höhen
+    /// über dem Bezugspunkt.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hoehen_ueber_nhn: bool,
+    /// Bezugspunkt in Worten, z. B. „Oberkante Lindenweg vor dem Grundstück“.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub hoehenbezug: String,
+    /// Höhe des Bezugspunkts in m ü. NHN.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hoehenbezug_m_nhn: Option<f64>,
+    /// Zulässige Dachformen in Worten, z. B. „Satteldach“.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub dachform: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dachneigung_min_grad: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dachneigung_max_grad: Option<f64>,
+}
+
+/// Bauweise nach § 22 BauNVO.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Bauweise {
+    Offen,
+    Geschlossen,
+    Abweichend,
 }
 
 impl Festsetzungen {
+    /// Sind Höhen oder Dachneigung festgesetzt, gegen die der Höhennachweis prüft?
+    pub fn mit_hoehen(&self) -> bool {
+        [
+            self.traufhoehe_max_m,
+            self.firsthoehe_max_m,
+            self.gebaeudehoehe_max_m,
+            self.dachneigung_min_grad,
+            self.dachneigung_max_grad,
+        ]
+        .iter()
+        .any(Option::is_some)
+    }
     pub fn validate(&self) -> CoreResult<()> {
+        for (name, wert) in [
+            ("Traufhöhe", self.traufhoehe_max_m),
+            ("Firsthöhe", self.firsthoehe_max_m),
+            ("Gebäudehöhe", self.gebaeudehoehe_max_m),
+            ("Höhe des Bezugspunkts", self.hoehenbezug_m_nhn),
+        ] {
+            if wert.is_some_and(|v| !v.is_finite() || v.abs() > 10_000.) {
+                return Err(CoreError::InvalidInput(format!(
+                    "{name}: plausibler Wert in Metern erforderlich"
+                )));
+            }
+        }
+        for (name, wert) in [
+            ("Mindestdachneigung", self.dachneigung_min_grad),
+            ("Höchstdachneigung", self.dachneigung_max_grad),
+        ] {
+            if wert.is_some_and(|v| !v.is_finite() || !(0. ..90.).contains(&v)) {
+                return Err(CoreError::InvalidInput(format!(
+                    "{name}: 0 bis unter 90 Grad"
+                )));
+            }
+        }
+        if self
+            .dachneigung_min_grad
+            .zip(self.dachneigung_max_grad)
+            .is_some_and(|(a, b)| a > b)
+        {
+            return Err(CoreError::InvalidInput(
+                "Mindestdachneigung darf die Höchstdachneigung nicht überschreiten".into(),
+            ));
+        }
+        if self.hoehenbezug.chars().count() > 500 || self.dachform.chars().count() > 500 {
+            return Err(CoreError::InvalidInput(
+                "Höhenbezug und Dachform: höchstens 500 Zeichen".into(),
+            ));
+        }
         if let Some(f) = self.nichtvollgeschoss_faktor
             && (!f.is_finite()
                 || !(0.0..=1.0).contains(&f)

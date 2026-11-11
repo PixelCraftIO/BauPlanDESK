@@ -1983,7 +1983,8 @@ pub async fn fach(b: &mut Beispiel) {
             {"id": "first", "bezeichnung": "First Wohnhaus", "art": "first", "absolut_m": 0, "bezug_m": 72.40, "quelle": ""}
         ],
         "daecher": [{"id": "satteldach", "bezeichnung": "Satteldach", "traufe_id": "traufe", "first_id": "first", "horizontale_m": 0, "min_neigung_grad": 30, "max_neigung_grad": 45, "quelle": "Schnitt A-A EP-01"}],
-        "bezug_geprueft": true
+        "bezug_geprueft": true,
+        "bezugshoehe_m": 72.4
     });
     hp.planbindungen = vec![
         Planbindung {
