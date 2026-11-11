@@ -13,15 +13,21 @@ gleich:
 
 | Eintrag | Inhalt |
 | --- | --- |
-| Projekte | Projektverzeichnis mit Suche, Sortierung, „Öffnen“ und „Löschen“ |
+| Projekte | Projektverzeichnis mit Suche, Sortierung, Spalte **Stand**, Filter „Alle / Laufende / Abgeschlossene“, „Öffnen“ und „Löschen“ |
 | Kunden / Bauherren | Kundenstamm, der Projekten als Bauherrschaft zugeordnet wird ([Kapitel 3](03-einrichtung.md#kunden-und-bauherren)) |
 | Formularbibliothek | Projektunabhängige PDF-Vorlagen ([Kapitel 3](03-einrichtung.md#formularbibliothek)) |
 | Einstellungen | Darstellung, Speicherorte, Sicherung, Büroangaben, Benutzer, Lizenz, Updates |
 | Hilfe / Handbuch | Eingebaute Kurzhilfe mit Suche (auch mit F1) |
 
 Rechts steht der angemeldete Benutzer. Die **Statusleiste** unten nennt die
-aktuelle Ansicht, Benutzer und Rolle, Lizenzstand, Ablageart und
-Programmversion.
+aktuelle Ansicht, Benutzer und Rolle, Lizenzstand, Ablageart („Ablage:
+dieser Rechner“ oder die gemeinsame Ablage im Büro) und Programmversion.
+
+Die Spalte **Stand** zeigt je Projekt, wie weit es ist: Vorbereitung,
+Eingereicht, Abgelehnt, Genehmigt, Im Bau, Fertiggestellt oder Abgeschlossen
+([Kapitel 8](08-verfahren.md#projektstand-und-projektabschluss)). Solange die
+Einrichtung des Büros unvollständig ist, steht darüber der Kasten
+„Einrichtung abschließen“ ([Kapitel 3](03-einrichtung.md#einrichtung-abschließen)).
 
 ### Menüleiste
 

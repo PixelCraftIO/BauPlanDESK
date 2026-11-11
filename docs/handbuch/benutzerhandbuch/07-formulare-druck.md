@@ -8,9 +8,12 @@ Register **Bereich 2 · Nachweis und Einreichung → Formulare und Ausgabe**.
 
 ![Formulare im Projekt](bilder/nachweis-formulare.png)
 
-Der Bereich „Formulare“ zeigt die Vorlagen der Formularbibliothek
+Der Bereich „Formulare“ zeigt oben die **ausgefüllten Formulare dieses
+Projekts** und darunter die Vorlagen der Formularbibliothek
 ([Kapitel 3](03-einrichtung.md#formularbibliothek)). „Vorlagen hinzufügen /
-Eingabefelder einrichten …“ wechselt in die Bibliothek.
+Eingabefelder einrichten …“ wechselt in die Bibliothek. Fehlen dort die
+mitgelieferten Vordrucke für das Bundesland des Projekts, bietet ein Hinweis
+an, sie zu übernehmen.
 
 1. Vorlage suchen oder nach Kategorie filtern und **Ausfüllen** wählen.
 2. Die App erkennt bekannte Formulare (z. B. „Baubeschreibung (Anlage I/7 zur
@@ -29,13 +32,41 @@ Eingabefelder einrichten …“ wechselt in die Bibliothek.
 5. Links die **Vorschau** der Originalseite prüfen (Seite wechseln).
    „Aktuelle Eingaben drucken …“ druckt den momentanen Stand.
 6. **Im Projekt speichern.** Das ausgefüllte PDF wird Projektdatei mit
-   Kategorie und erscheint im Projektordner. Für Korrekturen später in den
-   Projektdateien „Formular bearbeiten“ verwenden; dann entsteht eine neue
-   Version desselben Dokuments.
+   Kategorie und erscheint im Projektordner.
 
-> Nicht jedes Berechnungsergebnis (z. B. Wohnfläche, DIN-277-Werte) steht als
-> Formularquelle bereit. Diese Werte im Formular prüfen und gegebenenfalls aus
-> dem Nachweis übertragen.
+### Ausgefüllte Formulare wiederfinden und aktuell halten
+
+Die Tabelle **„Ausgefüllte Formulare dieses Projekts“** nennt je Formular
+Datei und Vorlage, den Stand (Version und Datum) und den **Abgleich
+mit den Projektdaten**:
+
+| Abgleich | Bedeutung | Schaltfläche |
+| --- | --- | --- |
+| Aktuell | Alle aus Projektdaten übernommenen Felder stimmen noch | „Bearbeiten …“ |
+| n Felder weichen ab | Projektdaten wurden seit dem Ausfüllen geändert; die Feldnamen stehen im Hinweis | „Aktualisieren …“ |
+| Nicht prüfbar | Die Vorlage fehlt in der Bibliothek oder das PDF lässt sich nicht lesen | „Bearbeiten …“ |
+
+„Bearbeiten …“ und „Aktualisieren …“ öffnen das Formular mit den gespeicherten
+Eingaben. Beim Speichern entsteht eine neue Version desselben Dokuments;
+frühere Versionen und bereits eingereichte Abgabestände bleiben unverändert.
+
+### Berechnungsergebnisse als Quelle
+
+Neben Stammdaten, Baugrundstück und Verfahren stehen unter **Quelle** auch
+Ergebnisse der Fachberechnungen bereit:
+
+| Gruppe | Werte |
+| --- | --- |
+| Wohnfläche | Gesamtwohnfläche, Zahl der Wohneinheiten |
+| DIN 277 | Brutto-Grundfläche, Konstruktions-Grundfläche, Brutto-Rauminhalt |
+| Stellplätze | Bedarf Kfz und Fahrrad |
+| Freiflächen | versiegelte Fläche, Grünfläche |
+| Entwässerung | abflusswirksame Fläche, Rückhaltevolumen |
+| Höhen | Gebäudehöhen und Dachneigung |
+
+Ein Wert steht nur bereit, wenn es zu der Berechnungsart **genau eine
+vollständige Berechnung** gibt. Bei mehreren oder unvollständigen
+Berechnungen nennt der Dialog den Grund, statt einen Wert zu raten.
 
 ## Drucken und PDF-Ausgabe
 

@@ -316,6 +316,49 @@ async fn dokumente_anlegen(b: &mut Beispiel) -> Dokumente {
         "2026-09-08",
     )
     .await;
+    // Planliste des Büros: die eingereichten Pläne mit Büroindex a.
+    for (d, planart, geschoss, nummer, titel, massstab, datum) in [
+        (
+            &lageplan,
+            "lageplan",
+            "",
+            1,
+            "Amtlicher Lageplan",
+            500,
+            "2026-09-02",
+        ),
+        (
+            &grundrisse,
+            "grundriss",
+            "",
+            1,
+            "Grundrisse KG, EG, DG",
+            100,
+            "2026-09-08",
+        ),
+        (&schnitt, "schnitt", "", 1, "Schnitt A-A", 100, "2026-09-08"),
+        (
+            &ansichten,
+            "ansicht",
+            "",
+            1,
+            "Ansichten Nord, Süd, Ost, West",
+            100,
+            "2026-09-08",
+        ),
+    ] {
+        b.speichern(
+            ObjektArt::Planliste,
+            d.document_id.0,
+            json!({
+                "dokument_id": d.document_id, "planart": planart, "geschoss": geschoss,
+                "nummer": nummer, "titel": titel, "massstab": massstab,
+                "revisionen": [{"index": "a", "datum": datum, "aenderung": "Erstausgabe zum Bauantrag", "version": d.version}],
+                "verteiler": []
+            }),
+        )
+        .await;
+    }
     let baubeschreibung = datei(
         b,
         "Baubeschreibung.pdf",

@@ -123,6 +123,51 @@ pub async fn projekte_auflisten(state: State<'_, AppState>) -> CmdResult<Vec<Pro
     Ok(state.core.projekte_fuer_benutzer(&state.benutzer()).await?)
 }
 
+/// Stand aller lesbaren Projekte (Vorbereitung bis Abschluss) für das
+/// Projektverzeichnis.
+#[tauri::command]
+pub async fn projektstaende(
+    state: State<'_, AppState>,
+) -> CmdResult<Vec<core_lib::projektstand::Projektstand>> {
+    Ok(state.core.projektstaende(&state.benutzer()).await?)
+}
+#[tauri::command]
+pub async fn projektstand(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> CmdResult<core_lib::projektstand::Projektstand> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state.core.projektstand(projekt_id).await?)
+}
+/// Projekt abschließen oder wieder öffnen.
+#[tauri::command]
+pub async fn projekt_abschliessen(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    abgeschlossen: bool,
+) -> CmdResult<core_lib::projektstand::Projektstand> {
+    let wer = state.benutzer();
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &wer,
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
+    Ok(state
+        .core
+        .projekt_abschliessen(projekt_id, abgeschlossen, &wer)
+        .await?)
+}
+
 /// Büro-Cockpit: Fristen und Verfahrensstände aller lesbaren Projekte.
 #[tauri::command]
 pub async fn buero_cockpit(

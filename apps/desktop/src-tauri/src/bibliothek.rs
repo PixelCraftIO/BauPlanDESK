@@ -10,21 +10,115 @@ use core_lib::{
 use serde::Serialize;
 use std::path::PathBuf;
 use storage::formularbibliothek as ordner;
-use tauri::State;
+use tauri::{AppHandle, Manager, State, path::BaseDirectory};
 type Resultat<T> = Result<T, CmdError>;
 
 #[derive(Serialize)]
 pub struct Bibliothek {
     root: PathBuf,
     vorlagen: Vec<BibliotheksVorlage>,
+    /// Mit der Anwendung ausgelieferte amtliche Vordrucke.
+    werksvorlagen: Vec<Werksvorlage>,
+}
+/// Amtlicher Vordruck aus dem Lieferumfang, zu dem eine Feldzuordnung
+/// (`formulare/*.json`) gehört.
+#[derive(Serialize)]
+pub struct Werksvorlage {
+    name: &'static str,
+    titel: &'static str,
+    land: &'static str,
+    /// Der Vordruck liegt unverändert in der Formularbibliothek.
+    vorhanden: bool,
+}
+/// Datei im Lieferumfang (`formulare/beispiele`), Name in der Bibliothek,
+/// Titel, Bundesland.
+const WERKSVORLAGEN: &[(&str, &str, &str, &str)] = &[
+    (
+        "mb2026-220-anlage1.2.pdf",
+        "NRW Bauantrag (Anlage I-2).pdf",
+        "Bauantrag / Antrag auf Vorbescheid (Anlage I/2 zur VV BauPrüfVO NRW)",
+        "NW",
+    ),
+    (
+        "Anlage_I_7_Baubeschreibung_250821.pdf",
+        "NRW Baubeschreibung (Anlage I-7).pdf",
+        "Baubeschreibung (Anlage I/7 zur VV BauPrüfVO NRW)",
+        "NW",
+    ),
+    (
+        "anlage_i_8_betriebsbeschreibung_fuer_gewebliche_anlagen.pdf",
+        "NRW Betriebsbeschreibung (Anlage I-8).pdf",
+        "Betriebsbeschreibung für gewerbliche Anlagen (Anlage I/8 zur VV BauPrüfVO NRW)",
+        "NW",
+    ),
+];
+/// Liest die ausgelieferten Vordrucke; fehlende Dateien (z. B. in einem
+/// Entwicklungsaufbau ohne Ressourcen) werden übergangen.
+async fn werksdateien(app: &AppHandle) -> Vec<(usize, Vec<u8>)> {
+    let Ok(dir) = app
+        .path()
+        .resolve("formulare/beispiele", BaseDirectory::Resource)
+    else {
+        return vec![];
+    };
+    let mut dateien = vec![];
+    for (i, (datei, ..)) in WERKSVORLAGEN.iter().enumerate() {
+        if let Ok(pdf) = tokio::fs::read(dir.join(datei)).await {
+            dateien.push((i, pdf));
+        }
+    }
+    dateien
 }
 #[tauri::command]
-pub async fn formularbibliothek(state: State<'_, AppState>) -> Resultat<Bibliothek> {
+pub async fn formularbibliothek(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Resultat<Bibliothek> {
     let root = state.formularordner.read().await.clone();
+    let vorlagen = ordner::auflisten(&root).await?;
+    let werksvorlagen = werksdateien(&app)
+        .await
+        .into_iter()
+        .map(|(i, pdf)| {
+            let hash = core_lib::storage::ContentHash::of(&pdf);
+            let (_, name, titel, land) = WERKSVORLAGEN[i];
+            Werksvorlage {
+                name,
+                titel,
+                land,
+                vorhanden: vorlagen.iter().any(|v| v.sha256 == hash),
+            }
+        })
+        .collect();
     Ok(Bibliothek {
-        root: root.clone(),
-        vorlagen: ordner::auflisten(&root).await?,
+        root,
+        vorlagen,
+        werksvorlagen,
     })
+}
+/// Legt die ausgelieferten Vordrucke in die Formularbibliothek, soweit sie
+/// dort noch nicht unverändert liegen. Bestehende Vorlagen bleiben erhalten.
+#[tauri::command]
+pub async fn werksvorlagen_uebernehmen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Resultat<Vec<BibliotheksVorlage>> {
+    state
+        .core
+        .berechtigung_pruefen(&state.benutzer(), Recht::DokumentAblegen)
+        .await?;
+    let root = state.formularordner.read().await.clone();
+    let vorhanden = ordner::auflisten(&root).await?;
+    let mut neu = vec![];
+    for (i, pdf) in werksdateien(&app).await {
+        let hash = core_lib::storage::ContentHash::of(&pdf);
+        if vorhanden.iter().any(|v| v.sha256 == hash) {
+            continue;
+        }
+        import_pruefen(&pdf, &state.benutzer())?;
+        neu.push(ordner::ablegen(&root, WERKSVORLAGEN[i].1, &pdf).await?);
+    }
+    Ok(neu)
 }
 /// Ordner verbinden, ohne bestehende Vorlagen zu verschieben oder zu löschen.
 #[tauri::command]
@@ -235,4 +329,21 @@ pub async fn bibliothek_felder_erstellen(
         .vorlagenkategorie_kopieren(&vorlage.sha256, &neue_vorlage.sha256, &state.benutzer())
         .await?;
     Ok(neue_vorlage)
+}
+
+/// Ausgefüllte Formulare des Projekts mit Abgleich gegen die Projektdaten.
+#[tauri::command]
+pub async fn projekt_formulare(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> Resultat<Vec<core_lib::formular::instanz::ProjektFormular>> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Lesen,
+        )
+        .await?;
+    Ok(state.core.projekt_formulare(projekt_id).await?)
 }

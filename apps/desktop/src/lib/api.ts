@@ -4,7 +4,7 @@ export type { BauNvo, Bauteiltyp, Anrechnung } from "./generated/plattform";
 // Typisierte Hülle um die Tauri-Commands. Das Frontend rechnet nichts selbst;
 // alle Fachlogik liegt in core-lib (Rust).
 import { invoke } from "@tauri-apps/api/core";
-import type { ProjektRecht } from "./generated/plattform";
+import type { ProjektRecht, Projektstand } from "./generated/plattform";
 import { melden } from "./projektEreignisse";
 
 export type Bundesland =
@@ -1106,9 +1106,27 @@ export interface BibliotheksVorlage {
   sha256: string;
   size: number;
 }
+/** Mit der Anwendung ausgelieferter amtlicher Vordruck. */
+export interface Werksvorlage {
+  name: string;
+  titel: string;
+  land: string;
+  vorhanden: boolean;
+}
 export interface Formularbibliothek {
   root: string;
   vorlagen: BibliotheksVorlage[];
+  werksvorlagen?: Werksvorlage[];
+}
+/** Ausgefülltes Formular in den Projektdateien. */
+export interface ProjektFormular {
+  dokument_id: string;
+  version: number;
+  datei: string;
+  vorlage: string;
+  erstellt: string;
+  erstellt_von: string;
+  abweichungen: string[] | null;
 }
 export type {
   Dokumentkategorie,
@@ -1355,6 +1373,10 @@ export const api = {
     invoke<void>("formularordner_waehlen", { pfad }),
   bibliothekImportieren: (pfad: string) =>
     invoke<BibliotheksVorlage>("bibliothek_importieren", { pfad }),
+  werksvorlagenUebernehmen: () =>
+    invoke<BibliotheksVorlage[]>("werksvorlagen_uebernehmen"),
+  projektFormulare: (projektId: string) =>
+    invoke<ProjektFormular[]>("projekt_formulare", { projektId }),
   bibliothekVorschau: (vorlage: BibliotheksVorlage) =>
     invoke<BibliothekVorschau>("bibliothek_vorschau", { vorlage }),
   bibliothekUebernehmen: (vorlage: BibliotheksVorlage, projektId: string) =>
@@ -1392,6 +1414,11 @@ export const api = {
     }),
   appInfo: () => invoke<AppInfo>("app_info"),
   projekte: () => invoke<Project[]>("projekte_auflisten"),
+  projektstaende: () => invoke<Projektstand[]>("projektstaende"),
+  projektstand: (projektId: string) =>
+    invoke<Projektstand>("projektstand", { projektId }),
+  projektAbschliessen: (projektId: string, abgeschlossen: boolean) =>
+    invoke<Projektstand>("projekt_abschliessen", { projektId, abgeschlossen }),
   kalenderaboAuskunft: () =>
     invoke<import("./generated/plattform").Aboauskunft>("kalenderabo_auskunft"),
   kalenderaboAnlegen: (umfang: import("./generated/plattform").Aboumfang) =>

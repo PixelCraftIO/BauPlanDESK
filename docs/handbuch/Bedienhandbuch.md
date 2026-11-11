@@ -2,7 +2,7 @@
 
 Für Architekten, Entwurfsverfasser und Planer
 
-Stand: 05.11.2026
+Stand: 11.11.2026
 
 ## Inhaltsverzeichnis
 
@@ -192,11 +192,12 @@ Anmeldung, Darstellungsstil, Briefbogen und Updates.
 
 ### Erste Einrichtung
 
-1. Unter „Einstellungen“ das Farbschema Hell, Dunkel oder System wählen.
-2. Die Büroangaben mit Absender, Anschrift, Telefon, E-Mail und vorhandener Behördenkennung pflegen; dort auch alle bauvorlageberechtigten Personen mit Kammernummer und eigenen Kontaktdaten eintragen. Der Bauantrag wählt daraus die entwurfsverfassende Person des Projekts; Formulare, Anschreiben und Berechnungsausgaben übernehmen sie. Projektbezogene Behördenangaben gehören später in die Verfahrensakte.
-3. Speicherorte für Formularvorlagen und lesbare Projektordner festlegen; den Status der verwalteten Dateiablage prüfen.
-4. Dokumentkategorien und Druckgestaltung für das Büro einrichten.
-5. Unter „Benutzer und Rechte“ die benötigten Konten und Zuständigkeiten einrichten; den Lizenzstatus kontrollieren.
+1. Nach dem ersten Start zeigt der Arbeitsplatz unter „Projekte“ den Kasten „Einrichtung abschließen“ mit drei Schritten: Büroangaben, Entwurfsverfasserin oder Entwurfsverfasser und Formularvorlagen. Die Schaltflächen führen direkt zu den Büroangaben oder übernehmen die mitgelieferten Vordrucke. Ist alles eingerichtet, verschwindet der Kasten.
+2. Unter „Einstellungen“ das Farbschema Hell, Dunkel oder System wählen.
+3. Die Büroangaben mit Absender, Anschrift, Telefon, E-Mail und vorhandener Behördenkennung pflegen; dort auch alle bauvorlageberechtigten Personen mit Kammernummer und eigenen Kontaktdaten eintragen. Der Bauantrag wählt daraus die entwurfsverfassende Person des Projekts; Formulare, Anschreiben und Berechnungsausgaben übernehmen sie. Projektbezogene Behördenangaben gehören später in die Verfahrensakte.
+4. Speicherorte für Formularvorlagen und lesbare Projektordner festlegen; den Status der verwalteten Dateiablage prüfen.
+5. Dokumentkategorien und Druckgestaltung für das Büro einrichten.
+6. Unter „Benutzer und Rechte“ die benötigten Konten und Zuständigkeiten einrichten; den Lizenzstatus kontrollieren.
 
 ### Anmeldung
 
@@ -954,13 +955,19 @@ Eine Vorlage auswählen, Eingaben prüfen und die ausgefüllte Original-PDF able
 3. Felder ergänzen; mehrzeilige Texte wie Anschriften im dafür vorgesehenen Textfeld eingeben. Unter „Quelle“ lässt sich je Textfeld ein anderer Projektwert wählen, etwa Name und Anschrift der Bauherrschaft gesammelt in einem zweizeiligen Feld oder „Familienname, Vorname“ statt des Anzeigenamens; die Wahl wird mit der Formularversion gespeichert. Die PDF-Vorschau kontrollieren und gegebenenfalls die Seite wechseln.
 4. Nach Änderungen anderer Projektbereiche „Projektdaten neu laden“ bzw. die angebotene Aktualisierung verwenden. Bereits getippte Werte nicht unbesehen durch alle Vorschläge ersetzen.
 5. „Im Projekt speichern“ wählen. Die ausgefüllte PDF wird als Projektunterlage geführt und im eingestellten Projektordner ausgegeben. Ein separater Export ist dafür nicht der normale Speicherschritt.
-6. Für eine Korrektur das vorhandene Projektdokument über „Formular bearbeiten“ öffnen und erneut im Projekt speichern; damit bleibt der Dokumentbezug erhalten.
+6. Für eine Korrektur das Formular in der Tabelle „Ausgefüllte Formulare dieses Projekts“ mit „Bearbeiten …“ öffnen (oder in den Projektdateien „Formular bearbeiten“) und erneut im Projekt speichern; damit entsteht eine neue Version desselben Dokuments.
+
+### Ausgefüllte Formulare aktuell halten
+
+Über den Vorlagen steht die Tabelle „Ausgefüllte Formulare dieses Projekts“ mit Datei, Vorlage, Version und dem Abgleich mit den Projektdaten. „aktuell“ heißt: Alle aus Projektdaten übernommenen Felder stimmen noch. „n Felder weichen ab“ heißt: Projektdaten wurden seit dem Ausfüllen geändert; „Aktualisieren …“ öffnet das Formular mit den gespeicherten Eingaben und zeigt die neuen Vorschläge. „nicht prüfbar“ erscheint, wenn die Vorlage in der Bibliothek fehlt.
+
+Bereits eingereichte Abgabestände bleiben unverändert; eine aktualisierte Fassung ist eine neue Dokumentversion.
 
 ### Vorschau und Ausgabe
 
 Die Vorschau zeigt die befüllte Originalvorlage. „Aktuelle Eingaben drucken …“ ist eine Ausgabe des aktuellen Formularstands; vor einer verbindlichen Abgabe die benötigte Dokumentversion im Projekt sichern. Im Stapeldruck werden amtliche Formularseiten ohne zusätzlichen Bürobriefkopf oder Fußzeile übernommen.
 
-Nicht alle Fachberechnungsergebnisse stehen automatisch als Formularquelle bereit. Insbesondere Wohnfläche, DIN-277-Ergebnisse und weitere Fachwerte am konkreten Formular prüfen und gegebenenfalls mit ihrem Nachweis manuell eintragen.
+Als Formularquelle stehen auch Ergebnisse der Fachberechnungen bereit: Wohnfläche und Wohneinheiten, DIN-277-Werte (BGF, KGF, BRI), Stellplatzbedarf, versiegelte Fläche und Grünfläche, abflusswirksame Fläche und Rückhaltevolumen, Gebäudehöhen und Dachneigung. Ein Wert wird nur angeboten, wenn es zu der Berechnungsart genau eine vollständige Berechnung gibt; sonst nennt der Dialog den Grund.
 
 ### Aus einer Anforderung heraus arbeiten
 
@@ -976,7 +983,7 @@ Wiederverwendbare Vorlagen unabhängig von einzelnen Projekten vorbereiten.
 
 ### Vorlage bereitstellen
 
-1. Die globale „Formularbibliothek“ öffnen und „PDF-Vorlage importieren …“ wählen. Das unveränderte Original aufbewahren.
+1. Die globale „Formularbibliothek“ öffnen. „Mitgelieferte Vordrucke übernehmen“ legt die beiliegenden amtlichen NRW-Vordrucke (Bauantrag Anlage I/2, Baubeschreibung Anlage I/7, Betriebsbeschreibung Anlage I/8) in die Bibliothek. Weitere Vordrucke mit „PDF-Vorlage importieren …“ hinzufügen und das unveränderte Original aufbewahren.
 2. Vorhandene PDF-Eingabefelder und Checkboxen prüfen. Bei fehlenden Feldern „Felder hinzufügen …“ verwenden.
 3. Auf der betreffenden PDF-Seite Textfeld oder Checkbox platzieren. Feldname/Platzhalter, Beschriftung, Größe und gegebenenfalls „Mehrzeiliges Textfeld“ festlegen. Eindeutige Feldnamen wie Vorname oder Anschrift verwenden.
 4. „Vorlage erstellen“ ausführen und die neu ausfüllbare Vorlage prüfen. Bei Bedarf eine Standardkategorie für spätere Projektdokumente setzen.
@@ -1026,6 +1033,12 @@ Weiterlesen: [Nachweisstände archivieren und freigeben](#28-nachweisstände-arc
 ## 36. Projektübersicht, Aufgaben und Chronik
 
 Handlungsbedarf, Fristen und Bearbeitungsstand im Blick behalten.
+
+### Projektstand und Projektabschluss
+
+Oben in der Projektübersicht zeigt eine Leiste den Projektstand: Vorbereitung, Eingereicht, Genehmigt, Im Bau, Fertiggestellt, Abgeschlossen. Die Stufen bis „Fertiggestellt“ ergeben sich aus den Verfahrensakten (Einreichung, Entscheidung, Baubeginn, Fertigstellung); eine Ablehnung erscheint als „Abgelehnt“. Derselbe Stand steht im Projektverzeichnis in der Spalte „Stand“.
+
+„Projekt abschließen …“ führt das Projekt als abgeschlossen. Alle Daten bleiben erhalten und bearbeitbar; im Projektverzeichnis blendet der Filter „Laufende“ abgeschlossene Projekte aus. „Projekt wieder öffnen“ nimmt den Abschluss zurück.
 
 ### Projektübersicht nutzen
 

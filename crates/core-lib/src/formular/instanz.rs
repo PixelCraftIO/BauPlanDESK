@@ -91,6 +91,20 @@ pub struct FormularInstanz {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub veraltet: Vec<VeralteterFeldwert>,
 }
+/// Ausgefülltes Formular in den Projektdateien.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjektFormular {
+    pub dokument_id: crate::domain::DocumentId,
+    pub version: i64,
+    pub datei: String,
+    /// Name der Vorlage in der Formularbibliothek beim Ausfüllen.
+    pub vorlage: String,
+    pub erstellt: chrono::DateTime<chrono::Utc>,
+    pub erstellt_von: String,
+    /// Felder, deren Wert von den aktuellen Projektdaten abweicht; `None`,
+    /// wenn der Abgleich nicht möglich war.
+    pub abweichungen: Option<Vec<String>>,
+}
 impl CoreServices {
     pub async fn formular_quellen(
         &self,
@@ -246,6 +260,14 @@ impl CoreServices {
                 werte.setze("behoerde.name", &antrag.bauaufsicht.name);
             }
         }
+        // Ergebnisse der Fachberechnungen (Wohnfläche, DIN 277, Stellplätze,
+        // Freiflächen, Entwässerung, Höhen).
+        let (berechnet, berechnungshinweise) =
+            self.berechnungswerte_fuer_formulare(projekt).await?;
+        for (schluessel, wert) in berechnet {
+            werte.setze(&schluessel, wert);
+        }
+        hinweise.extend(berechnungshinweise);
         werte.leere_entfernen();
         let daten_hash = ContentHash::of(
             &serde_json::to_vec(&(bezug.datenbezug(), werte.datenstand()))
@@ -393,10 +415,24 @@ impl CoreServices {
         let Some(instanz) = self.formular_instanz(id, version).await? else {
             return Ok(None);
         };
-        let projekt = instanz.quellen.datenstand.projekt_id;
         let quellen = self
-            .formular_quellen(projekt, instanz.quellen.datenstand.bezug.clone())
+            .formular_quellen(
+                instanz.quellen.datenstand.projekt_id,
+                instanz.quellen.datenstand.bezug.clone(),
+            )
             .await?;
+        self.formular_abweichungen(&instanz, &quellen, pdf)
+            .await
+            .map(Some)
+    }
+    /// Abweichungen einer Formularinstanz von bereits ermittelten Quellen.
+    async fn formular_abweichungen(
+        &self,
+        instanz: &FormularInstanz,
+        quellen: &FormularQuellen,
+        pdf: &[u8],
+    ) -> CoreResult<Vec<VeralteterFeldwert>> {
+        let projekt = instanz.quellen.datenstand.projekt_id;
         let felder = super::pdf::felder_lesen(pdf)?;
         let land = self.repos.projects.get(projekt).await?.bundesland;
         let vorlage = self.formulare.zuordnung_fuer(
@@ -404,13 +440,71 @@ impl CoreServices {
             land,
             instanz.zuordnung.as_ref().map(|z| z.id.as_str()),
         );
-        Ok(Some(super::vorlage::veraltete_werte_mit_quellen(
+        Ok(super::vorlage::veraltete_werte_mit_quellen(
             &felder,
             &BTreeMap::new(),
             vorlage,
             &quellen.datenstand.bezug.feldquellen,
             &quellen.datenstand.werte,
-        )))
+        ))
+    }
+
+    /// Ausgefüllte Formulare des Projekts: je Dokument die neueste Version
+    /// mit Formularinstanz, abgeglichen mit den aktuellen Projektdaten.
+    pub async fn projekt_formulare(
+        &self,
+        projekt: crate::domain::ProjectId,
+    ) -> CoreResult<Vec<ProjektFormular>> {
+        let mut neueste: std::collections::HashMap<
+            crate::domain::DocumentId,
+            crate::domain::DocumentVersion,
+        > = Default::default();
+        for d in self.list_documents(projekt).await? {
+            match neueste.get(&d.document_id) {
+                Some(v) if v.version >= d.version => {}
+                _ => {
+                    neueste.insert(d.document_id, d);
+                }
+            }
+        }
+        let mut formulare = vec![];
+        // Formulare mit demselben Bezug teilen sich die Projektquellen.
+        let mut quellen: Vec<(String, Option<FormularQuellen>)> = vec![];
+        for d in neueste.into_values() {
+            let Some(instanz) = self.formular_instanz(d.document_id, d.version).await? else {
+                continue;
+            };
+            let bezug = &instanz.quellen.datenstand.bezug;
+            let schluessel = serde_json::to_string(bezug).unwrap_or_default();
+            let stand = match quellen.iter().find(|(s, _)| *s == schluessel) {
+                Some((_, q)) => q.clone(),
+                None => {
+                    let q = self.formular_quellen(projekt, bezug.clone()).await.ok();
+                    quellen.push((schluessel, q.clone()));
+                    q
+                }
+            };
+            // Ein nicht prüfbares Formular bleibt in der Liste, ohne Abgleich.
+            let abweichungen = match (stand, self.load_version(d.document_id, d.version).await) {
+                (Some(q), Ok((_, pdf))) => self
+                    .formular_abweichungen(&instanz, &q, &pdf)
+                    .await
+                    .ok()
+                    .map(|v| v.into_iter().map(|f| f.feld).collect()),
+                _ => None,
+            };
+            formulare.push(ProjektFormular {
+                dokument_id: d.document_id,
+                version: d.version,
+                datei: d.file_name,
+                vorlage: instanz.vorlagen_name,
+                erstellt: d.created_at,
+                erstellt_von: d.created_by,
+                abweichungen,
+            });
+        }
+        formulare.sort_by_key(|b| std::cmp::Reverse(b.erstellt));
+        Ok(formulare)
     }
 
     /// Hinweis für Abgabe und Prüfung, wenn eine Formularversion veraltete

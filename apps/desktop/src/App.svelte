@@ -1,6 +1,6 @@
 <script lang="ts">
   import { initialisieren as darstellungInitialisieren } from "./lib/darstellung";
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import type { UebersichtsZiel } from "./lib/generated/plattform";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { listen } from "@tauri-apps/api/event";
@@ -36,6 +36,7 @@
   import AblageEinstellungen from "./lib/AblageEinstellungen.svelte";
   import Projektakte from "./lib/Projektakte.svelte";
   import Buerocockpit from "./lib/Buerocockpit.svelte";
+  import Ersteinrichtung from "./lib/Ersteinrichtung.svelte";
   import KalenderAbo from "./lib/KalenderAbo.svelte";
   import TagesMail from "./lib/TagesMail.svelte";
   import PlannummernSchema from "./lib/PlannummernSchema.svelte";
@@ -184,6 +185,13 @@
     });
   });
   let dialog = $state<DialogArt>(null);
+  // Die Einrichtungshinweise der Startseite neu prüfen, sobald ein Dialog
+  // schließt oder die Startseite wieder sichtbar wird.
+  let einrichtungsstand = $state(0);
+  $effect(() => {
+    if (dialog === null && globalAnsicht === "projekte")
+      untrack(() => einrichtungsstand++);
+  });
   let zuletzt = $state<ZuletztEintrag[]>([]);
   let fehler = $state<string | null>(null);
   let hinweis = $state<string | null>(null);
@@ -1030,6 +1038,12 @@
       </div>
     </nav>
     <div class="globale-seite" hidden={globalAnsicht !== "projekte"}>
+      <Ersteinrichtung
+        aktualisieren={einrichtungsstand}
+        darf={darf("bearbeitung")}
+        onbuero={() => (dialog = "buero")}
+        onformulare={() => (globalAnsicht = "formulare")}
+      />
       <Buerocockpit
         ich={info?.benutzer ?? null}
         aktualisieren={zuletzt.length + sitzungen.length}
@@ -1267,7 +1281,12 @@
         {lizenz.zustand.tage_uebrig === 1 ? "Tag" : "Tage"}</button
       >
     {/if}
-    <span>Ablage: {info.storage}</span>
+    <span
+      title="Speicherort der Projektdateien. Ändern unter Einstellungen → Speicherorte."
+      >Ablage: {info.storage === "local"
+        ? "dieser Rechner"
+        : info.storage}</span
+    >
     <span class="rechts">BauPlanIO {info.version}</span>
   {/if}
 </footer>

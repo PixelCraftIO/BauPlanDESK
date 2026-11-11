@@ -19,6 +19,8 @@ fn main() {
         core_lib::cockpit::CockpitProjekt,
         core_lib::cockpit::CockpitFehler,
         core_lib::cockpit::Buerocockpit,
+        core_lib::projektstand::Projektstufe,
+        core_lib::projektstand::Projektstand,
         core_lib::kalenderabo::Aboumfang,
         core_lib::kalenderabo::Aboauskunft,
         core_lib::kalenderabo::Aboschluessel,

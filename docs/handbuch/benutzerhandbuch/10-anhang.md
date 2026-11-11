@@ -65,7 +65,7 @@
 | Exportiert, aber nicht als eingereicht angezeigt | Im Portal absenden und den Beleg als Kommunikation/Übermittlung zuordnen. |
 | Speichern-Knopf deaktiviert | Rechte, Sperre durch andere Bearbeitung, laufende Aktion oder unveränderter Stand. |
 | Abstandsflächen: „Die Wandhöhe zwischen den Kanten weicht … vom gleichmäßigen Verlauf ab“ | Gelände springt oder knickt zwischen den Gebäudekanten. In der Ansicht Wandteilgrenzen am Sprung setzen und neu berechnen ([Rechenbeispiel](06-nachweise.md#rechenbeispiel-aufschüttung-und-abgrabung-bauo-nrw)). |
-| Formularbibliothek leer | Formularordner unter Einstellungen → Speicherorte prüfen und Vorlagen importieren. |
+| Formularbibliothek leer | In der Formularbibliothek „Mitgelieferte Vordrucke übernehmen“ wählen; sonst Formularordner unter Einstellungen → Speicherorte prüfen und Vorlagen importieren. |
 
 Für eine Supportanfrage: Programmversion (Statusleiste), Bereich, genaue
 Meldung und die Schritte davor nennen. Keine Dateien der verwalteten Ablage

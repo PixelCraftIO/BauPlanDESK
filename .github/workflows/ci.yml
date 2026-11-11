@@ -168,6 +168,7 @@ jobs:
           python apps/desktop/tests/updater.py
           python apps/desktop/tests/ui-felder-navigation.py
           python apps/desktop/tests/arbeitsplatz-ui.py
+          python apps/desktop/tests/einrichtung-projektstand.py
           python apps/desktop/tests/ansichtsabfragen.py
           python apps/desktop/tests/handbuch-ui.py
           python apps/desktop/tests/beispielprojekt.py

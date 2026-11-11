@@ -756,3 +756,181 @@ pub(crate) fn importgroesse(p: &FachPlan, ziel: &str) -> CoreResult<(Einheit, Me
         g,
     ))
 }
+
+/// Ergebnisse der Fachberechnungen für Formulare: Art, Kennzahl, Schlüssel im
+/// Formularkontext, Nachkommastellen.
+const FORMULARWERTE: &[(BerechnungsArt, &str, &str, usize)] = &[
+    (
+        BerechnungsArt::Wohnflaechen,
+        "wohnflaeche",
+        "wohnflaeche.gesamt_m2",
+        2,
+    ),
+    (
+        BerechnungsArt::Wohnflaechen,
+        "wohneinheiten",
+        "wohnflaeche.wohneinheiten",
+        0,
+    ),
+    (BerechnungsArt::Din277, "bgf", "din277.bgf_m2", 2),
+    (BerechnungsArt::Din277, "kgf", "din277.kgf_m2", 2),
+    (BerechnungsArt::Din277, "bri", "din277.bri_m3", 2),
+    (
+        BerechnungsArt::Stellplaetze,
+        "kfz_bedarf",
+        "stellplaetze.kfz_bedarf",
+        0,
+    ),
+    (
+        BerechnungsArt::Stellplaetze,
+        "fahrrad_bedarf",
+        "stellplaetze.fahrrad_bedarf",
+        0,
+    ),
+    (
+        BerechnungsArt::Freiflaechen,
+        "versiegelt_m2",
+        "freiflaechen.versiegelt_m2",
+        2,
+    ),
+    (
+        BerechnungsArt::Freiflaechen,
+        "gruen_m2",
+        "freiflaechen.gruen_m2",
+        2,
+    ),
+    (
+        BerechnungsArt::Entwaesserung,
+        "au",
+        "entwaesserung.abflusswirksame_flaeche_m2",
+        2,
+    ),
+    (
+        BerechnungsArt::Entwaesserung,
+        "rueckhaltung",
+        "entwaesserung.rueckhaltevolumen_m3",
+        2,
+    ),
+];
+fn artname(art: BerechnungsArt) -> &'static str {
+    match art {
+        BerechnungsArt::Wohnflaechen => "Wohnflächenberechnung",
+        BerechnungsArt::Din277 => "Berechnung nach DIN 277",
+        BerechnungsArt::Stellplaetze => "Stellplatzberechnung",
+        BerechnungsArt::Freiflaechen => "Freiflächenberechnung",
+        BerechnungsArt::Entwaesserung => "Entwässerungsberechnung",
+        BerechnungsArt::Hoehen => "Höhenberechnung",
+        _ => "Berechnung",
+    }
+}
+/// Schlüsselteil aus einer Bezeichnung: „Traufe Süd“ → `traufe_sued`.
+fn schluesselteil(name: &str) -> String {
+    let mut s = String::new();
+    for c in name.trim().to_lowercase().chars() {
+        match c {
+            'ä' => s.push_str("ae"),
+            'ö' => s.push_str("oe"),
+            'ü' => s.push_str("ue"),
+            'ß' => s.push_str("ss"),
+            c if c.is_ascii_alphanumeric() => s.push(c),
+            _ if !s.ends_with('_') && !s.is_empty() => s.push('_'),
+            _ => {}
+        }
+    }
+    s.trim_end_matches('_').to_string()
+}
+
+impl CoreServices {
+    /// Ergebnisvertrag der Fachberechnungen für den Formularkontext:
+    /// Schlüssel und formatierter Wert je Kennzahl sowie Hinweise.
+    ///
+    /// Übernommen wird je Art nur eine einzige, vollständige Berechnung des
+    /// Projekts mit ihrem aktuell gerechneten Ergebnis. Bei mehreren
+    /// Berechnungen einer Art oder offenen Punkten bleibt der Wert leer, und
+    /// ein Hinweis nennt den Grund; es wird nichts still ausgewählt.
+    pub(crate) async fn berechnungswerte_fuer_formulare(
+        &self,
+        pid: ProjectId,
+    ) -> CoreResult<(Vec<(String, String)>, Vec<String>)> {
+        let (mut werte, mut hinweise) = (vec![], vec![]);
+        let arten = [
+            BerechnungsArt::Wohnflaechen,
+            BerechnungsArt::Din277,
+            BerechnungsArt::Stellplaetze,
+            BerechnungsArt::Freiflaechen,
+            BerechnungsArt::Entwaesserung,
+            BerechnungsArt::Hoehen,
+        ];
+        for art in arten {
+            let modul = art.objekt().modul();
+            let mut plaene: Vec<FachPlan> = self
+                .repos
+                .commit
+                .fachstaende(pid, modul)
+                .await?
+                .into_iter()
+                .filter_map(|f| serde_json::from_value(f.daten).ok())
+                .collect();
+            let plan = match plaene.len() {
+                0 => continue,
+                1 => plaene.remove(0),
+                n => {
+                    hinweise.push(format!(
+                        "{}: {n} Berechnungen im Projekt; Werte bitte von Hand eintragen.",
+                        artname(art)
+                    ));
+                    continue;
+                }
+            };
+            let name = plan.bezeichnung.clone();
+            let ergebnis = match Box::pin(self.berechnung_pruefen(pid, plan)).await {
+                Ok((_, e)) if e.vollstaendig => e,
+                Ok(_) => {
+                    hinweise.push(format!(
+                        "{} „{name}“ hat offene Punkte; ihre Werte werden nicht übernommen.",
+                        artname(art)
+                    ));
+                    continue;
+                }
+                Err(e) => {
+                    hinweise.push(format!(
+                        "{} „{name}“ lässt sich nicht rechnen ({e}); ihre Werte werden nicht übernommen.",
+                        artname(art)
+                    ));
+                    continue;
+                }
+            };
+            for k in &ergebnis.kennzahlen {
+                let Some(wert) = k.wert else { continue };
+                if art == BerechnungsArt::Hoehen {
+                    // Höhenpunkte und Dächer tragen die Namen aus der Berechnung.
+                    let (gruppe, stellen) = match k.id.split_once(':') {
+                        Some(("hoehe", _)) => ("hoehe", 2),
+                        Some(("dach", _)) => ("dachneigung", 1),
+                        _ => continue,
+                    };
+                    let teil = schluesselteil(
+                        k.bezeichnung
+                            .trim_start_matches("Relative Höhe ")
+                            .trim_start_matches("Dachneigung "),
+                    );
+                    if !teil.is_empty() {
+                        werte.push((
+                            format!("hoehen.{gruppe}_{teil}"),
+                            crate::formular::vorlage::zahl(wert, stellen),
+                        ));
+                    }
+                } else if let Some((.., schluessel, stellen)) = FORMULARWERTE
+                    .iter()
+                    .find(|(a, id, ..)| *a == art && *id == k.id)
+                {
+                    werte.push((
+                        (*schluessel).to_string(),
+                        crate::formular::vorlage::zahl(wert, *stellen),
+                    ));
+                }
+            }
+        }
+        Ok((werte, hinweise))
+    }
+}

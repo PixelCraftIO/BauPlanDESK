@@ -32,6 +32,16 @@ Verfügbare Schlüssel (Zahlen mit Dezimalkomma, leere Angaben fehlen):
   `kennzahlen.bmz`, `flaechen.grundflaeche_m2`,
   `flaechen.grundflaeche_nebenanlagen_m2`, `flaechen.geschossflaeche_m2`,
   `flaechen.baumasse_m3`, `gebaeude.vollgeschosse`.
+* **Ergebnisse der Fachberechnungen** (aktuell gerechnet, nur wenn es je Art
+  genau eine vollständige Berechnung im Projekt gibt; sonst nennt ein Hinweis
+  den Grund): `wohnflaeche.gesamt_m2`, `wohnflaeche.wohneinheiten`,
+  `din277.bgf_m2`, `din277.kgf_m2`, `din277.bri_m3`,
+  `stellplaetze.kfz_bedarf`, `stellplaetze.fahrrad_bedarf`,
+  `freiflaechen.versiegelt_m2`, `freiflaechen.gruen_m2`,
+  `entwaesserung.abflusswirksame_flaeche_m2`,
+  `entwaesserung.rueckhaltevolumen_m3` sowie je Höhenpunkt und Dach der
+  Höhenberechnung `hoehen.hoehe_<name>` (m) und `hoehen.dachneigung_<name>`
+  (Grad), z. B. `hoehen.hoehe_traufe`.
 * **Personen** aus der Kundendatenbank, jeweils mit `.name` („Vorname
   Familienname“ bzw. Firma), `.vorname`, `.familienname`, `.firma`,
   `.name_vorname` („Familienname, Vorname“ bzw. Firma, wie amtliche Formulare

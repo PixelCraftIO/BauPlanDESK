@@ -258,6 +258,24 @@ Im Register **Übersicht**:
 
 ![Chronik](bilder/akte-chronik.png)
 
+## Projektstand und Projektabschluss
+
+Oben in der Projektübersicht zeigt eine Leiste den **Projektstand** in sechs
+Stufen: Vorbereitung, Eingereicht, Genehmigt, Im Bau, Fertiggestellt,
+Abgeschlossen. Die aktuelle Stufe ist hervorgehoben und nennt das Datum
+(„Eingereicht · seit 15.09.2026“). Derselbe Stand steht im
+Projektverzeichnis in der Spalte „Stand“.
+
+- Die Stufen bis „Fertiggestellt“ ergeben sich aus den Verfahrensakten:
+  Einreichung, Entscheidung, Baubeginn und Fertigstellung werden dort
+  dokumentiert und nicht doppelt gepflegt. Eine Ablehnung erscheint als
+  „Abgelehnt“ an der Stelle von „Eingereicht“.
+- **„Projekt abschließen …“** führt das Projekt als abgeschlossen. Alle Daten
+  bleiben erhalten und bearbeitbar; im Projektverzeichnis blendet der Filter
+  „Laufende“ abgeschlossene Projekte aus.
+- **„Projekt wieder öffnen“** nimmt den Abschluss zurück; es gilt wieder der
+  Stand aus den Verfahrensakten.
+
 ## Projekttagebuch und Fachplaner
 
 Das **Projekttagebuch** hält Telefonate, Besprechungen, Ortstermine, Mängel und
