@@ -326,7 +326,8 @@ async fn uebernahme_in_gebaeude_zeichnungen_und_raumbuch() {
     let rb: Raumbuch = serde_json::from_value(r.raumbuecher[0].daten.clone()).unwrap();
     assert_eq!(rb.raeume.len(), 2);
     assert_eq!(rb.raeume[0].bezeichnung, "0.01 Wohnen");
-    assert!((rb.raeume[0].flaeche_m2 - efh::raumflaeche()).abs() < 1e-6);
+    // Übernommene Messwerte sind auf drei Nachkommastellen gerundet.
+    assert!((rb.raeume[0].flaeche_m2 - efh::raumflaeche()).abs() < 6e-4);
     assert_eq!(rb.raeume[0].hoehe_m, Some(efh::LICHTE_HOEHE));
 
     // Veraltete Revision der Modellakte wird abgewiesen.

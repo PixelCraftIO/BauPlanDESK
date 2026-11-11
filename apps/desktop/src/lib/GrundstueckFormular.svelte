@@ -15,8 +15,11 @@
     mitPlan: boolean;
   } = $props();
   const regel = $derived(regelwerk(aufstellung.bau_nvo));
+  // `|| 0` verhindert „-0“ (z. B. bei 0 − 0 Gemeinschaftsanteilen).
   const z = (n: number) =>
-    n.toLocaleString("de-DE", { maximumFractionDigits: 3 });
+    (Math.round(n * 1000) / 1000 || 0).toLocaleString("de-DE", {
+      maximumFractionDigits: 3,
+    });
   function aktivieren() {
     aufstellung.grundstueck = {
       basisflaeche_m2: basisFallback,

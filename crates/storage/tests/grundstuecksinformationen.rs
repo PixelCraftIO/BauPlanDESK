@@ -110,7 +110,11 @@ async fn fakten_ohne_grundbuch_berechnung_getrennt_und_aenderungen_sperren_alte_
         .unwrap();
     assert!(p.planungsrecht.baugrundstuecke.is_none());
     assert!(p.planungsrecht.baugrundstuecksermittlung.is_none());
-    assert!(core.grundstueckskontext(p.id).await.is_err()); // Keine alte Gesamtfläche als Ersatz.
+    // Ohne eigene Abzüge oder Zuordnungen folgt das Baugrundstück unmittelbar den
+    // Flurstücken; die alte Gesamtfläche des Projekts dient nicht als Ersatz.
+    let kontext = core.grundstueckskontext(p.id).await.unwrap();
+    assert_eq!(kontext.len(), 1);
+    assert!(kontext.iter().all(|k| k.eigentumsflaeche_m2 != 9999.));
     assert_eq!(
         plan(&p.planungsrecht)
             .unwrap()

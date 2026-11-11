@@ -218,7 +218,7 @@
   <table class="ergebnistabelle">
     <thead
       ><tr
-        ><th>Bezeichnung</th>{#if zusatz}<th>Grundlagen</th>{/if}<th>Stand</th
+        ><th>Bezeichnung</th>{#if zusatz}<th>Grundlagen</th>{/if}<th title="Zahl der gespeicherten Fassungen dieses Eintrags">Fassung</th
         ><th></th></tr
       ></thead
     ><tbody
@@ -337,7 +337,7 @@
 {#if verlauf.length}<details open>
     <summary>Gespeicherte Fachstände</summary>
     <table class="ergebnistabelle">
-      <thead><tr><th>Stand</th><th>Bezeichnung</th></tr></thead><tbody
+      <thead><tr><th>Fassung</th><th>Bezeichnung</th></tr></thead><tbody
         >{#each verlauf as f (f.revision)}<tr
             ><td>{f.revision}</td><td>{s.titel(f.daten)}</td></tr
           >{/each}</tbody
