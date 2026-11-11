@@ -152,7 +152,8 @@ export default function Startseite() {
           </ol>
           <p className="abschnitt-hinweis">
             Wie die Schritte ineinandergreifen, zeigen die <Link href="/ablaeufe">Ablaufdiagramme</Link>; Schritt für
-            Schritt erklärt in den <Link href="/handbuch/09-workflows">Standard-Workflows des Handbuchs</Link>.
+            Schritt erklärt in den <Link href="/handbuch/09-workflows">Standard-Workflows des Handbuchs</Link> und
+            durchgehend am Beispielprojekt im <Link href="/handbuch/10-leitfaden">Leitfaden</Link>.
           </p>
         </div>
       </section>

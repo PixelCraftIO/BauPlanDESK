@@ -8,9 +8,8 @@ Alle Bildschirmfotos stammen aus der echten Anwendung mit dem
 Beispielprojekt **„Neubau Einfamilienhaus Mustermann“** (Nordrhein-Westfalen,
 siehe [Kapitel 1](01-einstieg.md#das-beispielprojekt-in-diesem-handbuch)).
 
-**Stand:** 06.11.2026 · Programmstand `main` 07db5da (inkl. Projektbaum mit
-Statussymbolen, aufgeräumtem Zeicheneditor und Abstandsflächen je Bundesland
-mit Rechenbeispiel zu Aufschüttung und Abgrabung).
+**Stand:** 12.11.2026 · Programmstand mit „Aus Sicherung übernehmen“ (Beispielprojekt
+ohne Neustart laden) und neuem Kapitel 10, dem Leitfaden am Beispielprojekt.
 
 ## Inhalt
 
@@ -25,13 +24,16 @@ mit Rechenbeispiel zu Aufschüttung und Abgrabung).
 | 7 | [Formulare und Druckausgabe](07-formulare-druck.md) | PDF-Formulare ausfüllen, Berechnungsheft, Behördenausgabe |
 | 8 | [Verfahren und Einreichung](08-verfahren.md) | Verfahrensakte, Abgabestände, Portal, XBau, Bescheid, Bauausführung |
 | 9 | [Standard-Workflows](09-workflows.md) | Schritt-für-Schritt-Abläufe für die typischen Aufgaben |
-| 10 | [Tastatur, Fragen und Begriffe](10-anhang.md) | Kurzbefehle, häufige Meldungen, Glossar, Abschlusscheckliste |
+| 10 | [Leitfaden am Beispielprojekt](10-leitfaden.md) | Ein Projekt vollständig umsetzen: alle Schritte mit den Daten des Beispielprojekts |
+| 11 | [Tastatur, Fragen und Begriffe](11-anhang.md) | Kurzbefehle, häufige Meldungen, Glossar, Abschlusscheckliste |
 
 Das ganze Handbuch als eine Datei zum Drucken oder Weitergeben:
 [Benutzerhandbuch.pdf](Benutzerhandbuch.pdf).
 
-Wer zum ersten Mal mit BauPlanIO arbeitet, liest Kapitel 1 und 2 und folgt
-dann dem Workflow [„Vom Grundstück zur Erstabgabe“](09-workflows.md#workflow-1-vom-grundstück-zur-erstabgabe).
+Wer zum ersten Mal mit BauPlanIO arbeitet, liest Kapitel 1 und 2, lädt das
+Beispielprojekt und geht den [Leitfaden](10-leitfaden.md) durch: Er zeigt ein
+ganzes Projekt vom Büro bis zum Abschluss in 26 Schritten mit den Daten des
+Beispielprojekts. Danach genügen die Checklisten in [Kapitel 9](09-workflows.md).
 
 > Die fachliche Verantwortung bleibt beim Planungsteam. Mitgelieferte
 > Regelpakete und Beispielwerte sind keine geprüften Satzungen oder
@@ -83,3 +85,4 @@ und wird beim Ergänzen neuer Module ebenfalls gepflegt.
 | 05.11.2026 | main b22b207 | Menüpunkt „Hilfe → Beispielprojekt öffnen“ entfallen: Kapitel 1 erklärt das Beispielprojekt nur noch als Grundlage der Bilder, Menütabelle in Kapitel 2 und Workflow 5 angepasst, Bild `arbeitsplatz-beispielprojekt-oeffnen.png` entfernt. Die Bildautomatik stellt das Archiv jetzt über „Sicherung und Wiederherstellung“ her. |
 | 06.11.2026 | main 07db5da | Alle Bilder auf den aktuellen Programmstand neu aufgenommen (Projektbaum mit Statussymbolen statt Register-Reitern, aufgeräumter Zeicheneditor). Kapitel 6: neues Rechenbeispiel „Aufschüttung und Abgrabung (BauO NRW)“ mit Abbildung (`scripts/handbuch-bilder/abstand_beispiel.py`); die Zahlen prüft der Test `handbuch_beispiel_aufschuettung_und_abgrabung`. |
 | 11.11.2026 | main 63eb42c | Gesamtanalyse Paket H: „Einrichtung abschließen“ im Arbeitsplatz (Kapitel 3, neues Bild), mitgelieferte NRW-Vordrucke, ausgefüllte Formulare mit Abgleich und Berechnungsergebnisse als Formularquelle (Kapitel 7), Projektstand und Projektabschluss (Kapitel 2 und 8). Alle Bilder neu aufgenommen; das Beispielprojekt ist jetzt im Lageplan gezeichnet und führt eine Planliste. Die Bildautomatik hält den Kalendertag fest (`BAUPROJEKT_HEUTE`). |
+| 12.11.2026 | PR #126 | Neues Kapitel 10 „Leitfaden: ein Projekt vollständig umsetzen“ (26 Schritte mit den Daten des Beispielprojekts), Anhang wird Kapitel 11. Beispielprojekt über „Aus Sicherung übernehmen …“ im Projektverzeichnis ohne Neustart laden (Kapitel 1 und 3). Alle Bilder neu aufgenommen. |
