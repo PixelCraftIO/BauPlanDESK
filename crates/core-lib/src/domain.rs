@@ -181,6 +181,10 @@ pub struct Planungsrecht {
     /// Datum im Format YYYY-MM-DD; leer, solange nicht bekannt.
     pub plan_rechtskraft: String,
     pub gemeinde: String,
+    /// Anschrift des Baugrundstücks: die eine Quelle für Bauantrag, Formulare
+    /// und XBau. Leer bei Grundstücken ohne Anschrift.
+    pub anschrift: crate::xbau::Anschrift,
+    /// Lagebezeichnung in Worten, vor allem für Grundstücke ohne Anschrift.
     pub standort: String,
     pub vorhaben: String,
     pub nutzung: String,
@@ -200,6 +204,17 @@ pub struct Planungsrecht {
 }
 
 impl Planungsrecht {
+    /// Standort in einer Zeile: die Anschrift, ergänzt um die Lagebezeichnung.
+    pub fn standortzeile(&self) -> String {
+        [
+            crate::xbau::anschrift_zeile(&self.anschrift),
+            self.standort.trim().to_string(),
+        ]
+        .into_iter()
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
+    }
     /// Ein Bebauungsplan ist als Planart erfasst.
     pub fn mit_bebauungsplan(&self) -> bool {
         self.bebauungsplan_art.mit_plan()
@@ -342,6 +357,10 @@ impl Planungsrecht {
             ("Plannummer", &self.plan_nummer, 100),
             ("Gemeinde", &self.gemeinde, 500),
             ("Standort", &self.standort, 1000),
+            ("Anschrift: Straße", &self.anschrift.strasse, 200),
+            ("Anschrift: Hausnummer", &self.anschrift.hausnummer, 30),
+            ("Anschrift: Postleitzahl", &self.anschrift.postleitzahl, 10),
+            ("Anschrift: Ort", &self.anschrift.ort, 200),
             ("Vorhaben", &self.vorhaben, 10000),
             ("Nutzung", &self.nutzung, 1000),
             ("Festsetzungen", &self.festsetzungen, 10000),

@@ -28,7 +28,6 @@
     type Project,
     type Projektbeteiligter,
   } from "./api";
-  import AnschriftFelder from "./AnschriftFelder.svelte";
   import { abonnieren, bueroAbonnieren } from "./projektEreignisse";
   import BeteiligterFelder from "./BeteiligterFelder.svelte";
 
@@ -485,24 +484,47 @@
 
     <fieldset disabled={!darf}>
       <legend>Bauaufsichtsbehörde</legend>
-      <p class="meta">
-        Für Abgaben gilt die Behörde der Verfahrensakte. Diese Angabe lässt sich
-        dort übernehmen.
-      </p>
-      <div class="feldzeilen">
-        <label class="breit"
-          >Name <input
-            bind:value={antrag.bauaufsicht.name}
-            placeholder="z. B. Landratsamt …"
-          /></label
-        >
-        <label class="breit"
-          >Behördenkennung (DVDV) <input
-            bind:value={antrag.bauaufsicht.kennung}
-            placeholder="z. B. bab:091620000"
-          /></label
-        >
-      </div>
+      {#if gespeichert?.bauaufsicht_zentral}
+        <p>
+          <strong>{antrag.bauaufsicht.name || "Ohne Namen"}</strong>
+          {#if antrag.bauaufsicht.kennung}<span class="meta">
+              · Behördenkennung {antrag.bauaufsicht.kennung}</span
+            >{/if}
+        </p>
+        <p class="meta">
+          Die Behörde stammt aus der Verfahrensakte und wird dort gepflegt.
+        </p>
+        {#if navigation}<button
+            type="button"
+            class="sekundaer"
+            onclick={() =>
+              navigation.springen({
+                bereich: "verfahren",
+                objekt: null,
+                register: null,
+                eintrag: null,
+              })}>Behörde in der Verfahrensakte bearbeiten</button
+          >{/if}
+      {:else}
+        <p class="meta">
+          Sobald eine Verfahrensakte die Behörde nennt, gilt sie auch hier.
+          Bis dahin lässt sie sich hier vormerken.
+        </p>
+        <div class="feldzeilen">
+          <label class="breit"
+            >Name <input
+              bind:value={antrag.bauaufsicht.name}
+              placeholder="z. B. Landratsamt …"
+            /></label
+          >
+          <label class="breit"
+            >Behördenkennung (DVDV) <input
+              bind:value={antrag.bauaufsicht.kennung}
+              placeholder="z. B. bab:091620000"
+            /></label
+          >
+        </div>
+      {/if}
     </fieldset>
 
     <fieldset disabled={!darf}>
@@ -616,10 +638,28 @@
 
     <fieldset disabled={!darf}>
       <legend>Baugrundstück</legend>
-      <AnschriftFelder
-        bind:anschrift={antrag.grundstueck.anschrift}
-        gesperrt={!darf}
-      />
+      {#if gespeichert?.anschrift_zentral}
+        <p>
+          <strong>{anschriftZeile(antrag.grundstueck.anschrift)}</strong>
+          <span class="meta"> · aus den Stammdaten des Projekts</span>
+        </p>
+      {:else}
+        <p class="meta">
+          Die Anschrift des Baugrundstücks fehlt noch. Sie wird in den
+          Stammdaten des Projekts erfasst und gilt dann überall.
+        </p>
+      {/if}
+      {#if navigation}<button
+          type="button"
+          class="sekundaer"
+          onclick={() =>
+            navigation.springen({
+              bereich: "uebersicht",
+              objekt: null,
+              register: null,
+              eintrag: null,
+            })}>Anschrift in den Stammdaten bearbeiten</button
+        >{/if}
       {#if gespeichert?.flurstuecke_zentral}
         <p class="meta">
           Die Flurstücke stammen aus den Grundstücksinformationen des Projekts

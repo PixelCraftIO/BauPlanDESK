@@ -47,6 +47,9 @@
             ? "ungeklaert"
             : String(stand.vorhaben.sonderbau);
         nutzung = stand.vorhaben.nutzung;
+      } else {
+        // Die geplante Nutzung steht bereits in den Stammdaten des Projekts.
+        nutzung = projekt.planungsrecht.nutzung.trim().slice(0, 500);
       }
     } catch (e) {
       fehler = fehlertext(e);

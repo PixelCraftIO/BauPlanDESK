@@ -19,7 +19,14 @@ pub enum ProjektBereich {
 impl ProjektBereich {
     fn felder(self) -> &'static [&'static str] {
         match self {
-            Self::Stammdaten => &["gemeinde", "standort", "vorhaben", "nutzung", "begruendung"],
+            Self::Stammdaten => &[
+                "gemeinde",
+                "anschrift",
+                "standort",
+                "vorhaben",
+                "nutzung",
+                "begruendung",
+            ],
             Self::Grundlagen => &[
                 "bau_nvo",
                 "rechtsgrundlage",

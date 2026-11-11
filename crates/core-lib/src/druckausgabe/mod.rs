@@ -721,7 +721,8 @@ impl CoreServices {
             .collect::<Vec<_>>()
             .join("; ");
         let r = &projekt.planungsrecht;
-        let standort = [r.standort.trim(), r.gemeinde.trim()]
+        let zeile = r.standortzeile();
+        let standort = [zeile.as_str(), r.gemeinde.trim()]
             .into_iter()
             .filter(|t| !t.is_empty())
             .collect::<Vec<_>>()

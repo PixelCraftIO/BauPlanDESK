@@ -36,6 +36,12 @@ die zugehörigen Dialoge:
 | Projektmitglieder … | Wer im Büro das Projekt lesen, bearbeiten oder leiten darf |
 | Rechtsgrundlagen … | Sprung zu den Rechtsgrundlagen |
 
+Die **Anschrift des Baugrundstücks** (Straße, Hausnummer, Postleitzahl, Ort)
+wird nur hier erfasst. Bauantrag, Formulare und Ausdrucke übernehmen sie; im
+Bauantrag ist sie deshalb nicht änderbar, ein Knopf führt zurück in die
+Stammdaten. Die „Lagebezeichnung“ ergänzt die Anschrift, etwa bei Grundstücken
+ohne Hausnummer.
+
 Unter **Projektorganisation** stehen interne Angaben: Projektkennzeichen,
 Projektphase (z. B. Genehmigung), Projektverantwortliche und eine
 Kurzbeschreibung. „Projektorganisation speichern“ sichert sie.
@@ -52,6 +58,9 @@ welchen Regeln sie rechnen.
    § 35 BauGB.
 2. **BauNVO des Bebauungsplans** wählen (1962, 1968, 1977, 1990, 2017). Maßgebend
    ist die Fassung, die zum Zeitpunkt des Plans galt – nicht das aktuelle Jahr.
+   Ist die Rechtskraft eingetragen, schlägt die Anwendung die an diesem Tag
+   geltende Fassung vor. Der Vorschlag ersetzt die Prüfung nicht: Rechtlich
+   kommt es in der Regel auf den Tag der öffentlichen Auslegung an.
 3. **Anzuwendende Landesbauordnung** prüfen.
 4. Unter „Angaben zum Bebauungsplan“ Planbezeichnung, Plannummer/Fassung und
    Rechtskraft eintragen.
@@ -77,7 +86,15 @@ welchen Regeln sie rechnen.
 4. Bei einer besonderen GFZ-Festsetzung für Nichtvollgeschosse den
    Anrechnungsanteil mit Wortlaut/Fundstelle eintragen; sonst gilt die gewählte
    BauNVO.
-5. Weitere Festsetzungen und Abweichungen mit Wortlaut ergänzen und speichern.
+5. Unter **Bauweise, Höhen und Dach** Bauweise, höchste Trauf-, First- und
+   Gebäudehöhe, den Höhenbezug (z. B. Straßenoberkante mit Höhe über NHN),
+   Dachform und Dachneigung eintragen. Der Höhennachweis übernimmt diese
+   Grenzen selbst; ändern sie sich, verlangt er eine neue Bestätigung.
+6. Weitere Festsetzungen und Abweichungen mit Wortlaut ergänzen und speichern.
+
+Das Baugebiet steht nur zur Wahl, wenn es die gewählte BauNVO-Fassung kennt
+(ein Urbanes Gebiet gibt es zum Beispiel erst seit 2017). Die
+Abstandsflächenberechnung übernimmt Gemeinde und Baugebiet aus dem Projekt.
 
 Die Baufensterfläche allein beweist nicht, dass ein Gebäude im Baufenster liegt.
 Die Lage wird geometrisch im Aufmaß geprüft ([Kapitel 5](05-ermittlung.md#lage-im-baufenster)).

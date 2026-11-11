@@ -11,6 +11,9 @@ impl CoreServices {
         pid: ProjectId,
         mut plan: FachPlan,
     ) -> CoreResult<(FachPlan, FachErgebnis)> {
+        if plan.modul == BerechnungsArt::Hoehen {
+            hoehenfestsetzungen_einsetzen(&mut plan, &self.get_project(pid).await?.planungsrecht)?;
+        }
         self.gebaeudedaten_einsetzen(pid, &mut plan).await?;
         self.planwerte_einsetzen(pid, &mut plan).await?;
         self.berechnung_quellen(pid, &plan).await?;
@@ -513,6 +516,77 @@ impl CoreServices {
             .is_some_and(|f| decode::<FachPlan>(&f.daten).is_ok_and(|p| p == *plan));
         Ok(ContentHash::of(&serde_json::to_vec(&serde_json::json!({"plan":plan,"gespeichert":gespeichert,"fachquellen":fachquellen,"land":p.bundesland,"grund":g,"gebaeude":geb,"planrecht":(&p.planungsrecht.rechtsgrundlage,&p.planungsrecht.plan_bezeichnung,&p.planungsrecht.plan_nummer,&p.planungsrecht.plan_rechtskraft)})).map_err(|e|err(e.to_string()))?))
     }
+}
+/// Höhen- und Dachneigungsgrenzen aus den Festsetzungen des Projekts: Der
+/// Höhennachweis prüft gegen die dort erfassten Werte und führt keine eigene
+/// Fassung davon. Ohne Höhenfestsetzungen im Projekt bleibt der Plan unverändert.
+fn hoehenfestsetzungen_einsetzen(
+    plan: &mut FachPlan,
+    recht: &crate::domain::Planungsrecht,
+) -> CoreResult<()> {
+    let f = &recht.festgesetzte_werte;
+    if !f.mit_hoehen() {
+        return Ok(());
+    }
+    let mut e: hoehen::Eingabe = decode(&plan.eingaben)?;
+    let vorher = e.clone();
+    // Ohne Planbezeichnung: Ein umbenannter Plan ändert keine Grenze. Welcher
+    // Plan gilt, hält der Nachweis mit seinen Rechtsgrundlagen fest.
+    let quelle = "Festsetzungen des Bebauungsplans laut Projekt".to_string();
+    for (art, max) in [
+        ("traufe", f.traufhoehe_max_m),
+        ("first", f.firsthoehe_max_m),
+        ("gebaeude", f.gebaeudehoehe_max_m),
+    ] {
+        let Some(max) = max else { continue };
+        let minimum_m = e
+            .regeln
+            .iter()
+            .find(|g| g.art == art)
+            .and_then(|g| g.minimum_m)
+            .filter(|min| *min <= max);
+        e.regeln.retain(|g| g.art != art);
+        e.regeln.push(hoehen::Grenze {
+            art: art.into(),
+            minimum_m,
+            maximum_m: Some(max),
+            absolut: f.hoehen_ueber_nhn,
+            quelle: quelle.clone(),
+        });
+    }
+    if !f.hoehen_ueber_nhn
+        && let Some(b) = f.hoehenbezug_m_nhn
+    {
+        // `hoehenbezug` nennt das Höhensystem des Plans und bleibt unberührt.
+        e.bezugshoehe_m = Some(b);
+    }
+    for d in &mut e.daecher {
+        if f.dachneigung_min_grad.is_some() || f.dachneigung_max_grad.is_some() {
+            d.min_neigung_grad = f.dachneigung_min_grad;
+            d.max_neigung_grad = f.dachneigung_max_grad;
+        }
+    }
+    if e != vorher {
+        // Geänderte Grenzen sind eine neue Regelfassung dieses Nachweises.
+        let stand = serde_json::to_vec(&(
+            &e.regeln,
+            e.bezugshoehe_m,
+            &f.dachneigung_min_grad,
+            &f.dachneigung_max_grad,
+        ))
+        .map_err(|e| err(e.to_string()))?;
+        plan.regelkontext.version = format!(
+            "Festsetzungen {}",
+            &ContentHash::of(&stand).to_string()[..8]
+        );
+        // Ein anderer Bezugspunkt verlangt eine neue Prüfung des Höhenbezugs.
+        if e.bezugshoehe_m != vorher.bezugshoehe_m {
+            e.bezug_geprueft = false;
+        }
+        plan.regelkontext.anwendbarkeit_bestaetigt = false;
+        plan.eingaben = serde_json::to_value(e).map_err(|e| err(e.to_string()))?;
+    }
+    Ok(())
 }
 /// Traufe und First aus Gebäude/Geschosse als Höhenpunkte (m ü. NHN), bezogen
 /// auf die gewählte Bezugshöhe (`bezugshoehe_m`), sonst auf die mittlere

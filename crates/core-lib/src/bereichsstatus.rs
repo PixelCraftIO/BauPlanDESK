@@ -328,13 +328,13 @@ impl CoreServices {
         }
 
         // Stammdaten: Vorhaben und Standort gehören auf jeden Bauantrag.
-        if recht.gemeinde.trim().is_empty() || recht.standort.trim().is_empty() {
+        if recht.gemeinde.trim().is_empty() || recht.standortzeile().is_empty() {
             bf(&mut befunde, "uebersicht").offen("Gemeinde und Standort des Vorhabens angeben");
         }
         if recht.vorhaben.trim().is_empty() {
             bf(&mut befunde, "uebersicht").offen("Vorhaben beschreiben");
         }
-        if [&recht.gemeinde, &recht.standort, &recht.vorhaben]
+        if [&recht.gemeinde, &recht.standortzeile(), &recht.vorhaben]
             .iter()
             .any(|t| !t.trim().is_empty())
         {

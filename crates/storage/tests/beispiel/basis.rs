@@ -298,7 +298,7 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
     // Stammdaten und Rechtsgrundlagen.
     let mut r = b.p.planungsrecht.clone();
     r.gemeinde = "Stadt Musterstadt".into();
-    r.standort = "Lindenweg 12, 59999 Musterstadt".into();
+    r.anschrift = anschrift("Lindenweg", "12", "59999", "Musterstadt");
     r.vorhaben = "Neubau eines freistehenden Einfamilienhauses mit Garage".into();
     r.nutzung = "Wohnen (eine Wohneinheit)".into();
     r.begruendung = "Vorhaben im Geltungsbereich des qualifizierten Bebauungsplans Nr. 42; Festsetzungen werden eingehalten.".into();
@@ -313,7 +313,10 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
     b.bereich(ProjektBereich::Grundlagen, r).await;
     let mut r = b.p.planungsrecht.clone();
     r.festgesetzte_werte = serde_json::from_value(json!({
-        "baugebiet": "WA", "grz": 0.4, "gfz": 0.8, "vollgeschosse": 2, "geschossigkeit": "maximal"
+        "baugebiet": "WA", "grz": 0.4, "gfz": 0.8, "vollgeschosse": 2, "geschossigkeit": "maximal",
+        "bauweise": "offen", "traufhoehe_max_m": 6.5, "firsthoehe_max_m": 10.0,
+        "hoehenbezug": "Straßenoberkante Lindenweg", "hoehenbezug_m_nhn": 72.4,
+        "dachform": "Satteldach", "dachneigung_min_grad": 30, "dachneigung_max_grad": 45
     }))
     .unwrap();
     r.festsetzungen = "Allgemeines Wohngebiet (WA), GRZ 0,4, GFZ 0,8, höchstens II Vollgeschosse, offene Bauweise, nur Einzel- und Doppelhäuser, Satteldach 30–45°, Traufhöhe höchstens 6,50 m, Firsthöhe höchstens 10,00 m über Straßenoberkante (72,40 m ü. NHN).".into();

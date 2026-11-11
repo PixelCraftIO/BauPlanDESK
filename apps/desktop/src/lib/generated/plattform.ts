@@ -1157,7 +1157,7 @@ export type BaugrundstuecksErmittlung = { ansaetze: Array<FlurstuecksAnsatz>, be
  * Bei Speicherung durch den Core gesetzt; keine zweite Kopie der Katasterflächen.
  */
 quellen_hash: string | null, };
-export type Baugebiet = "WS" | "WR" | "WA" | "WB" | "MD" | "MDW" | "MI" | "MU" | "MK" | "GE" | "GI" | "SO";
+export type Baugebiet = "WS" | "WR" | "WA" | "WB" | "MD" | "MDW" | "MI" | "MU" | "MK" | "GE" | "GI" | "SO" | "SOF" | "SOS";
 export type BauNvo = "1962" | "1968" | "1977" | "1990" | "2017" | "2021";
 export type Bauteiltyp = "hauptanlage" | "terrasse_hauptanlage" | "garage" | "garage_abstandsflaeche" | "stellplatz" | "zufahrt" | "nebenanlage14" | "unterirdisch" | "balkon_loggia" | "terrasse_nebenanlage";
 export type Anrechnung = "grz" | "grz_ii" | "keine";
