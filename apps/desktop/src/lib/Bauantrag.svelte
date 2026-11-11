@@ -401,6 +401,20 @@
         <ul>
           {#each gespeichert.fehlende_angaben as f}<li>{f}</li>{/each}
         </ul>
+        <p class="meta">
+          Dieselben Punkte stehen mit Unterlagen, Nachweisen und Plänen in der
+          <button
+            type="button"
+            class="link"
+            onclick={() =>
+              navigation?.springen({
+                bereich: "einreichungspruefung",
+                objekt: null,
+                register: null,
+                eintrag: null,
+              })}>Einreichungsprüfung</button
+          >.
+        </p>
       </div>
     {/if}
     {#if gespeichert.hinweise?.length}

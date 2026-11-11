@@ -188,7 +188,7 @@ impl CoreServices {
         // Verbraucher wie GRZ/GFZ prüfen mehrere Gebäude; die Meldung nennt das betroffene.
         let benannt = |t: String| {
             fehler(format!(
-                "Gebäude „{}“: {t} Unter Grundlagen → Gebäude / Geschosse „Aktuellen Aufmaßstand übernehmen“ und speichern.",
+                "Gebäude „{}“: {t} Unter Gebäudemodell → Gebäude / Geschosse „Aktuellen Aufmaßstand übernehmen“ und speichern.",
                 g.bezeichnung
             ))
         };

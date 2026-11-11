@@ -3,8 +3,9 @@
 //! Vertrag:
 //! - Liest nur; rechnet keine eigene Fachprüfung. Die Punkte stammen aus der
 //!   Projektübersicht (Unterlagenregister, Anforderungen der Verfahrensakte,
-//!   Nachweisstände, Aufmaße, offene Nachforderungen), der Planliste, den
-//!   Formularinstanzen (Abgleich mit den aktuellen Projektdaten) und den
+//!   Nachweisstände, vom Vorhaben verlangte Nachweise, Aufmaße, offene
+//!   Nachforderungen), der Planliste, den Formularinstanzen (Abgleich mit den
+//!   aktuellen Projektdaten), den fehlenden Angaben des Bauantrags und den
 //!   Lieferlisten der Fachplaner.
 //! - Mit einem Verfahren werden Anforderungen, Nachforderungen und
 //!   Lieferungen anderer Verfahren ausgeblendet; Planstände werden gegen die
@@ -41,16 +42,19 @@ pub enum Pruefbereich {
     Nachweise,
     Plaene,
     Formulare,
+    /// Angaben des Bauantrags (Büro, Entwurfsverfasser, Behörde, Anschrift …).
+    Antrag,
     Fachplaner,
     Verfahren,
 }
 impl Pruefbereich {
-    pub const ALLE: [Self; 7] = [
+    pub const ALLE: [Self; 8] = [
         Self::Grundlagen,
         Self::Unterlagen,
         Self::Nachweise,
         Self::Plaene,
         Self::Formulare,
+        Self::Antrag,
         Self::Fachplaner,
         Self::Verfahren,
     ];
@@ -61,6 +65,7 @@ impl Pruefbereich {
             Self::Nachweise => "Nachweise und Berechnungen",
             Self::Plaene => "Pläne und Planindex",
             Self::Formulare => "Formulare",
+            Self::Antrag => "Antragsangaben",
             Self::Fachplaner => "Fachplaner",
             Self::Verfahren => "Verfahren",
         }
@@ -424,6 +429,20 @@ impl CoreServices {
                 faellig: None,
                 verantwortlich: None,
                 ziel: ziel("formulare", None),
+            });
+        }
+        // Antragsangaben: dieselbe Liste wie „fehlt noch“ im Bauantrag.
+        let antrag = self.bauantrag(p).await?;
+        for (i, t) in antrag.fehlende_angaben.iter().enumerate() {
+            punkte.push(Pruefpunkt {
+                id: format!("antrag:{i}"),
+                bereich: Pruefbereich::Antrag,
+                ampel: Ampel::Rot,
+                titel: t.clone(),
+                hinweis: "Angabe für Bauantrag und Übermittlung an die Behörde fehlt.".into(),
+                faellig: None,
+                verantwortlich: None,
+                ziel: ziel("bauantrag", None),
             });
         }
         Ok(zusammenfassen(heute, verfahren, punkte))

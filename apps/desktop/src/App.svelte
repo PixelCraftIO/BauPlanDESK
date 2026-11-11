@@ -6,6 +6,7 @@
   import { listen } from "@tauri-apps/api/event";
   import type { ProjektRecht } from "./lib/generated/plattform";
   import {
+    LAENDER,
     api,
     fehlertext,
     imProjekt,
@@ -15,6 +16,7 @@
     rollenName,
     type AppInfo,
     type Benutzer,
+    type Bundesland,
     type Kunde,
     type Lizenzstatus,
     type Project,
@@ -22,6 +24,7 @@
     type UpdateInfo,
     type ZuletztEintrag,
   } from "./lib/api";
+  import { verfahrenApi } from "./lib/verfahren/api";
   import Formularbibliothek from "./lib/Formularbibliothek.svelte";
   import { MODULE, voraussetzung } from "./lib/module";
   import NavIcon from "./lib/NavIcon.svelte";
@@ -44,7 +47,10 @@
   import BueroDialog from "./lib/Buero.svelte";
   import Dialog from "./lib/Dialog.svelte";
   import Kunden from "./lib/Kunden.svelte";
-  import ProjektFormular, { type Startplan } from "./lib/ProjektFormular.svelte";
+  import ProjektFormular, {
+    type Startangaben,
+    type Startplan,
+  } from "./lib/ProjektFormular.svelte";
   import Projektmitglieder from "./lib/Projektmitglieder.svelte";
   import ProjektOeffnen from "./lib/ProjektOeffnen.svelte";
   import LizenzDialog from "./lib/Lizenz.svelte";
@@ -434,20 +440,76 @@
     }
   }
 
+  const LETZTES_LAND = "bauprojektio.letztes-bundesland";
+  /** Bundesland für ein neues Projekt: das zuletzt verwendete, sonst das des
+   * offenen Projekts. */
+  function vorgabeLand(): Bundesland {
+    try {
+      const l = localStorage.getItem(LETZTES_LAND);
+      if (l && LAENDER.some((x) => x.code === l)) return l as Bundesland;
+    } catch {
+      // Kein Speicher verfügbar.
+    }
+    return projekt?.bundesland ?? "NW";
+  }
+
   async function anlegen(
     werte: Werte,
     bauherr: string | null,
     plaene: Startplan[] = [],
+    start?: Startangaben,
   ) {
     try {
       const neu = await api.projektAnlegen(werte);
+      try {
+        localStorage.setItem(LETZTES_LAND, werte.bundesland);
+      } catch {
+        // Ohne Speicher bleibt die Vorgabe beim nächsten Mal die alte.
+      }
       // Die Neuanlage ist bereits gespeichert. Auch bei Folgefehlern schließen
       // und öffnen wir genau dieses Projekt, damit kein Duplikat entsteht.
       dialog = null;
       let angelegt = neu;
+      const startFehler: string[] = [];
+      // Eckdaten des Vorhabens: stehen danach in den Stammdaten.
+      const eckdaten =
+        start &&
+        [
+          start.anschrift.strasse,
+          start.anschrift.hausnummer,
+          start.anschrift.postleitzahl,
+          start.anschrift.ort,
+          start.gemeinde,
+          start.vorhaben,
+          start.nutzung,
+        ].some((t) => t.trim());
+      if (start && eckdaten) {
+        try {
+          angelegt = await api.projektAktualisieren({
+            ...werte,
+            id: neu.id,
+            expected_version: neu.version,
+            planungsrecht: {
+              ...neu.planungsrecht,
+              anschrift: start.anschrift,
+              gemeinde: start.gemeinde.trim() || start.anschrift.ort.trim(),
+              vorhaben: start.vorhaben.trim(),
+              nutzung: start.nutzung.trim(),
+            },
+          });
+        } catch (e) {
+          startFehler.push(
+            `Anschrift und Vorhaben wurden nicht übernommen: ${fehlertext(e)} Bitte in den Stammdaten nachtragen.`,
+          );
+        }
+      }
       if (bauherr) {
         try {
-          angelegt = await api.bauherrenSetzen(neu.id, [bauherr], neu.version);
+          angelegt = await api.bauherrenSetzen(
+            neu.id,
+            [bauherr],
+            angelegt.version,
+          );
         } catch (e) {
           fehler = `Projekt „${neu.name}“ wurde angelegt. Der Bauherr konnte nicht zugeordnet werden: ${fehlertext(e)} Bitte unter Bauherren zuordnen.`;
         }
@@ -460,6 +522,23 @@
       } catch (e) {
         fehler = `Projekt „${neu.name}“ wurde angelegt. Die Projektberechtigung konnte nicht geladen werden: ${fehlertext(e)} Die Akte bleibt schreibgeschützt, bis sie erneut geöffnet wird.`;
       }
+      // Verfahren zuerst: Die Akte kennt damit von Anfang an die
+      // Anforderungen des Vorhabens.
+      if (start?.verfahren) {
+        try {
+          await verfahrenApi.vorbereiten(
+            neu.id,
+            start.verfahren,
+            start.wohngebaeude,
+          );
+        } catch (e) {
+          startFehler.push(
+            `Die Verfahrensakte wurde nicht angelegt: ${fehlertext(e)} Bitte unter Verfahren → Verfahrensakte anlegen.`,
+          );
+        }
+      }
+      if (startFehler.length)
+        fehler = `Projekt „${neu.name}“ wurde angelegt. ${startFehler.join(" ")}`;
       // Pläne zum Start: mit Kategorie ablegen; die Akte öffnet im Aufmaß.
       // Fehler brechen die Anlage nicht ab.
       let planDokument: string | null = null;
@@ -1282,7 +1361,7 @@
       bind:this={projektFormularEditor}
       start={{
         name: "",
-        bundesland: projekt?.bundesland ?? "BY",
+        bundesland: vorgabeLand(),
         grundstuecksflaeche_m2: null,
       }}
       kunden={kundenAuswahl}

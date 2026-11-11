@@ -65,6 +65,20 @@ pub async fn verfahren_profil_anwenden(
         .verfahren_profil_anwenden(projekt_id, id, basis, profil, katalog, &state.benutzer())
         .await?)
 }
+/// Verfahrensakte zum Projektstart: Verfahrensart und Anforderungen aus dem
+/// Katalog des Landes.
+#[tauri::command]
+pub async fn verfahren_vorbereiten(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    art: core_lib::verfahren::Verfahrensart,
+    wohngebaeude: Option<bool>,
+) -> Result<Fachstand, CmdError> {
+    Ok(state
+        .core
+        .verfahren_vorbereiten(projekt_id, art, wohngebaeude, &state.benutzer())
+        .await?)
+}
 #[tauri::command]
 pub async fn verfahren_abgabe(
     state: State<'_, AppState>,

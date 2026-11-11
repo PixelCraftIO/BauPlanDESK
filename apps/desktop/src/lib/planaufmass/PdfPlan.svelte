@@ -176,8 +176,9 @@
       seitenbild=url;rasterScale=scale;page=p;
       breite=viewport.width;hoehe=viewport.height;
       geometry=extractGeometry(list,OPS,viewport.transform as Matrix);
-      // Beim Öffnen Breite einpassen, höchstens 100 %; „Einpassen“ zeigt das ganze Blatt.
-      zoom=Math.min(1,((scroll?.clientWidth??800)-2*PAD)/breite);
+      // Beim Öffnen das ganze Blatt zeigen, höchstens 100 %: Ein Plan, der unten
+      // abgeschnitten beginnt, sieht unvollständig aus.
+      zoom=Math.min(1,passend());
       bereit=true;
       await ansichtLaden(nummer);
     })().catch(e=>{if(!gone&&!String(e).includes("cancelled"))onfehler(`PDF-Seite: ${String(e)}`)});

@@ -132,7 +132,7 @@ impl std::fmt::Display for ProjectId {
 
 /// Planungsrechtliche Einordnung und Eckdaten, vom Projektteam erfasst.
 /// Diese Angaben ersetzen keine Prüfung der bauplanungsrechtlichen Zulässigkeit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Rechtsgrundlage {
     Par30,

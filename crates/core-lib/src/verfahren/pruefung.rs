@@ -24,7 +24,16 @@ pub(super) async fn pruefen(
     core.get_project(p).await?;
     crate::portale::validieren(a, alt, kontext)?;
     text(&a.bezeichnung, 500)?;
-    text(&a.behoerde.name, 500)?;
+    // In der Vorbereitung darf die Behörde noch offen sein (Akte entsteht mit
+    // dem Projekt); vor jeder Abgabe wird sie verlangt.
+    let behoerde_offen = a.status == Verfahrensstatus::Vorbereitung
+        && a.abgaben.is_empty()
+        && a.externe_einreichungen.is_empty()
+        && a.behoerde.name.trim().is_empty();
+    if !behoerde_offen {
+        text(&a.behoerde.name, 500)
+            .map_err(|_| fehler("Bauaufsichtsbehörde eintragen (Name mit 1 bis 500 Zeichen)"))?;
+    }
     if a.behoerde.id.is_nil() || a.behoerde.kennung.len() > 500 {
         return Err(fehler(
             "Behörde benötigt eine Kennung und begrenzte Metadaten",

@@ -128,17 +128,17 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
         gebaeudeklasse: Some(3),
         sonderbau: Some(false),
         nutzung: "Wohnen".into(),
+        wohngebaeude: Some(true),
+        rechtsgrundlage: None,
     };
     let f = core
         .verfahren_profil_anwenden(p.id, vid, 1, profil, k, &user)
         .await
         .unwrap();
     let mut a: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
-    assert!(
-        a.anforderungen
-            .iter()
-            .all(|r| r.erforderlich == Erforderlichkeit::Ungeklaert)
-    );
+    // Der Katalog schlägt je Anforderung etwas vor, bestätigt aber nichts.
+    assert!(!a.anforderungen.is_empty());
+    assert!(a.anforderungen.iter().all(|r| !r.grund.is_empty()));
     let plan = core
         .store_document(
             p.id,
@@ -950,6 +950,8 @@ async fn profil_verlangt_zustimmung_des_eigentuemers_der_nicht_bauherr_ist() {
         gebaeudeklasse: Some(1),
         sonderbau: Some(false),
         nutzung: "Wohnen".into(),
+        wohngebaeude: Some(true),
+        rechtsgrundlage: None,
     };
     let f = core
         .verfahren_profil_anwenden(

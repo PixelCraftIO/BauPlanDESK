@@ -220,6 +220,17 @@ export const verfahrenApi = {
       projektId,
       id,
     }),
+  /** Verfahrensakte zum Projektstart mit den Anforderungen aus dem Katalog. */
+  vorbereiten: (
+    projektId: string,
+    art: Verfahrensart,
+    wohngebaeude: boolean | null,
+  ) =>
+    invoke<Fachstand>("verfahren_vorbereiten", {
+      projektId,
+      art,
+      wohngebaeude,
+    }),
   profilAnwenden: (
     projektId: string,
     id: string,

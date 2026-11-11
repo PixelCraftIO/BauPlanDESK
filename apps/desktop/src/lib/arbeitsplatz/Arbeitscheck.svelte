@@ -25,7 +25,19 @@
     <p class="meta">
       Offene Punkte aus dem gespeicherten Projektstand. Anforderungen und
       gewählten Abgabestand abschließend prüfen; eine leere Liste ist keine
-      Vollständigkeitsbestätigung.
+      Vollständigkeitsbestätigung. Die vollständige Liste mit Ampel, Plänen,
+      Formularen und Antragsangaben steht in der
+      <button
+        type="button"
+        class="link"
+        onclick={() =>
+          onoeffnen({
+            bereich: "einreichungspruefung",
+            objekt: null,
+            register: null,
+            eintrag: null,
+          })}>Einreichungsprüfung</button
+      >.
     </p>
     {#if entwuerfe}<p class="hinweisbox" role="status">
         Ungespeicherte Änderungen sind noch nicht berücksichtigt. Betroffene

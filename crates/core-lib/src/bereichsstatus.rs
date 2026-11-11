@@ -112,14 +112,16 @@ const BEREICHE: &[(&str, Art)] = &[
     ("freiflaechen", Art::Daten),
     ("entwaesserung", Art::Daten),
     ("nachweise", Art::Daten),
+    ("formulare", Art::Daten),
     ("baukennwerte", Art::Daten),
     ("verfahren", Art::Daten),
+    ("bauantrag", Art::Daten),
     ("portale", Art::Liste),
     ("einreichungen", Art::Liste),
 ];
 
 /// Bereiche, deren Prüfsignal ein Nachweisstand ist.
-const NACHWEISBEREICHE: &[&str] = &[
+pub(crate) const NACHWEISBEREICHE: &[&str] = &[
     "grz",
     "gfz",
     "geschosse",
@@ -202,7 +204,7 @@ fn bf<'a>(m: &'a mut BTreeMap<String, Befund>, id: &str) -> &'a mut Befund {
 }
 
 /// Anzeigename eines Nachweisbereichs für zusammengefasste Gründe.
-fn bereichstitel(id: &str) -> &str {
+pub(crate) fn bereichstitel(id: &str) -> &str {
     match id {
         "grz" => "GRZ",
         "gfz" => "GFZ",
@@ -222,7 +224,7 @@ fn bereichstitel(id: &str) -> &str {
 }
 
 /// Bereich, zu dem ein Nachweisstand gehört.
-fn nachweisbereich(e: &NachweisEingabe) -> &'static str {
+pub(crate) fn nachweisbereich(e: &NachweisEingabe) -> &'static str {
     match e {
         NachweisEingabe::Fach { plan, .. } => plan.modul.objekt().modul(),
         NachweisEingabe::AbstandProjekt { .. } | NachweisEingabe::Abstand { .. } => "abstand",
@@ -545,9 +547,13 @@ impl CoreServices {
                 let n = &g.bezeichnung;
                 if g.geschosse.is_empty() {
                     fehler.push(format!("{n}: Geschosse erfassen"));
-                } else if g.geschosse.iter().any(|s| s.vollgeschoss.is_none()) {
+                } else if g.geschosse.iter().any(|s| s.vollgeschoss.is_none())
+                    && mit_nachweis.contains("vollgeschosse")
+                {
+                    // Ohne Vollgeschossprüfung ist das kein offener Punkt des
+                    // Gebäudes: Der Nachweis wird in Bereich 2 verlangt.
                     fehler.push(format!(
-                        "{n}: Geschosse als Voll- oder Nichtvollgeschoss einstufen"
+                        "{n}: Einstufung der Geschosse aus der Vollgeschossprüfung übernehmen"
                     ));
                 }
                 if g.flurstueck_ids.is_empty() && g.grundstueck_ids.is_empty() {
@@ -608,9 +614,50 @@ impl CoreServices {
                 Err(e) => bf(&mut befunde, "baukennwerte").problem(e.to_string()),
             }
         }
+        // Bauantrag und Formulare gehören zu jedem Verfahren vor der Einreichung.
+        let akten = self.verfahrensakten_lesen(p).await?;
+        let in_vorbereitung = akten
+            .iter()
+            .any(|(_, a)| a.status == Verfahrensstatus::Vorbereitung);
+        {
+            let antrag = self.bauantrag(p).await?;
+            if antrag.version > 0 {
+                daten.insert("bauantrag");
+            }
+            let f = bf(&mut befunde, "bauantrag");
+            f.verlangt = in_vorbereitung;
+            if antrag.version > 0 || in_vorbereitung {
+                let n = antrag.fehlende_angaben.len();
+                for t in antrag.fehlende_angaben.iter().take(5) {
+                    f.offen(format!("Fehlt noch: {t}"));
+                }
+                if n > 5 {
+                    f.offen(format!("… und {} weitere Angaben", n - 5));
+                }
+                f.geprueft = n == 0;
+            }
+            let mut formulare = false;
+            for d in self.repos.documents.latest_for_project(p).await? {
+                if self
+                    .formular_instanz(d.document_id, d.version)
+                    .await?
+                    .is_some()
+                {
+                    formulare = true;
+                    break;
+                }
+            }
+            let f = bf(&mut befunde, "formulare");
+            if formulare {
+                daten.insert("formulare");
+                f.geprueft = true;
+            } else if in_vorbereitung {
+                f.verlangt = true;
+                f.offen("Noch keine Antragsformulare erstellt");
+            }
+        }
         // Verfahren: geprüft erst mit Entscheidung der Behörde.
         if daten.contains("verfahren") {
-            let akten = self.verfahrensakten_lesen(p).await?;
             let laufend: Vec<_> = akten
                 .iter()
                 .filter(|(_, a)| {
@@ -622,10 +669,14 @@ impl CoreServices {
                 .collect();
             let f = bf(&mut befunde, "verfahren");
             for (_, a) in &laufend {
-                f.offen(format!(
-                    "{}: Verfahren läuft, noch keine Entscheidung",
-                    a.bezeichnung
-                ));
+                f.offen(if a.status == Verfahrensstatus::Vorbereitung {
+                    format!("{}: in Vorbereitung, noch nicht eingereicht", a.bezeichnung)
+                } else {
+                    format!(
+                        "{}: Verfahren läuft, noch keine Entscheidung",
+                        a.bezeichnung
+                    )
+                });
             }
             f.geprueft = laufend.is_empty()
                 && akten
@@ -689,7 +740,10 @@ impl CoreServices {
         })
     }
 
-    async fn organisation(&self, p: ProjectId) -> CoreResult<Option<(Projektorganisation, i64)>> {
+    pub(crate) async fn organisation(
+        &self,
+        p: ProjectId,
+    ) -> CoreResult<Option<(Projektorganisation, i64)>> {
         let Some(f) = self
             .fachobjekt_lesen(p, ObjektArt::Projektorganisation, p.0)
             .await?

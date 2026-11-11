@@ -510,6 +510,11 @@ pub struct Anforderung {
     pub dokumente: Vec<Dokumentbezug>,
     pub freigegeben: bool,
     pub verantwortlich: Option<Uuid>,
+    /// Bereiche der Projektakte, deren Nachweis die Anforderung belegt
+    /// (aus dem Katalog); leer bei Unterlagen ohne eigenen Nachweisbereich.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub nachweise: Vec<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
