@@ -127,7 +127,7 @@ Die vollständige Gliederung:
 | | Weitere Nachweise | Stellplatznachweis, Abstandsflächen, Versiegelung / Freiflächen, Regenwasser / Rückhaltung, Nachweisstände |
 | | Formulare und Ausgabe | Formulare, Drucken / PDF-Ausgabe |
 | | Verfahren | Verfahrensakte, Einreichen / Nachreichen, Suche / Wiedervorlagen |
-| | Einreichungswerkzeuge | Bauantrag / XBau, Einreichen / Portal, XBau-Nachrichten, Einreichungen |
+| | Einreichungswerkzeuge | Bauantrag / XBau, Einreichen / Portal, XBau-Nachrichten; Einreichungen nur bei früheren Einreichungspaketen |
 
 ## Listen und Eintragsformulare
 

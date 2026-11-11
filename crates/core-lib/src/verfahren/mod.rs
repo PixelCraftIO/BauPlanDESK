@@ -9,6 +9,7 @@ pub mod eingang;
 pub mod externe_einreichung;
 pub mod fristen;
 pub mod landesrecht;
+pub mod nachweisunterlage;
 pub mod optionen;
 pub mod planindex;
 pub mod profile;
@@ -515,6 +516,25 @@ pub struct Anforderung {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<String>>", optional)]
     pub nachweise: Vec<String>,
+    /// Dokumentkategorien, deren Dateien die Anforderung üblicherweise
+    /// belegen (aus dem Katalog); Grundlage für Dateivorschläge.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub kategorien: Vec<String>,
+    /// Aus den Nachweisständen der Projektakte erzeugte Unterlage dieser
+    /// Anforderung; fehlt, solange kein Nachweis übernommen wurde.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub nachweisunterlage: Option<Nachweisunterlage>,
+}
+/// Unterlage, die die Anwendung aus Nachweisständen erzeugt und der
+/// Anforderung zugeordnet hat.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(deny_unknown_fields)]
+pub struct Nachweisunterlage {
+    pub dokument: Dokumentbezug,
+    /// Nachweisstände, die die Unterlage wiedergibt.
+    pub staende: Vec<Uuid>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -778,8 +798,14 @@ impl CoreServices {
             self.anforderungen_abgleichen(p, id, &mut a).await?;
         }
         let bisher = original.as_ref().map(|a| a.ereignisse.len()).unwrap_or(0);
-        for b in &mut a.abgaben {
+        let lagen: Vec<_> = a
+            .abgaben
+            .iter()
+            .map(|b| abgabe::lage(&a, b, crate::kalender::heute()))
+            .collect();
+        for (b, lage) in a.abgaben.iter_mut().zip(lagen) {
             b.versandstatus = abgabe::versandstand(b);
+            b.lage = Some(lage);
         }
         for e in a.ereignisse.iter_mut().skip(bisher) {
             e.erfasst_von = wer.id.0;

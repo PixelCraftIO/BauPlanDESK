@@ -297,6 +297,31 @@
       </tbody>
     </table>
   </div>
+  {#if liste?.ohne_eintrag?.length}<aside class="hinweisbox">
+      <strong
+        >Bei der Behörde eingereichte Pläne, die die Planliste noch nicht führt</strong
+      >
+      <p>
+        Diese Pläne tragen bereits einen Behördenindex. In die Planliste
+        aufnehmen, damit Büroindex und Behördenindex an einer Stelle stehen.
+      </p>
+      <ul>
+        {#each liste.ohne_eintrag as o (o.dokument_id)}<li>
+            {o.dateiname} · {o.behoerde
+              .map((b) => `${b.bezeichnung}: ${b.planindex ?? "–"} · ${STATUS[b.status]}`)
+              .join("; ")}
+            {#if darf}<button
+                type="button"
+                class="sekundaer"
+                disabled={geaendert}
+                onclick={() => {
+                  neuDokument = o.dokument_id;
+                  aufnehmen();
+                }}>Aufnehmen</button
+              >{/if}
+          </li>{/each}
+      </ul>
+    </aside>{/if}
   {#if darf}
     <div class="knoepfe links">
       <label

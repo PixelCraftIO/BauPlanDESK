@@ -28,7 +28,10 @@
     onbereich,
     staende = {},
     onbenoetigt,
+    versteckt = [],
   }: {
+    /** Bereiche ohne Inhalt, die der Baum nicht anbietet (außer geöffnet). */
+    versteckt?: string[];
     projekt: Project;
     aktiv?: boolean;
     ansicht: Ansicht;
@@ -220,7 +223,7 @@
 </script>
 
 {#snippet eintraege(ids: import("./module").ModulId[], baum = false)}
-  {#each baum ? ids.filter(sichtbar) : ids as id}
+  {#each ids.filter((id) => (!versteckt.includes(id) || istAktiv(id)) && (!baum || sichtbar(id))) as id}
     {@const modul = MODULE.find((m) => m.id === id)!}
     {@const grund = voraussetzung(projekt, modul)}
     {@const stand = staende[id]}

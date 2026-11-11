@@ -191,6 +191,8 @@
       nachrichten = n;
       dokumente = d;
       verfahren = v;
+      // Mit nur einer Akte ist die Zuordnung eindeutig.
+      if (!verfahrensId && v.length === 1) verfahrensId = v[0].objekt;
       typen = t;
       geladen = true;
       if (!auswahl && n.length) auswahl = n[0].id;

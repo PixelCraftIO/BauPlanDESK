@@ -231,6 +231,19 @@ export const verfahrenApi = {
       art,
       wohngebaeude,
     }),
+  /** Nachweisstände der Anforderung als PDF ablegen und zuordnen. */
+  nachweisAlsUnterlage: (
+    projektId: string,
+    id: string,
+    basis: number,
+    anforderung: string,
+  ) =>
+    invoke<Fachstand>("verfahren_nachweis_als_unterlage", {
+      projektId,
+      id,
+      basis,
+      anforderung,
+    }),
   profilAnwenden: (
     projektId: string,
     id: string,

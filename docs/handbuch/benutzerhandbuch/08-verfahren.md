@@ -41,6 +41,15 @@ Arbeitshilfe aus den erfassten Daten, keine Rechtsentscheidung.
 
 ![Anforderungen und Vollständigkeit](bilder/verfahren-anforderungen.png)
 
+  **Nachweis als Unterlage:** Gehört zu einer Anforderung ein Nachweis der
+  Projektakte (etwa GRZ und GFZ oder die Abstandsflächen), legt „Nachweis als
+  Unterlage übernehmen“ den aktuellen Nachweisstand als PDF in den
+  Projektdateien ab und ordnet ihn zu. Nach einer Neuberechnung meldet die
+  Projektübersicht die Anforderung erneut; „Unterlage aus dem Nachweis
+  aktualisieren“ schreibt dieselbe Datei als nächste Version fort.
+  **Dateivorschläge:** Liegt in den Projektdateien eine Datei mit passender
+  Kategorie (z. B. Lageplan), bietet die Anforderung sie mit „Zuordnen“ an.
+
 - **Abweichungen / Befreiungen:** Art, Vorschrift, Soll/Ist, Begründung und
   Unterlagen. Die App schlägt Bedarf aus aktuellen Nachweisen vor (z. B.
   GRZ-Überschreitung).
@@ -89,6 +98,14 @@ werden. Er ist unveränderlich.
 
 Export ≠ Versand ≠ bestätigter Eingang ≠ Genehmigung. Jeder Zustand braucht
 seinen eigenen Beleg.
+
+Jeder Abgabestand trägt **eine Aussage** zu seinem Stand, etwa
+„Zusammengestellt · Versand unbestätigt“, „Versendet am …“, „Eingang
+bestätigt am …“ oder „Extern eingereicht (belegt) am …“. Dieselbe Aussage
+steht in der Projektübersicht. Wurde der Stand erst nach einer extern
+erfolgten Einreichung festgehalten, gilt er durch die externe Einreichung mit
+denselben Dokumentversionen und Beleg als eingereicht; beide erscheinen in der
+Übersicht als eine Zeile.
 
 ### Entscheidung und Ausführung
 
@@ -186,8 +203,9 @@ automatischen Versand.
 
 ## Einreichungen
 
-Frühere Einreichungspakete (vor Einführung der Abgabestände) bleiben hier
-lesbar und exportierbar. Neue Einreichungen entstehen immer als Abgabestand
+Der Eintrag erscheint im Projektbaum nur, wenn das Projekt frühere
+Einreichungspakete enthält. Frühere Einreichungspakete (vor Einführung der
+Abgabestände) bleiben hier lesbar und exportierbar. Neue Einreichungen entstehen immer als Abgabestand
 der Verfahrensakte. Eine außerhalb der App erfolgte Einreichung wird in der
 Verfahrensakte mit „Externe Einreichung nachtragen …“ dokumentiert.
 

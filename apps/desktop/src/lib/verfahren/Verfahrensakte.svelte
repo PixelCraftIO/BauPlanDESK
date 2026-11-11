@@ -271,6 +271,16 @@
   }
   const profil = (p: Vorhabenprofil, k: Anforderungskatalog) =>
     aktion((b) => verfahrenApi.profilAnwenden(projekt.id, s.id!, b, p, k));
+  async function nachweisUebernehmen(anforderung: string) {
+    await aktion((b) =>
+      verfahrenApi.nachweisAlsUnterlage(projekt.id, s.id!, b, anforderung),
+    );
+    if (!s.fehler) {
+      s.meldung =
+        "Nachweis als Unterlage abgelegt und zugeordnet. Bitte prüfen und fachlich freigeben.";
+      await dateienLaden();
+    }
+  }
   const tabs = [
     ["arbeitsliste", "Unterlagen und Arbeitsaufträge"],
     ["stamm", "Verfahren"],
@@ -505,6 +515,8 @@
             {dateien}
             {benutzer}
             {darfFreigeben}
+            projektId={projekt.id}
+            onnachweis={nachweisUebernehmen}
           />
         </fieldset>
       {:else if tab === "ausfuehrung"}<fieldset disabled={!darf}>

@@ -669,6 +669,7 @@ pub(super) async fn pruefen(
             let mut kopie = neu.clone();
             kopie.versand = b.versand.clone();
             kopie.versandstatus = b.versandstatus.clone();
+            kopie.lage = b.lage.clone();
             if &kopie != b
                 || neu.versand.len() < b.versand.len()
                 || neu.versand[..b.versand.len()] != b.versand

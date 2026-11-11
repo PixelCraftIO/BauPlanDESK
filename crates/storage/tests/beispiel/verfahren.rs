@@ -1910,6 +1910,29 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             a.titel, a.status, a.datum, a.dokumente
         ));
     }
+    // Ein Zustand je Einreichung: Der nachträglich festgehaltene Abgabestand
+    // und die externe Einreichung, die ihn belegt, sind eine Zeile mit einer
+    // Aussage; dieselbe steht am Abgabestand der Akte.
+    let belegt: Vec<_> = s
+        .abgaben
+        .iter()
+        .filter(|a| a.status == "Extern eingereicht (belegt)")
+        .collect();
+    assert!(!belegt.is_empty(), "belegter Abgabestand in der Übersicht");
+    assert!(belegt.iter().all(|a| a.datum == Some(tag("2026-09-15"))));
+    assert!(
+        !s.abgaben.iter().any(|a| a.status == "Extern eingereicht"),
+        "die belegende externe Einreichung ist keine zweite Zeile"
+    );
+    assert!(s.verfahren.iter().any(|v| v.versendet >= 1));
+    let (_, a) = akte(b, vid).await;
+    assert!(a.abgaben.iter().any(|x| {
+        x.lage.as_ref().is_some_and(|l| {
+            l.text == "Extern eingereicht (belegt)"
+                && l.eingereicht
+                && l.datum == Some(tag("2026-09-15"))
+        })
+    }));
     let empfang = s
         .empfaenger
         .iter()
