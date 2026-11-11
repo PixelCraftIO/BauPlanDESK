@@ -16,6 +16,13 @@
     dateien: DocumentVersion[];
     alt?: string[];
   } = $props();
+  const ART: Record<string, string> = {
+    email: "E-Mail",
+    brief: "Brief",
+    portal: "Portalnachricht",
+    telefon: "Telefonat",
+    besprechung: "Besprechung",
+  };
 </script>
 
 <h3>Kommunikationsakte</h3>
@@ -43,7 +50,13 @@
     ])}>Kommunikation erfassen</button
 >
 {#each eintraege as c (c.id)}<details open={!alt.includes(c.id)}>
-    <summary>{datumDe(c.datum)} · {c.betreff || "Neue Kommunikation"}</summary>
+    <summary
+      >{datumDe(c.datum)} · {c.eingehend ? "Eingang" : "Ausgang"} · {ART[
+        c.art
+      ] ?? c.art} · {c.betreff || "Neue Kommunikation"}{c.beteiligte
+        ? ` · ${c.beteiligte}`
+        : ""}</summary
+    >
     <fieldset disabled={alt.includes(c.id)}>
       <div class="raster">
         <label

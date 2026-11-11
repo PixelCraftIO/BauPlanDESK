@@ -1626,6 +1626,7 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             dokumente: vec![],
             abgaben: vec![],
             bestaetigung: None,
+            anforderung: None,
         }],
     });
     a.kommunikation.push(Kommunikation {
@@ -1656,16 +1657,24 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             o.frist.map(|f| format!(" bis {f}")).unwrap_or_default()
         ));
     }
-    match lage
+    // Die Lage rechnet mit dem heutigen Tag: bis zum 10.11.2026 läuft die
+    // Frist, danach nennt sie den Ablauf und die Bescheinigung.
+    let laeuft = lage
         .optionen
         .iter()
-        .find(|o| o.titel == "Genehmigungsfiktion")
-    {
-        Some(o) if o.frist == Some(tag("2026-11-10")) => {}
-        o => b.befund(format!(
-            "Genehmigungsfiktion nicht zum 10.11.2026 (Entscheidungsfrist der Behörde): {:?}",
-            o.and_then(|o| o.frist)
-        )),
+        .any(|o| o.titel == "Genehmigungsfiktion" && o.frist == Some(tag("2026-11-10")));
+    let abgelaufen = lage
+        .lage
+        .contains("Fiktionsfrist seit 10.11.2026 abgelaufen")
+        && lage
+            .optionen
+            .iter()
+            .any(|o| o.titel == "Bescheinigung über die Genehmigungsfiktion verlangen");
+    if !laeuft && !abgelaufen {
+        b.befund(format!(
+            "Genehmigungsfiktion nicht zum 10.11.2026 (Entscheidungsfrist der Behörde): {}",
+            lage.lage
+        ));
     }
     let nf = a
         .nachforderungen

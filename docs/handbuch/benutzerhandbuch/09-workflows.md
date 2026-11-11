@@ -52,20 +52,23 @@ nachreichen. Im Beispielprojekt ist der Entwässerungsnachweis nachgefordert.
 2. In der **Verfahrensakte → Kommunikation** als eingehend mit Datum und Beleg
    erfassen.
 3. Unter **Nachforderungen** jeden Punkt einzeln mit Wortlaut, Frist und
-   Zuständigkeit anlegen. Die Frist erscheint in der Projektübersicht und in
-   den Wiedervorlagen.
-4. Interne Aufgaben (z. B. Ingenieurbüro beauftragen) unter **Aufgaben /
-   Fristen** anlegen.
+   Zuständigkeit anlegen; betrifft er eine Unterlage der Akte, diese bei
+   „Betrifft Unterlage der Akte“ wählen. Die Frist erscheint in der
+   Projektübersicht und in den Wiedervorlagen.
+4. Interne Aufgaben (z. B. Ingenieurbüro beauftragen) beim Punkt mit
+   **Aufgabe anlegen** anlegen. Sie gehören zum Punkt, zählen nicht als
+   eigener offener Punkt und werden mit ihm erledigt.
 5. Den Punkt fachlich bearbeiten: Berechnung ändern, neuen Nachweisstand
    erstellen, korrigierte Datei als **neue Version** desselben Dokuments
    importieren.
-6. Antwortunterlagen dem Forderungspunkt zuordnen.
-7. Unter **Schreiben** die Antwort auf die Nachforderung erstellen und als
-   Projektunterlage ablegen.
-8. Neuen **Abgabestand** als Nachreichung mit Vorgänger und Ersatzbeziehungen
-   festhalten.
-9. Über **Einreichen / Portal** übermitteln, Beleg zuordnen, Versand und Eingang
-   dokumentieren. Der Punkt steht dann auf „eingereicht“.
+6. Antwortunterlagen dem Forderungspunkt zuordnen („Unterlagen hinzufügen …“).
+7. **Nachreichung festhalten:** Die Antwortunterlagen der offenen Punkte
+   werden ein neuer Abgabestand und bei den Punkten eingetragen.
+8. **Anschreiben erstellen** öffnet das Antwortschreiben zu dieser
+   Nachforderung; als Projektunterlage ablegen.
+9. **Versand erfassen** öffnet den Abgabestand: Versand und Eingang
+   dokumentieren, Beleg zuordnen. Danach die Punkte mit einem Klick als
+   „eingereicht“ führen.
 10. Erst mit einer Bestätigung der Behörde den Punkt als „behördlich
     bestätigt“ führen.
 

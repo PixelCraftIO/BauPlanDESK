@@ -14,7 +14,10 @@
     verfahrenId,
     darf,
     ondokument,
+    vorgabe = null,
   }: {
+    /** Vorgewählte Art und Nachforderung (aus Lage oder Nachforderung). */
+    vorgabe?: { art: string; nachforderung?: string } | null;
     akte: Verfahrensakte;
     projektId: string;
     verfahrenId: string | null;
@@ -34,6 +37,11 @@
     ergebnis = $state<Schreibenergebnis | null>(null),
     fehler = $state(""),
     laeuft = $state(false);
+  $effect(() => {
+    if (!vorgabe) return;
+    art = vorgabe.art as Schreibenart["art"];
+    if (vorgabe.nachforderung) nachforderung = vorgabe.nachforderung;
+  });
   const anhoerungen = $derived(
     akte.schritte.filter((s) => s.art === "anhoerung"),
   );

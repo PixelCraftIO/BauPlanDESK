@@ -261,6 +261,18 @@ pub struct Forderungspunkt {
     pub dokumente: Vec<Dokumentbezug>,
     pub abgaben: Vec<Uuid>,
     pub bestaetigung: Option<Uuid>,
+    /// Anforderung der Akte, die dieser Punkt nachfordert. Solange der Punkt
+    /// offen ist, steht der Vorgang nur hier; seine Antwortunterlagen
+    /// belegen auch die Anforderung.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub anforderung: Option<Uuid>,
+}
+impl Punktstatus {
+    /// Noch vom Büro zu bearbeiten (nicht eingereicht, bestätigt oder entfallen).
+    pub fn offen(&self) -> bool {
+        matches!(self, Self::Offen | Self::InArbeit | Self::Vorbereitet)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -798,6 +810,29 @@ impl CoreServices {
             self.anforderungen_abgleichen(p, id, &mut a).await?;
         }
         let bisher = original.as_ref().map(|a| a.ereignisse.len()).unwrap_or(0);
+        // Ein Vorgang, eine Zuordnung: Die Antwortunterlagen eines
+        // Forderungspunkts belegen auch die nachgeforderte Anforderung.
+        let antworten: Vec<(Uuid, Vec<Dokumentbezug>)> = a
+            .nachforderungen
+            .iter()
+            .flat_map(|n| &n.punkte)
+            .filter_map(|p| Some((p.anforderung?, p.dokumente.clone())))
+            .collect();
+        for (anforderung, dokumente) in antworten {
+            if let Some(r) = a.anforderungen.iter_mut().find(|r| r.id == anforderung) {
+                for d in dokumente {
+                    if !r.dokumente.contains(&d) {
+                        // Eine neuere Version desselben Dokuments ersetzt die ältere.
+                        r.dokumente.retain(|x| x.dokument_id != d.dokument_id);
+                        r.dokumente.push(d);
+                        r.freigegeben = false;
+                        if r.erforderlich == Erforderlichkeit::Ungeklaert {
+                            r.erforderlich = Erforderlichkeit::Erforderlich;
+                        }
+                    }
+                }
+            }
+        }
         let lagen: Vec<_> = a
             .abgaben
             .iter()
@@ -1073,6 +1108,59 @@ impl CoreServices {
                 .take(2000)
                 .collect(),
         );
-        self.repos.commit.fachstand(f, basis, audit).await
+        let stand = self.repos.commit.fachstand(f, basis, audit).await?;
+        // Ein Vorgang, ein Abschluss: Aufgaben, die zu einem jetzt erledigten
+        // Forderungspunkt gehören, sind mit ihm erledigt.
+        let erledigt: Vec<Uuid> = a
+            .nachforderungen
+            .iter()
+            .flat_map(|n| &n.punkte)
+            .filter(|p| {
+                !p.status.offen()
+                    && original
+                        .as_ref()
+                        .and_then(|alt| {
+                            alt.nachforderungen
+                                .iter()
+                                .flat_map(|n| &n.punkte)
+                                .find(|v| v.id == p.id)
+                        })
+                        .is_none_or(|v| v.status.offen())
+            })
+            .map(|p| p.id)
+            .collect();
+        if !erledigt.is_empty() {
+            use crate::plattform::{
+                ObjektArt,
+                objekte::{Aufgabe, AufgabenStatus},
+            };
+            for f in self.fachobjekte(p, ObjektArt::Aufgaben).await? {
+                let Ok(mut aufgabe) = serde_json::from_value::<Aufgabe>(f.daten.clone()) else {
+                    continue;
+                };
+                if aufgabe.status == AufgabenStatus::Erledigt
+                    || !aufgabe.bezug.is_some_and(|b| erledigt.contains(&b))
+                {
+                    continue;
+                }
+                aufgabe.status = AufgabenStatus::Erledigt;
+                let (Ok(aid), Ok(daten)) = (f.objekt.parse(), serde_json::to_value(&aufgabe))
+                else {
+                    continue;
+                };
+                // Die Akte ist gespeichert; eine nicht schließbare Aufgabe
+                // bleibt offen und sichtbar.
+                let _ = Box::pin(self.fachobjekt_speichern(
+                    p,
+                    ObjektArt::Aufgaben,
+                    aid,
+                    f.revision,
+                    daten,
+                    wer,
+                ))
+                .await;
+            }
+        }
+        Ok(stand)
     }
 }

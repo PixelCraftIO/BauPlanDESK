@@ -1222,7 +1222,13 @@ export type Kommunikationsart = "email" | "brief" | "portal" | "telefon" | "besp
 export type Kommunikation = { id: string, art: Kommunikationsart, eingehend: boolean, datum: string, betreff: string, beteiligte: string, inhalt: string, original: Dokumentbezug | null, bezuege: Array<Bezug>, };
 export type Punktstatus = "offen" | "in_arbeit" | "vorbereitet" | "eingereicht" | "bestaetigt" | "entfallen";
 export type Frist = { datum: string, ausloeser: string, beleg: Dokumentbezug | null, erinnerung_tage: number, grund: string, };
-export type Forderungspunkt = { id: string, titel: string, grundlage: string, verantwortlich: string | null, frist: Frist | null, status: Punktstatus, antwort: string, dokumente: Array<Dokumentbezug>, abgaben: Array<string>, bestaetigung: string | null, };
+export type Forderungspunkt = { id: string, titel: string, grundlage: string, verantwortlich: string | null, frist: Frist | null, status: Punktstatus, antwort: string, dokumente: Array<Dokumentbezug>, abgaben: Array<string>, bestaetigung: string | null,
+/**
+ * Anforderung der Akte, die dieser Punkt nachfordert. Solange der Punkt
+ * offen ist, steht der Vorgang nur hier; seine Antwortunterlagen
+ * belegen auch die Anforderung.
+ */
+anforderung?: string, };
 export type Nachforderung = { id: string, kommunikation: string, punkte: Array<Forderungspunkt>, };
 export type Entscheidung = "genehmigt" | "teilweise_genehmigt" | "abgelehnt" | "sonstiges";
 export type Nebenbestimmungsart = "auflage" | "bedingung" | "befristung" | "widerrufsvorbehalt" | "auflagenvorbehalt" | "hinweis";

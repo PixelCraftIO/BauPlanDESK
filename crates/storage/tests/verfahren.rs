@@ -203,6 +203,7 @@ async fn muster_von_nachforderung_bis_genehmigtem_stand_und_neuem_entwurf() {
                 dokumente: vec![],
                 abgaben: vec![],
                 bestaetigung: None,
+                anforderung: None,
             })
             .collect(),
     });
@@ -1953,6 +1954,7 @@ async fn ruecknahme_rueckweisung_und_zurueckgenommene_akte() {
             dokumente: vec![],
             abgaben: vec![],
             bestaetigung: None,
+            anforderung: None,
         }],
     });
     let err = fehler(versuch(&a, f.revision).await);
@@ -2128,6 +2130,7 @@ async fn altakte_mit_externer_einreichung_ohne_zukunftsdaten_und_mit_festem_wort
             dokumente: vec![],
             abgaben: vec![],
             bestaetigung: None,
+            anforderung: None,
         }],
     });
     let neuer_bescheid = |genehmigt: Dokumentbezug, zugestellt| Bescheid {
