@@ -334,6 +334,15 @@ impl CoreServices {
             }
             let mut v = neu.clone();
             v.regelkontext.anwendbarkeit_bestaetigt = vorher.regelkontext.anwendbarkeit_bestaetigt;
+            // Ein neuerer Stand derselben Quelle mit unveränderten Werten ändert
+            // die bestätigte Prüfaussage nicht.
+            if v.uebernahmen.len() == vorher.uebernahmen.len() {
+                for (a, b) in v.uebernahmen.iter_mut().zip(&vorher.uebernahmen) {
+                    if a.ziel == b.ziel && a.kennzahl == b.kennzahl {
+                        a.nachweis_id = b.nachweis_id;
+                    }
+                }
+            }
             if v != vorher {
                 neu.regelkontext.anwendbarkeit_bestaetigt = false;
             } else if neu.regelkontext.anwendbarkeit_bestaetigt
@@ -365,37 +374,51 @@ impl CoreServices {
                 }),
             None => None,
         };
-        let geb = if let Some(id) = plan.gebaeude_id {
-            self.repos
-                .commit
-                .fachobjekt(pid, ObjektArt::Gebaeude.modul(), &id.to_string())
-                .await?
-                .map(|g| {
-                    let mut d = g.daten;
-                    if let Some(geschosse) = d.get_mut("geschosse").and_then(|v| v.as_array_mut()) {
-                        for s in geschosse {
-                            if let Some(s) = s.as_object_mut() {
-                                s.remove("vollgeschoss");
-                                s.remove("grundlage");
-                                s.remove("einstufungsquelle");
-                            }
-                        }
-                    }
-                    d
-                })
-        } else {
-            None
+        // Vom Gebäude zählt nur, was dieser Nachweis daraus verwendet: Name und
+        // Lage immer; bei Gebäudeübernahme zusätzlich die daraus abgeleiteten
+        // Eingaben. Andere Gebäudeangaben machen den Nachweis nicht veraltet.
+        let stand = match plan.gebaeude_id {
+            Some(id) => {
+                self.repos
+                    .commit
+                    .fachobjekt(pid, ObjektArt::Gebaeude.modul(), &id.to_string())
+                    .await?
+            }
+            None => None,
         };
-        let mut fachquellen = Vec::new();
-        if let (Some(id), Some(daten)) = (plan.gebaeude_id, &geb)
-            && plan.gebaeudedaten_uebernehmen == Some(true)
-        {
-            self.gebaeudegrundlagen(pid, id).await?;
-            if daten
+        let mit_planbindung = stand.as_ref().is_some_and(|g| {
+            g.daten
                 .get("planbindungen")
                 .and_then(|v| v.as_array())
                 .is_some_and(|b| !b.is_empty())
-            {
+        });
+        let geb = match &stand {
+            Some(f) => {
+                let g: crate::plattform::objekte::Gebaeude = decode(&f.daten)?;
+                let abgeleitet = if plan.gebaeudedaten_uebernehmen == Some(true) {
+                    let mut p = plan.clone();
+                    self.gebaeudedaten_einsetzen(pid, &mut p).await?;
+                    normalisieren(&mut p)?;
+                    Some((p.eingaben, p.regelkontext.anwendbarkeit_bestaetigt))
+                } else {
+                    None
+                };
+                Some(serde_json::json!({
+                    "bezeichnung": g.bezeichnung,
+                    "flurstueck_ids": g.flurstueck_ids,
+                    "flurstuecke_zu_pruefen": g.flurstuecke_zu_pruefen,
+                    "grundstueck_ids": g.grundstueck_ids,
+                    "abgeleitet": abgeleitet,
+                }))
+            }
+            None => None,
+        };
+        let mut fachquellen = Vec::new();
+        if let (Some(id), true) = (plan.gebaeude_id, geb.is_some())
+            && plan.gebaeudedaten_uebernehmen == Some(true)
+        {
+            self.gebaeudegrundlagen(pid, id).await?;
+            if mit_planbindung {
                 fachquellen.push(Some((
                     "gebaeudeaufmass-rechenstand".into(),
                     1,

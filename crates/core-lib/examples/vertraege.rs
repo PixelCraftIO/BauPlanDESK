@@ -419,6 +419,7 @@ fn main() {
         core_lib::druckausgabe::Druckeintrag,
         core_lib::druckausgabe::Druckkatalog,
         core_lib::druckausgabe::Druckposition,
-        NachweisAnsicht
+        NachweisAnsicht,
+        core_lib::plattform::nachweise::Erneuerung
     );
 }

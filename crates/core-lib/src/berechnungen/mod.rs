@@ -7,6 +7,7 @@ mod geschossbindung;
 pub mod hoehen;
 mod raumbuch;
 pub use geschossbindung::Einstufungsquelle;
+pub(crate) use geschossbindung::VOLLGESCHOSSQUELLE_VERALTET;
 mod service;
 pub mod stellplaetze;
 pub mod ueberbaubarkeit;

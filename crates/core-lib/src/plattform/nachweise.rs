@@ -88,6 +88,22 @@ pub struct NachweisAnsicht {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub prueffehler: Option<String>,
+    /// Neuerer Stand desselben Nachweises (gleiche Berechnung, gleicher
+    /// Bezugsumfang). Ein ersetzter Stand ist Archiv und kein Handlungsbedarf.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub ersetzt_durch: Option<Uuid>,
+}
+/// Ergebnis der Sammelerneuerung für einen veralteten Nachweis.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+pub struct Erneuerung {
+    pub bezeichnung: String,
+    /// Der veraltete Stand.
+    pub alt: Uuid,
+    /// Der neu archivierte Stand; `None`, wenn eine Prüfung von Hand nötig ist.
+    pub neu: Option<Uuid>,
+    /// Warum der Nachweis nicht automatisch erneuert wurde.
+    pub grund: Option<String>,
 }
 /// Fehlende/ungültige Quellen sind fachlich veraltet. Infrastrukturfehler
 /// bleiben explizit erkennbar und sperren weiterhin eine positive Freigabe.
@@ -606,7 +622,12 @@ impl CoreServices {
             format!("Nachweis {} archiviert", n.bezeichnung),
         );
         match self.repos.commit.fachstand(f, 0, audit).await {
-            Ok(_) => Ok(n),
+            Ok(_) => {
+                if let Err(e) = self.vollgeschossquellen_nachfuehren(pid, &n, wer).await {
+                    tracing::warn!(vorgang = "vollgeschossquellen_nachfuehren", fehler = %e);
+                }
+                Ok(n)
+            }
             Err(CoreError::VersionConflict { .. }) => {
                 let f = self
                     .repos
@@ -630,6 +651,272 @@ impl CoreServices {
             }
             Err(e) => Err(e),
         }
+    }
+    /// Geschosse, deren Einstufung aus einem älteren Stand derselben
+    /// Vollgeschossprüfung stammt, folgen dem neuen Stand. Sonst bliebe das
+    /// Gebäude an den veralteten Stand gebunden und GFZ/Geschossigkeit veraltet.
+    async fn vollgeschossquellen_nachfuehren(
+        &self,
+        pid: ProjectId,
+        n: &Nachweisstand,
+        wer: &Benutzer,
+    ) -> CoreResult<()> {
+        let NachweisEingabe::Fach { objekt, plan } = &n.eingabe else {
+            return Ok(());
+        };
+        let (true, true, Some(gid)) = (
+            plan.modul == crate::berechnungen::BerechnungsArt::Vollgeschosse,
+            n.vollstaendig,
+            plan.gebaeude_id,
+        ) else {
+            return Ok(());
+        };
+        let mut vorgaenger = std::collections::BTreeSet::new();
+        for f in self.repos.commit.fachstaende(pid, "nachweise").await? {
+            let alt: Nachweisstand = serde_json::from_value(f.daten).map_err(json_err)?;
+            if alt.id != n.id
+                && matches!(&alt.eingabe, NachweisEingabe::Fach { objekt: o, .. } if o == objekt)
+            {
+                vorgaenger.insert(alt.id);
+            }
+        }
+        let Some(f) = self
+            .repos
+            .commit
+            .fachobjekt(pid, ObjektArt::Gebaeude.modul(), &gid.to_string())
+            .await?
+        else {
+            return Ok(());
+        };
+        let mut g: objekte::Gebaeude = serde_json::from_value(f.daten).map_err(json_err)?;
+        let mut geaendert = false;
+        for s in &mut g.geschosse {
+            if let Some(q) = &mut s.einstufungsquelle
+                && vorgaenger.contains(&q.nachweis_id)
+            {
+                q.nachweis_id = n.id;
+                geaendert = true;
+            }
+        }
+        if geaendert {
+            self.fachobjekt_speichern(
+                pid,
+                ObjektArt::Gebaeude,
+                gid,
+                f.revision,
+                serde_json::to_value(g).map_err(json_err)?,
+                wer,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+    /// Erneuert alle veralteten Nachweise, die sich ohne neue fachliche
+    /// Entscheidung erneuern lassen, in der Reihenfolge ihrer Abhängigkeiten.
+    /// Nachweise, deren Eingaben sich geändert haben oder die offene Prüfpunkte
+    /// hätten, bleiben stehen und werden mit dem Grund zurückgemeldet.
+    pub async fn nachweise_erneuern(
+        &self,
+        pid: ProjectId,
+        wer: &Benutzer,
+    ) -> CoreResult<Vec<Erneuerung>> {
+        self.pruefe(wer, Recht::ProjektBearbeiten).await?;
+        self.projekt_zugriff(pid, wer, crate::zugriff::ProjektRecht::Bearbeiten)
+            .await?;
+        let mut fertig = Vec::<Erneuerung>::new();
+        let mut offen = std::collections::BTreeMap::<String, Erneuerung>::new();
+        // Jede Runde erneuert, was nach der vorigen möglich wurde (Quellen zuerst).
+        for _ in 0..4 {
+            let alle = self.nachweise(pid).await?;
+            let mut faellig = alle
+                .iter()
+                .filter(|n| !n.aktuell && n.ersetzt_durch.is_none())
+                .collect::<Vec<_>>();
+            faellig.sort_by_key(|n| match &n.stand.eingabe {
+                NachweisEingabe::Fach { plan, .. }
+                    if plan.modul == crate::berechnungen::BerechnungsArt::Vollgeschosse =>
+                {
+                    0
+                }
+                NachweisEingabe::Fach { plan, .. } if plan.uebernahmen.is_empty() => 1,
+                NachweisEingabe::Fach { .. } => 2,
+                NachweisEingabe::Nutzung { .. } => 3,
+                _ => 4,
+            });
+            let mut fortschritt = false;
+            for n in faellig {
+                let schluessel = crate::projektuebersicht::nachweisschluessel(&n.stand)?;
+                let ergebnis = match &n.prueffehler {
+                    Some(e) => Err(CoreError::InvalidInput(format!(
+                        "Aktualität technisch nicht prüfbar: {e}"
+                    ))),
+                    None => self
+                        .nachweis_erneuern(pid, &n.stand, &alle, wer)
+                        .await
+                        .map_err(|e| match e {
+                            CoreError::InvalidInput(t)
+                                if t == crate::berechnungen::VOLLGESCHOSSQUELLE_VERALTET =>
+                            {
+                                CoreError::InvalidInput(
+                                    "Zuerst die Vollgeschossprüfung des Gebäudes erneuern".into(),
+                                )
+                            }
+                            e => e,
+                        }),
+                };
+                match ergebnis {
+                    Ok(neu) => {
+                        offen.remove(&schluessel);
+                        fertig.push(Erneuerung {
+                            bezeichnung: neu.bezeichnung,
+                            alt: n.stand.id,
+                            neu: Some(neu.id),
+                            grund: None,
+                        });
+                        fortschritt = true;
+                    }
+                    Err(CoreError::InvalidInput(t) | CoreError::NotFound(t)) => {
+                        offen.insert(
+                            schluessel,
+                            Erneuerung {
+                                bezeichnung: n.stand.bezeichnung.clone(),
+                                alt: n.stand.id,
+                                neu: None,
+                                grund: Some(t),
+                            },
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            if !fortschritt {
+                break;
+            }
+        }
+        fertig.extend(offen.into_values());
+        Ok(fertig)
+    }
+    async fn nachweis_erneuern(
+        &self,
+        pid: ProjectId,
+        alt: &Nachweisstand,
+        alle: &[NachweisAnsicht],
+        wer: &Benutzer,
+    ) -> CoreResult<Nachweisstand> {
+        let hand = |t: &str| CoreError::InvalidInput(t.into());
+        let p = self.repos.projects.get(pid).await?;
+        let eingabe = match &alt.eingabe {
+            NachweisEingabe::Fach { objekt, plan } => {
+                let art = plan.modul.objekt();
+                let f = self
+                    .fachobjekte(pid, art)
+                    .await?
+                    .into_iter()
+                    .find(|f| f.objekt == objekt.to_string())
+                    .ok_or_else(|| hand("Die Berechnung zu diesem Nachweis gibt es nicht mehr"))?;
+                let mut entwurf: crate::berechnungen::FachPlan =
+                    serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+                // Übernahmen folgen dem neuesten gültigen Stand ihrer Quelle.
+                for u in &mut entwurf.uebernahmen {
+                    let Some(quelle) = alle.iter().find(|k| k.stand.id == u.nachweis_id) else {
+                        continue;
+                    };
+                    if quelle.aktuell && quelle.stand.vollstaendig {
+                        continue;
+                    }
+                    let schluessel = crate::projektuebersicht::nachweisschluessel(&quelle.stand)?;
+                    let mut nachfolger = None;
+                    for k in alle.iter().filter(|k| k.aktuell && k.stand.vollstaendig) {
+                        if crate::projektuebersicht::nachweisschluessel(&k.stand)? == schluessel
+                            && nachfolger.is_none_or(|a: &NachweisAnsicht| {
+                                (k.stand.erstellt_am, k.stand.id)
+                                    > (a.stand.erstellt_am, a.stand.id)
+                            })
+                        {
+                            nachfolger = Some(k);
+                        }
+                    }
+                    u.nachweis_id = nachfolger
+                        .ok_or_else(|| {
+                            hand(&format!(
+                                "Zuerst den Quellnachweis „{}“ erneuern",
+                                quelle.stand.bezeichnung
+                            ))
+                        })?
+                        .stand
+                        .id;
+                }
+                let gespeichert = self
+                    .fachobjekt_speichern(
+                        pid,
+                        art,
+                        *objekt,
+                        f.revision,
+                        serde_json::to_value(&entwurf).map_err(json_err)?,
+                        wer,
+                    )
+                    .await?;
+                let plan: crate::berechnungen::FachPlan =
+                    serde_json::from_value(gespeichert.daten).map_err(json_err)?;
+                NachweisEingabe::Fach {
+                    objekt: *objekt,
+                    plan: Box::new(plan),
+                }
+            }
+            NachweisEingabe::AbstandProjekt { objekt, plan } => {
+                let gebaeude = self.repos.commit.fachstaende(pid, "gebaeude").await?;
+                let f = self
+                    .repos
+                    .commit
+                    .fachobjekt(pid, "abstandsflaechen", &objekt.to_string())
+                    .await?
+                    .ok_or_else(|| {
+                        hand("Den Abstandsplan zu diesem Nachweis gibt es nicht mehr")
+                    })?;
+                let entwurf: crate::abstandsflaechen::AbstandsPlan =
+                    serde_json::from_value(f.daten).map_err(json_err)?;
+                // Die Gebäudehöhen stehen im Abstandsplan als Kopie. Solange der
+                // Entwurf noch dem archivierten Plan entspricht, fehlt die Übernahme
+                // geänderter Höhen und damit eine Prüfung von Hand.
+                let hoehen_alt = alt.regeln.iter().find(|r| r.format == ABSTANDSGEBAEUDE);
+                if serde_json::to_value(&entwurf).map_err(json_err)?
+                    == serde_json::to_value(plan).map_err(json_err)?
+                    && hoehen_alt.is_some_and(|r| {
+                        abstandsgebaeude(&entwurf, &gebaeude).is_ok_and(|a| a.sha256 != r.sha256)
+                    })
+                {
+                    return Err(hand(
+                        "Gebäudehöhen oder Dach haben sich geändert: im Abstandsplan Höhen übernehmen und Wände prüfen",
+                    ));
+                }
+                NachweisEingabe::AbstandProjekt {
+                    objekt: *objekt,
+                    plan: Box::new(entwurf),
+                }
+            }
+            NachweisEingabe::Nutzung { fach, .. } => NachweisEingabe::Nutzung {
+                fach: fach.clone(),
+                plan: self
+                    .geschosszuordnung(
+                        pid,
+                        &crate::grundstuecksinformationen::plan(&p.planungsrecht)?
+                            .ok_or_else(|| hand("Baugrundstück zuerst ermitteln"))?,
+                    )
+                    .await?,
+            },
+            NachweisEingabe::Abstand { .. } => {
+                return Err(hand(
+                    "Einzelberechnung: in der Abstandsflächenberechnung neu erstellen",
+                ));
+            }
+        };
+        if !auswerten(self, &p, &eingabe)?.1 {
+            return Err(hand(
+                "Geänderte Werte: Berechnung öffnen, prüfen und bestätigen",
+            ));
+        }
+        self.nachweis_erstellen(pid, Uuid::new_v4(), alt.bezeichnung.clone(), eingabe, wer)
+            .await
     }
     pub async fn nachweise(&self, pid: ProjectId) -> CoreResult<Vec<NachweisAnsicht>> {
         let start = std::time::Instant::now();
@@ -779,6 +1066,7 @@ impl CoreServices {
                     aktuell: aktuell && fehler.is_none(),
                     freigabe,
                     prueffehler: fehler,
+                    ersetzt_durch: None,
                 })
             })
             .collect::<CoreResult<Vec<_>>>()?;
@@ -850,6 +1138,18 @@ impl CoreServices {
                 n.aktuell = false;
                 queue.push_back(n.stand.id);
             }
+        }
+        let mut neueste = std::collections::BTreeMap::new();
+        for n in &ergebnisse {
+            let stand = (n.stand.erstellt_am, n.stand.id);
+            let e = neueste
+                .entry(crate::projektuebersicht::nachweisschluessel(&n.stand)?)
+                .or_insert(stand);
+            *e = (*e).max(stand);
+        }
+        for n in &mut ergebnisse {
+            let neu = neueste[&crate::projektuebersicht::nachweisschluessel(&n.stand)?].1;
+            n.ersetzt_durch = (neu != n.stand.id).then_some(neu);
         }
         Ok(ergebnisse)
     }
@@ -1072,6 +1372,38 @@ fn gebaeude_quellids(
     }
     ids
 }
+/// Was GRZ, GFZ, Geschossigkeit und BMZ aus einem Gebäude verwenden: Name,
+/// Lage, Typ, Grundfläche und je Geschoss Fläche und Einstufung. Höhen, Dach
+/// oder Herkunftstexte machen diese Nachweise nicht veraltet. Lassen sich die
+/// Grundlagen nicht ableiten, zählt vorsichtshalber der ganze Datensatz.
+fn nutzungsauszug(f: &Fachstand) -> serde_json::Value {
+    let auszug = || -> CoreResult<serde_json::Value> {
+        let g: objekte::Gebaeude = serde_json::from_value(f.daten.clone()).map_err(json_err)?;
+        let id = f
+            .objekt
+            .parse()
+            .map_err(|_| CoreError::InvalidInput("Gebäude-ID ungültig".into()))?;
+        let b = g.grundlagen(id)?;
+        Ok(serde_json::json!({
+            "bezeichnung": g.bezeichnung,
+            "flurstueck_ids": g.flurstueck_ids,
+            "flurstuecke_zu_pruefen": g.flurstuecke_zu_pruefen,
+            "grundstueck_ids": g.grundstueck_ids,
+            "typ": b.typ,
+            "grundflaeche_m2": b.grundflaeche_m2,
+            "geschosse": b.geschosse.iter().map(|s| serde_json::json!({
+                "id": s.id,
+                "bezeichnung": s.bezeichnung,
+                "implizit": s.implizit,
+                "flaeche_m2": s.flaeche_m2,
+                "vollgeschoss": s.vollgeschoss,
+            })).collect::<Vec<_>>(),
+            "planaufmass_rechenstand": (!g.planbindungen.is_empty())
+                .then_some(crate::planaufmass::RECHENSTAND),
+        }))
+    };
+    auszug().unwrap_or_else(|_| f.daten.clone())
+}
 fn gebaeude_fingerprint(
     pid: ProjectId,
     e: &NachweisEingabe,
@@ -1081,16 +1413,7 @@ fn gebaeude_fingerprint(
     let mut stand = std::collections::BTreeMap::new();
     for f in gebaeude {
         if ids.contains(&f.objekt) {
-            let mut daten = f.daten.clone();
-            if daten
-                .get("planbindungen")
-                .and_then(|v| v.as_array())
-                .is_some_and(|b| !b.is_empty())
-            {
-                daten["planaufmass_rechenstand"] =
-                    serde_json::json!(crate::planaufmass::RECHENSTAND);
-            }
-            stand.insert(f.objekt.clone(), daten);
+            stand.insert(f.objekt.clone(), nutzungsauszug(f));
         }
     }
     hash(&serde_json::to_value(stand).map_err(json_err)?)

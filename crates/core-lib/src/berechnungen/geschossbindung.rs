@@ -7,6 +7,8 @@ pub struct Einstufungsquelle {
     pub nachweis_id: Uuid,
     pub kennzahl: String,
 }
+pub(crate) const VOLLGESCHOSSQUELLE_VERALTET: &str =
+    "Vollgeschossquelle ist veraltet oder unvollständig";
 impl CoreServices {
     pub(crate) async fn geschosseinstufung_aus_nachweis(
         &self,
@@ -15,15 +17,29 @@ impl CoreServices {
         gebaeude: Uuid,
         geschoss: Uuid,
         grund: Option<Uuid>,
-    ) -> CoreResult<(bool, String)> {
-        let n = self
-            .nachweise(pid)
-            .await?
-            .into_iter()
+    ) -> CoreResult<(bool, String, Uuid)> {
+        use crate::plattform::nachweise::NachweisEingabe as E;
+        let alle = self.nachweise(pid).await?;
+        let mut n = alle
+            .iter()
             .find(|n| n.stand.id == quelle.nachweis_id)
             .ok_or_else(|| err("Vollgeschossnachweis gehört nicht zum Projekt"))?;
         if !n.aktuell || !n.stand.vollstaendig {
-            return Err(err("Vollgeschossquelle ist veraltet oder unvollständig"));
+            // Die Quelle meint die Vollgeschossprüfung, nicht einen bestimmten
+            // archivierten Stand: ein neuerer gültiger Stand derselben Prüfung
+            // tritt an die Stelle des veralteten.
+            let E::Fach { objekt, .. } = &n.stand.eingabe else {
+                return Err(err("Quelle ist kein typisierter Vollgeschossnachweis"));
+            };
+            n = alle
+                .iter()
+                .filter(|k| {
+                    k.aktuell
+                        && k.stand.vollstaendig
+                        && matches!(&k.stand.eingabe, E::Fach { objekt: o, .. } if o == objekt)
+                })
+                .max_by_key(|k| (k.stand.erstellt_am, k.stand.id))
+                .ok_or_else(|| err(VOLLGESCHOSSQUELLE_VERALTET))?;
         }
         let crate::plattform::nachweise::NachweisEingabe::Fach { plan, .. } = &n.stand.eingabe
         else {
@@ -66,6 +82,7 @@ impl CoreServices {
                 n.stand.erstellt_am.format("%d.%m.%Y"),
                 plan.regelkontext.bezeichnung
             ),
+            n.stand.id,
         ))
     }
 }

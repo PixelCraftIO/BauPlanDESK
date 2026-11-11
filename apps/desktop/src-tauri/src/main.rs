@@ -144,6 +144,7 @@ fn main() {
             plattform::nachweis_erstellen,
             plattform::nachweis_freigeben,
             plattform::nachweis_wiederholen,
+            plattform::nachweise_erneuern,
             plattform::raumbuch_summen,
             plattform::gebaeude_auswerten,
             projektordner::projektordner_status,

@@ -2081,4 +2081,22 @@ export type NachweisAnsicht = { stand: Nachweisstand, aktuell: boolean, freigabe
 /**
  * Technischer Fehler: kein Beleg für eine fachliche Quellenänderung.
  */
-prueffehler?: string, };
+prueffehler?: string,
+/**
+ * Neuerer Stand desselben Nachweises (gleiche Berechnung, gleicher
+ * Bezugsumfang). Ein ersetzter Stand ist Archiv und kein Handlungsbedarf.
+ */
+ersetzt_durch?: string, };
+export type Erneuerung = { bezeichnung: string,
+/**
+ * Der veraltete Stand.
+ */
+alt: string,
+/**
+ * Der neu archivierte Stand; `None`, wenn eine Prüfung von Hand nötig ist.
+ */
+neu: string | null,
+/**
+ * Warum der Nachweis nicht automatisch erneuert wurde.
+ */
+grund: string | null, };

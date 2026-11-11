@@ -183,13 +183,46 @@ impl CoreServices {
         };
         let daten = if art == ObjektArt::Gebaeude {
             let mut g: objekte::Gebaeude = serde_json::from_value(daten).map_err(json_err)?;
+            // Ist die Vollgeschossprüfung veraltet, bleibt das Gebäude trotzdem
+            // speicherbar: Die bereits gespeicherte Einstufung gilt weiter, bis
+            // die Prüfung erneuert ist. Abhängige Nachweise sind ohnehin veraltet.
+            let gespeichert = match self
+                .repos
+                .commit
+                .fachobjekt(p, art.modul(), &id.to_string())
+                .await?
+            {
+                Some(f) => serde_json::from_value::<objekte::Gebaeude>(f.daten)
+                    .map(|g| g.geschosse)
+                    .unwrap_or_default(),
+                None => vec![],
+            };
             for geschoss in &mut g.geschosse {
-                if let Some(q) = &geschoss.einstufungsquelle {
-                    let (wert, grundlage) = self
-                        .geschosseinstufung_aus_nachweis(p, q, id, geschoss.id, None)
-                        .await?;
-                    geschoss.vollgeschoss = Some(wert);
-                    geschoss.grundlage = grundlage;
+                if let Some(q) = geschoss.einstufungsquelle.clone() {
+                    match self
+                        .geschosseinstufung_aus_nachweis(p, &q, id, geschoss.id, None)
+                        .await
+                    {
+                        Ok((wert, grundlage, nachweis_id)) => {
+                            geschoss.vollgeschoss = Some(wert);
+                            geschoss.grundlage = grundlage;
+                            geschoss.einstufungsquelle =
+                                Some(crate::berechnungen::Einstufungsquelle { nachweis_id, ..q });
+                        }
+                        Err(CoreError::InvalidInput(t))
+                            if t == crate::berechnungen::VOLLGESCHOSSQUELLE_VERALTET =>
+                        {
+                            let alt = gespeichert
+                                .iter()
+                                .find(|a| {
+                                    a.id == geschoss.id && a.einstufungsquelle.as_ref() == Some(&q)
+                                })
+                                .ok_or(CoreError::InvalidInput(t))?;
+                            geschoss.vollgeschoss = alt.vollgeschoss;
+                            geschoss.grundlage = alt.grundlage.clone();
+                        }
+                        Err(e) => return Err(e),
+                    }
                 }
             }
             serde_json::to_value(g).map_err(json_err)?
