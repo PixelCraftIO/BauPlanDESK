@@ -690,6 +690,28 @@ async fn planraeume_und_wandhoehen_bleiben_mit_der_pdf_quelle_verbunden() {
     assert_eq!(gelaende.bedeutung, Planbedeutung::Gelaende);
     assert_eq!(gelaende.geometrie, Aufgabengeometrie::Hoehenpunkt);
     assert!(gelaende.gebunden.is_none() && gelaende.markierung.is_none());
+    // Höhen des Gebäudemodells sind freiwillig und gehören in Schnitt oder
+    // Ansicht; Flächen und Werte eines Abstandsplans sind Pflicht.
+    assert!(!gelaende.pflicht);
+    assert_eq!(
+        gelaende.planarten,
+        [
+            Ausschnittart::Schnitt,
+            Ausschnittart::Ansicht,
+            Ausschnittart::Detail
+        ]
+    );
+    let flaeche = aufgabe("gebaeude", "geometrie.grundflaeche_m2");
+    assert!(flaeche.pflicht);
+    assert_eq!(
+        flaeche.planarten,
+        [Ausschnittart::Lageplan, Ausschnittart::Grundriss]
+    );
+    assert_eq!(
+        aufgabe("gebaeude", &format!("geschosse.{sid}.flaeche_m2")).planarten,
+        [Ausschnittart::Grundriss]
+    );
+    assert!(aufgabe("abstand", &format!("waende.{wid}.abschluss_a_m")).pflicht);
     assert_eq!(
         aufgabe("abstand", &format!("waende.{wid}.abschluss_a_m")).gebunden,
         Some(hoehe)

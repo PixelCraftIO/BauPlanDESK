@@ -494,6 +494,10 @@ impl CoreServices {
                     ohne_massstab.push(plan.bezeichnung.clone());
                 }
                 for a in self.planaufmass_aufgaben(p, &plan).await? {
+                    // Freiwillige Werte halten den Bereich nicht offen.
+                    if !a.pflicht {
+                        continue;
+                    }
                     let k = (a.verbraucher.clone(), a.objekt.clone(), a.ziel.clone());
                     if a.gebunden.is_some() || a.wert_vorhanden {
                         erfuellt.insert(k.clone());

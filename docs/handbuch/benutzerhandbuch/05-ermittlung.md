@@ -113,6 +113,15 @@ Die Gruppen zeigen ihren Fortschritt (z. B. 3/7) und lassen sich zuklappen;
 „Nur offene“ blendet Verknüpftes aus. Erläuterungen erscheinen beim
 Überfahren der Zeile, ein Klick auf den Titel zeigt die Markierung.
 
+Die Liste richtet sich nach dem Plan: In einem geöffneten Ausschnitt zeigt sie
+nur, was sich dort zeichnen lässt (im Lageplan Flurstücke, Abzugsflächen und
+Gebäudegrundflächen, im Grundriss Geschossflächen und Räume, in Schnitt und
+Ansicht Höhen). Die Auswahl „Passend zu …“ ändert das, „Alle Planarten“ zeigt
+alles. Freiwillige Werte wie die Höhen eines Gebäudes tragen die Marke
+*möglich*; sie zählen weder hier noch im Projektbaum als offen. Die Bedeutung
+einer Markierung wählt man unter **Eigenschaften** aus einer gruppierten Liste,
+die nur anbietet, was zur gezeichneten Form passt.
+
 ![Aufgaben, gefiltert auf die Wohnflächenberechnung: Handwerte mit passender Markierung](bilder/editor-aufgaben.png)
 
 1. Beim gewünschten Ziel **Zeichnen** wählen. Werkzeug, Bedeutung und

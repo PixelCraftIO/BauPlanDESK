@@ -415,7 +415,17 @@ gebunden: string | null,
 /**
  * Passende, noch nicht verknüpfte Markierung dieses Aufmaßes.
  */
-markierung: string | null, hinweis: string | null, };
+markierung: string | null, hinweis: string | null,
+/**
+ * Ein Nachweis oder eine Berechnung braucht den Wert. Freiwillige Werte
+ * (Höhen eines Gebäudes ohne Verbraucher) zählen nicht als offen.
+ */
+pflicht: boolean,
+/**
+ * Planarten, in denen sich der Wert zeichnen lässt; die Aufgabenliste
+ * zeigt zuerst, was zum geöffneten Ausschnitt passt.
+ */
+planarten: Array<Ausschnittart>, };
 export type Werkzeugvorlage = { id: string,
 /**
  * Anzeigegruppe, z. B. „Grundstück“ oder „DIN 277“.

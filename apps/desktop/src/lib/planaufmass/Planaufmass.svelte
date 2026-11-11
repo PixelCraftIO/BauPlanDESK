@@ -24,7 +24,7 @@
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { ABZUGSBEDEUTUNGEN, BAUTEILBEDEUTUNGEN } from "./grundstueck";
   import type { Tabstart } from "./tabs";
-  import { BEDEUTUNGEN } from "./bedeutungen";
+  import { BEDEUTUNGEN, bedeutungsgruppen, MIT_GRUNDSTUECK, OHNE_GEBAEUDE } from "./bedeutungen";
   import { verwendungenLaden, type Verwendung } from "./verwendung";
   import Quellenzustand from "./Quellenzustand.svelte";
   import DarstellungFelder from "./DarstellungFelder.svelte";
@@ -288,6 +288,8 @@
   const ohneEbene=$derived(gefilterteMarkierungen.filter(x=>!s.eingabe?.ebenen.some(e=>e.id===x.ebene_id)));
   const ausschnitte=$derived(s.eingabe?.ausschnitte??[]);
   const aktueller=$derived(ausschnitte.find(a=>a.id===aktiv));
+  // Meter je Seitenpunkt für die Anzeige von Koordinaten; 0 ohne Maßstab und bei eigenen Zeichnungen (dort schon Meter).
+  const mpp=$derived(istZeichnung?0:(meterProPunkt(aktueller?.kalibrierung??s.eingabe?.kalibrierung)??0));
   const kontrollStand=$derived(JSON.stringify([s.eingabe?.dokument,s.eingabe?.seite,aktueller?.id,aktueller?.kalibrierung??s.eingabe?.kalibrierung]));
   $effect(()=>{const stand=kontrollStand;untrack(()=>{if(kontrolle&&kontrolle.stand!==stand)kontrolle=null})});
   // Eigenschaften gelten für den geöffneten, sonst für den im Blatt gewählten Ausschnitt.
@@ -1129,7 +1131,7 @@
               <fieldset disabled={objektGesperrt}>
                 <label>Bezeichnung<input bind:value={m.bezeichnung} required/></label>
                 {#if fehlerMap.has(m.id)}<p class="fehlertext" role="alert">{fehlerMap.get(m.id)}</p>{/if}
-                <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung} onchange={()=>{if(m&&m.bedeutung!=="flurstueck"&&!ABZUGSBEDEUTUNGEN.includes(m.bedeutung))delete m.flurstueck_id}}>{#each bedeutungen as [v,t]}<option value={v}>{t}</option>{/each}</select></label>
+                <label>Bedeutung<select aria-label="Bedeutung" bind:value={m.bedeutung} onchange={()=>{if(m&&m.bedeutung!=="flurstueck"&&!ABZUGSBEDEUTUNGEN.includes(m.bedeutung))delete m.flurstueck_id}}><option value="unbestimmt">Noch nicht zugeordnet</option>{#each bedeutungsgruppen(m.geometrie.art,m.bedeutung) as [gruppe,liste]}<optgroup label={gruppe}>{#each liste as [v,t]}<option value={v}>{t}</option>{/each}</optgroup>{/each}</select></label>
                 {#if m.bedeutung==="flurstueck"||ABZUGSBEDEUTUNGEN.includes(m.bedeutung)}
                   <label>Flurstück<select aria-label="Flurstück" value={m.flurstueck_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m!.flurstueck_id=v;else delete m!.flurstueck_id}}><option value="">Nicht zugeordnet</option>{#each flurstuecke as f (f.id)}<option value={f.id}>{f.gemarkung} {f.nummer}{f.flur?` (Flur ${f.flur})`:""}</option>{/each}{#if m.flurstueck_id&&!flurstuecke.some(f=>f.id===m!.flurstueck_id)}<option value={m.flurstueck_id}>Flurstück nicht mehr erfasst</option>{/if}</select></label>
                   {#if !m.flurstueck_id}<p class="hinweisbox">Für die Übernahme (Flurstücksfläche bzw. Flächenabzug des Flurstücks) das Flurstück zuordnen; ohne Zuordnung dient die Fläche nur zur Kontrolle.{flurstuecke.length?"":" Flurstücke zuerst unter Grundlagen → Flurstücke anlegen und speichern."}</p>{/if}
@@ -1140,18 +1142,20 @@
                 {/if}
                 {#if ausschnitte.length}<label>Ausschnitt<select aria-label="Ausschnitt der Markierung" value={m.ausschnitt_id??""} onchange={e=>{const v=e.currentTarget.value;if(v)m.ausschnitt_id=v;else delete m.ausschnitt_id}}><option value="">Ganzes Blatt</option>{#each ausschnitte as a}<option value={a.id}>{a.bezeichnung}</option>{/each}</select></label>{/if}
                 <label>Zeichenebene<select aria-label="Zeichenebene" bind:value={m.ebene_id}>{#each p.ebenen as e}<option value={e.id}>{e.bezeichnung}</option>{/each}</select></label>
-                <label>Baugrundstück<select aria-label="Baugrundstück" bind:value={m.grundstueck_id}><option value={null}>Nicht zugeordnet</option>{#each grund as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>
-                <label>Gebäude<select aria-label="Gebäude" bind:value={m.gebaeude_id} onchange={()=>{if(m)m.geschoss_id=null}}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>
+                {#if m.grundstueck_id||MIT_GRUNDSTUECK.includes(m.bedeutung)}<label>Baugrundstück<select aria-label="Baugrundstück" bind:value={m.grundstueck_id}><option value={null}>Nicht zugeordnet</option>{#each grund as g}<option value={g.id}>{g.bezeichnung}</option>{/each}</select></label>{/if}
+                {#if m.gebaeude_id||!OHNE_GEBAEUDE.includes(m.bedeutung)}<label>Gebäude<select aria-label="Gebäude" bind:value={m.gebaeude_id} onchange={()=>{if(m)m.geschoss_id=null}}><option value={null}>Nicht zugeordnet</option>{#each gebaeude as g}<option value={g.objekt}>{g.daten.bezeichnung}</option>{/each}</select></label>{/if}
                 {#if m.gebaeude_id}<label>Geschoss<select aria-label="Geschoss" bind:value={m.geschoss_id}><option value={null}>Nicht zugeordnet</option>{#each gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse??[] as g,i}<option value={g.id}>{g.bezeichnung||`Geschoss ${i+1} (ohne Bezeichnung)`}</option>{/each}</select></label>{/if}
                 {#if (m.bedeutung==="gebaeudegrundflaeche"||m.bedeutung==="geschoss_aussenkante")&&!m.gebaeude_id}<p class="hinweisbox">Für die Übernahme ein Gebäude zuordnen.{gebaeude.length?"":" Gebäude zuerst unter Gebäudemodell → Gebäude / Geschosse anlegen und speichern."}</p>
                 {:else if m.bedeutung==="geschoss_aussenkante"&&!m.geschoss_id}<p class="hinweisbox">Für die Geschossfläche ein Geschoss zuordnen.{gebaeude.find(g=>g.objekt===m.gebaeude_id)?.daten.geschosse.length?"":" Für dieses Gebäude sind noch keine Geschosse gespeichert; ohne einzelne Geschosse dient die Gebäudegrundfläche als Fläche des Einzelgeschosses."}</p>
                 {:else if m.bedeutung==="gebaeudegrundflaeche"&&m.geschoss_id}<p class="hinweisbox">Die Gebäudegrundfläche gilt für das ganze Gebäude; die Geschosszuordnung wird dafür nicht verwendet. Für eine Geschossfläche die Markierung duplizieren und die Kopie als „Geschoss – Außenkante“ kennzeichnen.</p>{/if}
                 <dl class="messwerte">
-                  <dt>Fläche</dt><dd>{z(wert?.flaeche_m2)} m²</dd>
-                  <dt>Länge / Umfang</dt><dd>{z(wert?.laenge_m)} m</dd>
-                  <dt>{m.geometrie.art==="hoehenpunkt"?"Absolute Höhe":"Höhendifferenz"}</dt><dd>{z(wert?.hoehe_m)} m</dd>
-                  <dt>Horizontale</dt><dd>{z(wert?.horizontale_m)} m</dd>
-                  <dt>Neigung zur Horizontalen</dt><dd>{z(wert?.neigung_grad)}°</dd>
+                  {#if m.geometrie.art==="hoehenpunkt"}<dt>Absolute Höhe</dt><dd>{z(wert?.hoehe_m)} m</dd>
+                  {:else if m.geometrie.art==="strecke"}<dt>Länge</dt><dd>{z(wert?.laenge_m)} m</dd>
+                    <dt>Höhendifferenz</dt><dd>{z(wert?.hoehe_m)} m</dd>
+                    <dt>Horizontale</dt><dd>{z(wert?.horizontale_m)} m</dd>
+                    <dt>Neigung zur Horizontalen</dt><dd>{z(wert?.neigung_grad)}°</dd>
+                  {:else}<dt>Fläche</dt><dd>{z(wert?.flaeche_m2)} m²</dd>
+                    <dt>Umfang</dt><dd>{z(wert?.laenge_m)} m</dd>{/if}
                 </dl>
                 {#if messLaeuft}<p class="meta" role="status">Messwerte werden aktualisiert …</p>{/if}
                 {#each wert?.offen??[] as hinweis}<p class="hinweisbox">{hinweis}</p>{/each}
@@ -1170,7 +1174,7 @@
                 </div>
                 <details><summary>Kontur drehen, Stützpunkte und Kanten</summary>
                   <label>Kontur drehen (°)<input type="number" step="any" bind:value={drehenGrad}/></label><button type="button" class="sekundaer" onclick={()=>geometrieSetzen(drehen($state.snapshot(m!.geometrie),drehenGrad))}>Drehung anwenden</button>
-                  <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {z(p[0])}; {z(p[1])} pt</option>{/each}</select></label>
+                  <label>Stützpunkt<select aria-label="Stützpunkt" bind:value={punktIndex}>{#each eckpunkte(m.geometrie) as p,i}<option value={i}>Punkt {i+1} · {mpp?`${z(p[0]*mpp)}; ${z(p[1]*mpp)} m`:`${z(p[0])}; ${z(p[1])} ${einheitText}`}</option>{/each}</select></label>
                   {#if m}{@const punkt=eckpunkte(m.geometrie)[punktIndex]??eckpunkte(m.geometrie)[0]}
                   {#if punkt}<label>X ({einheitText})<input type="number" step="any" value={punkt[0]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[Number(e.currentTarget.value),punkt[1]]))}/></label><label>Y ({einheitText})<input type="number" step="any" value={punkt[1]} onchange={e=>geometrieSetzen(punktAendern($state.snapshot(m!.geometrie),punktIndex,[punkt[0],Number(e.currentTarget.value)]))}/></label>{/if}
                   {/if}
@@ -1183,7 +1187,7 @@
           </section>{/if}
           {#if panel==="aufgaben"}<section class="palette" aria-label="Aufgaben">
             <div class="palettenkopf"><h3>Aufgaben</h3></div>
-            {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
+            {#if s.id}<Planaufgaben projektId={projekt.id} {projekt} {onprojekt} plan={p} aufmassId={s.id} gespeichert={s.original!==null&&!s.hatAenderungen()} {darf} planart={p.ausschnitte?.find(a=>a.id===aktiv)?.art??null} onzeichnen={aufgabeZeichnen} onwaehlen={id=>{waehlen(id);panelOeffnen("eigenschaften")}}/>{:else}<p class="meta">Aufgaben erscheinen, sobald das Aufmaß gespeichert ist.</p>{/if}
           </section>{/if}
           {#if panel==="objekte"}<section class="palette" aria-label="Objekte">
             <div class="palettenkopf"><h3>Objekte</h3> <span class="meta">· {ausschnitte.length} Ausschnitte · {p.ebenen.length} Ebenen · {p.markierungen.length} Markierungen{p.elemente?.length?` · ${p.elemente.length} Elemente`:""}</span></div>
