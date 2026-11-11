@@ -207,6 +207,8 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
             freigegeben: false,
             verantwortlich: Some(u.id.0),
             nachweise: vec![],
+            kategorien: vec![],
+            nachweisunterlage: None,
         }],
         dokumentbeziehungen: vec![],
         abgaben: vec![],

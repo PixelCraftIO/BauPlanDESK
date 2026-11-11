@@ -120,7 +120,12 @@ ohne_index: boolean, behoerde: Array<Behoerdenstand>,
  * Erfasste Versendungen und Abgaben an die Behörde, neueste zuerst.
  */
 versand: Array<Planversand>, };
-export type Planliste = { schema: Plannummernschema, kennzeichen: string, zeilen: Array<Planzeile>, };
+export type PlanOhneEintrag = { dokument_id: DocumentId, dateiname: string, behoerde: Array<Behoerdenstand>, };
+export type Planliste = { schema: Plannummernschema, kennzeichen: string, zeilen: Array<Planzeile>,
+/**
+ * Bei der Behörde eingereichte Pläne, die die Planliste noch nicht führt.
+ */
+ohne_eintrag: Array<PlanOhneEintrag>, };
 export type Blattformat = "a4" | "a3" | "a2" | "a1" | "a0";
 export type Layoutwunsch = {
 /**
@@ -1281,12 +1286,27 @@ folgeschreiben?: string,
 gruende?: Array<Beanstandung>, };
 export type Pruefverfahren = "regulaer" | "vereinfacht";
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
+export type Nachweisunterlage = { dokument: Dokumentbezug,
+/**
+ * Nachweisstände, die die Unterlage wiedergibt.
+ */
+staende: Array<string>, };
 export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null,
 /**
  * Bereiche der Projektakte, deren Nachweis die Anforderung belegt
  * (aus dem Katalog); leer bei Unterlagen ohne eigenen Nachweisbereich.
  */
-nachweise?: Array<string>, };
+nachweise?: Array<string>,
+/**
+ * Dokumentkategorien, deren Dateien die Anforderung üblicherweise
+ * belegen (aus dem Katalog); Grundlage für Dateivorschläge.
+ */
+kategorien?: Array<string>,
+/**
+ * Aus den Nachweisständen der Projektakte erzeugte Unterlage dieser
+ * Anforderung; fehlt, solange kein Nachweis übernommen wurde.
+ */
+nachweisunterlage?: Nachweisunterlage, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
 export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben" | "abweichung" | "gebuehr";
 export type Berichtigungsgegenstand = { "art": "zustellung", bescheid: string, } | { "art": "vollstaendigkeit" } | { "art": "ruecknahme" } | { "art": "baubeginn" } | { "art": "fertigstellung" };
@@ -1751,11 +1771,30 @@ export type Abgabedokument = { kategorie?: KategorieStand,
  */
 planindex?: string, dokument: Dokumentbezug, name: string, sha256: string, bytes: number, };
 export type Artefakt = { format: string, dateiname: string, storage_key: string, sha256: string, bytes: number, };
+export type Abgabelage = { text: string,
+/**
+ * Tag des maßgebenden Ereignisses (Versand, Eingang, externe
+ * Einreichung); fehlt, solange nichts versendet ist.
+ */
+datum: string | null,
+/**
+ * Liegt der Stand der Behörde vor?
+ */
+eingereicht: boolean,
+/**
+ * Externe Einreichung, die diesen nachträglich festgehaltenen Stand belegt.
+ */
+extern_belegt?: string, };
 export type Abgabestand = { id: string, auftrag_hash: string, titel: string, erstellt_am: string, erstellt_von: string, grundlagen: JsonValue, dokumente: Array<Abgabedokument>, anforderungen: Array<Anforderung>, hinweise: Array<string>, artefakte: Array<Artefakt>, versand: Array<Versandereignis>,
 /**
  * Vom Core aus Originalereignissen und Berichtigungen abgeleitet.
  */
-versandstatus: Versandstatus | null, };
+versandstatus: Versandstatus | null,
+/**
+ * Die eine Aussage zum Stand dieser Einreichung (siehe [`lage`]); vom
+ * Core beim Speichern der Akte abgeleitet. Fehlt in älteren Ständen.
+ */
+lage?: Abgabelage, };
 export type Folgewunsch = { "art": "stellungnahme", schritt: string, } | { "art": "abweichungsantrag" } | { "art": "verlaengerung", bis: string | null, } | { "art": "baubeginn", datum: string, pruefung_standsicherheit: boolean, } | { "art": "nutzungsaufnahme", datum: string, standsicherheit_bescheinigt: boolean, brandschutz_bescheinigt: boolean, wiederkehrende_pruefungen: boolean, } | { "art": "ruecknahme" };
 export type Abgabewunsch = { xbau_bezug?: string,
 /**

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { projektNavigation } from "../projektNavigation.svelte";
   import type { Anforderung } from "../generated/plattform";
-  import type { DocumentVersion, Benutzer } from "../api";
+  import { api, type DocumentVersion, type Benutzer } from "../api";
   import Dokumentliste from "./Dokumentliste.svelte";
   import Zustaendigkeit from "./Zustaendigkeit.svelte";
   let {
@@ -10,8 +10,13 @@
     benutzer,
     darfFreigeben,
     verfahrenId,
+    projektId,
+    onnachweis,
   }: {
     verfahrenId?: string | null;
+    projektId?: string;
+    /** Nachweisstände der Anforderung als Unterlage ablegen und zuordnen. */
+    onnachweis?: (anforderung: string) => void;
     eintraege: Anforderung[];
     dateien: DocumentVersion[];
     benutzer: Benutzer[];
@@ -102,6 +107,45 @@
       register: null,
       eintrag: null,
     });
+  // Dateivorschläge: Projektdateien, deren Kategorie zur Anforderung passt.
+  let kategorieVon = $state<Record<string, string[]>>({});
+  $effect(() => {
+    void dateien.length;
+    if (!projektId) return;
+    Promise.all([api.dokumentkategorien(projektId), api.kategorienkatalog()])
+      .then(([zuordnungen, katalog]) => {
+        const eltern = new Map(
+          katalog.kategorien.map((k) => [k.id, k.eltern_id]),
+        );
+        kategorieVon = Object.fromEntries(
+          zuordnungen
+            .filter((z) => z.kategorie)
+            .map((z) => [
+              z.dokument_id,
+              [z.kategorie!, eltern.get(z.kategorie!) ?? ""].filter(Boolean),
+            ]),
+        );
+      })
+      .catch(() => (kategorieVon = {}));
+  });
+  function vorschlaege(a: Anforderung) {
+    if (!a.kategorien?.length) return [];
+    const neueste = new Map<string, DocumentVersion>();
+    for (const d of dateien) {
+      const alt = neueste.get(d.document_id);
+      if (!alt || alt.version < d.version) neueste.set(d.document_id, d);
+    }
+    return [...neueste.values()].filter(
+      (d) =>
+        kategorieVon[d.document_id]?.some((k) => a.kategorien!.includes(k)) &&
+        !a.dokumente.some((x) => x.dokument_id === d.document_id),
+    );
+  }
+  function zuordnen(a: Anforderung, d: DocumentVersion) {
+    a.dokumente.push({ dokument_id: d.document_id, version: d.version });
+    a.freigegeben = false;
+    if (a.erforderlich === "ungeklaert") a.erforderlich = "erforderlich";
+  }
   const auftrag = $derived(navigation?.unterlagenauftrag);
   function erstellen(id: string, titel: string, bereich = "formulare") {
     if (!verfahrenId) return;
@@ -168,6 +212,13 @@
                   onclick={() => nachweisOeffnen(n)}
                   >{NACHWEIS[n] ?? n} öffnen …</button
                 >{/each}
+              {#if a.nachweise?.length && onnachweis}<button
+                  type="button"
+                  onclick={() => onnachweis(a.id)}
+                  >{a.nachweisunterlage
+                    ? "Unterlage aus dem Nachweis aktualisieren"
+                    : "Nachweis als Unterlage übernehmen"}</button
+                >{/if}
               {#if !a.nachweise?.length}<button
                   type="button"
                   class="sekundaer"
@@ -210,6 +261,20 @@
                 }}>Vorschlag verwerfen</button
               >
             </aside>{/if}
+          {#if a.nachweise?.length}<p class="meta">
+              Der Nachweis der Projektakte zählt als Unterlage: „Nachweis als
+              Unterlage übernehmen“ legt den aktuellen Stand als PDF in den
+              Projektdateien ab und ordnet ihn hier zu. Nach einer
+              Neuberechnung genügt derselbe Schritt; es entsteht die nächste
+              Version derselben Datei.
+            </p>{/if}
+          {#each vorschlaege(a) as d (d.document_id)}<p class="anf-vorschlag">
+              Passende Projektdatei: <strong>{d.file_name}</strong> · Version
+              {d.version}
+              <button type="button" class="sekundaer" onclick={() => zuordnen(a, d)}
+                >Zuordnen</button
+              >
+            </p>{/each}
           <div class="raster">
             <label
               >Anforderung<span class="pflicht" aria-hidden="true"> *</span
@@ -252,6 +317,13 @@
 </div>
 
 <style>
+  .anf-vorschlag {
+    margin: 0.25rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
   .anf-kopf {
     display: flex;
     flex-wrap: wrap;

@@ -361,7 +361,7 @@
                 </p>{/if}
               <p class="meta">
                 {v.offene_punkte} Nachforderungspunkte · {v.offene_auflagen} Auflagen
-                offen · {v.versendet} von {v.abgaben} Abgabeständen versendet / eingegangen
+                offen · {v.versendet} von {v.abgaben} Abgabeständen eingereicht
                 · {v.bescheide} aktuelle Bescheide
               </p>
             </div>

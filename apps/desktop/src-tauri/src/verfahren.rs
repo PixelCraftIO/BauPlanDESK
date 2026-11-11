@@ -79,6 +79,20 @@ pub async fn verfahren_vorbereiten(
         .verfahren_vorbereiten(projekt_id, art, wohngebaeude, &state.benutzer())
         .await?)
 }
+/// Nachweisstände der Anforderung als Unterlage ablegen und zuordnen.
+#[tauri::command]
+pub async fn verfahren_nachweis_als_unterlage(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    id: Uuid,
+    basis: i64,
+    anforderung: Uuid,
+) -> Result<Fachstand, CmdError> {
+    Ok(state
+        .core
+        .verfahren_nachweis_als_unterlage(projekt_id, id, basis, anforderung, &state.benutzer())
+        .await?)
+}
 #[tauri::command]
 pub async fn verfahren_abgabe(
     state: State<'_, AppState>,

@@ -95,6 +95,15 @@
   // Bereichsstatus (Problem, veraltet, in Arbeit, zu erledigen, geprüft) für Projektbaum und Statuszeile; neu nach
   // jeder gespeicherten Änderung der Akte. Ohne Antwort bleibt der Baum ohne Symbole.
   let staende = $state<Record<string, Bereichsstatus>>({});
+  // „Einreichungen“ zeigt nur frühere Einreichungspakete; ohne solche
+  // bietet der Baum den Eintrag nicht an.
+  let altpakete = $state(false);
+  $effect(() => {
+    api
+      .einreichungen(projekt.id)
+      .then((l) => (altpakete = l.length > 0))
+      .catch(() => (altpakete = true));
+  });
   let statusNr = 0;
   let statusTimer: ReturnType<typeof setTimeout> | undefined;
   async function statusLaden() {
@@ -411,6 +420,7 @@
       {ansicht}
       onbereich={bereich}
       {staende}
+      versteckt={altpakete ? [] : ["einreichungen"]}
       onbenoetigt={darf("bearbeitung") ? benoetigtSetzen : undefined}
     /><Navgriff />{/if}
   <main>

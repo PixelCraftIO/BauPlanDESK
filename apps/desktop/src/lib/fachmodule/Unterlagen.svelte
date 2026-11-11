@@ -41,6 +41,23 @@
     }
   }
   ansichtsAbfrage(() => projekt.id, ["dokumente"], dateienLaden);
+  // Mit Anforderungen in einer Verfahrensakte ist das Register nachrangig.
+  let mitAkte = $state(false);
+  ansichtsAbfrage(
+    () => projekt.id,
+    ["fachobjekte"],
+    async () => {
+      try {
+        const akten = await plattformApi.liste<{ anforderungen?: unknown[] }>(
+          projekt.id,
+          "verfahren",
+        );
+        mitAkte = akten.some((a) => a.daten.anforderungen?.length);
+      } catch {
+        mitAkte = false;
+      }
+    },
+  );
   let vorlage = $state<Checkliste | null>(null);
   async function standard() {
     try {
@@ -77,6 +94,21 @@
   }
 </script>
 
+{#if mitAkte}<aside class="hinweisbox">
+    <strong>Die Verfahrensakte führt die Anforderungen dieses Projekts.</strong>
+    <p>
+      Welche Unterlagen und Nachweise der Antrag braucht, steht unter
+      Verfahrensakte → Anforderungen und fließt von dort in Projektübersicht und
+      Einreichungsprüfung. Das Unterlagenregister ist nur noch für zusätzliche
+      Büropunkte gedacht; gleichnamige Einträge zählen nicht doppelt.
+    </p>
+    <button
+      type="button"
+      class="sekundaer"
+      onclick={() => navigation?.springen(ziel("verfahren"))}
+      >Verfahrensakte öffnen →</button
+    >
+  </aside>{/if}
 <div class="zeile">
   <button
     class="sekundaer"

@@ -404,6 +404,7 @@ mod tests {
                 .into_iter()
                 .collect(),
             versandstatus: None,
+            lage: None,
         }
     }
     fn bescheid(docs: &[(DocumentId, i64)]) -> Bescheid {

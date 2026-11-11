@@ -171,7 +171,12 @@
       onbusy(false);
     }
   }
-  const status = (b: Abgabestand) => b.versandstatus ?? "Vorbereitet";
+  // Eine Aussage zum Stand der Einreichung, vom Core abgeleitet (auch für
+  // Projektübersicht und Planliste maßgebend).
+  const status = (b: Abgabestand) =>
+    b.lage
+      ? `${b.lage.text}${b.lage.datum ? ` am ${new Date(b.lage.datum + "T12:00:00").toLocaleDateString("de-DE")}` : ""}`
+      : (b.versandstatus ?? "Zusammengestellt · Versand unbestätigt");
   // Planindex und Einreichungsstatus leitet der Core aus der gespeicherten Akte ab.
   let planunterlagen = $state<Planunterlage[]>([]);
   $effect(() => {
@@ -313,10 +318,11 @@
   </section>{/if}
 {#each eintraege as b (b.id)}<details data-uebersicht-eintrag={b.id} open>
     <summary
-      >{b.titel} · {status(b)} · {new Date(b.erstellt_am).toLocaleString(
-        "de-DE",
-      )}</summary
+      >{b.titel} · {status(b)}</summary
     >
+    <p class="meta">
+      Festgehalten am {new Date(b.erstellt_am).toLocaleString("de-DE")}
+    </p>
     <ul>
       {#each b.dokumente as d}<li>
           {d.name} · Version {d.dokument.version}{#if d.planindex}

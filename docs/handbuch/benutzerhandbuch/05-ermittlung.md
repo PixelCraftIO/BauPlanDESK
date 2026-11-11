@@ -440,6 +440,11 @@ den Plankopf auf einen PDF-Plan aus dem Büro-CAD. Im Abschnitt
 „Planvergleich“ zeigt ein Differenzbild Neues grün und Entfallenes rot;
 „Revisionswolken als PDF …“ gibt die Fassung mit Wolken und Indexdreieck aus.
 
+Pläne, die bereits bei der Behörde eingereicht sind, aber noch keinen Eintrag
+in der Planliste haben, nennt die Planliste in einem Hinweis mit ihrem
+Behördenindex. „Aufnehmen“ legt den Eintrag an, damit Büroindex und
+Behördenindex an einer Stelle stehen.
+
 ## Unterlagenregister
 
 ![Unterlagenregister](bilder/ermittlung-unterlagenregister.png)
@@ -449,6 +454,12 @@ Das Unterlagenregister führt die Bauvorlagen des Projekts als Liste mit Stand
 mit einer konkreten Dokumentversion und ihrer Prüfung. „Bürocheckliste
 vorbereiten“ lädt die mitgelieferte Standard-Checkliste als Vorlage für neue
 Einträge; „Eigene Checkliste laden“ liest eine Büro-Checkliste als JSON-Datei.
+
+Führt das Projekt eine Verfahrensakte mit Anforderungen, ist sie die
+maßgebende Unterlagenliste: Projektübersicht und Einreichungsprüfung folgen
+den Anforderungen der Akte. Das Unterlagenregister dient dann nur noch
+zusätzlichen Büropunkten; Einträge, die genauso heißen wie eine Anforderung,
+werden nicht doppelt gemeldet.
 
 ## Gebäude und Geschosse
 

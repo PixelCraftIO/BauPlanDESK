@@ -440,9 +440,20 @@ impl CoreServices {
                 .get(&d.dokument_id.0)
                 .is_some_and(|v| v.version == d.version)
         };
+        // Eine Unterlagenliste: Was die Verfahrensakte als Anforderung führt,
+        // meldet das Unterlagenregister nicht ein zweites Mal.
+        let mut in_akte = std::collections::HashSet::new();
+        for f in &akten {
+            let a: Verfahrensakte = decode(f.daten.clone())?;
+            in_akte.extend(
+                a.anforderungen
+                    .iter()
+                    .map(|r| r.titel.trim().to_lowercase()),
+            );
+        }
         for f in self.fachobjekte(p, ObjektArt::Unterlagen).await? {
             let u: Unterlage = decode(f.daten)?;
-            if !u.erforderlich {
+            if !u.erforderlich || in_akte.contains(&u.bezeichnung.trim().to_lowercase()) {
                 continue;
             }
             let uid = id(&f.objekt)?;
@@ -624,6 +635,7 @@ impl CoreServices {
         // Historische Nachweise bleiben im Archiv. Für Handlungsbedarf zählt nur der neueste Stand je Produzent/Bezugsumfang.
         let mut neueste = BTreeMap::new();
         let nachweise = self.nachweise(p).await?;
+        let kategorien = self.kategoriesnapshots(p).await?;
         for n in nachweise.iter().cloned() {
             let key = nachweisschluessel(&n.stand)?;
             let replace = neueste.get(&key).is_none_or(
@@ -770,21 +782,64 @@ impl CoreServices {
                     );
                 }
                 for r in &a.anforderungen {
-                    let grund = match r.erforderlich {
+                    // Nachweisstände zählen als Unterlage: Liegen sie vor, genügt
+                    // ein Schritt in der Anforderung.
+                    let staende = (!r.nachweise.is_empty()).then(|| {
+                        crate::verfahren::nachweisunterlage::massgebende_staende(
+                            &nachweise,
+                            &r.nachweise,
+                        )
+                    });
+                    let passend = aktuell
+                        .keys()
+                        .filter(|d| {
+                            kategorien
+                                .get(&d.to_string())
+                                .cloned()
+                                .flatten()
+                                .is_some_and(|k| {
+                                    r.kategorien.contains(&k.id)
+                                        || k.hauptkategorie
+                                            .is_some_and(|h| r.kategorien.contains(&h))
+                                })
+                        })
+                        .count();
+                    const FEHLT: &str = "Erforderliche Unterlage / Nachweis noch nicht zugeordnet";
+                    let grund: Option<(_, String)> = match r.erforderlich {
                         Erforderlichkeit::Ungeklaert => {
-                            Some((Handeln, "Erforderlichkeit ist noch ungeklärt"))
+                            Some((Handeln, "Erforderlichkeit ist noch ungeklärt".into()))
                         }
                         Erforderlichkeit::Erforderlich if r.dokumente.is_empty() => Some((
                             Handeln,
-                            "Erforderliche Unterlage / Nachweis noch nicht zugeordnet",
+                            match &staende {
+                                Some(Ok(_)) => format!(
+                                    "{FEHLT}. Der Nachweis liegt vor: in der Anforderung „Nachweis als Unterlage übernehmen“ wählen."
+                                ),
+                                Some(Err(e)) => format!("{FEHLT}. {e}"),
+                                None if passend > 0 => format!(
+                                    "{FEHLT}. {passend} Projektdatei{} passender Kategorie vorhanden: in der Anforderung zuordnen.",
+                                    if passend == 1 { "" } else { "en" }
+                                ),
+                                None => FEHLT.into(),
+                            },
                         )),
+                        Erforderlichkeit::Erforderlich
+                            if r.nachweisunterlage.as_ref().is_some_and(|u| {
+                                matches!(&staende, Some(Ok(s)) if *s != u.staende)
+                            }) =>
+                        {
+                            Some((
+                                Handeln,
+                                "Der Nachweis wurde neu erstellt: in der Anforderung die Unterlage aktualisieren".into(),
+                            ))
+                        }
                         Erforderlichkeit::Erforderlich if !r.freigegeben => {
-                            Some((Pruefen, "Fachliche Bewertung noch nicht freigegeben"))
+                            Some((Pruefen, "Fachliche Bewertung noch nicht freigegeben".into()))
                         }
                         Erforderlichkeit::Erforderlich if !r.dokumente.iter().all(&doc_aktuell) => {
                             Some((
                                 Pruefen,
-                                "Zugeordnete Unterlagen wurden geändert oder fehlen",
+                                "Zugeordnete Unterlagen wurden geändert oder fehlen".into(),
                             ))
                         }
                         _ => None,
@@ -948,16 +1003,12 @@ impl CoreServices {
                 .iter()
                 .filter(|b| !a.bescheide.iter().any(|n| n.ersetzt == Some(b.id)))
                 .max_by_key(|b| (b.datum, b.id));
-            let versendet = a
+            let lagen: Vec<_> = a
                 .abgaben
                 .iter()
-                .filter(|b| {
-                    matches!(
-                        versandstand(b),
-                        Some(Versandstatus::Versendet | Versandstatus::Eingegangen)
-                    )
-                })
-                .count();
+                .map(|b| crate::verfahren::abgabe::lage(&a, b, heute))
+                .collect();
+            let versendet = lagen.iter().filter(|l| l.eingereicht).count();
             s.zahlen.offene_nachforderungen += offen;
             s.zahlen.offene_auflagen += auflagen;
             s.verfahren.push(VerfahrensUeberblick {
@@ -974,7 +1025,12 @@ impl CoreServices {
                 entscheidung: letzter_bescheid.map(|b| b.entscheidung.clone()),
                 entscheidungsdatum: letzter_bescheid.map(|b| b.datum),
             });
+            // Eine externe Einreichung, die einen Abgabestand belegt, ist
+            // dieselbe Einreichung und erscheint nur dort.
             for e in crate::verfahren::externe_einreichung::gueltige_externe(&a, heute) {
+                if lagen.iter().any(|l| l.extern_belegt == Some(e.id)) {
+                    continue;
+                }
                 s.abgaben.push(AbgabeUeberblick {
                     id: e.id,
                     titel: format!("Externe Einreichung · {}", e.weg.bezeichnung()),
@@ -986,35 +1042,18 @@ impl CoreServices {
                     ziel: ziel("abgaben").eintrag(e.id),
                 });
             }
-            for b in &a.abgaben {
+            for (b, lage) in a.abgaben.iter().zip(&lagen) {
                 let stand = versandstand(b);
                 let datum = crate::verfahren::abgabe::letztes_versandereignis(b).map(|e| e.datum);
-                // Nach der tatsächlichen Einreichung festgehalten: belegt durch
-                // die externe Einreichung derselben Dokumentversionen.
-                let extern_belegt = if stand.is_none() {
-                    crate::verfahren::externe_einreichung::extern_belegt(
-                        &a,
-                        &b.dokumente.iter().map(|d| &d.dokument).collect::<Vec<_>>(),
-                        heute,
-                    )
-                } else {
-                    None
-                };
-                let label = match stand {
-                    None if extern_belegt.is_some() => "Extern eingereicht (belegt)",
-                    None => "Zusammengestellt · Versand unbestätigt",
-                    Some(Versandstatus::Versendet) => "Versendet",
-                    Some(Versandstatus::Eingegangen) => "Eingang bestätigt",
-                    Some(Versandstatus::Zurueckgewiesen) => "Zurückgewiesen",
-                    Some(Versandstatus::Ungeklaert) => "Übergabe / Dateiabgleich ungeklärt",
-                };
+                let extern_belegt = lage.extern_belegt;
+                let label = lage.text.as_str();
                 s.abgaben.push(AbgabeUeberblick {
                     id: b.id,
                     titel: b.titel.clone(),
                     empfaenger: a.behoerde.name.clone(),
                     quelle: a.bezeichnung.clone(),
                     status: label.into(),
-                    datum: datum.or(extern_belegt.map(|e| e.datum)),
+                    datum: lage.datum,
                     dokumente: b.dokumente.len(),
                     ziel: ziel("abgaben").eintrag(b.id),
                 });

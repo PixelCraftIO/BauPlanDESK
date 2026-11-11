@@ -246,6 +246,8 @@ impl Anforderungskatalog {
                     freigegeben: false,
                     verantwortlich: None,
                     nachweise: r.nachweise.clone(),
+                    kategorien: r.kategorien.clone(),
+                    nachweisunterlage: None,
                 })
             })
             .collect()
@@ -300,6 +302,8 @@ impl CoreServices {
             freigegeben: false,
             verantwortlich: None,
             nachweise: vec![],
+            kategorien: vec![],
+            nachweisunterlage: None,
         })
         .collect();
         let projekt = self.repos.projects.get(p).await?;
@@ -316,6 +320,8 @@ impl CoreServices {
                     freigegeben: false,
                     verantwortlich: None,
                     nachweise: vec![],
+                    kategorien: vec![],
+                    nachweisunterlage: None,
                 }),
         );
         let aktuell: Vec<Uuid> = abgeleitet.iter().map(|r| r.id).collect();
@@ -493,6 +499,7 @@ impl CoreServices {
                     }
                 }
                 alt.nachweise = r.nachweise;
+                alt.kategorien = r.kategorien;
                 if alt.dokumente.is_empty() {
                     alt.dokumente = r.dokumente;
                 }

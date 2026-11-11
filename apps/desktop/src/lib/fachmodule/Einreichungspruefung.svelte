@@ -64,7 +64,7 @@
     Punkt öffnet die Stelle in der Akte.
   </p>
   <div class="kopf">
-    <label
+    <label hidden={verfahren.length < 2}
       >Verfahren<select bind:value={auswahl} onchange={laden}
         ><option value={null}>Alle Verfahren des Projekts</option
         >{#each verfahren as v (v.id)}<option value={v.id}>{v.bezeichnung}</option

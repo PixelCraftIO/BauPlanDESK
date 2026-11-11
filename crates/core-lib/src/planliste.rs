@@ -240,7 +240,21 @@ pub struct Planliste {
     pub schema: Plannummernschema,
     pub kennzeichen: String,
     pub zeilen: Vec<Planzeile>,
+    /// Bei der Behörde eingereichte Pläne, die die Planliste noch nicht führt.
+    #[serde(default)]
+    pub ohne_eintrag: Vec<PlanOhneEintrag>,
 }
+
+/// Eingereichter Plan ohne Eintrag in der Planliste (abgeleitet).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct PlanOhneEintrag {
+    pub dokument_id: DocumentId,
+    pub dateiname: String,
+    pub behoerde: Vec<Behoerdenstand>,
+}
+
+/// Dokumentkategorien, deren Unterlagen Pläne sind.
+const PLANKATEGORIEN: &[&str] = &["lageplan", "grundriss", "schnitt", "ansicht"];
 
 /// Nächste freie laufende Nummer je Planart (für Vorschläge).
 pub fn naechste_nummer(eintraege: &[Planeintrag], planart: Planart) -> u32 {
@@ -537,7 +551,52 @@ impl CoreServices {
             zeilen.push(zeile(e, rev, name, aktuell, behoerde, abgaben));
         }
         zeilen.sort_by(|a, b| a.eintrag.plannummer.cmp(&b.eintrag.plannummer));
+        // Eine Planliste: Was als Plan bei der Behörde liegt, gehört hinein.
+        let kategorien = self.kategoriesnapshots(p).await?;
+        let mut ohne_eintrag: Vec<PlanOhneEintrag> = Vec::new();
+        for (vid, name, us) in &abgeleitet {
+            for u in us {
+                if u.status == Einreichungsstatus::Entwurf
+                    || zeilen
+                        .iter()
+                        .any(|z| z.eintrag.dokument_id == u.dokument_id)
+                {
+                    continue;
+                }
+                let plan = kategorien
+                    .get(&u.dokument_id.0.to_string())
+                    .cloned()
+                    .flatten()
+                    .is_some_and(|k| {
+                        PLANKATEGORIEN.contains(&k.id.as_str())
+                            || k.hauptkategorie
+                                .is_some_and(|h| PLANKATEGORIEN.contains(&h.as_str()))
+                    });
+                if !plan {
+                    continue;
+                }
+                let stand = Behoerdenstand {
+                    verfahren: *vid,
+                    bezeichnung: name.clone(),
+                    planindex: u.planindex.clone(),
+                    status: u.status,
+                };
+                match ohne_eintrag
+                    .iter_mut()
+                    .find(|o| o.dokument_id == u.dokument_id)
+                {
+                    Some(o) => o.behoerde.push(stand),
+                    None => ohne_eintrag.push(PlanOhneEintrag {
+                        dokument_id: u.dokument_id,
+                        dateiname: u.name.clone(),
+                        behoerde: vec![stand],
+                    }),
+                }
+            }
+        }
+        ohne_eintrag.sort_by(|a, b| a.dateiname.cmp(&b.dateiname));
         Ok(Planliste {
+            ohne_eintrag,
             schema: self.plannummernschema().await?,
             kennzeichen: self.projektkennzeichen(&projekt).await?,
             zeilen,

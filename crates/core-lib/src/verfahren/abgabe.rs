@@ -119,6 +119,55 @@ pub struct Abgabestand {
     pub versand: Vec<Versandereignis>,
     /// Vom Core aus Originalereignissen und Berichtigungen abgeleitet.
     pub versandstatus: Option<Versandstatus>,
+    /// Die eine Aussage zum Stand dieser Einreichung (siehe [`lage`]); vom
+    /// Core beim Speichern der Akte abgeleitet. Fehlt in älteren Ständen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub lage: Option<Abgabelage>,
+}
+/// Was mit einem Abgabestand geschehen ist: eine Aussage für Akte,
+/// Projektübersicht und Planliste.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+pub struct Abgabelage {
+    pub text: String,
+    /// Tag des maßgebenden Ereignisses (Versand, Eingang, externe
+    /// Einreichung); fehlt, solange nichts versendet ist.
+    pub datum: Option<NaiveDate>,
+    /// Liegt der Stand der Behörde vor?
+    pub eingereicht: bool,
+    /// Externe Einreichung, die diesen nachträglich festgehaltenen Stand belegt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub extern_belegt: Option<Uuid>,
+}
+/// Leitet die Lage eines Abgabestands aus seinen Versandereignissen und den
+/// externen Einreichungen der Akte ab.
+pub fn lage(a: &Verfahrensakte, b: &Abgabestand, heute: NaiveDate) -> Abgabelage {
+    let ereignis = letztes_versandereignis(b);
+    let stand = ereignis.map(|e| e.status.clone());
+    let belegt = if stand.is_none() {
+        externe_einreichung::extern_belegt(
+            a,
+            &b.dokumente.iter().map(|d| &d.dokument).collect::<Vec<_>>(),
+            heute,
+        )
+    } else {
+        None
+    };
+    let text = match &stand {
+        None if belegt.is_some() => "Extern eingereicht (belegt)",
+        None => "Zusammengestellt · Versand unbestätigt",
+        Some(Versandstatus::Versendet) => "Versendet",
+        Some(Versandstatus::Eingegangen) => "Eingang bestätigt",
+        Some(Versandstatus::Zurueckgewiesen) => "Zurückgewiesen",
+        Some(Versandstatus::Ungeklaert) => "Übergabe / Dateiabgleich ungeklärt",
+    };
+    Abgabelage {
+        text: text.into(),
+        datum: ereignis.map(|e| e.datum).or(belegt.map(|e| e.datum)),
+        eingereicht: belegt.is_some() || externe_einreichung::abgabe_eingereicht(b, heute),
+        extern_belegt: belegt.map(|e| e.id),
+    }
 }
 /// Folgenachricht im laufenden Verfahren statt der Antragsnachricht.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
@@ -754,6 +803,7 @@ impl CoreServices {
             artefakte: vec![],
             versand: vec![],
             versandstatus: None,
+            lage: None,
         };
         stand.hinweise.extend(super::landesrecht::abgabe_hinweise(
             projekt.bundesland,

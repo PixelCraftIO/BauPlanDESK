@@ -92,7 +92,7 @@ with sync_playwright() as p:
  page.screenshot(path=str(out/'genehmigter-stand.png'))
  tab('Behördliche Schritte');expect(page.get_by_role('heading',name='Anhörung, Zurückstellung und Beteiligungen')).to_be_visible()
  expect(page.get_by_role('button',name='Verfahrensschritt erfassen',exact=True)).to_be_disabled()
- tab('Abgabestände');expect(page.locator('summary').filter(has_text=wf['akte']['abgaben'][0]['titel']+' · eingegangen')).to_be_visible();expect(page.get_by_role('button',name='PDF exportieren',exact=True)).to_be_visible()
+ tab('Abgabestände');expect(page.locator('summary').filter(has_text=wf['akte']['abgaben'][0]['titel']+' · Eingang bestätigt am ')).to_be_visible();expect(page.get_by_role('button',name='PDF exportieren',exact=True)).to_be_visible()
  expect(page.get_by_role('cell',name='eingegangen',exact=True)).to_be_visible()
  # Altakten erhalten die Einreichung außerhalb der App über einen eigenen Weg.
  expect(page.get_by_role('heading',name='Externe Einreichungen',exact=True)).to_be_visible()
