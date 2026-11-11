@@ -70,8 +70,13 @@ window.__TAURI_INTERNALS__ = {
       window.testDestroyed = true;
       return;
     }
-    if (cmd === "plugin:dialog|save" || cmd === "plugin:dialog|open")
-      return null;
+    if (cmd === "plugin:dialog|open") return window.dialogAuswahl ?? null;
+    if (cmd === "plugin:dialog|save") return null;
+    if (cmd === "projekte_aus_sicherung_uebernehmen") {
+      const p = { ...window.testProjects[0], id: "beispiel-efh", name: "Neubau Einfamilienhaus Mustermann", version: 1 };
+      window.testProjects.push(p);
+      return [{ id: p.id, name: p.name }];
+    }
     // Rückfragen (ask/confirm): standardmäßig bestätigen; `window.rueckfrage`
     // = false wählt „Abbrechen“. Gestellte Fragen stehen in `window.rueckfragen`.
     if (cmd === "plugin:dialog|message") {

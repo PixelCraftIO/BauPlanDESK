@@ -1299,6 +1299,12 @@ export const api = {
   profilAktivieren: (pfad: string) =>
     invoke<void>("profil_aktivieren", { pfad }),
   standardprofilAktivieren: () => invoke<void>("standardprofil_aktivieren"),
+  /** Projekte einer Sicherung (z. B. Beispielprojekt) ins laufende Profil übernehmen. */
+  projekteAusSicherungUebernehmen: (pfad: string) =>
+    invoke<{ id: string; name: string }[]>(
+      "projekte_aus_sicherung_uebernehmen",
+      { pfad },
+    ),
   /** Läuft die Anwendung noch im Profil des früheren Beispielprojekts? */
   beispielprojektStatus: () =>
     invoke<{ aktiv: boolean }>("beispielprojekt_status"),

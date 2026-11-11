@@ -159,6 +159,7 @@ fn main() {
             sicherungen::sicherung_pruefen,
             sicherungen::sicherung_wiederherstellen,
             sicherungen::profil_aktivieren,
+            sicherungen::projekte_aus_sicherung_uebernehmen,
             sicherungen::standardprofil_aktivieren,
             beispielprojekt::beispielprojekt_status,
             beispielprojekt::beispielprojekt_verlassen,

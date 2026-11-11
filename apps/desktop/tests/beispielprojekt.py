@@ -1,4 +1,5 @@
-"""Früheres Beispielprojekt: Menüpunkt entfallen, Rückweg aus dem Beispielprofil bleibt.
+"""Beispielprojekt: Menüpunkt entfallen, Übernahme aus der Beispiel-ZIP ohne Neustart,
+Rückweg aus dem früheren Beispielprofil bleibt.
 Start a built frontend on http://127.0.0.1:1430 (see README.md).
 """
 from pathlib import Path
@@ -27,6 +28,23 @@ with sync_playwright() as p:
  page.evaluate('window.emitNative("menu","hilfe.beispielprojekt")')
  expect(page.get_by_role('dialog',name='Beispielprojekt')).to_have_count(0)
  assert aufrufe(page,'beispielprojekt_oeffnen')==[]
+ page.close()
+ # Beispiel-ZIP ins laufende Profil übernehmen: kein Neustart, Projekt öffnet sich.
+ page=start(browser,{'aktiv':False})
+ page.evaluate('window.dialogAuswahl="/home/daniel/Beispielprojekt-EFH-Mustermann.zip"')
+ page.get_by_role('button',name='Aus Sicherung übernehmen …').click()
+ # Die übernommene Akte öffnet sich gleich (Fußzeile nennt das aktive Projekt).
+ expect(page.get_by_role('contentinfo')).to_contain_text('Neubau Einfamilienhaus Mustermann')
+ assert aufrufe(page,'projekte_aus_sicherung_uebernehmen')==[{'pfad':'/home/daniel/Beispielprojekt-EFH-Mustermann.zip'}]
+ expect(page.get_by_text('„Neubau Einfamilienhaus Mustermann“ wurde übernommen.')).to_have_count(1)
+ page.screenshot(path=str(out/'beispielprojekt-uebernommen.png'))
+ page.close()
+ # Ohne Verwaltungsrecht gibt es den Knopf nicht.
+ page=browser.new_page(viewport={'width':1440,'height':900})
+ page.add_init_script('window.fixture='+json.dumps(fixture)+';\n'+(root/'tauri-mock.js').read_text()+'\nwindow.testUser.rolle="projektleitung";')
+ page.goto(url)
+ page.get_by_role('heading',name='Projektverzeichnis',exact=True).wait_for()
+ expect(page.get_by_role('button',name='Aus Sicherung übernehmen …')).to_have_count(0)
  page.close()
  # Wer beim Update noch im Beispielprofil arbeitet, behält den Rückweg.
  page=start(browser,{'aktiv':True})
