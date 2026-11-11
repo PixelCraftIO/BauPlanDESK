@@ -1169,6 +1169,7 @@ wandhoehe_m: number, gebiet: Baugebiet, };
 export type ProjectId = string;
 export type DocumentId = string;
 export type Bundesland = "BW" | "BY" | "BE" | "BB" | "HB" | "HH" | "HE" | "MV" | "NI" | "NW" | "RP" | "SL" | "SN" | "ST" | "SH" | "TH";
+export type Rechtsgrundlage = "par30" | "par34" | "par35";
 export type BenutzerId = string;
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 export type Fachstand = { projekt_id: ProjectId, modul: string, objekt: string, schema_version: number, revision: number, daten: JsonValue, };
@@ -1280,7 +1281,12 @@ folgeschreiben?: string,
 gruende?: Array<Beanstandung>, };
 export type Pruefverfahren = "regulaer" | "vereinfacht";
 export type Erforderlichkeit = "ungeklaert" | "erforderlich" | "nicht_erforderlich";
-export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null, };
+export type Anforderung = { id: string, titel: string, erforderlich: Erforderlichkeit, grund: string, quelle: string, dokumente: Array<Dokumentbezug>, freigegeben: boolean, verantwortlich: string | null,
+/**
+ * Bereiche der Projektakte, deren Nachweis die Anforderung belegt
+ * (aus dem Katalog); leer bei Unterlagen ohne eigenen Nachweisbereich.
+ */
+nachweise?: Array<string>, };
 export type Dokumentbeziehung = { id: string, vorher: Dokumentbezug, nachher: Dokumentbezug, grund: string, bezug: Bezug | null, };
 export type Ereignisart = "angelegt" | "status" | "vollstaendigkeit" | "ruecknahme" | "kommunikation" | "nachforderung" | "schritt" | "abgabe" | "versand" | "bescheid" | "zustellung" | "nebenbestimmung" | "ausfuehrung" | "berichtigung" | "notiz" | "angaben" | "abweichung" | "gebuehr";
 export type Berichtigungsgegenstand = { "art": "zustellung", bescheid: string, } | { "art": "vollstaendigkeit" } | { "art": "ruecknahme" } | { "art": "baubeginn" } | { "art": "fertigstellung" };
@@ -1693,7 +1699,16 @@ bautechnische_nachweise?: Array<BautechnischerNachweis>,
  * Bauleitung, Absteckung und Anzeigen.
  */
 bauvorbereitung?: Bauvorbereitung, ereignisse: Array<Aktenereignis>, };
-export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string, };
+export type Vorhabenprofil = { bundesland: Bundesland, art: Verfahrensart, gebaeudeklasse: number | null, sonderbau: boolean | null, nutzung: string,
+/**
+ * Wohngebäude ja/nein; fehlt = noch nicht geklärt.
+ */
+wohngebaeude?: boolean,
+/**
+ * Planungsrechtliche Grundlage des Projekts (§ 30, § 34 oder § 35 BauGB).
+ * Der Core trägt sie beim Anwenden des Profils aus dem Projekt ein.
+ */
+rechtsgrundlage?: Rechtsgrundlage, };
 export type Profilregel = { id: string, titel: string, quelle: string, sonderbau: boolean | null, ab_gebaeudeklasse: number | null, nutzung: string | null,
 /**
  * Verfahrensarten, für die die Anforderung gilt; fehlt = alle.
@@ -1703,7 +1718,26 @@ arten?: Array<Verfahrensart>,
  * Dokumentkategorien, deren Unterlagen die Anforderung belegen können;
  * ihre neuesten Versionen werden beim Anwenden vorgeschlagen.
  */
-kategorien?: Array<string>, };
+kategorien?: Array<string>,
+/**
+ * Gilt nur für Wohngebäude (`true`) bzw. nur für andere Gebäude (`false`).
+ */
+wohngebaeude?: boolean,
+/**
+ * Gilt nur bei diesen planungsrechtlichen Grundlagen; fehlt = immer.
+ */
+rechtsgrundlagen?: Array<Rechtsgrundlage>,
+/**
+ * Nur im Einzelfall nötig (z. B. Abweichungsanträge): bleibt ungeklärt,
+ * auch wenn alle Bedingungen erfüllt sind.
+ */
+bei_bedarf?: boolean,
+/**
+ * Bereiche der Projektakte, deren Nachweis die Anforderung belegt
+ * (z. B. `stellplaetze`, `abstand`). Der Baum zeigt sie als offen, bis
+ * ein Nachweis vorliegt.
+ */
+nachweise?: Array<string>, };
 export type Anforderungskatalog = { id: string, version: string, titel: string, hinweis: string, bundesland: Bundesland | null, art: Verfahrensart | null, regeln: Array<Profilregel>, };
 export type Profilstand = { vorhaben: Vorhabenprofil, katalog: Anforderungskatalog, bestaetigt_von: string | null, bestaetigt_am: string | null, };
 export type Versandstatus = "versendet" | "eingegangen" | "zurueckgewiesen" | "ungeklaert";
@@ -1918,7 +1952,7 @@ export type AbgabeUeberblick = { id: string, titel: string, empfaenger: string, 
 export type EmpfaengerDokument = { dokument_id: string, dateiname: string, eingereichte_version: bigint, aktuelle_version: bigint | null, eingereicht_am: string, status: string, };
 export type EmpfaengerUeberblick = { empfaenger: string, dokumente: Array<EmpfaengerDokument>, ziel: UebersichtsZiel, };
 export type Ampel = "rot" | "gelb" | "gruen";
-export type Pruefbereich = "grundlagen" | "unterlagen" | "nachweise" | "plaene" | "formulare" | "fachplaner" | "verfahren";
+export type Pruefbereich = "grundlagen" | "unterlagen" | "nachweise" | "plaene" | "formulare" | "antrag" | "fachplaner" | "verfahren";
 export type Pruefpunkt = { id: string, bereich: Pruefbereich, ampel: Ampel, titel: string, hinweis: string, faellig: string | null, verantwortlich: string | null, ziel: UebersichtsZiel, };
 export type Bereichsstand = { bereich: Pruefbereich, bezeichnung: string, ampel: Ampel, rot: number, gelb: number, };
 export type Einreichungspruefung = { stichtag: string, verfahren: string | null, gesamt: Ampel, bereiche: Array<Bereichsstand>,

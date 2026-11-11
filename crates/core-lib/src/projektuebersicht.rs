@@ -271,6 +271,23 @@ impl CoreServices {
                 UebersichtsZiel::neu("uebersicht"),
             );
         }
+        // Vorhaben zuerst: Ohne Verfahren und Anforderungen weiß die Akte nicht,
+        // welche Unterlagen und Nachweise das Vorhaben braucht.
+        let akten = self.fachobjekte(p, ObjektArt::Verfahren).await?;
+        let mut checkliste = false;
+        for f in self.fachobjekte(p, ObjektArt::Unterlagen).await? {
+            checkliste |= decode::<Unterlage>(f.daten)?.erforderlich;
+        }
+        if !checkliste && akten.is_empty() {
+            s.punkt(
+                "anforderungen",
+                Unterlagen,
+                Handeln,
+                "Vorhaben und Verfahren festlegen",
+                "Eine Verfahrensakte mit Verfahrensart und Vorhabenprofil anlegen. Daraus ergeben sich die erforderlichen Unterlagen und Nachweise, und die Akte zeigt, was noch offen ist. Alternativ die Bürocheckliste im Unterlagenregister verwenden.",
+                UebersichtsZiel::neu("verfahren"),
+            );
+        }
         let flurstuecke_erfasst =
             !crate::grundstuecksinformationen::informationen(&projekt.planungsrecht)
                 .flurstuecke
@@ -423,13 +440,11 @@ impl CoreServices {
                 .get(&d.dokument_id.0)
                 .is_some_and(|v| v.version == d.version)
         };
-        let mut unterlagen = 0;
         for f in self.fachobjekte(p, ObjektArt::Unterlagen).await? {
             let u: Unterlage = decode(f.daten)?;
             if !u.erforderlich {
                 continue;
             }
-            unterlagen += 1;
             let uid = id(&f.objekt)?;
             let grund = match &u.dokument {
                 None => Some((Handeln, "Erforderliche Unterlage fehlt")),
@@ -523,8 +538,14 @@ impl CoreServices {
                 );
             }
         }
+        // Gebäude mit Geschossen ohne Einstufung: Die Vollgeschossprüfung folgt
+        // in Bereich 2 und wird dort verlangt.
+        let mut uneingestuft: Vec<String> = Vec::new();
         for f in self.fachobjekte(p, ObjektArt::Gebaeude).await? {
             let g: crate::plattform::objekte::Gebaeude = decode(f.daten)?;
+            if g.geschosse.iter().any(|s| s.vollgeschoss.is_none()) {
+                uneingestuft.push(g.bezeichnung.clone());
+            }
             if let Err(e) = self
                 .gebaeude_planquellen_pruefen(p, id(&f.objekt)?, &g)
                 .await
@@ -614,6 +635,41 @@ impl CoreServices {
                 neueste.insert(key, n);
             }
         }
+        // Was das Vorhaben verlangt, aber noch keinen Nachweis hat.
+        {
+            let mut vorhanden: std::collections::BTreeSet<&str> = Default::default();
+            for n in neueste.values() {
+                vorhanden.insert(crate::bereichsstatus::nachweisbereich(&n.stand.eingabe));
+            }
+            let abgewaehlt = self
+                .organisation(p)
+                .await?
+                .map(|(o, _)| o.nicht_benoetigt)
+                .unwrap_or_default();
+            let mut verfahren = Vec::new();
+            for f in &akten {
+                verfahren.push(decode::<Verfahrensakte>(f.daten.clone())?);
+            }
+            for (bereich, grund) in
+                erforderliche_nachweise(&projekt.planungsrecht, &verfahren, &uneingestuft)
+            {
+                if vorhanden.contains(bereich) || abgewaehlt.iter().any(|n| n == bereich) {
+                    continue;
+                }
+                s.zahlen.nachweise_pruefen += 1;
+                s.punkt(
+                    format!("erforderlich:{bereich}"),
+                    Nachweise,
+                    Handeln,
+                    format!(
+                        "Nachweis fehlt: {}",
+                        crate::bereichsstatus::bereichstitel(bereich)
+                    ),
+                    format!("{grund} Berechnung anlegen, prüfen und als Nachweis festhalten."),
+                    UebersichtsZiel::neu(bereich),
+                );
+            }
+        }
         for n in neueste.values() {
             let grund = if n.prueffehler.is_some() {
                 Some(
@@ -639,10 +695,6 @@ impl CoreServices {
                     UebersichtsZiel::neu("nachweise").eintrag(n.stand.id),
                 );
             }
-        }
-        let akten = self.fachobjekte(p, ObjektArt::Verfahren).await?;
-        if unterlagen == 0 && akten.is_empty() {
-            s.punkt("anforderungen",Unterlagen,Handeln,"Anforderungen an den Bauantrag erfassen","Eine Verfahrensakte mit Vorhabenprofil anlegen oder die Bürocheckliste im Unterlagenregister verwenden. Ohne Anforderungen lässt sich der Unterlagenstand nicht bewerten.",UebersichtsZiel::neu("verfahren"));
         }
         // Pro Behörde getrennt: (Empfängeridentität, Dokument) → jüngster tatsächlich versendeter
         // oder extern eingereichter Originalstand.
@@ -701,6 +753,22 @@ impl CoreServices {
                         ziel("profil"),
                     );
                 }
+                // Das Profil kennt die planungsrechtliche Grundlage vom Zeitpunkt
+                // des Anwendens; ändert sie sich, passen die Vorschläge nicht mehr.
+                if a.status == Verfahrensstatus::Vorbereitung
+                    && a.profil.as_ref().is_some_and(|p| {
+                        p.vorhaben.rechtsgrundlage != projekt.planungsrecht.rechtsgrundlage
+                    })
+                {
+                    s.punkt(
+                        format!("profilstand:{vid}"),
+                        Verfahren,
+                        Pruefen,
+                        format!("{}: Anforderungen neu vorbereiten", a.bezeichnung),
+                        "Die planungsrechtliche Grundlage des Projekts hat sich seit dem Vorbereiten der Anforderungen geändert. Im Vorhabenprofil „Anforderungen aus Profil vorbereiten“ wählen; eigene Entscheidungen bleiben erhalten.",
+                        ziel("profil"),
+                    );
+                }
                 for r in &a.anforderungen {
                     let grund = match r.erforderlich {
                         Erforderlichkeit::Ungeklaert => {
@@ -710,7 +778,7 @@ impl CoreServices {
                             Handeln,
                             "Erforderliche Unterlage / Nachweis noch nicht zugeordnet",
                         )),
-                        _ if !r.freigegeben => {
+                        Erforderlichkeit::Erforderlich if !r.freigegeben => {
                             Some((Pruefen, "Fachliche Bewertung noch nicht freigegeben"))
                         }
                         Erforderlichkeit::Erforderlich if !r.dokumente.iter().all(&doc_aktuell) => {
@@ -1179,16 +1247,15 @@ impl CoreServices {
         if s.verfahren.is_empty() {
             s.hinweise.push("Noch keine Verfahrensakte erfasst. Behördliche Nachforderungen, Bescheide und Versandstände können deshalb nicht bewertet werden.".into());
         }
+        // Stabil: Bei gleicher Dringlichkeit und Fälligkeit bleibt die Reihenfolge
+        // des Arbeitsablaufs (Grundlagen, Vorhaben, Unterlagen, Nachweise,
+        // Verfahren); der erste Punkt ist der nächste Arbeitsschritt.
         s.punkte.sort_by(|a, b| {
-            a.dringlichkeit
-                .cmp(&b.dringlichkeit)
-                .then(
-                    a.faellig
-                        .unwrap_or(NaiveDate::MAX)
-                        .cmp(&b.faellig.unwrap_or(NaiveDate::MAX)),
-                )
-                .then(a.titel.cmp(&b.titel))
-                .then(a.id.cmp(&b.id))
+            a.dringlichkeit.cmp(&b.dringlichkeit).then(
+                a.faellig
+                    .unwrap_or(NaiveDate::MAX)
+                    .cmp(&b.faellig.unwrap_or(NaiveDate::MAX)),
+            )
         });
         s.zahlen.ueberfaellig = s
             .punkte
@@ -1208,6 +1275,82 @@ impl CoreServices {
         }
         Ok(s)
     }
+}
+/// Nachweisbereiche, die das Vorhaben verlangt, mit Begründung: festgesetzte
+/// Werte des Bebauungsplans, Anforderungen laufender Verfahren, die auf einen
+/// Nachweisbereich verweisen und nicht als „nicht erforderlich“ eingestuft
+/// sind, und Gebäude mit noch nicht eingestuften Geschossen (Vollgeschossprüfung).
+/// Reihenfolge wie in der Navigation.
+pub(crate) fn erforderliche_nachweise(
+    recht: &crate::domain::Planungsrecht,
+    akten: &[Verfahrensakte],
+    uneingestuft: &[String],
+) -> Vec<(&'static str, String)> {
+    let mut gruende: BTreeMap<&'static str, String> = BTreeMap::new();
+    if !uneingestuft.is_empty() {
+        gruende.insert(
+            "vollgeschosse",
+            format!(
+                "Geschosse von {} sind noch nicht als Voll- oder Nichtvollgeschoss eingestuft; die Einstufung folgt aus der Vollgeschossprüfung.",
+                uneingestuft
+                    .iter()
+                    .map(|n| format!("„{n}“"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        );
+    }
+    if recht.mit_bebauungsplan() {
+        let w = &recht.festgesetzte_werte;
+        let plan = "Der Bebauungsplan setzt";
+        let mut fest = |bereich: &'static str, was: &str| {
+            gruende
+                .entry(bereich)
+                .or_insert_with(|| format!("{plan} {was} fest."));
+        };
+        if w.grz.is_some() || w.grundflaeche_m2.is_some() {
+            fest("grz", "eine Grundflächenzahl bzw. Grundfläche");
+        }
+        if w.gfz.is_some() || w.geschossflaeche_m2.is_some() {
+            fest("gfz", "eine Geschossflächenzahl bzw. Geschossfläche");
+        }
+        if w.vollgeschosse.is_some() {
+            fest("geschosse", "die Zahl der Vollgeschosse");
+        }
+        if w.bmz.is_some() {
+            fest("volumen", "eine Baumassenzahl");
+        }
+        if w.mit_hoehen() {
+            fest("hoehen", "Höhen oder eine Dachneigung");
+        }
+    }
+    for a in akten {
+        if matches!(
+            a.status,
+            Verfahrensstatus::Zurueckgenommen | Verfahrensstatus::Entschieden
+        ) {
+            continue;
+        }
+        for r in &a.anforderungen {
+            if r.erforderlich == Erforderlichkeit::NichtErforderlich {
+                continue;
+            }
+            for n in &r.nachweise {
+                if let Some(bereich) = crate::bereichsstatus::NACHWEISBEREICHE
+                    .iter()
+                    .find(|b| *b == n)
+                {
+                    gruende.entry(bereich).or_insert_with(|| {
+                        format!("Anforderung „{}“ ({}).", r.titel, a.bezeichnung)
+                    });
+                }
+            }
+        }
+    }
+    crate::bereichsstatus::NACHWEISBEREICHE
+        .iter()
+        .filter_map(|b| gruende.remove(b).map(|g| (*b, g)))
+        .collect()
 }
 pub(crate) fn nachweisschluessel(
     n: &crate::plattform::nachweise::Nachweisstand,

@@ -97,6 +97,7 @@ fn main() {
             verfahren::verfahren_verfahrenswahl,
             verfahren::verfahren_unterschriften,
             verfahren::verfahren_profil_anwenden,
+            verfahren::verfahren_vorbereiten,
             verfahren::verfahren_abgabe,
             verfahren::verfahren_export,
             verfahren::verfahren_externe_einreichung,

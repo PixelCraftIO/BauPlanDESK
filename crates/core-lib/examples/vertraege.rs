@@ -227,6 +227,7 @@ fn main() {
         ProjectId,
         DocumentId,
         Bundesland,
+        core_lib::domain::Rechtsgrundlage,
         BenutzerId,
         serde_json::Value,
         Fachstand,

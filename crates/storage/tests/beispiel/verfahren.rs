@@ -1023,6 +1023,8 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
         gebaeudeklasse: Some(1),
         sonderbau: Some(false),
         nutzung: "Wohnen".into(),
+        wohngebaeude: Some(true),
+        rechtsgrundlage: None,
     };
     b.c.verfahren_profil_anwenden(
         b.p.id,
@@ -1060,101 +1062,107 @@ pub async fn verfahren(b: &mut Beispiel) -> Verfahrensergebnis {
             .to_string()
     };
     for r in &mut a.anforderungen {
-        let (erf, docs, grund): (Erforderlichkeit, Vec<&DocumentVersion>, &str) =
-            match regel(r).as_str() {
-                "antrag" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&formular],
-                    "§ 70 BauO NRW, amtlicher Vordruck",
-                ),
-                "liegenschaftskarte" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Vorhaben im Geltungsbereich des B-Plans Nr. 42 (§ 30 BauGB)",
-                ),
-                "lageplan" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.lageplan],
-                    "§ 3 BauPrüfVO NRW, amtlicher Lageplan",
-                ),
-                "bauzeichnungen" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.grundrisse, &d.schnitt, &d.ansichten],
-                    "§ 4 BauPrüfVO NRW",
-                ),
-                "baubeschreibung" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.baubeschreibung],
-                    "§ 5 BauPrüfVO NRW",
-                ),
-                "betriebsbeschreibung" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Wohngebäude, kein Betrieb",
-                ),
-                "mass" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.grz],
-                    "B-Plan Nr. 42, BauNVO 2017",
-                ),
-                "standsicherheit" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.statik],
-                    "Erklärung nach Kriterienkatalog (Anlage 2 BauPrüfVO); Nachweis vor Baubeginn",
-                ),
-                "standsicherheit_pruefung" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Gebäudeklasse 1, Kriterienkatalog: keine Prüfung",
-                ),
-                "brandschutzkonzept" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Kein Sonderbau",
-                ),
-                "geg" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "GEG-Nachweis wird vor Baubeginn als bautechnischer Nachweis vorgelegt",
-                ),
-                "stellplaetze" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.lageplan, &d.baubeschreibung],
-                    "§ 48 BauO NRW 2018, Stellplatzsatzung; 2 Stellplätze",
-                ),
-                "entwaesserung" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![],
-                    "Entwässerungsnachweis von der Bauaufsicht nachgefordert",
-                ),
-                "statistik" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.statistik],
-                    "HBauStatG",
-                ),
-                "bauvorlageberechtigung" => (
-                    Erforderlichkeit::Erforderlich,
-                    vec![&d.kammer],
-                    "§ 67 BauO NRW, Architektenkammer NRW",
-                ),
-                "abweichungen" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Festsetzungen des B-Plans Nr. 42 eingehalten; Abweichungsabgleich ohne Bedarf",
-                ),
-                "zustimmungen" => (
-                    Erforderlichkeit::NichtErforderlich,
-                    vec![],
-                    "Bauherr ist Eigentümer (Grundbuch Blatt 1234), keine Baulasten",
-                ),
-                andere => {
-                    b.info(format!(
-                        "Anforderung ohne Einordnung: {} ({andere})",
-                        r.titel
-                    ));
-                    continue;
-                }
-            };
+        let (erf, docs, grund): (Erforderlichkeit, Vec<&DocumentVersion>, &str) = match regel(r)
+            .as_str()
+        {
+            "antrag" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&formular],
+                "§ 70 BauO NRW, amtlicher Vordruck",
+            ),
+            "liegenschaftskarte" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "Vorhaben im Geltungsbereich des B-Plans Nr. 42 (§ 30 BauGB)",
+            ),
+            "lageplan" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.lageplan],
+                "§ 3 BauPrüfVO NRW, amtlicher Lageplan",
+            ),
+            "bauzeichnungen" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.grundrisse, &d.schnitt, &d.ansichten],
+                "§ 4 BauPrüfVO NRW",
+            ),
+            "baubeschreibung" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.baubeschreibung],
+                "§ 5 BauPrüfVO NRW",
+            ),
+            "betriebsbeschreibung" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "Wohngebäude, kein Betrieb",
+            ),
+            "mass" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.grz],
+                "B-Plan Nr. 42, BauNVO 2017",
+            ),
+            "abstand" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.lageplan],
+                "§ 6 BauO NRW 2018; Abstandsflächen im Lageplan dargestellt, Berechnung als Nachweisstand",
+            ),
+            "standsicherheit" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.statik],
+                "Erklärung nach Kriterienkatalog (Anlage 2 BauPrüfVO); Nachweis vor Baubeginn",
+            ),
+            "standsicherheit_pruefung" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "Gebäudeklasse 1, Kriterienkatalog: keine Prüfung",
+            ),
+            "brandschutzkonzept" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "Kein Sonderbau",
+            ),
+            "geg" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "GEG-Nachweis wird vor Baubeginn als bautechnischer Nachweis vorgelegt",
+            ),
+            "stellplaetze" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.lageplan, &d.baubeschreibung],
+                "§ 48 BauO NRW 2018, Stellplatzsatzung; 2 Stellplätze",
+            ),
+            "entwaesserung" => (
+                Erforderlichkeit::Erforderlich,
+                vec![],
+                "Entwässerungsnachweis von der Bauaufsicht nachgefordert",
+            ),
+            "statistik" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.statistik],
+                "HBauStatG",
+            ),
+            "bauvorlageberechtigung" => (
+                Erforderlichkeit::Erforderlich,
+                vec![&d.kammer],
+                "§ 67 BauO NRW, Architektenkammer NRW",
+            ),
+            "abweichungen" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "Festsetzungen des B-Plans Nr. 42 eingehalten; Abweichungsabgleich ohne Bedarf",
+            ),
+            "zustimmungen" => (
+                Erforderlichkeit::NichtErforderlich,
+                vec![],
+                "Bauherr ist Eigentümer (Grundbuch Blatt 1234), keine Baulasten",
+            ),
+            andere => {
+                b.info(format!(
+                    "Anforderung ohne Einordnung: {} ({andere})",
+                    r.titel
+                ));
+                continue;
+            }
+        };
         r.erforderlich = erf.clone();
         r.grund = grund.into();
         r.dokumente = docs.into_iter().map(bezug).collect();

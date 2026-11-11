@@ -534,8 +534,8 @@
               aria-label="Einstufung"
               bind:value={geschoss.vollgeschoss}
               disabled={!!geschoss.einstufungsquelle}
-              ><option value={null}>Noch zu prüfen</option><option value={true}
-                >Vollgeschoss</option
+              ><option value={null}>Noch offen (folgt aus der Vollgeschossprüfung)</option
+              ><option value={true}>Vollgeschoss</option
               ><option value={false}>Nichtvollgeschoss</option></select
             ></label
           ><label

@@ -456,12 +456,15 @@ impl CoreServices {
             gebaeudeklasse: profil.and_then(|p| p.gebaeudeklasse),
             sonderbau: profil.and_then(|p| p.sonderbau),
             grosser_sonderbau: angaben.grosser_sonderbau,
-            wohngebaeude: angaben.wohngebaeude.or_else(|| {
-                profil
-                    .map(|p| p.nutzung.to_lowercase())
-                    .filter(|n| !n.trim().is_empty())
-                    .map(|n| n.contains("wohn"))
-            }),
+            wohngebaeude: angaben
+                .wohngebaeude
+                .or_else(|| profil.and_then(|p| p.wohngebaeude))
+                .or_else(|| {
+                    profil
+                        .map(|p| p.nutzung.to_lowercase())
+                        .filter(|n| !n.trim().is_empty())
+                        .map(|n| n.contains("wohn"))
+                }),
             bebauungsplan,
             planungsrechtliche_abweichung: Some(planungsrechtlich),
             erschliessung: angaben.erschliessung,

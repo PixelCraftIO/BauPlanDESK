@@ -159,7 +159,7 @@
 <AbgleichDialog a={abgleich}/>
 
 <section class="aufgaben" aria-label="Aufmaß-Aufgaben">
-  {#if !aufgaben.length}<p class="meta">Keine Zielfelder: zuerst unter Grundlagen → Flurstücke ein Flurstück, unter Grundlagen → Gebäude / Geschosse ein Gebäude, ein Raumbuch oder eine Fachberechnung mit Positionen speichern oder im Abstandsflächenplan eine manuelle Wand anlegen.</p>
+  {#if !aufgaben.length}<p class="meta">Noch keine Zielfelder. Zeichnen geht schon jetzt, etwa Flurstücksgrenzen mit der Bedeutung „Flurstück“. Übernehmen lassen sich die Werte, sobald das Ziel angelegt ist: ein Flurstück unter Grundlagen → Flurstücke, ein Gebäude unter Gebäudemodell → Gebäude / Geschosse, ein Raumbuch, eine Fachberechnung mit Positionen oder eine manuelle Wand im Abstandsflächenplan.</p>
   {:else}
     <div class="stand" role="status"><span><strong>{offen}</strong> von {aufgaben.length} offen</span><span class="balken" aria-hidden="true"><span style={`width:${Math.round(100*(aufgaben.length-offen)/aufgaben.length)}%`}></span></span></div>
     <div class="filter">

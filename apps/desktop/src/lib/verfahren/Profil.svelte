@@ -24,6 +24,7 @@
       untrack(() => stand?.vorhaben.gebaeudeklasse ?? undefined),
     ),
     sonderbau = $state("ungeklaert"),
+    wohngebaeude = $state("ungeklaert"),
     nutzung = $state(""),
     katalog = $state<Anforderungskatalog | null>(null),
     kataloge = $state<Anforderungskatalog[]>([]),
@@ -47,6 +48,10 @@
             ? "ungeklaert"
             : String(stand.vorhaben.sonderbau);
         nutzung = stand.vorhaben.nutzung;
+        wohngebaeude =
+          stand.vorhaben.wohngebaeude == null
+            ? "ungeklaert"
+            : String(stand.vorhaben.wohngebaeude);
       } else {
         // Die geplante Nutzung steht bereits in den Stammdaten des Projekts.
         nutzung = projekt.planungsrecht.nutzung.trim().slice(0, 500);
@@ -88,6 +93,12 @@
         >Ja</option
       ><option value="false">Nein</option></select
     ></label
+  ><label
+    >Wohngebäude<select bind:value={wohngebaeude}
+      ><option value="ungeklaert">Noch zu klären</option><option value="true"
+        >Ja</option
+      ><option value="false">Nein</option></select
+    ></label
   ><label>Nutzung<input maxlength="500" bind:value={nutzung} /></label
   >{#if kataloge.length > 1}<label
       >Katalog<select
@@ -121,7 +132,16 @@
           gebaeudeklasse: klasse ?? null,
           sonderbau: sonderbau === "ungeklaert" ? null : sonderbau === "true",
           nutzung,
+          ...(wohngebaeude === "ungeklaert"
+            ? {}
+            : { wohngebaeude: wohngebaeude === "true" }),
         },
         katalog!,
       )}>Anforderungen aus Profil vorbereiten</button
-  >{/if}
+  >
+  <p class="meta">
+    Die Erforderlichkeit wird nach Verfahrensart, Wohngebäude, Gebäudeklasse,
+    Sonderbau und planungsrechtlicher Grundlage vorbelegt. Eigene
+    Entscheidungen bleiben beim erneuten Vorbereiten erhalten. Die fachliche
+    Freigabe bleibt bei der Projektleitung.
+  </p>{/if}

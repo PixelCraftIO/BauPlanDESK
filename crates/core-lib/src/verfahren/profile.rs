@@ -9,6 +9,15 @@ pub struct Vorhabenprofil {
     pub gebaeudeklasse: Option<u32>,
     pub sonderbau: Option<bool>,
     pub nutzung: String,
+    /// Wohngebäude ja/nein; fehlt = noch nicht geklärt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub wohngebaeude: Option<bool>,
+    /// Planungsrechtliche Grundlage des Projekts (§ 30, § 34 oder § 35 BauGB).
+    /// Der Core trägt sie beim Anwenden des Profils aus dem Projekt ein.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rechtsgrundlage: Option<crate::domain::Rechtsgrundlage>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +37,97 @@ pub struct Profilregel {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<String>>", optional)]
     pub kategorien: Vec<String>,
+    /// Gilt nur für Wohngebäude (`true`) bzw. nur für andere Gebäude (`false`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub wohngebaeude: Option<bool>,
+    /// Gilt nur bei diesen planungsrechtlichen Grundlagen; fehlt = immer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rechtsgrundlagen: Option<Vec<crate::domain::Rechtsgrundlage>>,
+    /// Nur im Einzelfall nötig (z. B. Abweichungsanträge): bleibt ungeklärt,
+    /// auch wenn alle Bedingungen erfüllt sind.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub bei_bedarf: bool,
+    /// Bereiche der Projektakte, deren Nachweis die Anforderung belegt
+    /// (z. B. `stellplaetze`, `abstand`). Der Baum zeigt sie als offen, bis
+    /// ein Nachweis vorliegt.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub nachweise: Vec<String>,
+}
+impl Profilregel {
+    /// Bedingungen der Regel gegen das Profil: `Some(true)` = alle belegt,
+    /// `Some(false)` = mindestens eine sicher nicht erfüllt (mit Grund),
+    /// `None` = Angaben fehlen.
+    fn trifft_zu(&self, profil: &Vorhabenprofil) -> (Option<bool>, String) {
+        let mut offen = false;
+        let mut nein = Vec::new();
+        if let Some(s) = self.sonderbau {
+            match profil.sonderbau {
+                Some(x) if x == s => {}
+                Some(_) => nein.push(if s { "kein Sonderbau" } else { "Sonderbau" }.to_string()),
+                None => offen = true,
+            }
+        }
+        if let Some(n) = self.ab_gebaeudeklasse {
+            match profil.gebaeudeklasse {
+                Some(g) if g >= n => {}
+                Some(g) => nein.push(format!("Gebäudeklasse {g}, verlangt erst ab {n}")),
+                None => offen = true,
+            }
+        }
+        if let Some(n) = &self.nutzung {
+            if profil.nutzung.trim().is_empty() {
+                offen = true;
+            } else if !n.eq_ignore_ascii_case(profil.nutzung.trim()) {
+                nein.push(format!("Nutzung ist nicht „{n}“"));
+            }
+        }
+        if let Some(w) = self.wohngebaeude {
+            match profil.wohngebaeude {
+                Some(x) if x == w => {}
+                Some(_) => nein.push(
+                    if w {
+                        "kein Wohngebäude"
+                    } else {
+                        "Wohngebäude"
+                    }
+                    .to_string(),
+                ),
+                None => offen = true,
+            }
+        }
+        if let Some(r) = &self.rechtsgrundlagen {
+            match profil.rechtsgrundlage {
+                Some(x) if r.contains(&x) => {}
+                Some(x) => nein.push(format!(
+                    "Vorhaben nach {}",
+                    match x {
+                        crate::domain::Rechtsgrundlage::Par30 => "§ 30 BauGB",
+                        crate::domain::Rechtsgrundlage::Par34 => "§ 34 BauGB",
+                        crate::domain::Rechtsgrundlage::Par35 => "§ 35 BauGB",
+                    }
+                )),
+                None => offen = true,
+            }
+        }
+        if !nein.is_empty() {
+            (Some(false), nein.join(", "))
+        } else if offen {
+            (None, String::new())
+        } else {
+            (Some(true), String::new())
+        }
+    }
+    fn bedingt(&self) -> bool {
+        self.sonderbau.is_some()
+            || self.ab_gebaeudeklasse.is_some()
+            || self.nutzung.is_some()
+            || self.wohngebaeude.is_some()
+            || self.rechtsgrundlagen.is_some()
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -80,6 +180,10 @@ impl Anforderungskatalog {
                 || r.ab_gebaeudeklasse.is_some_and(|n| !(1..=5).contains(&n))
                 || r.arten.as_ref().is_some_and(|a| a.is_empty())
                 || r.kategorien.len() > 50
+                || r.rechtsgrundlagen.as_ref().is_some_and(|a| a.is_empty())
+                || r.nachweise
+                    .iter()
+                    .any(|n| !crate::bereichsstatus::NACHWEISBEREICHE.contains(&n.as_str()))
             {
                 return Err(fehler("Ungültige oder doppelte Profilregel"));
             }
@@ -99,22 +203,41 @@ impl Anforderungskatalog {
             .iter()
             .filter(|r| r.arten.as_ref().is_none_or(|a| a.contains(&profil.art)))
             .map(|r| {
-                let passt = r.sonderbau.is_none_or(|s| profil.sonderbau == Some(s))
-                    && r.ab_gebaeudeklasse
-                        .is_none_or(|n| profil.gebaeudeklasse.is_some_and(|g| g >= n))
-                    && r.nutzung
-                        .as_ref()
-                        .is_none_or(|n| n.eq_ignore_ascii_case(profil.nutzung.trim()));
+                // Vorbelegung als Vorschlag: Die Freigabe bleibt in jedem Fall
+                // offen und die Einstufung änderbar.
+                let (erforderlich, grund) = match r.trifft_zu(profil) {
+                    (Some(false), warum) => (
+                        Erforderlichkeit::NichtErforderlich,
+                        format!(
+                            "Nach dem Vorhabenprofil nicht einschlägig ({warum}); Einstufung fachlich bestätigen"
+                        ),
+                    ),
+                    (None, _) => (
+                        Erforderlichkeit::Ungeklaert,
+                        "Profilbedingung nicht erfüllt oder Angaben fehlen; Erforderlichkeit prüfen"
+                            .to_string(),
+                    ),
+                    (Some(true), _) if r.bei_bedarf => (
+                        Erforderlichkeit::Ungeklaert,
+                        "Nur im Einzelfall nötig; Erforderlichkeit prüfen".to_string(),
+                    ),
+                    // Ein Katalog für genau diese Verfahrensart oder eine belegte
+                    // Bedingung trägt den Vorschlag „erforderlich“.
+                    (Some(true), _) if r.arten.is_some() || r.bedingt() => (
+                        Erforderlichkeit::Erforderlich,
+                        "Nach Katalog für dieses Vorhaben vorgesehen; Erforderlichkeit fachlich bestätigen"
+                            .to_string(),
+                    ),
+                    (Some(true), _) => (
+                        Erforderlichkeit::Ungeklaert,
+                        "Profilbedingung erfüllt; Erforderlichkeit fachlich bestätigen".to_string(),
+                    ),
+                };
                 Ok(Anforderung {
                     id: Uuid::new_v5(&vid, format!("anforderung/{}/{}", self.id, r.id).as_bytes()),
                     titel: r.titel.clone(),
-                    erforderlich: Erforderlichkeit::Ungeklaert,
-                    grund: if passt {
-                        "Profilbedingung erfüllt; Erforderlichkeit fachlich bestätigen".into()
-                    } else {
-                        "Profilbedingung nicht erfüllt oder Angaben fehlen; Erforderlichkeit prüfen"
-                            .into()
-                    },
+                    erforderlich,
+                    grund,
                     quelle: format!(
                         "{} · Version {} · {}: {}",
                         self.id, self.version, r.id, r.quelle
@@ -122,6 +245,7 @@ impl Anforderungskatalog {
                     dokumente: vec![],
                     freigegeben: false,
                     verantwortlich: None,
+                    nachweise: r.nachweise.clone(),
                 })
             })
             .collect()
@@ -175,6 +299,7 @@ impl CoreServices {
             dokumente: vec![],
             freigegeben: false,
             verantwortlich: None,
+            nachweise: vec![],
         })
         .collect();
         let projekt = self.repos.projects.get(p).await?;
@@ -190,6 +315,7 @@ impl CoreServices {
                     dokumente: vec![],
                     freigegeben: false,
                     verantwortlich: None,
+                    nachweise: vec![],
                 }),
         );
         let aktuell: Vec<Uuid> = abgeleitet.iter().map(|r| r.id).collect();
@@ -218,6 +344,77 @@ impl CoreServices {
             })
             .collect())
     }
+    /// Legt die Verfahrensakte zum Projektstart an: Verfahrensart, Status
+    /// „In Vorbereitung“ und die Anforderungen aus dem Katalog des Landes
+    /// (sonst dem Bürokatalog). Die Behörde bleibt offen. Gebäudeklasse und
+    /// Sonderbau sind noch nicht bekannt; die Nutzung kommt aus den Stammdaten.
+    pub async fn verfahren_vorbereiten(
+        &self,
+        p: ProjectId,
+        art: Verfahrensart,
+        wohngebaeude: Option<bool>,
+        wer: &Benutzer,
+    ) -> CoreResult<Fachstand> {
+        let projekt = self.get_project(p).await?;
+        let id = Uuid::new_v4();
+        let a: Verfahrensakte = serde_json::from_value(serde_json::json!({
+            "bezeichnung": format!("{} {}", art.bezeichnung(), projekt.name),
+            "art": art,
+            "status": "vorbereitung",
+            "behoerde": {"id": Uuid::new_v4(), "name": "", "kennung": "", "kontakt": ""},
+            "aktenzeichen": "",
+            "verantwortlich": wer.id.0,
+            "vorgaenger": null,
+            "profil": null,
+            "kommunikation": [],
+            "nachforderungen": [],
+            "anforderungen": [],
+            "dokumentbeziehungen": [],
+            "abgaben": [],
+            "bescheide": [],
+            "ereignisse": [],
+        }))
+        .map_err(|e| fehler(e.to_string()))?;
+        let stand = self.verfahren_commit(p, id, 0, a, wer, false).await?;
+        let kataloge = Anforderungskatalog::mitgeliefert()?;
+        let passt = |k: &&Anforderungskatalog| k.art.as_ref().is_none_or(|a| *a == art);
+        let Some(katalog) = kataloge
+            .iter()
+            .filter(passt)
+            .find(|k| k.bundesland == Some(projekt.bundesland))
+            .or_else(|| {
+                kataloge
+                    .iter()
+                    .filter(passt)
+                    .find(|k| k.bundesland.is_none())
+            })
+        else {
+            return Ok(stand);
+        };
+        self.verfahren_profil_anwenden(
+            p,
+            id,
+            stand.revision,
+            Vorhabenprofil {
+                bundesland: projekt.bundesland,
+                art,
+                gebaeudeklasse: None,
+                sonderbau: None,
+                nutzung: projekt
+                    .planungsrecht
+                    .nutzung
+                    .trim()
+                    .chars()
+                    .take(500)
+                    .collect(),
+                wohngebaeude,
+                rechtsgrundlage: None,
+            },
+            katalog.clone(),
+            wer,
+        )
+        .await
+    }
     pub async fn verfahren_profil_anwenden(
         &self,
         p: ProjectId,
@@ -228,7 +425,10 @@ impl CoreServices {
         wer: &Benutzer,
     ) -> CoreResult<Fachstand> {
         let (_, mut a) = self.verfahrensakte(p, id).await?;
-        if a.art != profil.art || self.get_project(p).await?.bundesland != profil.bundesland {
+        let projekt = self.get_project(p).await?;
+        let mut profil = profil;
+        profil.rechtsgrundlage = projekt.planungsrecht.rechtsgrundlage;
+        if a.art != profil.art || projekt.bundesland != profil.bundesland {
             return Err(fehler(
                 "Profil gehört nicht zu Bundesland und Verfahrensart",
             ));
@@ -280,7 +480,19 @@ impl CoreServices {
                     alt.titel = r.titel;
                     alt.quelle = r.quelle;
                     alt.freigegeben = false;
+                    // Eine eigene Entscheidung bleibt; nur der noch ungeklärte
+                    // oder nie bestätigte Vorschlag folgt dem neuen Profil.
+                    if alt.erforderlich == Erforderlichkeit::Ungeklaert
+                        || alt.grund.starts_with("Nach dem Vorhabenprofil")
+                        || alt.grund.starts_with("Nach Katalog")
+                        || alt.grund.starts_with("Profilbedingung")
+                        || alt.grund.starts_with("Nur im Einzelfall")
+                    {
+                        alt.erforderlich = r.erforderlich;
+                        alt.grund = r.grund;
+                    }
                 }
+                alt.nachweise = r.nachweise;
                 if alt.dokumente.is_empty() {
                     alt.dokumente = r.dokumente;
                 }
@@ -321,6 +533,8 @@ mod tests {
             gebaeudeklasse: Some(2),
             sonderbau: Some(false),
             nutzung: "Wohnen".into(),
+            wohngebaeude: Some(true),
+            rechtsgrundlage: Some(crate::domain::Rechtsgrundlage::Par30),
         };
         let bauantrag = nrw
             .vorschlaege(vid, &profil(Verfahrensart::Bauantrag))
@@ -355,6 +569,8 @@ mod tests {
             gebaeudeklasse: None,
             sonderbau: None,
             nutzung: String::new(),
+            wohngebaeude: None,
+            rechtsgrundlage: None,
         };
         let offen = k.vorschlaege(id, &p).unwrap();
         assert!(
@@ -371,8 +587,17 @@ mod tests {
         p.gebaeudeklasse = Some(4);
         let passend = k.vorschlaege(id, &p).unwrap();
         let neu = passend.iter().find(|r| r.id == sonder.id).unwrap();
-        assert!(neu.grund.contains("erfüllt"));
-        assert_eq!(neu.erforderlich, Erforderlichkeit::Ungeklaert);
+        // Belegte Bedingung: als Vorschlag erforderlich, Freigabe bleibt offen.
+        assert!(neu.grund.contains("vorgesehen"), "{}", neu.grund);
+        assert_eq!(neu.erforderlich, Erforderlichkeit::Erforderlich);
+        assert!(!neu.freigegeben);
+        // Sicher nicht erfüllt: als Vorschlag abgewählt.
+        p.sonderbau = Some(false);
+        let kein = k.vorschlaege(id, &p).unwrap();
+        let kein = kein.iter().find(|r| r.id == sonder.id).unwrap();
+        assert_eq!(kein.erforderlich, Erforderlichkeit::NichtErforderlich);
+        assert!(kein.grund.contains("kein Sonderbau"), "{}", kein.grund);
+        p.sonderbau = Some(true);
         k.version = "2".into();
         assert_eq!(k.vorschlaege(id, &p).unwrap()[0].id, offen[0].id);
         p.gebaeudeklasse = Some(6);

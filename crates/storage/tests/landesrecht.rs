@@ -112,6 +112,8 @@ async fn nrw_katalog_unterschriften_und_verfahrenswahl() {
                 gebaeudeklasse: Some(1),
                 sonderbau: Some(false),
                 nutzung: "Wohnen".into(),
+                wohngebaeude: Some(true),
+                rechtsgrundlage: None,
             },
             nrw,
             &u,
