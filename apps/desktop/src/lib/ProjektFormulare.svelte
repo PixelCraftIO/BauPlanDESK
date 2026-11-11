@@ -203,7 +203,7 @@
     ><tbody
       >{#each ausgefuellt as a (a.dokument_id)}<tr
           ><td
-            >{a.datei}<span class="meta"> · aus „{a.vorlage}“</span></td
+            >{a.datei}<span class="meta">{" "}· aus „{a.vorlage}“</span></td
           ><td
             >Version {a.version} · {new Date(a.erstellt).toLocaleDateString(
               "de-DE",

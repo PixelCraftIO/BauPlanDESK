@@ -168,7 +168,7 @@ SZENEN = [
     ("nachweis-stellplaetze", 'await register("Nachweis und Einreichung"); await bereich("Stellplatznachweis"); await eintrag()'),
     ("nachweis-abstandsflaechen", 'await register("Nachweis und Einreichung"); await bereich("Abstandsflächen"); await eintrag()'),
     ("nachweis-nachweisstaende", 'await register("Nachweis und Einreichung"); await bereich("Nachweisstände")'),
-    ("nachweis-formulare", 'await register("Nachweis und Einreichung"); await bereich("Formulare")'),
+    ("nachweis-formulare", 'await register("Nachweis und Einreichung"); await bereich("Formulare"); for(let i=0;i<80&&!finde("Ausgefüllte Formulare dieses Projekts","h2,h3,h4,caption");i++) await sleep(500)'),
     ("nachweis-druckausgabe", 'await register("Nachweis und Einreichung"); await bereich("Drucken / PDF-Ausgabe")'),
     # Verfahren
     ("verfahren-akte", 'await register("Nachweis und Einreichung"); await bereich("Verfahrensakte"); if(!finde("Vorbereitung")) await eintrag(); await klick("Vorbereitung"); await reiter("Verfahren")'),
