@@ -852,6 +852,13 @@ fn statustext(s: &crate::abstandsflaechen::AbstandsStatus) -> &'static str {
         Grenzfall => "Grenzfall",
     }
 }
+/// Name der Wand auf dem Plan: bei „A1 Süd (Traufe)“ nur das Kürzel „A1“.
+fn planname(name: &str) -> &str {
+    match name.split_once(' ') {
+        Some((k, _)) if k.len() <= 4 && k.chars().any(|c| c.is_ascii_digit()) => k,
+        _ => name,
+    }
+}
 fn meter(v: f64) -> String {
     format!("{v:.2}").replace('.', ",")
 }
@@ -859,8 +866,9 @@ fn meter(v: f64) -> String {
 impl CoreServices {
     /// Abstandsflächenplan: das Ergebnis auf der Seite des Lageplans, aus dem
     /// Lage und Grenzen stammen. Abstandsflächen blau, Flächen jenseits der
-    /// Grenze rot, Überdeckungen violett; jede Wand beschriftet mit
-    /// „A1 · H … m · T … m“. Die Plandatei bleibt unverändert.
+    /// Grenze rot, Überdeckungen violett; jede Wand trägt in ihrer Mitte Kürzel
+    /// und Tiefe („A1 · T … m“), Höhe und Fläche stehen in der Legende. Die
+    /// Plandatei bleibt unverändert.
     pub async fn abstandsflaechenplan(
         &self,
         pid: ProjectId,
@@ -951,7 +959,22 @@ impl CoreServices {
             kontur(
                 vec![ring(&[w.von.clone(), w.bis.clone()])],
                 false,
-                format!("{} · {werte}", w.bezeichnung),
+                String::new(),
+                Konturstil::Wand,
+            );
+            // Kurze Beschriftung in Wandmitte; alle Werte stehen in der Legende.
+            let mitte = APunkt {
+                x: (w.von.x + w.bis.x) / 2.,
+                y: (w.von.y + w.bis.y) / 2.,
+            };
+            let kurz = planname(&w.bezeichnung);
+            kontur(
+                vec![ring(&[mitte.clone(), mitte])],
+                false,
+                match e.tiefe_m {
+                    Some(t) if t > 0. => format!("{kurz} · T {} m", meter(t)),
+                    _ => kurz.to_string(),
+                },
                 Konturstil::Wand,
             );
         }

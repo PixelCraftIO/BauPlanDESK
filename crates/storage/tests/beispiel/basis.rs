@@ -451,3 +451,105 @@ pub async fn basis(profil: PathBuf) -> Beispiel {
     );
     b
 }
+
+// ---------------------------------------------------------------------------
+// Vektor-PDF der Beispielpläne (A3 quer, 420 × 297 mm; Maße in mm, y nach unten)
+// ---------------------------------------------------------------------------
+
+pub const MM: f64 = 72.0 / 25.4;
+pub const BLATT_B: f64 = 420.;
+pub const BLATT_H: f64 = 297.;
+
+pub fn pdf_text(s: &str) -> String {
+    let mut o = String::new();
+    for c in s.chars() {
+        match c {
+            '(' | ')' | '\\' => {
+                o.push('\\');
+                o.push(c);
+            }
+            'ä' => o.push_str("\\344"),
+            'ö' => o.push_str("\\366"),
+            'ü' => o.push_str("\\374"),
+            'Ä' => o.push_str("\\304"),
+            'Ö' => o.push_str("\\326"),
+            'Ü' => o.push_str("\\334"),
+            'ß' => o.push_str("\\337"),
+            '±' => o.push_str("\\261"),
+            '²' => o.push_str("\\262"),
+            '°' => o.push_str("\\260"),
+            '−' | '–' => o.push('-'),
+            '·' => o.push_str("\\267"),
+            c if c.is_ascii() => o.push(c),
+            _ => o.push('?'),
+        }
+    }
+    o
+}
+
+#[derive(Default)]
+pub struct Zeichnung {
+    pub ops: String,
+}
+impl Zeichnung {
+    pub fn y(y: f64) -> f64 {
+        (BLATT_H - y) * MM
+    }
+    pub fn stift(&mut self, breite_mm: f64, gestrichelt: bool) {
+        let d = if gestrichelt { "[4 2] 0 d" } else { "[] 0 d" };
+        self.ops.push_str(&format!("{:.3} w {d}\n", breite_mm * MM));
+    }
+    pub fn linie(&mut self, a: (f64, f64), b: (f64, f64)) {
+        self.ops.push_str(&format!(
+            "{:.3} {:.3} m {:.3} {:.3} l S\n",
+            a.0 * MM,
+            Self::y(a.1),
+            b.0 * MM,
+            Self::y(b.1)
+        ));
+    }
+    pub fn zug(&mut self, p: &[(f64, f64)]) {
+        for w in p.windows(2) {
+            self.linie(w[0], w[1]);
+        }
+    }
+    pub fn rechteck(&mut self, a: (f64, f64), b: (f64, f64)) {
+        self.ops.push_str(&format!(
+            "{:.3} {:.3} {:.3} {:.3} re S\n",
+            a.0.min(b.0) * MM,
+            Self::y(a.1.max(b.1)),
+            (b.0 - a.0).abs() * MM,
+            (b.1 - a.1).abs() * MM
+        ));
+    }
+    pub fn text(&mut self, x: f64, y: f64, groesse: f64, s: &str) {
+        self.ops.push_str(&format!(
+            "BT /F1 {groesse} Tf {:.3} {:.3} Td ({}) Tj ET\n",
+            x * MM,
+            Self::y(y),
+            pdf_text(s)
+        ));
+    }
+}
+
+/// Ein Blatt A3 quer mit der Zeichnung als PDF.
+pub fn blatt_pdf(z: Zeichnung) -> Vec<u8> {
+    use lopdf::{Document, Stream, dictionary};
+    let mut d = Document::with_version("1.7");
+    let pages = d.new_object_id();
+    let font = d.add_object(dictionary! {"Type"=>"Font","Subtype"=>"Type1","BaseFont"=>"Helvetica","Encoding"=>"WinAnsiEncoding"});
+    let c = d.add_object(Stream::new(dictionary! {}, z.ops.into_bytes()));
+    let page = d.add_object(dictionary! {"Type"=>"Page","Parent"=>pages,
+    "MediaBox"=>vec![0.into(),0.into(),(BLATT_B*MM).into(),(BLATT_H*MM).into()],"Contents"=>c});
+    d.objects.insert(
+        pages,
+        dictionary! {"Type"=>"Pages","Kids"=>vec![page.into()],"Count"=>1,
+        "Resources"=>dictionary!{"Font"=>dictionary!{"F1"=>font}}}
+        .into(),
+    );
+    let cat = d.add_object(dictionary! {"Type"=>"Catalog","Pages"=>pages});
+    d.trailer.set("Root", cat);
+    let mut bytes = Vec::new();
+    d.save_to(&mut bytes).unwrap();
+    bytes
+}

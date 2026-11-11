@@ -37,7 +37,9 @@ er nach einer Regel- oder Berechnungsänderung fehl, das Archiv neu erzeugen
   - Büro „Planungsbüro Planer Architekten“, Entwurfsverfasserin Erika Planer (Kammer-Nr. A-12345).
   - Bauherr, Tragwerksplaner und zwei Nachbarn als Kunden.
   - Bebauungsplan Nr. 42 „Am Lindenweg“: WA, GRZ 0,4, GFZ 0,8, II Vollgeschosse.
-  - Flurstücke 411–413 mit Grundbuch- und Eigentümerangaben.
+  - Flurstücke 411–413 mit Grundbuch- und Eigentümerangaben; alle drei sind im
+    Lageplan LP-01 gezeichnet, die gezeichnete Fläche steht als Gegenprobe
+    neben der Katasterfläche.
 - **Gebäude/Geschosse:**
   - Wohnhaus 11 × 9 m (KG, EG, DG, Satteldach 36° als Dachform erfasst, Traufe +4,20, First +7,45 über ±0,00 = 72,64 m ü. NHN).
   - Garage 3,5 × 6 m.
@@ -52,7 +54,11 @@ er nach einer Regel- oder Berechnungsänderung fehl, das Archiv neu erzeugen
   - GRZ 0,19 (II: 0,29), GFZ 0,16, BMZ 0,46.
   - Alle Nachweise sind aktuell und freigegeben.
 - **Abstandsflächen nach § 6 BauO NRW:**
-  - Lageplan-DXF, Grundstücksgrenzen und Gebäudeumrisse.
+  - Lageplan LP-01 (PDF, M 1:200) mit eigenem Aufmaß: Flurstücke, Umrisse von
+    Wohnhaus und Garage und je Außenwand eine Linie „Abstandsfläche“ (A1–A8).
+  - Wände und Grundstücksgrenzen des Abstandsplans sind aus diesen Linien und
+    Flurstücken übernommen und bleiben an die Zeichnung gebunden; der
+    Abstandsflächenplan entsteht auf dem Blatt des Lageplans.
   - Giebelanrechnung mit Dachhöhe und Neigung aus dem Gebäude, Grenzgarage nach § 6 Abs. 8.
   - Nachweis mit PDF sowie JSON- und DXF-Export.
 - **Verfahren:**
