@@ -11,18 +11,24 @@ gehören zu genau einem Verfahren. Ein Projekt kann mehrere Verfahren haben
 ## Verfahrensakte
 
 **Neu anlegen** oder einen Eintrag **öffnen**. Die Akte ist in drei Phasen
-gegliedert; jede Phase hat eigene Reiter:
+gegliedert; jede Phase hat eigene Reiter. **Unterlagen und Arbeitsaufträge**
+und **Verfahren** stehen in jeder Phase zur Verfügung; eine geöffnete Akte
+beginnt in der Phase, in der das Verfahren steht:
 
 | Phase | Reiter |
 | --- | --- |
-| Vorbereitung | Unterlagen und Arbeitsaufträge, Verfahren, Vorhabenprofil, Anforderungen, Abweichungen / Befreiungen, Unterschriften |
+| Vorbereitung | Vorhabenprofil, Anforderungen, Abweichungen / Befreiungen, Unterschriften |
 | Laufendes Verfahren | Kommunikation, Nachforderungen, Behördliche Schritte, Schreiben, Abgabestände |
 | Entscheidung und Ausführung | Bescheide / Auflagen, Bauausführung, Korrekturen, Verfahrenschronik |
 
 Der gelbe Verfahrenskopf zeigt Bezeichnung, Behörde und Aktenzeichen.
 Darunter fasst die **Lage** den dokumentierten Stand zusammen, z. B. eine
 laufende Genehmigungsfiktion mit Datum und Rechtsgrundlage. Die Lage ist eine
-Arbeitshilfe aus den erfassten Daten, keine Rechtsentscheidung.
+Arbeitshilfe aus den erfassten Daten, keine Rechtsentscheidung. Sie nennt den
+nächstliegenden Schritt; weitere stehen unter „Weitere Möglichkeiten“. Ist
+eine Fiktionsfrist abgelaufen, sagt die Lage das mit Datum und bietet an, die
+Bescheinigung über die Genehmigungsfiktion zu verlangen; ob die Fiktion
+eingetreten ist, bleibt zu prüfen (z. B. bei offenen Nachforderungen).
 
 ### Vorbereitung
 
@@ -68,7 +74,13 @@ Arbeitshilfe aus den erfassten Daten, keine Rechtsentscheidung.
   E-Mail, Telefonnotiz). „Kommunikation erfassen“ legt einen Eintrag an.
 - **Nachforderungen:** jeden Forderungspunkt einzeln mit Wortlaut, Frist,
   Zuständigkeit und Antwortunterlagen. Der Status unterscheidet *in
-  Bearbeitung*, *eingereicht* und *behördlich bestätigt*.
+  Bearbeitung*, *eingereicht* und *behördlich bestätigt*. **Antwort
+  einreichen** führt durch die vier Schritte: Antwortunterlagen zuordnen,
+  Nachreichung festhalten, Anschreiben erstellen, Versand erfassen. Ein Punkt
+  kann eine **Unterlage der Akte** betreffen und **Aufgaben** mitführen: Der
+  Vorgang erscheint dann in Übersicht und Fristen nur einmal, die
+  Antwortunterlagen stehen auch bei der Unterlage, und die Aufgaben sind
+  erledigt, sobald der Punkt beantwortet ist.
 
 ![Nachforderungen](bilder/verfahren-nachforderungen.png)
 

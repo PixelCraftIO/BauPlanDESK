@@ -310,3 +310,205 @@ async fn nachweis_wird_unterlage_und_listen_melden_einmal() {
         Some("A")
     );
 }
+
+/// Eine Nachforderung ist ein Vorgang: Der Forderungspunkt führt die
+/// betroffene Anforderung und seine Aufgaben mit, statt dass alle drei
+/// einzeln als offene Punkte und Fristen erscheinen.
+#[tokio::test]
+async fn nachforderung_ist_ein_vorgang() {
+    use core_lib::verfahren::{
+        Forderungspunkt, Frist, Kommunikation, Kommunikationsart, Nachforderung, Punktstatus,
+    };
+    let (_dir, c) = core().await;
+    let ich = c.anmelden("admin", "Planungsbüro Muster").await.unwrap();
+    let p = c
+        .create_project(
+            NewProject {
+                name: "Neubau Lindenweg".into(),
+                bundesland: Bundesland::Nw,
+                grundstuecksflaeche_m2: None,
+                planungsrecht: Planungsrecht::default(),
+            },
+            &ich,
+        )
+        .await
+        .unwrap();
+    let tag = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
+    let frist = NaiveDate::from_ymd_opt(2026, 11, 25).unwrap();
+    let stand = c
+        .verfahren_vorbereiten(p.id, Verfahrensart::Bauantrag, Some(true), &ich)
+        .await
+        .unwrap();
+    let vid: Uuid = stand.objekt.parse().unwrap();
+    let mut akte: Verfahrensakte = serde_json::from_value(stand.daten).unwrap();
+    let lageplan = akte
+        .anforderungen
+        .iter()
+        .find(|a| a.titel == "Lageplan")
+        .unwrap()
+        .id;
+    let (kommunikation, punkt) = (Uuid::new_v4(), Uuid::new_v4());
+    akte.kommunikation.push(Kommunikation {
+        id: kommunikation,
+        art: Kommunikationsart::Brief,
+        eingehend: true,
+        datum: tag,
+        betreff: "Nachforderung zum Bauantrag".into(),
+        beteiligte: "Bauaufsicht".into(),
+        inhalt: "Bitte den Lageplan nachreichen.".into(),
+        original: None,
+        bezuege: vec![],
+    });
+    akte.nachforderungen.push(Nachforderung {
+        id: Uuid::new_v4(),
+        kommunikation,
+        punkte: vec![Forderungspunkt {
+            id: punkt,
+            titel: "Lageplan nachreichen".into(),
+            grundlage: "Schreiben vom 11.11.2026, Punkt 1".into(),
+            verantwortlich: Some(ich.id.0),
+            frist: Some(Frist {
+                datum: frist,
+                ausloeser: "Schreiben".into(),
+                beleg: None,
+                erinnerung_tage: 7,
+                grund: "Fristsetzung der Behörde".into(),
+            }),
+            status: Punktstatus::Offen,
+            antwort: String::new(),
+            dokumente: vec![],
+            abgaben: vec![],
+            bestaetigung: None,
+            anforderung: Some(lageplan),
+        }],
+    });
+    let f = c
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Verfahren,
+            vid,
+            stand.revision,
+            serde_json::to_value(&akte).unwrap(),
+            &ich,
+        )
+        .await
+        .unwrap();
+    let aufgabe = Uuid::new_v4();
+    c.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Aufgaben,
+        aufgabe,
+        0,
+        json!({"titel":"Vermesser beauftragen","beschreibung":"","faellig":frist,
+               "verantwortlich":null,"status":"offen","bezug":punkt}),
+        &ich,
+    )
+    .await
+    .unwrap();
+
+    // Übersicht: ein Punkt für den Vorgang, Anforderung und Aufgabe stehen darin.
+    let u = c.projektuebersicht_am(p.id, tag, &ich).await.unwrap();
+    let vorgang = u
+        .punkte
+        .iter()
+        .find(|x| x.ziel.eintrag == Some(punkt))
+        .expect("Forderungspunkt in der Übersicht");
+    assert!(
+        vorgang.hinweis.contains("Vermesser beauftragen"),
+        "{}",
+        vorgang.hinweis
+    );
+    assert!(
+        !u.punkte
+            .iter()
+            .any(|x| x.id == format!("anforderung:{vid}:{lageplan}")),
+        "nachgeforderte Anforderung darf nicht zusätzlich erscheinen"
+    );
+    assert!(
+        !u.punkte.iter().any(|x| x.titel == "Vermesser beauftragen"),
+        "gebundene Aufgabe darf nicht zusätzlich erscheinen"
+    );
+    // Cockpit: eine Frist für den Vorgang statt zweier.
+    let cockpit = c.buero_cockpit(&ich, tag).await.unwrap();
+    let am_tag: Vec<_> = cockpit
+        .termine
+        .iter()
+        .filter(|t| t.datum == frist)
+        .map(|t| t.titel.clone())
+        .collect();
+    assert_eq!(am_tag.len(), 1, "{am_tag:?}");
+
+    // Antwortunterlagen des Punkts belegen die Anforderung.
+    let plan = c
+        .store_document(
+            p.id,
+            None,
+            None,
+            "Lageplan.pdf",
+            Bytes::from(pdf("Lageplan")),
+            &ich,
+        )
+        .await
+        .unwrap();
+    let bezug = core_lib::plattform::objekte::Dokumentbezug {
+        dokument_id: plan.document_id,
+        version: plan.version,
+    };
+    let mut akte: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    akte.nachforderungen[0].punkte[0].dokumente = vec![bezug.clone()];
+    akte.nachforderungen[0].punkte[0].status = Punktstatus::InArbeit;
+    let f = c
+        .fachobjekt_speichern(
+            p.id,
+            ObjektArt::Verfahren,
+            vid,
+            f.revision,
+            serde_json::to_value(&akte).unwrap(),
+            &ich,
+        )
+        .await
+        .unwrap();
+    let mut akte: Verfahrensakte = serde_json::from_value(f.daten).unwrap();
+    let r = akte
+        .anforderungen
+        .iter()
+        .find(|a| a.id == lageplan)
+        .unwrap();
+    assert_eq!(r.dokumente, [bezug]);
+    assert_eq!(r.erforderlich, Erforderlichkeit::Erforderlich);
+    let offen = c
+        .fachobjekt_lesen(p.id, ObjektArt::Aufgaben, aufgabe)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(offen.daten["status"], "offen");
+
+    // Ist der Punkt erledigt, sind es seine Aufgaben auch; die Anforderung
+    // steht danach wieder für sich (hier: Freigabe offen).
+    akte.nachforderungen[0].punkte[0].status = Punktstatus::Entfallen;
+    akte.nachforderungen[0].punkte[0].antwort =
+        "Behörde verzichtet laut Telefonat auf den Punkt.".into();
+    c.fachobjekt_speichern(
+        p.id,
+        ObjektArt::Verfahren,
+        vid,
+        f.revision,
+        serde_json::to_value(&akte).unwrap(),
+        &ich,
+    )
+    .await
+    .unwrap();
+    let erledigt = c
+        .fachobjekt_lesen(p.id, ObjektArt::Aufgaben, aufgabe)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(erledigt.daten["status"], "erledigt");
+    let u = c.projektuebersicht_am(p.id, tag, &ich).await.unwrap();
+    assert!(!u.punkte.iter().any(|x| x.ziel.eintrag == Some(punkt)));
+    assert!(
+        u.punkte
+            .iter()
+            .any(|x| x.id == format!("anforderung:{vid}:{lageplan}"))
+    );
+}

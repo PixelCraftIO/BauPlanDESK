@@ -142,8 +142,6 @@
       id: "vorbereitung",
       titel: "Vorbereitung",
       tabs: [
-        "arbeitsliste",
-        "stamm",
         "profil",
         "anforderungen",
         "abweichungen",
@@ -167,10 +165,31 @@
       tabs: ["bescheide", "ausfuehrung", "beziehungen", "chronik"],
     },
   ];
+  /** In jeder Phase erreichbar: Arbeitsliste und Stammdaten der Akte. */
+  const IMMER = ["arbeitsliste", "stamm"];
   $effect(() => {
     const p = phasen.find((p) => p.tabs.includes(tab));
     if (p) phase = p.id;
   });
+  // Eine geöffnete Akte beginnt in der Phase, in der das Verfahren steht.
+  let phaseFuer = "";
+  $effect(() => {
+    const id = s.id ?? "";
+    if (id === phaseFuer) return;
+    phaseFuer = id;
+    const status = untrack(() => s.original?.status);
+    if (!status || IMMER.includes(untrack(() => tab)))
+      phase =
+        !status || status === "vorbereitung"
+          ? "vorbereitung"
+          : status === "entschieden" || status === "zurueckgenommen"
+            ? "entscheidung"
+            : "laufend";
+  });
+  /** Vorgabe für das Register Schreiben (Art und Bezug). */
+  let schreibenVorgabe = $state<{ art: string; nachforderung?: string } | null>(
+    null,
+  );
   function registerOeffnen(r: string, eintrag?: string) {
     tab = r;
     if (eintrag && s.id)
@@ -271,6 +290,61 @@
   }
   const profil = (p: Vorhabenprofil, k: Anforderungskatalog) =>
     aktion((b) => verfahrenApi.profilAnwenden(projekt.id, s.id!, b, p, k));
+  /**
+   * Geführte Antwort auf eine Nachforderung: hält die Antwortunterlagen der
+   * offenen Punkte als Nachreichung fest, trägt den Abgabestand bei den
+   * Punkten ein und setzt sie auf „Antwort vorbereitet“.
+   */
+  async function nachreichen(nachforderung: string) {
+    const a = s.eingabe;
+    const n = a?.nachforderungen.find((n) => n.id === nachforderung);
+    if (!a || !n) return;
+    const punkte = n.punkte.filter(
+      (p) =>
+        ["offen", "in_arbeit", "vorbereitet"].includes(p.status) &&
+        p.dokumente.length,
+    );
+    const dokumente = punkte
+      .flatMap((p) => p.dokumente)
+      .filter(
+        (d, i, alle) =>
+          alle.findIndex(
+            (x) => x.dokument_id === d.dokument_id && x.version === d.version,
+          ) === i,
+      );
+    if (!dokumente.length) {
+      s.fehler =
+        "Zuerst bei den offenen Forderungspunkten die Antwortunterlagen zuordnen.";
+      return;
+    }
+    const betreff =
+      a.kommunikation.find((c) => c.id === n.kommunikation)?.betreff ??
+      "Nachforderung";
+    const id = crypto.randomUUID();
+    const ids = punkte.map((p) => p.id);
+    await aktion((b) =>
+      verfahrenApi.abgabe(projekt.id, s.id!, b, {
+        id,
+        titel: `Nachreichung: ${betreff}`.slice(0, 500),
+        dokumente: structuredClone($state.snapshot(dokumente)),
+        xbau: false,
+        druck: false,
+        anschreiben: punkte
+          .map((p) => `${p.titel}: ${p.antwort}`.trim())
+          .join("\n")
+          .slice(0, 16000),
+      }),
+    );
+    if (s.fehler || !s.eingabe) return;
+    for (const p of s.eingabe.nachforderungen.flatMap((n) => n.punkte)) {
+      if (!ids.includes(p.id)) continue;
+      if (!p.abgaben.includes(id)) p.abgaben.push(id);
+      if (p.status !== "vorbereitet") p.status = "vorbereitet";
+    }
+    if (await s.speichern())
+      s.meldung =
+        "Nachreichung festgehalten und bei den Punkten eingetragen. Als Nächstes das Anschreiben erstellen und den Versand erfassen.";
+  }
   async function nachweisUebernehmen(anforderung: string) {
     await aktion((b) =>
       verfahrenApi.nachweisAlsUnterlage(projekt.id, s.id!, b, anforderung),
@@ -332,6 +406,8 @@
           class="link"
           onclick={() => (tab = "arbeitsliste")}
           >Unterlagen und Arbeitsaufträge öffnen →</button
+        ><button type="button" class="link" onclick={dateienLaden}
+          >Dokumentversionen aktualisieren</button
         >
       </aside>
       <nav class="verfahren-phasen" aria-label="Verfahrensphasen">
@@ -348,22 +424,24 @@
       <nav class="verfahren-tabs" aria-label="Verfahrensbereiche">
         {#each tabs as [id, titel]}<button
             type="button"
-            hidden={!phasen.find((p) => p.id === phase)?.tabs.includes(id)}
+            hidden={!IMMER.includes(id) &&
+              !phasen.find((p) => p.id === phase)?.tabs.includes(id)}
             class="sekundaer"
             class:aktiv={tab === id}
             aria-pressed={tab === id}
             onclick={() => (tab = id)}>{titel}</button
           >{/each}
       </nav>
-      <button type="button" class="link" onclick={dateienLaden}
-        >Dokumentversionen aktualisieren</button
-      >
       <Lage
         projektId={projekt.id}
         verfahrenId={s.id}
         revision={s.revision}
         {darf}
         onregister={(r) => (tab = r)}
+        onschreiben={(art) => {
+          schreibenVorgabe = { art };
+          tab = "schreiben";
+        }}
         onfolgeverfahren={folgeverfahren}
       />
       {#if tab === "arbeitsliste"}<Arbeitsliste
@@ -534,6 +612,7 @@
           />
         </fieldset>
       {:else if tab === "schreiben"}<Schreiben
+          vorgabe={schreibenVorgabe}
           akte={a}
           projektId={projekt.id}
           verfahrenId={s.id}
@@ -578,6 +657,14 @@
             alt={s.original?.nachforderungen.flatMap((n) =>
               n.punkte.map((p) => p.id),
             ) ?? []}
+            projektId={projekt.id}
+            {darf}
+            onnachreichen={nachreichen}
+            onschreiben={(nachforderung) => {
+              schreibenVorgabe = { art: "nachforderungsantwort", nachforderung };
+              tab = "schreiben";
+            }}
+            onversand={(abgabe) => registerOeffnen("abgaben", abgabe)}
           />
         </fieldset>
       {:else if tab === "schritte"}<fieldset disabled={!darf}>
@@ -791,8 +878,5 @@
   fieldset {
     border: 0;
     padding: 0.6rem 0;
-  }
-  nav + button {
-    margin-bottom: 1rem;
   }
 </style>

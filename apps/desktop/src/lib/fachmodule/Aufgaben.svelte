@@ -62,6 +62,10 @@
         ></label
       >
     </div>
+    {#if a.bezug}<p class="meta">
+        Diese Aufgabe gehört zu einem Forderungspunkt einer Nachforderung. Sie
+        zählt dort mit und wird erledigt, sobald der Punkt beantwortet ist.
+      </p>{/if}
     <label
       >Beschreibung<textarea bind:value={a.beschreibung} maxlength="10000"
       ></textarea></label

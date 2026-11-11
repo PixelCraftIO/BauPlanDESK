@@ -195,6 +195,7 @@ async fn arbeitsstand_fristen_quellen_und_historische_nachweise() {
                 dokumente: vec![],
                 abgaben: vec![],
                 bestaetigung: None,
+                anforderung: None,
             }],
         }],
         anforderungen: vec![Anforderung {

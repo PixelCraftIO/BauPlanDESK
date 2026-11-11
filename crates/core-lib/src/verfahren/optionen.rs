@@ -217,21 +217,54 @@ pub fn optionen(
     {
         let drei_monate = ein.checked_add_months(chrono::Months::new(3));
         let bearbeitung = a.bearbeitungsfrist.as_ref().map(|f| f.datum);
-        if let Some((ende, grundlage)) = fiktion(a, land, paket) {
-            lage.push("Entscheidung ausstehend".into());
-            o.push(option(
-                "Genehmigungsfiktion",
-                format!(
-                    "Ohne Entscheidung bis zum {} gilt die Genehmigung voraussichtlich als erteilt. Danach eine Bescheinigung über den Eintritt verlangen (§ 42a Abs. 3 VwVfG).",
+        // Offene Nachforderungen können den Fristlauf hemmen; das entscheidet
+        // das Landesrecht, nicht die Anwendung.
+        let nachforderung_offen = a
+            .nachforderungen
+            .iter()
+            .flat_map(|n| &n.punkte)
+            .any(|p| p.status.offen());
+        let vorbehalt = if nachforderung_offen {
+            " Eine Nachforderung ist noch nicht beantwortet: Ob die Frist währenddessen läuft, fachlich prüfen."
+        } else {
+            ""
+        };
+        let fiktion = fiktion(a, land, paket);
+        let abgelaufen = fiktion.as_ref().is_some_and(|(ende, _)| *ende < heute);
+        if let Some((ende, grundlage)) = fiktion {
+            if abgelaufen {
+                lage.push(format!(
+                    "Fiktionsfrist seit {} abgelaufen",
                     ende.format("%d.%m.%Y")
-                ),
-                Some(ende),
-                &grundlage,
-                None,
-            ));
+                ));
+                o.push(option(
+                    "Bescheinigung über die Genehmigungsfiktion verlangen",
+                    format!(
+                        "Die Frist endete am {} ohne erfasste Entscheidung. Tritt die Fiktion ein, gilt die Genehmigung als erteilt; die Behörde hat den Eintritt auf Verlangen schriftlich zu bescheinigen (§ 42a Abs. 3 VwVfG). Vorher prüfen, ob die Frist tatsächlich lief (Vollständigkeit, Unterbrechungen, Verlängerung).{vorbehalt}",
+                        ende.format("%d.%m.%Y")
+                    ),
+                    None,
+                    &grundlage,
+                    schreiben("sachstandsanfrage"),
+                ));
+            } else {
+                lage.push("Entscheidung ausstehend".into());
+                o.push(option(
+                    "Genehmigungsfiktion",
+                    format!(
+                        "Ohne Entscheidung bis zum {} gilt die Genehmigung voraussichtlich als erteilt. Danach eine Bescheinigung über den Eintritt verlangen (§ 42a Abs. 3 VwVfG).{vorbehalt}",
+                        ende.format("%d.%m.%Y")
+                    ),
+                    Some(ende),
+                    &grundlage,
+                    None,
+                ));
+            }
         }
         if bearbeitung.is_some_and(|d| d < heute) || drei_monate.is_some_and(|d| d <= heute) {
-            lage.push("Bearbeitung dauert an".into());
+            if !abgelaufen {
+                lage.push("Bearbeitung dauert an".into());
+            }
             o.push(option(
                 "Sachstand erfragen",
                 "Stand der Bearbeitung und voraussichtlichen Entscheidungszeitpunkt erfragen.",
@@ -493,6 +526,44 @@ mod tests {
             Some(tag("2026-11-01")),
             "6 Wochen ab Vollständigkeit"
         );
+        // Nach Fristablauf wechselt die Lage: Bescheinigung statt Abwarten.
+        let l = optionen(&a, Bundesland::Nw, tag("2026-11-02"), &paket);
+        assert!(
+            l.lage.contains("Fiktionsfrist seit 01.11.2026 abgelaufen"),
+            "{}",
+            l.lage
+        );
+        assert!(!l.lage.contains("Entscheidung ausstehend"));
+        let b = l
+            .optionen
+            .iter()
+            .find(|o| o.titel == "Bescheinigung über die Genehmigungsfiktion verlangen")
+            .expect("Bescheinigung nach Fristablauf");
+        assert!(!b.beschreibung.contains("Nachforderung"));
+        assert!(!l.optionen.iter().any(|o| o.titel == "Genehmigungsfiktion"));
+        // Eine unbeantwortete Nachforderung stellt den Fristlauf in Frage.
+        a.nachforderungen.push(Nachforderung {
+            id: Uuid::new_v4(),
+            kommunikation: Uuid::new_v4(),
+            punkte: vec![Forderungspunkt {
+                id: Uuid::new_v4(),
+                titel: "Entwässerungsnachweis".into(),
+                grundlage: String::new(),
+                verantwortlich: None,
+                frist: None,
+                status: Punktstatus::Offen,
+                antwort: String::new(),
+                dokumente: vec![],
+                abgaben: vec![],
+                bestaetigung: None,
+                anforderung: None,
+            }],
+        });
+        let l = optionen(&a, Bundesland::Nw, tag("2026-11-02"), &paket);
+        assert!(l.optionen.iter().any(|o| {
+            o.titel.starts_with("Bescheinigung") && o.beschreibung.contains("Nachforderung")
+        }));
+        a.nachforderungen.clear();
         // Vor dem 01.09.2026 eingegangen: keine Fiktion nach neuer Fassung.
         a.externe_einreichungen[0].datum = tag("2026-08-20");
         let l = optionen(&a, Bundesland::Nw, tag("2026-10-01"), &paket);

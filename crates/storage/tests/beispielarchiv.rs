@@ -136,10 +136,14 @@ async fn beispielprojekt_bereichsstatus() {
     ] {
         assert_eq!(zustand(id), Geprueft, "{id}");
     }
-    for id in ["verfahren", "unterlagen", "planaufmass", "gebaeude"] {
+    for id in ["unterlagen", "planaufmass", "gebaeude"] {
         assert_eq!(zustand(id), InArbeit, "{id}");
     }
-    assert_eq!(zustand("aufgaben"), Problem);
+    // Die offenen Aufgaben gehören zum nachgeforderten Punkt: Der Vorgang
+    // steht einmal beim Verfahren und ist so dringend wie seine überfällige
+    // Aufgabe; der Aufgabenbereich meldet ihn nicht ein zweites Mal.
+    assert_eq!(zustand("verfahren"), Problem);
+    assert_eq!(zustand("aufgaben"), Leer);
     // Listenbereiche werden nie grün.
     for id in [
         "aufgaben",

@@ -382,9 +382,34 @@ impl CoreServices {
                 }
             }
         }
+        // Ein Vorgang, ein Eintrag: Aufgaben und Anforderungen, die zu einem
+        // offenen Forderungspunkt gehören, stehen bei diesem Punkt.
+        let mut offene_punkte = std::collections::HashSet::new();
+        let mut nachgefordert = std::collections::HashSet::new();
+        for f in &akten {
+            let a: Verfahrensakte = decode(f.daten.clone())?;
+            if a.status.abgeschlossen() {
+                continue;
+            }
+            for r in a.nachforderungen.iter().flat_map(|n| &n.punkte) {
+                if r.status.offen() {
+                    offene_punkte.insert(r.id);
+                    nachgefordert.extend(r.anforderung);
+                }
+            }
+        }
+        // Titel der gebundenen Aufgaben und ihre früheste Fälligkeit: Der
+        // Vorgang ist so dringend wie seine dringendste Aufgabe.
+        let mut gebunden: BTreeMap<Uuid, (Vec<String>, Option<NaiveDate>)> = BTreeMap::new();
         for f in self.fachobjekte(p, ObjektArt::Aufgaben).await? {
             let a: Aufgabe = decode(f.daten)?;
             if a.status == AufgabenStatus::Erledigt {
+                continue;
+            }
+            if let Some(punkt) = a.bezug.filter(|b| offene_punkte.contains(b)) {
+                let g = gebunden.entry(punkt).or_default();
+                g.0.push(a.titel);
+                g.1 = [g.1, a.faellig].into_iter().flatten().min();
                 continue;
             }
             let aid = id(&f.objekt)?;
@@ -844,7 +869,7 @@ impl CoreServices {
                         }
                         _ => None,
                     };
-                    if let Some((d, grund)) = grund {
+                    if let Some((d, grund)) = grund.filter(|_| !nachgefordert.contains(&r.id)) {
                         s.zahlen.fehlende_unterlagen += 1;
                         s.punkt(
                             format!("anforderung:{vid}:{}", r.id),
@@ -865,7 +890,13 @@ impl CoreServices {
                         let datum = if warten {
                             None
                         } else {
-                            r.frist.as_ref().map(|f| f.datum)
+                            [
+                                r.frist.as_ref().map(|f| f.datum),
+                                gebunden.get(&r.id).and_then(|g| g.1),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .min()
                         };
                         s.punkt(
                             format!("nachforderung:{vid}:{}", r.id),
@@ -873,13 +904,17 @@ impl CoreServices {
                             frist(datum, heute, if warten { Warten } else { Handeln }),
                             r.titel.clone(),
                             format!(
-                                "{} · {}",
+                                "{} · {}{}",
                                 a.bezeichnung,
                                 if warten {
                                     "Antwort eingereicht; behördliche Bestätigung steht aus"
                                 } else {
                                     "Nachforderung beantworten und Antwortunterlagen zuordnen"
-                                }
+                                },
+                                gebunden
+                                    .get(&r.id)
+                                    .map(|g| format!(" · Aufgaben dazu: {}", g.0.join("; ")))
+                                    .unwrap_or_default()
                             ),
                             ziel("nachforderungen").eintrag(r.id),
                         );

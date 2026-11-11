@@ -446,6 +446,19 @@ impl CoreServices {
             .into_iter()
             .map(lesen::<Fachplanerlieferung>)
             .collect::<CoreResult<Vec<_>>>()?;
+        // Ein Vorgang, eine Frist: Aufgaben zu einem offenen Forderungspunkt
+        // mit eigener Frist erscheinen über diesen Punkt.
+        let vorgaenge: std::collections::HashSet<Uuid> = akten
+            .iter()
+            .filter(|(_, a)| !a.status.abgeschlossen())
+            .flat_map(|(_, a)| a.nachforderungen.iter().flat_map(|n| &n.punkte))
+            .filter(|r| r.status.offen() && r.frist.is_some())
+            .map(|r| r.id)
+            .collect();
+        let aufgaben: Vec<_> = aufgaben
+            .into_iter()
+            .filter(|(_, a)| !a.bezug.is_some_and(|b| vorgaenge.contains(&b)))
+            .collect();
         let mut weitere = weitere_termine(p, &aufgaben, &tagebuch, heute);
         weitere.extend(lieferungstermine(p, &lieferungen, heute));
         Ok((akten, weitere))
@@ -519,6 +532,7 @@ mod tests {
             dokumente: vec![],
             abgaben: vec![],
             bestaetigung: None,
+            anforderung: None,
         }
     }
     fn mit_punkten(punkte: Vec<Forderungspunkt>) -> Verfahrensakte {

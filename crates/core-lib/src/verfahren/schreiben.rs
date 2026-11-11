@@ -536,6 +536,7 @@ mod tests {
             dokumente: docs,
             abgaben: vec![],
             bestaetigung: None,
+            anforderung: None,
         };
         let nid = Uuid::new_v4();
         a.nachforderungen.push(Nachforderung {

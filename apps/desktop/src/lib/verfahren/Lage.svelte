@@ -13,8 +13,11 @@
     revision,
     darf,
     onregister,
+    onschreiben,
     onfolgeverfahren,
   }: {
+    /** Register Schreiben mit vorgewählter Art öffnen. */
+    onschreiben?: (art: string) => void;
     projektId: string;
     verfahrenId: string | null;
     /** Gespeicherter Stand; neu laden, wenn er sich ändert. */
@@ -39,7 +42,8 @@
   function ausfuehren(o: Handlungsoption) {
     const a = o.aktion;
     if (!a) return;
-    if (a.art === "schreiben") onregister("schreiben");
+    if (a.art === "schreiben")
+      onschreiben ? onschreiben(a.schreiben) : onregister("schreiben");
     else if (a.art === "register") onregister(a.register);
     else
       onfolgeverfahren(
@@ -54,20 +58,32 @@
     aria-label="Lage und nächste Schritte"
   >
     <h3>Lage: {lage.lage}</h3>
+    {#snippet eintrag(o: Handlungsoption)}<li>
+        <strong>{o.titel}</strong>{o.frist ? ` · bis ${datumDe(o.frist)}` : ""}{o.rechtsgrundlage
+          ? ` · ${o.rechtsgrundlage}`
+          : ""}
+        <p class="meta">{o.beschreibung}</p>
+        {#if o.aktion && (darf || o.aktion.art !== "folgeverfahren")}<button
+            type="button"
+            class="link"
+            onclick={() => ausfuehren(o)}
+            >{o.aktion.art === "folgeverfahren"
+              ? `${VERFAHRENSART[o.aktion.verfahrensart]} anlegen`
+              : "Öffnen"}</button
+          >{/if}
+      </li>{/snippet}
     <ul>
-      {#each lage.optionen as o}<li>
-          <strong>{o.titel}</strong>{o.frist ? ` · bis ${datumDe(o.frist)}` : ""}{o.rechtsgrundlage
-            ? ` · ${o.rechtsgrundlage}`
-            : ""}
-          <p class="meta">{o.beschreibung}</p>
-          {#if o.aktion && (darf || o.aktion.art !== "folgeverfahren")}<button
-              type="button"
-              class="link"
-              onclick={() => ausfuehren(o)}
-              >{o.aktion.art === "folgeverfahren"
-                ? `${VERFAHRENSART[o.aktion.verfahrensart]} anlegen`
-                : "Öffnen"}</button
-            >{/if}
-        </li>{/each}
+      {@render eintrag(lage.optionen[0])}
     </ul>
+    {#if lage.optionen.length > 1}<details>
+        <summary
+          >Weitere Möglichkeiten ({lage.optionen.length - 1}): {lage.optionen
+            .slice(1)
+            .map((o) => o.titel)
+            .join(" · ")}</summary
+        >
+        <ul>
+          {#each lage.optionen.slice(1) as o}{@render eintrag(o)}{/each}
+        </ul>
+      </details>{/if}
   </section>{:else if fehler}<p class="meta">{fehler}</p>{/if}

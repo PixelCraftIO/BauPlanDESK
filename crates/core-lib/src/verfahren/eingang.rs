@@ -275,6 +275,7 @@ pub(crate) fn anwenden(
                     dokumente: vec![],
                     abgaben: vec![],
                     bestaetigung: None,
+                    anforderung: None,
                 })
                 .collect::<Vec<_>>();
             w.push(format!(
