@@ -468,6 +468,19 @@
   // Kürzel gelten, solange die letzte Bedienung im Editor war, auch wenn der
   // Fokus danach auf das Dokument fiel (z. B. nach dem Entfernen eines Eintrags).
   let imEditor=false,werkzeugleiste=$state<HTMLElement>();
+  // Werkzeugleiste: reicht die Höhe nicht für alle Werkzeuge, wird sie mehrspaltig statt abgeschnitten.
+  let wzLeiste=$state<HTMLElement>(),wzSpalten=$state(1),wzBedarf=0;
+  $effect(()=>{
+    const el=wzLeiste;if(!el)return;
+    const messen=()=>{
+      if(wzSpalten===1)wzBedarf=Math.max(wzBedarf,el.scrollHeight);
+      const h=el.clientHeight;if(!h||!wzBedarf)return;
+      const n=Math.min(3,Math.max(1,Math.ceil((wzBedarf+8)/h)));
+      if(n!==wzSpalten)wzSpalten=n;
+    };
+    const ro=new ResizeObserver(messen);ro.observe(el);messen();
+    return()=>ro.disconnect();
+  });
   // Editor und seine Werkzeugleiste (liegt in der Kopfzeile der Liste) gelten
   // gemeinsam als Editor: nach „Rückgängig“ per Knopf wirkt Strg+Umschalt+Z.
   const imBereich=(n:EventTarget|null)=>!!n&&(!!editor?.contains(n as Node)||!!werkzeugleiste?.contains(n as Node));
@@ -964,7 +977,7 @@
       </div>{/if}
       {#if hilfe}<section class="kurzbefehle" aria-label="Kurzbefehle"><strong>Zeichnen und navigieren</strong><p>V Auswählen · M Verschieben · P Polygon · R Rechteck · K Kreis · S Strecke · W Wand · L Maßkette · X Text · H Höhenpunkt · Z Zoomfenster · F11 Vollbild · F1 Hilfe</p><p>Strg+Rad zoomt · Leertaste verschiebt · Shift bindet Winkel · F8 Ortho · Alt setzt Fang aus · Ziffern oder @ öffnen die Koordinateneingabe · Shift+Klick erweitert die Auswahl · Pfeile verschieben die Auswahl · Enter schließt bzw. wiederholt den letzten Befehl · Escape verwirft die laufende Aktion · Strg+Z zurück · Strg+Y / Strg+Shift+Z wiederholen.</p></section>{/if}
       <div class="arbeitsplatz">
-        <div class="werkzeugleiste" role="toolbar" aria-label="PDF-Zeichenwerkzeuge" aria-orientation="vertical">
+        <div class="werkzeugleiste" class:mehrspaltig={wzSpalten>1} style={`--wz-spalten:${wzSpalten}`} bind:this={wzLeiste} role="toolbar" aria-label="PDF-Zeichenwerkzeuge" aria-orientation="vertical">
           {#each werkzeuggruppen as gruppe,gi}
             {#if gi}<span class="gruppentrenner" role="separator" aria-hidden="true"></span>{/if}
             {#each gruppe as [id,titel,kuerzel]}
@@ -1405,6 +1418,8 @@
   .kurzbefehle p{margin:.3rem 0;font-size:.85rem}
   .arbeitsplatz{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) 320px;flex:1;min-height:0}
   .werkzeugleiste{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:center;gap:2px;padding:6px 4px;background:var(--kopfzeile);border-right:1px solid var(--border);overflow:auto}
+  .werkzeugleiste.mehrspaltig{display:grid;grid-template-columns:repeat(var(--wz-spalten),auto);align-content:start;justify-items:center}
+  .werkzeugleiste.mehrspaltig .gruppentrenner{grid-column:1/-1;width:auto;justify-self:stretch;margin:3px 2px}
   .wzplatz{position:relative;display:flex}
   .vorlagenpfeil{position:absolute;right:0;bottom:0;width:9px;height:9px;min-height:0;min-width:0;padding:0;border:0;background:transparent;cursor:pointer}
   .vorlagenpfeil::after{content:"";position:absolute;right:1px;bottom:1px;border-style:solid;border-width:0 0 5px 5px;border-color:transparent transparent currentColor transparent;color:var(--muted)}

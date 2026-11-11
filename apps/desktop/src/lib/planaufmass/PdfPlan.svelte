@@ -688,9 +688,10 @@
     </span>
     <label class="fangschalter" class:aktiv={ortho} title="Ortho (F8)"><input type="checkbox" bind:checked={ortho}/><span>Ortho</span></label>
     <label class="winkelraster" title="Winkelraster beim Zeichnen">Winkel<select bind:value={winkelraster} aria-label="Winkelraster">{#each [[0,"frei"],[15,"15°"],[30,"30°"],[45,"45°"],[90,"90°"]] as [w,t]}<option value={w}>{t}</option>{/each}</select></label>
-    {#if punkte.length}<span class="trenner" aria-hidden="true"></span><button type="button" class="text" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer text" onclick={()=>punkte=[]}>Abbrechen</button>{/if}
+    
   </div>
   <div class="plan-koerper">
+    {#if punkte.length}<div class="zeichenaktionen" role="group" aria-label="Laufende Kontur"><button type="button" class="text" onclick={finish} disabled={(werkzeug==="polygon"&&punkte.length<3)}>Abschließen</button><button type="button" class="sekundaer text" onclick={()=>punkte=[]}>Abbrechen</button></div>{/if}
     {#if miniaturen&&seitenzahl>1}
       <nav class="seitenleiste" aria-label="Seiten der Unterlage">
         {#each Array.from({length:seitenzahl},(_,i)=>i+1) as n (`${doc?.fingerprints[0]}:${n}`)}
@@ -868,7 +869,9 @@
   .fangoptionen{position:absolute;top:calc(100% + 2px);left:0;z-index:25;display:flex;flex-direction:column;gap:.35rem;padding:8px 12px;font-size:.85rem;white-space:nowrap;background:var(--panel);border:1px solid var(--border);box-shadow:0 6px 18px rgb(0 0 0 / .18)}
   .fangoptionen label{display:flex;gap:.3rem;align-items:center}
   .vergleich{pointer-events:none;mix-blend-mode:multiply;transform-origin:0 0}
-  .plan-koerper{display:flex;flex:1;min-height:0}
+  .plan-koerper{display:flex;flex:1;min-height:0;position:relative}
+  /* Schwebt über dem Plan: Die Zeichenfläche darf sich nach dem ersten Punkt nicht verschieben. */
+  .zeichenaktionen{position:absolute;top:8px;right:16px;z-index:5;display:flex;gap:6px;padding:4px;background:var(--panel);border:1px solid var(--border);border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,.18)}
   .seitenleiste{width:150px;overflow:auto;background:#cfd8e0;padding:6px;display:grid;gap:6px;align-content:start}
   .seitenleiste button{display:grid;gap:2px;justify-items:center;padding:4px;background:white;border:2px solid transparent;border-radius:4px;cursor:pointer}
   .seitenleiste button.aktiv{border-color:#126d97}

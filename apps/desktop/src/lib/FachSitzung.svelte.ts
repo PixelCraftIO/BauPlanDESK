@@ -4,6 +4,8 @@ import { plattformApi, type Datensatz } from "./plattformApi";
 import { fehlertext } from "./api";
 import { vergleichsform } from "./vergleichsform";
 import type { ObjektArt } from "./generated/plattform";
+import { abonnieren } from "./projektEreignisse";
+import { standZusammenfuehren } from "./standZusammenfuehren";
 export class FachSitzung<T> {
   liste = $state<Datensatz<T>[]>([]);
   mehrVorhanden = $state(false);
@@ -44,7 +46,49 @@ export class FachSitzung<T> {
     readonly leer: () => T,
     readonly titel: (d: T) => string,
     readonly entwurfObjekt = "",
-  ) {}
+  ) {
+    // Andere Bereiche derselben Akte (z. B. die Übernahme aus dem Aufmaß)
+    // speichern dieselben Fachobjekte. Liste und geöffneter Eintrag folgen dem
+    // gespeicherten Stand, statt später mit sich selbst in Konflikt zu geraten.
+    this.abmelden = abonnieren(projektId, ["fachobjekte"], () => {
+      clearTimeout(this.folgeTimer);
+      this.folgeTimer = setTimeout(() => void this.nachfuehren(), 120);
+    });
+  }
+  private abmelden: () => void;
+  private folgeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Lädt die Liste neu und führt den geöffneten Eintrag auf den gespeicherten Stand nach. */
+  private async nachfuehren() {
+    if (!this.bereit || this.geschlossen) return;
+    if (this.aktion) {
+      // Eigenes Speichern läuft noch: danach erneut prüfen.
+      this.folgeTimer = setTimeout(() => void this.nachfuehren(), 200);
+      return;
+    }
+    if (!(await this.laden())) return;
+    if (this.aktion || !this.id || !this.eingabe) return;
+    const f = this.liste.find((x) => x.objekt === this.id);
+    if (!f || f.revision <= this.revision) return;
+    const neu = JSON.parse(JSON.stringify(f.daten)) as T;
+    if (!this.hatAenderungen()) {
+      this.original = neu;
+      this.eingabe = JSON.parse(JSON.stringify(neu)) as T;
+      this.revision = f.revision;
+      return;
+    }
+    const { daten, konflikte } = standZusammenfuehren(
+      JSON.parse(this.originalSignatur ?? "null") as T | null,
+      JSON.parse(this.eingabeSignatur) as T,
+      neu,
+    );
+    this.original = neu;
+    this.eingabe = daten;
+    this.revision = f.revision;
+    this.fehler = null;
+    this.meldung = konflikte.length
+      ? "Dieser Eintrag wurde inzwischen an anderer Stelle gespeichert. Ihre Eingaben bleiben erhalten; wo beide Stände dasselbe Feld betreffen, gilt Ihre Eingabe. Bitte vor dem Speichern prüfen."
+      : "Dieser Eintrag wurde inzwischen an anderer Stelle gespeichert (z. B. Übernahme aus dem Aufmaß). Die neuen Werte sind eingesetzt, Ihre ungespeicherten Eingaben bleiben erhalten.";
+  }
   private get schluessel() {
     return `bauprojekt.entwurf.v1.${this.benutzerId}.${this.projektId}.${this.art}${this.entwurfObjekt ? "." + this.entwurfObjekt : ""}`;
   }
@@ -159,6 +203,8 @@ export class FachSitzung<T> {
     }
   }
   beenden() {
+    clearTimeout(this.folgeTimer);
+    this.abmelden();
     void this.entwurfFlush();
     this.geschlossen = true;
     this.ladegeneration++;

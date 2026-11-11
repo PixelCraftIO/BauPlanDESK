@@ -700,8 +700,16 @@ impl Planmesswert {
             Planmessgroesse::Hoehe => self.hoehe_m,
             Planmessgroesse::Neigung => self.neigung_grad,
         }
+        .map(messwert_runden)
         .ok_or_else(|| fehler("Messgröße ist für diese Markierung noch nicht ermittelt"))
     }
+}
+/// Übernommene Messwerte auf drei Nachkommastellen (mm, 10 cm², 0,001°): Die
+/// Rechengenauigkeit der Geometrie liegt weit darunter und hinterließe in
+/// Eingabefeldern Reste wie 98,99999999999999.
+pub fn messwert_runden(v: f64) -> f64 {
+    let r = (v * 1000.).round() / 1000.;
+    if r == 0. { 0. } else { r }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]

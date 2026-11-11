@@ -489,8 +489,23 @@
                 {g.bezugsflaeche_m2 === null ? "" : "m²"}<span class="meta">
                   · {g.quelle}</span
                 >
-              </div>{:else}{flaechenFehler ??
-                "Noch keine Grundstücksfläche ermittelt"}{/each}
+              </div>{:else}<span class="meta"
+                >{flaechenFehler
+                  ? flaechenFehler.replace(/^Ungültige Eingabe: /, "")
+                  : "Noch keine Grundstücksfläche ermittelt."}</span
+              >
+              <button
+                type="button"
+                class="link"
+                onclick={() =>
+                  (ansicht =
+                    flaechenFehler && !/Fläche noch nicht ermittelt/.test(flaechenFehler)
+                      ? "mass"
+                      : "flurstuecke")}
+                >{flaechenFehler && !/Fläche noch nicht ermittelt/.test(flaechenFehler)
+                  ? "Baugrundstück prüfen →"
+                  : "Flurstücke erfassen →"}</button
+              >{/each}
           </dd>
           <dt>{bauherren.length > 1 ? "Bauherren" : "Bauherr"}</dt>
           <dd>

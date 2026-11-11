@@ -145,6 +145,7 @@ impl CoreServices {
                         .as_ref()
                         .and_then(|g| g.nullpunkt_m_nhn)
                         .ok_or_else(|| fehler("Gebäudenullpunkt in NHN zuerst festlegen"))?;
+                    wert = super::messwert_runden(wert);
                 }
             }
             if ist_geschoss {

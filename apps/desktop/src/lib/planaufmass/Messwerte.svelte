@@ -47,6 +47,17 @@
     && (filterStatus === "" || (filterStatus === "verwendet" ? r.verwendungen.length > 0 : filterStatus === "unverwendet" ? r.verwendungen.length === 0 : r.veraltet))
     && (!suche || `${r.name} ${r.bedeutung} ${r.verwendungen.map(v => v.verbraucher).join(" ")}`.toLocaleLowerCase("de").includes(suche.toLocaleLowerCase("de")))));
   const offeneAufgaben = $derived(Object.values(aufgaben).flat().filter(t => !t.gebunden));
+  // Wie im Projektbaum gezählt: Eine Aufgabe ist offen, solange in keinem Aufmaß
+  // eine Markierung verknüpft und auch kein Wert von Hand erfasst ist.
+  const aufgabenStand = $derived.by(() => {
+    const alle = new Map<string, { gebunden: boolean; wert: boolean }>();
+    for (const t of Object.values(aufgaben).flat()) {
+      const k = `${t.verbraucher}|${t.objekt}|${t.ziel}`, e = alle.get(k) ?? { gebunden: false, wert: false };
+      alle.set(k, { gebunden: e.gebunden || !!t.gebunden, wert: e.wert || t.wert_vorhanden });
+    }
+    const werte = [...alle.values()];
+    return { ohneWert: werte.filter(e => !e.gebunden && !e.wert).length, vonHand: werte.filter(e => !e.gebunden && e.wert).length };
+  });
   const summe = $derived({ markierungen: zeilen.length, verwendet: zeilen.filter(r => r.verwendungen.length).length, veraltet: zeilen.filter(r => r.veraltet).length });
   function zeigen(r: Zeile) { navigation?.springen(editorZiel(r.a.stand.objekt, r.id)); }
 </script>
@@ -58,7 +69,8 @@
   <div><strong>{summe.markierungen}</strong><span>Markierungen in {aufmasse.length} Aufmaßen</span></div>
   <div><strong>{summe.verwendet}</strong><span>in Berechnungen verwendet</span></div>
   <div class:warn={summe.veraltet}><strong>{summe.veraltet}</strong><span>mit älterem Aufmaßstand</span></div>
-  <div class:warn={offeneAufgaben.length}><strong>{offeneAufgaben.length}</strong><span>Aufgaben offen</span></div>
+  <div class:warn={aufgabenStand.ohneWert}><strong>{aufgabenStand.ohneWert}</strong><span>Aufgaben ohne Wert</span></div>
+  <div><strong>{aufgabenStand.vonHand}</strong><span>Werte von Hand, nicht gezeichnet</span></div>
 </div>
 <div class="filter">
   <label>Aufmaß<select aria-label="Aufmaß" bind:value={filterAufmass}><option value="">Alle Aufmaße</option>{#each aufmasse as a}<option value={a.stand.objekt}>{a.stand.daten.bezeichnung} · R{a.stand.revision}</option>{/each}</select></label>
@@ -85,7 +97,7 @@
 </table>
 {#if offeneAufgaben.length}
   <details class="offene" open>
-    <summary>Offene Aufgaben ({offeneAufgaben.length})</summary>
+    <summary>Noch nicht aus einer Zeichnung übernommen ({offeneAufgaben.length})</summary>
     <table class="ergebnistabelle" aria-label="Offene Aufgaben">
       <thead><tr><th>Aufmaß</th><th>Verbraucher</th><th>Zielwert</th><th>Benötigt</th><th></th></tr></thead>
       <tbody>{#each Object.entries(aufgaben) as [id, liste]}{#each liste.filter(t => !t.gebunden) as t}

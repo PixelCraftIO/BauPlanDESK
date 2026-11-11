@@ -551,11 +551,33 @@ pub fn plan(p: &Planungsrecht) -> CoreResult<Option<BaugrundstuecksPlan>> {
         berechnungen: e.berechnungen,
     }))
 }
+/// Eigene Festlegungen der Baugrundstücksermittlung: Abzüge, abweichende
+/// Zuordnungen und Gemeinschaftsanteile. Nur sie müssen nach einer Änderung der
+/// Flurstücke neu bestätigt werden.
+pub fn eigene_ansaetze(e: &BaugrundstuecksErmittlung) -> bool {
+    e.ansaetze
+        .iter()
+        .any(|a| !a.abzuege.is_empty() || a.abweichende_zuordnung.is_some())
+        || e.berechnungen.iter().any(|b| {
+            b.eingabe
+                .aufstellung
+                .as_ref()
+                .and_then(|a| a.grundstueck.as_ref())
+                .is_some_and(|g| !g.gemeinschaftsanteile.is_empty())
+        })
+}
 pub fn quellen_aktuell(p: &Planungsrecht) -> CoreResult<bool> {
     if p.grundstuecksinformationen.is_none() {
         return Ok(true);
     }
-    let Some(gespeichert) = ermittlung(p)?.and_then(|e| e.quellen_hash) else {
+    // Ohne eigene Festlegungen folgt das Baugrundstück unmittelbar den
+    // Flurstücken (Regelfall: Buchgrundstück ohne Abzüge). Es gibt dann nichts,
+    // was eine Änderung der Flurstücke entwerten könnte.
+    let ermittelt = ermittlung(p)?;
+    if !ermittelt.as_ref().is_some_and(eigene_ansaetze) {
+        return Ok(true);
+    }
+    let Some(gespeichert) = ermittelt.and_then(|e| e.quellen_hash) else {
         return Ok(false);
     };
     let infos = informationen(p);
@@ -885,6 +907,40 @@ mod tests {
         eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
         infos.flurstuecke[1].eigentuemer.clear();
         eigentuemer_pruefen(infos, Some(&alt), &berechtigt).unwrap();
+    }
+    #[test]
+    fn ohne_eigene_ansaetze_folgt_das_baugrundstueck_den_flurstuecken() {
+        let mut plan = musterplan();
+        for f in &mut plan.flurstuecke {
+            f.abzuege.clear();
+        }
+        let mut p = Planungsrecht {
+            baugrundstuecke: Some(plan),
+            ..Default::default()
+        };
+        normalisieren(&mut p).unwrap();
+        // Noch nie ermittelt: Der Regelfall gilt ohne weiteren Schritt.
+        p.baugrundstuecksermittlung = None;
+        assert!(quellen_aktuell(&p).unwrap());
+        // Ermittelt, aber ohne Abzüge oder besondere Zuordnung: Eine geänderte
+        // Katasterfläche entwertet nichts.
+        normalisieren(&mut p).unwrap();
+        p.baugrundstuecksermittlung = Some(BaugrundstuecksErmittlung {
+            quellen_hash: Some(informationen(&p).fingerprint().unwrap()),
+            ..Default::default()
+        });
+        p.grundstuecksinformationen.as_mut().unwrap().flurstuecke[0].flaeche_m2 += 1.;
+        assert!(quellen_aktuell(&p).unwrap());
+        // Mit einem Abzug muss die Ermittlung neu bestätigt werden.
+        let id = p.grundstuecksinformationen.as_ref().unwrap().flurstuecke[0]
+            .id
+            .clone();
+        p.baugrundstuecksermittlung.as_mut().unwrap().ansaetze = vec![FlurstuecksAnsatz {
+            flurstueck_id: id,
+            abzuege: musterplan().flurstuecke[0].abzuege.clone(),
+            abweichende_zuordnung: None,
+        }];
+        assert!(!quellen_aktuell(&p).unwrap());
     }
     #[test]
     fn nur_flaechenrelevante_angaben_veralten_die_ermittlung() {
