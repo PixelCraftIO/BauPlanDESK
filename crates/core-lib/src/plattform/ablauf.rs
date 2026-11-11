@@ -181,6 +181,9 @@ impl CoreServices {
             }
         }
         for n in nachweise {
+            if n.ersetzt_durch.is_some() {
+                continue;
+            }
             if !n.aktuell {
                 s.veraltete_nachweise += 1;
             }

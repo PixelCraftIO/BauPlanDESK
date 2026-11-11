@@ -282,6 +282,14 @@ Vollständigkeit, **Aktualität** und **Freigabe**.
   „Grundlagen geändert“ bedeutet: Der archivierte Inhalt bleibt, ist aber
   nicht mehr aktuell. „Berechnung öffnen“ führt zur Quelle, dort neu berechnen
   und einen neuen Nachweisstand anlegen.
+- **Alle veralteten Nachweise erneuern** berechnet in einem Schritt neu, was
+  sich ohne neue fachliche Entscheidung erneuern lässt, Quellen zuerst (etwa die
+  Vollgeschossprüfung vor der GFZ). Haben sich Werte geändert, bleibt der
+  Nachweis stehen; die Rückmeldung nennt den Grund und führt zur Berechnung.
+  Ein Nachweis veraltet nur, wenn sich ändert, was er verwendet: Eine neue
+  Dachneigung betrifft den Abstandsflächennachweis, nicht GRZ oder Wohnfläche.
+- **Frühere Stände** bleiben als Archiv erhalten, zählen aber nicht mehr als
+  veraltet und sind eingeklappt („frühere Stände zeigen“).
 - **Freigeben** ist eine Bürofreigabe durch die berechtigte Leitung. Archivieren
   und Freigeben sind getrennte Schritte; eine Freigabe ist keine Einreichung.
 - „Archivstand wiederholen“ rechnet einen Stand mit seinen damaligen Eingaben

@@ -602,7 +602,8 @@ impl CoreServices {
         }
         // Historische Nachweise bleiben im Archiv. Für Handlungsbedarf zählt nur der neueste Stand je Produzent/Bezugsumfang.
         let mut neueste = BTreeMap::new();
-        for n in self.nachweise(p).await? {
+        let nachweise = self.nachweise(p).await?;
+        for n in nachweise.iter().cloned() {
             let key = nachweisschluessel(&n.stand)?;
             let replace = neueste.get(&key).is_none_or(
                 |alt: &crate::plattform::nachweise::NachweisAnsicht| {
@@ -1017,6 +1018,47 @@ impl CoreServices {
                         empfangene.insert(key, neue);
                     }
                 }
+            }
+        }
+        // Berechnungen, die seit der letzten belegten Einreichung veraltet sind
+        // oder mit anderem Ergebnis erneuert wurden: Der Behördenstand weicht
+        // dann vom Projektstand ab, auch wenn keine Datei ersetzt wurde.
+        if let Some((zeit, datum)) = empfangene.values().map(|e| (e.erstellt_am, e.datum)).max() {
+            let mut eingereicht = BTreeMap::new();
+            for n in nachweise.iter().filter(|n| n.stand.erstellt_am <= zeit) {
+                let key = nachweisschluessel(&n.stand)?;
+                if eingereicht.get(&key).is_none_or(
+                    |alt: &&crate::plattform::nachweise::NachweisAnsicht| {
+                        (n.stand.erstellt_am, n.stand.id) > (alt.stand.erstellt_am, alt.stand.id)
+                    },
+                ) {
+                    eingereicht.insert(key, n);
+                }
+            }
+            let geaendert = eingereicht
+                .values()
+                .filter(|n| {
+                    let heute = n
+                        .ersetzt_durch
+                        .and_then(|id| nachweise.iter().find(|k| k.stand.id == id))
+                        .unwrap_or(n);
+                    !heute.aktuell || heute.stand.ergebnis != n.stand.ergebnis
+                })
+                .map(|n| n.stand.bezeichnung.clone())
+                .collect::<Vec<_>>();
+            if !geaendert.is_empty() {
+                s.punkt(
+                    "einreichungsstand:nachweise",
+                    Einreichungen,
+                    Pruefen,
+                    "Berechnungen seit der Einreichung geändert",
+                    format!(
+                        "Seit der Einreichung vom {} geändert: {}. Die eingereichten Unterlagen entsprechen nicht mehr dem Projektstand. Nachreichung oder Änderungsantrag prüfen.",
+                        datum.format("%d.%m.%Y"),
+                        geaendert.join(" · ")
+                    ),
+                    UebersichtsZiel::neu("nachweise"),
+                );
             }
         }
         let mut gruppen: BTreeMap<Uuid, EmpfaengerUeberblick> = BTreeMap::new();

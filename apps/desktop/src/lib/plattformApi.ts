@@ -7,10 +7,11 @@ import type {
   NachweisEingabe,
   Nachweisstand,
   Freigabe,
+  Erneuerung,
   RaumSummen,
   JsonValue,
 } from "./generated/plattform";
-import { nachErfolg } from "./projektEreignisse";
+import { melden, nachErfolg } from "./projektEreignisse";
 export type Datensatz<T> = Omit<Fachstand, "daten"> & { daten: T };
 export const plattformApi = {
   seite: <T>(projektId: string, art: ObjektArt, nach: string | null = null) => invoke<Datensatz<T>[]>("fachobjektseite", { projektId, art, nach, limit: 100 }),
@@ -112,6 +113,16 @@ export const plattformApi = {
       invoke<Freigabe>("nachweis_freigeben", { projektId, id, bemerkung }),
       { projektId, bereich: "nachweise" },
     ),
+  /** Alle veralteten Nachweise erneuern, soweit keine Prüfung von Hand nötig ist. */
+  nachweiseErneuern: async (projektId: string) => {
+    const r = await nachErfolg(
+      invoke<Erneuerung[]>("nachweise_erneuern", { projektId }),
+      { projektId, bereich: "nachweise" },
+    );
+    // Berechnungsentwürfe und Gebäude können dabei nachgeführt worden sein.
+    melden({ projektId, bereich: "fachobjekte" });
+    return r;
+  },
   wiederholen: (projektId: string, id: string) =>
     nachErfolg(
       invoke<JsonValue>("nachweis_wiederholen", { projektId, id }),

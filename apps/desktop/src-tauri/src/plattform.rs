@@ -106,6 +106,24 @@ pub async fn nachweis_freigeben(
         .await?)
 }
 #[tauri::command]
+pub async fn nachweise_erneuern(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+) -> Result<Vec<core_lib::plattform::nachweise::Erneuerung>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(
+            projekt_id,
+            &state.benutzer(),
+            core_lib::zugriff::ProjektRecht::Bearbeiten,
+        )
+        .await?;
+    Ok(state
+        .core
+        .nachweise_erneuern(projekt_id, &state.benutzer())
+        .await?)
+}
+#[tauri::command]
 pub async fn nachweis_wiederholen(
     state: State<'_, AppState>,
     projekt_id: ProjectId,
