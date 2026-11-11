@@ -221,6 +221,14 @@ ausschnitt_id?: string,
  */
 hoehenzone_von?: string,
 /**
+ * Markierung desselben Aufmaßes, deren Kontur diese Markierung teilt:
+ * eine Kontur, mehrere Bedeutungen (z. B. Gebäudegrundfläche und
+ * Außenkante EG). Die Geometrie folgt beim Speichern der Quelle, siehe
+ * [`Planaufmass::konturen_angleichen`]; Kennung, Bedeutung und Zuordnung
+ * bleiben eigene, damit Übernahmen und Nachweise unverändert adressieren.
+ */
+kontur_von?: string,
+/**
  * Flurstück (ID aus den Grundstücksinformationen), dessen Grenze diese
  * Markierung mit Bedeutung „Flurstück“ zeigt. Grundlage der Übernahme in
  * die Flurstücksfläche; ohne Zuordnung bleibt die Fläche eine Kontrolle.
@@ -415,7 +423,17 @@ gebunden: string | null,
 /**
  * Passende, noch nicht verknüpfte Markierung dieses Aufmaßes.
  */
-markierung: string | null, hinweis: string | null, };
+markierung: string | null, hinweis: string | null,
+/**
+ * Ein Nachweis oder eine Berechnung braucht den Wert. Freiwillige Werte
+ * (Höhen eines Gebäudes ohne Verbraucher) zählen nicht als offen.
+ */
+pflicht: boolean,
+/**
+ * Planarten, in denen sich der Wert zeichnen lässt; die Aufgabenliste
+ * zeigt zuerst, was zum geöffneten Ausschnitt passt.
+ */
+planarten: Array<Ausschnittart>, };
 export type Werkzeugvorlage = { id: string,
 /**
  * Anzeigegruppe, z. B. „Grundstück“ oder „DIN 277“.

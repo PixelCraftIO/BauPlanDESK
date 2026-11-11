@@ -99,6 +99,7 @@ async fn veraltete_planquelle_blockiert_nur_ihre_grundstueckseinheit() {
             flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
+            kontur_von: None,
         }],
     };
     let af = core
@@ -311,6 +312,7 @@ async fn einzelpruefung_export_und_cad_aufmasse_erhalten_ihre_quellen() {
             flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
+            kontur_von: None,
         }],
     };
     let mut schlecht = a.markierungen[0].clone();

@@ -90,9 +90,53 @@ fn plan(g: Plangeometrie) -> Planaufmass {
             flurstueck_id: None,
             ausschnitt_id: None,
             hoehenzone_von: None,
+            kontur_von: None,
         }],
         ausschnitte: vec![],
     }
+}
+/// Eine Kontur, mehrere Bedeutungen: Verknüpfte Markierungen folgen der
+/// Quelle, behalten Kennung und Bedeutung und werden ohne Quelle eigenständig.
+#[test]
+fn verknuepfte_kontur_folgt_der_quelle() {
+    let rechteck = |b: f64| Plangeometrie::Polygon {
+        punkte: vec![[0., 0.], [b, 0.], [b, 50.], [0., 50.]],
+    };
+    let mut p = plan(rechteck(100.));
+    let quelle = p.markierungen[0].id;
+    let mut zweite = p.markierungen[0].clone();
+    zweite.id = Uuid::from_u128(4);
+    zweite.bedeutung = Planbedeutung::GeschossAussenkante;
+    zweite.kontur_von = Some(quelle);
+    let mut dritte = zweite.clone();
+    dritte.id = Uuid::from_u128(5);
+    dritte.bedeutung = Planbedeutung::Gebaeudegrundflaeche;
+    // Kette: dritte → zweite → Quelle.
+    dritte.kontur_von = Some(zweite.id);
+    p.markierungen.extend([zweite, dritte]);
+    // Die Quelle ändert sich; die Kopien tragen noch die alte Kontur.
+    p.markierungen[0].geometrie = rechteck(200.);
+    p.konturen_angleichen();
+    for m in &p.markierungen[1..] {
+        assert_eq!(m.geometrie, rechteck(200.));
+        assert_eq!(m.kontur_von, Some(quelle));
+    }
+    assert_eq!(
+        p.markierungen[1].bedeutung,
+        Planbedeutung::GeschossAussenkante
+    );
+    let werte = p.messen().unwrap();
+    assert!((werte[1].flaeche_m2.unwrap() - 100.).abs() < 1e-9);
+    assert_eq!(werte[0].flaeche_m2, werte[2].flaeche_m2);
+    // Ohne Quelle bleibt die Kontur stehen und die Markierung wird eigenständig.
+    p.markierungen.remove(0);
+    p.konturen_angleichen();
+    assert!(p.markierungen.iter().all(|m| m.kontur_von.is_none()));
+    assert_eq!(p.markierungen[0].geometrie, rechteck(200.));
+    // Verweis auf sich selbst ist keine Verknüpfung.
+    p.markierungen[0].kontur_von = Some(p.markierungen[0].id);
+    p.konturen_angleichen();
+    assert!(p.markierungen[0].kontur_von.is_none());
 }
 #[test]
 fn kalibrierung_flaeche_und_umkehrung() {
@@ -290,6 +334,7 @@ fn hoehenpunkt(id: u128, p: Planpunkt, ausschnitt: Option<u128>) -> Planmarkieru
         flurstueck_id: None,
         ausschnitt_id: ausschnitt.map(Uuid::from_u128),
         hoehenzone_von: None,
+        kontur_von: None,
     }
 }
 #[test]
@@ -961,4 +1006,124 @@ fn oeffnungen_planzeichen_und_raumstempel() {
             .to_string()
             .contains("Wandende")
     );
+}
+/// Gegenproben: Was in zwei Zeichnungen steht, wird verglichen; Abweichungen
+/// über der Toleranz werden gemeldet, gleiche Werte und Einzelstücke nicht.
+#[test]
+fn gegenproben_vergleichen_doppelt_gezeichnetes() {
+    use super::gegenprobe::gegenproben;
+    let rechteck = |b: f64| Plangeometrie::Polygon {
+        punkte: vec![[0., 0.], [b, 0.], [b, 50.], [0., 50.]],
+    };
+    let haus = Uuid::from_u128(20);
+    let eg = Uuid::from_u128(21);
+    let gebaeude: crate::plattform::objekte::Gebaeude = serde_json::from_value(serde_json::json!({
+        "bezeichnung": "Wohnhaus", "grundstueck_ids": [], "quelle": null,
+        "geschosse": [
+            {"id": Uuid::from_u128(22), "bezeichnung": "KG", "vollgeschoss": null, "grundlage": ""},
+            {"id": eg, "bezeichnung": "EG", "vollgeschoss": null, "grundlage": ""}
+        ]
+    }))
+    .unwrap();
+    let blatt = |name: &str, bedeutung, breite: f64| {
+        let mut p = plan(rechteck(breite));
+        p.bezeichnung = name.into();
+        let m = &mut p.markierungen[0];
+        m.bedeutung = bedeutung;
+        m.gebaeude_id = Some(haus);
+        if bedeutung == Planbedeutung::GeschossAussenkante {
+            m.geschoss_id = Some(eg);
+        }
+        if bedeutung == Planbedeutung::Flurstueck {
+            m.gebaeude_id = None;
+            m.flurstueck_id = Some("fs-412".into());
+        }
+        p
+    };
+    let namen =
+        std::collections::BTreeMap::from([("fs-412".to_string(), "Musterstadt 412".to_string())]);
+    let gebaeudeliste = vec![(haus, gebaeude)];
+    // Lageplan und Grundriss stimmen überein, die Flurkarte steht allein: nichts zu melden.
+    let gleich = vec![
+        (
+            Uuid::from_u128(30),
+            blatt("Lageplan", Planbedeutung::Gebaeudegrundflaeche, 100.),
+        ),
+        (
+            Uuid::from_u128(31),
+            blatt("Grundriss EG", Planbedeutung::GeschossAussenkante, 100.5),
+        ),
+        (
+            Uuid::from_u128(32),
+            blatt("Flurkarte", Planbedeutung::Flurstueck, 400.),
+        ),
+    ];
+    assert_eq!(gegenproben(&gleich, &gebaeudeliste, &namen), vec![]);
+    // Grundfläche und Außenkante EG weichen ab; das Flurstück ist im Lageplan kleiner.
+    let abweichend = vec![
+        (
+            Uuid::from_u128(30),
+            blatt("Lageplan", Planbedeutung::Gebaeudegrundflaeche, 100.),
+        ),
+        (
+            Uuid::from_u128(31),
+            blatt("Grundriss EG", Planbedeutung::GeschossAussenkante, 120.),
+        ),
+        (
+            Uuid::from_u128(32),
+            blatt("Flurkarte", Planbedeutung::Flurstueck, 400.),
+        ),
+        (
+            Uuid::from_u128(33),
+            blatt("Lageplan Grenzen", Planbedeutung::Flurstueck, 360.),
+        ),
+    ];
+    let g = gegenproben(&abweichend, &gebaeudeliste, &namen);
+    assert_eq!(g.len(), 2, "{g:?}");
+    assert_eq!(g[0].titel, "Gegenprobe: Flurstück Musterstadt 412");
+    assert!(
+        g[0].text.contains("Flurkarte: 200,00 m²")
+            && g[0].text.contains("Lageplan Grenzen: 180,00 m²"),
+        "{}",
+        g[0].text
+    );
+    assert_eq!(g[1].titel, "Gegenprobe: Grundfläche Wohnhaus");
+    assert!(
+        g[1].text.contains("Außenkante EG") && g[1].text.contains("10,00 m²"),
+        "{}",
+        g[1].text
+    );
+    assert_eq!(g[1].aufmass, Uuid::from_u128(30));
+}
+/// Der First eines Gebäudes liegt in Schnitt und Ansicht gleich hoch.
+#[test]
+fn gegenprobe_first_zwischen_schnitt_und_ansicht() {
+    use super::gegenprobe::gegenproben;
+    let haus = Uuid::from_u128(20);
+    let blatt = |name: &str, y: f64| {
+        let mut p = plan(Plangeometrie::Hoehenpunkt { punkt: [50., y] });
+        p.bezeichnung = name.into();
+        p.hoehenbezug = Some(Planhoehenbezug {
+            punkt: [0., 100.],
+            hoehe_m: 0.,
+            system: "lokal".into(),
+        });
+        p.markierungen[0].bedeutung = Planbedeutung::First;
+        p.markierungen[0].gebaeude_id = Some(haus);
+        p
+    };
+    let leer = std::collections::BTreeMap::new();
+    let gleich = vec![
+        (Uuid::from_u128(40), blatt("Schnitt A-A", 20.)),
+        (Uuid::from_u128(41), blatt("Ansicht Süd", 20.2)),
+    ];
+    assert_eq!(gegenproben(&gleich, &[], &leer), vec![]);
+    let abweichend = vec![
+        (Uuid::from_u128(40), blatt("Schnitt A-A", 20.)),
+        (Uuid::from_u128(41), blatt("Ansicht Süd", 25.)),
+    ];
+    let g = gegenproben(&abweichend, &[], &leer);
+    assert_eq!(g.len(), 1, "{g:?}");
+    assert!(g[0].titel.starts_with("Gegenprobe: First"));
+    assert!(g[0].text.contains("Unterschied 0,50 m"), "{}", g[0].text);
 }

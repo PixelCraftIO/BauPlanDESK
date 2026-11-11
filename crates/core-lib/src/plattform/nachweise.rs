@@ -846,6 +846,9 @@ impl CoreServices {
                         .stand
                         .id;
                 }
+                // Räume führt allein das Raumbuch: Die Berechnung folgt seinem Stand.
+                self.berechnung_raumbuch_nachfuehren(pid, &mut entwurf)
+                    .await?;
                 let gespeichert = self
                     .fachobjekt_speichern(
                         pid,

@@ -24,7 +24,7 @@
   // Zeichnungseinheiten ab der linken oberen Ecke des Zeichnungsumfangs.
   let { pdfBase64 = "", seite, plan = null, planSichtbar = [], markierungen, ebenen, auswahl, werkzeug, darf,
     ausschnitte = [], aktiv = "", rahmenAuswahl = "", werte = [], kalibrierung = null, masse = true,
-    auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1},
+    auswahlIds = [], ansichtKey = "", fehlerIds = [], vergleichBase64 = "", vergleichDeckkraft = .5, vergleichAusrichtung = {dx:0,dy:0,grad:0,faktor:1}, hinweisBereiche = [],
     zeichnung = false, hintergruende = [], elemente = [], elementAuswahl = "", elementAuswahlIds = [], wanddicke = .24, onfenster = () => {}, onwiederholen = () => {}, raeume = {},
     onelement = () => {}, onelementauswahl = () => {}, onelementedit = () => {},
     onverschieben = () => {}, onpunkt = () => {},
@@ -35,6 +35,8 @@
     onfertig:(g:Plangeometrie)=>void;onauswahl:(id:string,mehrfach?:boolean)=>void;
     auswahlIds?:string[];ansichtKey?:string;fehlerIds?:string[];vergleichBase64?:string;vergleichDeckkraft?:number;
     vergleichAusrichtung?:{dx:number;dy:number;grad:number;faktor:number};
+    /** Geänderte Bereiche eines Planvergleichs in Seitenpunkten (x, y, Breite, Höhe). */
+    hinweisBereiche?:[number,number,number,number][];
     /** Eigene Zeichnung: Blatt in Metern, Unterlagen als eingepasste Hintergründe. */
     zeichnung?:boolean;hintergruende?:Hintergrundansicht[];elemente?:Zeichenelement[];elementAuswahl?:string;wanddicke?:number;
     /** Mehrfachauswahl von Zeichenelementen (Fensterauswahl). */
@@ -367,6 +369,8 @@
   }
   function position(e:PointerEvent):Point {
     let p=roh(e);
+    // Passpunkte der Vergleichsunterlage: kein Fang auf Linien des aktuellen Plans.
+    if(werkzeug==="passneu"){fangart="";return p}
     const f=fang&&!e.altKey?fangindex.suchen(p,8/zoom,fangoptionen):null;
     const eigene=fang&&fangoptionen.eigene&&!e.altKey?snap(p,{points:eigenePunkte(),segments:eigeneKanten(),limited:false},8/zoom):null;
     if(eigene&&(!f||Math.hypot(eigene.point[0]-p[0],eigene.point[1]-p[1])<Math.hypot(f.point[0]-p[0],f.point[1]-p[1]))){p=eigene.point;fangart=`Eigene ${eigene.kind}`}else{p=f?.point??p;fangart=f?.kind??""}
@@ -787,6 +791,7 @@
             {/if}
             {#if cursor&&fangart}<path d={`M ${cursor[0]-7/zoom} ${cursor[1]} h ${14/zoom} M ${cursor[0]} ${cursor[1]-7/zoom} v ${14/zoom}`} class="fang"/>{/if}
             {#if cursor&&vorschau}<text class="livemass" x={cursor[0]+12/zoom} y={cursor[1]+18/zoom} font-size={12/zoom}>{vorschau}</text>{/if}
+            {#if hinweisBereiche.length}<g class="planaenderung" aria-label={`${hinweisBereiche.length} geänderte Bereiche`}>{#each hinweisBereiche as b}<rect x={b[0]} y={b[1]} width={b[2]} height={b[3]} rx={4/zoom} stroke-width={2/zoom} stroke-dasharray={`${8/zoom} ${4/zoom}`}/>{/each}</g>{/if}
           </svg>
         </div>
         {#if masseingabe!==null&&eingabePos}
@@ -907,6 +912,8 @@
   svg .rahmenecke{fill:white;stroke:#5a3d8f;stroke-dasharray:none;cursor:nwse-resize}
   svg .bezugslinie line{stroke:#1a7f37;stroke-width:2;stroke-dasharray:10 4 2 4;pointer-events:none}
   svg .bezugslinie text{fill:#1a7f37}
+  svg .planaenderung{pointer-events:none}
+  svg .planaenderung rect{stroke:#c05a00;fill:rgb(192 90 0 / .08)}
   svg .referenz{pointer-events:none}
   svg .referenz line{stroke:#5a3d8f;stroke-dasharray:8 3;fill:none}
   svg .referenz circle{stroke:#5a3d8f;fill:white}

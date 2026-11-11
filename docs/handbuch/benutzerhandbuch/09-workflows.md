@@ -94,17 +94,23 @@ Wenn sich der Entwurf ändert, nachdem schon gemessen und gerechnet wurde:
 
 1. Den neuen Planstand als **neue Version** der vorhandenen Projektdatei
    importieren (nicht als neues Dokument).
-2. Das bisherige Aufmaß bleibt bei der alten Version; es meldet „Eine neuere
-   Version der Unterlage liegt vor“ und sperrt weitere Übernahmen. Für den
-   neuen Planstand ein Aufmaß auf der neuen Version anlegen (Projektdateien →
-   „Im Aufmaß öffnen“), Maßstab prüfen, die geänderten Konturen zeichnen und
-   speichern.
+2. Das bisherige Aufmaß meldet „Eine neuere Version der Unterlage liegt vor“
+   und sperrt weitere Übernahmen. Dort **Auf den neuen Planstand umstellen …**
+   wählen: Der neue Plan liegt über dem alten. Liegen die Blätter nicht
+   deckungsgleich, „Über zwei Passpunkte ausrichten“ und zwei Punkte erst im
+   alten, dann im neuen Plan anklicken. Überlagerung bestätigen und „Dieses
+   Aufmaß auf diesen Planstand umstellen …“. Markierungen, Maßstab und alle
+   Verknüpfungen bleiben; der alte Plan liegt danach zum Vergleich darüber.
+   Nur die geänderten Konturen anpassen, Maßstab mit einer Kontrollstrecke
+   prüfen und speichern.
 3. Die Zielmasken melden veraltete Verknüpfungen beim Öffnen; **Messwerte**
    zeigt sie gesammelt („mit älterem Aufmaßstand“). In jedem Ziel „Aktuellen
    Aufmaßstand übernehmen“ und speichern – oder im Editor „Verknüpfte Werte
    gesammelt prüfen …“.
-4. Raumbuch aktualisieren, dann Wohnfläche und DIN 277 erneut aus dem
-   Raumbuch übernehmen (Vergleich prüfen und bestätigen).
+4. Raumbuch aktualisieren. Wohnfläche und DIN 277 folgen dem Raumbuch:
+   in der Berechnung „Räume aktualisieren“ wählen oder die Nachweise
+   gesammelt erneuern. Nur bei geänderten Flächen oder Höhen ist die
+   Berechnung erneut zu bestätigen.
 5. **Nachweisstände → Aktualität prüfen.** Für jeden Stand mit „Grundlagen
    geändert“ die Berechnung öffnen, neu berechnen und einen neuen
    Nachweisstand erstellen; dann freigeben.

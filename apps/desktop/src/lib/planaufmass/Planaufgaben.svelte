@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, fehlertext, type Project } from "../api";
-  import type { Planaufgabe, Planaufmass, Gebaeude, AbstandsPlan, FachPlan, Raumbuch, Grundstuecksinformationen } from "../generated/plattform";
+  import type { Ausschnittart, Planaufgabe, Planaufmass, Gebaeude, AbstandsPlan, FachPlan, Raumbuch, Grundstuecksinformationen } from "../generated/plattform";
   import type { ObjektArt } from "../generated/plattform";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
   import { plattformApi } from "../plattformApi";
@@ -21,7 +21,11 @@
   // Was das Projekt aus diesem Aufmaß noch braucht. Die Liste kommt vom Core;
   // „Zeichnen“ belegt Werkzeug und Zuordnung vor, „Übernehmen“ verknüpft die
   // Markierung über die bestehenden Übernahmedienste und speichert den Verbraucher.
-  let { projektId, projekt, onprojekt, plan, aufmassId, gespeichert, darf, onzeichnen, onwaehlen }: {
+  let { projektId, projekt, onprojekt, plan, aufmassId, gespeichert, darf, onzeichnen, onwaehlen, planart = null, onspeichern }: {
+    /** Speichert das Aufmaß vor einer Übernahme; ohne sie bleibt „Übernehmen“ bis zum Speichern gesperrt. */
+    onspeichern?: () => Promise<boolean>;
+    /** Art des geöffneten Ausschnitts; die Liste zeigt zuerst, was dazu passt. */
+    planart?: Ausschnittart | null;
     projektId: string; plan: Planaufmass; aufmassId: string;
     /** Projektstand der Akte: Grundlage für die Übernahme in Flurstücke; der gespeicherte Stand geht über `onprojekt` zurück. */
     projekt: Project; onprojekt?: (p: Project) => void;
@@ -31,6 +35,13 @@
   } = $props();
   let aufgaben = $state<Planaufgabe[]>([]), fehler = $state(""), meldung = $state(""), busy = $state("");
   let filter = $state(""), nurOffen = $state(true), zu = $state<Record<string, boolean>>({});
+  // Planart der Liste: der geöffnete Ausschnitt, sonst die einzige Art des
+  // Blatts. „alle“ zeigt jede Aufgabe des Projekts.
+  const ARTNAME: Record<Ausschnittart, string> = { lageplan: "Lageplan", grundriss: "Grundriss", schnitt: "Schnitt", ansicht: "Ansicht", detail: "Detail" };
+  let artWahl = $state<"" | "alle" | Ausschnittart>("");
+  const blattart = $derived.by(() => { const arten = [...new Set((plan.ausschnitte ?? []).map((a) => a.art))]; return arten.length === 1 ? arten[0] : null; });
+  const art = $derived(artWahl === "alle" ? null : artWahl || planart || blattart);
+  const passt = (a: Planaufgabe) => !art || !!a.gebunden && plan.markierungen.some((m) => m.id === a.gebunden) || a.planarten.includes(art);
   let generation = 0;
   function laden(snapshot = JSON.stringify(plan)) {
     const n = ++generation;
@@ -46,10 +57,18 @@
   });
   // Gebäude oder Abstandspläne wurden anderswo gespeichert: Stand der Ziele neu holen.
   ansichtsAbfrage(()=>projektId,["fachobjekte"],()=>laden());
-  const objekte = $derived([...new Map(aufgaben.map((a) => [`${a.verbraucher}:${a.objekt}`, a])).values()]);
-  const sichtbar = $derived(aufgaben.filter((a) => (!filter || `${a.verbraucher}:${a.objekt}` === filter) && (!nurOffen || !a.gebunden)));
+  const zumPlan = $derived(aufgaben.filter(passt));
+  // Ein anderer Ausschnitt setzt die eigene Wahl der Planart zurück.
+  $effect(() => { planart; artWahl = ""; });
+  const objekte = $derived([...new Map(zumPlan.map((a) => [`${a.verbraucher}:${a.objekt}`, a])).values()]);
+  const sichtbar = $derived(zumPlan.filter((a) => (!filter || `${a.verbraucher}:${a.objekt}` === filter) && (!nurOffen || !a.gebunden)));
   const gruppen = $derived([...new Map(sichtbar.map((a) => [a.gruppe, sichtbar.filter((x) => x.gruppe === a.gruppe)])).entries()]);
-  const offen = $derived(aufgaben.filter((a) => !a.gebunden).length);
+  // Offen ist, was ein Nachweis braucht; freiwillige Werte stehen als „möglich“ dabei.
+  // Gezählt wie im Projektbaum: Ein von Hand erfasster Wert ist nicht offen.
+  const offen = $derived(zumPlan.filter((a) => !a.gebunden && !a.wert_vorhanden && a.pflicht).length);
+  const vonHand = $derived(zumPlan.filter((a) => !a.gebunden && a.wert_vorhanden && a.pflicht).length);
+  const pflicht = $derived(zumPlan.filter((a) => a.pflicht).length);
+  const andere = $derived(aufgaben.length - zumPlan.length);
   const name = (m: string | null) => plan.markierungen.find((x) => x.id === m)?.bezeichnung ?? "Markierung";
   // Flurstücke werden über die Projektgrenze gespeichert (wie unter Grundlagen → Flurstücke);
   // die gezeichnete Fläche setzt der Core ein, die Oberfläche trägt keine Werte selbst ein.
@@ -60,13 +79,15 @@
     if (!a.markierung || busy) return;
     busy = a.ziel; fehler = ""; meldung = "";
     try {
+      // Ein Schritt statt zwei: Offene Änderungen des Aufmaßes zuerst speichern.
+      if (!gespeichert && !(onspeichern && await onspeichern())) { if (!onspeichern) fehler = "Aufmaß zuerst speichern."; return; }
       // Die Bindung verweist auf den gespeicherten Stand dieses Aufmaßes.
       const aufmass = (await plattformApi.liste<Planaufmass>(projektId, "planaufmass")).find((x) => x.objekt === aufmassId);
       if (!aufmass) throw Error("Aufmaß zuerst speichern.");
       const bindung = { aufmass_id: aufmassId, revision: aufmass.revision, markierung_id: a.markierung, groesse: a.groesse, ziel: a.ziel };
       if (a.verbraucher === "flurstueck") {
         const { basis, geprueft, vorher, nachher } = await flurstueckVorbereiten(projekt, a.objekt, bindung);
-        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher,nachher,quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher,nachher,quelle:`${plan.bezeichnung} · ${name(a.markierung)} · Aufmaßstand ${aufmass.revision}`}],true)))return;
         await flurstueckeSpeichern(basis, geprueft);
       } else if (a.verbraucher === "gebaeude") {
         const stand = (await plattformApi.liste<Gebaeude>(projektId, "gebaeude")).find((g) => g.objekt === a.objekt);
@@ -74,7 +95,7 @@
         const neu = structuredClone(stand.daten);
         neu.planbindungen = [...(neu.planbindungen ?? []).filter((b) => b.ziel !== a.ziel), bindung];
         const geprueft = await planApi.gebaeude(projektId, a.objekt, neu);
-        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · Aufmaßstand ${aufmass.revision}`}],true)))return;
         await plattformApi.speichern(projektId, "gebaeude", a.objekt, stand.revision, geprueft);
       } else if (a.verbraucher === "berechnung") {
         // Fachberechnung: Bindung eintragen, Messwert im Entwurf einsetzen, über die Fachgrenze speichern.
@@ -85,7 +106,7 @@
         neu.planbindungen = [...(neu.planbindungen ?? []).filter((b) => b.ziel !== a.ziel), bindung];
         neu.uebernahmen = neu.uebernahmen.filter((u) => u.ziel !== a.ziel);
         const geprueft = await planApi.einsetzen(projektId, neu);
-        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten.eingaben,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft.eingaben,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten.eingaben,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft.eingaben,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · Aufmaßstand ${aufmass.revision}`}],true)))return;
         await plattformApi.speichern(projektId, art, a.objekt, stand.revision, geprueft);
       } else if (a.verbraucher === "raumbuch") {
         const stand = await plattformApi.lesen<Raumbuch>(projektId, "raumbuch", a.objekt);
@@ -96,12 +117,12 @@
           const zuordnung = await abgleich.fragen(await planApi.raumbuchAbgleich(projektId, aufmassId, aufmass.revision, structuredClone(stand.daten)));
           if (!zuordnung) return;
           geprueft = await planApi.raumbuch(projektId, aufmassId, aufmass.revision, structuredClone(stand.daten), zuordnung);
-          zeile = {ziel:`${a.objekt_name} · Räume`,vorher:`${stand.daten.raeume.length} Räume`,nachher:`${geprueft.raeume.length} Räume`,quelle:`${plan.bezeichnung} · R${aufmass.revision}`};
+          zeile = {ziel:`${a.objekt_name} · Räume`,vorher:`${stand.daten.raeume.length} Räume`,nachher:`${geprueft.raeume.length} Räume`,quelle:`${plan.bezeichnung} · Aufmaßstand ${aufmass.revision}`};
         } else {
           const neu = structuredClone(stand.daten);
           neu.planbindungen = [...(neu.planbindungen ?? []).filter((b) => b.ziel !== a.ziel), bindung];
           geprueft = await planApi.raumbuchEinsetzen(projektId, neu);
-          zeile = {ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),"m²"),nachher:werttext(zielfeld(geprueft,a.ziel),"m²"),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`};
+          zeile = {ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),"m²"),nachher:werttext(zielfeld(geprueft,a.ziel),"m²"),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · Aufmaßstand ${aufmass.revision}`};
         }
         if(!(await v.fragen([zeile],true)))return;
         await plattformApi.speichern(projektId, "raumbuch", a.objekt, stand.revision, geprueft);
@@ -111,7 +132,7 @@
         const neu = structuredClone(stand.daten);
         neu.planbindungen = [...(neu.planbindungen ?? []).filter((b) => b.ziel !== a.ziel), bindung];
         const geprueft = await planApi.abstand(projektId, neu);
-        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · R${aufmass.revision}`}],true)))return;
+        if(!(await v.fragen([{ziel:`${a.objekt_name} · ${a.titel}`,vorher:werttext(zielfeld(stand.daten,a.ziel),einheit(a)),nachher:werttext(zielfeld(geprueft,a.ziel),einheit(a)),quelle:`${plan.bezeichnung} · ${name(a.markierung)} · Aufmaßstand ${aufmass.revision}`}],true)))return;
         await plattformApi.speichern(projektId, "abstandsflaechen", a.objekt, stand.revision, geprueft);
       }
       const n = name(a.markierung);
@@ -132,7 +153,7 @@
         const infos=grundstuecksinformationen(basis.planungsrecht);
         for(const f of infos.flurstuecke)if(f.planbindung?.aufmass_id===aufmassId)f.planbindung={...f.planbindung,revision:aufmass.revision};
         const geprueft=await planApi.flurstuecke(projektId,infos);
-        for(const a of flur){const alt=infos.flurstuecke.find(x=>x.id===a.objekt),neu=geprueft.flurstuecke.find(x=>x.id===a.objekt);zeilen.push({ziel:`${a.objekt_name} · ${a.titel}`,vorher:flurText(alt),nachher:flurText(neu),quelle:`${plan.bezeichnung} · ${name(a.gebunden)} · R${aufmass.revision}`})}
+        for(const a of flur){const alt=infos.flurstuecke.find(x=>x.id===a.objekt),neu=geprueft.flurstuecke.find(x=>x.id===a.objekt);zeilen.push({ziel:`${a.objekt_name} · ${a.titel}`,vorher:flurText(alt),nachher:flurText(neu),quelle:`${plan.bezeichnung} · ${name(a.gebunden)} · Aufmaßstand ${aufmass.revision}`})}
         flurJob={basis,infos:geprueft};
       }catch(e){probleme.push(`Flurstücke: ${fehlertext(e)}`)}
       // Abzugsflächen und GRZ-Bauteile werden unter Berechnungen → Baugrundstück aktualisiert und gespeichert.
@@ -143,7 +164,7 @@
         const neu=structuredClone(stand.daten);neu.planbindungen=(neu.planbindungen??[]).map(b=>b.aufmass_id===aufmassId?{...b,revision:aufmass.revision}:b);
         const geprueft=a.verbraucher==="berechnung"?await planApi.einsetzen(projektId,neu as FachPlan):a.verbraucher==="raumbuch"?await planApi.raumbuchEinsetzen(projektId,neu as Raumbuch):"waende" in neu?await planApi.abstand(projektId,neu):await planApi.gebaeude(projektId,a.objekt,neu as Gebaeude);
         jobs.push({a,revision:stand.revision,daten:geprueft});
-        for(const feld of aufgaben.filter(x=>x.verbraucher===a.verbraucher&&x.objekt===a.objekt&&x.gebunden))zeilen.push({ziel:`${a.objekt_name} · ${feld.titel}`,vorher:werttext(zielfeld(zielwerte(a,stand.daten),feld.ziel),einheit(feld)),nachher:werttext(zielfeld(zielwerte(a,geprueft),feld.ziel),einheit(feld)),quelle:`${plan.bezeichnung} · ${name(feld.gebunden)} · R${aufmass.revision}`});
+        for(const feld of aufgaben.filter(x=>x.verbraucher===a.verbraucher&&x.objekt===a.objekt&&x.gebunden))zeilen.push({ziel:`${a.objekt_name} · ${feld.titel}`,vorher:werttext(zielfeld(zielwerte(a,stand.daten),feld.ziel),einheit(feld)),nachher:werttext(zielfeld(zielwerte(a,geprueft),feld.ziel),einheit(feld)),quelle:`${plan.bezeichnung} · ${name(feld.gebunden)} · Aufmaßstand ${aufmass.revision}`});
       }catch(e){probleme.push(`${a.objekt_name}: ${fehlertext(e)}`)}
       if(!jobs.length&&!flurJob){fehler=probleme.join(" · ")||"Keine verknüpften Zielobjekte vorhanden.";return}
       for(const p of probleme)zeilen.push({ziel:"Nicht aktualisierbar",vorher:"Bleibt unverändert",nachher:"Quelle zuerst klären",quelle:p});
@@ -161,13 +182,19 @@
 <section class="aufgaben" aria-label="Aufmaß-Aufgaben">
   {#if !aufgaben.length}<p class="meta">Noch keine Zielfelder. Zeichnen geht schon jetzt, etwa Flurstücksgrenzen mit der Bedeutung „Flurstück“. Übernehmen lassen sich die Werte, sobald das Ziel angelegt ist: ein Flurstück unter Grundlagen → Flurstücke, ein Gebäude unter Gebäudemodell → Gebäude / Geschosse, ein Raumbuch, eine Fachberechnung mit Positionen oder eine manuelle Wand im Abstandsflächenplan.</p>
   {:else}
-    <div class="stand" role="status"><span><strong>{offen}</strong> von {aufgaben.length} offen</span><span class="balken" aria-hidden="true"><span style={`width:${Math.round(100*(aufgaben.length-offen)/aufgaben.length)}%`}></span></span></div>
+    <div class="stand" role="status"><span title={vonHand ? `${vonHand} Wert(e) sind von Hand erfasst und nicht gezeichnet` : undefined}><strong>{offen}</strong> von {pflicht} ohne Wert{vonHand ? ` · ${vonHand} von Hand` : ""}</span><span class="balken" aria-hidden="true"><span style={`width:${pflicht ? Math.round(100*(pflicht-offen)/pflicht) : 100}%`}></span></span></div>
     <div class="filter">
       <select aria-label="Aufgaben für" bind:value={filter}><option value="">Alle Ziele</option>{#each objekte as o}<option value={`${o.verbraucher}:${o.objekt}`}>{o.objekt_name}</option>{/each}</select>
       <label><input type="checkbox" bind:checked={nurOffen}/>Nur offene</label>
     </div>
+    <div class="filter">
+      <select aria-label="Planart der Aufgaben" value={artWahl === "alle" ? "alle" : (art ?? "alle")} onchange={(e) => artWahl = e.currentTarget.value as typeof artWahl}>
+        <option value="alle">Alle Planarten</option>{#each Object.entries(ARTNAME) as [id, n]}<option value={id}>Passend zu: {n}</option>{/each}
+      </select>
+    </div>
+    {#if art && andere}<p class="meta">{andere} weitere Aufgabe(n) gehören in andere Planarten. <button type="button" class="link" onclick={() => artWahl = "alle"}>Alle zeigen</button></p>{/if}
     {#each gruppen as [gruppe, liste] (gruppe)}
-      {@const alle = aufgaben.filter((a) => a.gruppe === gruppe && (!filter || `${a.verbraucher}:${a.objekt}` === filter))}
+      {@const alle = zumPlan.filter((a) => a.gruppe === gruppe && (!filter || `${a.verbraucher}:${a.objekt}` === filter))}
       {@const fertig = alle.filter((a) => a.gebunden).length}
       {@const auf = !zu[gruppe]}
       <h4><button type="button" class="gruppe" aria-expanded={auf} onclick={() => zu = { ...zu, [gruppe]: auf }}><span class="pfeil" class:auf aria-hidden="true"></span><span class="name">{gruppe}</span><span class="zahl" title={`${fertig} von ${alle.length} verknüpft`}>{fertig}/{alle.length}</span><span class="balken" aria-hidden="true"><span style={`width:${alle.length ? Math.round(100 * fertig / alle.length) : 0}%`}></span></span></button></h4>
@@ -179,11 +206,11 @@
             <span class="status" aria-hidden="true">{a.gebunden ? "✔" : a.markierung ? "●" : "○"}</span>
             {#if ziel}<button type="button" class="titel" aria-label={`${a.titel}: „${name(ziel)}“ zeigen`} onclick={() => onwaehlen(ziel)}>{a.titel}</button>
             {:else}<span class="titel">{a.titel}</span>{/if}
-            {#if a.wert_vorhanden && !a.gebunden}<span class="marke">Handwert</span>{/if}
+            {#if a.wert_vorhanden && !a.gebunden}<span class="marke">Handwert</span>{:else if !a.pflicht && !a.gebunden}<span class="marke" title="Freiwilliger Wert: zählt nicht als offen">möglich</span>{/if}
             {#if a.gebunden}<span class="meta">verknüpft</span>
             {:else if a.markierung}
               {#if a.verbraucher === "abzug" || a.verbraucher === "bauteil"}<span class="meta">erkannt</span>
-              {:else}<button type="button" class="klein" disabled={!darf || !gespeichert || busy !== ""} title={gespeichert ? "Markierung verknüpfen und Verbraucher speichern" : "Aufmaß zuerst speichern"} onclick={() => void uebernehmen(a)}>{busy === a.ziel ? "…" : "Übernehmen"}</button>{/if}
+              {:else}<button type="button" class="klein" disabled={!darf || (!gespeichert && !onspeichern) || busy !== ""} title={gespeichert ? "Markierung verknüpfen und Verbraucher speichern" : "Aufmaß speichern, Markierung verknüpfen und Verbraucher speichern"} onclick={() => void uebernehmen(a)}>{busy === a.ziel ? "…" : "Übernehmen"}</button>{/if}
             {:else}
               <button type="button" class="sekundaer klein" disabled={!darf} title={a.hinweis ?? "Werkzeug, Bedeutung und Zuordnung vorbelegen"} onclick={() => onzeichnen(a)}>Zeichnen</button>
             {/if}
@@ -191,9 +218,9 @@
         {/each}
       </ul>{/if}
     {/each}
-    {#if !gruppen.length}<p class="meta">Alle Aufgaben erledigt.{nurOffen ? " „Nur offene“ abwählen, um die verknüpften zu sehen." : ""}</p>{/if}
+    {#if !gruppen.length}<p class="meta">{art && andere ? `Für ${ARTNAME[art]} ist nichts offen.` : "Alle Aufgaben erledigt."}{nurOffen ? " „Nur offene“ abwählen, um die verknüpften zu sehen." : ""}</p>{/if}
     {#if aufgaben.some(a=>a.gebunden)}<button type="button" class="sekundaer pruefen" disabled={!darf||!gespeichert||!!busy} onclick={()=>void gesammeltPruefen()}>Verknüpfte Werte gesammelt prüfen …</button>{/if}
-    {#if !gespeichert}<p class="meta">Übernehmen ist nach dem Speichern des Aufmaßes möglich.</p>{/if}
+    {#if !gespeichert}<p class="meta">{onspeichern ? "„Übernehmen“ speichert das Aufmaß zuerst." : "Übernehmen ist nach dem Speichern des Aufmaßes möglich."}</p>{/if}
   {/if}
   {#if fehler}<p class="fehlertext" role="alert">{fehler}</p>{/if}
   {#if meldung}<p class="meta" role="status">{meldung}</p>{/if}

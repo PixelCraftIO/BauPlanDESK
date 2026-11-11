@@ -11,7 +11,7 @@ async function laden(name){
   const url="data:text/javascript;base64,"+Buffer.from(outputText).toString("base64");urls[name.replace(/\.ts$/,"")]=url;
   return import(url);
 }
-const geometry=await laden("pdfGeometry.ts"),edit=await laden("bearbeitung.ts"),{Bearbeitungsverlauf}=await laden("verlauf.ts"),{Fangindex,standardFang,streckenachsen}=await laden("fang.ts"),{aufmassUebertragen}=await laden("uebertragung.ts");
+const geometry=await laden("pdfGeometry.ts"),edit=await laden("bearbeitung.ts"),{Bearbeitungsverlauf}=await laden("verlauf.ts"),{Fangindex,standardFang,streckenachsen}=await laden("fang.ts"),{aufmassUebertragen,planstandWechseln}=await laden("uebertragung.ts");
 test("Vollständiges Rückgängig stellt Ausschnitt, Ebene, Maßstab und Markierungsreferenz gemeinsam wieder her",()=>{
   const a={kalibrierung:{art:"massstab",nenner:100},ausschnitte:[{id:"schnitt",ebene_id:"ebene"}],ebenen:[{id:"ebene",sichtbar:true}],markierungen:[{id:"m",ausschnitt_id:"schnitt"}]};
   const h=new Bearbeitungsverlauf();h.reset(a);
@@ -58,3 +58,19 @@ test("Übertragung ist eine inverse Ausrichtung mit neuen IDs; alte Bezüge blei
   assert.deepEqual(neu.markierungen[0].geometrie.punkte[0],[0,0]);assert.deepEqual(neu.markierungen[0].geometrie.punkte[2],[10,20]);
   assert.throws(()=>aufmassUebertragen(p,p.dokument,1,{dx:0,dy:0,grad:0,faktor:0}),/positive/);
 });
+test("Planstandwechsel behält Kennungen und rechnet Konturen, Maßstab und Bezüge auf das neue Blatt um",()=>{
+  const alt={bezeichnung:"EG",dokument:{dokument_id:"d",version:1},seite:1,kalibrierung:{art:"massstab",nenner:100},hoehenbezug:{punkt:[20,40],hoehe_m:0,system:"lokal"},ebenen:[{id:"e"}],
+    ausschnitte:[{id:"a",ebene_id:"e",von:[0,0],bis:[100,100],kalibrierung:{art:"strecke",von:[0,0],bis:[20,0],meter:5},bezugslinie:{von:[0,40],bis:[20,40],hoehe_m:0,system:"lokal"}}],
+    markierungen:[{id:"m",ebene_id:"e",ausschnitt_id:"a",geometrie:{art:"polygon",punkte:[[20,20],[60,20],[60,40]]}},{id:"n",ebene_id:"e",kontur_von:"m",geometrie:{art:"polygon",punkte:[[20,20],[60,20],[60,40]]}}]};
+  // Der neue Planstand ist doppelt so groß gezeichnet und um 10 pt versetzt abgelegt.
+  const neu=planstandWechseln(alt,{dokument_id:"d",version:2},1,{dx:10,dy:0,grad:0,faktor:.5});
+  assert.deepEqual(neu.dokument,{dokument_id:"d",version:2});
+  assert.deepEqual(neu.markierungen.map(m=>[m.id,m.kontur_von]),[["m",undefined],["n","m"]]);
+  assert.deepEqual(neu.markierungen[0].geometrie.punkte,[[20,40],[100,40],[100,80]]);
+  assert.equal(neu.kalibrierung.nenner,50);
+  assert.deepEqual(neu.ausschnitte[0].kalibrierung,{art:"strecke",von:[-20,0],bis:[20,0],meter:5});
+  assert.deepEqual(neu.ausschnitte[0].bezugslinie.bis,[20,80]);
+  assert.deepEqual(neu.hoehenbezug.punkt,[20,80]);
+  assert.deepEqual(alt.markierungen[0].geometrie.punkte[0],[20,20]);
+});
+

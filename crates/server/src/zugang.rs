@@ -204,6 +204,7 @@ async fn pruefen(State(s): State<ZugangState>, mut r: Request, next: Next) -> Re
                     "planabstand",
                     "plangebaeude",
                     "raumbuchimport",
+                    "raumbuchstand",
                     "gebaeudegrundlagen",
                 ]
                 .contains(&teile[2]))

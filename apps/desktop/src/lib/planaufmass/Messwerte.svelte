@@ -52,6 +52,7 @@
   const aufgabenStand = $derived.by(() => {
     const alle = new Map<string, { gebunden: boolean; wert: boolean }>();
     for (const t of Object.values(aufgaben).flat()) {
+      if (!t.pflicht) continue;
       const k = `${t.verbraucher}|${t.objekt}|${t.ziel}`, e = alle.get(k) ?? { gebunden: false, wert: false };
       alle.set(k, { gebunden: e.gebunden || !!t.gebunden, wert: e.wert || t.wert_vorhanden });
     }

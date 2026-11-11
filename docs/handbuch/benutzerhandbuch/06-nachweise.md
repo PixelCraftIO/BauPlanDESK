@@ -105,7 +105,7 @@ Besonderheiten der einzelnen Nachweise:
 | Nachweis | Worauf achten |
 | --- | --- |
 | Überbaubare Grundstücksfläche | Abstände zu Baugrenze/Baulinie mit Vorzeichen und Richtung; ergänzt die geometrische Baufensterprüfung |
-| Wohnflächenberechnung | Räume „aus Raumbuch“ übernehmen; Raumart, Wohnung, Dachschrägen-Höhenzonen, Außenflächen-Anteil |
+| Wohnflächenberechnung | Räume „aus Raumbuch“ übernehmen (sie folgen danach dem Raumbuch); Raumart, Wohnung, Dachschrägen-Höhenzonen, Außenflächen-Anteil |
 | DIN-277-Flächen | Teilflächen nach NUF/TF/VF/KGF; BRI über eigene äußere Volumenkörper |
 | Vollgeschossprüfung | Landesrechtliche Definition (z. B. § 2 Abs. 6 BauO NRW); Ergebnis im Gebäude-Geschoss verknüpfen |
 | Gebäudehöhen / Dachneigung | Einheitliches Höhensystem; absolute (m ü. NHN) und relative Höhen nicht mischen |

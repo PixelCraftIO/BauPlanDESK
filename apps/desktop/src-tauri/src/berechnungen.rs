@@ -372,3 +372,21 @@ pub async fn berechnung_aus_raumbuch(
         .berechnung_aus_raumbuch(projekt_id, id, modul)
         .await?)
 }
+/// Führt die Räume einer Berechnung dem aktuellen Raumbuch nach; `None`, wenn
+/// die Berechnung bereits auf dem aktuellen Stand ist.
+#[tauri::command]
+pub async fn berechnung_raumbuch_nachfuehren(
+    state: State<'_, AppState>,
+    projekt_id: ProjectId,
+    mut plan: FachPlan,
+) -> Result<Option<FachPlan>, CmdError> {
+    state
+        .core
+        .projekt_zugriff(projekt_id, &state.benutzer(), ProjektRecht::Lesen)
+        .await?;
+    Ok(state
+        .core
+        .berechnung_raumbuch_nachfuehren(projekt_id, &mut plan)
+        .await?
+        .then_some(plan))
+}

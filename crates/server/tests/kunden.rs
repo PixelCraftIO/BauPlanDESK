@@ -422,7 +422,10 @@ async fn beteiligte_in_rollen_und_zustimmung_des_eigentuemers() {
     let g = core.bauantrag(p.id).await.unwrap();
     assert_eq!(
         g.hinweise,
-        ["Zustimmungserklärung von Erbengemeinschaft Huber (Grundstückseigentümer), nicht Bauherr"]
+        [
+            "Zustimmungserklärung von Erbengemeinschaft Huber (Grundstückseigentümer), nicht Bauherr",
+            "Anschrift des Baugrundstücks fehlt; sie wird in den Stammdaten des Projekts erfasst.",
+        ]
     );
     assert!(!g.fehlende_angaben.iter().any(|f| f.contains("Zustimmung")));
 
@@ -445,7 +448,15 @@ async fn beteiligte_in_rollen_und_zustimmung_des_eigentuemers() {
         .await
         .unwrap();
     assert!(core.beteiligte(p.id).await.unwrap().is_empty());
-    assert!(core.bauantrag(p.id).await.unwrap().hinweise.is_empty());
+    assert!(
+        !core
+            .bauantrag(p.id)
+            .await
+            .unwrap()
+            .hinweise
+            .iter()
+            .any(|h| h.contains("Zustimmung"))
+    );
     core.kunde_loeschen(statik.id, statik.version, &chefin)
         .await
         .unwrap();
@@ -584,6 +595,9 @@ async fn flurstueckseigentuemer_sind_kunden_und_projektbeteiligte() {
     // Die Zustimmungspflicht folgt aus den Projektbeteiligten.
     assert_eq!(
         core.bauantrag(p.id).await.unwrap().hinweise,
-        ["Zustimmungserklärung von Emil Huber (Grundstückseigentümer), nicht Bauherr"]
+        [
+            "Zustimmungserklärung von Emil Huber (Grundstückseigentümer), nicht Bauherr",
+            "Anschrift des Baugrundstücks fehlt; sie wird in den Stammdaten des Projekts erfasst.",
+        ]
     );
 }

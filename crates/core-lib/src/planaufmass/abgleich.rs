@@ -114,6 +114,11 @@ pub(crate) struct Toleranzen {
     pub flurstueck: FlurstueckToleranz,
     doppelerfassung: DoppelToleranz,
     pub abstandsflaeche_breite: BreitenToleranz,
+    pub gegenprobe_hoehe: HoehenToleranz,
+}
+#[derive(Deserialize)]
+pub(crate) struct HoehenToleranz {
+    pub m: f64,
 }
 /// Wandbreite in der Ansicht gegen den Lageplan.
 #[derive(Deserialize)]

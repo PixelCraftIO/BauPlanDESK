@@ -133,6 +133,10 @@ fn routen(core: CoreServices) -> Router {
             post(berechnung_aus_raumbuch),
         )
         .route(
+            "/projekte/{id}/raumbuchstand",
+            post(berechnung_raumbuch_nachfuehren),
+        )
+        .route(
             "/projekte/{id}/fachberechnung",
             post(fachberechnung_pruefen),
         )
@@ -1976,6 +1980,18 @@ async fn berechnung_aus_raumbuch(
         s.core
             .berechnung_aus_raumbuch(ProjectId(id), w.id, w.modul)
             .await?,
+    ))
+}
+async fn berechnung_raumbuch_nachfuehren(
+    State(s): State<ApiState>,
+    Path(id): Path<Uuid>,
+    Json(mut plan): Json<core_lib::berechnungen::FachPlan>,
+) -> ApiResult<Option<core_lib::berechnungen::FachPlan>> {
+    Ok(Json(
+        s.core
+            .berechnung_raumbuch_nachfuehren(ProjectId(id), &mut plan)
+            .await?
+            .then_some(plan),
     ))
 }
 

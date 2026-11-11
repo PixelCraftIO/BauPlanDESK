@@ -1,10 +1,12 @@
 <script lang="ts">
   import { fehlertext } from "../api";
+  import { projektNavigation } from "../projektNavigation.svelte";
   import type { Gebaeude } from "../generated/plattform";
   import { gebaeudeflaechen, gebaeudefeldVerknuepfen, type Aufmassquelle } from "./quellen";
   import { Uebernahme, zielfeld, werttext } from "./Uebernahme.svelte";
   import UebernahmeVorschau from "./UebernahmeVorschau.svelte";
   const v=new Uebernahme();
+  const navigation = projektNavigation();
   // Direkte Flächenübernahme an einem Gebäude- oder Geschossfeld. Die Vorauswahl
   // filtert nur; Prüfung und Messwert stammen aus dem Core (planaufmass_gebaeude).
   let { projektId, gebaeudeId, g, aufmasse, geschossId = null, geschossName = "", gespeichert, onplan, onbusy }: {
@@ -40,8 +42,8 @@
 <div class="planflaeche" aria-label={geschossId ? "Geschossfläche aus Aufmaß" : "Gebäudegrundfläche aus Aufmaß"}>
   {#if bindung}
     {@const m = quelle?.stand.daten.markierungen.find((x) => x.id === bindung.markierung_id)}
-    <span>Aus Aufmaß: <strong>{quelle?.stand.daten.bezeichnung ?? "Aufmaß fehlt"} · {m?.bezeichnung ?? "Markierung fehlt"}</strong> (Stand R{bindung.revision})</span>
-    {#if quelle && quelle.stand.revision !== bindung.revision}<span class="meta">Aufmaß inzwischen gespeichert (R{quelle.stand.revision}); bei geänderter Kontur aktualisieren.</span>
+    <span>Aus Aufmaß: <strong>{quelle?.stand.daten.bezeichnung ?? "Aufmaß fehlt"} · {m?.bezeichnung ?? "Markierung fehlt"}</strong> (Aufmaßstand {bindung.revision})</span>
+    {#if quelle && quelle.stand.revision !== bindung.revision}<span class="meta">Aufmaß inzwischen gespeichert (Stand {quelle.stand.revision}); bei geänderter Kontur aktualisieren.</span>
       <button type="button" class="sekundaer" disabled={busy || !m} onclick={() => quelle && m && setzen({ a: quelle, m })}>Aktuellen Aufmaßstand übernehmen</button>{/if}
     <button type="button" class="link" disabled={busy} onclick={loesen}>Verknüpfung lösen</button>
   {:else if !gespeichert}
@@ -53,6 +55,7 @@
     </select></label>
     <button type="button" disabled={busy || !kandidat} onclick={() => kandidat && setzen(kandidat)}>Fläche übernehmen</button>
   {:else}
+    {#if navigation}<button type="button" class="link" title="Öffnet das Aufmaß. Dort die Außenkontur zeichnen; die Aufgabe für dieses Feld belegt Bedeutung und Zuordnung vor." onclick={() => navigation.springen({ bereich: "planaufmass", objekt: null, register: null, eintrag: null })}>Im Zeicheneditor ermitteln</button>{/if}
     <details class="meta"><summary>Fläche aus Aufmaß übernehmen – so geht's</summary>
       <ol>
         <li>Unter Unterlagen → Aufmaß die Außenkontur als Polygon oder Rechteck zeichnen.</li>

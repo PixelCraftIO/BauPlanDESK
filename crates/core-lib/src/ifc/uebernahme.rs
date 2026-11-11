@@ -211,6 +211,7 @@ impl Bauplan<'_> {
                 geschoss_id: None,
                 ausschnitt_id: None,
                 hoehenzone_von: None,
+                kontur_von: None,
                 flurstueck_id: None,
             };
         for e in a

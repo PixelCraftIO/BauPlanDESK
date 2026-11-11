@@ -43,12 +43,35 @@ dürfen sich ändern, ohne dass etwas veraltet.
    was Gebäude und Wände noch brauchen; „Zeichnen“ wählt das Werkzeug und
    belegt Bedeutung, Gebäude, Geschoss und Namen vor. Ohne Aufgabe: zeichnen,
    **Bedeutung** und Zuordnung von Hand wählen.
-5. Aufmaß speichern. Unter **Aufgaben → Übernehmen** die Markierung in das
-   Gebäude bzw. die Wand übernehmen (Verbraucher wird gespeichert); das
+5. Unter **Aufgaben → Übernehmen** die Markierung in das Gebäude bzw. die
+   Wand übernehmen; ein ungespeichertes Aufmaß wird dabei zuerst gespeichert,
+   danach der Verbraucher. Die Vorschau nennt alten und neuen Wert und die
+   Quelle mit Aufmaß, Markierung und Aufmaßstand; das
    Seitenpanel nennt je Bedeutung den sonstigen Übernahmeort.
 6. Für Fachberechnungen weiterhin unter „Quellen / Übernahmen“ verknüpfen.
 7. Soll eine Kontur zwei Bedeutungen haben (z. B. Gebäudegrundfläche *und*
-   EG-Außenkante), **Duplizieren** und die Kopie umkennzeichnen.
+   EG-Außenkante), in den Eigenschaften **Weitere Bedeutung für diese
+   Kontur …** wählen. Die weitere Bedeutung ist eine eigene Markierung mit
+   eigener Zuordnung, deren Geometrie der Kontur folgt (`kontur_von`); im Plan
+   steht die Kontur nur einmal. „Von der Kontur lösen“ macht daraus eine
+   unabhängige Kopie. Wird die Kontur gelöscht, bleibt die erste weitere
+   Bedeutung als eigenständige Kontur stehen.
+8. Räume misst allein das Raumbuch. Wohnflächen und DIN 277 mit
+   Raumbuchquelle bekommen für ihre Raumzeilen keine eigene Messaufgabe; sie
+   folgen dem Raumbuch (Hinweis „Räume aktualisieren“ in der Berechnung oder
+   automatisch bei „Alle veralteten Nachweise erneuern“). Eigene Angaben der
+   Berechnung (Wohnung, Raumart, Geschoss, Flächenart) bleiben je Raum
+   erhalten; bei gleichen Flächen und Höhen bleibt auch die Bestätigung.
+9. Neuer Planstand: Das Aufmaß wechselt die Unterlage und behält seine
+   Kennungen (`planstandWechseln` in `uebertragung.ts`). Die Ausrichtung der
+   beiden Blätter kommt aus zwei Passpunkten (`ausrichtung.ts`) oder von
+   Hand; Konturen, Rahmen, Maßstäbe und Höhenbezüge werden umgerechnet. Die
+   Verbraucher sehen danach nur einen neuen Aufmaßstand und übernehmen ihn
+   auf dem üblichen Weg.
+10. Gegenproben (`planaufmass/gegenprobe.rs`): Die Projektübersicht vergleicht
+    doppelt Gezeichnetes über alle Aufmaße (Flurstück, Gebäudegrundfläche,
+    Geschoss-Außenkante, Grundfläche gegen Außenkante Erdgeschoss, First und
+    Traufe) und meldet Abweichungen über der Toleranz als Hinweis.
 
 Bedienung: Strg+Rad oder Pinch zoomt um den Mauszeiger, Z zieht ein
 Zoomfenster, Leertaste oder mittlere Maustaste verschiebt, ↶/↷ dreht die

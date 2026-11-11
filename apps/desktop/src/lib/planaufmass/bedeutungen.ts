@@ -14,3 +14,32 @@ export const BEDEUTUNGEN: [Planbedeutung, string][] = [
 export function bedeutungText(b: Planbedeutung | string): string {
   return BEDEUTUNGEN.find(x => x[0] === b)?.[1] ?? String(b);
 }
+
+const LAGEPLAN: Planbedeutung[] = ["flurstueck","baufenster","vorhabenumriss","private_gruenflaeche","oeffentliche_gruenflaeche","verkehrsflaeche","ausserhalb_bauland","sonstiger_abzug","zufahrt","stellplatz","garage","nebenanlage","terrasse","unterirdisch","versiegelung","abstandsflaeche"];
+const GEBAEUDE: Planbedeutung[] = ["gebaeudegrundflaeche","geschoss_aussenkante","aussenwand"];
+const RAEUME: Planbedeutung[] = ["raum","aufenthaltsraum","nuf","tf","vf","kgf"];
+/** Nur als Fläche sinnvoll. */
+const NUR_FLAECHE: Planbedeutung[] = [...LAGEPLAN.filter(b => b !== "abstandsflaeche"), "gebaeudegrundflaeche", "geschoss_aussenkante", ...RAEUME];
+/** Nur als Linie oder Höhenpunkt sinnvoll. */
+const NUR_LINIE: Planbedeutung[] = ["gelaende","traufe","first","nullpunkt","fussboden","decke","fundamentsohle","hoehenmass","abstandsflaeche","attika","wandteilgrenze","gaube","abgrabung"];
+/**
+ * Bedeutungen in Gruppen, beschränkt auf das, was zur Geometrie passt: Eine
+ * Fläche bekommt keine Höhenbedeutungen, eine Linie keine Flächenbedeutungen.
+ * Die gesetzte Bedeutung bleibt immer wählbar.
+ */
+export function bedeutungsgruppen(geometrie: string, aktuell: Planbedeutung): [string, [Planbedeutung, string][]][] {
+  const flaeche = ["polygon", "rechteck", "kreis", "flaeche"].includes(geometrie);
+  const erlaubt = (b: Planbedeutung) => b === aktuell || (flaeche ? !NUR_LINIE.includes(b) : !NUR_FLAECHE.includes(b));
+  const gruppe = (b: Planbedeutung) => LAGEPLAN.includes(b) ? "Lageplan" : GEBAEUDE.includes(b) ? "Gebäude" : RAEUME.includes(b) ? "Räume und Flächen nach DIN 277" : "Höhen (Schnitt / Ansicht)";
+  const gruppen = new Map<string, [Planbedeutung, string][]>();
+  for (const e of BEDEUTUNGEN) {
+    if (e[0] === "unbestimmt" || !erlaubt(e[0])) continue;
+    const g = gruppe(e[0]);
+    gruppen.set(g, [...(gruppen.get(g) ?? []), e]);
+  }
+  return [...gruppen.entries()];
+}
+/** Bedeutungen, die einem Baugrundstück zugeordnet werden. */
+export const MIT_GRUNDSTUECK: Planbedeutung[] = ["unbestimmt","baufenster","vorhabenumriss","private_gruenflaeche","zufahrt","stellplatz","garage","nebenanlage","terrasse","unterirdisch","versiegelung","abstandsflaeche","gebaeudegrundflaeche"];
+/** Bedeutungen ohne Gebäudebezug: Flurstück und Abzugsflächen des Flurstücks. */
+export const OHNE_GEBAEUDE: Planbedeutung[] = ["flurstueck","oeffentliche_gruenflaeche","verkehrsflaeche","ausserhalb_bauland","sonstiger_abzug","baufenster","private_gruenflaeche"];

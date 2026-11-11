@@ -56,6 +56,7 @@ pub fn umwandeln(a: &CadProjektaufmass, datei: &str, grenzen: &Rechteck) -> Plan
         geschoss_id: None,
         ausschnitt_id: None,
         hoehenzone_von: None,
+        kontur_von: None,
         flurstueck_id: None,
     };
     let mut markierungen = Vec::new();

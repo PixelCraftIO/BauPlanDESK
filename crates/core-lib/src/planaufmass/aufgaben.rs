@@ -55,6 +55,33 @@ pub struct Planaufgabe {
     /// Passende, noch nicht verknüpfte Markierung dieses Aufmaßes.
     pub markierung: Option<Uuid>,
     pub hinweis: Option<String>,
+    /// Ein Nachweis oder eine Berechnung braucht den Wert. Freiwillige Werte
+    /// (Höhen eines Gebäudes ohne Verbraucher) zählen nicht als offen.
+    pub pflicht: bool,
+    /// Planarten, in denen sich der Wert zeichnen lässt; die Aufgabenliste
+    /// zeigt zuerst, was zum geöffneten Ausschnitt passt.
+    pub planarten: Vec<Ausschnittart>,
+}
+impl Planaufgabe {
+    /// Setzt Pflicht und Planarten aus Verbraucher, Bedeutung und Geometrie.
+    fn einordnen(&mut self) {
+        use Ausschnittart::*;
+        let hoehen = vec![Schnitt, Ansicht, Detail];
+        self.planarten = match (self.verbraucher.as_str(), self.geometrie, self.bedeutung) {
+            ("flurstueck" | "abzug" | "bauteil", _, _) => vec![Lageplan],
+            (_, _, Planbedeutung::Abstandsflaeche) => vec![Lageplan],
+            (_, Aufgabengeometrie::Flaeche, Planbedeutung::Gebaeudegrundflaeche) => {
+                vec![Lageplan, Grundriss]
+            }
+            (_, Aufgabengeometrie::Flaeche, _) => vec![Grundriss],
+            _ => hoehen,
+        };
+        // Höhen des Gebäudemodells sind Angebot, keine Pflicht: Wer sie für
+        // einen Nachweis braucht, bekommt die Aufgabe von dessen Berechnung
+        // oder vom Abstandsflächenplan.
+        self.pflicht =
+            !(self.verbraucher == "gebaeude" && self.geometrie != Aufgabengeometrie::Flaeche);
+    }
 }
 
 fn gebaeudefeld(
@@ -808,6 +835,8 @@ impl CoreServices {
                 wert_vorhanden: f.flaeche_m2 > 0. && !f.flaeche_aus_plan,
                 gebunden,
                 markierung,
+                pflicht: true,
+                planarten: Vec::new(),
                 hinweis: Some(
                     "Flurstücksgrenze in Flurkarte, Liegenschaftskarte oder Lageplan; die Katasterfläche bleibt Rechenwert, solange sie erfasst ist"
                         .into(),
@@ -868,6 +897,8 @@ impl CoreServices {
                         wert_vorhanden: x.flaeche_m2 > 0.,
                         gebunden,
                         markierung,
+                        pflicht: true,
+                        planarten: Vec::new(),
                         hinweis: Some(
                             "Abzugsfläche im Lageplan; Übernahme unter Berechnungen → Baugrundstück „Abzugsflächen aus Aufmaß übernehmen“"
                                 .into(),
@@ -923,6 +954,8 @@ impl CoreServices {
                         wert_vorhanden: x.flaeche_m2 > 0.,
                         gebunden,
                         markierung,
+                        pflicht: true,
+                        planarten: Vec::new(),
                         hinweis: Some(
                             "Bauteil im Lageplan, dem Baugrundstück zugeordnet; Übernahme unter Berechnungen → Baugrundstück (GRZ) „Bauteile aus Aufmaß übernehmen“"
                                 .into(),
@@ -1000,6 +1033,8 @@ impl CoreServices {
                     wert_vorhanden: gefuellt(&f.daten, &z.ziel),
                     gebunden,
                     markierung,
+                    pflicht: true,
+                    planarten: Vec::new(),
                     hinweis: hinweis.map(Into::into),
                 });
             }
@@ -1054,6 +1089,8 @@ impl CoreServices {
                     wert_vorhanden: wert.is_some(),
                     gebunden,
                     markierung,
+                    pflicht: true,
+                    planarten: Vec::new(),
                     hinweis: hinweis.map(Into::into),
                 });
             }
@@ -1095,6 +1132,15 @@ impl CoreServices {
                 for z in planziele(&plan)? {
                     let t: Vec<&str> = z.ziel.split('.').collect();
                     let zeile = eingabezeile(&plan.eingaben, &z.ziel);
+                    // Räume misst allein das Raumbuch; die Berechnung folgt ihm.
+                    if !plan.fachquellen.is_empty()
+                        && zeile
+                            .and_then(|x| x.get("quelle"))
+                            .and_then(|q| q.as_str())
+                            .is_some_and(|q| q.starts_with("Raumbuch"))
+                    {
+                        continue;
+                    }
                     let feld = berechnungsfeld(plan.modul, t[0], t[2], zeile, &hoehenbezug);
                     if feld.bedeutung == Planbedeutung::Unbestimmt {
                         continue;
@@ -1163,6 +1209,8 @@ impl CoreServices {
                         wert_vorhanden: uebernommen || zahl_erfasst(zeile, t[2]),
                         gebunden,
                         markierung,
+                        pflicht: true,
+                        planarten: Vec::new(),
                         hinweis,
                     });
                 }
@@ -1225,6 +1273,8 @@ impl CoreServices {
                     wert_vorhanden: raum.flaeche_m2 > 0. && gebunden.is_none(),
                     gebunden,
                     markierung,
+                    pflicht: true,
+                    planarten: Vec::new(),
                     hinweis: Some(
                         "Raumkontur im Grundriss mit Gebäude und Geschoss; „Übernehmen“ setzt die Raumfläche, Nummer, Nutzung und Höhen bleiben"
                             .into(),
@@ -1259,12 +1309,17 @@ impl CoreServices {
                     wert_vorhanden: !r.raeume.is_empty(),
                     gebunden: None,
                     markierung: frei_raum,
+                    pflicht: true,
+                    planarten: Vec::new(),
                     hinweis: Some(
                         "Jede Raumkontur als Raum, Aufenthaltsraum, NUF, TF oder VF mit Gebäude und Geschoss; „Übernehmen“ legt daraus neue Räume an und aktualisiert bereits übernommene"
                             .into(),
                     ),
                 });
             }
+        }
+        for a in &mut aufgaben {
+            a.einordnen();
         }
         Ok(aufgaben)
     }
