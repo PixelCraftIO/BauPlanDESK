@@ -192,6 +192,24 @@ Planstand umstellen …“) legt den neuen Plan über den aktuellen.
 neuen Markierungen an; das bisherige Aufmaß und seine Verknüpfungen bleiben
 dann beim alten Plan.
 
+### Markierungen aus einem anderen Plan holen
+
+Flurstücke, die in der Flurkarte gezeichnet sind, braucht auch der Lageplan,
+etwa für Grenzen und Abstandsflächen. Statt sie neu zu zeichnen:
+
+1. Im Lageplan **Prüfen → Planstände vergleichen …** öffnen und die Flurkarte
+   als Vergleichsunterlage wählen.
+2. **Über zwei Passpunkte ausrichten**: zwei Punkte im Lageplan anklicken
+   (etwa zwei Grundstücksecken), dann dieselben in der Flurkarte. Der
+   Skalierungsfaktor gleicht unterschiedliche Maßstäbe aus.
+3. Blattlage bestätigen, „Markierungen aus dem Aufmaß dieser Unterlage holen“
+   aufklappen, die Markierungen ankreuzen (die Flurstücke sind vorgewählt) und
+   in den Plan holen.
+
+Bedeutung und Zuordnung bleiben erhalten. Die geholte Kontur ist eine eigene
+Zeichnung desselben Gegenstands; weichen die Flächen beider Pläne ab, meldet
+das die Gegenprobe.
+
 ### Gegenproben zwischen Zeichnungen
 
 Was in zwei Zeichnungen steht, vergleicht die Anwendung von selbst und meldet

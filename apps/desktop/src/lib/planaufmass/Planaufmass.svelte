@@ -20,7 +20,7 @@
   import { Bearbeitungsverlauf } from "./verlauf";
   import { drehen, punktAendern, punktEinfuegen, punktEntfernen, kantenmass, ausrichten } from "./bearbeitung";
   import { abbildenGeometrie, abbildenElement, verschiebung, spiegelung, elementSpiegeln, versatz, elementVersatz, geometrieStutzen, elementStutzen, reihe, befehlAuswerten, BEFEHLE, type Punkt } from "./konstruktion";
-  import { aufmassUebertragen,planstandWechseln } from "./uebertragung";
+  import { aufmassUebertragen,planstandWechseln,markierungenHolen } from "./uebertragung";
   import { ausPasspunkten, gerundet } from "./ausrichtung";
   import { planstandDifferenz, imBereich as imAenderungsbereich, type Bereich } from "./planstanddifferenz";
   import { grundstuecksinformationen } from "../grundstuecksdaten";
@@ -161,6 +161,33 @@
       const bereiche=await planstandDifferenz({base64:pdf.pdf_base64,seite:p.seite},{base64:vergleichPdf.pdf_base64,seite:Math.min(p.seite,vergleichPdf.seiten.length)},$state.snapshot(vergleichAusrichtung));
       aenderungen={bereiche,ids:(s.eingabe?.markierungen??[]).filter(m=>!m.kontur_von&&imAenderungsbereich(eckpunkte(m.geometrie),bereiche)).map(m=>m.id)};
     }catch(e){s.fehler=`Planstände lassen sich nicht vergleichen: ${fehlertext(e)}`}finally{aenderungLaeuft=false}
+  }
+  // Markierungen aus dem Aufmaß der Vergleichsunterlage holen (z. B. Flurstücke
+  // der Flurkarte in den Lageplan): Die Ausrichtung der Blätter trägt sie herüber.
+  const holQuellen=$derived.by(()=>{
+    const p=s.eingabe;if(!p||!vergleichPdf||gewechselt)return [];
+    const seite=Math.min(p.seite,vergleichPdf.seiten.length);
+    return s.liste.filter(f=>f.objekt!==s.id&&!!f.daten.dokument&&`${f.daten.dokument.dokument_id}|${f.daten.dokument.version}`===vergleich&&f.daten.seite===seite&&f.daten.markierungen.length>0);
+  });
+  let holAufmass=$state(""),holIds=$state<string[]>([]);
+  const holQuelle=$derived(holQuellen.find(f=>f.objekt===holAufmass)??null);
+  $effect(()=>{
+    const q=holQuellen;
+    untrack(()=>{
+      if(!q.some(f=>f.objekt===holAufmass))holAufmass=q[0]?.objekt??"";
+      const ms=q.find(f=>f.objekt===holAufmass)?.daten.markierungen??[];
+      // Vorschlag: die Flurstücke; sie braucht der Lageplan für Grenzen und Abstandsflächen.
+      holIds=ms.filter(m=>m.bedeutung==="flurstueck").map(m=>m.id);
+    });
+  });
+  function markierungenUebernehmen(){
+    const p=s.eingabe,q=holQuelle;if(!p||!q||!darf||!vergleichBestaetigt||!holIds.length)return;
+    if(!layer||layer.gesperrt||!layer.sichtbar){s.fehler="Eine sichtbare, ungesperrte Zeichenebene auswählen.";return}
+    let neu:Planmarkierung[];
+    try{neu=markierungenHolen($state.snapshot(q.daten.markierungen).filter(m=>holIds.includes(m.id)) as Planmarkierung[],$state.snapshot(vergleichAusrichtung),layer.id,aktiv||undefined)}catch(e){s.fehler=fehlertext(e);return}
+    merken();p.markierungen.push(...neu);
+    auswahlIds=neu.map(m=>m.id);auswahl=neu[0]?.id??"";
+    s.meldung=`${neu.length} Markierung(en) aus „${q.daten.bezeichnung}“ geholt. Lage und Fläche prüfen; weichen die Flächen der beiden Pläne ab, meldet die Projektübersicht eine Gegenprobe.`;
   }
   function vergleichBeenden(){vergleich="";gewechselt=false;aenderungen=null;aenderungFaellig=false;vergleichBestaetigt=false;vergleichAusrichtung={dx:0,dy:0,grad:0,faktor:1}}
   // Eine andere Unterlage oder Lage macht das Ergebnis ungültig.
@@ -1218,7 +1245,14 @@
                 <button type="button" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void planstandUmstellen()}>Dieses Aufmaß auf diesen Planstand umstellen …</button>
                 <p class="meta">Verknüpfungen zu Flurstück, Gebäude, Raumbuch und Berechnungen bleiben dabei bestehen.</p>
                 <button type="button" class="sekundaer" disabled={!darf||!vergleichPdf||s.laeuft||!vergleichBestaetigt} onclick={()=>void uebertragen()}>Stattdessen als neues Aufmaß übertragen …</button>
-                {@render aenderungsliste()}{/if}
+                {@render aenderungsliste()}
+                {#if holQuellen.length}<details class="holen"><summary>Markierungen aus dem Aufmaß dieser Unterlage holen</summary>
+                  <p class="meta">Zum Beispiel die Flurstücke der Flurkarte in den Lageplan. Die Konturen wandern mit der oben geprüften Blattlage; Bedeutung und Zuordnung bleiben.</p>
+                  {#if holQuellen.length>1}<label>Aufmaß<select aria-label="Aufmaß der Vergleichsunterlage" bind:value={holAufmass} onchange={()=>{holIds=(holQuelle?.daten.markierungen??[]).filter(m=>m.bedeutung==="flurstueck").map(m=>m.id)}}>{#each holQuellen as f (f.objekt)}<option value={f.objekt}>{f.daten.bezeichnung}</option>{/each}</select></label>{/if}
+                  <ul class="aenderungsliste" aria-label="Markierungen der Vergleichsunterlage">{#each holQuelle?.daten.markierungen??[] as x (x.id)}<li><label><input type="checkbox" value={x.id} bind:group={holIds}/>{x.bezeichnung||"Ohne Namen"} <span class="meta">{bedeutungText(x.bedeutung)}</span></label></li>{/each}</ul>
+                  <button type="button" disabled={!darf||!vergleichBestaetigt||!holIds.length||s.laeuft} onclick={markierungenUebernehmen}>{holIds.length===1?"1 Markierung in diesen Plan holen":`${holIds.length} Markierungen in diesen Plan holen`}</button>
+                  {#if !vergleichBestaetigt}<p class="meta">Zuerst die Blattlage oben prüfen und bestätigen.</p>{/if}
+                </details>{/if}{/if}
               {/if}
           {:else if werkzeugfenster==="planblatt"}
                 <div class="kalibrierung">

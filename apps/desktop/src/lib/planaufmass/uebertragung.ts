@@ -34,3 +34,20 @@ export function planstandWechseln(p:Planaufmass,dokument:Planaufmass["dokument"]
     elemente:kopie.elemente?.map(e=>"punkt" in e?{...e,punkt:punkt(e.punkt as Point)}:{...e,von:punkt(e.von as Point),bis:punkt(e.bis as Point)}),
   };
 }
+/** Holt Markierungen eines anderen Aufmaßes in diesen Plan: Dessen Blatt
+ * liegt mit der Ausrichtung `t` über dem aktuellen (Passpunkte), die Konturen
+ * wandern mit. Bedeutung und Zuordnungen bleiben, Kennungen sind neu; die
+ * Kopie ist eine eigene Zeichnung desselben Gegenstands (Gegenprobe). */
+export function markierungenHolen(quelle:Planaufmass["markierungen"],t:Planausrichtung,ebene_id:string,ausschnitt_id:string|undefined,id=()=>crypto.randomUUID()):Planaufmass["markierungen"] {
+  if(![t.dx,t.dy,t.grad,t.faktor].every(Number.isFinite)||t.faktor<=0)throw Error("Ausrichtung benötigt endliche Werte und eine positive Skalierung.");
+  const a=t.grad*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
+  const punkt=(p:Point):Point=>[t.dx+t.faktor*(p[0]*c-p[1]*s),t.dy+t.faktor*(p[0]*s+p[1]*c)];
+  const ids=new Map(quelle.map(m=>[m.id,id()]));
+  return quelle.map(m=>{
+    const {ausschnitt_id:_a,hoehenzone_von,kontur_von,...rest}=structuredClone(m);
+    return {...rest,id:ids.get(m.id)!,ebene_id,geometrie:abbilden(m.geometrie,punkt),
+      ...(ausschnitt_id?{ausschnitt_id}:{}),
+      ...(hoehenzone_von&&ids.has(hoehenzone_von)?{hoehenzone_von:ids.get(hoehenzone_von)!}:{}),
+      ...(kontur_von&&ids.has(kontur_von)?{kontur_von:ids.get(kontur_von)!}:{})};
+  });
+}
