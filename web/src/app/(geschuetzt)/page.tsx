@@ -22,7 +22,7 @@ const FUNKTIONEN = [
   },
   {
     titel: "Berechnungen und Nachweise",
-    text: "Baugrundstück, GRZ I/II, GFZ, BMZ, Abstandsflächen, Stellplätze, Wohnflächen, DIN 277, Vollgeschosse und mehr – archiviert als unveränderliche Nachweisstände.",
+    text: "Baugrundstück, GRZ I/II, GFZ, BMZ, Abstandsflächen nach der Landesbauordnung zum Stichtag, Stellplätze, Wohnflächen, DIN 277, Vollgeschosse und mehr – archiviert als unveränderliche Nachweisstände. Ändert sich eine Grundlage, werden betroffene Nachweise gesammelt erneuert.",
     link: "/handbuch/06-nachweise",
   },
   {
@@ -45,10 +45,20 @@ const FUNKTIONEN = [
     text: "Ein Feld hat genau eine Quelle. Handwerte und gezeichnete Flächen werden abgeglichen, veraltete Verknüpfungen nach Planänderungen gemeldet, jede Übernahme in der Chronik vermerkt.",
     link: "/ablaeufe#handwert",
   },
+  {
+    titel: "Projektbaum mit Projektstand",
+    text: "Die ganze Akte als Baum mit Statussymbolen: was geprüft, in Arbeit, veraltet oder überfällig ist. Der Projektstand von der Vorbereitung bis zum Abschluss steht in Akte und Projektverzeichnis.",
+    link: "/handbuch/02-oberflaeche#aufbau-der-projektakte",
+  },
+  {
+    titel: "Beispielprojekt und Leitfaden",
+    text: "Ein vollständig bearbeiteter Bauantrag zum Ausprobieren: als Sicherung ohne Neustart in die laufende App übernehmen und mit dem Leitfaden Schritt für Schritt nachvollziehen.",
+    link: "/handbuch/10-leitfaden",
+  },
 ];
 
 const ABLAUF = [
-  { titel: "Büro einrichten", text: "Büroangaben, Briefbogen, Benutzer und Formularbibliothek – einmalig." },
+  { titel: "Büro einrichten", text: "„Einrichtung abschließen“ führt durch Büroangaben, Entwurfsverfasser und mitgelieferte Vordrucke – einmalig." },
   { titel: "Projekt anlegen", text: "Stammdaten, Rechtsgrundlagen, B-Plan und Flurstücke erfassen." },
   { titel: "Ermitteln", text: "Pläne ablegen, aufmessen, Gebäude und Räume aufbauen." },
   { titel: "Nachweisen", text: "Baugrundstück und Kennwerte berechnen, archivieren, freigeben." },
