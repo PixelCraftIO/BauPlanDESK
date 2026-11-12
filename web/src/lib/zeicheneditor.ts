@@ -147,6 +147,21 @@ export const FUNKTIONEN: Funktion[] = [
     linkText: "Ausschnitte im Handbuch",
   },
   {
+    id: "planstand",
+    titel: "Neuer Planstand ohne Neuzeichnen",
+    bild: "ermittlung-aufmass-vollbild",
+    alt: "Aufmaß des Entwurfsplans EP-01 im Vollbild mit Grundrissen, Schnitt und Markierungen",
+    text: "Kommt eine neue Planversion, bleibt das Aufmaß dasselbe: Der neue Plan wird über den bisherigen gelegt, bei Bedarf über zwei Passpunkte ausgerichtet, und das Aufmaß zieht mit Markierungen, Maßstäben und allen Verknüpfungen auf das neue Blatt um.",
+    punkte: [
+      "Der bisherige Plan liegt danach zum Vergleich darüber, geänderte Bereiche sind hervorgehoben",
+      "Nur geänderte Konturen anpassen, Ziele übernehmen den neuen Aufmaßstand",
+      "Markierungen aus einem anderen Plan holen, z. B. Flurstücke aus dem Lageplan",
+      "Gegenproben zwischen Zeichnungen (Lageplan gegen Grundriss) erscheinen in der Projektübersicht",
+    ],
+    link: "/handbuch/05-ermittlung#neuer-planstand",
+    linkText: "Neuer Planstand im Handbuch",
+  },
+  {
     id: "messwerte",
     titel: "Messwerte im Blick",
     bild: "ermittlung-messwerte",

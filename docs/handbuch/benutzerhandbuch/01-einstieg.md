@@ -39,7 +39,7 @@ verbindliche Abgabe selbst erfolgt im Portal der zuständigen Behörde.
 | Nachweisstand | Archivierter, unveränderlicher Stand einer Berechnung. Freigabe ist ein eigener Schritt. |
 | Abgabestand | Eingefrorene Auswahl konkreter Dokumentversionen für eine Einreichung. |
 
-Ausführliches Glossar: [Kapitel 10](10-anhang.md#begriffe).
+Ausführliches Glossar: [Kapitel 11](11-anhang.md#begriffe).
 
 ## Das Beispielprojekt in diesem Handbuch
 
@@ -47,8 +47,12 @@ Alle Bilder und Beispiele dieses Handbuchs stammen aus dem Projekt „Neubau
 Einfamilienhaus Mustermann“: ein vollständig bearbeitetes
 Bauantragsverfahren (Einfamilienhaus mit Garage in NRW, Bauantrag im Bauportal
 eingereicht, eine offene Nachforderung). Die Anwendung liefert dieses Projekt
-nicht mit. Zum Ausprobieren und Schulen legen Sie am besten ein eigenes
-Testprojekt an und löschen es danach wieder.
+nicht mit; es liegt als Archiv `Beispielprojekt-EFH-Mustermann.zip` bei. Zum
+Ausprobieren wählen Sie im Projektverzeichnis „Aus Sicherung übernehmen …“ und
+dieses Archiv: Das Projekt erscheint sofort neben Ihren eigenen Projekten, ohne
+Neustart. Danach können Sie es wie jedes Projekt löschen und bei Bedarf erneut
+übernehmen. Der [Leitfaden in Kapitel 10](10-leitfaden.md) geht das Projekt
+Schritt für Schritt durch.
 
 ## Empfohlene Reihenfolge im Projekt
 

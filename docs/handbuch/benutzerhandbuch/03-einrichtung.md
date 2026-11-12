@@ -108,6 +108,13 @@ Briefkopf.
    Wiederherstellung überschreibt keine bestehenden Projekte; nach dem
    Neustart arbeitet die App mit dem wiederhergestellten Profil. „Nach Neustart
    zum Standardprofil zurückkehren“ führt zurück.
+4. Einzelne Projekte aus einer Sicherung, etwa das Beispielprojekt, holen Sie
+   ohne Profilwechsel über „Aus Sicherung übernehmen …“ im Projektverzeichnis
+   (nur Administration, nur Einzelplatz). Die Projekte samt Dokumenten kommen
+   zu den vorhandenen hinzu; eigene Projekte, Kunden und Büroangaben bleiben
+   unverändert. Fehlen im Büro Entwurfsverfasser, die ein übernommenes Projekt
+   verwendet, werden sie ergänzt. Ein schon vorhandenes Projekt wird nicht
+   doppelt übernommen.
 
 Im Netzwerkbetrieb gilt das administrierte Sicherungsverfahren für Datenbank
 und Ablage.

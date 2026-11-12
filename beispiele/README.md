@@ -17,9 +17,12 @@ Menüpunkt „Hilfe → Beispielprojekt öffnen“ ist entfallen). Das Archiv bl
 die Grundlage der Bildschirmfotos im Benutzerhandbuch: `scripts/handbuch-bilder`
 stellt es in ein eigenes Profil wieder her und nimmt die Szenen darin auf.
 
-Von Hand laden: Einstellungen → Sicherung und Wiederherstellung → „In neues
-Profil wiederherstellen“ mit diesem Archiv, dann „Profil aktivieren“ und die App
-neu starten.
+Zum Ausprobieren in der laufenden App: Projektverzeichnis → „Aus Sicherung
+übernehmen …“ und dieses Archiv wählen. Das Projekt kommt ohne Neustart zu den
+eigenen Projekten hinzu (`cargo test -p storage --test projektuebernahme`
+prüft das). Alternativ als eigenes Profil: Einstellungen → Sicherung und
+Wiederherstellung → „In neues Profil wiederherstellen“, dann „Profil
+aktivieren“ und die App neu starten.
 
 ## Rechentest
 

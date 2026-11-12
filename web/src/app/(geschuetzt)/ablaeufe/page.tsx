@@ -180,8 +180,9 @@ export default function Ablaeufe() {
             titel="Sieben Schritte von der neuen Planversion bis zur Nachreichung"
             beschreibung={
               <>
-                Das alte Aufmaß bleibt bei der alten Version und nimmt keine Übernahmen mehr an. Nachweisstände mit
-                „Grundlagen geändert“ werden neu berechnet und freigegeben. Einzelheiten:{" "}
+                Das Aufmaß zieht mit allen Markierungen und Verknüpfungen auf den neuen Planstand um; nur geänderte
+                Konturen werden angepasst. Die Ziele melden den neuen Aufmaßstand, Nachweisstände mit „Grundlagen
+                geändert“ werden neu berechnet und freigegeben. Einzelheiten:{" "}
                 <Link href="/handbuch/09-workflows#workflow-4-planänderung-einarbeiten">Workflow 4</Link>.
               </>
             }

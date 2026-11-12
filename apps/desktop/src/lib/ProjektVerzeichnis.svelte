@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ask } from "@tauri-apps/plugin-dialog";
+  import { ask, open } from "@tauri-apps/plugin-dialog";
   import {
     api,
     fehlertext,
@@ -12,6 +12,7 @@
     zuletzt,
     darfAnlegen,
     darfLoeschen,
+    darfUebernehmen = false,
     onneu,
     onoeffnen,
     ongeloescht,
@@ -19,6 +20,8 @@
     zuletzt: ZuletztEintrag[];
     darfAnlegen: boolean;
     darfLoeschen: boolean;
+    /** Verwaltung: Projekte aus einer Sicherung übernehmen. */
+    darfUebernehmen?: boolean;
     onneu: () => void;
     onoeffnen: (id: string) => void;
     ongeloescht: (id: string) => void;
@@ -28,7 +31,8 @@
     fehler = $state<string | null>(null),
     hinweis = $state<string | null>(null),
     laedt = $state(false),
-    loescht = $state<string | null>(null);
+    loescht = $state<string | null>(null),
+    uebernimmt = $state(false);
   let sortierung = $state<"name" | "updated_at">("updated_at");
   let staende = $state<Record<string, Projektstand>>({}),
     standFilter = $state<"alle" | "laufend" | "abgeschlossen">("alle");
@@ -99,6 +103,35 @@ Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten u
       await laden();
     }
   }
+  /**
+   * Projekte aus einem Sicherungsarchiv (z. B. der Beispiel-ZIP aus dem
+   * Handbuch) in das laufende Profil übernehmen, ohne Neustart. Ein einzelnes
+   * übernommenes Projekt wird gleich geöffnet.
+   */
+  async function ausSicherung() {
+    const pfad = await open({
+      title: "Sicherung oder Beispielprojekt wählen",
+      multiple: false,
+      filters: [{ name: "Sicherungsarchiv", extensions: ["zip"] }],
+    });
+    if (typeof pfad !== "string") return;
+    uebernimmt = true;
+    fehler = null;
+    hinweis = null;
+    try {
+      const neu = await api.projekteAusSicherungUebernehmen(pfad);
+      hinweis =
+        neu.length === 1
+          ? `„${neu[0].name}“ wurde übernommen.`
+          : `${neu.length} Projekte übernommen: ${neu.map((p) => `„${p.name}“`).join(", ")}.`;
+      await laden();
+      if (neu.length === 1) onoeffnen(neu[0].id);
+    } catch (e) {
+      fehler = fehlertext(e);
+    } finally {
+      uebernimmt = false;
+    }
+  }
   $effect(() => {
     void zuletzt;
     void laden();
@@ -110,7 +143,16 @@ Die Projektakte mit allen Dokumenten, Versionen, Fachständen, Verfahrensdaten u
     <h1>Projektverzeichnis</h1>
     <p class="meta">Projektakten öffnen und parallel bearbeiten.</p>
   </div>
-  <button onclick={onneu} disabled={!darfAnlegen}>Neues Projekt</button>
+  <div class="knoepfe">
+    {#if darfUebernehmen}<button
+        class="sekundaer"
+        onclick={ausSicherung}
+        disabled={uebernimmt}
+        title="Projekte aus einem Sicherungsarchiv, z. B. dem Beispielprojekt, in dieses Profil übernehmen. Eigene Projekte bleiben unverändert."
+        >{uebernimmt ? "Wird übernommen …" : "Aus Sicherung übernehmen …"}</button
+      >{/if}
+    <button onclick={onneu} disabled={!darfAnlegen}>Neues Projekt</button>
+  </div>
 </div>
 <div class="verzeichnis-filter">
   <label

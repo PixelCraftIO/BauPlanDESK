@@ -1,10 +1,12 @@
 # 9 Standard-Workflows
 
-[← Verfahren und Einreichung](08-verfahren.md) · [Inhalt](README.md) · [Weiter: Anhang →](10-anhang.md)
+[← Verfahren und Einreichung](08-verfahren.md) · [Inhalt](README.md) · [Weiter: Leitfaden am Beispielprojekt →](10-leitfaden.md)
 
 Die typischen Abläufe als Checklisten. Jeder Schritt verweist auf den Bereich
 in der App und das Kapitel mit den Einzelheiten. Im Beispielprojekt der Bilder
-sind alle Schritte von Workflow 1 bis 3 bereits einmal durchlaufen.
+ist Workflow 1 vollständig durchlaufen, Workflow 2 läuft gerade (offene
+Nachforderung). Denselben Weg mit allen Werten des Beispiels erklärt der
+[Leitfaden in Kapitel 10](10-leitfaden.md).
 
 ## Workflow 1: Vom Grundstück zur Erstabgabe
 
@@ -85,7 +87,7 @@ nachreichen. Im Beispielprojekt ist der Entwässerungsnachweis nachgefordert.
    (Baubeginnanzeige, Bauleitung, bautechnische Nachweise, Absteckung).
 6. Vor der Nutzungsaufnahme die zweite Checkliste und fällige Auflagen
    erledigen.
-7. Zum Abschluss die [Abschlusscheckliste](10-anhang.md#abschlusscheckliste)
+7. Zum Abschluss die [Abschlusscheckliste](11-anhang.md#abschlusscheckliste)
    durchgehen, Aktenexport erstellen und sichern.
 
 ## Workflow 4: Planänderung einarbeiten

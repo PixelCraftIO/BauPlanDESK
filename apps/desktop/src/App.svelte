@@ -1053,6 +1053,7 @@
         {zuletzt}
         darfAnlegen={darf("projektleitung")}
         darfLoeschen={darf("projektleitung")}
+        darfUebernehmen={!!ich?.aktiv && ich.rolle === "administrator"}
         onneu={neuesProjekt}
         onoeffnen={oeffnen}
         ongeloescht={projektGeloescht}

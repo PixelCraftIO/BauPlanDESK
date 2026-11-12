@@ -77,7 +77,7 @@ App je Benutzer.
 | Statusleiste | Zeigerposition in Metern, aktiver Fang, Ortho bzw. Winkelraster, Bildschirmmaßstab, Unterlage bzw. Blattgröße; die Tastenbelegung zeigt F1 |
 
 Alle Werkzeuge erscheinen als Symbol; der Name und das Tastenkürzel stehen im
-Tooltip. Die vollständige Tastenbelegung: [Kapitel 10](10-anhang.md#zeicheneditor).
+Tooltip. Die vollständige Tastenbelegung: [Kapitel 11](11-anhang.md#zeicheneditor).
 
 ### Maßstab und Ausschnitte
 

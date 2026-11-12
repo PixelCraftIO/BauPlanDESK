@@ -176,6 +176,85 @@ pub(crate) async fn profil_einrichten(ziel: &Path) -> Result<(), CoreError> {
         .map_err(|e| CoreError::Storage(e.to_string()))?;
     Ok(())
 }
+#[derive(Serialize)]
+pub struct UebernommenesProjekt {
+    id: uuid::Uuid,
+    name: String,
+}
+/// Übernimmt die Projekte einer Einzelplatzsicherung (z. B. des
+/// Beispielprojekts) in das laufende Profil, ohne Profilwechsel und Neustart.
+/// Eigene Projekte, Kunden, Benutzer und Büroangaben bleiben unverändert;
+/// gibt es ein Projekt schon, wird nichts übernommen.
+#[tauri::command]
+pub async fn projekte_aus_sicherung_uebernehmen(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pfad: PathBuf,
+) -> Result<Vec<UebernommenesProjekt>, CmdError> {
+    verwalten(&state).await?;
+    if state.lokale_ablage.is_none() {
+        return Err(CoreError::InvalidInput(
+            "Projekte aus einer Sicherung lassen sich nur im Einzelplatzbetrieb übernehmen.".into(),
+        )
+        .into());
+    }
+    let arbeit = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| CoreError::Storage(e.to_string()))?
+        .join(format!("uebernahme-{}", uuid::Uuid::new_v4()));
+    let result = async {
+        let ziel = arbeit.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            storage::sicherung::wiederherstellen(&pfad, &ziel)
+        })
+        .await
+        .map_err(|e| CoreError::Storage(e.to_string()))??;
+        // Öffnen bringt eine ältere Sicherung auf den aktuellen Datenbankstand.
+        let quelle = db_sqlite::SqliteDatabase::open(&arbeit.join("bauprojekt.db")).await?;
+        let repos = quelle.repositories();
+        let erwartet = storage::sicherung::dms_referenzen(&repos).await;
+        let projekte = repos.projects.list().await;
+        drop(repos);
+        quelle.schliessen().await;
+        let projekte = projekte?;
+        let erwartet = erwartet?;
+        for p in &projekte {
+            if state.core.repos.projects.get(p.id).await.is_ok() {
+                return Err(CoreError::InvalidInput(format!(
+                    "Bereits vorhanden: „{}“. Zum erneuten Übernehmen das Projekt zuerst löschen.",
+                    p.name
+                )));
+            }
+        }
+        // Erst die Dateien, dann die Datenbank: Sie verweist nie auf Fehlendes.
+        let ids: Vec<_> = projekte.iter().map(|p| p.id.0).collect();
+        storage::projektuebernahme::dateien_uebernehmen(
+            &arbeit.join("dateien"),
+            state.core.storage.as_ref(),
+            &ids,
+            &erwartet,
+        )
+        .await?;
+        let db = db_sqlite::SqliteDatabase::open(&state.data_dir.join("bauprojekt.db")).await?;
+        let uebernommen: Result<_, CoreError> =
+            db.projekte_uebernehmen(&arbeit.join("bauprojekt.db")).await;
+        db.schliessen().await;
+        uebernommen
+    }
+    .await;
+    let _ = tokio::fs::remove_dir_all(&arbeit).await;
+    for p in result.as_deref().unwrap_or_default() {
+        tracing::info!(projekt = %p.id, name = %p.name, "Projekt aus Sicherung übernommen");
+    }
+    Ok(result?
+        .into_iter()
+        .map(|p| UebernommenesProjekt {
+            id: p.id,
+            name: p.name,
+        })
+        .collect())
+}
 #[tauri::command]
 pub async fn profil_aktivieren(
     app: AppHandle,
