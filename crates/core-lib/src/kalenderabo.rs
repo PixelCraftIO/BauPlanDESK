@@ -1,5 +1,5 @@
 //! Kalender-Abo: persönliche, abonnierbare Kalenderadresse für die Fristen
-//! aller lesbaren Projekte (Netzwerkbetrieb mit BauPlanIO-Server).
+//! aller lesbaren Projekte (Netzwerkbetrieb mit BauPlanDESK-Server).
 //!
 //! Vertrag:
 //! - Ein Benutzer besitzt höchstens ein Abo. Anlegen erzeugt einen neuen
@@ -193,8 +193,8 @@ impl CoreServices {
         alle.sort_by(|a, b| a.datum.cmp(&b.datum).then(a.titel.cmp(&b.titel)));
         let eintraege: Vec<Kalendereintrag> = alle.iter().map(eintrag).collect();
         let name = match d.umfang {
-            Aboumfang::Alle => "BauPlanIO · Fristen".to_string(),
-            Aboumfang::Meine => format!("BauPlanIO · Meine Fristen ({})", wer.anzeigename),
+            Aboumfang::Alle => "BauPlanDESK · Fristen".to_string(),
+            Aboumfang::Meine => format!("BauPlanDESK · Meine Fristen ({})", wer.anzeigename),
         };
         Ok(kalender(&name, &eintraege, Utc::now()))
     }

@@ -1,4 +1,4 @@
-# BauPlanIO
+# BauPlanDESK
 
 Projektmanagement- und Bauantrags-Software für Architekten: Berechnungen nach
 BauGB/BauNVO und Landesbauordnungen, amtliche PDF-Formulare, CAD-Viewer,
@@ -322,7 +322,7 @@ nicht erzeugen. Ein Administrator spielt die Datei unter *Hilfe → Lizenz …*
 ein. Sie liegt danach in der Datenbank und gilt für alle Arbeitsplätze, die
 diese Datenbank nutzen.
 
-- **Testversion:** Ohne Lizenz läuft BauPlanIO 30 Tage mit bis zu 3
+- **Testversion:** Ohne Lizenz läuft BauPlanDESK 30 Tage mit bis zu 3
   Arbeitsplätzen.
 - **Arbeitsplätze:** Jeder Rechner belegt beim Start einen Platz und meldet
   sich alle 5 Minuten. Beim Beenden wird der Platz frei, nach einem Absturz

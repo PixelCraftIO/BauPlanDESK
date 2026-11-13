@@ -1,6 +1,6 @@
 [package]
 name = "bauprojektio-desktop"
-description = "BauPlanIO Desktop-App (Tauri). Dünne Schicht über core-lib."
+description = "BauPlanDESK Desktop-App (Tauri). Dünne Schicht über core-lib."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

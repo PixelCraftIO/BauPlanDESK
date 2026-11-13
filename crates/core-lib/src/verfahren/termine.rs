@@ -476,7 +476,7 @@ pub fn kalender(
     for z in [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//BauPlanIO//Verfahrenstermine//DE",
+        "PRODID:-//BauPlanDESK//Verfahrenstermine//DE",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
     ] {

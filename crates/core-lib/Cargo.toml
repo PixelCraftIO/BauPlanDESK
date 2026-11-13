@@ -1,6 +1,6 @@
 [package]
 name = "core-lib"
-description = "Geschäftslogik von BauPlanIO: Berechnungen, LBO-Engine, Domänenmodell und Abstraktionen für Datenbank und Storage."
+description = "Geschäftslogik von BauPlanDESK: Berechnungen, LBO-Engine, Domänenmodell und Abstraktionen für Datenbank und Storage."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

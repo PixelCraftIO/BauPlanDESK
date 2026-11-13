@@ -84,7 +84,7 @@ Antwort auf die Frage, wie Grundriss und mehrere Schnitte auf einem Blatt
 zusammengehen. Ein einzelner Nullpunkt je Seite reicht nicht und wird von
 keinem der Produkte so umgesetzt.
 
-## 3. Zielbild für BauPlanIO
+## 3. Zielbild für BauPlanDESK
 
 ### 3.1 Planausschnitte (Vertragsänderung, Kern des Ausbaus)
 

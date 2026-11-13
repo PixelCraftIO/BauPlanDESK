@@ -32,7 +32,7 @@ mit Meldung statt still zu fehlen.
 ## Kalender-Abo
 
 Unter **Einstellungen → Kalender-Abo** erzeugt jeder Benutzer im
-Netzwerkbetrieb eine persönliche Kalenderadresse auf dem BauPlanIO-Server.
+Netzwerkbetrieb eine persönliche Kalenderadresse auf dem BauPlanDESK-Server.
 Outlook, Apple- und Google-Kalender abonnieren sie und zeigen die Fristen aller
 lesbaren Projekte; der Kalender ist bei jedem Abruf aktuell.
 
@@ -171,7 +171,7 @@ Serverkonfiguration (fehlt `BAUPROJEKT_SMTP_URL`, ist der Versand aus):
 | Variable | Beispiel |
 |---|---|
 | `BAUPROJEKT_SMTP_URL` | `smtps://benutzer:kennwort@mail.buero.de:465` oder `smtp://…:587?tls=required` |
-| `BAUPROJEKT_MAIL_ABSENDER` | `BauPlanIO <fristen@buero.de>` |
+| `BAUPROJEKT_MAIL_ABSENDER` | `BauPlanDESK <fristen@buero.de>` |
 | `BAUPROJEKT_MAIL_UHRZEIT` | `06:30` (deutsche Ortszeit, Vorgabe) |
 
 Der Versand eines Tages wird in der Datenbank beansprucht

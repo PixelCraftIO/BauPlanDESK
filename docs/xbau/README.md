@@ -9,7 +9,7 @@ Eine automatische Schnittstelle bleibt gesondert nachzuweisen und abzunehmen.
 
 ## Tatsächlich implementierter Umfang
 
-BauPlanIO unterscheidet **XBau-Dateien** und **Übermittlungsdienst**. Der
+BauPlanDESK unterscheidet **XBau-Dateien** und **Übermittlungsdienst**. Der
 Dateiaustausch ist implementiert; ein produktiver Behördenanschluss ist noch
 nicht eingerichtet. Ein Export löst keinen Versand aus. Weder ein erfolgreicher
 XML-Import noch eine XSD-Prüfung beweist die Identität des Absenders, Zustellung,

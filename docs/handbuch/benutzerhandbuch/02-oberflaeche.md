@@ -4,7 +4,7 @@
 
 ## Arbeitsplatz und Projektverzeichnis
 
-Nach dem Start zeigt BauPlanIO das **Projektverzeichnis**.
+Nach dem Start zeigt BauPlanDESK das **Projektverzeichnis**.
 
 ![Projektverzeichnis](bilder/arbeitsplatz-projektverzeichnis.png)
 
@@ -36,7 +36,7 @@ Einrichtung des Büros unvollständig ist, steht darüber der Kasten
 | Anwendung | Neues Projekt … (Strg+N), Projekt öffnen … (Strg+O), Zuletzt geöffnet, Projekt schließen (Strg+W), Projekt speichern (Strg+S), Einstellungen …, Abmelden / Benutzer wechseln … (Netzwerkbetrieb), Beenden (Strg+Q) |
 | Bearbeiten | Rückgängig (Strg+Z), Wiederholen (Strg+Umschalt+Z), Ausschneiden, Kopieren, Einfügen, Alles auswählen |
 | Fenster | Vergrößern / Verkleinern / Originalgröße (Strg+= / Strg+- / Strg+0), Vollbild |
-| Hilfe | Bedienhandbuch (F1), Nach Updates suchen …, Über BauPlanIO |
+| Hilfe | Bedienhandbuch (F1), Nach Updates suchen …, Über BauPlanDESK |
 
 ## Projekttabs
 

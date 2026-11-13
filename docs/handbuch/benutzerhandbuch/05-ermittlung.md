@@ -231,7 +231,7 @@ unbeachtet bleiben. Die Grenzwerte stehen in
 
 ### Handwert und Zeichnung abgleichen
 
-Oft wird ein Wert erst von Hand eingetragen und später gezeichnet. BauPlanIO
+Oft wird ein Wert erst von Hand eingetragen und später gezeichnet. BauPlanDESK
 vermeidet dabei Doppelerfassungen:
 
 - **Ein Feld hat genau eine Quelle.** Die Übernahme ersetzt den Handwert;
@@ -318,11 +318,11 @@ oder kalibriertes Aufmaß in Metern mit einer DXF-Ebene je Zeichenebene aus.
 
 ## IFC-Modell (BIM)
 
-Liefert die Planungssoftware ein Gebäudemodell im IFC-Format, wertet BauPlanIO
+Liefert die Planungssoftware ein Gebäudemodell im IFC-Format, wertet BauPlanDESK
 es für den Bauantrag aus. Importierte Modelle brauchen fast immer Nacharbeit,
 bevor die Zahlen stimmen: Bauteile sind nur als „Unklassifiziertes Bauteil“
 exportiert, liegen in keinem Geschoss, Räume fehlen oder tragen alte Mengen.
-Diese Nacharbeit erledigen Sie in BauPlanIO, ohne die Datei des Planers zu
+Diese Nacharbeit erledigen Sie in BauPlanDESK, ohne die Datei des Planers zu
 verändern.
 
 Gelesen werden IFC2X3, IFC4 und IFC4X3 als `.ifc` oder `.ifczip` (IFC-XML
@@ -338,7 +338,7 @@ Einfamilienhauses.
 
 ![IFC-Modell wählen](bilder/ifc-modell-waehlen.png)
 
-BauPlanIO legt dazu eine **Modellakte** an. Sie verweist auf die
+BauPlanDESK legt dazu eine **Modellakte** an. Sie verweist auf die
 Dokumentversion und speichert Prüfung, Nacharbeit und Übernahme; die IFC-Datei
 selbst bleibt unverändert. Vorhandene Modellakten stehen beim nächsten Mal unter
 „Vorhandene Modelle“. Das Modell öffnet als eigener Tab neben den Zeichnungen.
@@ -356,7 +356,7 @@ selbst bleibt unverändert. Vorhandene Modellakten stehen beim nächsten Mal unt
 
 ![3D-Ansicht des Modells](bilder/ifc-modell-3d.png)
 
-Alle Zahlen rechnet BauPlanIO selbst aus der Geometrie der Datei. Die
+Alle Zahlen rechnet BauPlanDESK selbst aus der Geometrie der Datei. Die
 3D-Ansicht dient nur der Anschauung.
 
 ### Modellbericht und Prüfung
@@ -386,7 +386,7 @@ Nacharbeit mit diesen Elementen.
 
 ![Nacharbeit, aus einem Befund geöffnet](bilder/ifc-modell-nacharbeit.png)
 
-Die Nacharbeit gilt für BauPlanIO (Prüfung, Übernahme, Auswertung, Export). Sie
+Die Nacharbeit gilt für BauPlanDESK (Prüfung, Übernahme, Auswertung, Export). Sie
 hängt an der GlobalId der Elemente und übersteht daher eine neue Fassung der
 Datei.
 

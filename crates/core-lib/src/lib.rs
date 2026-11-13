@@ -1,6 +1,6 @@
 //! # core-lib
 //!
-//! Die gesamte Geschäftslogik von BauPlanIO. Dieses Crate wird
+//! Die gesamte Geschäftslogik von BauPlanDESK. Dieses Crate wird
 //! unverändert in die Tauri-Desktop-App (Einzelplatz) und in den
 //! axum-Server (NAS/Büro/Cloud) eingebunden.
 //!

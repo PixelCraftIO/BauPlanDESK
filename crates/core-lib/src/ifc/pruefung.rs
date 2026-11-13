@@ -754,7 +754,7 @@ pub fn eingebaute_regeln(a: &Modellauszug) -> Vec<Befund> {
             Warnung,
             "Raummengen weichen von der Geometrie ab",
             format!(
-                "{} Raum/Räume ({beispiel}). BauPlanIO rechnet mit der Geometrie; die Mengen der Datei sind vermutlich veraltet oder nach anderer Regel ermittelt.",
+                "{} Raum/Räume ({beispiel}). BauPlanDESK rechnet mit der Geometrie; die Mengen der Datei sind vermutlich veraltet oder nach anderer Regel ermittelt.",
                 abweichend.len()
             ),
             abweichend,

@@ -50,8 +50,8 @@ impl CoreError {
     /// dabei nicht verändert; ältere Arbeitsplätze müssen erst aktualisiert werden.
     pub fn datenbank_neuer(datenbankstand: i64) -> Self {
         Self::Database(format!(
-            "Diese Datenbank wurde mit einer neueren BauPlanIO-Version aktualisiert \
-             (Datenbankstand {datenbankstand}). Bitte BauPlanIO auf diesem Arbeitsplatz \
+            "Diese Datenbank wurde mit einer neueren BauPlanDESK-Version aktualisiert \
+             (Datenbankstand {datenbankstand}). Bitte BauPlanDESK auf diesem Arbeitsplatz \
              bzw. Server aktualisieren. Die Datenbank wurde nicht verändert."
         ))
     }
@@ -60,7 +60,7 @@ impl CoreError {
     pub fn datenbankstand_abweichend(datenbankstand: i64) -> Self {
         Self::Database(format!(
             "Der Datenbankstand {datenbankstand} dieser Datenbank passt nicht zu dieser \
-             BauPlanIO-Version. Bitte die Administration bzw. den Support verständigen; \
+             BauPlanDESK-Version. Bitte die Administration bzw. den Support verständigen; \
              die Datenbank wurde nicht verändert."
         ))
     }

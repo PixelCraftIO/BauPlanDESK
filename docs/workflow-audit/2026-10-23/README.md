@@ -1,4 +1,4 @@
-# Workflow- und UX-Prüfung BauPlanIO
+# Workflow- und UX-Prüfung BauPlanDESK
 
 Stand: 23.10.2026. Untersucht: `e80717f39fe82f05d21705a0e70a5f94662d26d2`
 (Arbeitsstand einschließlich Stabilitäts-/Performanceänderungen). Dies ist keine

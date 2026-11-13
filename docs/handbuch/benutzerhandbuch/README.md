@@ -1,4 +1,4 @@
-# BauPlanIO – Benutzerhandbuch
+# BauPlanDESK – Benutzerhandbuch
 
 Bebildertes Handbuch für Architektinnen, Architekten, Entwurfsverfasser und
 die Projektorganisation im Büro. Es erklärt die Oberfläche, alle Funktionen
@@ -15,7 +15,7 @@ ohne Neustart laden) und neuem Kapitel 10, dem Leitfaden am Beispielprojekt.
 
 | Nr. | Kapitel | Worum es geht |
 | --- | --- | --- |
-| 1 | [Einstieg](01-einstieg.md) | Was BauPlanIO leistet, Begriffe, Beispielprojekt |
+| 1 | [Einstieg](01-einstieg.md) | Was BauPlanDESK leistet, Begriffe, Beispielprojekt |
 | 2 | [Oberfläche und Bedienung](02-oberflaeche.md) | Arbeitsplatz, Projekttabs, Projektbaum, Speichern, Status |
 | 3 | [Büro einrichten](03-einrichtung.md) | Einstellungen, Büroangaben, Benutzer, Kunden, Formularbibliothek |
 | 4 | [Projekt anlegen und Grundlagen](04-projekt-grundlagen.md) | Neues Projekt, Stammdaten, Rechtsgrundlagen, B-Plan, Flurstücke |
@@ -30,7 +30,7 @@ ohne Neustart laden) und neuem Kapitel 10, dem Leitfaden am Beispielprojekt.
 Das ganze Handbuch als eine Datei zum Drucken oder Weitergeben:
 [Benutzerhandbuch.pdf](Benutzerhandbuch.pdf).
 
-Wer zum ersten Mal mit BauPlanIO arbeitet, liest Kapitel 1 und 2, lädt das
+Wer zum ersten Mal mit BauPlanDESK arbeitet, liest Kapitel 1 und 2, lädt das
 Beispielprojekt und geht den [Leitfaden](10-leitfaden.md) durch: Er zeigt ein
 ganzes Projekt vom Büro bis zum Abschluss in 26 Schritten mit den Daten des
 Beispielprojekts. Danach genügen die Checklisten in [Kapitel 9](09-workflows.md).

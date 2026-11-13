@@ -101,13 +101,13 @@ pub fn zusammenfassen(
         .count();
     let betreff = if ueber > 0 {
         format!(
-            "BauPlanIO: {ueber} überfällig, {} diese Woche ({})",
+            "BauPlanDESK: {ueber} überfällig, {} diese Woche ({})",
             faellig.len() - ueber,
             heute.format("%d.%m.%Y")
         )
     } else {
         format!(
-            "BauPlanIO: {} Termine diese Woche ({})",
+            "BauPlanDESK: {} Termine diese Woche ({})",
             faellig.len(),
             heute.format("%d.%m.%Y")
         )
@@ -140,7 +140,7 @@ pub fn zusammenfassen(
         }
     }
     text.push_str(
-        "\nDie Termine bleiben bis zur Erledigung im Büro-Cockpit. Diese Nachricht abbestellen: BauPlanIO → Startseite → Tägliche E-Mail.\n",
+        "\nDie Termine bleiben bis zur Erledigung im Büro-Cockpit. Diese Nachricht abbestellen: BauPlanDESK → Startseite → Tägliche E-Mail.\n",
     );
     Some((betreff, text))
 }
@@ -312,7 +312,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             betreff,
-            "BauPlanIO: 1 überfällig, 1 diese Woche (02.11.2026)"
+            "BauPlanDESK: 1 überfällig, 1 diese Woche (02.11.2026)"
         );
         assert!(text.starts_with("Guten Morgen Anna"));
         let u = text.find("Überfällig").unwrap();

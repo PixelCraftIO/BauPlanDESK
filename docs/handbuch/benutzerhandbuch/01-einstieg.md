@@ -2,9 +2,9 @@
 
 [← Inhalt](README.md) · [Weiter: Oberfläche und Bedienung →](02-oberflaeche.md)
 
-## Was BauPlanIO leistet
+## Was BauPlanDESK leistet
 
-BauPlanIO führt ein Bauvorhaben vom Flurstück bis zur genehmigten Bauausführung
+BauPlanDESK führt ein Bauvorhaben vom Flurstück bis zur genehmigten Bauausführung
 in einer Projektakte zusammen:
 
 - **Grundlagen erfassen:** Bauherrschaft, Rechtsgrundlagen (§ 30/34/35 BauGB,
@@ -24,7 +24,7 @@ in einer Projektakte zusammen:
   Unterlagenbedarf, Abgabeständen, Portalübergabe, XBau-Nachrichten,
   Nachforderungen, Bescheiden und Bauausführung.
 
-BauPlanIO bereitet die Übergabe an das Bauportal vor und dokumentiert sie. Die
+BauPlanDESK bereitet die Übergabe an das Bauportal vor und dokumentiert sie. Die
 verbindliche Abgabe selbst erfolgt im Portal der zuständigen Behörde.
 
 ## Wichtige Begriffe

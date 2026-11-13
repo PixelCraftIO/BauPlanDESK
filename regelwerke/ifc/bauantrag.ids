@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Mindestangaben eines IFC-Modells für die Auswertung zum Bauantrag in
-     BauPlanIO (IDS 1.0, buildingSMART). Stufe über das Kennzeichen:
+     BauPlanDESK (IDS 1.0, buildingSMART). Stufe über das Kennzeichen:
      „F-…“ Fehler (Auswertung unvollständig), „W-…“ Warnung (Nacharbeit
      empfohlen). Dazu kommen die eingebauten Regeln (docs/ifc.md). -->
 <ids xmlns="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
   <info>
-    <title>BauPlanIO – Modell für den Bauantrag</title>
+    <title>BauPlanDESK – Modell für den Bauantrag</title>
     <version>1.0</version>
     <author>info@bauplanio.de</author>
     <purpose>Flächen, Geschosse und Höhen eines Gebäudemodells für Bauantrag, GRZ/GFZ und Raumbuch auswerten</purpose>

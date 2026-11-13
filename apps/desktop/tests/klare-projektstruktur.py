@@ -15,7 +15,7 @@ const original=window.__TAURI_INTERNALS__.invoke;
 const fields=[{name:'Vorname',beschriftung:'Vorname',art:'text',wert:null,optionen:[],schreibgeschuetzt:false,max_laenge:null},{name:'Zustimmung',beschriftung:'Zustimmung',art:'ankreuzfeld',wert:null,optionen:['Yes'],schreibgeschuetzt:false,max_laenge:null}];
 const seiten=[{nummer:1,breite_mm:210,hoehe_mm:297,rotation:0,platzierbar:true}];
 const source={name:'Bauantrag.pdf',sha256:'a'.repeat(64),size:1234};
-window.projectDocs=[];window.failForm=true;window.mirrorFailure=false;window.formRoot='C:\\\\BauPlanIO\\\\Formulare';window.projectRoot='C:\\\\BauPlanIO\\\\Projekte';window.cancelFolder=true;
+window.projectDocs=[];window.failForm=true;window.mirrorFailure=false;window.formRoot='C:\\\\BauPlanDESK\\\\Formulare';window.projectRoot='C:\\\\BauPlanDESK\\\\Projekte';window.cancelFolder=true;
 window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  const handled=['formularbibliothek','bibliothek_formular','bibliothek_formular_speichern','formular_im_projekt_speichern','dokumente_auflisten','formular_analysieren','pdf_vorschau','projektordner_status','projektordner_waehlen','formularordner_waehlen','baugrundstuecke_ermitteln','plugin:dialog|save','plugin:dialog|open','plugin:dialog|message'];
  if(!handled.includes(cmd))return original(cmd,args);
@@ -33,7 +33,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  case 'formular_im_projekt_speichern':{const d={...window.projectDocs.at(-1),version:args.basis+1};window.projectDocs.push(d);return structuredClone(d);}
  case 'baugrundstuecke_ermitteln':return args.plan.flurstuecke.length?[{schluessel:'grundbuch-unit',bezeichnung:'Flurstück einzeln angesetzt',flurstueck_ids:args.plan.flurstuecke.map(f=>f.id),eigentumsflaeche_m2:900,abzuege_m2:0,bauland_m2:900}]:[];
  case 'plugin:dialog|save':throw {art:'test',meldung:'Unexpected save dialog'};
- case 'plugin:dialog|open':return window.cancelFolder?null:'C:\\\\BauPlanIO\\\\NeueProjekte';
+ case 'plugin:dialog|open':return window.cancelFolder?null:'C:\\\\BauPlanDESK\\\\NeueProjekte';
  case 'plugin:dialog|message':return args.buttons?.OkCancelCustom?.[0]??'Yes';
  }
 };
@@ -156,7 +156,7 @@ with sync_playwright() as p:
  assert page.evaluate('window.calls.filter(c=>c.cmd==="projektordner_waehlen").length')==0
  page.evaluate('window.cancelFolder=false')
  page.get_by_role('button',name='Projektordner auswählen …',exact=True).click()
- expect(page.get_by_text('C:\\BauPlanIO\\NeueProjekte',exact=True)).to_be_visible()
+ expect(page.get_by_text('C:\\BauPlanDESK\\NeueProjekte',exact=True)).to_be_visible()
  page.screenshot(path=str(out/'03-einstellungen.png'))
  checks.append('Hell/Dunkel/System und Ordnerauswahl mit Abbruch in Einstellungen')
  page.set_viewport_size({'width':1000,'height':800})

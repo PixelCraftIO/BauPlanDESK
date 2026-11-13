@@ -72,7 +72,7 @@ jobs:
         with:
           projectPath: apps/desktop
           tagName: v__VERSION__
-          releaseName: BauPlanIO v__VERSION__
+          releaseName: BauPlanDESK v__VERSION__
           releaseDraft: true
           includeUpdaterJson: true
           updaterJsonPreferNsis: true

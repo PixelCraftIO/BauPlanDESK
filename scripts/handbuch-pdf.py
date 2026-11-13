@@ -19,7 +19,7 @@ with sync_playwright() as p:
     page.pdf(path=str(pdf), prefer_css_page_size=True, print_background=True,
              outline=True, tagged=True,
              display_header_footer=True,
-             header_template='<div style="font:8px Arial;width:100%;margin:0 18mm;color:#425563">BauPlanIO · Bedienhandbuch für Architekten und Planer</div>',
+             header_template='<div style="font:8px Arial;width:100%;margin:0 18mm;color:#425563">BauPlanDESK · Bedienhandbuch für Architekten und Planer</div>',
              footer_template=f'<div style="font:8px Arial;width:100%;margin:0 18mm;color:#425563;display:flex;justify-content:space-between"><span>Stand: {inhalt["stand"]}</span><span>Seite <span class="pageNumber"></span> von <span class="totalPages"></span></span></div>')
     browser.close()
 print(f"PDF mit {len(inhalt['kapitel'])} Kapiteln erstellt: {pdf}")

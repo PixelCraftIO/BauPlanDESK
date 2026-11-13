@@ -82,7 +82,7 @@
   <h2>Kalender-Abo</h2>
   {#if !netzwerk}
     <p class="meta">
-      Das Abo braucht den BauPlanIO-Server im Netzwerkbetrieb. Im Einzelplatz
+      Das Abo braucht den BauPlanDESK-Server im Netzwerkbetrieb. Im Einzelplatz
       lassen sich die Fristen je Projekt in der Verfahrensakte als
       Kalenderdatei (ICS) speichern.
     </p>
@@ -101,10 +101,10 @@
     </p>
     <div class="raster">
       <label
-        >Adresse des BauPlanIO-Servers<input
+        >Adresse des BauPlanDESK-Servers<input
           type="url"
           bind:value={server}
-          placeholder="https://bauplanio.buero.local:8080"
+          placeholder="https://bauplandesk.buero.local:8080"
         /></label
       >
       <label

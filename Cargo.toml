@@ -27,7 +27,7 @@ edition = "2024"
 rust-version = "1.90"
 license = "LicenseRef-Proprietary"
 publish = false
-repository = "https://github.com/PixelCraftIO/BauProjektIO"
+repository = "https://github.com/PixelCraftIO/BauPlanDESK"
 
 # Zentrale Versionsverwaltung. Jede Abhängigkeit muss MIT/Apache-2.0/BSD o. ä.
 # lizenziert sein; `cargo deny check licenses` (siehe deny.toml) erzwingt das.

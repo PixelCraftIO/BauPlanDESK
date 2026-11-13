@@ -187,7 +187,7 @@ IFC-Dateien ohne eigene Kategorie bekommen diese Anlagenart vorgeschlagen.
 
 ![Einreichen / Portal](bilder/verfahren-portal.png)
 
-BauPlanIO bereitet die **manuelle** Portalübergabe vor; es gibt keinen
+BauPlanDESK bereitet die **manuelle** Portalübergabe vor; es gibt keinen
 automatischen Versand.
 
 1. **Ziel:** Kommune, Stelle, Portaladresse und Portalprofil festhalten und

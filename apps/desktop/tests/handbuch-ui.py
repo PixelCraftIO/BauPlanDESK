@@ -21,7 +21,7 @@ with sync_playwright() as p:
     page.goto(os.environ.get("BAUPROJEKT_UI_URL", "http://127.0.0.1:1460"))
     page.locator(".app-werkzeuge").get_by_role("button", name="Hilfe / Handbuch", exact=True).click()
     help = page.get_by_role("main", name="Bedienhandbuch", exact=True)
-    expect(help.get_by_role("heading", name="Mit BauPlanIO arbeiten", exact=True)).to_be_visible()
+    expect(help.get_by_role("heading", name="Mit BauPlanDESK arbeiten", exact=True)).to_be_visible()
     expect(help.get_by_role("button", name="Zurück zum Projekt")).to_have_count(0)
     page.screenshot(path=str(out / "hilfe-start-light.png"))
     search = help.get_by_label("Handbuch durchsuchen", exact=True)

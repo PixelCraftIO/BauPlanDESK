@@ -34,7 +34,7 @@ starten“. Keine Aktualisierung allein durch einen Download oder Programmstart.
    - `BAUPROJEKT_UPDATE_URL`: explizite HTTPS-Adresse eines Tauri-Manifests.
    - Sonst `BAUPROJEKT_LIZENZSERVER`: `<Adresse>/updates/latest.json`.
    - Sonst öffentliche GitHub-Releases:
-     `https://github.com/PixelCraftIO/BauProjektIO/releases/latest/download/latest.json`.
+     `https://github.com/PixelCraftIO/BauPlanDESK/releases/latest/download/latest.json`.
 
    Diese Variablen werden durch `release.yml` in den Build übernommen.
    Benutzer müssen auf die Quelle und Installer ohne GitHub-Anmeldung zugreifen
@@ -123,8 +123,8 @@ Im Büro aktualisiert sich jeder Arbeitsplatz einzeln. Der erste Arbeitsplatz
 bzw. Server mit einer neuen Version führt deren Datenbankmigrationen beim Start
 aus. Startet danach eine **ältere** Version gegen diese Datenbank, erkennt sie
 den ihr unbekannten Datenbankstand, verändert nichts und bricht mit der Meldung
-„Diese Datenbank wurde mit einer neueren BauPlanIO-Version aktualisiert
-(Datenbankstand …). Bitte BauPlanIO auf diesem Arbeitsplatz bzw. Server
+„Diese Datenbank wurde mit einer neueren BauPlanDESK-Version aktualisiert
+(Datenbankstand …). Bitte BauPlanDESK auf diesem Arbeitsplatz bzw. Server
 aktualisieren. Die Datenbank wurde nicht verändert.“ ab (SQLite und
 PostgreSQL gleich, `CoreError::datenbank_neuer`). Eine inhaltlich abweichende,
 bereits angewendete Migration meldet `datenbankstand_abweichend`. Neuere

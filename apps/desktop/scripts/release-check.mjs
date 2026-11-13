@@ -13,7 +13,7 @@ export function releaseFehler(env, config, pkg) {
     const key = Buffer.from(text[1] ?? '', 'base64');
     if (!text[0].startsWith('untrusted comment:') || key.length !== 42 || key.subarray(0,2).toString() !== 'Ed') throw Error();
   } catch { fehler.push('Repository-Variable BAUPROJEKT_UPDATER_PUBKEY fehlt oder hat kein Tauri-Public-Key-Format.'); }
-  const source = env.BAUPROJEKT_UPDATE_URL?.trim() || (env.BAUPROJEKT_LIZENZSERVER?.trim() ? `${env.BAUPROJEKT_LIZENZSERVER.trim().replace(/\/$/,'')}/updates/latest.json` : 'https://github.com/PixelCraftIO/BauProjektIO/releases/latest/download/latest.json');
+  const source = env.BAUPROJEKT_UPDATE_URL?.trim() || (env.BAUPROJEKT_LIZENZSERVER?.trim() ? `${env.BAUPROJEKT_LIZENZSERVER.trim().replace(/\/$/,'')}/updates/latest.json` : 'https://github.com/PixelCraftIO/BauPlanDESK/releases/latest/download/latest.json');
   try { const url = new URL(source); if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw Error(); }
   catch { fehler.push('Updatequelle muss HTTPS ohne Zugangsdaten oder Fragment verwenden.'); }
   return fehler;
