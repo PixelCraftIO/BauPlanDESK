@@ -53,7 +53,7 @@
   <h2>Tägliche E-Mail</h2>
   {#if !netzwerk}
     <p class="meta">
-      Die tägliche Fristen-E-Mail verschickt der BauPlanIO-Server im
+      Die tägliche Fristen-E-Mail verschickt der BauPlanDESK-Server im
       Netzwerkbetrieb über den SMTP-Zugang des Büros.
     </p>
   {:else}

@@ -68,7 +68,7 @@ Zusätzlich ist sie unter
 **Projektdateien → Projektordner exportieren …** verfügbar, optional mit Dokumenthistorie:
 
 ```text
-C:\BauPlanIO\
+C:\BauPlanDESK\
   Projektname--Projekt-ID\
     Dokumente\
       Dokument-ID\v1-Formular.pdf

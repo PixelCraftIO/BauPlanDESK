@@ -458,7 +458,7 @@ pub async fn editor_fenster_oeffnen(
     }
     let url = format!("index.html?fenster=editor&projekt={id}");
     tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
-        .title(format!("Aufmaß – {} – BauPlanIO", projekt.name))
+        .title(format!("Aufmaß – {} – BauPlanDESK", projekt.name))
         .inner_size(1440.0, 900.0)
         .min_inner_size(1024.0, 680.0)
         .build()
@@ -471,8 +471,8 @@ pub async fn editor_fenster_oeffnen(
 
 fn set_titel(app: &AppHandle, projekt: Option<&str>) {
     let titel = match projekt {
-        Some(name) => format!("{name} – BauPlanIO"),
-        None => "BauPlanIO".to_owned(),
+        Some(name) => format!("{name} – BauPlanDESK"),
+        None => "BauPlanDESK".to_owned(),
     };
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&titel);

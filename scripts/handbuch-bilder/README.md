@@ -67,7 +67,7 @@ Beispielprojekts die eigene Zeichnung „Entwurf Erdgeschoss“ an (`beispielzei
 in `helfer.js`: Wände mit Fenstern und Türen, Maßketten, Raumstempel aus dem
 Raumbuch EG, Planzeichen, ein Abbruch-Schuppen). Das muss vor der ersten
 Aufmaßszene geschehen, weil die App die Aufmaßliste danach zwischenspeichert.
-Die Bilder `editor-…` erscheinen auch auf der Webseite (`web/src/lib/zeicheneditor.ts`).
+Die Bilder `editor-…` erscheinen auch auf der Webseite bauplanio.de (Repo PixelCraftIO/BauProjektIO, `web/src/lib/zeicheneditor.ts`).
 
 ## Neue Szene ergänzen
 

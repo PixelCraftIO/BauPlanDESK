@@ -33,7 +33,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  case 'vorlagenkategorie':return clone(window.templates[args.hash]??{revision:0,kategorie:null});
  case 'vorlagenkategorie_speichern':window.templates[args.hash]={...clone(args.zuordnung),revision:args.zuordnung.revision+1};return clone(window.templates[args.hash]);
  case 'dokumente_auflisten':return args.projektId===wf.projekt.id?clone(window.docs):[];
- case 'formularbibliothek':return {root:'C:\\BauPlanIO\\Formulare',vorlagen:clone(wf.vorlagen)};
+ case 'formularbibliothek':return {root:'C:\\BauPlanDESK\\Formulare',vorlagen:clone(wf.vorlagen)};
  case 'einreichungen':return clone(window.submissionHistory);
  case 'plugin:dialog|open':return 'C:/Import/Anschreiben.docx';
  case 'dokument_importieren':{

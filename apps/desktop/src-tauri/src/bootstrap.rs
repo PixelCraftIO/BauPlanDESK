@@ -64,7 +64,7 @@ pub async fn init(app: &AppHandle) -> Result<AppState, BoxError> {
     std::fs::create_dir_all(&data_dir)?;
 
     let config = AppConfig::load(&config_dir)?;
-    tracing::info!(modus = config.name(), "BauPlanIO startet");
+    tracing::info!(modus = config.name(), "BauPlanDESK startet");
 
     let (repos, storage, cache, lokale_ablage): (_, Arc<dyn Storage>, _, _) = match &config {
         AppConfig::Einzelplatz => {

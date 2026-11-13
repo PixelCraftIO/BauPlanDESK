@@ -48,7 +48,7 @@
     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
     downloadUrl = URL.createObjectURL(new Blob([handbuchMarkdown()], { type: "text/markdown;charset=utf-8" }));
     const link = document.createElement("a");
-    link.href = downloadUrl; link.download = "BauPlanIO-Bedienhandbuch.md";
+    link.href = downloadUrl; link.download = "BauPlanDESK-Bedienhandbuch.md";
     document.body.append(link); link.click(); link.remove();
   }
   onDestroy(() => { aufraeumen?.(); if (downloadUrl) URL.revokeObjectURL(downloadUrl); });

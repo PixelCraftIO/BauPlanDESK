@@ -342,7 +342,7 @@ fn main() {
             updater::update_installieren,
         ])
         .build(tauri::generate_context!())
-        .expect("BauPlanIO konnte nicht gestartet werden")
+        .expect("BauPlanDESK konnte nicht gestartet werden")
         .run(|app, event| {
             // Arbeitsplatz sofort freigeben, damit ein Kollege ihn nutzen kann.
             if let RunEvent::Exit = event

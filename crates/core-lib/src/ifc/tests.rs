@@ -16,7 +16,7 @@ fn efh_struktur_einheiten_und_georeferenz() {
     assert_eq!(a.einheit, "Millimeter");
     assert!(nah(a.meter_je_einheit, 0.001));
     assert_eq!(a.projekt.as_deref(), Some("Neubau Einfamilienhaus"));
-    assert_eq!(a.system.as_deref(), Some("BauPlanIO Testdaten"));
+    assert_eq!(a.system.as_deref(), Some("BauPlanDESK Testdaten"));
     let geo = a.georeferenz.as_ref().unwrap();
     assert_eq!(geo.crs.as_deref(), Some("EPSG:25832"));
     assert_eq!(geo.ostwert, Some(356000.));
@@ -280,7 +280,7 @@ fn regeln(p: &Modellpruefung) -> Vec<&str> {
 fn pruefung_efh_gegen_bauantrag_ids() {
     let m = modell(&efh_ifc4());
     let p = pruefen(&m.auszug, BAUANTRAG_IDS).unwrap();
-    assert_eq!(p.regelwerk, "BauPlanIO – Modell für den Bauantrag");
+    assert_eq!(p.regelwerk, "BauPlanDESK – Modell für den Bauantrag");
     // Das Testhaus erfüllt das IDS; eingebaute Regeln finden Proxy und Mengen.
     assert!(
         p.befunde.iter().all(|b| !b.regel.starts_with("IDS:")),

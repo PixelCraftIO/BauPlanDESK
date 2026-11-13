@@ -17,7 +17,7 @@ window.__TAURI_INTERNALS__.invoke=async(cmd,args={})=>{
  if(!handled.includes(cmd))return original(cmd,args);
  window.calls.push({cmd,args:JSON.parse(JSON.stringify(args))});
  switch(cmd){
- case 'formularbibliothek':return {root:'C:\\\\BauPlanIO\\\\Formulare',vorlagen:structuredClone(window.sources)};
+ case 'formularbibliothek':return {root:'C:\\\\BauPlanDESK\\\\Formulare',vorlagen:structuredClone(window.sources)};
  case 'bibliothek_importieren':{const v={name:'Eigenes Formular.pdf',sha256:'a'.repeat(64),size:1000,felder:0};window.sources.push(v);return v;}
  case 'bibliothek_vorschau':return {pdf_base64:args.vorlage.felder?window.pdfBytes.vorlage:window.pdfBytes.original,seiten:[{nummer:1,breite_mm:210,hoehe_mm:297,rotation:0,platzierbar:true}],felder:args.vorlage.felder?fields:[]};
  case 'bibliothek_felder_erstellen':if(window.failFields)throw {art:'datei',meldung:'Felder konnten nicht gespeichert werden'};{const v={name:'Eigenes Formular (ausfüllbar).pdf',sha256:'b'.repeat(64),size:2000,felder:2};window.sources.push(v);return v;}

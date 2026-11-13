@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
-  "titel": "BauPlanIO – Bedienhandbuch",
+  "titel": "BauPlanDESK – Bedienhandbuch",
   "untertitel": "Für Architekten, Entwurfsverfasser und Planer",
   "stand": "11.11.2026",
   "basis": "e80717f + Workflow-Verbesserungen",
   "kapitel": [
     {
       "id": "start",
-      "titel": "Mit BauPlanIO arbeiten",
+      "titel": "Mit BauPlanDESK arbeiten",
       "gruppe": "Einstieg",
       "kurztext": "Vom ersten Projekt bis zur nachvollziehbaren Behördenakte.",
       "bereiche": [],
       "abschnitte": [
         {
           "text": [
-            "BauPlanIO unterstützt die Erfassung von Bauvorhaben, Berechnungen, Formularen und Projektdateien sowie die Dokumentation des Genehmigungsverfahrens. Dieses Handbuch richtet sich an Architekten, Entwurfsverfasser, Fachplaner und die Projektorganisation im Büro.",
+            "BauPlanDESK unterstützt die Erfassung von Bauvorhaben, Berechnungen, Formularen und Projektdateien sowie die Dokumentation des Genehmigungsverfahrens. Dieses Handbuch richtet sich an Architekten, Entwurfsverfasser, Fachplaner und die Projektorganisation im Büro.",
             "Die Anleitung beschreibt den Stand mit den Workflow-Verbesserungen vom 23.10.2026. Die Bezeichnungen folgen der Oberfläche; kurze Seitentitel wie „Flurstücke“ können neben ausführlichen Namen wie „Flurstücke und Grundbuch“ stehen."
           ]
         },
@@ -1087,7 +1087,7 @@
         {
           "titel": "Ausrichtung",
           "text": [
-            "Der Zeicheneditor bleibt ein Werkzeug für Genehmigungsplanung und Nachweise neben dem eigenen CAD. Gezeichnet wird weiter im Büro-CAD; BauPlanIO übernimmt PDF, DXF und IFC, ergänzt Lageplan, Nachweisflächen und Plankopf und gibt bauvorlagefähige Pläne aus. DWG, 3D-Modellierung und Bauteilfamilien gibt es bewusst nicht."
+            "Der Zeicheneditor bleibt ein Werkzeug für Genehmigungsplanung und Nachweise neben dem eigenen CAD. Gezeichnet wird weiter im Büro-CAD; BauPlanDESK übernimmt PDF, DXF und IFC, ergänzt Lageplan, Nachweisflächen und Plankopf und gibt bauvorlagefähige Pläne aus. DWG, 3D-Modellierung und Bauteilfamilien gibt es bewusst nicht."
           ]
         },
         {
@@ -1168,7 +1168,7 @@
             "Den Plan aus der Planliste wählen. Plannummer, Index, Bauherr, Vorhaben, Grundstück und Planverfasser kommen aus Projekt und Planliste.",
             "Ausgeben. Das PDF ist maßstäblich mit Maßstabsleiste; wahlweise als neue Version des Plandokuments ablegen und danach in der Planliste den neuen Index setzen."
           ],
-          "hinweis": "Passt die Zeichnung im gewählten Maßstab nicht auf das Blatt, meldet BauPlanIO das und schlägt kein kleineres Format still vor."
+          "hinweis": "Passt die Zeichnung im gewählten Maßstab nicht auf das Blatt, meldet BauPlanDESK das und schlägt kein kleineres Format still vor."
         },
         {
           "titel": "DXF für das Büro-CAD",
@@ -1216,7 +1216,7 @@
           "schritte": [
             "„Modellbericht“ zeigt Schema, Software, Einheit, Georeferenz und die Zahl der Elemente je Klasse.",
             "„Prüfung“ prüft gegen das mitgelieferte Regelwerk „Modell für den Bauantrag“ (IDS) oder ein eigenes IDS aus den Projektdateien. Befunde lassen sich im Modell zeigen; die Aktion eines Befunds öffnet die passende Nacharbeit.",
-            "„Nacharbeit“ ändert das Modell für BauPlanIO: Klasse und Art, Geschosszuordnung, Eigenschaft, Name und Nutzung, Ausblenden, Höhe ändern, neuen Umriss im Grundriss zeichnen und Räume aus geschlossenen Wandflächen bilden. Jede Änderung hängt an der GlobalId und lässt sich zurücknehmen."
+            "„Nacharbeit“ ändert das Modell für BauPlanDESK: Klasse und Art, Geschosszuordnung, Eigenschaft, Name und Nutzung, Ausblenden, Höhe ändern, neuen Umriss im Grundriss zeichnen und Räume aus geschlossenen Wandflächen bilden. Jede Änderung hängt an der GlobalId und lässt sich zurücknehmen."
           ],
           "hinweis": "Nur klassifizieren, was das Bauteil wirklich ist: Wände, Stützen und Decken zählen zur Außenkante, zur Gebäudegrundfläche und zur GRZ der Auswertung."
         },
@@ -1374,7 +1374,7 @@
           "titel": "Pläne aufnehmen",
           "schritte": [
             "„Ermittlung → Unterlagen → Planliste“ öffnen und eine PDF-, DXF- oder IFC-Datei aus den Projektdateien wählen.",
-            "Planart, Geschoss oder Bereich, laufende Nummer, Titel und Maßstab eintragen. Die Plannummer setzt BauPlanIO nach dem Büroschema (Einstellungen → Plannummern), z. B. 2026-014-GR-EG-03.",
+            "Planart, Geschoss oder Bereich, laufende Nummer, Titel und Maßstab eintragen. Die Plannummer setzt BauPlanDESK nach dem Büroschema (Einstellungen → Plannummern), z. B. 2026-014-GR-EG-03.",
             "Index a, b, c … mit Datum und Änderungstext vergeben, wenn eine neue Fassung herausgeht. Liegt im DMS eine neuere Version ohne Index, zeigt die Liste das an."
           ]
         },
@@ -1700,7 +1700,7 @@
             "Umfang festlegen: nur eigene Zuständigkeit oder alle Fristen.",
             "Vor einem Urlaub „Abwesend bis“ und eine Vertretung eintragen. Die Vertretung erhält Ihre Termine in ihrer Zusammenfassung."
           ],
-          "hinweis": "Der Versand läuft über den BauPlanIO-Server mit dem SMTP-Zugang des Büros (BAUPROJEKT_SMTP_URL, BAUPROJEKT_MAIL_ABSENDER, BAUPROJEKT_MAIL_UHRZEIT). Ohne fällige Termine kommt keine Nachricht."
+          "hinweis": "Der Versand läuft über den BauPlanDESK-Server mit dem SMTP-Zugang des Büros (BAUPROJEKT_SMTP_URL, BAUPROJEKT_MAIL_ABSENDER, BAUPROJEKT_MAIL_UHRZEIT). Ohne fällige Termine kommt keine Nachricht."
         }
       ],
       "siehe": [
@@ -2160,7 +2160,7 @@
         {
           "titel": "Was der Export bedeutet",
           "text": [
-            "BauPlanIO unterstützt die manuelle Übergabe. Es gibt keinen automatischen Portalversand und keine automatische Postfachabholung. Weder Browseröffnung noch Dateiexport verändern allein den Versandstatus.",
+            "BauPlanDESK unterstützt die manuelle Übergabe. Es gibt keinen automatischen Portalversand und keine automatische Postfachabholung. Weder Browseröffnung noch Dateiexport verändern allein den Versandstatus.",
             "Die lokale Bereitstellungs-ZIP ist kein zugesichertes Portalimportformat. Ebenso muss die Annahme einer XBau-Datei mit dem konkreten Portal geklärt sein. Gegebenenfalls Originaldateien einzeln hochladen. Rückmeldungen später als Originale importieren und der Akte zuordnen."
           ]
         }

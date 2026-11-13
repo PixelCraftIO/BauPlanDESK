@@ -35,8 +35,8 @@ fn gespeichertes_recht(daten: &serde_json::Value) -> CoreResult<ProjektRecht> {
     })?;
     serde_json::from_value(recht.clone()).map_err(|_| {
         CoreError::Forbidden(format!(
-            "Die Projektberechtigung {recht} stammt aus einer neueren BauPlanIO-Version. \
-             Bitte BauPlanIO aktualisieren."
+            "Die Projektberechtigung {recht} stammt aus einer neueren BauPlanDESK-Version. \
+             Bitte BauPlanDESK aktualisieren."
         ))
     })
 }
@@ -182,8 +182,8 @@ impl CoreServices {
             && aus_neuerer_version(&alt.daten)
         {
             return Err(CoreError::InvalidInput(
-                "Diese Projektberechtigung wurde mit einer neueren BauPlanIO-Version \
-                 gespeichert. Bitte BauPlanIO aktualisieren; die Berechtigung wurde nicht \
+                "Diese Projektberechtigung wurde mit einer neueren BauPlanDESK-Version \
+                 gespeichert. Bitte BauPlanDESK aktualisieren; die Berechtigung wurde nicht \
                  geändert."
                     .into(),
             ));

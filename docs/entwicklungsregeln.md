@@ -1,7 +1,7 @@
 # Entwicklungsregeln: eigenständige Fachmodule und stabile Schnittstellen
 
 Diese Regeln gelten für neue Features, fachliche Erweiterungen und Überarbeitungen
-von BauPlanIO. Ziel ist, jedes Fachmodul unabhängig weiterzuentwickeln und seine
+von BauPlanDESK. Ziel ist, jedes Fachmodul unabhängig weiterzuentwickeln und seine
 Ergebnisse zuverlässig in die bestehende Anwendung einzubinden.
 
 **Leitregel:** Ein Modul besitzt seine Eingaben, Fachlogik und internen Details.

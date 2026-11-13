@@ -449,7 +449,7 @@ async fn pruefung_mit_mitgeliefertem_und_eigenem_ids() {
         .ifc_pruefen(u.projekt.id, akte_id, None)
         .await
         .unwrap();
-    assert_eq!(p.regelwerk, "BauPlanIO – Modell für den Bauantrag");
+    assert_eq!(p.regelwerk, "BauPlanDESK – Modell für den Bauantrag");
     assert_eq!(p.fehler, 0);
     let ids = ablegen(
         &u,

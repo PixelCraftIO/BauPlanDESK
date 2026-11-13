@@ -1,6 +1,6 @@
 # IFC-Modelle
 
-BauPlanIO liest IFC-Modelle (ISO 16739) als Unterlage eines Projekts, prüft sie
+BauPlanDESK liest IFC-Modelle (ISO 16739) als Unterlage eines Projekts, prüft sie
 auf die Angaben eines Bauantrags, lässt sie nacharbeiten und wertet sie für
 Flächen und Höhen aus. Konzept und Abwägung: Machbarkeitsprüfung vom 28.10.2026.
 

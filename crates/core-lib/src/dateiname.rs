@@ -1,4 +1,4 @@
-//! Portable Dateinamen: eine Regel für alle Namen, die BauPlanIO neu vergibt
+//! Portable Dateinamen: eine Regel für alle Namen, die BauPlanDESK neu vergibt
 //! (DMS-Ablage, Druckausgabe, E-Mail-Anhänge, XBau-Pakete, Abgabe- und
 //! Einreichungs-ZIPs, Projektordner, Aktenexport).
 //!

@@ -54,7 +54,7 @@ impl Bauer {
     }
     pub fn text(&self) -> String {
         let mut s = String::from(
-            "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\nFILE_NAME('Beispielmodell.ifc','2026-10-28T12:00:00',('BauPlanIO'),('BauPlanIO'),'','BauPlanIO Testdaten','');\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n",
+            "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\nFILE_NAME('Beispielmodell.ifc','2026-10-28T12:00:00',('BauPlanDESK'),('BauPlanDESK'),'','BauPlanDESK Testdaten','');\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n",
         );
         for z in &self.zeilen {
             s.push_str(z);

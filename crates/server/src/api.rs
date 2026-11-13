@@ -1376,7 +1376,7 @@ async fn bereitschaft(
                 "system/gesundheit/{}",
                 Uuid::new_v4()
             ))?;
-            let data = axum::body::Bytes::from_static(b"BauPlanIO Speicherpruefung");
+            let data = axum::body::Bytes::from_static(b"BauPlanDESK Speicherpruefung");
             let hash = core_lib::storage::ContentHash::of(&data);
             core.storage.save(&key, data).await?;
             let pruefung = core.storage.load_verified(&key, &hash).await;

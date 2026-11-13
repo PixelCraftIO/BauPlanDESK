@@ -42,7 +42,7 @@
             `erinnert.${projekt.id}.${e.objekt}.${e.datum}.${heute()}`,
           )
         ) {
-          new Notification("BauPlanIO – Wiedervorlage", {
+          new Notification("BauPlanDESK – Wiedervorlage", {
             body: `${e.titel}: ${datumDe(e.datum)}`,
           });
           sessionStorage.setItem(

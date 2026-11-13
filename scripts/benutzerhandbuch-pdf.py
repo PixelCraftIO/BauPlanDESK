@@ -60,7 +60,7 @@ inhalt = "".join(
     for k in kapitel)
 
 dokument = f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
-<title>BauPlanIO – Benutzerhandbuch</title>
+<title>BauPlanDESK – Benutzerhandbuch</title>
 <style>
 @page {{ size: A4; margin: 20mm 18mm 18mm 18mm; }}
 body {{ font: 10pt/1.45 "DejaVu Sans", Arial, sans-serif; color: #1b2a35; }}
@@ -84,7 +84,7 @@ section.kapitel {{ break-before: page; }}
 .inhalt {{ break-before: page; }}
 .inhalt ul {{ font-size: 12pt; line-height: 2; }}
 </style></head><body>
-<div class="titel"><h1>BauPlanIO</h1><div class="unter">Benutzerhandbuch · Stand {stand}</div></div>
+<div class="titel"><h1>BauPlanDESK</h1><div class="unter">Benutzerhandbuch · Stand {stand}</div></div>
 <section class="inhalt" id="inhalt"><h1>Inhalt</h1><ul style="list-style:none;padding-left:0">{inhalt}</ul>{einleitung_html}</section>
 {''.join(abschnitte)}
 </body></html>"""
@@ -106,7 +106,7 @@ with tempfile.TemporaryDirectory() as tmp:
         assert not kaputt, f"Bilder fehlen: {kaputt}"
         page.pdf(path=str(pdf), prefer_css_page_size=True, print_background=True,
                  outline=True, tagged=True, display_header_footer=True,
-                 header_template='<div style="font:8px Arial;width:100%;margin:0 18mm;color:#425563">BauPlanIO · Benutzerhandbuch</div>',
+                 header_template='<div style="font:8px Arial;width:100%;margin:0 18mm;color:#425563">BauPlanDESK · Benutzerhandbuch</div>',
                  footer_template=f'<div style="font:8px Arial;width:100%;margin:0 18mm;color:#425563;display:flex;justify-content:space-between"><span>Stand: {stand}</span><span>Seite <span class="pageNumber"></span> von <span class="totalPages"></span></span></div>')
         browser.close()
 print(f"PDF mit {len(kapitel)} Kapiteln erstellt: {pdf}")

@@ -623,7 +623,7 @@
       update = await api.updatePruefen();
       updateMeldung = update
         ? `Version ${update.version} steht bereit.`
-        : "BauPlanIO ist auf dem neuesten Stand.";
+        : "BauPlanDESK ist auf dem neuesten Stand.";
     } catch (e) {
       updateMeldung = fehlertext(e);
     } finally {
@@ -1288,7 +1288,7 @@
         ? "dieser Rechner"
         : info.storage}</span
     >
-    <span class="rechts">BauPlanIO {info.version}</span>
+    <span class="rechts">BauPlanDESK {info.version}</span>
   {/if}
 </footer>
 

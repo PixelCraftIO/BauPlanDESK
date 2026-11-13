@@ -1499,7 +1499,7 @@ mod tests {
         db.schliessen().await;
         let fehler = SqliteDatabase::open(&pfad).await.err().unwrap().to_string();
         assert!(
-            fehler.contains("mit einer neueren BauPlanIO-Version aktualisiert")
+            fehler.contains("mit einer neueren BauPlanDESK-Version aktualisiert")
                 && fehler.contains("99999"),
             "{fehler}"
         );

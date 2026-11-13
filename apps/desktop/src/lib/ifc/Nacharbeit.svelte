@@ -109,7 +109,7 @@
 </script>
 
 <section class="nacharbeit" aria-label="Nacharbeit">
-  <p class="meta">Änderungen gelten für BauPlanIO (Prüfung, Übernahme, Auswertung, Export); die IFC-Datei bleibt unverändert. Sie hängen an der GlobalId und überstehen einen Reimport.</p>
+  <p class="meta">Änderungen gelten für BauPlanDESK (Prüfung, Übernahme, Auswertung, Export); die IFC-Datei bleibt unverändert. Sie hängen an der GlobalId und überstehen einen Reimport.</p>
   <h4>Auswahl: {ziele.length ? (einzel ? elementtitel(einzel) : `${ziele.length} Elemente`) : "keine"}</h4>
   {#if markiert.length}<button type="button" class="link" onclick={() => onmarkieren([])}>Hervorhebung aufheben</button>{/if}
   {#if !ziele.length}<p class="meta">Ein Element wählen oder in der Prüfung „Im Modell zeigen“ für mehrere.</p>{/if}

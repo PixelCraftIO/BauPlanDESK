@@ -14,7 +14,7 @@
     try {
       const ziel = await save({
         title: "Vollständige PostgreSQL-/NAS-Sicherung",
-        defaultPath: "BauPlanIO-Buero.zip",
+        defaultPath: "BauPlanDESK-Buero.zip",
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
       if (ziel) {
@@ -46,7 +46,7 @@
       if (typeof parent !== "string") return;
       profil = await invoke<string>("buero_sicherung_wiederherstellen", {
         pfad,
-        ziel: parent + `/BauPlanIO-Buero-${Date.now()}`,
+        ziel: parent + `/BauPlanDESK-Buero-${Date.now()}`,
         databaseUrl: zielDb,
       });
       meldung =

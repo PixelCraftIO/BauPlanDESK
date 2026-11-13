@@ -188,7 +188,7 @@ Fläche und Ergebnis.
 #### Rechenbeispiel: Aufschüttung und Abgrabung (BauO NRW)
 
 Das Beispiel zeigt, wie eine veränderte Geländeoberfläche die Abstandsfläche
-einer Außenwand bestimmt und wie es in BauPlanIO eingegeben wird. Rechtsstand
+einer Außenwand bestimmt und wie es in BauPlanDESK eingegeben wird. Rechtsstand
 ist die BauO NRW 2018 in der Fassung ab 01.09.2026, Baugebiet WA
 (Tiefe 0,4 H, mindestens 3,00 m). Die Werte stammen aus einer Planskizze und
 sind gerundet; sie sind kein geprüfter Einzelfall.
@@ -241,7 +241,7 @@ Alle Höhen in Metern; T = max(0,4 · H; 3,00 m).
 Mittelstück maßgebend: H = 9,00 m, Tiefe **3,60 m** auf 4,00 m Länge. Das
 Mittel der Gebäudekanten käme in Variante A nur auf 3,00 m.
 
-**So rechnet BauPlanIO das Beispiel.**
+**So rechnet BauPlanDESK das Beispiel.**
 
 1. In der Ansicht der Wand die Linie **Abstandsfläche** von Kante zu Kante
    ziehen und die Oberkante als **Attika** (+10,00) abgreifen.
@@ -251,13 +251,13 @@ Mittel der Gebäudekanten käme in Variante A nur auf 3,00 m.
    Herleitung als „nicht maßgebend“; welche Oberfläche gilt, entscheidet der
    Planer mit dieser Linie.
 3. Am Geländesprung und am Böschungsfuß je eine **Wandteilgrenze** zeichnen.
-   BauPlanIO teilt eine Wand von selbst nur dort, wo die Oberkante springt,
+   BauPlanDESK teilt eine Wand von selbst nur dort, wo die Oberkante springt,
    nicht bei einem Sprung im Gelände.
 4. **Linien übernehmen** und berechnen. Der Prüfbericht zeigt je Wandteil die
    Herleitung „im Mittel gemessene Wandhöhe aus den Kanten“ und die Tiefe;
    in Variante A also 5,50 / 9,00 / 8,13 m und 3,00 / 3,60 / 3,25 m.
 
-Fehlen die Wandteilgrenzen, rechnet BauPlanIO mit dem Mittel der
+Fehlen die Wandteilgrenzen, rechnet BauPlanDESK mit dem Mittel der
 Gebäudekanten (Variante A: H 6,13 m, T 3,00 m) und schreibt den Hinweis
 „Die Wandhöhe zwischen den Kanten weicht um bis zu 3,016 m vom gleichmäßigen
 Verlauf ab (größte Wandhöhe 9 m). Wandteilung oder Ansatz fachlich prüfen.“

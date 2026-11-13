@@ -1,9 +1,0 @@
-# Gilt nur für web/Dockerfile (BuildKit). Nur web/ und das Handbuch werden gebraucht.
-*
-!web/
-!docs/handbuch/benutzerhandbuch/
-web/node_modules/
-web/.next/
-web/daten/
-web/.env*
-!web/.env.example

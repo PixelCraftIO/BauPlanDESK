@@ -176,7 +176,7 @@ impl DatenbankLizenz {
                     "Dieser Rechner wurde beim Lizenzserver abgemeldet.".to_string()
                 } else {
                     l.ablehnung.clone().unwrap_or_else(|| {
-                        "Dieser Rechner ist noch nicht beim Lizenzserver freigeschaltet. BauPlanIO versucht es automatisch, sobald eine Internetverbindung besteht.".into()
+                        "Dieser Rechner ist noch nicht beim Lizenzserver freigeschaltet. BauPlanDESK versucht es automatisch, sobald eine Internetverbindung besteht.".into()
                     })
                 }
             };
@@ -481,7 +481,7 @@ fn meldung(
                 format!("Alle {max} Arbeitsplätze der Lizenz sind")
             };
             format!(
-                "{alle} belegt: {}. {NUR_LESEN} Sobald ein Platz frei wird, schaltet BauPlanIO das Bearbeiten wieder frei.",
+                "{alle} belegt: {}. {NUR_LESEN} Sobald ein Platz frei wird, schaltet BauPlanDESK das Bearbeiten wieder frei.",
                 namen.join(", ")
             )
         }
@@ -568,7 +568,7 @@ impl LicenseProvider for DatenbankLizenz {
             .filter(|_| self.pruefer.hat_ticket_schluessel())
         else {
             return Err(CoreError::License(
-                "Diese Version von BauPlanIO kennt keinen Lizenzserver. Bitte verwenden Sie eine Lizenzdatei.".into(),
+                "Diese Version von BauPlanDESK kennt keinen Lizenzserver. Bitte verwenden Sie eine Lizenzdatei.".into(),
             ));
         };
         let schluessel = schluessel_normalisieren(lizenzschluessel);

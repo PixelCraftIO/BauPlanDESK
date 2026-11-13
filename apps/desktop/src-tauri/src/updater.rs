@@ -9,7 +9,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::Mutex;
 
 const GITHUB: &str =
-    "https://github.com/PixelCraftIO/BauProjektIO/releases/latest/download/latest.json";
+    "https://github.com/PixelCraftIO/BauPlanDESK/releases/latest/download/latest.json";
 #[derive(Default)]
 pub struct PendingUpdate {
     update: Mutex<Option<Update>>,

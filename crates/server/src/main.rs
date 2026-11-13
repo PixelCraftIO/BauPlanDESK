@@ -11,7 +11,7 @@
 //! | `BAUPROJEKT_CODELISTEN_DIR`| `/opt/bauprojekt/codelisten` (XBau, Genericode)   |
 //! | `BAUPROJEKT_BIND`          | `0.0.0.0:8080`                                    |
 //! | `BAUPROJEKT_SMTP_URL`      | `smtps://user:pw@mail.example.de:465` (optional, tägliche Fristen-E-Mail) |
-//! | `BAUPROJEKT_MAIL_ABSENDER` | `BauPlanIO <fristen@buero.de>`                    |
+//! | `BAUPROJEKT_MAIL_ABSENDER` | `BauPlanDESK <fristen@buero.de>`                    |
 //! | `BAUPROJEKT_MAIL_UHRZEIT`  | `06:30` (deutsche Ortszeit)                       |
 
 use server::api;
@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
-    tracing::info!(%bind, "BauPlanIO-Server gestartet");
+    tracing::info!(%bind, "BauPlanDESK-Server gestartet");
     axum::serve(
         listener,
         api::zugang::gesichert(core, api::zugang::ZugangQuelle::Datei(zugangspfad)),

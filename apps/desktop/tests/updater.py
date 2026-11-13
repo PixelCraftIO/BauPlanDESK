@@ -30,7 +30,7 @@ with sync_playwright() as p:
  page.goto(os.environ.get('BAUPROJEKT_UI_URL','http://127.0.0.1:1452'))
  bereich(page,'Einstellungen')
  button=page.get_by_role('button',name='Updates prüfen',exact=True)
- button.click();expect(page.get_by_text('BauPlanIO ist auf dem neuesten Stand.',exact=True)).to_be_visible()
+ button.click();expect(page.get_by_text('BauPlanDESK ist auf dem neuesten Stand.',exact=True)).to_be_visible()
  page.evaluate('window.updateConfigured=false');button.click();expect(page.get_by_role('status')).to_contain_text('noch nicht eingerichtet')
  page.evaluate('window.updateConfigured=true;window.updateFail=true');button.click();expect(page.get_by_role('status')).to_contain_text('nicht erreichbar')
  page.evaluate('window.updateFail=false;window.updateAvailable={version:"0.1.1",notizen:"Neue Funktionen"}')
